@@ -231,10 +231,10 @@ pluck ((scopeEId, scopeBranchI), path) program =
 
 pluck_ : Exp -> List Int -> Exp -> Maybe (PatBoundExpIsRec, Exp)
 pluck_ scopeExp path program =
-  let (maybePluckedAndNewPatAndBoundExp, (ws1, letKind, isRec, _, ws2, _, ws3, e2, ws4)) =
+  let (maybePluckedAndNewPatAndBoundExp, (ws1, letKind, wsP, pat, fs, ws2, e1, ws3, e2)) =
     case scopeExp.val.e__ of
-      ELet _ _ _ p _ boundExp _ _ _ -> (pluck__ p boundExp path, expToLetParts scopeExp)
-      _                             -> Debug.crash <| "pluck_: bad Exp__ (note: case branches, and func args not supported) " ++ unparseWithIds scopeExp
+       ELet _ _ (Declarations _ ([], _) [] ([LetExp _ _ pat _ _ boundExp], _)) _ _ -> (pluck__ p boundExp path, expToLetParts scopeExp)
+       _                                                                           -> Debug.crash <| "pluck_: bad Exp__ (note: case branches, and func args not supported) " ++ unparseWithIds scopeExp
   in
   case maybePluckedAndNewPatAndBoundExp of
     Nothing ->
@@ -243,7 +243,7 @@ pluck_ scopeExp path program =
     Just ((pluckedPat, pluckedBoundExp), newPat, newBoundExp) ->
       Just <|
         ( (pluckedPat, pluckedBoundExp, isRec)
-        , replaceExpNodeE__ scopeExp (ELet ws1 letKind isRec newPat ws2 newBoundExp ws3 e2 ws4) program
+        , replaceExpNodeE__ scopeExp (ELet ws1 letKind (Declarations [0] ([], []) [] ([LetExp Nothing wsP newPat fs ws2 newBoundExp], [1])) ws3 e2) program
         )
 
 

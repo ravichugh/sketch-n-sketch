@@ -1,13 +1,11 @@
 module StaticAnalysis exposing (..)
 
-import FastParser
 import Lang exposing (..)
 import LangTools exposing (..)
 import Utils
 
 import Dict exposing (Dict)
 import Set exposing (Set)
-import LangUtils exposing (..)
 
 type alias DependencyEnv = List (Ident, EId)
 
@@ -21,8 +19,8 @@ eidDependencies : Dict EId (Set EId) -> EId -> Set EId
 eidDependencies dependencies eid =
   let dependenciesBFS visited toVisit =
     case toVisit of
-      []             -> visited
-      eid::remaining ->
+       []             -> visited
+       eid::remaining ->
         if Set.member eid visited then
           dependenciesBFS visited remaining
         else
@@ -59,17 +57,17 @@ grossDependencies_ identToDepEId program =
   let handleELet letExp identToDepEId =
     let (pat, boundExp) = expToLetPatAndBoundExp letExp in
     let newBindings =
-      case tryMatchExp pat boundExp of
-        Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, exp.val.eid))
-        _                -> identifiersListInPat pat |> List.map (\ident -> (ident, boundExp.val.eid)) -- Conservative dependency on entire bound expression.
+       case tryMatchExp pat boundExp of
+         Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, exp.val.eid))
+         _                -> identifiersListInPat pat |> List.map (\ident -> (ident, boundExp.val.eid)) -- Conservative dependency on entire bound expression.
     in
     newBindings ++ identToDepEId
   in
   let handleEFun funcExp identToDepEId =
     let newBindings =
-      expToFuncPats funcExp
-      |> List.concatMap identifiersListInPat
-      |> List.map (\ident -> (ident, -1)) -- If shadowing, not dependent on whatever previously bound that identifier.
+       expToFuncPats funcExp
+       |> List.concatMap identifiersListInPat
+       |> List.map (\ident -> (ident, -1)) -- If shadowing, not dependent on whatever previously bound that identifier.
     in
     newBindings ++ identToDepEId
   in
@@ -77,40 +75,36 @@ grossDependencies_ identToDepEId program =
     let scrutinee = expToCaseScrutinee caseExp in
     let pat = branchPat branch in
     let newBindings =
-      case tryMatchExp pat scrutinee of
-        Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, exp.val.eid))
-        _                -> identifiersListInPat pat |> List.map (\ident -> (ident, scrutinee.val.eid)) -- Conservative dependency on entire scutinee.
+       case tryMatchExp pat scrutinee of
+         Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, exp.val.eid))
+         _                -> identifiersListInPat pat |> List.map (\ident -> (ident, scrutinee.val.eid)) -- Conservative dependency on entire scutinee.
     in
     newBindings ++ identToDepEId
   in
   let addThisExpDeps exp programDependencies identToDepEId =
     -- Expressions are not dependent on themselves because that is trivial.
     let newDepEIds =
-      case exp.val.e__ of
-        EConst _ n loc wd -> []
-        EBase _ bVal      -> []
-        EVar _ ident      ->
-          case Utils.maybeFind ident identToDepEId of
-            Just -1  -> []
-            Just eid -> [eid]
-            Nothing  -> []
+       case exp.val.e__ of
+         EConst _ n loc wd -> []
+         EBase _ bVal      -> []
+         EVar _ ident      ->
+           case Utils.maybeFind ident identToDepEId of
+             Just -1  -> []
+             Just eid -> [eid]
+             Nothing  -> []
 
-        EFun _ pats body _                      -> [(expEffectiveExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
-        EOp _ _ op argExps _                    -> childrenValueExpEIds exp
-        EList _ heads _ maybeRest _             -> childrenValueExpEIds exp
-        ERecord _ mb es _                       -> childrenValueExpEIds exp
-        ESelect _ _ _ _ _                       -> childrenValueExpEIds exp
-        EIf _ pred _ trueBranch _ falseBranch _ -> childrenValueExpEIds exp
-        ECase _ scrutinee branches _            -> childrenValueExpEIds exp
-        ETypeCase _ scrutinee tbranches _       -> childrenValueExpEIds exp
-        EApp _ funcExp argExps _ _              -> childrenValueExpEIds exp
-        ELet _ _ isRec pat _ boundExp _ body _  -> [(expEffectiveExp body).val.eid]
-        ETyp _ _ _ body _                       -> [(expEffectiveExp body).val.eid]
-        EColonType _ body _ _ _                 -> [(expEffectiveExp body).val.eid]
-        ETypeAlias _ _ _ body _                 -> [(expEffectiveExp body).val.eid]
-        ETypeDef _ _ _ _ _ body _               -> [(expEffectiveExp body).val.eid]
-        EParens _ body _ _                      -> [(expEffectiveExp body).val.eid]
-        EHole _ _                               -> []
+         EFun _ pats body _                      -> [(expEffectiveExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
+         EOp _ _ op argExps _                    -> childrenValueExpEIds exp
+         EList _ heads _ maybeRest _             -> childrenValueExpEIds exp
+         ERecord _ mb es _                       -> childrenValueExpEIds exp
+         ESelect _ _ _ _ _                       -> childrenValueExpEIds exp
+         EIf _ pred _ trueBranch _ falseBranch _ -> childrenValueExpEIds exp
+         ECase _ scrutinee branches _            -> childrenValueExpEIds exp
+         EApp _ funcExp argExps _ _              -> childrenValueExpEIds exp
+         ELet _ _ _ _ body                       -> [expEffectiveExp body |> .val |> .eid]
+         EColonType _ body _ _ _                 -> [expEffectiveExp body |> .val |> .eid]
+         EParens _ body _ _                      -> [expEffectiveExp body |> .val |> .eid]
+         EHole _ _                               -> []
     in
     newDepEIds
     |> List.foldl

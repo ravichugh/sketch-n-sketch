@@ -3,8 +3,6 @@ import Lang exposing (..)
 import UpdateUtils
 import Utils
 import LangUtils exposing (envToString, valEqual)
-import Set exposing (Set)
-import Dict exposing (Dict)
 
 -- Useful to merge environments faster.
 -- Maybe will containn things like "insert a variable with these dependences"

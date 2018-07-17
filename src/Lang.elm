@@ -97,9 +97,9 @@ ctorKind s =
 ctorTupleName: Int -> String
 ctorTupleName i = "Tuple" ++ toString i
 
-ctor : (String -> t) -> CtorKind -> String -> (WS, WS, Ident, WS, t)
+ctor : (String -> t) -> CtorKind -> String -> (Maybe WS, WS, Ident, WS, t)
 ctor tagger ctorKind name =
-  ( space0, space0, stringifyCtorKind ctorKind, space0
+  ( Nothing, space0, stringifyCtorKind ctorKind, space0
   , tagger name
   )
 
@@ -115,7 +115,7 @@ nameToArg s = case String.uncons s of
   Just ('_', number) -> String.toInt number
   _ -> Err <| "This cannot be an argument's name for data constructors and tuples: '" ++ s ++ "'. It should be _[number]."
 
-numericalEntry : Int -> (WS, t) -> (WS, WS, Ident, WS, t)
+numericalEntry : Int -> (Maybe WS, t) -> (Maybe WS, WS, Ident, WS, t)
 numericalEntry index (wsBeforeComma, binding) =
   (wsBeforeComma, space0, argName index, space0, binding)
 
@@ -160,7 +160,7 @@ type Pat__
   | PList WS (List Pat) WS (Maybe Pat) WS -- TODO store WS before commas, like EList
   | PAs WS Pat WS Pat
   | PParens WS Pat WS
-  | PRecord WS {- { -}  (List (WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}
+  | PRecord WS {- { -}  (List (Maybe WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}
   | PColonType WS Pat WS Type
 
 type Op_
@@ -300,7 +300,7 @@ type Type_
   | TNull WS
   | TList WS Type WS
   | TDict WS Type Type WS
-  | TRecord WS (Maybe (Ident, WS {- | -})) (List (WS, {- , -} WS, Ident, WS{-:-}, Type)) {- }-} WS
+  | TRecord WS (Maybe (Ident, WS {- | -})) (List (Maybe WS, {- , -} WS, Ident, WS{-:-}, Type)) {- }-} WS
   | TTuple WS (List Type) WS (Maybe Type) WS
   | TArrow WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead.
   | TUnion WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead
@@ -349,13 +349,13 @@ type alias Widgets = List Widget
 offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) =
   let (effectiveAmount, op) =
     case sign of
-      Positive -> (amount, Plus)
-      Negative -> (-amount, Minus)
+       Positive -> (amount, Plus)
+       Negative -> (-amount, Minus)
   in
   let ((endX, endXTr), (endY, endYTr)) =
     case axis of
-      X -> ((baseX + effectiveAmount, TrOp op [baseXTr, amountTr]), (baseY, baseYTr))
-      Y -> ((baseX, baseXTr), (baseY + effectiveAmount, TrOp op [baseYTr, amountTr]))
+       X -> ((baseX + effectiveAmount, TrOp op [baseXTr, amountTr]), (baseY, baseYTr))
+       Y -> ((baseX, baseXTr), (baseY + effectiveAmount, TrOp op [baseYTr, amountTr]))
   in
   (effectiveAmount, ((endX, endXTr), (endY, endYTr)))
 
@@ -1295,8 +1295,8 @@ findExpByLocId : Exp -> LocId -> Maybe Exp
 findExpByLocId program targetLocId =
   let isTarget exp =
     case exp.val.e__ of
-      EConst _ _ (locId, _, _) _ -> locId == targetLocId
-      _                          -> False
+       EConst _ _ (locId, _, _) _ -> locId == targetLocId
+       _                          -> False
   in
   findFirstNode isTarget program
 
@@ -1465,24 +1465,24 @@ applySubst : TwoSubsts -> Exp -> Exp
 applySubst subst exp =
   let replacer =
     (\e ->
-      let e__ConstReplaced =
-        let e__ = e.val.e__ in
-        case e__ of
-          EConst ws n loc wd ->
-            let locId = Utils.fst3 loc in
-            case Dict.get locId subst.lsubst of
-              Just n_ -> EConst ws n_ loc wd
-              Nothing -> e__
-              -- 10/28: substs from createMousePosCallbackSlider only bind
-              -- updated values (unlike substs from Sync)
-          _ -> e__
-      in
-      let e__New =
-        case Dict.get e.val.eid subst.esubst of
-          Just e__New -> e__New
-          Nothing     -> e__ConstReplaced
-      in
-      replaceE__ e e__New
+       let e__ConstReplaced =
+         let e__ = e.val.e__ in
+         case e__ of
+            EConst ws n loc wd ->
+              let locId = Utils.fst3 loc in
+              case Dict.get locId subst.lsubst of
+                Just n_ -> EConst ws n_ loc wd
+                Nothing -> e__
+                -- 10/28: substs from createMousePosCallbackSlider only bind
+                -- updated values (unlike substs from Sync)
+            _ -> e__
+       in
+       let e__New =
+         case Dict.get e.val.eid subst.esubst of
+            Just e__New -> e__New
+            Nothing     -> e__ConstReplaced
+       in
+       replaceE__ e e__New
     )
   in
   mapExp replacer exp
@@ -1492,9 +1492,9 @@ applyESubstPreservingPrecedingWhitespace : ESubst -> Exp -> Exp
 applyESubstPreservingPrecedingWhitespace esubst exp =
   let replacer =
     (\e ->
-      case Dict.get e.val.eid esubst of
-        Just e__New -> replaceE__PreservingPrecedingWhitespace e e__New
-        Nothing     -> e
+       case Dict.get e.val.eid esubst of
+         Just e__New -> replaceE__PreservingPrecedingWhitespace e e__New
+         Nothing     -> e
     )
   in
   mapExp replacer exp
@@ -1818,18 +1818,20 @@ eRecord kvs    = let range = List.range 0 (List.length kvs - 1) in
     (List.map (\(k, v) -> LetExp (Just space0) space1 (pVar k) FunArgAsPats space1 v) kvs, range |> List.map (always 1))) space1
 eSelect e name = withDummyExpInfo  <| ESelect space0 e space0 space0 name
 
-recordEntriesFromDeclarations: Declarations -> List (WS, WS, Ident, WS, Exp)
-recordEntriesFromDeclarations (Declarations _ (types, _) anns (exps, _)) =
-  exps |> List.concatMap (\(LetExp wsComma wsBefore p _ wsEq e) ->
+recordEntriesFromDeclarations: Declarations -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
+recordEntriesFromDeclarations (Declarations _ _ _ (exps, _)) =
+  exps |> List.map (\(LetExp wsComma wsBefore p _ wsEq e) ->
     case p.val.p__ of
       PVar ws ident _ ->
-        let (oldWsComma, oldWsKey) = case wsComma of
-          Nothing -> (withDummyRange (wsBefore.val ++ ws.val), withDummyRange "")
-          Just wsc -> (wsc, withDummyRange (wsBefore.val ++ ws.val))
-       in
-        [(oldWsComma, oldWsKey, ident, wsEq, e)]
-      _ -> []
-  )
+       Just (wsComma, wsBefore, ident, wsEq, e)
+      _ -> Nothing
+  ) |> Utils.projJusts
+
+-- Given a declarations, what are the public record keys it builds.
+recordKeys: Declarations -> List Ident
+recordKeys (Declarations _ _ _ (exps, _)) =
+  exps |> List.concatMap (\(LetExp _ _ p _ _ _) ->
+    identifiersListInPat p)
 
 tApp a b c d = withDummyRange <| TApp a b c d
 
@@ -1894,13 +1896,7 @@ eLet__ wsStart letOrDef isRec name spEq binding spIn rest wsEnd =
 eRecord__ wsBefore mbInit keyValues wsBeforeEnd =
   let rangeValues = List.range 0 (List.length keyValues - 1) in
   ERecord wsBefore mbInit (Declarations rangeValues ([], []) [] (
-    keyValues |> List.map (\(spComma, spKey,key,spEq,value) ->
-      let (mbComma, spBefore) =
-        if String.contains "\n" spComma.val && spKey.val == "" then
-           (Nothing, withDummyRange (spComma.val ++ spKey.val))
-        else
-           (Just spComma, spKey)
-      in
+    keyValues |> List.map (\(mbComma, spBefore,key,spEq,value) ->
       LetExp mbComma spBefore (pVar key) FunArgAsPats spEq value
     )
     , rangeValues |> List.map (always 1))) wsBeforeEnd
@@ -2018,17 +2014,17 @@ vRecordTupleUnapply v = case v.v_ of
       Nothing -> Nothing
       Just v->
         let orderedKeyValues = keyValues
-            |> List.filter
-                 ( \(key, value) ->
-                     String.startsWith "_" key
-                 )
-            |> List.sortBy
-                 ( \(key, value)  ->
-                     key
-                       |> String.dropLeft 1
-                       |> String.toInt
-                       |> Result.withDefault -1
-                 )
+             |> List.filter
+                  ( \(key, value) ->
+                      String.startsWith "_" key
+                  )
+             |> List.sortBy
+                  ( \(key, value)  ->
+                      key
+                        |> String.dropLeft 1
+                        |> String.toInt
+                        |> Result.withDefault -1
+                  )
         in Just ((ctorTuple, v), orderedKeyValues)
     )
   _ -> Nothing
@@ -2543,9 +2539,9 @@ imitateExpListWhitespace_ : List Exp -> String -> List Exp -> List Exp
 imitateExpListWhitespace_ oldExps nextWs newExps =
   let (firstWs, sepWs) =
     case oldExps of
-      first::second::_ -> (precedingWhitespace first, precedingWhitespace second)
-      first::[]        -> (precedingWhitespace first, if precedingWhitespace first == "" then " " else precedingWhitespace first)
-      []               -> if String.contains "\n" nextWs then (indentWs "  " nextWs, indentWs "  " nextWs) else ("", " ")
+       first::second::_ -> (precedingWhitespace first, precedingWhitespace second)
+       first::[]        -> (precedingWhitespace first, if precedingWhitespace first == "" then " " else precedingWhitespace first)
+       []               -> if String.contains "\n" nextWs then (indentWs "  " nextWs, indentWs "  " nextWs) else ("", " ")
   in
   case newExps of
     [] ->
@@ -2572,9 +2568,9 @@ imitatePatListWhitespace : List Pat -> List Pat -> List Pat
 imitatePatListWhitespace oldPats newPats =
   let (firstWs, sepWs) =
     case oldPats of
-      first::second::_ -> (precedingWhitespacePat first, precedingWhitespacePat second)
-      first::[]        -> (precedingWhitespacePat first, if precedingWhitespacePat first == "" then " " else precedingWhitespacePat first)
-      []               -> ("", " ")
+       first::second::_ -> (precedingWhitespacePat first, precedingWhitespacePat second)
+       first::[]        -> (precedingWhitespacePat first, if precedingWhitespacePat first == "" then " " else precedingWhitespacePat first)
+       []               -> ("", " ")
   in
   case newPats of
     [] ->
@@ -2773,14 +2769,14 @@ modifyWsBefore f codeObject =
         eVal =
           e.val
         newE__ =
-          (mapPrecedingWhitespaceWS f e).val.e__
+           (mapPrecedingWhitespaceWS f e) |> .val |> .e__
       in
         E { e | val = { eVal | e__ = newE__ } }
     P e p ->
       let
         pVal =
           p.val
-        newP__ = (mapPrecedingWhitespacePatWS f p).val.p__
+        newP__ = (mapPrecedingWhitespacePatWS f p) |> .val |> .p__
       in
         P e { p | val = { pVal | p__ = newP__ } }
     T t ->
@@ -3363,6 +3359,7 @@ identifiersListInPat pat =
     PBase _ _                   -> []
     PWildcard _                 -> []
     PParens _ p _               -> identifiersListInPat p
+    PColonType _ p _ _          -> identifiersListInPat p
 
 
 identifiersListInPats : List Pat -> List Ident
@@ -3479,7 +3476,7 @@ unconsGroup (exps, go) = case go of
     Just (g, (r, tail))
 
 consGroup: List a -> WithGroupingInfo (List a) -> WithGroupingInfo (List a)
-consGroup group (exps, go) = (group::exp, List.length group :: go)
+consGroup group (exps, go) = (group ++ exps, List.length group :: go)
 
 foldLeftGroup: b -> WithGroupingInfo (List a) -> (b -> List a -> b) -> b
 foldLeftGroup acc (elems_, groupingInfo_) callback =

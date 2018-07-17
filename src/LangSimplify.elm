@@ -50,7 +50,7 @@ removeExtraPostfixes postfixes program =
     |> mapExpViaExp__
         (\e__ ->
           case e__ of
-            ELet ws1 letKind False pat ws2 assign ws3 body ws4 ->
+            ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn body ->
               let (newPat, newBody) =
                 identifiersListInPat pat
                 |> List.foldl
@@ -67,7 +67,7 @@ removeExtraPostfixes postfixes program =
                     (pat, body)
               in
               if pat /= newPat then
-                ELet ws1 letKind False newPat ws2 assign ws3 newBody ws4
+                ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat newPat fs wse assign], [1])) wsIn newBody
               else
                 e__
 
@@ -154,7 +154,7 @@ removeUnusedLetPatsMatching : (Pat -> Bool) -> Exp -> Exp
 removeUnusedLetPatsMatching predicate exp =
   let remover e__ =
     case e__ of
-      ELet ws1 letKind False pat ws2 assign ws3 body ws4 ->
+       ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn body ->
         let usedNames = freeIdentifiers body in
         let letRemoved =
           body.val.e__
@@ -168,11 +168,21 @@ removeUnusedLetPatsMatching predicate exp =
               letRemoved
 
           -- Check if as-pattern is used
-          (PAs asWs wsi ident _ innerPat, _) ->
-            if Set.member ident usedNames || not (predicate pat) then
-              e__
-            else
-              ELet ws1 letKind False (replacePrecedingWhitespacePat asWs.val innerPat) ws3 assign ws4 body ws4
+          (PAs wsBefore innerPat1 wsAs innerPat2, _) ->
+            let innerPat1useless = not <| case innerPat1.val.p__ of
+               PVar _ ident _ -> Set.member ident usedNames || not (predicate pat)
+               _ -> True
+            in
+            let innerPat2useless = not <| case innerPat2.val.p__ of
+               PVar _ ident _ -> Set.member ident usedNames || not (predicate pat)
+               _ -> True
+            in
+            if innerPat1useless && innerPat2useless then letRemoved
+            else if innerPat1useless then
+              ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat (replacePrecedingWhitespacePat wsBefore.val innerPat2) fs wse assign], [1])) wsIn body
+            else if innerPat2useless then
+              ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat (replacePrecedingWhitespacePat wsBefore.val innerPat1) fs wse assign], [1])) wsIn body
+            else e__
 
           -- List assignment, no tail.
           (PList pws1 pats pws2 Nothing pws3, EList aws1 assigns aws2 Nothing aws3) ->
@@ -197,7 +207,7 @@ removeUnusedLetPatsMatching predicate exp =
                   let (thePat, theAssign) = Utils.head_ usedPatsAssigns in
                   let newPat    = replacePrecedingWhitespacePat pws1.val thePat in
                   let newAssign = replacePrecedingWhitespace aws1.val theAssign in
-                  ELet ws1 letKind False newPat ws2 newAssign ws3 body ws4
+                  ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat newPat fs wse newAssign], [1])) wsIn body
 
                 _ ->
                   if List.length usedPatsAssigns == List.length pats then
@@ -206,12 +216,12 @@ removeUnusedLetPatsMatching predicate exp =
                     let (usedPats, usedAssigns) = List.unzip usedPatsAssigns in
                     let newPat    = replaceP__ pat    <| PList pws1 (usedPats    |> imitatePatListWhitespace pats)    pws2 Nothing pws3 in
                     let newAssign = replaceE__ assign <| EList aws1 (Utils.listValuesMake assigns (usedAssigns |> imitateExpListWhitespace (Utils.listValues assigns))) aws2 Nothing aws3 in
-                    ELet ws1 letKind False newPat ws2 newAssign ws3 body ws4
+                    ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat newPat fs wse newAssign], [1])) wsIn body
 
           _ ->
             e__
 
-      _ ->
+       _ ->
         e__
   in
   mapExpViaExp__ remover exp
@@ -225,10 +235,13 @@ simplifyPatBoundExp pat boundExp =
     (PVar ws1 "*RemoveMe*" wd, _) ->
       Nothing
 
-    (PAs ws1 wsi ident ws2 childPat, _) ->
-      case simplifyPatBoundExp childPat boundExp of
-        Just (newChildPat, newBoundExp) -> Just (replaceP__ pat (PAs ws1 wsi ident ws2 newChildPat), newBoundExp)
-        Nothing                         -> Nothing
+    (PAs ws1 childPat1 ws2 childPat2, _) ->
+      case simplifyPatBoundExp childPat2 boundExp of
+        Just (newChildPat, newBoundExp) -> Just (replaceP__ pat (PAs ws1 childPat1 ws2 newChildPat), newBoundExp)
+        Nothing                         ->
+          case simplifyPatBoundExp childPat1 boundExp of
+            Just (newChildPat, newBoundExp) -> Just (replaceP__ pat (PAs ws1 newChildPat ws2 childPat2), newBoundExp)
+            Nothing                         -> Nothing
 
     ( PList pws1 ps pws2 maybePTail pws3
     , EList ews1 es ews2 maybeETail ews3
@@ -271,10 +284,11 @@ simplifyAssignments program =
   |> mapExp
       (\exp ->
         case exp.val.e__ of
-          ELet ws1 letKind False pat ws2 boundExp ws3 body ws4 ->
+          ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse boundExp], [1])) wsIn body ->
             case simplifyPatBoundExp pat boundExp of
               Just (newPat, newBoundExp) ->
-                replaceE__ exp (ELet ws1 letKind False (ensureWhitespacePat newPat) ws2 (ensureWhitespaceExp newBoundExp) ws3 body ws4)
+                replaceE__ exp <|
+                ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat (ensureWhitespacePat newPat) fs wse (ensureWhitespaceExp newBoundExp)], [1])) wsIn body
 
               Nothing ->
                 body
@@ -311,19 +325,18 @@ simpleIdentsAndAssigns letPat letAssign =
     _ ->
       []
 
-
 -- Inline single-use variables that are merely assigned to another variable.
 inlineTrivialRenamings : Exp -> Exp
 inlineTrivialRenamings exp =
   let inlineReplaceIfTrivialRename targetIdent newExp e__ =
     case e__ of
-      ELet ws1 letKind False pat ws2 assign ws3 body ws4 ->
+       ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn body ->
         case (pat.val.p__, assign.val.e__) of
           -- Simple assignment.
           (PVar _ _ _, EVar oldWs assignIdent) ->
             if assignIdent == targetIdent then
               let newExpAdjustedWs = replacePrecedingWhitespace oldWs.val newExp in
-              ELet ws1 letKind False pat ws2 newExpAdjustedWs ws3 body ws4
+              ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse newExpAdjustedWs], [1])) wsIn body
             else
               e__
 
@@ -348,17 +361,17 @@ inlineTrivialRenamings exp =
             let newAssignsListExp =
               withDummyExpInfo <| EList aws1 (Utils.listValuesMake assigns newAssigns) aws2 Nothing aws3
             in
-            ELet ws1 letKind False pat ws2 newAssignsListExp ws3 body ws4
+            ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse newAssignsListExp], [1])) wsIn body
 
           _ ->
             e__
 
-      _ ->
+       _ ->
         e__
   in
   let inliner e__ =
     case e__ of
-      ELet ws1 letKind False pat ws2 assign ws3 body ws4 ->
+       ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn body ->
         let nameCounts = identifierCounts body in
         let letRemoved newBody =
           let oldPrecedingWs = precedingWhitespaceExp__ e__ in
@@ -379,9 +392,9 @@ inlineTrivialRenamings exp =
               body
               identsAndAssignsInliningCandidates
         in
-        ELet ws1 letKind False pat ws2 assign ws3 newBody ws4
+        ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn newBody
 
-      _ ->
+       _ ->
         e__
   in
   mapExpViaExp__ inliner exp
@@ -409,100 +422,84 @@ changeRenamedVarsToOuter : Exp -> Exp
 changeRenamedVarsToOuter exp =
   changeRenamedVarsToOuter_ Dict.empty exp
 
-
+changeRenamedVarsToOuter_ : Dict.Dict Ident Ident -> Exp -> Exp
 changeRenamedVarsToOuter_ renamings exp =
+  let _ = Debug.log "TODO: LangSimplify.changeRenamedVarsToOuter. The current implementation might incorrectly rename variables shadowed by complex patterns" ()
+  in exp {-
   let recurse = changeRenamedVarsToOuter_ renamings in
-  let e__New =
-    let e__ = exp.val.e__ in
-    let removeIdentsFromRenaming identsToRemove renamings =
-      Dict.filter
-          (\oldName newName ->
-            (not <| Set.member oldName identsToRemove) &&
-            (not <| Set.member newName identsToRemove)
-          )
-          renamings
-    in
-    case e__ of
-      EConst ws n loc wd -> e__
-      EBase ws baseV     -> e__
-
-      EVar ws ident ->
-        case Dict.get ident renamings of
-          Just newName -> EVar ws newName
-          Nothing      -> e__
-
-      ELet ws1 letKind rec pat ws2 assign ws3 body ws4 ->
-        -- Newly assigned variables that shadow an outer variable should be
-        -- removed from the renaming dictionary because that name means
-        -- something else now, now what's in the dictionary.
-        let newlyAssignedIdents = identifiersSetInPat pat in
-        let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
-        let assign_ =
-           if rec then
-             changeRenamedVarsToOuter_ renamingsShadowsRemoved assign
-           else
-             recurse assign
-        in
-        let identsAndAssigns = simpleIdentsAndAssigns pat assign_ in
-        let simpleRenamings =
-          List.filterMap
-              (\(ident, assign) ->
-                case assign.val.e__ of
-                  EVar _ assignIdent -> Just (ident, assignIdent)
-                  _                  -> Nothing
-              )
-              identsAndAssigns
-        in
-        let renamings_ = Dict.union (Dict.fromList simpleRenamings) renamingsShadowsRemoved in
-        let body_ = changeRenamedVarsToOuter_ renamings_ body in
-        ELet ws1 letKind rec pat ws2 assign_ ws3 body_ ws4
-
-      EFun ws1 pats body ws2  ->
-        let newlyAssignedIdents =
-          List.map identifiersSetInPat pats
-          |> List.foldl Set.union Set.empty
-        in
-        let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
-        EFun ws1 pats (changeRenamedVarsToOuter_ renamingsShadowsRemoved body) ws2
-
-      EApp ws1 e1 es appType ws2 -> EApp ws1 (recurse e1) (List.map recurse es) appType ws2
-      EOp ws1 wso op es ws2      -> EOp ws1 wso op (List.map recurse es) ws2
-      EList ws1 es ws2 m ws3     -> EList ws1 (Utils.listValuesMap recurse es) ws2 (Utils.mapMaybe recurse m) ws3
-      ERecord ws1 m es ws2       -> ERecord ws1 (Maybe.map (Tuple.mapFirst recurse) m) (Utils.recordValuesMap recurse es) ws2
-      ESelect ws0 e ws1 ws2 i    -> ESelect ws0 (recurse e) ws1 ws2 i
-      EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4
-      ECase ws1 e1 branches ws2  ->
-        -- TODO remove branch pat vars from renamings here (shadow
-        -- checking)
-        let newBranches =
-          List.map
-              (mapValField (\(Branch_ bws1 branchPat branchBody bws2) ->
-                let newlyAssignedIdents = identifiersSetInPat branchPat in
-                let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
-                Branch_ bws1 branchPat (changeRenamedVarsToOuter_ renamingsShadowsRemoved branchBody) bws2
-              ))
-              branches
-        in
-        ECase ws1 (recurse e1) newBranches ws2
-      ETypeCase ws1 exp tbranches ws2 ->
-        -- TODO remove branch pat vars from renamings here (shadow
-        -- checking)
-        let newBranches =
-          List.map
-              (mapValField (\(TBranch_ bws1 branchType branchBody bws2) ->
-                -- let newlyAssignedIdents = identifiersSetInPat branchPat in
-                -- let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
-                TBranch_ bws1 branchType (recurse branchBody) bws2
-              ))
-              tbranches
-        in
-        ETypeCase ws1 exp newBranches ws2
-      ETyp ws1 pat tipe e ws2               -> ETyp ws1 pat tipe (recurse e) ws2
-      EColonType ws1 e ws2 tipe ws3         -> EColonType ws1 (recurse e) ws2 tipe ws3
-      ETypeAlias ws1 pat tipe e ws2         -> ETypeAlias ws1 pat tipe (recurse e) ws2
-      ETypeDef ws1 ident vars ws2 dcs e ws3 -> ETypeDef ws1 ident vars ws2 dcs (recurse e) ws3
-      EParens ws1 e pStyle ws2              -> EParens ws1 (recurse e) pStyle ws2
-      EHole ws mv                           -> e__
+  let e__ = exp.val.e__ in
+  let removeIdentsFromRenaming identsToRemove renamings =
+     Dict.filter
+        (\oldName newName ->
+          (not <| Set.member oldName identsToRemove) &&
+          (not <| Set.member newName identsToRemove)
+        )
+        renamings
   in
-  replaceE__ exp e__New
+  replaceE__ exp <|
+  case e__ of
+    EConst ws n loc wd -> e__
+    EBase ws baseV     -> e__
 
+    EVar ws ident ->
+      case Dict.get ident renamings of
+        Just newName -> EVar ws newName
+        Nothing      -> e__
+
+    ELet ws1 letKind rec pat ws2 assign ws3 body ws4 ->
+      -- Newly assigned variables that shadow an outer variable should be
+      -- removed from the renaming dictionary because that name means
+      -- something else now, now what's in the dictionary.
+      let newlyAssignedIdents = identifiersSetInPat pat in
+      let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
+      let assign_ =
+         if rec then
+           changeRenamedVarsToOuter_ renamingsShadowsRemoved assign
+         else
+           recurse assign
+      in
+      let identsAndAssigns = simpleIdentsAndAssigns pat assign_ in
+      let simpleRenamings =
+        List.filterMap
+            (\(ident, assign) ->
+              case assign.val.e__ of
+                EVar _ assignIdent -> Just (ident, assignIdent)
+                _                  -> Nothing
+            )
+            identsAndAssigns
+      in
+      let renamings_ = Dict.union (Dict.fromList simpleRenamings) renamingsShadowsRemoved in
+      let body_ = changeRenamedVarsToOuter_ renamings_ body in
+      ELet ws1 letKind rec pat ws2 assign_ ws3 body_ ws4
+
+    EFun ws1 pats body ws2  ->
+      let newlyAssignedIdents =
+        List.map identifiersSetInPat pats
+        |> List.foldl Set.union Set.empty
+      in
+      let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
+      EFun ws1 pats (changeRenamedVarsToOuter_ renamingsShadowsRemoved body) ws2
+
+    EApp ws1 e1 es appType ws2 -> EApp ws1 (recurse e1) (List.map recurse es) appType ws2
+    EOp ws1 wso op es ws2      -> EOp ws1 wso op (List.map recurse es) ws2
+    EList ws1 es ws2 m ws3     -> EList ws1 (Utils.listValuesMap recurse es) ws2 (Utils.mapMaybe recurse m) ws3
+    ERecord ws1 m es ws2       -> ERecord ws1 (Maybe.map (Tuple.mapFirst recurse) m) (Utils.recordValuesMap recurse es) ws2
+    ESelect ws0 e ws1 ws2 i    -> ESelect ws0 (recurse e) ws1 ws2 i
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4
+    ECase ws1 e1 branches ws2  ->
+      -- TODO remove branch pat vars from renamings here (shadow
+      -- checking)
+      let newBranches =
+        List.map
+            (mapValField (\(Branch_ bws1 branchPat branchBody bws2) ->
+              let newlyAssignedIdents = identifiersSetInPat branchPat in
+              let renamingsShadowsRemoved = removeIdentsFromRenaming newlyAssignedIdents renamings in
+              Branch_ bws1 branchPat (changeRenamedVarsToOuter_ renamingsShadowsRemoved branchBody) bws2
+            ))
+            branches
+      in
+      ECase ws1 (recurse e1) newBranches ws2
+    EColonType ws1 e ws2 tipe ws3         -> EColonType ws1 (recurse e) ws2 tipe ws3
+    EParens ws1 e pStyle ws2              -> EParens ws1 (recurse e) pStyle ws2
+    EHole ws mv                           -> e__
+    -}

@@ -79,7 +79,7 @@ genericNonEmptyList { item, combiner }=
              |= item
            )
     in
-      transferInfo
+    transferInfo
         ( \(members, wsBeforeEnd) spaceBefore ->
             combiner spaceBefore members wsBeforeEnd
         )
@@ -139,7 +139,7 @@ genericList { item, tailItem, combiner, combinerTail } =
       [ try <|
           genericEmptyList
             { combiner =
-                \wsBefore wsAfter -> combiner wsBefore [] wsAfter,
+                \wsBefore wsAfter -> combiner wsBefore [] wsAfter
             }
       , try <|
           genericNonEmptyList
@@ -177,20 +177,20 @@ genericEmptyRecord { combiner} =
 
 genericNonEmptyRecord
   :  { keyValue : Parser (String, WS, elemValue)
-     , combiner : WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
+     , combiner : WS -> List (Maybe WS, WS, String, WS, elemValue) -> WS -> record
      }
   -> ParserI (WS -> record)
 genericNonEmptyRecord { keyValue, combiner }=
   lazy <| \_ ->
     let
-      keyValueSeqHelper : Set String -> List (WS, WS, String, WS, elemValue)-> Parser (List (WS, WS, String, WS, elemValue))
+      keyValueSeqHelper : Set String -> List (Maybe WS, WS, String, WS, elemValue)-> Parser (List (Maybe WS, WS, String, WS, elemValue))
       keyValueSeqHelper keys revKeyValues =
         oneOf [
-          delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
+          delayedCommitMap (\ws (opt, a, (b, c, d)) -> (opt |> Maybe.map (\_ -> ws), if opt == Nothing then ws else a, b, c, d))
             spaces
-            (succeed (,)
+            (succeed (,,)
               |. negativeLookAhead (symbol "}")
-              |. optional (symbol ",")
+              |= optional (symbol ",")
               |= spaces
               |= keyValue
             )
@@ -212,7 +212,7 @@ genericNonEmptyRecord { keyValue, combiner }=
                   |= spaces
                   |= keyValue)
                   |> andThen (\((wsBefore, (k, w, v)) as kv) ->
-                    keyValueSeqHelper (Set.singleton k) [(space0, wsBefore, k, w, v)]
+                    keyValueSeqHelper (Set.singleton k) [(Nothing, wsBefore, k, w, v)]
                     )
                  )
               |= spaces
@@ -222,20 +222,20 @@ genericNonEmptyRecord { keyValue, combiner }=
 genericNonEmptyRecordWithInit
   :  { keyValue : Parser (String, WS, elemValue)
      , initItem: Parser elemInit
-     , combinerInit : WS-> elemInit -> WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
+     , combinerInit : WS-> elemInit -> WS -> List (Maybe WS, WS, String, WS, elemValue) -> WS -> record
      }
   -> ParserI (WS -> record)
 genericNonEmptyRecordWithInit { keyValue, initItem, combinerInit }=
   lazy <| \_ ->
     let
-      keyValueSeqHelper : Set String -> List (WS, WS, String, WS, elemValue)-> Parser (List (WS, WS, String, WS, elemValue))
+      keyValueSeqHelper : Set String -> List (Maybe WS, WS, String, WS, elemValue)-> Parser (List (Maybe WS, WS, String, WS, elemValue))
       keyValueSeqHelper keys revKeyValues =
         oneOf [
-          delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
+          delayedCommitMap (\ws (opt, a, (b, c, d)) -> (opt |> Maybe.map (\_ -> ws), if opt == Nothing then ws else a, b, c, d))
             spaces
-            (succeed (,)
+            (succeed (,,)
               |. negativeLookAhead (symbol "}")
-              |. optional (symbol ",")
+              |= optional (symbol ",")
               |= spaces
               |= keyValue
             )
@@ -260,7 +260,7 @@ genericNonEmptyRecordWithInit { keyValue, initItem, combinerInit }=
                   |= spaces
                   |= keyValue)
                   |> andThen (\((wsBefore, (k, w, v)) as kv) ->
-                    keyValueSeqHelper (Set.singleton k) [(space0, wsBefore, k, w, v)]
+                    keyValueSeqHelper (Set.singleton k) [(Nothing, wsBefore, k, w, v)]
                     )
                  )
               |= spaces
@@ -277,10 +277,10 @@ genericRecord
           arguments : Parser (List arguments),
           buildValue : List arguments -> elemValue -> elemValue
        }
-     , combiner : WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
+     , combiner : WS -> List (Maybe WS, WS, String, WS, elemValue) -> WS -> record
      , optionalInitParser: Maybe
        { initItem : Parser elemInit
-       , combinerInit : WS -> elemInit -> WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
+       , combinerInit : WS -> elemInit -> WS -> List (Maybe WS, WS, String, WS, elemValue) -> WS -> record
        }
      }
   -> ParserI (WS -> record)
@@ -316,7 +316,7 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, optiona
       ([ try <|
           genericEmptyRecord
             { combiner =
-                \wsBefore wsAfter -> combiner wsBefore [] wsAfter,
+                \wsBefore wsAfter -> combiner wsBefore [] wsAfter
             }
       ] ++ (
         case optionalInitParser of
@@ -346,13 +346,13 @@ genericTuple
   :  { term : SpacePolicy -> Parser t
      , tagger : String -> t
      , one : WS -> t -> WS -> r
-     , record : WS -> List (WS, WS, Ident, WS, t) -> WS -> r
+     , record : WS -> List (Maybe WS, WS, Ident, WS, t) -> WS -> r
      , implicitFun: Maybe (Ident -> (pvar, t), WS -> List pvar -> r -> r)
      }
   -> ParserI (WS -> r)
 genericTuple { term, tagger, one, record, implicitFun } =
   let
-    combiner:(t, List (WS, t), WS)       -> WS -> r
+    combiner:(t, List (Maybe WS, t), WS)       -> WS -> r
     combiner (fst, rest, wsBeforeEnd) wsBefore =
       if List.isEmpty rest then
         one wsBefore fst wsBeforeEnd
@@ -365,7 +365,7 @@ genericTuple { term, tagger, one, record, implicitFun } =
           Lang.ctor tagger Lang.TupleCtor name
 
         firstEntry =
-          Lang.numericalEntry 1 (space0, fst)
+          Lang.numericalEntry 1 (Nothing, fst)
 
         restEntries =
           Utils.indexedMapFrom 2 Lang.numericalEntry rest
@@ -388,7 +388,7 @@ genericTuple { term, tagger, one, record, implicitFun } =
            implicitVarName ++ toString i
         ) |> List.map identToPvarVar |> List.unzip
       in
-      funBuilder wsBefore (firstPvar::restPvar) (combiner (firstVar, (List.map ((,) space0) restVar), space0) space0)
+      funBuilder wsBefore (firstPvar::restPvar) (combiner (firstVar, (List.map ((,) (Just space0)) restVar), space0) space0)
 
   in
     lazy <| \_ ->
@@ -403,7 +403,7 @@ genericTuple { term, tagger, one, record, implicitFun } =
 
                   |= term allSpacesPolicy
                   |= repeat zeroOrMore
-                       ( delayedCommitMap (\ws term -> (ws, term))
+                       ( delayedCommitMap (\ws term -> (Just ws, term)) -- In the future, we could write tuples (1\n 2)
                           spaces
                           (succeed identity
                            |. symbol ","
@@ -1105,11 +1105,11 @@ dataConstructorPattern =
 
             insideArgsEntries =
               args
-                |> List.map (\p -> (space0, p))
+                |> List.map (\p -> (Just space0, p))
                 |> Utils.indexedMapFrom 1 Lang.numericalEntry
 
             argsEntry =
-              ( space0
+              ( Just space0
               , space0
               , Lang.ctorArgs
               , space0
@@ -1305,7 +1305,7 @@ tupleType =
         let t:  { term : SpacePolicy -> Parser Type
                             , tagger : String -> Type
                             , one : WS -> Type -> WS -> Type_
-                            , record : WS -> List (WS, WS, Ident, WS, Type) -> WS -> Type_
+                            , record : WS -> List (Maybe WS, WS, Ident, WS, Type) -> WS -> Type_
                             , implicitFun: Maybe (Ident -> (TPat, Type), WS -> List TPat -> Type_ -> Type_)
                             }
                          -> ParserI (WS -> Type_)
@@ -2284,7 +2284,7 @@ simpleUntypedExpressionWithPossibleArguments appargSpace =
                     -- This must be a data constructor with no args because of
                     -- precedence/associativity rules
                     argsEntry =
-                      ( space0
+                      ( Just space0
                       , space0
                       , Lang.ctorArgs
                       , space0
@@ -2322,11 +2322,11 @@ simpleUntypedExpressionWithPossibleArguments appargSpace =
 
                   insideArgsEntries =
                     constructedRest
-                      |> List.map (\e -> (space0, e))
+                      |> List.map (\e -> (Just space0, e))
                       |> Utils.indexedMapFrom 1 Lang.numericalEntry
 
                   argsEntry =
-                    ( space0
+                    ( Just space0
                     , space0
                     , Lang.ctorArgs
                     , space0
@@ -2900,8 +2900,8 @@ recordIdentifiers (p,e) =
       Just pes -> let es_ = List.map recordIdentifiers pes in
                   let me_ =
                     case (mp, me) of
-                      (Just p1, Just e1) -> Just (recordIdentifiers (p1,e1))
-                      _                  -> me in
+                       (Just p1, Just e1) -> Just (recordIdentifiers (p1,e1))
+                       _                  -> me in
                   ret <| EList ws1 (Utils.listValuesMake es es_) ws2 me_ ws3
 
   (PAs _ p1 _ p2, _) ->
@@ -2918,7 +2918,7 @@ substPlusOf_ : SubstPlus -> Exp -> SubstPlus
 substPlusOf_ substPlus exp =
   let accumulator e s =
     case e.val.e__ of
-      EConst _ n (locId,_,_) _ ->
+       EConst _ n (locId,_,_) _ ->
         case Dict.get locId s of
           Nothing ->
             Dict.insert locId { e | val = n } s
@@ -2927,6 +2927,6 @@ substPlusOf_ substPlus exp =
               s
             else
               Debug.crash <| "substPlusOf_ Duplicate locId " ++ toString locId ++ " with differing value " ++ toString n ++ "\n" ++ "BLAH" -- LangUnparser.unparseWithIds exp
-      _ -> s
+       _ -> s
   in
   foldExp accumulator substPlus exp

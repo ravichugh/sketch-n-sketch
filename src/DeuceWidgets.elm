@@ -87,9 +87,12 @@ toDeuceWidget patMap codeObject =
         Dict.get p.val.pid patMap
     T _ ->
       Nothing
-    LBE eid ->
+    LBE eid bNum ->
       Just <|
         DeuceLetBindingEquation eid.val
+    LXT beforeAfter ws exp bnum ->
+      let _ = Debug.log "TODO: DeuceWidget.toDeuceWidget for LetExp targets" () in
+      Nothing
     ET ba _ et ->
       Just <|
         DeuceExpTarget (ba, et.val.eid)

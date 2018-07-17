@@ -10,8 +10,6 @@ import Syntax
 import ValUnparser exposing (strVal)
 import UpdateUtils exposing (..)
 import Utils exposing (reverseInsert)
-import LangUtils exposing (envToString, valToString)
-import Set exposing (Set)
 import UpdatedEnv exposing (UpdatedEnv, original)
 import Pos exposing (Pos)
 
@@ -311,7 +309,7 @@ postMapExp f e =
   let newElem = rebuilder newChildren in
   (f newElem) |> Maybe.withDefault newElem
 
-
+keepLets: Env -> Env -> Env
 keepLets origEnv newEnv = List.reverse <| List.take (List.length newEnv - List.length origEnv) newEnv
 
 prevLetsFind: (Val_ -> Val) -> PrevLets -> Pat-> Maybe (Val, Env)

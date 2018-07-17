@@ -509,7 +509,8 @@ unparseList: (a -> a -> Unparser) -> (a -> String) -> List a -> List a -> Unpars
 unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
   --let _ = Debug.log ("unparseList " ++ toString mbdiffs) () in
   -- Things that did not change
-  let default (strAcc, offset, listDiffs) list1 list2 =
+  let default: (String, Int, List StringDiffs) -> List a -> List a -> (String, Int, List StringDiffs)
+      default (strAcc, offset, listDiffs) list1 list2 =
     List.foldl (\(a1, a2) (str, offset, strDiffs) ->
        let str2 = defaultUnparser a2 in
        (str ++ str2, offset + String.length str2, strDiffs)
@@ -518,7 +519,7 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
   case mbdiffs of
     Nothing -> Ok <| default ("", offset, []) list1 list2
     Just (VListDiffs ds) ->
-      let aux: Int -> ListDiffs VDiffs -> List a -> List a -> (String, Int, ListDiffs VDiffs)
+      let aux: Int -> ListDiffs VDiffs -> List a -> List a -> (String, Int, List StringDiffs) -> Result String (String, Int, List StringDiffs)
           aux i ds remaining1 remaining2 (strAcc, offset, listDiffs) =
         --let _ = Debug.log ("unparseList.aux " ++toString i++ " " ++ toString ds ++ " " ++ toString remaining1 ++ " " ++ toString remaining2 ++ " "  ++ " " ++ toString (strAcc, offset, listDiffs)) () in
         case ds of

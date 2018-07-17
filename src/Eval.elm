@@ -28,6 +28,7 @@ import ValBuilder as Vb
 import ValUnbuilder as Vu
 import Set
 
+
 valToDictKey : Syntax -> Backtrace -> Val -> Result String (String, String)
 valToDictKey syntax bt v =
   case LangUtils.valToDictKey syntax v of
@@ -149,14 +150,14 @@ eval syntax env bt e =
   -- Need mutation in order to also affect values already bound to variables, etc.
   let addParent_ vParent v =
     let _ =
-      case v.v_ of
-        VConst _ _       -> ()
-        VBase _          -> ()
-        VClosure _ _ _ _ -> ()
-        VList vals       -> let _ = List.map (addParent_ vParent) vals                 in ()
-        VDict dict       -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) dict in ()
-        VRecord recs     -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) recs in ()
-        VFun _ _ _ _     -> ()
+       case v.v_ of
+         VConst _ _       -> ()
+         VBase _          -> ()
+         VClosure _ _ _ _ -> ()
+         VList vals       -> let _ = List.map (addParent_ vParent) vals                 in ()
+         VDict dict       -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) dict in ()
+         VRecord recs     -> let _ = Dict.map (\_ val -> (addParent_ vParent) val) recs in ()
+         VFun _ _ _ _     -> ()
     in
     let priorParents = valParents v in
     let _ = ImpureGoodies.mutateRecordField v.parents "_0" (vParent::priorParents) in
@@ -164,16 +165,16 @@ eval syntax env bt e =
   in
   let addParent v =
     if Parser.isProgramEId e.val.eid then
-      case v.v_ of
-        VConst _ _       -> v
-        VBase _          -> v
-        VClosure _ _ _ _ -> v
-        VList vals       -> let _ = List.map (addParent_ v) vals               in v -- non-mutating: { v | v_ = VList (List.map (addParent_ v) vals) }
-        VDict dict       -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v -- non-mutating: { v | v_ = VDict (Dict.map (\_ val -> addParent_ v val) dict) }
-        VRecord dict     -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v
-        VFun _ _ _ _     -> v
+       case v.v_ of
+         VConst _ _       -> v
+         VBase _          -> v
+         VClosure _ _ _ _ -> v
+         VList vals       -> let _ = List.map (addParent_ v) vals               in v -- non-mutating: { v | v_ = VList (List.map (addParent_ v) vals) }
+         VDict dict       -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v -- non-mutating: { v | v_ = VDict (Dict.map (\_ val -> addParent_ v val) dict) }
+         VRecord dict     -> let _ = Dict.map (\_ val -> addParent_ v val) dict in v
+         VFun _ _ _ _     -> v
     else
-      v
+       v
   in
 
   -- Only use introduceVal, ret, or retBoth for new values (i.e. not var lookups): they do not preserve parents
@@ -193,14 +194,15 @@ eval syntax env bt e =
     then e::bt
     else bt
   in
-  let evalDeclarations (Declarations  _ _ _ (exps, groupOrders)) continuation =
-    let aux: List Int -> List (List LetExp) -> List widget -> Env -> (Env -> List widget -> Result String a) -> Result String a
+  let evalDeclarations: Declarations -> (Env -> List Widget -> Result String ((Val, Widgets), Env)) -> Result String ((Val, Widgets), Env)
+      evalDeclarations (Declarations  _ _ _ (exps, groupOrders)) continuation =
+    let aux: List Int -> List LetExp -> List Widget -> Env -> Result String ((Val, Widgets), Env)
         aux groupOrder exps widgets env = case groupOrder of
-      [] -> continuation env widgets
-      i :: groupTail ->
-        let (expHead, expTail) = Utils.split i exps in
-        let rec = isMutuallyRecursive expHead in
-        case expHead |> List.map (\(LetExp _ _ p _ _ e1) ->
+       [] -> continuation env widgets
+       i :: groupTail ->
+         let (expHead, expTail) = Utils.split i exps in
+         let rec = isMutuallyRecursive expHead in
+         case expHead |> List.map (\(LetExp _ _ p _ _ e1) ->
           eval_ syntax env bt_ e1 |> Result.map ((,) p)) |> Utils.projOk of
           Err msg -> Err msg
           Ok pValuesWidgets ->
@@ -356,7 +358,7 @@ eval syntax env bt e =
           case v1.v_ of
             VClosure recNames ps funcBody closureEnv ->
               let argValsAndFuncRes =
-                let newEnv = recNames |> List.map (\fName -> 
+                let newEnv = recNames |> List.map (\fName ->
                   (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust_ "Did not find recursive closure in its environment"))
                 in
                 apply syntax env bt bt_ e ps es funcBody (newEnv ++ closureEnv)
@@ -686,7 +688,7 @@ apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
           (\(fRetVal1, fRetWs1) ->
             case fRetVal1.v_ of
               VClosure recNames ps funcBody closureEnv ->
-                let newEnv = recNames |> List.map (\fName -> 
+                let newEnv = recNames |> List.map (\fName ->
                   (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust_ "Did not find recursive closure in its environment"))
                 in
                 recurse ps esLeft funcBody (newEnv ++ closureEnv) |> Result.map (\(argVals, (v2, ws2)) -> (argVals, (v2, fRetWs1 ++ ws2)))

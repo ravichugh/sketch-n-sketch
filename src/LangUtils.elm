@@ -58,8 +58,12 @@ simpleExpToVal syntax e =
     EBase  _ ENull -> Ok <| valFromExpVal_ e <| VBase (VNull)
     EList _ elems _ Nothing _ -> Utils.listValues elems |> List.map (simpleExpToVal syntax)
         |> Utils.projOk |> Result.map (VList >> valFromExpVal_ e)
-    ERecord _ Nothing elems _ -> recordEntriesFromDeclarations elems |> List.map (\(_, _, k, _, v) -> simpleExpToVal syntax v |> Result.map (\v -> (k, v)))
-        |> Utils.projOk |> Result.map (Dict.fromList >> VRecord >> valFromExpVal_ e)
+    ERecord _ Nothing elems _ ->
+      recordEntriesFromDeclarations elems
+      |> Result.fromMaybe "Record is not simple enough not to be computed"
+      |> Result.andThen (\l -> l
+        |> List.map (\(_, _, k, _, v) -> simpleExpToVal syntax v |> Result.map (\v -> (k, v)))
+        |> Utils.projOk |> Result.map (Dict.fromList >> VRecord >> valFromExpVal_ e))
     EOp _ _ op [arg] _ ->
       case op.val of
         DictFromList ->
@@ -152,10 +156,10 @@ valToExpFull copyFrom sp_ indent v =
         Just (kv, elements) -> (True, kv::elements)
         Nothing -> (False, Dict.toList values)
       in
-      let defaultspcHd = space0 in
+      let defaultspcHd = Nothing in
       let defaultspkHd =  ws " " in
       let defaultspeHd = ws " " in
-      let defaultspcTl = space0 in
+      let defaultspcTl = Just space1 in
       let defaultspkTl = ws (foldIndent " " <| increaseIndent indent) in
       let defaultspeTl = ws " " in
       let (precedingWS, keys, ((spaceComma, spaceKey, spaceEqual, v2expHead),
@@ -163,15 +167,15 @@ valToExpFull copyFrom sp_ indent v =
            copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
            ERecord csp0 _ decls cspend ->
              let celems = recordEntriesFromDeclarations  decls in
-             let existingkeys =  celems |> Utils.recordKeys in
+             let existingkeys =  recordKeys decls in
              let finalKeys = existingkeys ++ (Dict.keys values |> List.filter (\k -> not (List.any (\e -> e == k) existingkeys))) |>
                 List.filterMap (\x -> if Dict.member x values then Just x else Nothing) in
              let valToExps = case celems of
-                    (spc1, spk1, _, spe1, hd1)::(spc2, spk2, _, spe2, hd2)::tail ->
+                    Just ((spc1, spk1, _, spe1, hd1)::(spc2, spk2, _, spe2, hd2)::tail) ->
                       ((spc1, spk1, spe1, valToExpFull <| Just hd1), (spc2, spk2, spe2, valToExpFull <| Just hd2))
-                    [(spc1, spk1, _, spe1, hd1)] ->
+                    Just [(spc1, spk1, _, spe1, hd1)] ->
                       ((spc1, spk1, spe1, valToExpFull <| Just hd1), (defaultspcTl, defaultspkTl, defaultspeTl, valToExpFull <| Just hd1))
-                    [] -> ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp))
+                    _ -> ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp))
              in
              Just (csp0, finalKeys, valToExps, cspend)
            _ -> Nothing
