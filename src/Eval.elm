@@ -242,7 +242,7 @@ eval syntax env bt e =
     case resInitDictWidgets of
       Err msg -> Err msg
       Ok (v, d, ws) ->
-        evalDeclarations syntax env bt declarations <| \newEnv widgets ->
+        evalDeclarations syntax env bt_ declarations <| \newEnv widgets ->
           -- Find the value of each newly added ident and adds it to records.
           let ids = letexps |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
           let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
@@ -362,7 +362,7 @@ eval syntax env bt e =
        in evalVApp v1 es
 
   ELet wsLet lk declarations _ e2 ->
-    evalDeclarations syntax env bt declarations (\env widgets -> Result.map (addWidgets widgets) <| eval syntax env bt_ e2)
+    evalDeclarations syntax env bt_ declarations (\env widgets -> Result.map (addWidgets widgets) <| eval syntax env bt_ e2)
 
   EColonType _ e1 _ t1 _ ->
     -- Pass-through, so don't add provenance.
@@ -588,9 +588,9 @@ evalOp syntax env e bt opWithInfo es =
           in
           Ok (newVal, widgets)
 
-evalDeclarations: Syntax -> Env -> Backtrace -> Declarations -> (Env -> List Widget -> a) -> a
+evalDeclarations: Syntax -> Env -> Backtrace -> Declarations -> (Env -> List Widget -> Result String a) -> Result String a
 evalDeclarations syntax env bt (Declarations  _ _ _ (exps, groupOrders)) continuation =
-  let aux: List Int -> List LetExp -> List Widget -> Env -> a
+  let aux: List Int -> List LetExp -> List Widget -> Env -> Result String a
       aux groupOrder exps widgets env = case groupOrder of
      [] -> continuation env widgets
      i :: groupTail ->
@@ -628,7 +628,10 @@ evalDeclarations syntax env bt (Declarations  _ _ _ (exps, groupOrders)) continu
                                  \mbEnv (name, value) -> cons (name, value) mbEnv
             of
              Just newEnv -> aux groupTail expTail (widgets ++ newWidgets) newEnv
-             _         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "match error in let"
+             _         -> errorWithBacktrace syntax bt <| (bt |> Utils.head "bt.first" |> .start |> strPos) ++
+               "match error in deconstructing the value of " ++ (pValuesWidgets |> List.map (\(name, (value, _)) ->
+                 (Syntax.patternUnparser Syntax.Elm name) ++ " with " ++ valToString value
+               ) |> String.join "\n")
   in aux groupOrders exps [] env
 
 -- Returns Ok Nothing if no branch matches

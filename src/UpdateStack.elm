@@ -180,7 +180,7 @@ updateContinueMultiple  msg       env    prevLets     totalExpValOut            
                 (e, oldOut, newOut)::tail ->
                   updateContinue (toString (i + 1) ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg) env e prevLets oldOut newOut m <|  \newUpdatedEnv newUpdatedExp ->
                     --let _ = Debug.log "started tricombine" () in
-                    let newUpdatedEnvAcc = UpdatedEnv.merge e m env updatedEnvAcc newUpdatedEnv in
+                    let newUpdatedEnvAcc = UpdatedEnv.merge env updatedEnvAcc newUpdatedEnv in
                     let newRevAccEDiffs = case newUpdatedExp.changes of
                       Nothing -> revAccEDiffs
                       Just d -> (i, d)::revAccEDiffs

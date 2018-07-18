@@ -1,4 +1,4 @@
-module UpdatedEnv exposing (UpdatedEnv, original, offset, merge, split, isUnmodified, show)
+module UpdatedEnv exposing (UpdatedEnv, original, offset, merge, recursiveMerge, split, isUnmodified, show)
 import Lang exposing (..)
 import UpdateUtils
 import Utils
@@ -14,11 +14,17 @@ original: Env -> UpdatedEnv
 original env = UpdatedEnv env []
 
 -- Merges two modified environments
-merge: Exp -> VDiffs -> Env -> UpdatedEnv -> UpdatedEnv -> UpdatedEnv
-merge e vdiffs env env1 env2 =
+merge: Env -> UpdatedEnv -> UpdatedEnv -> UpdatedEnv
+merge env env1 env2 =
   if isUnmodified env1 then env2 else if isUnmodified env2 then env1 else
   let (finalEnv, finalChanges) = UpdateUtils.mergeEnv env env1.val env1.changes env2.val env2.changes in
   UpdatedEnv finalEnv finalChanges
+
+recursiveMerge: Env -> List UpdatedEnv -> UpdatedEnv
+recursiveMerge env modifiedEnvs = case modifiedEnvs of
+  [] -> original env
+  [head] -> head
+  a::b::tail -> recursiveMerge env ((merge env a b)::tail)
 
 offset: Int -> EnvDiffs -> EnvDiffs
 offset = UpdateUtils.offset

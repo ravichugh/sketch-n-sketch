@@ -1414,6 +1414,41 @@ diffsAt n td = case td of
     else if i > n then Nothing
     else diffsAt n t
 
+mapDiffs: (a -> Maybe b -> (aa, Maybe bb)) ->  (List a, TupleDiffs b) -> (List aa, TupleDiffs bb)
+mapDiffs f (l, diffs) =
+  let aux: Int -> List a -> TupleDiffs b -> (List aa, TupleDiffs bb) -> (List aa, TupleDiffs bb)
+      aux i l diffs (revLa, revDb)= case l of
+        [] -> (List.reverse revLa, List.reverse revDb)
+        a::aTail->
+          let (thisDiff, tailDiffs) = case diffs of
+            [] -> (Nothing, diffs)
+            (j, d)::dTail ->
+               if i < j then (Nothing, diffs)
+               else if i == j then (Just d, dTail)
+               else Debug.crash "Malformed diffs" (diffs, i)
+          in
+          let (newA, newDiff) = f a thisDiff in
+           (newA::revLa, (newDiff |> Maybe.map ((,) i >> List.singleton) |> Maybe.withDefault []) ++ revDb) |>
+           aux (i + 1) aTail tailDiffs
+  in aux 0 l diffs ([], [])
+
+zipDiffs: List a -> TupleDiffs b -> List (a, Maybe b)
+zipDiffs l diffs =
+  let aux: Int -> List a -> TupleDiffs b -> List (a, Maybe b) -> List (a, Maybe b)
+      aux i l diffs revAcc = case l of
+        [] -> List.reverse revAcc
+        a::aTail ->
+          let (thisDiff, tailDiffs) = case diffs of
+            [] -> (Nothing, diffs)
+            (j, d)::dTail ->
+               if i < j then (Nothing, diffs)
+               else if i == j then (Just d, dTail)
+               else Debug.crash "Malformed diffs" (diffs, i)
+          in
+          (a, thisDiff) :: revAcc |>
+          aux (i + 1) aTail tailDiffs
+  in aux 0 l diffs []
+
 changeAt: List Int -> Maybe EDiffs -> Maybe EDiffs
 changeAt path mbd = case path of
   [] -> mbd
