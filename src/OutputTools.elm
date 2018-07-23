@@ -10,6 +10,7 @@ import Dict exposing (Dict)
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
 import LangSvg exposing (NodeId)
+import FindRepeatTools
 import ShapeWidgets exposing (SelectableFeature(..), ShapeFeature(..), DistanceFeature(..))
 
 --==============================================================================
@@ -396,6 +397,31 @@ abstractTool selections =
       "abstract"
   }
 
+
+--------------------------------------------------------------------------------
+-- User/prelude-defined Repeat Functions
+--------------------------------------------------------------------------------
+
+functionBasedRepeatTools : Model -> List (Selections a -> OutputTool)
+functionBasedRepeatTools model =
+  FindRepeatTools.getRepetitionFunctions -- Returns list of (fName, fExp, typeSig), fExp is an EFun
+      model.inputExp
+      model.typeGraph
+      model.editingContext
+  |> List.map
+      (\(funcName, _, _) ->
+        (\selections ->
+          { name = "Repeat Using " ++ funcName
+          , shortcut = Nothing
+          , kind = Multi
+          , func = Just (Controller.msgRepeatUsingFunction funcName)
+          , reqs = [ atLeastOneSelection selections ]
+          , id = funcName
+          }
+        )
+      )
+
+
 --------------------------------------------------------------------------------
 -- Repeat Right
 --------------------------------------------------------------------------------
@@ -463,9 +489,9 @@ repeatAroundTool selections =
 -- All Tools
 --------------------------------------------------------------------------------
 
-tools : Selections a -> List (List OutputTool)
-tools selections =
-  List.map (List.map <| \tool -> tool selections) <|
+tools : Model -> List (List OutputTool)
+tools model =
+  List.map (List.map <| \tool -> tool model) <|
     [ [ hideWidgetTool
       , addToOutputTool
       , chooseTerminationConditionTool
@@ -481,6 +507,7 @@ tools selections =
       , groupTool
       , abstractTool
       ]
+    , functionBasedRepeatTools model
     , [ repeatRightTool
       , repeatToTool
       , repeatAroundTool

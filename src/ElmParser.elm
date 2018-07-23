@@ -293,7 +293,7 @@ widgetDecl cap =
   let
     combiner a tok b =
       if List.all isInt [a.val, b.val] then
-        IntSlider (mapInfo floor a) tok (mapInfo floor b) cap False
+        IntSlider (mapInfoVal floor a) tok (mapInfoVal floor b) cap False
       else
         NumSlider a tok b cap False
   in

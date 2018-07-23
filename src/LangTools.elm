@@ -1,14 +1,12 @@
 module LangTools exposing (..)
 
--- Most of these methods used to be in Lang.elm
+-- Some of these methods used to be in Lang.elm and were
+-- extracted to avoid circular dependencies.
 --
--- Extracted to avoid circular dependencies.
+-- Now this is the home of "more complicated" expression queries
+-- and transformations that are still generally useful.
 --
 -- Lots of methods for dealing with identifiers and renaming.
---
--- Things in here are only used by LangSimplify and ValueBasedTransform,
--- currently. Also used in InterfaceView to find unfrozen locs to animate in our
--- (possibly defunct) relate attributes selection screen.
 
 import Eval
 import Lang exposing (..)
@@ -1435,6 +1433,13 @@ expToMaybeFuncPats exp =
     _               -> Nothing
 
 
+expToFuncBody : Exp -> Exp
+expToFuncBody exp =
+  case exp.val.e__ of
+    EFun _ _ funcBody _ -> funcBody
+    _                   -> Debug.crash <| "LangTools.expToFuncBody exp is not an EFun: " ++ unparseWithIds exp
+
+
 expToMaybeFuncBody : Exp -> Maybe Exp
 expToMaybeFuncBody exp =
   case exp.val.e__ of
@@ -1468,6 +1473,13 @@ expToAppFuncAndArgs exp =
   case exp.val.e__ of
     EApp _ fExp args _ _ -> (fExp, args)
     _                    -> Debug.crash <| "LangTools.expToAppFuncAndArgs exp is not an EApp: " ++ unparseWithIds exp
+
+
+expToAppFunc : Exp -> Exp
+expToAppFunc exp =
+  case exp.val.e__ of
+    EApp _ fExp _ _ _ -> fExp
+    _                 -> Debug.crash <| "LangTools.expToAppFunc exp is not an EApp: " ++ unparseWithIds exp
 
 
 expToMaybeAppFunc : Exp -> Maybe Exp
@@ -3185,6 +3197,7 @@ expPatEnvAt_ exp targetEId =
       ETypeAlias _ pat tipe e _  -> recurse e
       EParens _ e _ _            -> recurse e
       EHole _ _                  -> Nothing
+
 
 --------------------------------------------------------------------------------
 

@@ -2,7 +2,7 @@ module LangUnparser exposing
   ( expsEquivalent, patsEquivalent
   , unparse, unparsePat, unparseWD, unparseType
   , unparseWithIds
-  , unparseWithUniformWhitespace, unparsePatWithUniformWhitespace
+  , unparseWithUniformWhitespace, unparsePatWithUniformWhitespace, unparseTypeWithUniformWhitespace
   , bumpCol, incCol
   )
 

@@ -143,6 +143,7 @@ consolidatePointPartsIntoPoints vals =
         Nothing                   -> val1  :: consolidatePointPartsIntoPoints restVals
 
 
+-- Strict meaning only interpretations that are equal to [xVal, yVal]
 pointPartsToPointValsStrict : Val -> Val -> List Val
 pointPartsToPointValsStrict xValTree yValTree =
   let parentPoints = coordinateIntermediatesToSharedPointParents (valToSameVals xValTree) (valToSameVals yValTree) in

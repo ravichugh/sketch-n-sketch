@@ -947,14 +947,14 @@ perhapsUnifyAcrossNodes thisId tc2 graph =
               toConstraintsFollowed   = toConstraints   |> List.map perhapsPullOutCachedConstraint
             in
             case (fromConstraintsFollowed, toConstraintsFollowed) of
-              ([Just fromConstraint], [Just toContraint]) ->
+              ([Just fromConstraint], [Just toConstraint]) ->
                 let
                   maybeFromType = tc2ToType fromConstraint graph
                   maybeArgType  = tc2ToType argConstraint graph
                   -- _ = Debug.log "TC2App" (maybeFromType |> Maybe.map (Syntax.typeUnparser Syntax.Elm), maybeArgType |> Maybe.map (Syntax.typeUnparser Syntax.Elm))
                 in
                 if maybeFromType /= Nothing && maybeFromType == maybeArgType then -- Super conservative application.
-                  ( [TC2App fId argId (Just toContraint)]
+                  ( [TC2App fId argId (Just toConstraint)]
                   , graph
                   )
                 else

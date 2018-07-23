@@ -115,11 +115,11 @@ padded combiner spacePolicyBefore p spacePolicyAfter =
 --------------------------------------------------------------------------------
 
 mapPat_ : ParserI Pat__ -> Parser Pat
-mapPat_ = (map << mapInfo) pat_
+mapPat_ = (map << mapInfoVal) pat_
 
 --------------------------------------------------------------------------------
 -- Expressions
 --------------------------------------------------------------------------------
 
 mapExp_ : ParserI Exp__ -> Parser Exp
-mapExp_ = (map << mapInfo) exp_
+mapExp_ = (map << mapInfoVal) exp_

@@ -11,24 +11,30 @@ import Dict
 
 
 -- Where to insert new shapes?
-drawingContextExp : Maybe (EId, Maybe EId) -> Exp -> Exp
+-- Steps into function if function is focused. Returns whole program if no editingContext specified.
+drawingContextExp : Maybe (EId, a) -> Exp -> Exp
 drawingContextExp editingContext program =
-  case editingContext of
-    Just (eid, _) ->
-      let contextExp = LangTools.justFindExpByEId program eid in
-      contextExp |> LangTools.expToMaybeFuncBody |> Maybe.withDefault contextExp
-
-    _ -> program
+  case maybeFocusedExp editingContext program of
+    Just focusedExp -> focusedExp |> LangTools.expToMaybeFuncBody |> Maybe.withDefault focusedExp
+    Nothing         -> program
 
 
-maybeFocusedExp : Maybe (EId, Maybe EId) -> Exp -> Maybe Exp
+-- Used to find what's in scope at the shape list site or end of focused function
+eidAtEndOfDrawingContext : Maybe (EId, a) -> Exp -> EId
+eidAtEndOfDrawingContext editingContext program =
+  drawingContextExp editingContext program
+  |> LangTools.lastSameLevelExp
+  |> (.val >> .eid)
+
+
+maybeFocusedExp : Maybe (EId, a) -> Exp -> Maybe Exp
 maybeFocusedExp editingContext program =
   case editingContext of
     Just (eid, _) -> findExpByEId program eid
     _             -> Nothing
 
 
-contextInputVals : Maybe (EId, Maybe EId) -> Maybe Env -> Exp -> List Val
+contextInputVals : Maybe (EId, a) -> Maybe Env -> Exp -> List Val
 contextInputVals editingContext maybeEnv program =
   case (maybeEnv, maybeFocusedExp editingContext program) of
     (Just env, Just focusedExp) ->

@@ -5,7 +5,7 @@ import ValUnparser exposing (..)
 import Pos exposing (..)
 import Info exposing (..)
 import FastParser as Parser
-import LangUnparser exposing (unparse, unparsePat, unparseType)
+import LangUnparser exposing (unparse, unparsePat, unparseType, unparseTypeWithUniformWhitespace)
 import Utils
 import Ace
 import Config
@@ -30,6 +30,47 @@ isListOrTuple tipe =
     TTuple _ _ _ _ _ -> True
     TForall _ _ t _  -> isListOrTuple t
     _                -> False
+
+
+maybeListElementsType : Type -> Maybe Type
+maybeListElementsType tipe =
+  case tipe.val of
+    TList _ elementsType _ -> Just elementsType
+    TForall _ _ t _        -> maybeListElementsType t
+    _                      -> Nothing
+
+
+maybeListOrHomogenousTupleElementsType : Type -> Maybe Type
+maybeListOrHomogenousTupleElementsType tipe =
+  case tipe.val of
+    TList _ elementsType _       -> Just elementsType
+    TTuple _ heads _ maybeTail _ ->
+      case heads ++ Utils.maybeToList maybeTail |> Utils.dedupBy unparseTypeWithUniformWhitespace of -- WHAT DO THE WORDS "TYPE EQUALITY" MEAN!
+        []  -> Just (tForall ["a"] (tVar "a"))
+        [t] -> Just t
+        _   -> Nothing
+    TForall _ _ t _              -> maybeListOrHomogenousTupleElementsType t
+    _                            -> Nothing
+
+
+isPointType : Type -> Bool
+isPointType tipe =
+  (typeToMaybeAliasIdent tipe == Just "Point") ||
+  case tipe.val of
+    TForall _ _ t _ -> isPointType t
+    TTuple _ heads _ Nothing _ ->
+      case heads |> List.map .val of
+        [TNum _, TNum _] -> True
+        _                -> False
+    _ -> False
+
+
+isNumType : Type -> Bool
+isNumType tipe =
+  case tipe.val of
+    TForall _ _ t _ -> isNumType t
+    TNum _          -> True
+    _               -> False
 
 
 typeToMaybeAliasIdent : Type -> Maybe Ident

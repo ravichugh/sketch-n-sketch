@@ -6,12 +6,17 @@
 
 module ValueBasedTransform exposing (..)
 
+import FocusedEditingContext
+import DrawAddShape
+import FindRepeatTools
+import TypeDirectedFunctionUtils
 import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools exposing (..)
 import LangSimplify
 import FastParser exposing (prelude, freshen, substOf)
 import LangUnparser exposing (unparseWD, unparseWithIds)
+import Types
 import Info exposing (parsedThingToLocation)
 import InterfaceModel
 import Eval
@@ -22,6 +27,8 @@ import CodeMotion
 import Utils
 import LangSvg exposing (NodeId, ShapeKind, Attr)
 import ShapeWidgets exposing (FeatureEquation, SelectableFeature(..))
+import SlowTypeInference
+import Provenance
 import Config
 import Syntax exposing (Syntax)
 
@@ -800,9 +807,8 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 
 -- Returns synthesis results
 -- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
-buildAbstraction : Syntax -> Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
-buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
-  let unparse = Syntax.unparser syntax in
+buildAbstraction : Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
+buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we abort on unparsable code
     Err s -> []
     Ok (_, widgets, slate, _) ->
@@ -810,246 +816,524 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
       let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
       -- Still doesn't correctly handle abstracting a shape list b/c provenance is not smart enough.
       ShapeWidgets.selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs (\e -> childExps e /= [] && freeVars e /= [])
-      |> List.map (\interp -> let _ = Utils.log <| String.join ", " <| List.map (justFindExpByEId program >> unparse) interp in interp)
+      |> List.map (\interp -> let _ = Utils.log <| String.join ", " <| List.map (justFindExpByEId program >> Syntax.unparser Syntax.Elm) interp in interp)
       |> List.concatMap (\interpretation ->
         -- 1. Choose an expression to be the output (try all)
         -- 2. Successively pull free var definitions not used elsewhere into abstraction. (Also exclude free vars used only as functions in application, and free vars bound to something with no free vars because we have to leave something behind to be function arguments.)
         List.range 1 (List.length interpretation)
         |> List.concatMap (\eidI ->
           let
-            (outputEId, otherEIds) = (Utils.geti eidI interpretation, Utils.removei eidI interpretation)
+            outputEId = Utils.geti eidI interpretation
 
-            -- If interpretation is (line color width x1 y1 x2 y2) in...
-            --
-            -- line1 =
-            --   let [x1, y1, x2, y2] = [313, 271, 202, 419] in
-            --   let [color, width] = [116, 5] in
-            --     line color width x1 y1 x2 y2
-            --
-            -- ...then the abstraction of (line color width x1 y1 x2 y2) will have
-            -- too many arguments relative to function size to pass muster. So we
-            -- will also try pre-expanding interpretations a bit, in this case to...
-            --
-            --   let [color, width] = [116, 5] in
-            --     line color width x1 y1 x2 y2
-            --
-            -- ...and...
-            --
-            --   let [x1, y1, x2, y2] = [313, 271, 202, 419] in
-            --   let [color, width] = [116, 5] in
-            --     line color width x1 y1 x2 y2
-            possibleSimpleExpansions =
-              outerSameValueExpByEId originalProgramUniqueNames outputEId
-              |> expEffectiveExps
-              |> List.map (.val >> .eid)
-          in
-          possibleSimpleExpansions
-          |> List.concatMap (\outputEId ->
-            let
-              returnExp = justFindExpByEId originalProgramUniqueNames outputEId
-              allPatExpProgramBindings   = allSimplyResolvableLetPatBindings originalProgramUniqueNames
-              programBindingPatToVarEIds =
-                allVarEIdsToBindingPatList originalProgramUniqueNames -- List (EId, Maybe Pat) "Nothing" means free in program
-                -- Now filter out the free vars and flip
-                |> List.filterMap (\(varEId, maybeProgramPat) -> maybeProgramPat |> Maybe.map (\programPat -> (programPat, varEId)))
-                |> Utils.pairsToDictOfLists
+            slurpedBindingsFilter pat boundExp =
+              -- Heurisitic: We need *something* to be arguments, so don't pull patExps with no free variables into the function.
+              not <| isLiteral boundExp
 
-              expandFunction includedPatExps =
-                let
-                  (includedPats, includedBoundExps) = List.unzip includedPatExps
-                  includedExps = returnExp::includedBoundExps
-                  includedEIds = List.concatMap allEIds includedExps
-                  patExpsToConsume =
-                    allPatExpProgramBindings
-                    |> List.filterMap
-                        (\(pat, boundExp) ->
-                          -- Pull a patBoundExp into function if (a) not a function and (b) only used within exps already in function.
-                          --
-                          -- We want to correctly consume the whole [x, y] pattern in the following...
-                          --
-                          -- pt = [3, 4]
-                          -- [x, y] = pt
-                          -- returnExp = sqrt(x^2 + y^2)
-                          --
-                          -- ...so have to look at every pattern with its children idents, not just ident patterns individually.
-                          let
-                            (_, identPats) = List.unzip (indentPatsInPat pat)
-                            usageEIds =
-                              identPats
-                              |> List.filterMap (\identPat -> Dict.get identPat programBindingPatToVarEIds)
-                              |> List.concat
-                            noIdentPatsAreBindingFunctions =
-                              identPats
-                              |> List.all
-                                  (\identPat ->
-                                    case Utils.maybeFind identPat allPatExpProgramBindings of
-                                      Just boundExp -> not <| isFunc (expEffectiveExp boundExp)
-                                      Nothing       -> False
-                                  )
-                            allUsesAreInThisFunction = usageEIds |> List.all (\varEId -> List.member varEId includedEIds)
-                          in
-                          if usageEIds /= [] && noIdentPatsAreBindingFunctions && allUsesAreInThisFunction then
-                            Just (pat, boundExp)
-                          else
-                            Nothing
-                        )
-
-                  newIncludedPatExps = Utils.addAllAsSet patExpsToConsume includedPatExps
-                in
-                if newIncludedPatExps == includedPatExps then
-                  includedPatExps |> List.filter (\(pat, exp) -> not <| List.any (\otherPat -> pat /= otherPat && List.member pat (flattenPatTree otherPat)) includedPats) -- Cannot expand further; remove pats that are children of an included pat.
-                else
-                  expandFunction newIncludedPatExps
-
-              includedPatExps =
-                expandFunction []
-                |> List.filter (\(pat, boundExp) -> not <| isLiteral boundExp) -- Heurisitic: We need *something* to be arguments, so discard patExps with no free variables.
-
-              -- Okay, now the fun part: building the function.
-
-              funcLocation = deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (.val >> .eid >> (==) returnExp.val.eid) -- Place function just before abstracted expression
-              funcSuggestedName = expNameForEId program outputEId ++ "Func"
-              funcName =
-                nonCollidingName
-                    funcSuggestedName
-                    2
-                    (visibleIdentifiersAtEIds program (Set.singleton outputEId))
-
-              uniqueNamesToAvoid = Set.union (identifiersSetPlusPrelude program) ([funcSuggestedName, funcName] ++ Dict.keys uniqueNameToOldName |> Set.fromList)
-              funcUniqueName     = nonCollidingName funcSuggestedName 2 uniqueNamesToAvoid
-
-              -- Just slurp in the lets and allow the problem resolver do its thing.
-
-              (funcBody, programUniqueNamesBindingsRemoved) =
-                includedPatExps
-                |> List.sortBy (\(_, boundExp) -> parsedThingToLocation boundExp)
-                |> Utils.foldr
-                    (replacePrecedingWhitespace "\n  " (replaceIndentation "  " returnExp), originalProgramUniqueNames)
-                    (\(pat, boundExp) (funcBodySoFar, programUniqueNamesSomeBindingsRemoved) ->
-                      case CodeMotion.pluckByPId pat.val.pid programUniqueNamesSomeBindingsRemoved of
-                        Just ((pat, boundExp, isRec), programUniqueNamesSomeBindingsRemoved) ->
-                          ( ELet newline1 Let isRec (replacePrecedingWhitespacePat " " pat) space1 (replaceIndentation "  " boundExp) space1 funcBodySoFar space0 |> withDummyExpInfo
-                          , programUniqueNamesSomeBindingsRemoved
-                          )
-                        Nothing ->
-                          Debug.crash <| "buildAbstraction: pluck shouldn't fail, but did " ++ toString pat
-                    )
-
-              expsUsedAsApplicationFunctionInFunction =
-                flattenExpTree funcBody
-                |> List.filterMap expToMaybeAppFunc
-                |> List.map expEffectiveExp
-              patUniqueNamesInFunction =
-                allRootPats funcBody
-                |> List.concatMap identifiersListInPat
-              varsToArgumentize =
-                freeVars funcBody
+            computeExpsGroupsToArgumentize funcBodyAfterSlurpingBeforeArgumentization =
+              let
+                expsUsedAsApplicationFunctionInFunction =
+                  flattenExpTree funcBodyAfterSlurpingBeforeArgumentization
+                  |> List.filterMap expToMaybeAppFunc
+                  |> List.map expEffectiveExp
+                patUniqueNamesInFunction =
+                  allRootPats funcBodyAfterSlurpingBeforeArgumentization
+                  |> List.concatMap identifiersListInPat
+              in
+              [
+                freeVars funcBodyAfterSlurpingBeforeArgumentization
                 |> List.filter (\var -> not <| List.member (expToIdent var) patUniqueNamesInFunction) -- in case some definitions got rearranged, these vars should not be considered free (will be reorganized by programOriginalNamesAndMaybeRenamedLiftedTwiddledResults)
                 |> List.filter (\var -> not <| List.member var expsUsedAsApplicationFunctionInFunction) -- leave Vars used only as functions free
                 |> Utils.dedupBy expToIdent
-              allProgramPats =
-                allRootPats originalProgramUniqueNames
-                |> List.concatMap flattenPatTree -- Parents appear before children, so this will properly handle multiple nested as-patterns (e.g. a as b as c).
+              ]
 
-              -- Preserve (pt as [x, y]) patterns in function instead of duplicating.
-              (nonPVarArgPatExps, remainingVarsToArgumentize) =
-                -- Hurray for unique names.
-                allProgramPats
-                |> Utils.foldl
-                    ([], varsToArgumentize)
-                    (\pat ((argExpPats, remainingVarsToArgumentize) as acc) ->
-                      case pat.val.p__ of
-                        PAs ws1 uniqueIdent ws2 innerPat ->
-                          let
-                            remainingIdentsToArgumentize = List.map expToIdent remainingVarsToArgumentize
-                            patWithUnusedRemoved =
-                              pat
-                              |> mapPat -- bottom up
-                                  (\pat ->
-                                    -- Preserve pat location information so we can order the arguments by original pattern location in program.
-                                    case pat.val.p__ of
-                                      PVar _ uniqueIdent _         -> if List.member uniqueIdent remainingIdentsToArgumentize then pat else replaceP__PreservingPrecedingWhitespace pat (PWildcard space1)
-                                      PAs _ uniqueIdent _ innerPat ->
-                                        case (List.member uniqueIdent remainingIdentsToArgumentize, isPWildcard innerPat) of
-                                          (True, False) -> pat
-                                          (True, True)  -> replaceP__PreservingPrecedingWhitespace pat (PVar space0 uniqueIdent noWidgetDecl)
-                                          _             -> copyPrecedingWhitespacePat pat innerPat
-                                      PConst _ _                   -> replaceP__PreservingPrecedingWhitespace pat (PWildcard space1)
-                                      PBase _ _                    -> replaceP__PreservingPrecedingWhitespace pat (PWildcard space1)
-                                      PList _ _ _ _ _              -> if List.all isPWildcard (childPats pat) then replaceP__PreservingPrecedingWhitespace pat (PWildcard space1) else pat
-                                      PParens _ p _                -> copyPrecedingWhitespacePat pat p
-                                      PWildcard _                  -> pat
-                                  )
-                          in
-                          case identifiersListInPat patWithUnusedRemoved of
-                            []  -> acc -- pattern completely unused
-                            [_] -> acc -- only one ident in pat used, treat as regular PVar (below)
-                            _   ->
-                              let argPat = patWithUnusedRemoved in
-                              ( argExpPats ++ [(argPat, eVar uniqueIdent)]
-                              , remainingVarsToArgumentize |> List.filter (\var -> not <| List.member (expToIdent var) (identifiersListInPat argPat))
-                              )
-
-                        _ -> acc
-                    )
-
-
-              argPVarExps =
-                -- Preserve pat location information so we can order the arguments by original pattern location in program.
-                remainingVarsToArgumentize
-                |> List.map expToIdent
-                |> List.map
-                    (\uniqueIdent ->
-                      case Utils.findFirst (patToMaybeIdent >> (==) (Just uniqueIdent)) allProgramPats of
-                        Just programPat -> (replaceP__PreservingPrecedingWhitespace programPat (PVar space0 uniqueIdent noWidgetDecl), eVar uniqueIdent)
-                        Nothing         -> let _ = Utils.log <| "buildAbstraction shouldn't happen: couldn't find existing program pattern for argument name " ++ uniqueIdent in (pVar uniqueIdent, eVar uniqueIdent)
-                    )
-
-              (argPats, argExps) =
-                (argPVarExps ++ nonPVarArgPatExps)
-                |> List.sortBy (\(pat, _) -> parsedThingToLocation pat)
-                |> List.unzip
-
-
-              call = eCall funcUniqueName (argExps |> List.map (replacePrecedingWhitespace " "))
-              programWithCall =
-                programUniqueNamesBindingsRemoved
-                |> replaceExpNodePreservingPrecedingWhitespace
-                    outputEId
-                    (call |> setEId outputEId)
-              funcLet =
-                newLetFancyWhitespace
-                    -1 False
-                    (pVar funcUniqueName)
-                    (eFun (argPats |> setPatListWhitespace "" " ") (funcBody |> unindent |> replacePrecedingWhitespace "\n" |> indent "  "))
-                    (justFindExpByEId programWithCall funcLocation.val.eid)
-                    programWithCall
-              programWithCallAndFunc =
-                programUniqueNamesBindingsRemoved
-                |> replaceExpNode
-                    funcLocation.val.eid
-                    funcLet
-                |> LangSimplify.simplifyAssignments -- Remove remnants of plucking.
-
-              finalUniqueNameToOldName = Dict.insert funcUniqueName funcName uniqueNameToOldName
-              caption = "Build abstraction of " ++ Utils.squish (unparse (renameIdentifiers finalUniqueNameToOldName call))
-            in
-            if List.length argPats > 0 && nodeCount funcBody >= max 5 (2 * List.length argPats) then
-              CodeMotion.programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
-                  caption -- baseDescription
-                  finalUniqueNameToOldName -- uniqueNameToOldName
-                  Nothing -- (Just letEIdWithNewVars) -- maybeNewScopeEId
-                  ("touched", "untouched") -- (touchedAdjective, untouchedAdjective)
-                  Set.empty -- namesUniqueTouched -- namesUniqueTouched
-                  [] -- varEIdsPreviouslyDeliberatelyRemoved
-                  Dict.empty -- insertedVarEIdToBindingPId -- insertedVarEIdToBindingPId
-                  originalProgramUniqueNames -- originalProgramUniqueNames
-                  programWithCallAndFunc -- newProgramUniqueNames
-            else
-              []
-          )
+            postProcessBeforeProblemResolution programWithCallAndFunc funcLet callExp uniqueNameToOldName =
+              [
+                ( programWithCallAndFunc
+                , "Build abstraction of " ++ Utils.squish (Syntax.unparser Syntax.Elm (renameIdentifiers uniqueNameToOldName callExp))
+                )
+              ]
+          in
+          buildAbstraction_
+              program
+              originalProgramUniqueNames
+              uniqueNameToOldName
+              outputEId
+              slurpedBindingsFilter
+              computeExpsGroupsToArgumentize
+              postProcessBeforeProblemResolution
         )
       )
+
+
+buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputEId slurpedBindingsFilter computeExpsGroupsToArgumentize postProcessBeforeProblemResolution =
+  let
+    -- If interpretation is (line color width x1 y1 x2 y2) in...
+    --
+    -- line1 =
+    --   let [x1, y1, x2, y2] = [313, 271, 202, 419] in
+    --   let [color, width] = [116, 5] in
+    --     line color width x1 y1 x2 y2
+    --
+    -- ...then the abstraction of (line color width x1 y1 x2 y2) will have
+    -- too many arguments relative to function size to pass muster. So we
+    -- will also try pre-expanding interpretations a bit, in this case to...
+    --
+    --   let [color, width] = [116, 5] in
+    --     line color width x1 y1 x2 y2
+    --
+    -- ...and...
+    --
+    --   let [x1, y1, x2, y2] = [313, 271, 202, 419] in
+    --   let [color, width] = [116, 5] in
+    --     line color width x1 y1 x2 y2
+    possibleSimpleExpansions =
+      outerSameValueExpByEId originalProgramUniqueNames outputEId
+      |> expEffectiveExps
+      |> List.map (.val >> .eid)
+  in
+  possibleSimpleExpansions
+  |> List.concatMap (\outputEId ->
+    let
+      returnExp = justFindExpByEId originalProgramUniqueNames outputEId
+      allPatExpProgramBindings   = allSimplyResolvableLetPatBindings originalProgramUniqueNames
+      programBindingPatToVarEIds =
+        allVarEIdsToBindingPatList originalProgramUniqueNames -- List (EId, Maybe Pat) "Nothing" means free in program
+        -- Now filter out the free vars and flip
+        |> List.filterMap (\(varEId, maybeProgramPat) -> maybeProgramPat |> Maybe.map (\programPat -> (programPat, varEId)))
+        |> Utils.pairsToDictOfLists
+
+      -- Returns list of patExps to include (after expanding recursively).
+      expandFunction includedPatExps =
+        let
+          (includedPats, includedBoundExps) = List.unzip includedPatExps
+          includedExps = returnExp::includedBoundExps
+          includedEIds = List.concatMap allEIds includedExps
+          patExpsToConsume =
+            allPatExpProgramBindings
+            |> List.filterMap
+                (\(pat, boundExp) ->
+                  -- Pull a patBoundExp into function if (a) not a function and (b) only used within exps already in function.
+                  --
+                  -- We want to correctly consume the whole [x, y] pattern in the following...
+                  --
+                  -- pt = [3, 4]
+                  -- [x, y] = pt
+                  -- returnExp = sqrt(x^2 + y^2)
+                  --
+                  -- ...so have to look at every pattern with its children idents, not just ident patterns individually.
+                  let
+                    (_, identPats) = List.unzip (indentPatsInPat pat)
+                    usageEIds =
+                      identPats
+                      |> List.filterMap (\identPat -> Dict.get identPat programBindingPatToVarEIds)
+                      |> List.concat
+                    noIdentPatsAreBindingFunctions =
+                      identPats
+                      |> List.all
+                          (\identPat ->
+                            case Utils.maybeFind identPat allPatExpProgramBindings of
+                              Just boundExp -> not <| isFunc (expEffectiveExp boundExp)
+                              Nothing       -> False
+                          )
+                    allUsesAreInThisFunction = usageEIds |> List.all (\varEId -> List.member varEId includedEIds)
+                  in
+                  if usageEIds /= [] && noIdentPatsAreBindingFunctions && allUsesAreInThisFunction && slurpedBindingsFilter pat boundExp then
+                    Just (pat, boundExp)
+                  else
+                    Nothing
+                )
+
+          newIncludedPatExps = Utils.addAllAsSet patExpsToConsume includedPatExps
+        in
+        if newIncludedPatExps == includedPatExps then
+          -- Cannot expand further; remove pats that are children of an included pat.
+          includedPatExps |> List.filter (\(pat, exp) -> not <| List.any (\otherPat -> pat /= otherPat && List.member pat (flattenPatTree otherPat)) includedPats)
+        else
+          expandFunction newIncludedPatExps
+
+      includedPatExps = expandFunction []
+
+      -- Okay, now the fun part: building the function.
+
+      funcLocation = deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (.val >> .eid >> (==) returnExp.val.eid) -- Place function just before abstracted expression
+      funcSuggestedName = expNameForEId program outputEId ++ "Func"
+      funcName =
+        nonCollidingName
+            funcSuggestedName
+            2
+            (visibleIdentifiersAtEIds program (Set.singleton outputEId))
+
+      uniqueNamesToAvoid   = Set.union (identifiersSetPlusPrelude program) ([funcSuggestedName, funcName] ++ Dict.keys uniqueNameToOldName |> Set.fromList)
+      funcUniqueName       = nonCollidingName funcSuggestedName 2 uniqueNamesToAvoid
+      uniqueNameToOldName2 = Dict.insert funcUniqueName funcName uniqueNameToOldName
+
+      -- Just slurp in the lets and allow the problem resolver do its thing.
+
+      (funcBodyAfterSlurpingBeforeArgumentization, programUniqueNamesBindingsRemoved) =
+        includedPatExps
+        |> List.sortBy (\(_, boundExp) -> parsedThingToLocation boundExp)
+        |> Utils.foldr
+            (replacePrecedingWhitespace "\n  " (replaceIndentation "  " returnExp), originalProgramUniqueNames)
+            (\(pat, boundExp) (funcBodySoFar, programUniqueNamesSomeBindingsRemoved) ->
+              case CodeMotion.pluckByPId pat.val.pid programUniqueNamesSomeBindingsRemoved of
+                Just ((pat, boundExp, isRec), programUniqueNamesSomeBindingsRemoved) ->
+                  ( ELet newline1 Let isRec (replacePrecedingWhitespacePat " " pat) space1 (replaceIndentation "  " boundExp) space1 funcBodySoFar space0 |> withDummyExpInfo
+                  , programUniqueNamesSomeBindingsRemoved
+                  )
+                Nothing ->
+                  Debug.crash <| "buildAbstraction: pluck shouldn't fail, but did " ++ toString pat
+            )
+
+      expsGroupsToArgumentize = computeExpsGroupsToArgumentize funcBodyAfterSlurpingBeforeArgumentization
+    in
+
+    -- For each possible way to argumentize the function, compute some results.
+    expsGroupsToArgumentize
+    |> List.concatMap
+        (\expsToArgumentize ->
+          let
+            (varsToArgumentize, otherExpsToArgumentize) = List.partition isVar expsToArgumentize
+
+            allProgramPats =
+              allRootPats originalProgramUniqueNames
+              |> List.concatMap flattenPatTree -- Parents appear before children, so this will properly handle multiple nested as-patterns (e.g. a as b as c).
+
+            -- Preserve (pt as [x, y]) patterns in function instead of duplicating.
+            (nonPVarArgPatExpsForVars, remainingVarsToArgumentize) =
+              -- Hurray for unique names.
+              allProgramPats
+              |> Utils.foldl
+                  ([], varsToArgumentize)
+                  (\pat ((argExpPats, remainingVarsToArgumentize) as acc) ->
+                    case pat.val.p__ of
+                      PAs ws1 uniqueIdent ws2 innerPat ->
+                        let
+                          remainingIdentsToArgumentize = List.map expToIdent remainingVarsToArgumentize
+                          patWithUnusedRemoved =
+                            pat
+                            |> mapPat -- bottom up
+                                (\pat ->
+                                  -- Preserve pat location information so we can order the arguments by original pattern location in program.
+                                  case pat.val.p__ of
+                                    PVar _ uniqueIdent _         -> if List.member uniqueIdent remainingIdentsToArgumentize then pat else replaceP__PreservingPrecedingWhitespace pat (PWildcard space1)
+                                    PAs _ uniqueIdent _ innerPat ->
+                                      case (List.member uniqueIdent remainingIdentsToArgumentize, isPWildcard innerPat) of
+                                        (True, False) -> pat
+                                        (True, True)  -> replaceP__PreservingPrecedingWhitespace pat (PVar space0 uniqueIdent noWidgetDecl)
+                                        _             -> copyPrecedingWhitespacePat pat innerPat
+                                    PConst _ _                   -> replaceP__PreservingPrecedingWhitespace pat (PWildcard space1)
+                                    PBase _ _                    -> replaceP__PreservingPrecedingWhitespace pat (PWildcard space1)
+                                    PList _ _ _ _ _              -> if List.all isPWildcard (childPats pat) then replaceP__PreservingPrecedingWhitespace pat (PWildcard space1) else pat
+                                    PParens _ p _                -> copyPrecedingWhitespacePat pat p
+                                    PWildcard _                  -> pat
+                                )
+                        in
+                        case identifiersListInPat patWithUnusedRemoved of
+                          []  -> acc -- pattern completely unused
+                          [_] -> acc -- only one ident in pat used, treat as regular PVar (below)
+                          _   ->
+                            let argPat = patWithUnusedRemoved in
+                            ( argExpPats ++ [(argPat, eVar uniqueIdent)]
+                            , remainingVarsToArgumentize |> List.filter (\var -> not <| List.member (expToIdent var) (identifiersListInPat argPat))
+                            )
+
+                      _ -> acc
+                  )
+
+
+            argPVarExpsForVars =
+              -- Preserve pat location information so we can order the arguments by original pattern location in program.
+              remainingVarsToArgumentize
+              |> List.map expToIdent
+              |> List.map
+                  (\uniqueIdent ->
+                    case Utils.findFirst (patToMaybeIdent >> (==) (Just uniqueIdent)) allProgramPats of
+                      Just programPat -> (replaceP__PreservingPrecedingWhitespace programPat (PVar space0 uniqueIdent noWidgetDecl), eVar uniqueIdent)
+                      Nothing         -> let _ = Utils.log <| "buildAbstraction shouldn't happen: couldn't find existing program pattern for argument name " ++ uniqueIdent in (pVar uniqueIdent, eVar uniqueIdent)
+                  )
+
+            -- Trying to figure out whether to abstract out the whole argumentization logic down through (argPats, argExps)
+            -- No, we can probably work around the problem of figuring out which arguments are placed where (simplest solution is to have only one argument)
+
+            (argPatExpsForOtherExps, funcBody, uniqueNameToOldName3) =
+              otherExpsToArgumentize
+              |> Utils.foldl
+                  ( []
+                  , funcBodyAfterSlurpingBeforeArgumentization
+                  , uniqueNameToOldName2
+                  )
+                  (\expToArgumentize (argPatExpsForOtherExps, funcBody, uniqueNameToOldName) ->
+                    let simpleVarArg () =
+                      let
+                        suggestedName      = expNameForEId program expToArgumentize.val.eid
+                        name               = nonCollidingName suggestedName 2 (visibleIdentifiersAtEIds program (Set.singleton expToArgumentize.val.eid))
+                        uniqueNamesToAvoid =
+                          Utils.unionAll
+                              [ identifiersSetPlusPrelude program
+                              , identifiersSet funcBody -- Unique names from previous argumentizations
+                              , [suggestedName, name] ++ Dict.keys uniqueNameToOldName |> Set.fromList
+                              ]
+
+                        uniqueName = nonCollidingName suggestedName 2 uniqueNamesToAvoid
+                        argPat     = Info.copyInfo expToArgumentize (pVar uniqueName) -- Add a syntactic location to inform argument ordering
+                      in
+                      ( argPatExpsForOtherExps ++ [(argPat, expToArgumentize)]
+                      , funcBody |> replaceExpNodePreservingPrecedingWhitespace expToArgumentize.val.eid (eVar uniqueName)
+                      , Dict.insert uniqueName name uniqueNameToOldName
+                      )
+                    in
+                    case findLetAndPatMatchingExpLoose expToArgumentize.val.eid funcBody of
+                      Just (_, pat) ->
+                        -- Not as smart about removing unused patterns as the logic for vars above, but less
+                        -- weird to not do it here because here we know the let pat was already in the function
+                        -- (and therefore more likely to contain a careful pattern) rather than possibly scooped from outside.
+                        case CodeMotion.pluckByPId pat.val.pid funcBody of
+                          Just ((pat, boundExp, False), funcBodyPatRemoved) ->
+                            ( argPatExpsForOtherExps ++ [(pat, boundExp)]
+                            , funcBodyPatRemoved
+                            , uniqueNameToOldName
+                            )
+
+                          _ -> simpleVarArg ()
+
+                      _ -> simpleVarArg ()
+                  )
+
+            (argPats, argExps) =
+              (argPVarExpsForVars ++ nonPVarArgPatExpsForVars ++ argPatExpsForOtherExps)
+              |> List.sortBy (\(pat, _) -> parsedThingToLocation pat)
+              |> List.unzip
+
+
+            call = eCall funcUniqueName (argExps |> List.map (replacePrecedingWhitespace " ")) |> setEId outputEId
+            programWithCall =
+              programUniqueNamesBindingsRemoved
+              |> replaceExpNodePreservingPrecedingWhitespace outputEId call
+
+            insertedLetEId = FastParser.maxId programWithCall + 1
+            funcLet =
+              newLetFancyWhitespace
+                  insertedLetEId False
+                  (pVar funcUniqueName)
+                  (eFun (argPats |> setPatListWhitespace "" " ") (funcBody |> unindent |> replacePrecedingWhitespace "\n" |> indent "  "))
+                  (justFindExpByEId programWithCall funcLocation.val.eid)
+                  programWithCall
+            programWithCallAndFunc =
+              programUniqueNamesBindingsRemoved
+              |> replaceExpNode
+                  funcLocation.val.eid
+                  funcLet
+              |> LangSimplify.simplifyAssignments -- Remove remnants of plucking.
+
+
+            programsWithCallAndFuncPostProcessedAndCaption =
+              -- User-provided function.
+              -- Return a list in case you want to produce more than one possible result.
+              postProcessBeforeProblemResolution
+                  programWithCallAndFunc
+                  funcLet
+                  call
+                  uniqueNameToOldName3
+          in
+          if List.length argPats > 0 && nodeCount funcBody >= max 5 (2 * List.length argPats) then
+            programsWithCallAndFuncPostProcessedAndCaption
+            |> List.concatMap
+                (\(programWithCallAndFuncPostProcessed, caption) ->
+                  CodeMotion.programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
+                      caption -- baseDescription
+                      uniqueNameToOldName3
+                      Nothing -- (Just letEIdWithNewVars) -- maybeNewScopeEId
+                      ("touched", "untouched") -- (touchedAdjective, untouchedAdjective)
+                      Set.empty -- namesUniqueTouched -- namesUniqueTouched
+                      [] -- varEIdsPreviouslyDeliberatelyRemoved
+                      Dict.empty -- insertedVarEIdToBindingPId -- insertedVarEIdToBindingPId
+                      originalProgramUniqueNames -- originalProgramUniqueNames
+                      programWithCallAndFuncPostProcessed -- newProgramUniqueNames
+                )
+          else
+            []
+        )
+  )
+
+-- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
+repeatUsingFunction : Exp -> SlowTypeInference.TC2Graph -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
+  let
+    model =
+      { slideNumber    = slideNumber
+      , movieNumber    = movieNumber
+      , movieTime      = movieTime
+      , syntax         = Syntax.Elm
+      , syncOptions    = syncOptions
+      , maybeEnv       = maybeEnv
+      , editingContext = editingContext
+      }
+
+    drawingScopeEId = FocusedEditingContext.eidAtEndOfDrawingContext editingContext program
+  in
+  case InterfaceModel.runAndResolve_ model program of -- Syntax is dummy; we abort on unparsable code
+    Err s -> []
+    Ok (_, widgets, slate, _) ->
+      let
+        -- Step 1: Find points in provenance of selected shape.
+
+        -- Crossing fingers that inserted values from featureEquations have their basedOn provenance set up correctly...
+        selectedVals = ShapeWidgets.selectedVals slate widgets selectedFeatures selectedShapes selectedBlobs
+
+        allIntermediates = List.concatMap Provenance.flattenValBasedOnTree selectedVals
+        intermediatePoints = allIntermediates |> Provenance.consolidatePointPartsIntoPoints |> List.filter valIsPoint
+        intermediatePointEIdSet = intermediatePoints |> List.map (valExp >> .val >> .eid) |> List.filter FastParser.isProgramEId |> Set.fromList
+
+        eidsContainingSomeRelevantPointExp =
+          program
+          |> findAllWithAncestors (\e -> Set.member e.val.eid intermediatePointEIdSet)
+          |> List.concat
+          |> List.map (.val >> .eid)
+          |> Set.fromList
+
+        -- Step 2: Trace provenance of whole selected value to unique single exp interpretations that also include a point above
+
+        possibleEIdsToAbstract =
+          ShapeWidgets.selectionsSingleEIdInterpretations
+              program
+              slate
+              widgets
+              selectedFeatures
+              selectedShapes
+              selectedBlobs
+              (\e -> Set.member e.val.eid eidsContainingSomeRelevantPointExp)
+
+
+        -- Step 3: Use Build Abstraction infrastructure to turn the shape into a function over the point
+
+        (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames program
+
+        abstractedCandidatePrograms =
+          possibleEIdsToAbstract
+          |> List.concatMap
+              (\outputEId ->
+                let
+                  slurpedBindingsFilter pat boundExp = True -- Slurp in all bindings not used outside new function.
+
+                  computeExpsGroupsToArgumentize funcBodyAfterSlurpingBeforeArgumentization =
+                    -- For each point exp in the candidate function body, make a candidate result abstracted over that point exp.
+                    funcBodyAfterSlurpingBeforeArgumentization
+                    |> flattenExpTree
+                    |> List.filter (\e -> Set.member e.val.eid intermediatePointEIdSet)
+                    |> List.map List.singleton
+
+                  postProcessBeforeProblemResolution programWithCallAndFunc funcLet callExp uniqueNameToOldName =
+                    let
+
+                      -- Step 4: Insert a map call into the program
+                      --         map/concatMap newFunc (pointsFunc ...)
+
+                      maybeRepeatFuncCall =
+                        let
+                          ptArgExp =
+                            expToAppArgs callExp
+                            |> Utils.head "ValueBasedTransform.repeatUsingFunction: ptArgExp = expToAppArgs callExp |> Utils.head"
+
+                          (_, repeatFuncExp, repeatFuncType) =
+                            FindRepeatTools.getRepetitionFunctions program typeGraph editingContext -- Returns list of (fName, fExp, typeSig), fExp is an EFun
+                            |> Utils.findFirst (Utils.fst3 >> (==) repeatFuncName)
+                            |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction FindRepeatTools.getRepetitionFunctions model |> Utils.findFirst (Utils.fst3 >> (==) repeatFuncName)"
+
+                          (repeatFuncArgTypes, repeatFuncReturnType) =
+                            repeatFuncType
+                            |> Types.typeToMaybeArgTypesAndReturnType
+                            |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction repeatFuncType |> Types.typeToMaybeArgTypesAndReturnType"
+
+
+                          (isPointUsed, repeatCallArgMaybeExps) =
+                            repeatFuncArgTypes
+                            |> Utils.foldl
+                                (False, [])
+                                (\argType (isPointUsed, argMaybeExps) ->
+                                  case (isPointUsed, Types.isPointType argType) of
+                                    (False, True) -> (True,        argMaybeExps ++ [Just <| replacePrecedingWhitespace " " ptArgExp])
+                                    _             -> (isPointUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
+                                )
+
+                          _ = isPointUsed |> Utils.assert ("Expected repeatFuncArgTypes to have a point type but was " ++ toString repeatFuncArgTypes)
+                        in
+                        case Utils.projJusts repeatCallArgMaybeExps of
+                          Just repeatCallArgExps ->
+                            Just (eCall repeatFuncName repeatCallArgExps)
+                          Nothing ->
+                            let _ = Debug.log ("Could not generate all arguments for " ++ repeatFuncName) (repeatFuncArgTypes, repeatCallArgMaybeExps) in
+                            Nothing
+
+                      itemFuncUniqueName = callExp |> expToAppFunc |> expToIdent
+                      itemFuncName = Utils.justGet_ "ValueBasedTransform.repeatUsingFunction postProcessBeforeProblemResolution itemFuncName" itemFuncUniqueName uniqueNameToOldName
+                      repeatGroupSuggestedName = "repeated" ++ Utils.capitalize itemFuncName
+                      repeatGroupName          = nonCollidingName repeatGroupSuggestedName 2 (visibleIdentifiersAtEIds program (Set.singleton drawingScopeEId))
+                      uniqueNamesToAvoid =
+                        Utils.unionAll
+                            [ identifiersSetPlusPrelude program
+                            , identifiersSet programWithCallAndFunc
+                            , [repeatGroupSuggestedName, repeatGroupName] ++ Dict.keys uniqueNameToOldName ++ Dict.values uniqueNameToOldName |> Set.fromList
+                            ]
+                      repeatGroupUniqueName = nonCollidingName repeatGroupSuggestedName 2 uniqueNamesToAvoid
+
+                      mapCalls =
+                        case maybeRepeatFuncCall of
+                          Just repeatFuncCall ->
+                            [ eCall "map"       [eVar itemFuncUniqueName, repeatFuncCall]
+                            , eCall "concatMap" [eVar itemFuncUniqueName, repeatFuncCall]
+                            ]
+
+                          Nothing ->
+                            []
+
+                      programWithCallAndFuncFresh =
+                        freshen programWithCallAndFunc
+
+                      programWithCallAndFuncUnparsed =
+                        LangUnparser.unparseWithUniformWhitespace True True programWithCallAndFuncFresh
+
+                      -- Find EIds in the abstraction so we can exclude these from possible insertion points for DrawAddShape.addShape
+                      -- to speed up synthesis considerably.
+                      -- (If DrawAddShape.addShape tries to insert the map call inside the new abstraction it creates a non-terminating recursive
+                      -- function...eval will "stack overflow" and the candidate program will correctly be rejected but it's slow, 1.0-1.5s)
+                      eidsInNewAbstraction =
+                        programWithCallAndFuncFresh
+                        |> allSimplyResolvableLetBindings
+                        |> Utils.maybeFind itemFuncUniqueName
+                        |> Utils.fromJust_ ("ValueBasedTransform.repeatUsingFunction eidsInNewAbstraction Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName)
+                        |> expToFuncBody
+                        |> allEIds
+                        -- |> List.filter (\eid -> eid > 0 || let _ = Utils.log "ValueBasedTransform.repeatUsingFunction eid <= 0 in new abstraction!!!" in False)
+                        |> Set.fromList
+                    in
+                    mapCalls
+                    |> List.filterMap
+                        (\repeatGroupCall ->
+                          -- Step 5: Replace the shape in the shape list with the shapes produced by the map call.
+                          let
+                            programWithRepeatCall =
+                              DrawAddShape.addShape model (\list -> not <| Set.member list.val.eid eidsInNewAbstraction) (Just repeatGroupName) repeatGroupCall Nothing Nothing Nothing Nothing programWithCallAndFuncFresh
+                          in
+                          if LangUnparser.unparseWithUniformWhitespace True True programWithRepeatCall == programWithCallAndFuncUnparsed then
+                            Nothing
+                          else
+                            Just <|
+                              ( programWithRepeatCall
+                              , "Repeat " ++ itemFuncName ++ " using " ++ repeatFuncName
+                              )
+                        )
+                in
+                buildAbstraction_
+                    program
+                    originalProgramUniqueNames
+                    uniqueNameToOldName
+                    outputEId
+                    slurpedBindingsFilter
+                    computeExpsGroupsToArgumentize
+                    postProcessBeforeProblemResolution
+              )
+      in
+      abstractedCandidatePrograms
 
 
 deepestCommonAncestorOrSelfWithNewlineByLocSet : Exp -> LocSet -> Exp

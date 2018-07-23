@@ -367,6 +367,9 @@ prelude =
 (def HalfWidth Num)
 (def HalfHeight Num)
 (def Radius Num)
+(def Count Num)
+(def Radians Num)
+(def Degrees Num)
 (def RGBA [Num Num Num Num])
 (def Color (union String Num RGBA))
 (def StrokeWidth Num)
@@ -981,8 +984,8 @@ prelude =
     [(cos ang) (neg (sin ang))]))
   (map foo (list0N (- n 1)))))))
 
-(typ nPointsOnCircle (-> Num Num Point Radius (List Point)))
-;; argument order - Num of points, degree of rotation, x-center, y-center, radius
+(typ nPointsOnCircle (-> Count Radians Point Radius (List Point)))
+;; argument order - Num of points, radians of rotation, x-center, y-center, radius
 ;; Scales nPointsOnUnitCircle to the proper size and location with a given radius and center
 (def nPointsOnCircle (\\(n rot [cx cy] r)
   (let pts (nPointsOnUnitCircle n rot)

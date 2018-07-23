@@ -269,6 +269,7 @@ isMouseDown model =
     (Just _, _, _) -> True
     _              -> False
 
+
 isShapeBeingDrawnSnappingToVal : Model -> Val -> Bool
 isShapeBeingDrawnSnappingToVal model val =
   -- Only singular locs for now.

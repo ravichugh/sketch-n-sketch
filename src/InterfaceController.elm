@@ -13,7 +13,7 @@ port module InterfaceController exposing
   , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgHideWidgets
-  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction
+  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction, msgRepeatUsingFunction
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
@@ -88,6 +88,7 @@ import LangSimplify
 import ValueBasedTransform
 import Blobs exposing (..)
 import Draw
+import DrawAddShape
 import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
@@ -1750,7 +1751,6 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
 msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
   let synthesisResults =
     ValueBasedTransform.buildAbstraction
-        old.syntax
         old.inputExp
         old.selectedFeatures
         old.selectedShapes
@@ -1761,6 +1761,27 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
         old.syncOptions
   in
   { old | synthesisResultsDict = Dict.insert "Build Abstraction" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
+
+
+msgRepeatUsingFunction repeatFuncName =
+  let synthesisResultsDictKey = "Repeat Using " ++ repeatFuncName in
+  Msg synthesisResultsDictKey <| \old ->
+    let synthesisResults =
+      ValueBasedTransform.repeatUsingFunction
+          old.inputExp
+          old.typeGraph
+          old.editingContext
+          old.maybeEnv
+          repeatFuncName
+          old.selectedFeatures
+          old.selectedShapes
+          old.selectedBlobs
+          old.slideNumber
+          old.movieNumber
+          old.movieTime
+          old.syncOptions
+    in
+    { old | synthesisResultsDict = Dict.insert synthesisResultsDictKey (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 
 msgShowTerminationConditionOptions funcEId scrutineeEId = Msg "Show Termination Condition Options" <| \old ->
@@ -1827,7 +1848,7 @@ addToOutput old =
               |> Maybe.map List.length
               -- |> Debug.log "maybeNumberOfNewListItemsExpectedIfListInlined"
             in
-            Draw.addShape old Nothing (eHoleVal val) Nothing Nothing (Just 1) maybeNumberOfNewListItemsExpectedIfListInlined program |> freshen
+            DrawAddShape.addShape old (always True) Nothing (eHoleVal val) Nothing Nothing (Just 1) maybeNumberOfNewListItemsExpectedIfListInlined program |> freshen
           )
       |> Syntax.unparser old.syntax
   in
@@ -2036,7 +2057,7 @@ doDuplicate old =
           (\expToDuplicate ->
             let name = LangTools.expNameForExp old.inputExp expToDuplicate |> LangTools.removeTrailingDigits in
             -- Attempt 1: Try to add to output as a shape.
-            let newProgram = Draw.addShape old (Just name) expToDuplicate (Just <| Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing old.inputExp in
+            let newProgram = DrawAddShape.addShape old (always True) (Just name) expToDuplicate (Just <| Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing old.inputExp in
             if not <| LangUnparser.expsEquivalent newProgram old.inputExp then
               newProgram
             else

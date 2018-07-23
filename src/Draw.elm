@@ -11,7 +11,6 @@ module Draw exposing
   , svgXYDot
   -- , newFunctionCallExp
   , boundingBoxOfPoints_
-  , addShape
   , addLine
   -- , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
   -- , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
@@ -20,13 +19,13 @@ module Draw exposing
   -- , addLambda
   , addFunction
   , addPoint , addOffsetAndMaybePoint , horizontalVerticalSnap
-  , isPointType
   -- , addTextBox
   , lambdaToolOptionsOf
   , getDrawableFunctions
   )
 
 import CodeMotion
+import DrawAddShape
 import Lang exposing (..)
 import LangSvg
 import Types
@@ -35,10 +34,10 @@ import InterfaceModel exposing (..)
 import FastParser
 import LangUnparser
 import LangTools
+import TypeDirectedFunctionUtils
 import StaticAnalysis
 import Provenance
 import FocusedEditingContext
-import SlowTypeInference
 import Utils
 import Either exposing (..)
 import Keys
@@ -300,7 +299,7 @@ drawNewFunction fName model pt1 pt2 =
   newFunctionCallExp fName model pt1 pt2
   |> Maybe.andThen
     (\(callExp, funcExp, returnType) ->
-      if isPointType returnType then
+      if Types.isPointType returnType then
         let maybePoint =
           let pseudoProgram =
             model.inputExp
@@ -1050,7 +1049,7 @@ addFunction : Ident -> Model -> PointWithSnap -> PointWithSnap -> Model
 addFunction fName old pt1 pt2 =
   case newFunctionCallExp fName old pt1 pt2 of
     Just (callExp, _, returnType) ->
-      if isPointType returnType then
+      if Types.isPointType returnType then
         addToEndOfDrawingContext old fName callExp
       else
         addShapeToModel old fName callExp
@@ -1060,26 +1059,6 @@ addFunction fName old pt1 pt2 =
 -- Returns (funcCall, funcExp, returnType), funcExp is an EFun
 newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Exp, Type)
 newFunctionCallExp fName model pt1 pt2 =
-  let fillInArgPrimitive argType =
-    Maybe.map (if isPointType argType then identity else identity) <| -- eAsPoint
-      case argType.val of
-        TNum _                         -> Just <| eConstDummyLoc 0
-        TBool _                        -> Just <| eFalse
-        TString _                      -> Just <| eStr "string"
-        TNull _                        -> Just <| eNull
-        TList _ _ _                    -> Just <| eTuple []
-        TDict _ _ _ _                  -> Just <| eOp DictEmpty []
-        TTuple _ headTypes _ Nothing _ -> List.map fillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
-        TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
-        TVar _ _                       -> Just <| eTuple []
-        TWildcard _                    -> Just <| eTuple []
-        TNamed _ "Color"               -> Just <| eConstDummyLoc 0
-        TNamed _ "StrokeWidth"         -> Just <| eConstDummyLoc 5
-        TNamed _ "Point"               -> Just <| eTuple (makeInts [0,0])
-        TNamed _ "Width"               -> Just <| eConstDummyLoc 162 -- Golden ratio
-        TNamed _ "Height"              -> Just <| eConstDummyLoc 100
-        _                              -> Nothing
-  in
   case getDrawableFunctions model |> Utils.findFirst (Utils.fst3 >> (==) fName) of
     Just (_, funcExp, funcType) ->
       case Types.typeToMaybeArgTypesAndReturnType funcType of
@@ -1090,9 +1069,9 @@ newFunctionCallExp fName model pt1 pt2 =
             |> Utils.foldl
                 ([pt1, pt2], [])
                 (\argType (ptsRemaining, argMaybeExps) ->
-                  case (ptsRemaining, isPointType argType) of
+                  case (ptsRemaining, Types.isPointType argType) of
                     (pt::otherPts, True) -> (otherPts,     argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt)])
-                    _                    -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
+                    _                    -> (ptsRemaining, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
                 )
           in
           -- See if func can take 1 Point + Width + Height
@@ -1104,17 +1083,17 @@ newFunctionCallExp fName model pt1 pt2 =
             |> Utils.foldl
                 (False, False, False, [])
                 (\argType (pointUsed, widthUsed, heightUsed, argMaybeExps) ->
-                  case ( pointUsed  , isPointType argType
+                  case ( pointUsed  , Types.isPointType argType
                        , widthUsed  , Types.typeToMaybeAliasIdent argType == Just "Width"
                        , heightUsed , Types.typeToMaybeAliasIdent argType == Just "Height"
                        ) of
                     (False, True, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just x1y1Exp])
                     (_, _, False, True, _, _) -> (pointUsed, True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals X pt2 pt1)])
                     (_, _, _, _, False, True) -> (pointUsed, widthUsed, True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals Y pt2 pt1)])
-                    _                         -> (pointUsed, widthUsed, heightUsed, argMaybeExps ++ [fillInArgPrimitive argType])
+                    _                         -> (pointUsed, widthUsed, heightUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
                 )
           in
-          let perhapsPointAnnotation = if isPointType returnType then identity else identity in -- eAsPoint
+          let perhapsPointAnnotation = if Types.isPointType returnType then identity else identity in -- eAsPoint
           Utils.plusMaybe
               (Utils.projJusts argMaybeExpsTwoPoints        |> Utils.filterMaybe (always (ptsUnused == [])))
               (Utils.projJusts argMaybeExpsPointWidthHeight |> Utils.filterMaybe (always (ptUsed && widthUsed && heightUsed)))
@@ -1150,184 +1129,8 @@ newFunctionCallExp fName model pt1 pt2 =
 
 addShapeToModel : Model -> String -> Exp -> Model
 addShapeToModel model newShapeName newShapeExp =
-  let newProgram = addShape model (Just newShapeName) newShapeExp (Just 1) Nothing Nothing Nothing model.inputExp in
+  let newProgram = DrawAddShape.addShape model (always True) (Just newShapeName) newShapeExp (Just 1) Nothing Nothing Nothing model.inputExp in
   { model | code = Syntax.unparser model.syntax newProgram }
-
-
--- 1. Find all list literals.
--- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
--- 3. Resolve value holes.
--- 4. Keep those programs that do not crash.
--- 5. Keep those programs that result in one more shape in the output.
--- 6. Finally, use list the others do not depend on.
-addShape : Model -> Maybe String -> Exp -> Maybe Int -> Maybe Int -> Maybe Int -> Maybe Int -> Exp -> Exp
-addShape
-  model
-  maybeNewShapeName
-  newShapeExp
-  maybeNumberOfNewShapesExpected
-  maybeNumberOfNewShapesExpectedIfListInlined -- If provided, may attempt to inline newShapeExp if it is a list
-  maybeNumberOfNewListItemsExpected
-  maybeNumberOfNewListItemsExpectedIfListInlined -- If provided, may attempt to inline newShapeExp if it is a list
-  originalProgram =
-
-  let
-    contextExp         = FocusedEditingContext.drawingContextExp model.editingContext originalProgram
-    typeGraph          = SlowTypeInference.typecheck originalProgram
-    inferredReturnType = SlowTypeInference.maybeTypes contextExp.val.eid typeGraph
-    -- _ = inferredReturnType |> List.map (Syntax.typeUnparser Syntax.Elm) |> Debug.log "inferredReturnType"
-
-    -- 1. Find all list literals.
-    lists = flattenExpTree contextExp |> List.filter isList -- Possible optimization: exclude lists with numeric element
-
-    -- 1.5 If the return value isn't a list, make some candidates where the return value is a wrapped in a singleton.
-    maybeProgramWithListifiedReturnExpAndLists =
-      let tryToListifyReturnValue =
-        case inferredReturnType of
-          [t] -> not (Types.isListNotTuple t)  -- Ahh, this may always evaluate to True in our context...SlowTypeInference has a habit of spitting out Tuples with tails
-          _   -> False
-      in
-      if tryToListifyReturnValue then
-        let
-          terminalExpLevels = LangTools.terminalExpLevels contextExp
-          programWithListifiedReturnExp =
-            terminalExpLevels
-            |> Utils.foldr
-                originalProgram
-                (\terminalExp program ->
-                  let eidToWrap = (LangTools.lastSameLevelExp terminalExp).val.eid in
-                  program
-                  |> mapExpNode eidToWrap (\expToWrap -> eTuple [removePrecedingWhitespace expToWrap] |> copyPrecedingWhitespace expToWrap)
-                )
-            |> FastParser.freshen
-
-          lists = LangTools.justFindExpByEId programWithListifiedReturnExp contextExp.val.eid |> flattenExpTree |> List.filter isList
-        in
-        Just (programWithListifiedReturnExp, lists)
-      else
-        Nothing
-
-    -- Should we try to inline the item to add?
-    (maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected, incomingExpShouldBeInlined) =
-      if maybeNumberOfNewShapesExpectedIfListInlined /= Nothing || maybeNumberOfNewListItemsExpectedIfListInlined /= Nothing then
-        let incomingExpFreshened = FastParser.freshen newShapeExp in
-        case (inferredReturnType, SlowTypeInference.typecheck incomingExpFreshened |> SlowTypeInference.maybeTypes incomingExpFreshened.val.eid) of
-          ([retType], [incomingType]) ->
-            -- let _ = Utils.log (Syntax.typeUnparser Syntax.Elm retType) in
-            -- let _ = Utils.log (Syntax.typeUnparser Syntax.Elm incomingType) in
-            if Types.isListOrTuple retType && Types.isListOrTuple incomingType && Types.isSubtype retType incomingType then
-              ( maybeNumberOfNewShapesExpectedIfListInlined
-              , maybeNumberOfNewListItemsExpectedIfListInlined
-              , True
-              )
-            else
-              (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
-
-          _ ->
-            (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
-      else
-        (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
-
-    (oldListItemsCount, oldShapeTree) =
-      case runAndResolveAtContext model originalProgram of
-        Ok (val, _, (root, shapeTree), _) -> (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1, shapeTree)
-        _                                 -> (0, Dict.empty)
-
-    -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
-    --    If return val is not a list, make it a list.
-    candidatesForList originalProgram listExp =
-      let
-        (newListItemExp, programPerhapsWithNewDef) =
-          case maybeNewShapeName of
-            Just newShapeName ->
-              let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] originalProgram in
-              (eVar varName, programWithNewDef)
-            Nothing ->
-              (newShapeExp, originalProgram)
-
-        (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp
-        newListFlat    = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [newListItemExp]))) ws2 maybeTail ws3
-        newProgramFlat = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newListFlat
-        newCandidates =
-          if incomingExpShouldBeInlined then
-            -- In case new item is actually a list of new items instead of a single, may need to change listExp to a concat.
-            let newConcat             = eCall "concat" [eTuple [removePrecedingWhitespace listExp, newListItemExp]] |> copyPrecedingWhitespace listExp in
-            let newProgramConcatAdded = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newConcat in
-            [newProgramFlat, newProgramConcatAdded]
-          else
-            let newListSingleton    = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [removePrecedingWhitespace newListItemExp]]))) ws2 maybeTail ws3 in
-            let newProgramSingleton = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
-            [newProgramFlat, newProgramSingleton]
-      in
-      -- 3. Resolve value holes.
-      newCandidates
-      |> List.concatMap (CodeMotion.resolveValueHoles model.syncOptions model.maybeEnv)
-      |> List.map ((,) listExp.val.eid)
-
-    listEIdWithPossiblePrograms =
-      lists
-      |> List.concatMap (candidatesForList originalProgram)
-      |> (\candidates ->
-        case maybeProgramWithListifiedReturnExpAndLists of
-          Just (programWithListifiedReturnExp, lists) -> candidates ++ List.concatMap (candidatesForList programWithListifiedReturnExp) lists
-          Nothing                                     -> candidates
-      )
-      -- 4. Keep those programs that do not crash.
-      -- 5. Keep those programs that result in one more shape in the output.
-      |> List.filter
-          (\(listEId, newProgram) ->
-            case runAndResolveAtContext model newProgram of
-              Ok (val, _, (root, shapeTree), _) ->
-                let
-                  shapeCountOkay =
-                    case maybeReallyNumberOfNewShapesExpected of
-                      Just numberOfNewShapesExpected -> Dict.size oldShapeTree + numberOfNewShapesExpected == Dict.size shapeTree
-                      Nothing                        -> True
-
-                  listItemCountOkay =
-                    case maybeReallyNumberOfNewListItemsExpected of
-                      -- Just numberOfNewListItemsExpected -> Debug.log "expect count" (oldListItemsCount + numberOfNewListItemsExpected) == Debug.log "actual count " (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1)
-                      Just numberOfNewListItemsExpected -> oldListItemsCount + numberOfNewListItemsExpected == (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1)
-                      Nothing                           -> True
-
-                  -- _ = Utils.log (Syntax.unparser Syntax.Elm newProgram)
-                  -- _ = Debug.log "(shapeCountOkay, listItemCountOkay)" (shapeCountOkay, listItemCountOkay)
-                in
-                shapeCountOkay && listItemCountOkay
-              _ ->
-                False
-          )
-
-    -- _ = Debug.log "List.length listEIdWithPossiblePrograms" (List.length listEIdWithPossiblePrograms)
-
-    -- 6. Finally, choose best program.
-    --     1. Prefer modifying list the other lists did not depend on.
-    --     2. Prefer shorter programs.
-    (listEIds, _) = List.unzip listEIdWithPossiblePrograms
-    grossDependencies = StaticAnalysis.grossDependencies originalProgram
-    (_, bestProgram) =
-      listEIdWithPossiblePrograms
-      |> List.sortBy
-          (\(listEId, candidateProgram) ->
-            let
-              -- For Koch curve example, don't seem to need to prefer programs that don't produce a type error at the return location(s). So let's skip this check for simplicity and speed.
-              -- (Note if we did include this criteria, it's not accurate to say "we prefer programs that type check" because SlowTypeInference is too incomplete to e.g. resolve all type applications, so it would simply be preferring programs that don't produce a type error at the return site)
-              -- typeGraph = SlowTypeInference.typecheck candidateProgram
-              sortKey =
-                -- ( if SlowTypeInference.typeIsOkaySoFar contextExp.val.eid typeGraph then 0 else 1
-                ( if listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId) then 0 else 1
-                , LangTools.nodeCount candidateProgram
-                )
-              -- _ = Utils.log (Syntax.unparser Syntax.Elm candidateProgram)
-              -- _ = Debug.log "sortKey" sortKey
-            in
-            sortKey
-          )
-      |> List.head
-      |> Maybe.withDefault (-1, originalProgram)
-
-  in
-  bestProgram
 
 
 makeCallWithLocals locals func args =
@@ -1539,37 +1342,23 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
 -- Returns list of (fName, fExp, typeSig), fExp is an EFun
 preludeDrawableFunctions : List (Ident, Exp, Type)
 preludeDrawableFunctions =
-  getDrawableFunctions_ Dict.empty FastParser.prelude (LangTools.lastSameLevelExp FastParser.prelude).val.eid
-
-
-drawingScope : Model -> EId
-drawingScope model =
-  let defaultScope = (LangTools.lastSameLevelExp model.inputExp).val.eid in
-  case model.editingContext of
-    Just (eid, _) -> findExpByEId model.inputExp eid |> Maybe.map (LangTools.lastSameLevelExp >> .val >> .eid) |> Maybe.withDefault defaultScope
-    _             -> defaultScope
+  TypeDirectedFunctionUtils.getFunctionsByPredicateOnType
+      isDrawableType
+      Dict.empty
+      FastParser.prelude
+      Nothing
 
 
 -- Returns list of (fName, fExp, typeSig), fExp is an EFun
 getDrawableFunctions : Model -> List (Ident, Exp, Type)
 getDrawableFunctions model =
-  getDrawableFunctions_
+  TypeDirectedFunctionUtils.getFunctionsByPredicateOnType
+      isDrawableType
       model.typeGraph
       model.inputExp
-      (drawingScope model) ++
+      model.editingContext ++
   preludeDrawableFunctions
   |> Utils.dedupBy Utils.fst3 -- Remove shadowed prelude functions.
-
-
-isPointType : Type -> Bool
-isPointType tipe =
-  (Types.typeToMaybeAliasIdent tipe == Just "Point") ||
-  case tipe.val of
-    TTuple _ heads _ Nothing _ ->
-      case heads |> List.map .val of
-        [TNum _, TNum _] -> True
-        _                -> False
-    _ -> False
 
 
 -- Supported inputs:
@@ -1585,87 +1374,12 @@ isDrawableType tipe =
   case tipe.val of
     TArrow _ argTypes _ ->
       let inputTypes = Utils.dropLast 1 argTypes in
-      Utils.count isPointType inputTypes >= 2 ||
+      Utils.count Types.isPointType inputTypes >= 2 ||
       (
-        Utils.count isPointType inputTypes >= 1 &&
+        Utils.count Types.isPointType inputTypes >= 1 &&
         Utils.count (Types.typeToMaybeAliasIdent >> (==) (Just "Width"))  inputTypes >= 1 &&
         Utils.count (Types.typeToMaybeAliasIdent >> (==) (Just "Height")) inputTypes >= 1
       )
 
     _ -> False
-
-
--- Returns list of (fName, fExp, typeSig), fExp is an EFun
---
--- To skip finding functions by inferred type, pass an empty dict for the typeGraph
-getDrawableFunctions_ : SlowTypeInference.TC2Graph -> Exp -> EId -> List (Ident, Exp, Type)
-getDrawableFunctions_ typeGraph program viewerEId =
-  let boundExpsInScope =
-    LangTools.expEnvAt_ program viewerEId
-    |> Utils.fromJust_ "getDrawableFunctions_ expEnvAt_"
-    |> Dict.toList
-    |> List.filterMap
-        (\(ident, expBinding) ->
-          case expBinding of
-            LangTools.Bound boundExp -> Just (expEffectiveExp boundExp)
-            LangTools.BoundUnknown   -> Nothing
-        )
-  in
-  let explicitlyAnnotatedFunctions =
-    findWithAncestorsByEId program viewerEId
-    |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"
-    |> List.filterMap
-        (\exp ->
-          case exp.val.e__ of
-            ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
-              if isDrawableType tipe then
-                case LangTools.expToMaybeLetPatAndBoundExp body of
-                  Just (letPat, boundExp) ->
-                    case (typePat.val.p__, letPat.val.p__) of
-                      (PVar _ typeIdent _, PVar _ letIdent _) ->
-                        if typeIdent == letIdent && List.member (expEffectiveExp boundExp) boundExpsInScope
-                        then Just (typeIdent, expEffectiveExp boundExp, tipe)
-                        else Nothing
-                      _ -> Nothing
-                  _ -> Nothing
-              else
-                Nothing
-            _ -> Nothing
-        )
-  in
-  if Dict.size typeGraph > 0 then
-    let
-      -- typeGraph = SlowTypeInference.typecheck program -- |> Debug.log "type graph"
-      -- _ = Utils.log <| Syntax.unparser Syntax.Elm (LangTools.justFindExpByEId program viewerEId)
-      -- _ = ImpureGoodies.logRaw (SlowTypeInference.graphVizString program typeGraph)
-      otherDrawableFunctions =
-        LangTools.expPatEnvAt_ program viewerEId
-        |> Utils.fromJust_ "getDrawableFunctions_ expPatEnvAt_"
-        |> Dict.toList
-        |> List.filterMap
-            (\(ident, (pat, expBinding)) ->
-              let inferred = SlowTypeInference.maybeTypes pat.val.pid typeGraph in
-              -- let _ = inferred |> List.map (\tipe -> Debug.log ident (Syntax.typeUnparser Syntax.Elm tipe)) in
-              -- let _ = Debug.log ident (SlowTypeInference.constraintsOnSubgraph pat.val.pid typeGraph) in
-              case (inferred, expBinding) of
-                ([tipe], LangTools.Bound boundExp) ->
-                  if isDrawableType tipe
-                  then Just (ident, expEffectiveExp boundExp, tipe)
-                  else Nothing
-                _ -> Nothing
-            )
-
-      -- _ =
-      --   -- boundExpsInScope
-      --   flattenExpTree program
-      --   |> List.map
-      --       (\boundExp ->
-      --         case Dict.get boundExp.val.eid typeInfo.finalTypes of
-      --           Just (Just tipe) -> Utils.log <| "exp type: " ++ toString tipe ++ " for " ++ Syntax.unparser Syntax.Little boundExp
-      --           _                -> Utils.log <| "no type for " ++ Syntax.unparser Syntax.Little boundExp
-      --       )
-    in
-    explicitlyAnnotatedFunctions ++ otherDrawableFunctions |> Utils.dedupBy (\(ident, _, _) -> ident)
-  else
-    explicitlyAnnotatedFunctions
 

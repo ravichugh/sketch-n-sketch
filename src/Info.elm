@@ -1,9 +1,10 @@
 module Info exposing
   ( WithInfo
   , withInfo
+  , copyInfo
   , withDummyInfo
   , hasDummyInfo
-  , mapInfo
+  , mapInfoVal
   , parsedThingToLocation
   )
 
@@ -22,6 +23,10 @@ withInfo x start end =
   , end = end
   }
 
+copyInfo : WithInfo a -> WithInfo b -> WithInfo b
+copyInfo from to =
+  { to | start = from.start, end = from.end }
+
 withDummyInfo : a -> WithInfo a
 withDummyInfo x =
   withInfo x dummyPos dummyPos
@@ -30,8 +35,8 @@ hasDummyInfo : WithInfo a -> Bool
 hasDummyInfo w =
   (w.start, w.end) == (dummyPos, dummyPos)
 
-mapInfo : (a -> b) -> WithInfo a -> WithInfo b
-mapInfo f wa =
+mapInfoVal : (a -> b) -> WithInfo a -> WithInfo b
+mapInfoVal f wa =
   { wa | val = f wa.val }
 
 parsedThingToLocation : WithInfo a -> (Int, Int)

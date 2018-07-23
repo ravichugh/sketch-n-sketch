@@ -1194,13 +1194,18 @@ selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatur
 --   |> Utils.dedup
 
 
+selectedVals : RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> List Val
+selectedVals slate widgets selectedFeatures selectedShapes selectedBlobs =
+  List.concat
+      [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
+      , selectedShapesValTrees   slate widgets (Set.toList selectedShapes)
+      , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
+      ]
+
+
 selectionsEIdsTouched : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List EId
-selectionsEIdsTouched program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
-  [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
-  , selectedShapesValTrees   slate widgets (Set.toList selectedShapes)
-  , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
-  ]
-  |> List.concat
+selectionsEIdsTouched program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+  selectedVals slate widgets selectedFeatures selectedShapes selectedBlobs
   |> List.concatMap Provenance.flattenValBasedOnTree
   |> List.map valExp
   |> List.filter expFilter
@@ -1210,15 +1215,11 @@ selectionsEIdsTouched program ((rootI, shapeTree) as slate) widgets selectedFeat
 
 -- Try to find single EIds in the program that explain everything selected.
 selectionsSingleEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List EId
-selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+selectionsSingleEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
   let
     possibleExps = program |> flattenExpTree |> List.filter expFilter
 
-    valTrees =
-      [ selectedFeaturesValTrees slate widgets (Set.toList selectedFeatures)
-      , selectedShapesValTrees   slate widgets (Set.toList selectedShapes)
-      , selectedBlobsValTrees    slate         (Dict.toList selectedBlobs)
-      ] |> List.concat
+    valTrees = selectedVals slate widgets selectedFeatures selectedShapes selectedBlobs
 
     directSingleEIdInterpretations =
       -- Checking exp-by-exp avoids combinatorical explosion of building all interpretations and then filtering.
