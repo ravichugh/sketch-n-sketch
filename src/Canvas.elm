@@ -109,18 +109,24 @@ build dim model =
     (Live, Nothing) -> model.tool == Cursor
     _               -> False
   in
-  let (widgets, widgetBounds, slate) =
+  let (widgets, widgetBounds, slate, pseudoModel) =
     case model.preview of
-      Just (_, Ok (val, widgets, widgetBounds, slate)) -> (widgets, widgetBounds, slate)
-      _                                                -> (model.widgets, model.widgetBounds, model.slate)
+      Just (code, Ok (val, widgets, widgetBounds, slate)) ->
+        ( widgets
+        , widgetBounds
+        , slate
+        , { model | widgets = widgets, widgetBounds = widgetBounds, slate = slate, inputVal = val, code = code, inputExp = Syntax.parser model.syntax code |> Result.toMaybe |> Maybe.withDefault model.inputExp }
+        )
+      _ ->
+        (model.widgets, model.widgetBounds, model.slate, model)
   in
   let outputIsSvg = LangSvg.rootIsShapeOrText slate in
-  let outputElement = buildHtml (model, addZones) outputIsSvg slate in
+  let outputElement = buildHtml (pseudoModel, addZones) outputIsSvg slate in
   let newShape = drawNewShape model in
   let widgetsAndDistances =
     case (model.outputMode, model.showGhosts, model.preview) of
-      (Live, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets widgetBounds model -- Draw distances below other widgets
-      (Live, True, Just _)  -> buildSvgWidgets dim.width dim.height widgets widgetBounds model -- Don't show distances in preview
+      (Live, True, Nothing) -> buildDistances pseudoModel slate widgets ++ buildSvgWidgets dim.width dim.height widgets widgetBounds pseudoModel -- Draw distances below other widgets
+      (Live, True, Just _)  -> buildSvgWidgets dim.width dim.height widgets widgetBounds pseudoModel -- Don't show distances in preview
       _                     -> []
   in
   let selectBox = drawSelectBox model in

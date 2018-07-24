@@ -2192,7 +2192,7 @@ showCodePreview old code =
 
 showExpPreview old exp =
   let code = Syntax.unparser old.syntax exp in
-  case runAndResolve old exp of
+  case runAndResolve old (exp |> FastParser.clearAllIds |> freshen) of -- Reset all EIds so EIds same as if code were reparsed.
     Ok (val, widgets, slate, _) -> { old | preview = Just (code, Ok (val, widgets, ShapeWidgets.computeAndRejiggerWidgetBounds widgets, slate)) }
     Err s                       -> { old | preview = Just (code, Err s) }
 
