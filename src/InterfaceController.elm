@@ -1871,74 +1871,10 @@ deleteInOutput old =
           old.selectedShapes
           old.selectedBlobs
 
-    deleteEId eidToDelete program =
-      case findExpByEId program eidToDelete of
-        Just expToDelete ->
-          let programWithDistalExpressionRemoved =
-            case LangTools.findLetAndPatMatchingExpLoose expToDelete.val.eid program of
-              Just (letExp, patBindingExpToDelete) ->
-                let identsToDelete = LangTools.identifiersListInPat patBindingExpToDelete in
-                let scopeAreas = LangTools.findScopeAreas (letExp.val.eid, 1) letExp in
-                let varUses = scopeAreas |> List.concatMap (LangTools.identifierSetUses (Set.fromList identsToDelete)) in
-                let deleteVarUses program =
-                  varUses
-                  |> List.map (.val >> .eid)
-                  |> List.foldr deleteEId program
-                  |> LangSimplify.simplifyAssignments
-                in
-                case CodeMotion.pluckByPId patBindingExpToDelete.val.pid program of -- TODO allow unsafe pluck out of as-pattern
-                  Just (_, programWithoutBinding) -> deleteVarUses programWithoutBinding
-                  Nothing                         -> deleteVarUses program
-
-              Nothing ->
-                case parentByEId program (LangTools.outerSameValueExp program expToDelete).val.eid of
-                  (Just (Just parent)) ->
-                    case parent.val.e__ of
-                      EFun _ _ _ _ ->
-                        deleteEId parent.val.eid program
-
-                      EList ws1 heads ws2 maybeTail ws3 ->
-                        case List.map Tuple.second heads |> Utils.findi (eidIs eidToDelete) of
-                          Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (List.map ((,) space0) (Utils.removei iToDelete (List.map Tuple.second heads) |> imitateExpListWhitespace (List.map Tuple.second heads))) ws2 maybeTail ws3)
-                          Nothing ->
-                            if Maybe.map (eidIs eidToDelete) maybeTail == Just True
-                            then program |> replaceExpNodeE__ parent (EList ws1 heads ws2 Nothing ws3)
-                            else program
-
-                      _ ->
-                        let _ = Utils.log <| "can't remove from parent " ++ Syntax.unparser old.syntax parent in
-                        program
-
-                  _ ->
-                    let _ = Utils.log <| "can't find parent to remove from" in
-                    program
-          in
-          -- This seems to remove too much (e.g. will remove function if an application is deleted).
-          -- let varEIdsPerhapsRemoved = LangTools.freeVars expToDelete |> List.map (.val >> .eid) |> Set.fromList in
-          let varEIdsPerhapsRemoved =
-            case LangTools.expToMaybeVar (expEffectiveExp expToDelete) of
-              Just varExp -> Set.singleton (varExp.val.eid)
-              _           -> Set.empty
-          in
-          let pidsToMaybeRemove =
-            program
-            |> LangTools.allVarEIdsToBindingPId
-            |> Dict.filter (\varEId _ -> Set.member varEId varEIdsPerhapsRemoved)
-            |> Dict.values
-            |> Utils.filterJusts -- Vars free in program are marked bound to "Nothing"
-            |> Set.fromList
-          in
-          programWithDistalExpressionRemoved
-          |> LangSimplify.removeUnusedLetPatsMatching (\pat -> Set.member pat.val.pid pidsToMaybeRemove)
-
-        _ ->
-          program
-
-
     deleteResults =
       proximalInterpretations
       |> List.take 1
-      |> List.map (\eids -> eids |> List.foldl deleteEId old.inputExp)
+      |> List.map (\eids -> eids |> List.foldl CodeMotion.deleteEId old.inputExp)
   in
   case deleteResults of
     []              -> old

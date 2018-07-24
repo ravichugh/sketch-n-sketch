@@ -10,6 +10,7 @@ module LangSimplify exposing
   , removeExtraPostfixes
   , removeUnusedLetPats
   , removeUnusedLetPatsMatching
+  , removeEmptyListsFromConcats
   , simplifyAssignments
   , changeRenamedVarsToOuter
   )
@@ -29,6 +30,7 @@ cleanCode : Exp -> Exp
 cleanCode program =
   program
   |> simplify
+  |> removeEmptyListsFromConcats
   |> removeExtraPostfixes ["_orig", "'"]
   |> mapExpTopDown (\e -> if isLet e then reflowLetWhitespace program e else e)
   |> freshen
@@ -504,3 +506,31 @@ changeRenamedVarsToOuter_ renamings exp =
   in
   replaceE__ exp e__New
 
+
+removeEmptyListsFromConcats : Exp -> Exp
+removeEmptyListsFromConcats program =
+  let freeVars = LangTools.freeVars program in
+  program
+  |> mapExpViaExp__
+      (\e__ ->
+        case e__ of
+          EApp ws1 funcExp argExps appType ws2 ->
+            if expToMaybeIdent funcExp == Just "concat" && List.member funcExp freeVars then
+              case argExps of
+                [argExp] ->
+                  case argExp.val.e__ of
+                    EList lws1 heads lws2 maybeTail lws3 ->
+                      let
+                        newHeads  = heads |> List.filter (\(ws, head) -> not <| isEmptyList head) -- Using expEffectiveExp here causes ValueBasedTransform.repeatUsingFunction to crash. May someday fix, but probably not.
+                        newArgExp = replaceE__ argExp (EList lws1 newHeads lws2 maybeTail lws3) |> copyListWhitespace argExp
+                      in
+                      EApp ws1 funcExp [newArgExp] appType ws2
+                    _ ->
+                      e__
+                _ ->
+                  e__
+            else
+              e__
+          _ ->
+            e__
+      )

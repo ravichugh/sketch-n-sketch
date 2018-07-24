@@ -438,6 +438,10 @@ isList e = case e.val.e__ of
   EList _ _ _ _ _ -> True
   _               -> False
 
+isEmptyList e = case e.val.e__ of
+  EList _ [] _ Nothing _ -> True
+  _                      -> False
+
 isSingletonList e = case e.val.e__ of
   EList _ [_] _ Nothing _ -> True
   _                       -> False

@@ -1286,18 +1286,26 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                           Nothing ->
                             []
 
-                      programWithCallAndFuncFresh =
-                        freshen programWithCallAndFunc
+                      programWithFuncButNoCallFresh =
+                        let
+                          programWithCallAndFuncFresh = freshen programWithCallAndFunc
+                          callEId =
+                            programWithCallAndFuncFresh
+                            |> findFirstNode (expToMaybeAppFunc >> Maybe.andThen expToMaybeIdent >> (==) (Just itemFuncUniqueName))
+                            |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction programWithFuncButNoCallFresh callEId"
+                            |> (.val >> .eid)
+                        in
+                        CodeMotion.deleteEId callEId programWithCallAndFuncFresh
 
                       programWithCallAndFuncUnparsed =
-                        LangUnparser.unparseWithUniformWhitespace True True programWithCallAndFuncFresh
+                        LangUnparser.unparseWithUniformWhitespace True True programWithFuncButNoCallFresh
 
                       -- Find EIds in the abstraction so we can exclude these from possible insertion points for DrawAddShape.addShape
                       -- to speed up synthesis considerably.
                       -- (If DrawAddShape.addShape tries to insert the map call inside the new abstraction it creates a non-terminating recursive
                       -- function...eval will "stack overflow" and the candidate program will correctly be rejected but it's slow, 1.0-1.5s)
                       eidsInNewAbstraction =
-                        programWithCallAndFuncFresh
+                        programWithFuncButNoCallFresh
                         |> allSimplyResolvableLetBindings
                         |> Utils.maybeFind itemFuncUniqueName
                         |> Utils.fromJust_ ("ValueBasedTransform.repeatUsingFunction eidsInNewAbstraction Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName)
@@ -1312,7 +1320,7 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                           -- Step 5: Replace the shape in the shape list with the shapes produced by the map call.
                           let
                             programWithRepeatCall =
-                              DrawAddShape.addShape model (\list -> not <| Set.member list.val.eid eidsInNewAbstraction) (Just repeatGroupName) repeatGroupCall Nothing Nothing Nothing Nothing programWithCallAndFuncFresh
+                              DrawAddShape.addShape model (\list -> not <| Set.member list.val.eid eidsInNewAbstraction) (Just repeatGroupName) repeatGroupCall Nothing Nothing Nothing Nothing programWithFuncButNoCallFresh
                           in
                           if LangUnparser.unparseWithUniformWhitespace True True programWithRepeatCall == programWithCallAndFuncUnparsed then
                             Nothing
