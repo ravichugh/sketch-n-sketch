@@ -115,7 +115,7 @@ build dim model =
         ( widgets
         , widgetBounds
         , slate
-        , { model | widgets = widgets, widgetBounds = widgetBounds, slate = slate, inputVal = val, code = code, inputExp = Syntax.parser model.syntax code |> Result.toMaybe |> Maybe.withDefault model.inputExp }
+        , { model | renamingInOutput = Nothing, widgets = widgets, widgetBounds = widgetBounds, slate = slate, inputVal = val, code = code, inputExp = Syntax.parser model.syntax code |> Result.toMaybe |> Maybe.withDefault model.inputExp }
         )
       _ ->
         (model.widgets, model.widgetBounds, model.slate, model)
