@@ -8,7 +8,6 @@ module LangTools exposing (..)
 --
 -- Lots of methods for dealing with identifiers and renaming.
 
-import Eval
 import Lang exposing (..)
 import FastParser exposing (prelude, isPreludeLocId, isPreludeEId)
 import Info exposing (parsedThingToLocation)
@@ -1513,7 +1512,10 @@ isLiteral exp =
 -- Identifier/scoping/binding functions
 
 
-preludeIdentifiers = Eval.initEnv |> List.map Tuple.first |> Set.fromList
+preludeIdentifiers : Set Ident
+preludeIdentifiers =
+  let preludeViewerEId = (expEffectiveExp FastParser.prelude).val.eid in -- Same as in Eval.initEnvRes
+  visibleIdentifiersAtPredicateNoPrelude FastParser.prelude (.val >> .eid >> (==) preludeViewerEId)
 
 
 identifiersSetPlusPrelude : Exp -> Set Ident

@@ -6,6 +6,8 @@ import String
 
 import ImpureGoodies
 import Lang exposing (..)
+import LangTools -- To name widgets properly
+import Provenance
 import ValUnparser exposing (..)
 import ValWidgets
 import FastParser exposing (parseE, prelude)
@@ -77,14 +79,14 @@ mkCap mcap l =
       (Nothing, (_,_,"")) -> strLoc l
       (Nothing, (_,_,x))  -> x
   in
-  s ++ ": "
+  s
 
 
 runUntilTheEnd : Exp -> Bool
 runUntilTheEnd = always False
 
 initEnvRes =
-  let endingEId = (expEffectiveExp prelude).val.eid in
+  let endingEId = (expEffectiveExp prelude).val.eid in -- Same as in LangTools.preludeIdentifiers
   eval (Just endingEId) runUntilTheEnd Syntax.Little [] [] prelude
   |> Result.map (Tuple.second >> Utils.fromJust_  "Eval.initEnvRes")
 
@@ -110,7 +112,7 @@ doEvalEarlyAbort maybeRetEnvEId abortPred syntax initEnv e =
   ImpureGoodies.tryCatch "EarlyAbort"
     (\()               -> eval maybeRetEnvEId abortPred syntax initEnv [] e)
     (\(EarlyAbort ret) -> ret)
-  |> Result.map (\((val, widgets), maybeEnv) -> ((val, postProcessWidgets widgets), maybeEnv))
+  |> Result.map (\((val, widgets), maybeEnv) -> ((val, postProcessWidgets e widgets), maybeEnv))
 
 
 -- Do not use: you lose parent tagging.
@@ -126,9 +128,9 @@ doEvalEarlyAbort maybeRetEnvEId abortPred syntax initEnv e =
 
 -- eval inserts dummyPos during evaluation
 
--- Like eval, but ignore envOut
-eval_ : Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
-eval_ syntax env bt e = Result.map Tuple.first <| eval Nothing runUntilTheEnd syntax env bt e
+-- -- Like eval, but ignore envOut
+-- eval_ : Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
+-- eval_ syntax env bt e = Result.map Tuple.first <| eval Nothing runUntilTheEnd syntax env bt e
 
 
 simpleEvalToMaybeVal : Exp -> Maybe Val
@@ -690,7 +692,7 @@ addSubsumingPriorWidgets widget widgets =
   case ValWidgets.widgetToMaybeVal widget of
     Just v ->
       let
-        priorValsToRemove = valToSameVals v
+        priorValsToRemove = Provenance.valToSameVals v
         wsSamePointSubsumed =
           widgets
           |> List.filter
@@ -707,27 +709,38 @@ addSubsumingPriorWidgets widget widgets =
 
 
 -- Need to revisit this to do deeper dedup.
-postProcessWidgets : List Widget -> List Widget
-postProcessWidgets widgets =
-  let dedupedWidgets = Utils.dedup widgets in
-  -- partition so that hidden and point sliders don't affect indexing
-  -- (and, thus, positioning) of range sliders
-  --
-  let (rangeWidgets, pointWidgets) =
-    dedupedWidgets |>
-      List.partition (\widget ->
-        case widget of
-          WIntSlider _ _ _ _ _ _ False -> True
-          WNumSlider _ _ _ _ _ _ False -> True
-          WIntSlider _ _ _ _ _ _ True  -> False
-          WNumSlider _ _ _ _ _ _ True  -> False
-          WPoint _ _ _ _ _             -> False
-          WOffset1D _ _ _ _ _ _ _ _    -> False
-          WCall _ _ _ _ _              -> False
-          WList _                      -> False
-      )
+postProcessWidgets : Exp -> List Widget -> List Widget
+postProcessWidgets program widgets =
+  let
+    dedupedWidgets = Utils.dedup widgets
+
+    -- partition so that hidden and point sliders don't affect indexing
+    -- (and, thus, positioning) of range sliders
+    (rangeWidgets, pointWidgets) =
+      dedupedWidgets |>
+        List.partition (\widget ->
+          case widget of
+            WIntSlider _ _ _ _ _ _ False -> True
+            WNumSlider _ _ _ _ _ _ False -> True
+            WIntSlider _ _ _ _ _ _ True  -> False
+            WNumSlider _ _ _ _ _ _ True  -> False
+            WPoint _ _ _ _ _             -> False
+            WOffset1D _ _ _ _ _ _ _ _    -> False
+            WCall _ _ _ _ _              -> False
+            WList _                      -> False
+        )
+
+    rangeWidgetsBetterDescriptions =
+      rangeWidgets
+      |> List.map
+          (\widget ->
+            case widget of
+              WIntSlider low high caption curVal valVal loc isHidden -> WIntSlider low high (LangTools.expNameForEIdWithDefault caption program (valExp valVal).val.eid) curVal valVal loc isHidden
+              WNumSlider low high caption curVal valVal loc isHidden -> WNumSlider low high (LangTools.expNameForEIdWithDefault caption program (valExp valVal).val.eid) curVal valVal loc isHidden
+              _                                                      -> widget
+          )
   in
-  rangeWidgets ++ pointWidgets
+  rangeWidgetsBetterDescriptions ++ pointWidgets
 
 parseAndRun : String -> String
 parseAndRun = strVal << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun" << parseE
@@ -754,54 +767,3 @@ errorWithBacktrace syntax bt message =
 crashWithBacktrace syntax bt message =
   crashWithMsg <| (btString syntax bt) ++ "\n" ++ message
 
-
-
-
------------- COPIED FROM PROVENANCE.ELM B/C CIRCULAR DEPENDENCY, SHOULD BE ABLE TO RESOLVE AFTER VALUE-EDITOR BRANCH MERGE -------------
-
--- Step backwards in the provenance by one step, if, based on the expression evaluated, the prior step has to be the same value.
--- That is, step backwards through eVars and noop operations.
-valToMaybePreviousSameVal : Val -> Maybe Val
-valToMaybePreviousSameVal val =
-  let success () =
-    case valBasedOn val of
-      [basedOnVal] -> Just basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
-      _            -> let _ = Utils.log <| "valToMaybePreviousSameVal shouldn't happen: unexpected extra basedOnVals " ++ ValUnparser.strVal val ++ " " ++ Syntax.unparser Syntax.Elm (valExp val) in Nothing
-  in
-  -- Try to roll back to an equivalent value in the program
-  -- Not quite unevaluation (Perera et al.) because can only do obvious reversals; notably can't reverse applications.
-  case (valExp val).val.e__ of
-    EConst _ _ _ _                             -> Nothing
-    EBase _ _                                  -> Nothing
-    EFun _ _ _ _                               -> Nothing
-    EList _ _ _ _ _                            -> Nothing
-    EVar _ _                                   -> success ()
-    EApp _ _ _ _ _                             -> success () -- Applications point to value produced by final exp of the function
-    EOp _ _ _ _                                ->
-      if expEffectiveExp (valExp val) /= valExp val -- If a noop
-      then success ()
-      else Nothing
-    ELet _ _ _ _ _ _ _ _ _                     -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ELet shouldn't appear in provenance" in Nothing
-    EIf _ _ _ _ _ _ _                          -> success ()
-    ECase _ _ _ _                              -> success ()
-    ETypeCase _ _ _ _                          -> success ()
-    EComment _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EComment shouldn't appear in provenance" in Nothing
-    EOption _ _ _ _ _                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EOption shouldn't appear in provenance" in Nothing
-    ETyp _ _ _ _ _                             -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETyp shouldn't appear in provenance" in Nothing
-    EColonType _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EColonType shouldn't appear in provenance" in Nothing
-    ETypeAlias _ _ _ _ _                       -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: ETypeAlias shouldn't appear in provenance" in Nothing
-    EParens _ _ _ _                            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
-    EHole _ (HoleNamed "terminationCondition") -> Nothing
-    EHole _ (HoleVal _)                        -> success ()
-    EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
-    EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
-    EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
-
-
--- Unwrap provenance a few steps through expressions that passed the value unchanged.
--- Includes given value.
-valToSameVals : Val -> List Val
-valToSameVals val =
-  case valToMaybePreviousSameVal val of
-    Just basedOnVal -> val :: valToSameVals basedOnVal
-    Nothing         -> [val]

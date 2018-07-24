@@ -559,7 +559,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
         ] ++ dragZoneEvents idAsShape "slider" ZSlider
     in
     let text =
-      let cap = cap_ ++ strNumTrunc 5 curVal in
+      let cap = cap_ ++ ": " ++ strNumTrunc 5 curVal in
       flip Svg.text_ [VirtualDom.text cap] <|
         [ attr "fill" "black"
         , attr "font-family" params.mainSection.uiWidgets.font
