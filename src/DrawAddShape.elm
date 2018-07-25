@@ -59,7 +59,7 @@ addShape
         _        -> True
 
     -- 1. Find all list literals.
-    possibleTargetLists = flattenExpTree contextExp |> List.filter isPossibleTargetList -- Possible optimization: exclude lists with numeric element
+    possibleTargetLists = flattenExpTree contextExp |> List.filter isPossibleTargetList
 
     -- 1.5 If the return value isn't a list, make some candidates where the return value is a wrapped in a singleton.
     maybeProgramWithListifiedReturnExpAndLists =
@@ -87,6 +87,9 @@ addShape
         Just (programWithListifiedReturnExp, possibleTargetLists)
       else
         Nothing
+
+    -- incomingExpFreshened = FastParser.freshen newShapeExp
+    -- _ = Debug.log "SlowTypeInference.typecheck incomingExpFreshened |> SlowTypeInference.maybeTypes incomingExpFreshened.val.eid" (SlowTypeInference.typecheck incomingExpFreshened |> SlowTypeInference.maybeTypes incomingExpFreshened.val.eid)
 
     -- Should we try to inline the item to add?
     (maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected, incomingExpShouldBeInlined) =

@@ -988,6 +988,11 @@
   (let pts (nPointsOnUnitCircle n rot)
   (map (\[x y] [(+ cx (* x r)) (+ cy (* y r))]) pts))))
 
+(typ nPointsOnSegment (-> Count Point Point (List Point)))
+(def nPointsOnSegment (\(n [x1 y1] [x2 y2])
+  (let [xSep ySep] [(/ (- x2 x1) (- n 1)) (/ (- y2 y1) (- n 1))]
+  (map (\i [(+ x1 (* xSep i)) (+ y1 (* ySep i))]) (zeroTo n)))))
+
 (typ nStar (-> Color Color StrokeWidth Num Num Num Num Point SVG))
 ;; argument order -
 ;; fill color - interior color of star

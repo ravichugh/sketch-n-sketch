@@ -1232,7 +1232,8 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                         let
                           ptArgExp =
                             expToAppArgs callExp
-                            |> Utils.head "ValueBasedTransform.repeatUsingFunction: ptArgExp = expToAppArgs callExp |> Utils.head"
+                            |> Utils.maybeUnwrap1
+                            |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction: ptArgExp = expToAppArgs callExp |> Utils.maybeUnwrap1"
 
                           (_, repeatFuncExp, repeatFuncType) =
                             FindRepeatTools.getRepetitionFunctions program typeGraph editingContext -- Returns list of (fName, fExp, typeSig), fExp is an EFun

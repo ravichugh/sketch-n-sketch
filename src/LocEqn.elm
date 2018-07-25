@@ -17,7 +17,7 @@ debugLog = Config.debugLog Config.debugSync
 --
 -- Trace           - terminals are locs (LocId, Frozen, Ident); no plain numbers.
 -- FeatureEquation - terminals are are numTrs (Num, Trace); allows introduction of constants like 0.5 for midpoint calculation.
--- MathExp     - traces inlined, terminals are locIds and plain numbers; only Plus/Minus/Mult/Div supported.
+-- MathExp         - traces inlined, terminals are locIds and plain numbers; only Plus/Minus/Mult/Div supported in some places (that used to be LocEqn)
 -- Poly/NormPoly   - wider tree to ease simplification; can represent arbitrary exponents but only constant exponents supported right now.
 --
 -- If traces supported constants (perhaps as another field to the loc), then Trace & FeatureEquation & MathExp could be consolidated.
