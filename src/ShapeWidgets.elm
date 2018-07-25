@@ -1188,7 +1188,7 @@ selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatur
 --   selectedFeaturesToEIdInterpretationLists program slate widgets (Set.toList selectedFeatures) expFilter ++
 --   selectedShapesToEIdInterpretationLists   program slate widgets (Set.toList selectedShapes)   expFilter ++
 --   selectedBlobsToEIdInterpretationLists    program slate widgets (Dict.toList selectedBlobs)   expFilter
---   |> Utils.oneOfEach
+--   |> Utils.cartProdAll
 --   |> List.map Utils.unionAll
 --   |> List.map Set.toList
 --   |> Utils.dedup

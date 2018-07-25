@@ -42,17 +42,9 @@ port reduceResponse : (String -> msg) -> Sub msg
 
 
 askForSolution : Problem -> Msg -> Model -> (Model, Cmd Msg)
-askForSolution ((equations, targetVarIds) as problem) failedMsg oldModel =
-  let reduceQueryString =
-    let eqnStrings =
-      equations
-      |> List.map (\(lhs, rhs) -> mathExpToREDUCE lhs ++ "=" ++ mathExpToREDUCE rhs)
-    in
-    -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
-    "on factor; solve({" ++ String.join "," eqnStrings ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "})"
-  in
+askForSolution problem failedMsg oldModel =
   ( { oldModel | problemsSentToSolver = oldModel.problemsSentToSolver ++ [(problem, failedMsg)] }
-  , queryReduce reduceQueryString
+  , queryReduce (problemToREDUCE problem)
   )
 
 
@@ -74,6 +66,7 @@ handleReduceResponse reduceResponse oldModel =
                    , solutionsCache       = Dict.insert oldestProblem solutions oldModel.solutionsCache
         }
       in
+      let _ = Utils.log ("Solutions Cache:\n" ++ solutionsCacheToString newModel.solutionsCache) in
       (newModel, Task.perform (\_ -> interruptedMsg) (Task.succeed ()))
     [] ->
       let _ = Utils.log "SolverServer.handleReduceResponse: Shouldn't happen: got a REDUCE response but there are no outstanding problems!!!" in
@@ -91,6 +84,26 @@ distributeNegation mathExp =
     MathOp op_ children                           -> MathOp op_ (List.map distributeNegation children)
 
 
+-- solve({x=y,y=z},{x,y});  => {{x=z,y=z}}
+-- solve({x=y,y=z},{x,z});  => {{x=y,z=y}}
+solutionsCacheToString : SolutionsCache -> String
+solutionsCacheToString solutionsCache =
+  solutionsCache
+  |> Dict.toList
+  |> List.map
+      (\(problem, solutions) ->
+        let solutionStrs =
+          -- ["{x1=123,x2=123}", "{x1=456,x2=456}"]
+          solutions
+          |> List.map
+              (\solution ->
+                "{" ++ (solution |> List.map (\(mathExp, varId) -> varIdToREDUCE varId ++ "=" ++ mathExpToREDUCE mathExp) |> String.join ",") ++ "}"
+              )
+        in
+        -- solve({x=y,y=z},{x}); => {{x1=123,x2=123},{x1=456,x2=456}}
+        problemToREDUCE problem ++ ";\t=> {" ++ String.join "," solutionStrs ++ "}"
+      )
+  |> String.join "\n"
 
 
 
@@ -102,6 +115,17 @@ varIdToREDUCE : Int -> String
 varIdToREDUCE varId = "x" ++ toString varId
 
 
+eqnToREDUCE : Eqn -> String
+eqnToREDUCE (lhs, rhs) = mathExpToREDUCE lhs ++ "=" ++ mathExpToREDUCE rhs
+
+
+problemToREDUCE : Problem -> String
+problemToREDUCE ((equations, targetVarIds) as problem) =
+  -- e.g. "on factor; solve({x=y,y=z},{x,z})"
+  -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
+  "on factor; solve({" ++ String.join "," (List.map eqnToREDUCE equations) ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "})"
+
+
 mathExpToREDUCE : MathExp -> String
 mathExpToREDUCE mathExp =
   case mathExp of
@@ -111,8 +135,8 @@ mathExpToREDUCE mathExp =
       let childPerhapsParensToREDUCE childTerm =
         case childTerm of
           MathOp ArcTan2 _ -> mathExpToREDUCE childTerm
-          MathOp _ [_, _]       -> "(" ++ mathExpToREDUCE childTerm ++ ")"
-          _                     -> mathExpToREDUCE childTerm
+          MathOp _ [_, _]  -> "(" ++ mathExpToREDUCE childTerm ++ ")"
+          _                -> mathExpToREDUCE childTerm
       in
       case (op_, children) of
         (Plus,    [l,r]) -> childPerhapsParensToREDUCE l ++ "+" ++ childPerhapsParensToREDUCE r

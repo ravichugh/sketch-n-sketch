@@ -383,7 +383,7 @@ valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val
   basedOnVals
   |> List.map (valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter)
   |> (if ignoreUninterpretedSubtress then List.filter (not << List.isEmpty) else identity)
-  |> Utils.oneOfEach
+  |> Utils.cartProdAll
   |> List.map Utils.unionAll
   |> (++) perhapsThisExp
   |> Utils.dedup
@@ -399,7 +399,7 @@ valInterpretationsAllInside vals val =
     -- We do want poisoning here: a child that can't be interpreted inside vals should break the entire interpretation.
     basedOnVals
     |> List.map (valInterpretationsAllInside vals)
-    |> Utils.oneOfEach -- This will kill this interpretation and all ancestors if any value is not interpreted.
+    |> Utils.cartProdAll -- This will kill this interpretation and all ancestors if any value is not interpreted.
     |> List.map Utils.unionAllAsSet
   in
   perhapsThisVal ++ childrenInterps
@@ -414,7 +414,7 @@ proximalValInterpretationsAllInside vals val =
     -- We do want poisoning here: a child that can't be interpreted inside vals should break the entire interpretation.
     basedOnVals
     |> List.map (proximalValInterpretationsAllInside vals)
-    |> Utils.oneOfEach -- This will kill this interpretation and all ancestors if any value is not interpreted.
+    |> Utils.cartProdAll -- This will kill this interpretation and all ancestors if any value is not interpreted.
     |> List.map Utils.unionAllAsSet
 
 
@@ -583,7 +583,7 @@ valTreeToSingleEIdInterpretationsSlow program expFilter val =
   basedOnVals
   |> List.map (valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter)
   |> List.filter (not << List.isEmpty)
-  |> Utils.oneOfEach
+  |> Utils.cartProdAll
   |> List.map Utils.unionAll
   |> Utils.dedup
   |> List.filterMap

@@ -1016,20 +1016,20 @@ menuBar model =
               ]
           , hoverMenu "Live Update Heuristics"
               [ simpleTextRadioButton
-                  ( model.syncOptions.feelingLucky ==
-                      Sync.heuristicsBiased
+                  ( model.syncOptions.heuristicsMode ==
+                      Sync.HeuristicsBiased
                   )
                   "Biased"
                   Controller.msgSetHeuristicsBiased
               , simpleTextRadioButton
-                  ( model.syncOptions.feelingLucky ==
-                      Sync.heuristicsNone
+                  ( model.syncOptions.heuristicsMode ==
+                      Sync.HeuristicsNone
                   )
                   "None"
                   Controller.msgSetHeuristicsNone
               , simpleTextRadioButton
-                  ( model.syncOptions.feelingLucky ==
-                      Sync.heuristicsFair
+                  ( model.syncOptions.heuristicsMode ==
+                      Sync.HeuristicsFair
                   )
                   "Fair"
                   Controller.msgSetHeuristicsFair

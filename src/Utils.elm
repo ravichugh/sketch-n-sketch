@@ -379,10 +379,10 @@ cartProd xs ys =
    xs |> List.concatMap (\x -> List.map ((,) x) ys)
 
 -- Cartesian product for arbitrary many lists of the same type
-oneOfEach : List (List a) -> List (List a)
-oneOfEach xss = case xss of
+cartProdAll : List (List a) -> List (List a)
+cartProdAll xss = case xss of
   []       -> [[]]
-  xs::xss_ -> List.concatMap (\x -> List.map ((::) x) (oneOfEach xss_)) xs
+  xs::xss_ -> List.concatMap (\x -> List.map ((::) x) (cartProdAll xss_)) xs
 
 -- given [s1, ..., sn], compute s1_ x ... x sn_ where
 --   s1'  =  s1 - s2 - s3 - ... - sn
@@ -391,7 +391,7 @@ oneOfEach xss = case xss of
 --   sn'  =  sn - s1 - s2 - ... - s(n-1)
 --
 cartProdWithDiff : List (Set a) -> List (List a)
-cartProdWithDiff = oneOfEach << List.map Set.toList << manySetDiffs
+cartProdWithDiff = cartProdAll << List.map Set.toList << manySetDiffs
 
 isSubset : Set a -> Set a -> Bool
 isSubset sub sup =

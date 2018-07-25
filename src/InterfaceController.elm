@@ -2041,13 +2041,13 @@ msgSetOutputPrint = Msg "Set Output Print" <| \old ->
 msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
   { old | outputMode = ShowValue }
 
-updateHeuristics : Int -> Model -> Model
+updateHeuristics : Sync.HeuristicMode -> Model -> Model
 updateHeuristics heuristic old =
   let
     oldSyncOptions =
       old.syncOptions
     newSyncOptions =
-      { oldSyncOptions | feelingLucky = heuristic }
+      { oldSyncOptions | heuristicsMode = heuristic }
   in
     case old.outputMode of
       Live ->
@@ -2066,13 +2066,13 @@ updateHeuristics heuristic old =
       _ -> { old | syncOptions = newSyncOptions }
 
 msgSetHeuristicsBiased =
-  Msg "Set Heuristics Biased" (updateHeuristics Sync.heuristicsBiased)
+  Msg "Set Heuristics Biased" (updateHeuristics Sync.HeuristicsBiased)
 
 msgSetHeuristicsNone =
-  Msg "Set Heuristics None" (updateHeuristics Sync.heuristicsNone)
+  Msg "Set Heuristics None" (updateHeuristics Sync.HeuristicsNone)
 
 msgSetHeuristicsFair =
-  Msg "Set Heuristics Fair" (updateHeuristics Sync.heuristicsFair)
+  Msg "Set Heuristics Fair" (updateHeuristics Sync.HeuristicsFair)
 
 msgSetLiveSyncDelay b =
   Msg "Set Live" (\m -> { m | liveSyncDelay = b })
