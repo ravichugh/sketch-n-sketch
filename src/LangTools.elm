@@ -2426,6 +2426,7 @@ numericLetBoundIdentifiers program =
           Round          -> True
           ToStr          -> False
           Sqrt           -> True
+          Ln             -> True
           Explode        -> False
           DebugLog       -> List.any recurse operands
           NoWidgets      -> List.any recurse operands

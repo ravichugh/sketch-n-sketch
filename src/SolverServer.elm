@@ -5,7 +5,8 @@ import InterfaceController
 import Lang exposing (Num, Op_(..))
 import Parser exposing (Parser, Count(..), (|.), (|=), succeed, symbol, int, float, ignore, repeat, zeroOrMore, oneOf, lazy, delayedCommit, delayedCommitMap, inContext, end)
 import BinaryOperatorParser exposing (PrecedenceTable(..), Associativity(..), Precedence, binaryOperator)
-import Solver exposing (..)
+import Solver exposing (Eqn, Problem, Solution, SolutionsCache)
+import MathExp exposing (MathExp(..))
 import Utils
 
 import Dict
@@ -64,7 +65,7 @@ handleReduceResponse reduceResponse oldModel =
         let parsedSolutions        = Utils.filterOks  perhapsParsedSolutions in
         let failedParses           = Utils.filterErrs perhapsParsedSolutions in
         case (parsedSolutions, failedParses) of
-          (_::_, _)         -> parsedSolutions |> mapSolutionsExps distributeNegation
+          (_::_, _)         -> parsedSolutions |> Solver.mapSolutionsExps distributeNegation
           ([], badParse::_) -> let _ = Utils.log ("Reduce response parse error: " ++ toString badParse) in []
           ([], [])          -> []
       in
@@ -129,8 +130,9 @@ mathExpToREDUCE mathExp =
         (Ceil,    [n])   -> "ceiling(" ++ mathExpToREDUCE n ++ ")"
         (Round,   [n])   -> "round(" ++ mathExpToREDUCE n ++ ")"
         (Sqrt,    [n])   -> "sqrt(" ++ mathExpToREDUCE n ++ ")"
+        (Ln,      [n])   -> "ln(" ++ mathExpToREDUCE n ++ ")"
         (Pi,      [])    -> "pi"
-        _                     -> let _ = Debug.log "Didn't know how to convert this to REDUCE syntax" mathExp in "unknown"
+        _                -> let _ = Debug.log "Didn't know how to convert this to REDUCE syntax" mathExp in "unknown"
 
 
 
@@ -335,6 +337,7 @@ parseEqnFunction =
         , parseUnaryFunction  "ceiling" Ceil
         , parseUnaryFunction  "round"   Round
         , parseUnaryFunction  "sqrt"    Sqrt
+        , parseUnaryFunction  "ln"      Ln
         ]
 
 
@@ -345,7 +348,7 @@ parseEqnPi = inContext "parseEqnPi" <| wsSymbol "pi" .| succeed (MathOp Pi [])
 parseNegation : Parser MathExp
 parseNegation =
   lazy <| \_ ->
-    delayedCommitMap (\_ mathExp -> MathOp Minus [MathNum 0, mathExp]) (symbol "-") parseEqnAtom
+    delayedCommitMap (\_ mathExp -> MathExp.neg mathExp) (symbol "-") parseEqnAtom
 
 
 -- test = Debug.log "REDUCE parsing test" <| parseReduceResponse "{{x3=(sqrt(3)*x1 - sqrt(3)*x2 + x1 + x2)/2, x3=( - sqrt(3)*x1 + sqrt(3)*x2 + x1 + x2)/2}, {x3=( - sqrt(3)*x1 + sqrt(3)*x2 + x1 + x2)/2, x3=(sqrt(3)*x1 - sqrt(3)*x2 + x1 + x2)/2}}"

@@ -67,6 +67,7 @@ strOp op = case op of
   ToStr         -> "toString"
   Explode       -> "explode"
   Sqrt          -> "sqrt"
+  Ln            -> "ln"
   Mod           -> "mod"
   Pow           -> "pow"
   DictEmpty     -> "empty"

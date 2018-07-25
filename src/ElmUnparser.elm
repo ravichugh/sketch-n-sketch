@@ -160,6 +160,8 @@ unparseOp op =
       "toString"
     Sqrt ->
       "sqrt"
+    Ln ->
+      "ln"
     Explode ->
       "explode"
     Plus ->

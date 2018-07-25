@@ -500,6 +500,7 @@ evalOp maybeRetEnvEId abortPred syntax env e bt opWithInfo es =
           Ceil       -> unaryMathOp op args
           Round      -> unaryMathOp op args
           Sqrt       -> unaryMathOp op args
+          Ln         -> unaryMathOp op args
           Explode    -> case args of
             [VBase (VString s)] ->
               String.toList s

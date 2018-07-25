@@ -1007,6 +1007,8 @@ opFromIdentifier identifier =
       Just ToStr
     "sqrt" ->
       Just Sqrt
+    "ln" ->
+      Just Ln
     "explode" ->
       Just Explode
     "+" ->

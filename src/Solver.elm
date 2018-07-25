@@ -2,19 +2,13 @@ module Solver exposing (..)
 
 import ImpureGoodies
 import Lang exposing (Num, Op_, Trace(..), Subst)
+import MathExp exposing (..)
 import Utils
 
 import Dict exposing (Dict)
 
 
 --------------------------------------------------------------------------------
-
--- TODO streamline Equation/MathExp/Trace; see note in LocEqn.elm
-
-type MathExp
-  = MathNum Num
-  | MathVar Int -- Variable identifiers, often locIds
-  | MathOp Op_ (List MathExp)
 
 type alias Eqn = (MathExp, MathExp) -- LHS, RHS
 
@@ -46,19 +40,6 @@ solveTrace solutionsCache subst trace targetVal =
   case solveOne solutionsCache (mathExp, MathVar targetValInsertedVarId) targetVarId of
     solvedTerm::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> evalToMaybeNum
     _             -> Nothing
-
-
--- Assumes no variables remain, otherwise returns Nothing with a debug message.
-evalToMaybeNum : MathExp -> Maybe Num
-evalToMaybeNum mathExp =
-  case mathExp of
-    MathNum n          -> Just n
-    MathVar _          -> let _ = Utils.log ("Solver.evalToMaybeNum: Found " ++ toString mathExp ++ " in an MathExp that shouldn't have any variables.") in Nothing
-    MathOp op operands ->
-      operands
-      |> List.map evalToMaybeNum
-      |> Utils.projJusts
-      |> Maybe.andThen (\operandNums -> Lang.maybeEvalMathOp op operandNums)
 
 
 -- Solve one equation for one variable. Return a list of possible terms for that variable.
@@ -168,17 +149,6 @@ remapSolutionVarIds oldToNew solution =
             (Dict.get targetVarId oldToNew)
       )
   |> Utils.projJusts
-
-
-applySubst : Dict Int Num -> MathExp -> MathExp
-applySubst subst mathExp =
-  case mathExp of
-    MathNum n     -> mathExp
-    MathVar varId ->
-      case Dict.get varId subst of
-        Just n  -> MathNum n
-        Nothing -> mathExp
-    MathOp op_ childTerms -> MathOp op_ (childTerms |> List.map (applySubst subst))
 
 
 mapSolutionsExps : (MathExp -> MathExp) -> List Solution -> List Solution

@@ -1594,6 +1594,7 @@ gatherConstraints exp =
         (Ceil,       [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (Round,      [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (Sqrt,       [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
+        (Ln,         [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (Plus,       [eid1, eid2]) -> eidIs (TCEId eid1) ++ eidIs (TCEId eid2) -- ++ eidIs (TCUnion [TCNum, TCString]) -- (a -> a -> a) where a is String or Num
         (Minus,      [eid1, eid2]) -> eidIs TCNum  ++ [EIdIsType eid1 TCNum, EIdIsType eid2 TCNum]
         (Mult,       [eid1, eid2]) -> eidIs TCNum  ++ [EIdIsType eid1 TCNum, EIdIsType eid2 TCNum]

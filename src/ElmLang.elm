@@ -36,60 +36,19 @@ isSymbol : Char -> Bool
 isSymbol char =
   Set.member char symbols
 
+
+infixOp_s : Set Op_
+infixOp_s =
+  Set.fromList
+    [ Plus
+    , Minus
+    , Mult
+    , Div
+    , Lt
+    , Eq
+    ]
+
+
 isInfixOperator : Op -> Bool
 isInfixOperator op =
-  case op.val of
-    Pi ->
-      False
-    DictEmpty ->
-      False
-    Cos ->
-      False
-    Sin ->
-      False
-    ArcCos ->
-      False
-    ArcSin ->
-      False
-    Floor ->
-      False
-    Ceil ->
-      False
-    Round ->
-      False
-    ToStr ->
-      False
-    Sqrt ->
-      False
-    Explode ->
-      False
-    Plus ->
-      True
-    Minus ->
-      True
-    Mult ->
-      True
-    Div ->
-      True
-    Lt ->
-      True
-    Eq ->
-      True
-    Mod ->
-      False
-    Pow ->
-      False
-    ArcTan2 ->
-      False
-    DictInsert ->
-      False
-    DictGet ->
-      False
-    DictRemove ->
-      False
-    DebugLog ->
-      False
-    NoWidgets ->
-      False
-    OptNumToString ->
-      False
+  Set.member op.val infixOp_s

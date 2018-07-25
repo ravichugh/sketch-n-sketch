@@ -748,6 +748,8 @@ operator =
                 |. keywordWithSpace "toString"
             , succeed Sqrt
                 |. keywordWithSpace "sqrt"
+            , succeed Ln
+                |. keywordWithSpace "ln"
             , succeed Explode
                 |. keywordWithSpace "explode"
             , succeed Plus

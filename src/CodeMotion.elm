@@ -13,8 +13,8 @@ import InterfaceModel exposing
   ( Model, SynthesisResult(..)
   , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
   )
-import LocEqn                        -- For twiddling
-import Solver exposing (MathExp(..)) -- For twiddling
+import LocEqn                         -- For twiddling
+import MathExp exposing (MathExp(..)) -- For twiddling
 import Provenance
 import Sync
 import Syntax exposing (Syntax)

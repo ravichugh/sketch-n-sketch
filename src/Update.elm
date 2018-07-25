@@ -649,6 +649,7 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal =
                 (Ceil,    [n])   -> ok1 [n + newOut - oldOut]
                 (Round,   [n])   -> ok1 [n + newOut - oldOut]
                 (Sqrt,    [n])   -> ok1 [newOut * newOut]
+                (Ln,      [n])   -> ok1 [e^newOut]
                 (Pi,      [])    -> if newOut == pi then ok1 [] else Errs <| "Pi's value is 3.14159... and cannot be changed"
                 _                -> Errs <| "Not the correct number of arguments for " ++ toString op ++ "(" ++ toString operandVals ++ ")"
           in

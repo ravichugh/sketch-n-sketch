@@ -429,6 +429,7 @@ opType op =
       Round          -> " (-> Num Num)"
       OptNumToString -> " (-> (union Num String) String)"
       Sqrt           -> " (-> Num Num)"
+      Ln             -> " (-> Num Num)"
       Plus           -> " DUMMY" -- TODO
       Minus          -> " (-> Num Num Num)"
       Mult           -> " (-> Num Num Num)"

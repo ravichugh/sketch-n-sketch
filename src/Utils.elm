@@ -7,6 +7,7 @@ import Dict exposing (Dict)
 import Regex
 
 infinity = 1/0
+nan      = 0/0
 
 -- Change e.g. 1.4999999999999 to 1.5.
 correctFloatError : Float -> Float

@@ -90,6 +90,7 @@ type Op_
   | Plus | Minus | Mult | Div
   | Lt | Eq
   | Mod | Pow
+  | Ln
   | ArcTan2
   | DictGet
   | DictRemove
@@ -115,6 +116,7 @@ maybeEvalMathOp op_ operands =
     (Ceil,    [n])   -> Just <| toFloat <| ceiling n
     (Round,   [n])   -> Just <| toFloat <| round n
     (Sqrt,    [n])   -> Just <| sqrt n
+    (Ln,      [n])   -> Just <| logBase e n
     (Pi,      [])    -> Just <| pi
     _                -> Nothing
 

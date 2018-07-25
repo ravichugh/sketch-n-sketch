@@ -4,7 +4,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import Config
 import Utils exposing (infinity)
-import Solver exposing (MathExp(..))
+import MathExp exposing (MathExp(..))
 
 import Dict
 import Set
@@ -28,13 +28,14 @@ debugLog = Config.debugLog Config.debugSync
 -- All functions below are renamed to be "mathExp" functions. Previously they were "locEqn" functions.
 --
 -- The functions in this file are all candidates for deletion or for moving to a new location.
+-- MathExp functions used in a context other than as a location equation should be moved to MathExp.elm.
 --
 -- Goal is to delete a lot of code.
 
 
 
 -- Holdover until we can discard this file.
-type alias LocEquation = Solver.MathExp
+type alias LocEquation = MathExp
 -- type LocEquation
 --   = LocMathNum Num
 --   | LocEqnLoc LocId
@@ -108,8 +109,8 @@ mathExpSimplify mathExp =
                     else mathExp_
                   -- (- b (+ a b)) to (- 0 a)
                   (c, MathOp Plus [a, b]) ->
-                    if b == c then MathOp Minus [MathNum 0, a]
-                    else if a == c then MathOp Minus [MathNum 0, b]
+                    if b == c then MathExp.neg a
+                    else if a == c then MathExp.neg b
                     else mathExp_
                   (MathNum a,
                    MathNum b)    -> MathNum (a - b)
@@ -992,8 +993,8 @@ solveForLocUnchecked locId locIdToNum lhs rhs =
               Just <|
               normalizeSimplify <|
                 MathOp Div
-                    [ MathOp Minus [MathNum 0, rest]
-                    , locCoeff]
+                    [ MathExp.neg rest
+                    , locCoeff ]
 
             else if locPow == -1 then
               -- We have: coeff/x + rest = 0
@@ -1002,7 +1003,7 @@ solveForLocUnchecked locId locIdToNum lhs rhs =
               normalizeSimplify <|
                 MathOp Div
                     [ locCoeff
-                    , MathOp Minus [MathNum 0, rest]]
+                    , MathExp.neg rest ]
             else
               -- Just need to add a pow op and then we can handle more pows.
               Nothing
@@ -1249,8 +1250,8 @@ mathExpLocIds mathExp =
 
 mathExpEval locIdToNum mathExp =
   mathExp
-  |> Solver.applySubst locIdToNum
-  |> Solver.evalToMaybeNum
+  |> MathExp.applySubst locIdToNum
+  |> MathExp.evalToMaybeNum
   |> Utils.fromJust__ (\_ -> "LocEqn.mathExpEval incomplete subst " ++ toString (locIdToNum, mathExp))
 
 

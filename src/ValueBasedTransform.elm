@@ -21,8 +21,9 @@ import Info exposing (parsedThingToLocation)
 import InterfaceModel
 import Eval
 import Sync
-import LocEqn exposing (..)
-import Solver exposing (MathExp(..))
+import LocEqn exposing (mathExpEval, traceToMathExp, mathExpLocIdSet, mathExpToExp, mathExpSize, normalizeSimplify, mathExpTemplateLocFillings, mathExpTemplateConstantFillings, mathExpTemplateFillingsLocsFilled, mathExpsTemplatesOfSize, littleConstants)
+import MathExp exposing (MathExp(..))
+import Solver
 import CodeMotion
 import Utils
 import LangSvg exposing (NodeId, ShapeKind, Attr)
