@@ -480,6 +480,8 @@ solveOne solutionsCache subst (k,_,_) n_ t =
   let subst_ = Dict.remove k subst in
   let maybeSolution = Solver.solveTrace solutionsCache subst_ t n_ in
   maybeSolution
+  |> Utils.filterMaybe (not << isNaN)
+  |> Utils.filterMaybe (not << isInfinite)
 
 
 mapMaybeToList mx f =
