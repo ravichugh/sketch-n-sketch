@@ -112,4 +112,5 @@ maybeFillInArgPrimitive argType =
       TNamed _ "Radians"             -> Just <| withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider NumSlider -3.14 3.14)
       TNamed _ "Degrees"             -> Just <| withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider IntSlider -180 180)
       TNamed _ "Radius"              -> Just <| eConstDummyLoc 150
+      TNamed _ "Distance"            -> Just <| eConstDummyLoc 150
       _                              -> Nothing

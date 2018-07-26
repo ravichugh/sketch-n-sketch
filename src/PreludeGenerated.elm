@@ -367,6 +367,7 @@ prelude =
 (def HalfWidth Num)
 (def HalfHeight Num)
 (def Radius Num)
+(def Distance Num)
 (def Count Num)
 (def Radians Num)
 (def Degrees Num)
@@ -995,6 +996,14 @@ prelude =
 (def nPointsOnSegment (\\(n [x1 y1] [x2 y2])
   (let [xSep ySep] [(/ (- x2 x1) (- n 1)) (/ (- y2 y1) (- n 1))]
   (map (\\i [(+ x1 (* xSep i)) (+ y1 (* ySep i))]) (zeroTo n)))))
+
+(typ nHorizontalPointsSepBy (-> Count Point Distance (List Point)))
+(def nHorizontalPointsSepBy (\\(n [x1 y1] sep)
+  (map (\\i [(+ x1 (* sep i)) y1]) (zeroTo n))))
+
+(typ nVerticalPointsSepBy (-> Count Point Distance (List Point)))
+(def nVerticalPointsSepBy (\\(n [x1 y1] sep)
+  (map (\\i [x1 (+ y1 (* sep i))]) (zeroTo n))))
 
 (typ nStar (-> Color Color StrokeWidth Num Num Num Num Point SVG))
 ;; argument order -
