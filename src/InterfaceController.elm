@@ -1419,7 +1419,7 @@ msgMousePosition pos_ =
       else
         old
 
-    deHoverCallWidgets old =
+    deHoverBoundedWidgets old =
       if isMouseDown old || old.renamingInOutput /= Nothing then
         old
       else
@@ -1438,7 +1438,7 @@ msgMousePosition pos_ =
         { old | hoveredBoundsWidgets = hoveredBoundsWidgets }
   in
     Msg ("MousePosition " ++ toString pos_) <|
-      mouseStateUpdater >> deucePopupPanelPositionUpdater >> deHoverCallWidgets
+      mouseStateUpdater >> deucePopupPanelPositionUpdater >> deHoverBoundedWidgets
 
 --------------------------------------------------------------------------------
 

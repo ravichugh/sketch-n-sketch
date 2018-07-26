@@ -400,31 +400,45 @@ patsInOutput modelRenamingInOutput showRemover pats left top hoverPadding =
     , attr "y" (toString (top - 10 - 17))
     ]
 
-expInOutput : Exp -> Float -> Float -> Svg Msg
-expInOutput exp left top =
-  expInOutput_ "" exp left top []
 
-expInOutput_ : String -> Exp -> Float -> Float -> List (VirtualDom.Property Msg) -> Svg Msg
-expInOutput_ prefix exp left top extraAttrs =
-  Svg.g []
-      [ flip Svg.text_ [VirtualDom.text <| prefix ++ (Syntax.unparser Syntax.Elm exp |> Utils.squish)] <|
-          [ attr "fill" "black"
-          , attr "font-family" params.mainSection.uiWidgets.font
-          , attr "font-size" params.mainSection.uiWidgets.fontSize
+expInOutput_ : String -> Exp -> Float -> Float -> HoverPadding -> List (VirtualDom.Property Msg) -> Svg Msg
+expInOutput_ prefix exp left top hoverPadding extraAttrs =
+  let textNode = VirtualDom.text <| prefix ++ (Syntax.unparser Syntax.Elm exp |> Utils.squish) in
+  let coreTextAttrs =
+    [ attr "font-family" params.mainSection.uiWidgets.font
+    , attr "font-size" params.mainSection.uiWidgets.fontSize
+    , attr "x" (toString (left - 2))
+    , attr "y" (toString (top - 11))
+    ] ++ extraAttrs
+  in
+  let perhapsHoverArea =
+    case hoverPadding of
+      NoHoverPadding -> []
+      HoverPadding paddingAmount ->
+        [ flip Svg.text_ [textNode] <|
+            coreTextAttrs ++
+            [ attr "fill" "transparent"
+            , attr "stroke" "transparent"
+            , attr "stroke-width" (toString paddingAmount)
+            ]
+       ]
+  in
+  Svg.g [] <|
+      perhapsHoverArea ++
+      [ flip Svg.text_ [textNode] <|
+          coreTextAttrs ++
+          [ attr "fill" "white"
           , attr "stroke" "white"
           , attr "stroke-width" "0.3em"
           , attr "opacity" "0.6"
-          , attr "x" (toString (left - 2))
-          , attr "y" (toString (top - 11))
-          ] ++ extraAttrs
-      , flip Svg.text_ [VirtualDom.text <| prefix ++ (Syntax.unparser Syntax.Elm exp |> Utils.squish)] <|
+          ]
+      , flip Svg.text_ [textNode] <|
+          coreTextAttrs ++
           [ attr "fill" "black"
           , attr "font-family" params.mainSection.uiWidgets.font
           , attr "font-size" params.mainSection.uiWidgets.fontSize
           , attr "opacity" "0.6"
-          , attr "x" (toString (left - 2))
-          , attr "y" (toString (top - 11))
-          ] ++ extraAttrs
+          ]
       ]
 
 
@@ -432,6 +446,7 @@ type SelectedItem
   = SelectedShape NodeId
   | SelectedFeature ShapeWidgets.SelectableFeature
   | SelectedPoint ShapeWidgets.SelectableFeature ShapeWidgets.SelectableFeature
+
 
 perhapsPatOrExpInOutput : Exp -> LangSvg.RootedIndexedTree -> List Widget -> Maybe (PId, String) -> SelectedItem -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
 perhapsPatOrExpInOutput program ((rootI, shapeTree) as slate) widgets modelRenamingInOutput item left top hoverPadding shouldShow =
@@ -445,7 +460,13 @@ perhapsPatOrExpInOutput program ((rootI, shapeTree) as slate) widgets modelRenam
     -- Trying to follow InterfaceController.deleteInOutput logic for what to show.
     interpretations =
       ShapeWidgets.selectionsUniqueProximalEIdInterpretations program slate widgets features shapes Dict.empty
+  in
+  perhapsPatOrExpInOutput_ program modelRenamingInOutput interpretations left top hoverPadding shouldShow
 
+
+perhapsPatOrExpInOutput_ : Exp -> Maybe (PId, String) -> List (List EId) -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
+perhapsPatOrExpInOutput_ program modelRenamingInOutput interpretations left top hoverPadding shouldShow =
+  let
     singleEIdEffectiveInterpretations =
       interpretations
       |> List.filterMap Utils.maybeUnwrap1
@@ -480,7 +501,7 @@ perhapsPatOrExpInOutput program ((rootI, shapeTree) as slate) widgets modelRenam
         |> Maybe.andThen (List.map (findExpByEId program) >> Utils.projJusts)
         |> Utils.filterMaybe (List.length >> (==) 1)
         |> Maybe.andThen List.head
-        |> Maybe.map (\exp -> [expInOutput exp left top])
+        |> Maybe.map (\exp -> [expInOutput_ "" exp left top hoverPadding []])
         |> Maybe.withDefault []
   else
     []
@@ -773,7 +794,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
                       (False, False, False) -> "😕(False, False, False) " -- wat
                 in
                 Just <|
-                  expInOutput_ prefix scrutinee right (boxTop - 21)
+                  expInOutput_ prefix scrutinee right (boxTop - 21) NoHoverPadding
                       [ attr "text-anchor" "end"
                       , attr "cursor" "pointer"
                       , attr "class" "text-hover-highlight" -- see master.css
@@ -808,8 +829,14 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
             else
               Svg.title [] [Svg.text "Click to select this list."]
           in
-          let box =
+          let deuceWidget = DeuceWidgets.DeuceExp (valExp listVal).val.eid in
+          let edgeHoverEvents =
             let emptyDeuceState = DeuceWidgets.emptyDeuceState in
+            [ onMouseEnter (Msg "Hover List Widget" (\old -> { old | deuceState = { emptyDeuceState | hoveredWidgets = [deuceWidget] } }))
+            , onMouseLeave (Msg "Leave List Widget" (\old -> { old | deuceState = emptyDeuceState }))
+            ]
+          in
+          let box =
             flip Svg.rect [titleAttribute] <|
               [ attr "fill" "none"
               , attr "cursor" "pointer"
@@ -824,12 +851,15 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               , attr "width" (toString (right - left))
               , attr "height" (toString (bot - boxTop))
               , onMouseDownAndStop (if isSelected then Controller.msgDeselectList idAsShape else Controller.msgSelectList idAsShape)
-              , onMouseEnter (Msg "Hover List Widget" (\old -> { old | deuceState = { emptyDeuceState | hoveredWidgets = [DeuceWidgets.DeuceExp (valExp listVal).val.eid] } }))
-              , onMouseLeave (Msg "Leave List Widget" (\old -> { old | deuceState = emptyDeuceState }))
               ]
           in
-          [ box
-          , expInOutput (valExp listVal) left boxTop
+          let shouldShowLabel =
+            isSelected
+            || List.member deuceWidget model.deuceState.hoveredWidgets
+            || List.length model.hoveredBoundsWidgets == 1
+          in -- Okay this is sort of an abuse of the hovered deuce widgets
+          [ Svg.g edgeHoverEvents <|
+              [ box ] ++ perhapsPatOrExpInOutput_ program model.renamingInOutput [[(valExp listVal).val.eid]] left boxTop (HoverPadding 3) shouldShowLabel
           ]
   in
 
@@ -858,8 +888,16 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
       WList listVal ->
         drawListWidget i_ maybeBounds listVal model
   in
-
-  List.concat <| Utils.mapi1 draw (Utils.zip widgets widgetBounds)
+  -- Draw small widgets last to usually get the overlap correct
+  Utils.zip widgets widgetBounds
+  |> Utils.zipi1
+  |> List.sortBy
+      (\(i, (_, maybeBounds)) ->
+        case maybeBounds of
+          Just bounds -> (-(ShapeWidgets.boundsArea bounds), i)
+          Nothing     -> (0, i)
+      )
+  |> List.concatMap draw
 
 
 buildDistances : Model -> LangSvg.RootedIndexedTree -> Widgets -> List (Svg Msg)
@@ -964,6 +1002,8 @@ addHoveredShape id =
       m
     else
       let (_, shapeTree) = m.slate in
+      let extraTopPadding = 20 in -- Because we now show labels outside the standard bounds.
+
       case ShapeWidgets.shapeIdToMaybeVal id shapeTree m.widgets of
         Just hoveredVal ->
           let moreHoveredBounds =
@@ -975,12 +1015,12 @@ addHoveredShape id =
                     (WCall callEId funcVal argVals retVal retWs, Just (Just (left, top, right, bot))) ->
                       -- This is a little too strict (blobs problem: won't show if result modified before output)
                       if flattenValTree retVal |> List.any (Provenance.valsSame hoveredVal) -- [] /= (Utils.intersectAsSet (Provenance.valToSameVals retVal |> List.concatMap flattenValTree) (Provenance.valToSameVals hoveredVal |> List.concatMap flattenValTree))
-                      then Just ((left, top, right, bot), Set.singleton i)
+                      then Just ((left, top - extraTopPadding, right, bot), Set.singleton i)
                       else Nothing
                     (WList listVal, Just (Just (left, top, right, bot))) ->
                       -- This is a little too strict (blobs problem: won't show if result modified before output)
                       if flattenValTree listVal |> List.any (Provenance.valsSame hoveredVal)
-                      then Just ((left, top, right, bot), Set.singleton i)
+                      then Just ((left, top - extraTopPadding, right, bot), Set.singleton i)
                       else Nothing
                     _ ->
                       Nothing
