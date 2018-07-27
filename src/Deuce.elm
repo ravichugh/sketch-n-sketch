@@ -681,31 +681,13 @@ circleHandles codeInfo codeObject color opacity radius =
 -- code object of the unwanted code object.
 blockerPolygon : CodeInfo -> CodeObject -> List (Svg msg)
 blockerPolygon codeInfo codeObject =
-  let
-    color =
-      { r = 255
-      , g = 0
-      , b = 0
-      }
-  in
-    [ Svg.g
+  [ Svg.polygon
       [ SAttr.opacity "0"
+      , SAttr.points <|
+          codeObjectHullPoints codeInfo codeObject
       ]
-      [ Svg.polygon
-          [ SAttr.points <|
-              codeObjectHullPoints codeInfo codeObject
-          , SAttr.strokeWidth <|
-              strokeWidth codeInfo.displayInfo.colorScheme
-          , SAttr.stroke <|
-              rgbaString color 1
-          , SAttr.fill <|
-              rgbaString
-                color
-                (polygonOpacity codeInfo.displayInfo.colorScheme)
-          ]
-          []
-      ]
-    ]
+      []
+  ]
 
 codeObjectPolygon
   : Messages msg -> CodeInfo -> CodeObject -> Color -> List (Svg msg)
@@ -731,27 +713,24 @@ codeObjectPolygon msgs codeInfo codeObject color =
         class =
           "code-object-polygon" ++ selectedClass
       in
-        [ Svg.g
+        [ circleHandles codeInfo codeObject color 1 3
+        , Svg.polygon
             [ SAttr.class class
             , SE.onMouseOver onMouseOver
             , SE.onMouseOut onMouseOut
             , SE.onClick onClick
+            , SAttr.points <|
+                codeObjectHullPoints codeInfo codeObject
+            , SAttr.strokeWidth <|
+                strokeWidth codeInfo.displayInfo.colorScheme
+            , SAttr.stroke <|
+                rgbaString color 1
+            , SAttr.fill <|
+                rgbaString
+                  color
+                  (polygonOpacity codeInfo.displayInfo.colorScheme)
             ]
-            [ circleHandles codeInfo codeObject color 1 3
-            , Svg.polygon
-                [ SAttr.points <|
-                    codeObjectHullPoints codeInfo codeObject
-                , SAttr.strokeWidth <|
-                    strokeWidth codeInfo.displayInfo.colorScheme
-                , SAttr.stroke <|
-                    rgbaString color 1
-                , SAttr.fill <|
-                    rgbaString
-                      color
-                      (polygonOpacity codeInfo.displayInfo.colorScheme)
-                ]
-                []
-            ]
+            []
         ]
 
 
