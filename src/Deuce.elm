@@ -182,6 +182,7 @@ type alias CodeInfo =
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
   , selectedWidgets : List DeuceWidget
+  , hoveredWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
   }
@@ -880,6 +881,8 @@ overlay msgs model =
           trimmedLineHulls
       , selectedWidgets =
           model.deuceState.selectedWidgets
+      , hoveredWidgets =
+          model.deuceState.hoveredWidgets
       , patMap =
           patMap
       , maxLineLength =
@@ -917,6 +920,8 @@ diffOverlay model exps =
           trimmedLineHulls
       , selectedWidgets =
           model.deuceState.selectedWidgets
+      , hoveredWidgets =
+          model.deuceState.hoveredWidgets
       , patMap =
           Dict.empty
       , maxLineLength =
