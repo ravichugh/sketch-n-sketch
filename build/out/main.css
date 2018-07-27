@@ -1242,10 +1242,10 @@ code {
 
 .code-object-polygon {
   opacity: 0;
+  pointer-events: none;
 }
 
-.code-object-polygon:hover,
-.code-object-polygon.selected {
+.code-object-polygon.hovered-or-selected {
   opacity: 1;
-  cursor: pointer;
+  pointer-events: none;
 }

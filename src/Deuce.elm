@@ -40,6 +40,8 @@ import Lang exposing
   , isTarget
   , isSelectable
   , foldCode
+  , hasChildElements
+  , childCodeObjects
   , computePatMap
   , firstNestedExp
   )
@@ -293,14 +295,6 @@ affectedByBleed : CodeObject -> Bool
 affectedByBleed =
   isTarget
 
-needsDecrusting : CodeInfo -> CodeObject -> Bool
-needsDecrusting codeInfo codeObject =
-  let
-    (startCol, _, endCol, _) =
-      startEnd codeInfo codeObject
-  in
-  isTarget codeObject && startCol /= endCol
-
 specialEndFlag : Float
 specialEndFlag =
   -123456789
@@ -449,8 +443,8 @@ hull codeInfo useTrimmed shouldAddBleed shouldDecrust startCol startRow endCol e
           , (removeUpperCrust, endCol, startRow)
           ]
 
-codeObjectHull : CodeInfo -> CodeObject -> Hull
-codeObjectHull codeInfo codeObject =
+codeObjectHull : Bool -> CodeInfo -> CodeObject -> Hull
+codeObjectHull shouldDecrust codeInfo codeObject =
   let
     (startCol, startRow, endCol, endRow) =
       startEnd codeInfo codeObject
@@ -458,8 +452,6 @@ codeObjectHull codeInfo codeObject =
       (not << isTarget) codeObject
     shouldAddBleed =
       affectedByBleed codeObject
-    shouldDecrust =
-      needsDecrusting codeInfo codeObject
   in
     hull codeInfo useTrimmed shouldAddBleed shouldDecrust startCol startRow endCol endRow
 
@@ -471,9 +463,9 @@ hullPoints =
   in
     String.concat << List.map pairToString
 
-codeObjectHullPoints : CodeInfo -> CodeObject -> String
-codeObjectHullPoints codeInfo codeObject =
-  hullPoints <| codeObjectHull codeInfo codeObject
+codeObjectHullPoints : Bool -> CodeInfo -> CodeObject -> String
+codeObjectHullPoints shouldDecrust codeInfo codeObject =
+  hullPoints <| codeObjectHull shouldDecrust codeInfo codeObject
 
 --==============================================================================
 --= POLYGONS
@@ -545,7 +537,24 @@ blockerPolygon codeInfo codeObject =
   [ Svg.polygon
       [ SAttr.opacity "0"
       , SAttr.points <|
-          codeObjectHullPoints codeInfo codeObject
+          codeObjectHullPoints False codeInfo codeObject
+      ]
+      []
+  ]
+
+-- This polygon is used to specify an invisible region around the passed
+-- CodeObject which can be hovered over or clicked to select the passed
+-- DeuceWidget. This allows for part of a child's polygon to be used to select
+-- its parent.
+hoverSelectPolygon : Messages msg -> Bool -> CodeInfo -> CodeObject -> DeuceWidget -> List (Svg msg)
+hoverSelectPolygon msgs shouldDecrust codeInfo codeObject deuceWidget =
+  [ Svg.polygon
+      [ SAttr.opacity "0"
+      , SE.onMouseOver <| msgs.onMouseOver deuceWidget
+      , SE.onMouseOut <| msgs.onMouseOut deuceWidget
+      , SE.onClick <| msgs.onClick deuceWidget
+      , SAttr.points <|
+          codeObjectHullPoints shouldDecrust codeInfo codeObject
       ]
       []
   ]
@@ -558,29 +567,39 @@ codeObjectPolygon msgs codeInfo codeObject color =
       []
     Just deuceWidget ->
       let
-        onMouseOver =
-          msgs.onMouseOver deuceWidget
-        onMouseOut =
-          msgs.onMouseOut deuceWidget
-        onClick =
-          msgs.onClick deuceWidget
-        selected =
-          List.member deuceWidget codeInfo.selectedWidgets
-        selectedClass =
-          if selected then
-            " selected"
+        hoveredOrSelected =
+          List.member deuceWidget <| codeInfo.selectedWidgets ++ codeInfo.hoveredWidgets
+        hoveredOrSelectedClass =
+          if hoveredOrSelected then
+            " hovered-or-selected"
           else
             ""
         class =
-          "code-object-polygon" ++ selectedClass
+          "code-object-polygon" ++ hoveredOrSelectedClass
+        getChildPolygons excludeTargets codeObject_ target =
+          List.concatMap
+            (\child ->
+              let childPolygon =
+                hoverSelectPolygon msgs False codeInfo child target
+              in
+              if hasChildElements child then
+                childPolygon
+              else if excludeTargets && isTarget child then
+                []
+              else
+                -- leaf nodes can have target children - these need to point
+                -- back to the leaf's parent, not to the leaf
+                childPolygon ++
+                  getChildPolygons False child target
+            )
+            (childCodeObjects codeObject_)
       in
+        getChildPolygons True codeObject deuceWidget ++
+        hoverSelectPolygon msgs True codeInfo codeObject deuceWidget ++
         [ Svg.polygon
             [ SAttr.class class
-            , SE.onMouseOver onMouseOver
-            , SE.onMouseOut onMouseOut
-            , SE.onClick onClick
             , SAttr.points <|
-                codeObjectHullPoints codeInfo codeObject
+                codeObjectHullPoints False codeInfo codeObject
             , SAttr.strokeWidth <|
                 strokeWidth codeInfo.displayInfo.colorScheme
             , SAttr.stroke <|
