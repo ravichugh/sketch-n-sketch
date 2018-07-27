@@ -2743,6 +2743,32 @@ isWord codeObject =
     _ ->
       False
 
+hasChildElements : CodeObject -> Bool
+hasChildElements codeObject =
+  not (isTarget codeObject || isWord codeObject) &&
+    case codeObject of
+      E e ->
+        case e.val.e__ of
+          (EOp _ _ _ exps _) ->
+            not <| List.isEmpty exps
+          (EList _ exps _ Nothing _) ->
+            not <| List.isEmpty exps
+          (EHole _ Nothing) ->
+            False
+          (ERecord _ Nothing exps _) ->
+            not <| List.isEmpty exps
+          _ ->
+            True
+      P _ p ->
+        case p.val.p__ of
+          (PList _ pats _ Nothing _) ->
+            not <| List.isEmpty pats
+          (PRecord _ pats _) ->
+            not <| List.isEmpty pats
+          _ ->
+            True
+      _ -> True
+
 wsBefore : CodeObject -> WS
 wsBefore codeObject =
   case codeObject of
