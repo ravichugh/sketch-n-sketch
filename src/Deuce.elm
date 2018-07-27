@@ -533,146 +533,6 @@ whitespaceColor colorScheme =
       }
 
 --------------------------------------------------------------------------------
--- Handles
---------------------------------------------------------------------------------
--- The following functions are a couple different options for different handle
--- styles.
---------------------------------------------------------------------------------
-
-circleHandles
-  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg msg
-circleHandles codeInfo codeObject color opacity radius =
-  let
-    radiusString =
-      toString radius
-    accountForBleed mightBleed (x, y) =
-      if
-        x <= 0 &&
-        mightBleed &&
-        affectedByBleed codeObject
-      then
-        ( -SleekLayout.deuceOverlayBleed
-        , y
-        )
-      else
-        (x, y)
-    decrustAsNecessary decruster absPos =
-      Utils.applyIf (needsDecrusting codeInfo codeObject)
-        (decruster codeInfo.displayInfo)
-        absPos
-    handle mightBleed decruster col row =
-      let
-        (cx, cy) =
-          (col, row)
-            |> c2a codeInfo.displayInfo
-            |> accountForBleed mightBleed
-            |> decrustAsNecessary decruster
-            |> Utils.mapBoth toString
-      in
-        Svg.circle
-          [ SAttr.cx cx
-          , SAttr.cy cy
-          , SAttr.r radiusString
-          ]
-          []
-    (startCol, startRow, endCol, endRow) =
-      startEnd codeInfo codeObject
-  in
-    Svg.g
-      [ SAttr.fill <|
-          rgbaString color opacity
-      , SAttr.strokeWidth <|
-          strokeWidth codeInfo.displayInfo.colorScheme
-      , SAttr.stroke <|
-          rgbaString color opacity
-      ]
-      [ handle True removeUpperCrust startCol startRow
-      , handle False removeLowerCrust endCol (endRow + 1)
-      ]
-
---oldCircleHandles
---  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
---oldCircleHandles codeInfo codeObject color opacity radius =
---  let
---    (startCol, startRow, endCol, endRow) =
---      startEnd codeInfo codeObject
---    (cx1, cy1) =
---      (startCol, startRow)
---        |> c2a codeInfo.displayInfo
---        |> \(x, y) -> (x, y - radius)
---        |> Utils.mapBoth toString
---    (cx2, cy2) =
---      (endCol, endRow + 1)
---        |> c2a codeInfo.displayInfo
---        |> \(x, y) -> (x, y + radius)
---        |> Utils.mapBoth toString
---    radiusString =
---      toString radius
---  in
---    Svg.g
---      [ SAttr.fill <| rgbaString color opacity
---      , SAttr.strokeWidth strokeWidth
---      , SAttr.stroke <| rgbaString color opacity
---      ]
---      [ Svg.circle
---          [ SAttr.cx cx1
---          , SAttr.cy cy1
---          , SAttr.r radiusString
---          ]
---          []
---      , Svg.circle
---          [ SAttr.cx cx2
---          , SAttr.cy cy2
---          , SAttr.r radiusString
---          ]
---          []
---      ]
---
---fancyHandles
---  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
---fancyHandles codeInfo codeObject color opacity radius =
---  let
---    (startCol, startRow, endCol, endRow) =
---      startEnd codeInfo codeObject
---    (xTip1, yTip1) =
---      (startCol, startRow)
---        |> c2a codeInfo.displayInfo
---        |> Utils.mapBoth toString
---    (xTip2, yTip2) =
---      (endCol, endRow + 1)
---        |> c2a codeInfo.displayInfo
---        |> Utils.mapBoth toString
---    radiusString =
---      toString radius
---  in
---    Svg.g
---      [ SAttr.fill <| rgbaString color opacity
---      , SAttr.strokeWidth strokeWidth
---      , SAttr.stroke <| rgbaString color opacity
---      ]
---      [ Svg.path
---          [ SAttr.d <|
---              "M " ++ xTip1 ++ " " ++ yTip1 ++ "\n"
---                ++ "l 0 -" ++ radiusString ++ "\n"
---                ++ "a " ++ radiusString ++ " " ++ radiusString
---                  ++ ", 0, 1, 0, -" ++ radiusString
---                  ++ " " ++ radiusString ++ "\n"
---                ++ "Z"
---          ]
---          []
---      , Svg.path
---          [ SAttr.d <|
---              "M " ++ xTip2 ++ " " ++ yTip2 ++ "\n"
---                ++ "l 0 " ++ radiusString ++ "\n"
---                ++ "a " ++ radiusString ++ " " ++ radiusString
---                  ++ ", 0, 1, 0, " ++ radiusString
---                  ++ " -" ++ radiusString ++ "\n"
---                ++ "Z"
---          ]
---          []
---      ]
-
---------------------------------------------------------------------------------
 -- Polygons
 --------------------------------------------------------------------------------
 
@@ -713,8 +573,7 @@ codeObjectPolygon msgs codeInfo codeObject color =
         class =
           "code-object-polygon" ++ selectedClass
       in
-        [ circleHandles codeInfo codeObject color 1 3
-        , Svg.polygon
+        [ Svg.polygon
             [ SAttr.class class
             , SE.onMouseOver onMouseOver
             , SE.onMouseOut onMouseOut
@@ -732,7 +591,6 @@ codeObjectPolygon msgs codeInfo codeObject color =
             ]
             []
         ]
-
 
 diffpolygon: CodeInfo -> Exp -> Svg msg
 diffpolygon codeInfo exp =
