@@ -1,0 +1,155 @@
+/* General */
+
+* {
+  margin: 0;
+  padding: 0;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+html, body, #view {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+
+  font-family: monospace;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+textarea {
+  font-family: monospace;
+  resize: none;
+}
+
+textarea:focus {
+  outline: none;
+}
+
+pre {
+  white-space: pre-wrap;
+}
+
+/* Header */
+
+#header {
+  background-color: #EEEEEE;
+  height: 50px;
+  line-height: 50px;
+  padding-left: 20px;
+  border-bottom: 1px solid #AAAAAA;
+}
+
+/* Work Area */
+
+#work-area {
+  width: 100%;
+  height: calc(100% - 50px);
+  position: relative;
+}
+
+#work-area > div {
+  width: calc((100vw - 3 * 10px) / 2);
+  padding: 10px;
+  border: 1px solid #CCCCCC;
+
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+}
+
+#work-area > div:nth-child(1) {
+  left: 10px;
+}
+
+#work-area > div:nth-child(2) {
+  right: 10px;
+}
+
+/* Work Area Panels */
+
+#work-area > div > *:nth-child(1) {
+  height: 25px;
+  line-height: 25px;
+}
+
+#work-area > div > *:nth-child(1) > h2{
+  display: inline-block;
+}
+
+#work-area > div > *:nth-child(2) {
+  width: 100%;
+  height: calc(100vh - 50px - 2 * 10px - 25px - 10px - 2 * 10px);
+  overflow: scroll;
+
+  margin-top: 10px;
+  border: 1px solid #AAAAAA;
+  padding: 10px;
+  font-size: 1.3rem;
+
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  -o-user-select: text;
+  user-select: text;
+}
+
+/* Editor */
+
+#run-button {
+  display: inline-block;
+  background-color: #33AA00;
+  color: #FFFFFF;
+  text-align: center;
+  padding: 0 10px;
+  border-bottom: 2px solid #338800;
+  border-radius: 5px;
+  cursor: pointer;
+
+  position: absolute;
+  right: 10px;
+}
+
+#run-button:hover {
+  background-color: #33BB00;
+}
+
+#run-button:active {
+  background-color: #339900;
+  border-bottom-width: 1px;
+}
+
+/* Output */
+
+#output.dirty {
+  background-color: rgba(255, 0, 0, 0.1);
+  border-color: rgba(255, 0, 0, 0.2);
+}
+
+#expected-indicator {
+  display: inline-block;
+
+  position: absolute;
+  right: 10px;
+}
+
+#expected-indicator.unexpected {
+  color: #FF0000;
+  font-weight: bold;
+}
