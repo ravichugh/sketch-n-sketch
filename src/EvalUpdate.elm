@@ -4,8 +4,8 @@ Everything from LangTools that depended on the prelude is in this file now.
 Eval.run has become EvalUpdate.run, because it depends on the prelude and on the Update module.
 -}
 import Update
-import UpdateStack exposing (UpdateStack, updateContext, UpdatedExp)
-import UpdatedEnv exposing (UpdatedEnv)
+import UpdateStack exposing (UpdateStack, updateContext)
+import UpdatedEnv
 import UpdateUtils exposing (defaultVDiffs, vDiffsToVal, valToVDiffs, recursiveMergeVal, diffsAt, toTupleDiffs)
 import Eval
 import Lang exposing (..)

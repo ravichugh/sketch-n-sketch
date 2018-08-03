@@ -1,13 +1,16 @@
-module UpdatedEnv exposing (UpdatedEnv, original, offset, merge, recursiveMerge, split, isUnmodified, show, set)
+module UpdatedEnv exposing (
+  original, offset, merge, recursiveMerge, split, isUnmodified, show, set, expandRecEnvReverse)
 import Lang exposing (..)
 import UpdateUtils
 import Utils
 import LangUtils exposing (envToString, valEqual)
+import ValBuilder as Vb
 
 -- Useful to merge environments faster.
 -- Maybe will containn things like "insert a variable with these dependences"
 
-type alias UpdatedEnv = { val: Env, changes: EnvDiffs }
+-- This definition is now in Lang
+-- type alias UpdatedEnv = { val: Env, changes: EnvDiffs }
 
 -- Declares an environment as unmodified
 original: Env -> UpdatedEnv
@@ -96,3 +99,63 @@ create ks oldEnv newEnv = --Very slow process, we need to optimize that
        (_, _) -> Debug.crash <| "Comparing tow environments which do not have the same size" ++ envToString oldEnv ++ " /= " ++ envToString newEnv
   in aux 0 ks [] [] oldEnv newEnv
   -}
+
+{-
+expandRecEnv recNames closureEnv =
+  let (nonRecEnv, remainingEnv) = Utils.split (List.length recNames) closureEnv in
+  let recEnv2 = nonRecEnv |> List.map (\((name, v) as pair) -> case v.v_ of
+       VClosure [] p b closedEnv -> (name, replaceV_ v <| VClosure recNames p b (nonRecEnv ++ closedEnv))
+       _ -> pair
+     )
+  in
+  recEnv2 ++ remainingEnv
+-}
+
+foldLeftWithDiff: a -> UpdatedEnv -> (a -> (String, Val) -> Maybe VDiffs -> a) -> a
+foldLeftWithDiff acc updatedEnv lambda =
+  let aux i env changes acc = case env of
+    [] -> acc
+    entry :: envTail ->
+       case changes of
+        [] ->
+          lambda acc entry Nothing |>
+          aux (i + 1) envTail changes
+        (j, d)::changesTail ->
+          if j > i then
+            lambda acc entry Nothing |>
+            aux (i + 1) envTail changes
+          else -- j == i
+            lambda acc entry (Just d) |>
+            aux (i + 1) envTail changesTail
+  in aux 0 updatedEnv.val updatedEnv.changes acc
+
+-- Update version of Lang.expandRecEnv. It merges any recursive modifications to the environment itself.
+expandRecEnvReverse: List String -> Env -> UpdatedEnv -> UpdatedEnv
+expandRecEnvReverse recNames closureEnv updatedExpandedEnv =
+  let n = List.length recNames in
+  let (nonRecEnv, remainingEnv) = Utils.split n closureEnv in
+  let (updatedRecEnv2, updatedRemainingEnv) = split n updatedExpandedEnv in
+  let (accNonRecEnv, revAccNameClosuresMbDiffs) =
+     foldLeftWithDiff
+        (original nonRecEnv, [])                        updatedRecEnv2 <|
+       \(accNonRecEnv,                  revAccNameClosuresMbDiffs) (name, v) mbVDiffs -> case v.v_ of
+       VClosure recNames p newBody newClosedEnv ->
+         let newClosedEnvDiffs = case mbVDiffs of
+           Just (VClosureDiffs envDiff _) -> envDiff
+           _ -> []
+         in
+         let newBodyDiffs = case mbVDiffs of
+           Just (VClosureDiffs _ bodyDiffs) -> bodyDiffs
+           _ -> Nothing
+         in
+         let (updatedNonRecEnv, updatedRemainingEnv) = split n (UpdatedEnv newClosedEnv newClosedEnvDiffs) in
+         let updatedBody = UpdatedExp newBody newBodyDiffs in
+         let updatedClosure = updated.vClosure (Vb.fromVal v) [] p updatedBody updatedRemainingEnv in
+         (merge nonRecEnv accNonRecEnv updatedNonRecEnv,
+          (name, updatedClosure)::revAccNameClosuresMbDiffs)
+       _ -> (accNonRecEnv, (name, UpdatedVal v mbVDiffs):: revAccNameClosuresMbDiffs)
+  in
+  let globalUpdatedNonRecEnv = updated.env <| List.reverse revAccNameClosuresMbDiffs in
+  let finalUpdatedNonRecEnv = merge nonRecEnv accNonRecEnv globalUpdatedNonRecEnv in
+  append finalUpdatedNonRecEnv updatedRemainingEnv
+

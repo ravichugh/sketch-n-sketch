@@ -3576,4 +3576,48 @@ diffOps = {
     if envDiffs /= [] || mbBodyDiffs  /= Nothing then
       Just <| VClosureDiffs envDiffs mbBodyDiffs
     else Nothing
-}
+  }
+
+type alias UpdatedExp = { val: Exp, changes: Maybe EDiffs }
+type alias UpdatedExpTuple = { val: List Exp, changes: Maybe (TupleDiffs EDiffs) }
+type alias UpdatedDeclarations = {val: Declarations, changes: Maybe (TupleDiffs EDiffs)}
+type alias UpdatedVal = { val: Val, changes: Maybe VDiffs }
+type alias UpdatedEnv = { val: Env, changes: EnvDiffs }
+
+updatedVal = { unapply = \updatedVal -> (updatedVal.val, updatedVal.changes) }
+
+eChildDiffs = Maybe.map EChildDiffs
+
+-- Builders for updated vals.
+updated = {
+   -- vClosure: (Val_ -> Val) -> List String -> List Pat -> UpdatedExp -> UpdatedEnv -> UpdatedVal
+   vClosure = \valBuilder recNames p updatedExp updatedEnv ->
+     diffOps.mbVClosureDiffs updatedEnv.changes updatedExp.changes |>
+     UpdatedVal (valBuilder <| VClosure recNames p updatedExp.val updatedEnv.val),
+
+   --: List (String, (Val, Maybe VDiffs)) -> UpdatedEnv
+   env = \namesUpdatedVals ->
+     let (revEnv, revDiffs) = Utils.foldLeftWithIndex ([], []) namesUpdatedVals <|
+       \(revEnv, revDiffs) index (name, {val, changes}) ->
+          case changes of
+           Nothing -> ((name, val)::revEnv, revDiffs)
+           Just d -> ((name, val)::revEnv, (index, d)::revDiffs)
+     in
+     UpdatedEnv (List.reverse revEnv) (List.reverse revDiffs)
+  }
+
+
+
+-- To expand the environment of a closure among mutually recursive definition
+-- The environment should contain the non-recursive versions of the values first
+-- This function returns a closure environment in which we can evaluate the closure's body.
+expandRecEnv: List String -> Env -> Env
+expandRecEnv recNames closureEnv =
+  let (nonRecEnv, remainingEnv) = Utils.split (List.length recNames) closureEnv in
+  let recEnv2 = nonRecEnv |> List.map (\((name, v) as pair) -> case v.v_ of
+       VClosure [] p b closedEnv -> (name, replaceV_ v <| VClosure recNames p b (nonRecEnv ++ closedEnv))
+       _ -> pair
+     )
+  in
+  recEnv2 ++ remainingEnv
+

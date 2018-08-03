@@ -313,12 +313,9 @@ eval syntax env bt e =
        let evalVApp: Val -> List Exp -> Result String ((Val, Widgets), Env)
            evalVApp v1 es =
           case v1.v_ of
-            VClosure recNames ps funcBody closureEnv ->
+            VClosure recNames ps funcBody env_ ->
               let argValsAndFuncRes =
-                let newEnv = recNames |> List.map (\fName ->
-                   (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust_ "Did not find recursive closure in its environment"))
-                in
-                apply syntax env bt bt_ e ps es funcBody (newEnv ++ closureEnv)
+                apply syntax env bt bt_ e ps es funcBody <| expandRecEnv recNames env_
               in
               -- Do not record dependence on closure (which function to execute is essentially control flow).
               -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
@@ -600,31 +597,31 @@ evalDeclarations syntax env bt (Declarations  _ _ _ (exps, groupOrders)) continu
         eval_ syntax env bt e1 |> Result.map ((,) p)) |> Utils.projOk of
         Err msg -> Err msg
         Ok pValuesWidgets ->
-          let (names, valuesWidgets) = List.unzip pValuesWidgets in
+          let (patterns, valuesWidgets) = List.unzip pValuesWidgets in
           let (values, widgetsList) = List.unzip valuesWidgets in
           let newWidgets = List.concatMap identity widgetsList in
           if rec then
-            let allNames = names |> List.map (\p -> case patEffectivePat p |> .val |> .p__ of
+            let allNames = patterns |> List.map (\p -> case patEffectivePat p |> .val |> .p__ of
               PVar _ fname _ -> Ok fname
               _ -> Err "Recursive function with non-variable pattern!") |> Utils.projOk
             in
             case allNames of
               Err msg -> Err msg
-              Ok names ->
-                let recEnv = List.map2 (,) names values in
+              Ok recNames ->
+                let nonRecEnv = List.map2 (,) recNames values in
                 let newValues = values |> List.map2 (\name value ->
                      case value.v_ of
-                       VClosure [] x body env_ -> Ok <| replaceV_ value <| VClosure names x body (recEnv ++ env)
+                       VClosure [] x body env_ -> Ok <| replaceV_ value <| VClosure recNames x body (nonRecEnv ++ env)
                        _ -> Err <| "Expected VClosures for recursivity, got " ++ valToString value
-                         ) names |> Utils.projOk
+                         ) recNames |> Utils.projOk
                 in
                 case newValues of
                   Err msg -> Err msg
                   Ok newVals ->
-                    let newEnv = List.map2 (,) names newVals ++ env in
+                    let newEnv = List.map2 (,) recNames newVals ++ env in
                     aux groupTail expTail (widgets ++ newWidgets) newEnv
           else
-            case Utils.foldLeft (Just env) (Utils.zip names values) <|
+            case Utils.foldLeft (Just env) (Utils.zip patterns values) <|
                                  \mbEnv (name, value) -> cons (name, value) mbEnv
             of
              Just newEnv -> aux groupTail expTail (widgets ++ newWidgets) newEnv

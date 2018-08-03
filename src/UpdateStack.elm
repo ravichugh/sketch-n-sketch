@@ -10,13 +10,8 @@ import Syntax
 import ValUnparser exposing (strVal)
 import UpdateUtils exposing (..)
 import Utils exposing (reverseInsert)
-import UpdatedEnv exposing (UpdatedEnv, original)
+import UpdatedEnv exposing (original)
 import Pos exposing (Pos)
-
-
-type alias UpdatedExp = { val: Exp, changes: Maybe EDiffs }
-type alias UpdatedExpTuple = { val: List Exp, changes: Maybe (TupleDiffs EDiffs) }
-type alias UpdatedDeclarations = {val: Declarations, changes: Maybe (TupleDiffs EDiffs)}
 
 type alias PrevLets = Env -- In traversing order
 type alias PrevEnv = Env

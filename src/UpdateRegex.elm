@@ -27,7 +27,6 @@ import Dict
 import UpdateUtils exposing (..)
 import LangUtils exposing (valToString)
 import UpdateStack exposing (..)
-import UpdatedEnv exposing (UpdatedEnv)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
 --import LangTools exposing (valToString)
