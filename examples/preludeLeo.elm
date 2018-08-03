@@ -653,7 +653,7 @@ Update =
       -- onRemove : a -> {oldOutput: b, index: Int, diffs! VDoffs}  -> Results String a
       -- onSkip   : a -> {count: Int, index: Int, oldOutputs: List b, newOutputs: List b}  -> Results String a
       -- onFinish : a -> Results String c
-      -- onGather : c -> (InputWithDiffs (d, Maybe VDiffs) | Input d)
+      -- onGather : c -> (InputWithDiff (d, Maybe VDiffs) | Input d)
       -- oldOutput: List b
       -- newOutput: List b
       -- diffs    : ListDiffs
@@ -1727,7 +1727,7 @@ String =
         [] -> {apply x = "", update {outputNew} = Ok (Inputs [[outputNew]])}.apply x
         _ -> Update.applyLens {
         apply (x, y) = x
-        update {output, diffs} = Ok (InputWithDiffs
+        update {output, diffs} = Ok (InputsWithDiffs
           [((output, True), Just (VRecordDiffs { _1 = diffs, _2 = VConstDiffs}))])
         } <| List.foldl2 (\oldHeadList (oldAcc, dummyBool) ->
       { apply (oldAcc, [head], dummyBool) = (oldAcc + head, dummyBool)
@@ -1811,7 +1811,12 @@ String =
       { apply x = strToInt x
       , unapply output = Just (toString output)
       }.apply x
-    join delimiter x = if delimiter == "" then join_ x else {
+    join delimiter x =
+      if delimiter == "" then join_ x
+      else join delimiter x
+    -- In the forward direction, it joins the string.
+    -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
+    joinAndSplitBack delimiter x = if delimiter == "" then join_ x else {
         apply x = join delimiter x
         update {output, oldOutput, diffs} =
           Ok (Inputs [Regex.split delimiter output])
@@ -1954,6 +1959,11 @@ textInner s = {
 --              | HTMLElement String (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
 --              | HTMLComment HTMLCommentStyle
 
+updateOutputToResults c = case c of
+  Ok (Inputs i) -> Ok i
+  Ok (InputsWithDiffs id) -> Ok (List.unzip id |> Tuple.first)
+  Err msg -> Err msg
+
 -- Returns a list of HTML nodes parsed from a string. It uses the API for loosely parsing HTML
 -- Example: html "Hello<b>world</b>" returns [["TEXT","Hello"],["b",[], [["TEXT", "world"]]]]
 html string = {
@@ -2082,7 +2092,7 @@ html string = {
                      let (newAttrsMerged, otherDiffs) = case listDiffs of
                        (1, ListElemUpdate diffAttrs)::tailDiff ->
                          (mergeAttrs attrs attrs1 attrs2 diffAttrs, tailDiff)
-                       _ -> (Ok [attrs], listDiffs)
+                       _ -> (Ok (Inputs [attrs]), listDiffs)
                      in
                      let newChildrenMerged = case otherDiffs of
                        (2, ListElemUpdate diffNodes)::_ ->
@@ -2091,7 +2101,7 @@ html string = {
                            Err msg -> Err msg
                        _ -> Ok [children]
                      in
-                     newAttrsMerged |>LensLess.Results.andThen (\newAttrs ->
+                     newAttrsMerged |> updateOutputToResults |> LensLess.Results.andThen (\newAttrs ->
                        newChildrenMerged |>LensLess.Results.andThen (\newChildren ->
                          Ok [HTMLElement tag2 newAttrs ws1 endOp newChildren closing]
                        )
