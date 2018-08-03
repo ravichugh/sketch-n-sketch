@@ -7515,9 +7515,9 @@ translate options language translations content =
 addLang translations = {
   apply alltranslationsLangDict = \"\"
   update {input, outputNew} =
-    if not (outputNew == \"\") && not (Dict.member outputNew alltranslationsLangDict) then 
-      let toCopy = Dict.apply alltranslationsLangDict language in
-      Ok (InputsWithDiffs [(Dict.insert outputNew toCopy alltranslationsLangDict
+    if not (outputNew == \"\") && not (Dict.member outputNew input) then 
+      let toCopy = Dict.apply input language in
+      Ok (InputsWithDiffs [(Dict.insert outputNew toCopy input
                            ,Just (VDictDiffs (Dict.fromList [(outputNew, VDictElemInsert)])))])
     else
       Ok (InputsWithDiffs [(input, Nothing)])
@@ -7540,7 +7540,7 @@ main =
             var t = r.cloneContents().textContent;
             r.deleteContents();
             r.insertNode(document.createTextNode(\"{\" + t + \"}\"))\"\"\"
-          contentEditable=\"false\">Translatable</button>
+          contenteditable=\"false\">Translatable</button>
         <br>
         @(content
           |> translate {highlighttranslations = highlighttranslations} language translations
