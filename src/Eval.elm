@@ -231,7 +231,7 @@ eval syntax env bt e =
                   _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list, but " ++ valToString vRest
 
   ERecord _ mi (Declarations _ _ _ (letexps, _) as declarations) _ ->
-    let resInitDictWidgets  =case mi of
+    let resInitDictWidgets  = case mi of
       Nothing -> Ok <| (Nothing, Dict.empty, [])
       Just (init, ws) -> case eval_ syntax env bt_ init of
          Ok (v, ws) -> case v.v_ of
@@ -242,13 +242,13 @@ eval syntax env bt e =
     case resInitDictWidgets of
       Err msg -> Err msg
       Ok (v, d, ws) ->
-        evalDeclarations syntax env bt_ declarations <| \newEnv widgets ->
-          -- Find the value of each newly added ident and adds it to records.
-          let ids = letexps |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
-          let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
-            \i -> (i, lookupVar syntax newEnv (e::bt) i e.start |> Utils.fromOk "Record variable"))
-                |> Set.toList |> Dict.fromList) d) in
-          Ok <| retBoth (Maybe.withDefault [] <| Maybe.map (\x -> [x]) v) (kvs, ws)
+    evalDeclarations syntax env bt_ declarations <| \newEnv widgets ->
+       -- Find the value of each newly added ident and adds it to records.
+       let ids = letexps |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
+       let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
+         \i -> (i, lookupVar syntax newEnv (e::bt) i e.start |> Utils.fromOk "Record variable"))
+             |> Set.toList |> Dict.fromList) d) in
+       Ok <| retBoth (Maybe.withDefault [] <| Maybe.map (\x -> [x]) v) (kvs, ws)
 
   ESelect ws0 e _ wsId id ->
     case eval_ syntax env bt_ e of

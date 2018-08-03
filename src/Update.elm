@@ -164,9 +164,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
      EList sp1 elems sp2 Nothing sp3 ->
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
-           updateMany diffs
-             (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
-           case vdiffs of
+           case diffs of
              VListDiffs vldiffs ->
                let updateDiffs: Int -> UpdatedEnv ->       List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> Maybe (WS -> Exp -> (WS, Exp)) ->  List Val ->    List Val -> (List (Int, ListElemDiff VDiffs)) -> UpdateStack
                    updateDiffs  i      collectedUpdatedEnv revElems          revEDiffs           elemsToCollect    changeWhitespaceNext               originalValues newValues   ldiffs =
@@ -319,15 +317,13 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                    ",\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
                                    ",\nnewValues = " ++  (List.map valToString newValues |> String.join ",") -}
                in updateDiffs 0 (UpdatedEnv.original env) [] [] elems Nothing origVals newOutVals vldiffs
-             _ -> UpdateCriticalError <| "Expected VListDiffs, got " ++ toString vdiffs
+             _ -> UpdateCriticalError <| "Expected VListDiffs, got " ++ toString diffs
          _ -> UpdateCriticalError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
      EList sp1 elems sp2 (Just tail) sp3 ->
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
-           updateMany diffs
-             (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
-           case vdiffs of
+           case diffs of
              VListDiffs ldiffs -> --We do not allow insertions or deletions of elemnts before the tail.
               let updateDiffs: Int -> Int ->     UpdatedEnv -> List (WS, Exp) -> TupleDiffs EDiffs -> List (WS, Exp) -> List Val -> List Val -> List (Int, ListElemDiff VDiffs) -> UpdateStack
                   updateDiffs  i      elemSize   collectedEnv  revElems          revEDiffs            elemsToCollect    origVals    newOutVals  ldiffs =
@@ -395,7 +391,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
               updateDiffs 0 (List.length elems) (UpdatedEnv.original env) [] [] elems origVals newOutVals ldiffs
              m -> UpdateCriticalError ("Expected  a List diff, got " ++ toString m)
          _ -> UpdateCriticalError ("Expected a list to update, got " ++ valToString newVal)
-     ERecord sp1 mi es sp2 -> --Because records are typed, we should not allow the addition and removal of keys.
+     ERecord sp1 mi ((Declarations po types anns (exps, _)) as decls) sp2 -> --Because records are typed, we should not allow the addition and removal of keys.
        case newVal.v_ of
          VRecord dOut ->
            case oldVal.v_ of
@@ -409,81 +405,69 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                if not <| List.isEmpty errors then
                  UpdateCriticalError <| String.join ", " errors ++ "is not allowed. Maybe you wanted to use dictionaries?"
                else
-                 updateMany diffs
-                   (\() -> updateResultSameEnvExp env e) <| \vdiffs ->
-                 case vdiffs of
+                 let declsIdentifiersList = exps |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
+                 let declsIdentifiers = Set.fromList declsIdentifiersList in
+                 let isDeclarationIdentifier = flip Set.member declsIdentifiers in
+                 let prevLetsDecls =
+                   let aux declsIdentifiersList revAcc =  case declsIdentifiersList of
+                      [] -> List.reverse revAcc
+                      hd :: tailIdentifiers ->
+                        if List.member hd tailIdentifiers then List.reverse revAcc
+                        else aux tailIdentifiers ((hd, Dict.get hd dOut |> Utils.fromJust_ "Update.ERecord.prevLetsDecls")::revAcc)
+                   in aux declsIdentifiersList  []
+                 in
+                 case diffs of
                    VRecordDiffs dModifs ->
-                    let updateDiff: Int -> UpdatedEnv -> List (WS, WS, String, WS, Exp) -> List (Int, EDiffs) -> List (WS, WS, String, WS, Exp) -> Dict String VDiffs -> UpdateStack
-                        updateDiff i collectedEnv revCollectedEs revEDiffs esToCollect dModifs = case esToCollect of
-                     [] ->
-                       let tailChanges = case List.reverse revEDiffs of
-                         [] -> []
-                         eDiffs -> if Utils.maybeIsEmpty mi then eDiffs else UpdateUtils.offset 1 eDiffs
-                       in
-                       if Dict.isEmpty dModifs then
-                         let finalUpdatedE = case List.reverse revEDiffs of
-                           [] -> UpdatedExp e Nothing
-                           _ ->
-                             let finalEs = revCollectedEs |> List.reverse in
-                             let finalChange = Just <| EChildDiffs tailChanges in
-                             UpdatedExp (ret <| ERecord sp1 mi finalEs sp2) finalChange
-                         in
-                         updateResult collectedEnv finalUpdatedE
-                       else
-                         case mi of
-                           Nothing -> UpdateCriticalError <| "Trying to touch keys " ++ (Dict.keys dModifs |> String.join ",") ++ " but they do not exist in " ++ Syntax.unparser Syntax.Elm e
-                           Just (init, spm) ->
-                             let shadowingKeys = Set.fromList <| Utils.recordKeys es in
-                             case doEval Syntax.Elm env init of
-                               Err msg -> UpdateCriticalError msg
-                               Ok ((initv, _), initVEnv) ->
-                                 case initv.v_ of
-                                   VRecord dinit ->
-                                     let newInitV = replaceV_ initv <| (dinit |>
-                                          Dict.map (\k v ->  --Modify
-                                           if Set.member k shadowingKeys then
-                                             v
-                                           else
-                                             (Dict.get k dOut |> Utils.fromJust_ "ERecord update3") -- Push back all new values except those shadowed by es.
-                                           ) |> VRecord)
-                                     in
-                                     updateContinue "ERecord init" env init (keepLets env initVEnv) initv newInitV (VRecordDiffs dModifs) <|
-                                       (\e env collectedEnv sp1 spm revCollectedEs sp2->  \newInitEnv newInit ->
-                                       let finalEnv = UpdatedEnv.merge env collectedEnv newInitEnv in
-                                       let finalChanges = case newInit.changes of
-                                         Nothing -> case tailChanges of
-                                           [] -> Nothing
-                                           l -> Just <| EChildDiffs l
-                                         Just d -> Just <| EChildDiffs <| (0, d)::tailChanges
-                                       in
-                                       let finalExp = ret <| ERecord sp1 (Just (newInit.val, spm)) (List.reverse revCollectedEs) sp2 in
-                                       updateResult finalEnv (UpdatedExp finalExp finalChanges)
-                                       )  e env collectedEnv sp1 spm revCollectedEs sp2
-                                   _ -> UpdateCriticalError <| "Expected a record, got " ++ valToString initv
-                     ((sp3, sp4, k, sp5, ei) as e1)::esToCollectTail ->
-                       case Dict.get k dModifs of
-                         Nothing -> updateDiff (i + 1) collectedEnv (e1::revCollectedEs) revEDiffs esToCollectTail dModifs
-                         Just eiModif ->
-                           let originalEi = Dict.get k dOld |> Utils.fromJust_ "ERecord update1" in
-                           let modifiedEi = Dict.get k dOut |> Utils.fromJust_ "ERecord update2" in
-                           let newDiffs = Dict.remove k dModifs in
-                           updateContinue ("ERecord " ++ k) env ei [] originalEi modifiedEi eiModif <|
-                           ( \env collectedEnv sp3 sp4 k sp5 newDiffs->
-                             \newUpdatedEnv newUpdatedEi ->
-                             let finalEnv = UpdatedEnv.merge env collectedEnv newUpdatedEnv in
-                             let finalRevEDiffs = case newUpdatedEi.changes of
-                               Nothing -> revEDiffs
-                               Just d -> (i, d)::revEDiffs
-                             in
-                             updateDiff (i + 1) finalEnv ((sp3, sp4, k, sp5, newUpdatedEi.val)::revCollectedEs) finalRevEDiffs esToCollectTail newDiffs
-                           ) env collectedEnv sp3 sp4 k sp5 newDiffs
-                    in updateDiff 0 (UpdatedEnv.original env) [] [] es dModifs
+                      updateDeclarations env prevLetsDecls decls <|
+                       \envRecord _ {-remainingPrevLets-} finishUpdateDeclarations ->
+                      -- builds the updated env by pushing updated record diffs to envRecord or to mi, accordingly.
+                      let resMiVal = case Maybe.map (\(init, ws) -> doEval Syntax.Elm env init) mi of
+                        Just (Err msg) -> Err <| "Line " ++ toString e.start.line ++ ", while evaluating {...|, got" ++ msg
+                        Nothing -> Ok Nothing
+                        Just (Ok ((v, _), _)) -> case v.v_ of
+                           VRecord dMi -> Ok (Just dMi)
+                           _ -> Err <| "Line " ++ toString e.start.line ++ ", while evaluating {...|, got not a record but " ++ valToString v
+                      in
+                      case resMiVal of
+                        Err msg -> UpdateCriticalError msg
+                        Ok mbMiRecord  ->
+                      let (mbMiAcc, updatedEnvRecord) = Dict.foldl (\key diff (mbMiAcc, updatedEnvRecord) ->
+                           let newValue = Dict.get key dOut |> Utils.fromJust_ "ERecord.newValue" in
+                           if isDeclarationIdentifier key then
+                             (mbMiAcc, UpdatedEnv.set key newValue diff updatedEnvRecord)
+                           else
+                             case mbMiAcc of
+                               Just (updatedMiRecord, updatedMiDiffs) ->
+                                  (Just (Dict.insert key newValue updatedMiRecord, Dict.insert key diff updatedMiDiffs), updatedEnvRecord)
+                               Nothing -> Debug.crash <| "[Internal error] Cannot modify a key which is not a field of the record: " ++ key
+                           ) (mbMiRecord |> Maybe.map (\miRecord -> (miRecord, Dict.empty {- Diffs -})),
+                              UpdatedEnv.original envRecord) dModifs
+                      in
+                      finishUpdateDeclarations updatedEnvRecord <|
+                         \updatedEnvBeforeRecord updatedDecls ->
+                      case (mi, mbMiRecord, mbMiAcc) of
+                         (Just (init, initSp), Just miRecord, Just (newMiRecord, newMiDiffs)) ->
+                          updateContinue "ERecord.init" env init []
+                            (replaceV_ newVal <| VRecord miRecord) (replaceV_ newVal <| VRecord newMiRecord) (VRecordDiffs newMiDiffs) <| \updatedEnvInit updatedInit ->
+                               let finalEnv = UpdatedEnv.merge env updatedEnvBeforeRecord updatedEnvInit in
+                               let finalExpDiffs =
+                                 let miDiffsAsChild = updatedInit.changes |> Maybe.map (\d -> [(0, d)]) |> Maybe.withDefault [] in
+                                 case miDiffsAsChild ++ UpdateUtils.offset 1 (updatedDecls.changes) of
+                                    [] -> Nothing
+                                    l -> Just <| EChildDiffs l
+                               in
+                               let finalExp = UpdatedExp (ret <| ERecord sp1 (Just (updatedInit.val, initSp)) updatedDecls.val sp2) finalExpDiffs in
+                               updateResult finalEnv finalExp
+                         _ -> -- No init part at all.
+                          let finalExpDiffs = updatedDecls.changes in
+                          let finalExp = ret <| ERecord sp1 Nothing updatedDecls.val sp2 in
+                          updateResult updatedEnvBeforeRecord <| UpdatedExp finalExp finalExpDiffs
+
                    VConstDiffs ->
                      updateResultSameEnv env <| valToExpFull (Just e) sp1 InlineSpace newVal
                    m-> UpdateCriticalError ("Expected a Record diff, got " ++ toString m)
              _ -> UpdateCriticalError ("Expected Record as original value, got " ++ valToString oldVal)
          _ -> UpdateCriticalError ("Expected Record as value to update from, got " ++ valToString newVal)
-
      ESelect sp0 e1 sp1 sp2 ident ->
        case doEval Syntax.Elm env e1 of
          Err msg -> UpdateCriticalError msg
@@ -685,7 +669,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
            Err s       -> UpdateCriticalError s
            Ok ((v1, _),v1Env) ->
              case v1.v_ of
-               VClosure recName e1ps eBody env_ as vClosure ->
+               VClosure recNames e1ps eBody env_ as vClosure ->
                  let ne1ps = List.length e1ps in
                  let (es2ToEval, es2ForLater) = Utils.split ne1ps e2s in
 
@@ -737,9 +721,10 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                   let finalChanges = UpdateUtils.combineAppChanges newUpdatedE1.changes newUpdatedE2s.changes in
                                   updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
                            in
-                           case recName of
-                             Nothing ->
-                                case conssWithInversion (e1psUsed, v2s) (Just (env_, identity)) of
+                           case recNames of
+                             [] ->
+                                case Just (env_, identity) |>
+                                     conssWithInversion (e1psUsed, v2s) of
                                   Just (env__, consBuilder) -> --The environment now should align with updatedEnvOut_
                                     let ((newV2s, newV2sDiffs), newUpdatedEnv_) = consBuilder updatedEnvOut in
                                     --let _ = Debug.log ("v1 : " ++ valToString v1) () in
@@ -754,16 +739,26 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                     continuation newV1 newV1Diffs newV2s newV2sDiffs "app"
 
                                   _          -> UpdateCriticalError <| "[internal error] " ++ strPos e1.start ++ " bad environment, internal error in update"
-                             Just f ->
+                             recNames -> -- The values are stored in the closure environment, and need to be modified so that they are recursive again.
+                                let (recEnv, regularEnv) = Utils.split (List.length recNames) env_ in
+                                let recEnv2 = recEnv |> List.map (\((name, v) as pair) -> case v.v_ of
+                                     VClosure [] p b e -> (name, replaceV_ v <| VClosure recNames p b (recEnv ++ e))
+                                     _ -> pair
+                                  )
+                                in
+                                let (psRec, vsRec) = recEnv2 |> List.map (Tuple.mapFirst pVar) |> List.unzip in
                                 --let _ = Debug.log ("Recursive updating with environment: " ++ envToString (List.take 4 updatedEnvOut_)) () in
-                                case conssWithInversion (e1psUsed, v2s)
-                                      (consWithInversion (pVar f, v1) -- This order to be consistent with eval, where f is put first in the environment.
-                                        (Just (env_, identity))) of
-                                  Just (env__, consBuilder) -> --The environment now should align with updatedEnvOut_
+                                case Just (regularEnv, identity)) |>
+                                     conssWithInversion (psRec, vsRec) |>
+                                     conssWithInversion (e1psUsed, v2s)
+                                     -- This order to be consistent with eval,
+                                      --where recursive functions are put first in the environment, so arguments' names can shadown them.
+                                     of
+                                  Just (regularEnv__, consBuilder) -> --The environment now should align with updatedEnvOut_
                                     --let _ = Debug.log ("Original environment : " ++ envToString (List.take 4 env__)) () in
                                     let ((newV2s, newV2sDiffs),
-                                         ((newArgFun, newArgFunDiffs),
-                                           newUpdatedEnv_)) = consBuilder updatedEnvOut in
+                                         ((newArgFuns, newArgFunsDiffs),
+                                           newRegularUpdatedEnv_)) = consBuilder updatedEnvOut in
                                     let newClosureAndDiffs envChanges =
                                       (replaceV_ v1 <| VClosure recName (e1psUsed ++ psOut) outBody newUpdatedEnv_.val, VClosureDiffs envChanges modifBody ) in
                                     --let _ = Debug.log ("v1 : " ++ valToString v1) () in
@@ -806,37 +801,39 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                             let finalChanges = UpdateUtils.combineAppChanges newUpdatedE1.changes newUpdatedE2s.changes in
                             updateResult finalEnv <| UpdatedExp (ret <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1) finalChanges
                      in
-                     case recName of
-                       Nothing ->
-                          case conssWithInversion (e1ps, v2s) (Just (env_,
-                              \newUpdatedEnv_ -> \newUpdatedBody -> (replaceV_ v1 <| VClosure Nothing e1ps newUpdatedBody.val newUpdatedEnv_.val, VClosureDiffs newUpdatedEnv_.changes newUpdatedBody.changes))) of
+                     case recNames of
+                       [] ->
+                          case conssWithInversion (e1ps, v2s) <|
+                               Just (env_, identity) of
                             Just (env__, consBuilder) ->
                                -- consBuilder: Env -> ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure)
                                 updateContinue "VClosure3" env__ eBody [] oldVal newVal diffs <| \newUpdatedEnv newUpdatedBody ->
-                                  let ((newArgs, newArgsDiffs), bodytoClosureAndDiff) = consBuilder newUpdatedEnv in
-                                  let (newClosure, newClosureDiff) = bodytoClosureAndDiff newUpdatedBody in -- TODO: Once we return the diff of the expression, check for it before invoking patsBody...
-                                  continuation newClosure (Just newClosureDiff) newArgs newArgsDiffs "full app"
+                                  let ((newArgs, newArgsDiffs), newUpdatedEnv_) = consBuilder newUpdatedEnv in
+                                  let newClosure = replaceV_ v1 <| VClosure [] e1ps newUpdatedBody.val newUpdatedEnv_.val in
+                                  let newClosureDiffs = diffOps.mbVClosureDiffs newUpdatedEnv_.changes newUpdatedBody.changes in
+                                  continuation newClosure newClosureDiffs newArgs newArgsDiffs "full app"
                             _          -> UpdateCriticalError <| strPos e1.start ++ "bad environment"
-                       Just f ->
-                          case conssWithInversion (e1ps, v2s) (
-                               consWithInversion (pVar f, v1) (
-                               Just (env_, \newUpdatedEnv_ -> \newUpdatedBody -> (replaceV_ v1 <| VClosure (Just f) e1ps newUpdatedBody.val newUpdatedEnv_.val, VClosureDiffs newUpdatedEnv_.changes newUpdatedBody.changes)))) of
-                            Just (env__, consBuilder) ->
-                               -- consBuilder: Env -> ((Pat, Val), ((Pat, Val), (newPat: Pat) -> (newBody: Exp) -> VClosure))
-                                updateContinue "VClosure6"  env__ eBody [] oldVal newVal diffs <| \newUpdatedEnv newUpdatedBody ->
+                       recNames ->
+                          let (recEnv, regularEnv_) = Utils.split (List.length recNames) env_ in
+                          let recEnv2 = recEnv |> List.map (\((name, v) as pair) -> case v.v_ of
+                               VClosure [] p b e -> (name, replaceV_ v <| VClosure recNames p b (recEnv ++ e))
+                               _ -> pair
+                            )
+                          in
+                          let (psRec, vsRec) = recEnv2 |> List.map (Tuple.mapFirst pVar) |> List.unzip in
+                          case conssWithInversion (e1ps, v2s) <|
+                               conssWithInversion (psRec, vsRec) <|
+                               Just (regularEnv_, identity) of
+                            Just (regularEnv__, consBuilder) ->
+                                updateContinue "VClosure6"  regularEnv__ eBody [] oldVal newVal diffs <|
+                                  \newUpdatedRegularEnv newUpdatedBody ->
+                                  -- TODO: Continue here
                                   let ((newArgs, newArgsDiffs),
-                                      ((newArgFun, newArgFunDiffs), bodytoClosureAndDiff)) = consBuilder newUpdatedEnv in
+                                      ((newArgFun, newArgFunDiffs), newUpdatedEnv_)) = consBuilder newUpdatedEnv in
+                                  let newClosure = replaceV_ v1 <| VClosure (Just f) e1ps newUpdatedBody.val newUpdatedEnv_.val in
+                                  let newClosureDiffs = diffOps.mbVClosureDiffs newUpdatedEnv_.changes newUpdatedBody.changes in
                                   let (newClosure, newClosureDiff) =
-                                     case (newUpdatedBody.changes, UpdatedEnv.isUnmodified newUpdatedEnv, newArgFunDiffs) of
-                                       (Nothing, True, Nothing) ->
-                                         (v1, Nothing)
-                                       (Nothing, True, _) ->
-                                         (newArgFun, newArgFunDiffs)
-                                       (_, _, Nothing) ->
-                                         bodytoClosureAndDiff newUpdatedBody |> \(a, b) -> (a, Just b)
-                                       (_, _, Just realArgFunDiffs) ->
-                                         let (vclosure, vclosureDiff) = bodytoClosureAndDiff newUpdatedBody in
-                                         mergeVal v1 newArgFun realArgFunDiffs vclosure vclosureDiff |> \(a, b) -> (a, Just b)
+                                     mergeValMaybe v1 newArgFun newArgFunDiffs newClosure newClosureDiffs
                                   in
                                   continuation newClosure newClosureDiff newArgs newArgsDiffs "full rec app"
                             x -> UpdateCriticalError <| "[internal error] should have got a list, got " ++ toString x

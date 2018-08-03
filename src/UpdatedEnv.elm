@@ -1,4 +1,4 @@
-module UpdatedEnv exposing (UpdatedEnv, original, offset, merge, recursiveMerge, split, isUnmodified, show)
+module UpdatedEnv exposing (UpdatedEnv, original, offset, merge, recursiveMerge, split, isUnmodified, show, set)
 import Lang exposing (..)
 import UpdateUtils
 import Utils
@@ -25,6 +25,28 @@ recursiveMerge env modifiedEnvs = case modifiedEnvs of
   [] -> original env
   [head] -> head
   a::b::tail -> recursiveMerge env ((merge env a b)::tail)
+
+set: String -> Val -> VDiffs -> UpdatedEnv -> UpdatedEnv
+set key newVal newDiff updatedEnv =
+  let aux: Int -> Env -> EnvDiffs -> (Env, EnvDiffs)
+      aux i env envDiffs = case env of
+        [] -> ([], envDiffs)
+        (ke, ve)::envTail ->
+          if ke == key then ((ke, newVal)::envTail, (i, newDiff)::envDiffs)
+          else
+            let (tailEnvDiffs, remapEnvDiffs) = case envDiffs of
+              [] -> ([], identity)
+              (j, d)::tailDiffs ->
+                 if j == i then (tailDiffs, (::) (j, d))
+                 else if j > i then (envDiffs, identity)
+                 else Debug.crash <| "wrong env differences (set)" ++ show updatedEnv
+            in
+            let (newTailEnv, newTailEnvDiffs) = aux (i + 1) envTail tailEnvDiffs
+            in
+            ((ke, ve)::newTailEnv, remapEnvDiffs newTailEnvDiffs)
+  in
+  let (newEnv, newEnvDiffs) = aux 0 updatedEnv.val updatedEnv.changes in
+  UpdatedEnv newEnv newEnvDiffs
 
 offset: Int -> EnvDiffs -> EnvDiffs
 offset = UpdateUtils.offset

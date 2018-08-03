@@ -3570,3 +3570,10 @@ offsetStr n diffs =
   --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|
   List.map (\sd -> case sd of
     StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
+
+diffOps = {
+  mbVClosureDiffs = \envDiffs mbBodyDiffs ->
+    if envDiffs /= [] || mbBodyDiffs  /= Nothing then
+      Just <| VClosureDiffs envDiffs mbBodyDiffs
+    else Nothing
+}
