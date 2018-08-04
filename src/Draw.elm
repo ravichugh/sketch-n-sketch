@@ -547,9 +547,9 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
       let offsetAmountExp =
         case snap of
           NoSnap          -> eConstDummyLoc (toFloat offsetAmount)
-          SnapVal snapVal -> eHoleVal snapVal
+          SnapVal snapVal -> eSnapHoleVal snapVal
       in
-      eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp]
+      eOp plusOrMinus [eSnapHoleVal baseVal, offsetAmountExp]
     in
     addToEndOfProgram old offsetSuggestedName offsetExp
   in
@@ -595,12 +595,12 @@ pointWithSnapToXYExps ((x, xSnap), (y, ySnap)) =
   let xExp =
     case xSnap of
       NoSnap          -> eConstDummyLoc0 (toFloat x)
-      SnapVal snapVal -> eHoleVal0 snapVal
+      SnapVal snapVal -> eSnapHoleVal0 snapVal
   in
   let yExp =
     case ySnap of
       NoSnap          -> eConstDummyLoc (toFloat y)
-      SnapVal snapVal -> eHoleVal snapVal
+      SnapVal snapVal -> eSnapHoleVal snapVal
   in
   (xExp, yExp)
 

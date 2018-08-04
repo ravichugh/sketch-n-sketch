@@ -731,7 +731,7 @@ multilineGenericLetBinding =
     genericLetBinding (
       succeed identity
       |. symbol "\n"
-      |= succeed (withDummyExpInfo <| EHole space0 Nothing))
+      |= succeed eEmptyHoleVal0)
 
 --------------------------------------------------------------------------------
 -- HTML Literals
@@ -2111,7 +2111,7 @@ hole : Parser (WS -> Exp)
 hole =
   inContext "hole" <|
     mapWSExp_ <|
-      transferInfo (flip EHole) (trackInfo <| token "??" Nothing)
+      transferInfo (flip EHole) (trackInfo <| token "??" EEmptyHole)
 
 --------------------------------------------------------------------------------
 -- General Expressions

@@ -1074,7 +1074,7 @@ synthesizeType typeInfo typeEnv e =
     EParens _ e1 _ _ ->
       propagateResult <| synthesizeType typeInfo typeEnv e1
 
-    EHole _ v ->
+    EHole _ _ ->
       { result = Nothing, typeInfo = typeInfo }
 
 -- Computes the intersection of types

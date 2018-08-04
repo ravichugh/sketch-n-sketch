@@ -317,7 +317,7 @@ traverse env exp acc =
 
     EColonType _ e _ _ _   -> recurse [e]
     EParens _ e _ _        -> recurse [e]
-    EHole _ _              -> let _ = Utils.log "DependenceGraph.traverse: EHole in exp!!" in acc
+    EHole _ _              -> acc
 
 -- In a let [pattern] = [definition], map each subpattern to its corresponding definition
 traverseAndAddDependencies newScopeId =

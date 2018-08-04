@@ -1191,11 +1191,11 @@ expToCaseScrutinee exp =
     _                     -> Debug.crash <| "LangTools.expToScrutinee exp is not an ECase: " ++ unparseWithIds exp
 
 
-expToMaybeHoleVal : Exp -> Maybe Val
-expToMaybeHoleVal exp =
+expToMaybeSnapHoleVal : Exp -> Maybe Val
+expToMaybeSnapHoleVal exp =
   case exp.val.e__ of
-    EHole _ maybeVal -> maybeVal
-    _                -> Nothing
+    EHole _ (ESnapHole val) -> Just val
+    _                       -> Nothing
 
 
 -- This is a rather generous definition of literal.
@@ -2149,8 +2149,8 @@ numericLetBoundIdentifiers program =
       ELet _ _ _ _ body             -> recurse body
       EColonType _ e _ _ _          -> recurse e
       EParens _ e _ _               -> recurse e
-      EHole _ Nothing               -> False
-      EHole _ (Just val)            -> valIsNum val
+      EHole _ EEmptyHole            -> False
+      EHole _ (ESnapHole val)       -> valIsNum val
   in
   let expBindings = allSimplyResolvableLetBindings program in
   let findAllNumericIdents numericIdents =

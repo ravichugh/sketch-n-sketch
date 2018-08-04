@@ -660,7 +660,8 @@ unparse e =
            -- This is normally never called from here.
           unparse innerExpression  --<| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
 
-    EHole wsBefore val ->
+    -- TODO: ESnapHole should probably cause an error instead of unparsing
+    EHole wsBefore _ ->
       wsBefore.val
         ++ "??"
 
