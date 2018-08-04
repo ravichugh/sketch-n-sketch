@@ -501,5 +501,5 @@ changeRenamedVarsToOuter_ renamings exp =
       ECase ws1 (recurse e1) newBranches ws2
     EColonType ws1 e ws2 tipe ws3         -> EColonType ws1 (recurse e) ws2 tipe ws3
     EParens ws1 e pStyle ws2              -> EParens ws1 (recurse e) pStyle ws2
-    EHole ws mv                           -> e__
+    EHole ws h                            -> e__
     -}

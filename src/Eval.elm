@@ -382,8 +382,8 @@ eval syntax env bt e =
         eval syntax env bt e1
 
   EParens _ e1 _ _      -> eval syntax env bt e1
-  EHole _ (Just val)    -> Ok <| retV [val] val
-  EHole _ Nothing       -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
+  EHole _ (ESnapHole val) -> Ok <| retV [val] val
+  EHole _ EEmptyHole    -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
 
 
 evalOp : Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> Result String (Val, Widgets)

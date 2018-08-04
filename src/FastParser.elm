@@ -1024,7 +1024,7 @@ hole : Parser Exp
 hole =
   inContext "hole" <|
     mapExp_ <|
-      paddedBefore EHole spaces (trackInfo <| token "??" Nothing)
+      paddedBefore EHole spaces (trackInfo <| token "??" EEmptyHole)
 
 --------------------------------------------------------------------------------
 -- Type Declarations

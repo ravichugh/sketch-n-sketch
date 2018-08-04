@@ -280,7 +280,7 @@ type Exp__
   | ELet WS LetKind Declarations WS{-in or ;-} Exp
   | EColonType WS Exp WS Type WS -- type annotation
   | EParens WS Exp ParensStyle WS
-  | EHole WS (Maybe Val) -- Internal intermediate, should not appear in code. (Yet.)
+  | EHole WS Hole
   | ERecord WS {- { -} (Maybe (Exp, WS) {- | -}) Declarations {- }-} WS
   | ESelect WS Exp WS {-.-} WS Ident
     -- EFun [] e     impossible
@@ -292,6 +292,10 @@ type Exp__
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
 
 type ParensStyle = Parens | LongStringSyntax | ElmSyntax | HtmlSyntax
+
+type Hole
+  = EEmptyHole
+  | ESnapHole Val
 
 type Type_
   = TNum WS
@@ -1988,8 +1992,10 @@ eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) s
 eListWs a b       = withDummyExpInfo <| EList space1 a space0 b space0
 eTuple0 a         = eList0 a Nothing
 eTuple a          = eList a Nothing
-eHoleVal0 v       = withDummyExpInfo <| EHole space0 (Just v)
-eHoleVal v        = withDummyExpInfo <| EHole space1 (Just v)
+eSnapHoleVal0 v   = withDummyExpInfo <| EHole space0 (ESnapHole v)
+eSnapHoleVal v    = withDummyExpInfo <| EHole space1 (ESnapHole v)
+eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 EEmptyHole
+eEmptyHoleVal     = withDummyExpInfo <| EHole space1 EEmptyHole
 
 eColonType e t    = withInfo (exp_ <| EColonType space1 e space1 t space0) e.start t.end
 
@@ -2271,7 +2277,7 @@ precedingWhitespaceWithInfoExp__ e__ =
     ECase      ws1 e1 bs ws2                    -> ws1
     EColonType ws1 e ws2 tipe ws3               -> ws1
     EParens    ws1 e pStyle ws2                 -> ws1
-    EHole      ws mv                            -> ws
+    EHole      ws h                             -> ws
 
 precedingWhitespaceWithInfoType: Type -> WS
 precedingWhitespaceWithInfoType t =
@@ -2350,7 +2356,7 @@ allWhitespaces_ exp =
     ECase      ws1 e1 bs ws2                -> [ws1] ++ allWhitespaces_ e1 ++ List.concatMap allWhitespacesBranch bs ++ [ws2]
     EColonType ws1 e ws2 tipe ws3           -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
     EParens    ws1 e pStyle ws2             -> [ws1] ++ allWhitespaces_ e ++ [ws2]
-    EHole      ws mv                        -> [ws]
+    EHole      ws h                         -> [ws]
 
 
 allWhitespacesPat : Pat -> List String
@@ -2446,7 +2452,7 @@ mapPrecedingWhitespaceWS mapWs exp =
         ECase      ws1 e1 bs ws2                    -> ECase      (mapWs ws1) e1 bs ws2
         EColonType ws1 e ws2 tipe ws3               -> EColonType (mapWs ws1) e ws2 tipe ws3
         EParens    ws e pStyle ws2                  -> EParens    (mapWs ws) e pStyle ws2
-        EHole      ws mv                            -> EHole      (mapWs ws) mv
+        EHole      ws h                             -> EHole      (mapWs ws) h
   in
     replaceE__ exp e__New
 
@@ -2828,6 +2834,8 @@ isWord codeObject =
         (EBase _ _) ->
           True
         (EVar _ _) ->
+          True
+        (EHole _ EEmptyHole) ->
           True
         _ ->
           False

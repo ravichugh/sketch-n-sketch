@@ -3053,8 +3053,8 @@ resolveValueHoles : Sync.Options -> Exp -> List Exp
 resolveValueHoles syncOptions programWithHolesUnfresh =
   let
     programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
-    valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeHoleVal >> Utils.maybeToBool)
-    holeVals = programWithHoles |> flattenExpTree |> List.filterMap expToMaybeHoleVal
+    valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeSnapHoleVal >> Utils.maybeToBool)
+    holeVals = programWithHoles |> flattenExpTree |> List.filterMap expToMaybeSnapHoleVal
     holeEIds = valHoles |> List.map (.val >> .eid)
     holeTraces = holeVals |> List.map valToTrace
     locIdsNeeded = holeTraces |> List.map (Sync.locsOfTrace syncOptions >> Set.map locToLocId) |> Utils.unionAll

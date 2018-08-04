@@ -368,9 +368,9 @@ expEqual e1_ e2_ =
     patEqual pat1 pat2 && expEqual e1 e2 && typeEqual t1 t2
   (EParens sp1 e1 pStyle1 sp2, EParens sp3 e2 pStyle2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2 && pStyle
-  (EHole sp1 (Just v1), EHole sp2 (Just v2)) ->
+  (EHole sp1 (ESnapHole v1), EHole sp2 (ESnapHole v2)) ->
     wsEqual sp1 sp2 && valEqual v1 v2
-  (EHole sp1 Nothing, EHole sp2 Nothing) ->
+  (EHole sp1 EEmptyHole, EHole sp2 EEmptyHole) ->
     wsEqual sp1 sp2
   _ -> False
 --}

@@ -271,7 +271,7 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(" ++ (unparse_ e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
   EParens ws1 e pStyle ws2 ->
     unparse_ e
-  EHole ws v ->
+  EHole ws h ->
     ws.val ++ "??"
 
 
@@ -321,7 +321,7 @@ unparseWithIds e =
       ws1.val ++ "(" ++ (unparseWithIds e) ++ ws2.val ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3.val ++ ")"
     EParens ws1 e pStyle ws2 ->
       ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
-    EHole ws v ->
+    EHole ws h ->
       ws.val ++ "??" ++ eidTag
 
 
