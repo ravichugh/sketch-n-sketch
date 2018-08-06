@@ -129,8 +129,8 @@ updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
     Ok ll->
       let _ = ImpureGoodies.log <| "Diffs observed: " ++ toString (LazyList.toList ll) in
       case Ok (LazyList.filterMap identity ll) |> Results.andThen (\diffs ->
-        update LazyList.Nil LazyList.Nil (updateContext "initial" env exp origOut newOut diffs)) of
-        Results.Ok (LazyList.Cons (envX, expX) lazyTail as ll) ->
+        update LazyList.Nil LazyList.Nil (updateContext "initial" env exp [] origOut newOut diffs)) of
+        Ok (LazyList.Cons (envX, expX) lazyTail as ll) ->
           let _ = LazyList.toList ll in
           --let _ = ImpureGoodies.log <| toString expX.changes in
           --let _ = ImpureGoodies.log <| eDiffsToString "" exp expX.val (expX.changes |> Maybe.withDefault (EConstDiffs EAnyDiffs)) in
@@ -145,9 +145,9 @@ updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
               LazyList.Nil ->
                 fail state <|
                   log state <| "Expected \n'" ++ expected ++  "'\n, got\n'" ++ obtained ++ "'\n" ++ problemdesc
-        Results.Ok LazyList.Nil ->
+        Ok LazyList.Nil ->
            fail state <| log state <| "Expected \n'" ++ expected ++  "', got no solutions without error" ++ problemdesc
-        Results.Err msg ->
+        Err msg ->
            fail state <| log state <| "Expected \n'" ++ expected ++  "', got '" ++ msg ++ problemdesc
 updateAssert env exp origOut newOut expectedEnv expectedExpStr =
   gather <| updateAssert_ True env exp origOut newOut expectedEnv expectedExpStr

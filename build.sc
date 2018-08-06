@@ -147,4 +147,28 @@ object SNS extends Module {
   }
 }
 
+object SNSTests extends Module {
+  import SNS.{buildSummary,fixpoint,insertLinks,stderr}
+  def millSourcePath = pwd
+  implicit def src: Path = pwd / "tests"
+
+  def testRoot = T.sources { pwd / 'tests }
+
+  def test = T {
+    testRoot()
+    SNS.sourceRoot()
+    stderr(%%(ELM_MAKE, "UpdateTests.elm", "--output", "build/test.js")) match {
+      case Left(msg) =>
+        System.out.print("\033[H\033[2J") // Clears the console to display the error
+        println(buildSummary(fixpoint(insertLinks)(msg)))
+      case Right(ok) =>
+        println("Let's run the tests")
+        %("node", "--stack_size=2048", "support/runner.js")
+        ()
+    }
+  }
+}
+
 def html = T{ SNS.html() }
+
+def test =  T{ SNSTests.test() }

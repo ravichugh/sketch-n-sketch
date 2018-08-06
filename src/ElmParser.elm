@@ -1149,20 +1149,21 @@ dataConstructorPattern =
 
 simplePattern : Parser (WS -> Pat)
 simplePattern =
-  inContext "simple pattern" <|
-    oneOf <| Debug.log "simplePattern=" <|
-      [ lazy <| \_ -> listPattern
-      , lazy <| \_ -> recordPattern
-      , lazy <| \_ -> tuplePattern
+  inContext "simple pattern" <| lazy <| \_ ->
+    oneOf <|
+      [ listPattern
+      , recordPattern
+      , tuplePattern
       , constantPattern
       , baseValuePattern
-      , lazy <| \_ -> dataConstructorPattern
+      , dataConstructorPattern
       , variablePattern
       , wildcardPattern
       ]
 
 simplePatternWithMaybeColonType: Parser (WS -> Pat)
 simplePatternWithMaybeColonType =
+  inContext "simplePatternWithMaybeColonType" <| lazy <| \_ ->
   delayedCommitMap (\pos posToRes -> posToRes pos)
   getPos
   (
@@ -1936,13 +1937,14 @@ caseExpression =
 letExpOrAnnotation : Parser WS -> Parser (OptCommaSpace -> WS -> Declaration)
 letExpOrAnnotation appargSpace =
   inContext "binding" <| andThen identity <|
-     succeed (\name parameters wsBeforeEq final ->
+     delayedCommitMap (\(name, parameters, wsBeforeEq) final ->
        final name parameters wsBeforeEq
      )
+     (succeed (,,)
      |= pattern (SpacePolicy nospace spaces)
      |= repeat zeroOrMore (pattern (SpacePolicy spaces spaces))
-     |= spaces
-     |= (oneOf [source <| symbol "=", source <| symbol ":"] |> andThen (\eqSymbol ->
+     |= spaces)
+     (oneOf [source <| symbol "=", source <| symbol ":"] |> andThen (\eqSymbol ->
        if eqSymbol == "=" then
          expression (SpacePolicy spaces appargSpace)
          |> map (\binding_ ->
@@ -2033,7 +2035,7 @@ reorderDefinitions letExps =
 
 headDeclaration: Parser WS -> Parser Declaration
 headDeclaration appargSpace =
-  inContext "Declaration #1" <|
+  inContext "Declaration #1" <| lazy <| \_ ->
     delayedCommitMap (\sp declBuilder -> declBuilder Nothing sp)
     appargSpace
     (oneOf [
@@ -2073,7 +2075,7 @@ tailDeclarations revPrevDeclarations =
 -- Non-empty declarations
 declarations: Parser Declarations
 declarations  =
-  inContext "Declarations" <|
+  inContext "Declarations" <| lazy <| \_ ->
   (headDeclaration spaces |> andThen (\decl -> tailDeclarations [decl]) |>
     andThen (\definitions -> case reorderDefinitions definitions of
          Ok r -> succeed r
@@ -2620,10 +2622,13 @@ mainExpression =
 
 program : Parser Exp
 program =
-  succeed (\decls mainExp ->
-    withInfo (exp_ <| ELet space0 Def decls.val space0 mainExp.val) decls.start mainExp.end
+  succeed (\declsOpt mainExp ->
+    case declsOpt of
+      Nothing -> mainExp.val
+      Just decls ->
+        withInfo (exp_ <| ELet space0 Def decls.val space0 mainExp.val) decls.start mainExp.val.end
   )
-  |= trackInfo declarations
+  |= optional (trackInfo declarations)
   |= trackInfo mainExpression
   |. spaces
   |. end
