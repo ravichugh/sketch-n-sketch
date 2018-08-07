@@ -283,8 +283,9 @@ parseT : String -> Type
 parseT s =
   -- TODO figure out why this is parsing as a TNamed
   if s == " Num " then tNum else
+  if s == " TODO" then tString else
   case Parser.parseT s of
-    Err _ -> Debug.crash <| "bad primitive op type: " ++ s
+    Err _ -> tList (tVar "s") --Debug.crash <| "bad primitive op type: " ++ s
     Ok t  -> t
 
 opType : Op -> Type

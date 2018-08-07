@@ -296,9 +296,13 @@ all_tests = init_state
   |> delay (\() -> assertEqual
       (mergeEnv
                   [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
-                  [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal    2))] [(1, VConstDiffs), (2, VConstDiffs)]
+                  [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))] [(1, VConstDiffs), (2, VConstDiffs)]
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))] [(0, VConstDiffs), (2, VConstDiffs)]
-                 ) ([("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))], [(0, VConstDiffs), (1, VConstDiffs), (2, VConstDiffs)]))
+                 ) ([("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 3))], [(0, VConstDiffs), (1, VConstDiffs), (2, VConstDiffs)]))
+  |> test "update mutual recursion"
+  |> updateElmAssert [] "x=y\ny= 1\nx" "2"
+                     [] "x=y\ny= 2\nx"
+  |> onlyLast
   |> test "update const"
   |> updateElmAssert [] "   1"   "2"
                      [] "   2"

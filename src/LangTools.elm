@@ -48,17 +48,17 @@ nodeCount exp =
      EParens _ e1 pStyle _    -> 1 + nodeCount e1
      EHole _ _                -> 1
 
-declCount_: Bool -> Declarations -> Int
-declCount_ withChildren (Declarations _ (tpes, _) anns (exps, _)) =
+declCount_: Bool -> (Pat -> Int) -> (Type -> Int) -> (Exp -> Int) -> Declarations -> Int
+declCount_ withChildren patNodeCount typeNodeCount nodeCount (Declarations _ (tpes, _) anns (exps, _)) =
    (tpes |> List.map (\(LetType _ _ _ p _ _ t) -> 1 + patNodeCount p + typeNodeCount t) |> List.sum) +
    (anns |> List.map (\(LetAnnotation _ _ p _ _ t) -> 1 + patNodeCount p + typeNodeCount t) |> List.sum) +
    (exps |> List.map (\(LetExp _ _ p _ _ e) -> 1 + patNodeCount p + if withChildren then nodeCount e else 0) |> List.sum)
 
 declCount: Declarations -> Int
-declCount = declCount_ True
+declCount = declCount_ True  patNodeCount typeNodeCount nodeCount
 
 declCountWithoutChildren: Declarations -> Int
-declCountWithoutChildren = declCount_ False
+declCountWithoutChildren = declCount_ False patNodeCount typeNodeCount nodeCount
 
 -- O(n); for clone detection
 subExpsOfSizeAtLeast : Int -> Exp -> List Exp

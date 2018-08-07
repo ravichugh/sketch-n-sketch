@@ -65,9 +65,9 @@ type HTMLTag = HTMLTagString (WithInfo String) | HTMLTagExp Exp
 
 type ParsingMode = Raw |
   Interpolation {
-    tagName: Parser WS -> Parser Exp,
+    tagName: Parser Exp,
     attributevalue: Parser WS -> Parser Exp,
-    attributelist: Parser WS -> Parser Exp,
+    attributelist: Parser Exp,
     childlist: Parser WS -> Parser Exp}
 
 voidElements: Set String
@@ -229,7 +229,7 @@ nodeElementStart parsingMode =
           defaultParser,
           succeed (\s x -> (HTMLTagExp x, "@"))
           |= symbol "@"
-          |= tagName nospace
+          |= tagName
         ]
 
 nodeStart: Parser String
@@ -282,7 +282,7 @@ parseHTMLAttribute parsingMode =
           oneOf [
             (succeed (flip HTMLAttributeListExp)
             |. symbol "@"
-            |= attributelist nospace),
+            |= attributelist),
             defaultAttributeParser]
 
 mergeInners: List HTMLNode -> List HTMLNode

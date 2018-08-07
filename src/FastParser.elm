@@ -1314,8 +1314,8 @@ sanitizeVariableName unsafeName =
   |> U.changeTail (List.filter validIdentifierRestChar)
   |> String.fromList
 
-(prelude, initK) =
-  freshenClean 1 <| U.fromOkay "parse prelude" <| parseE_ identity Prelude.src
+(prelude, initK) = (withDummyExpInfo <| EConst space0 0 dummyLoc noWidgetDecl, 1)
+  --freshenClean 1 <| U.fromOkay "parse prelude" <| parseE_ identity "0"
 
 preludeIds = allIds prelude
 

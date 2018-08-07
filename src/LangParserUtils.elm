@@ -25,6 +25,10 @@ module LangParserUtils exposing
   , implodeStyleValue
   , isFirstChar
   , isRestChar
+  , MinStartCol
+  , SpaceConstraint(..)
+  , spaceSameLineOrNextAfter
+  , spaceSameLineOrNextAfterOrTwoLines
   )
 
 import Parser exposing (..)
@@ -76,6 +80,10 @@ withoutNewline: String -> SpaceCheck
 withoutNewline forwhat =
   SpaceCheck (\start end -> start.line == end.line) <| \() -> "I need a space not containing a newline for " ++ forwhat
 
+maxOneLine: String -> SpaceCheck
+maxOneLine forwhat =
+  SpaceCheck (\start end -> start.line + 1 >= end.line) <| \() -> "Cannot have more than one newline for " ++ forwhat
+
 spacesCustom: SpaceCheck -> Parser WS
 spacesCustom {spaceCheck, msgBuilder} =
   spaces |> map (\ws ->
@@ -95,6 +103,22 @@ spacesRaw =
         nestableComment "{-" "-}" |> andThen (\_ -> spacesRaw),
         succeed ()
       ])
+
+type alias MinStartCol = Int
+type SpaceConstraint = NoSpace | MinIndentSpace
+
+spaceSameLineOrNextAfter: MinStartCol -> SpaceConstraint -> Parser WS
+spaceSameLineOrNextAfter minStartCol spConstraint =
+  if spConstraint == NoSpace then nospace else
+  spacesCustom <| SpaceCheck
+  (\start end -> start.line + 1 <= end.line && (if start.line + 1 == end.line then minStartCol <= end.col else True)) <|
+    \() -> "Expected a min indentation of " ++ toString minStartCol ++ " if on the next line"
+
+spaceSameLineOrNextAfterOrTwoLines: MinStartCol -> Parser WS
+spaceSameLineOrNextAfterOrTwoLines minStartCol = spacesCustom <| SpaceCheck
+  (\start end -> start.line + 1 < end.line ||
+    start.line + 1 <= end.line && (if start.line + 1 == end.line then minStartCol <= end.col else True)) <|
+    \() -> "Expected a min indentation of " ++ toString minStartCol ++ " if on the next line"
 
 spaces : Parser WS
 spaces = trackInfo <| source <| spacesRaw
