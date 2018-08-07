@@ -1901,16 +1901,18 @@ caseExpression minStartCol spConstraint =
 letExpOrAnnotation : MinStartCol -> Parser (OptCommaSpace -> WS -> Declaration)
 letExpOrAnnotation minStartCol =
   inContext "let/def binding" <| andThen identity <|
-     delayedCommitMap (\(name, parameters, wsBeforeEq) final ->
+     delayedCommitAndThen (\(name, parameters, wsBeforeEq) final ->
        final name parameters wsBeforeEq
      )
      (succeed (,,)
      |= pattern nospace minStartCol
      |= repeat zeroOrMore (pattern spaces minStartCol)
      |= spaces)
-     (oneOf [source <| symbol "=", source <| symbol ":"] |> andThen (\eqSymbol ->
+     (\(p1, ps, sps) ->
+      oneOf [source <| symbol "=", source <| symbol ":"] |>
+      andThen (\eqSymbol ->
        if eqSymbol == "=" then
-         expression spaces minStartCol MinIndentSpace
+         expression spaces (p1.start.col + 1) MinIndentSpace
          |> map (\binding_ ->
            \pat parameters wsBeforeEq ->
              let (binding, funArgStyle) =
@@ -2020,11 +2022,10 @@ tailDeclarations minStartCol revPrevDeclarations =
        , succeed ((,) Nothing) |= (spaceSameLineOrNextAfterOrTwoLines minStartCol)
     ]
   in
-  inContext ("Declaration #" ++ toString (List.length revPrevDeclarations + 1)) <|
     succeed identity
-    |. map (Debug.log "getPos") getPos
     |= oneOf [
-    spaceBeforeNewDeclaration |> andThen (\(optCommaSpace, wsBefore) ->
+      delayedCommitAndThen (\_ -> identity)
+        spaceBeforeNewDeclaration (\(optCommaSpace, wsBefore) ->
       let newMinStartCol = if wsBefore.start.line + 1 < wsBefore.end.line then
            wsBefore.end.col
         else minStartCol
@@ -2032,16 +2033,18 @@ tailDeclarations minStartCol revPrevDeclarations =
       oneOf [
          typeDefOrAlias newMinStartCol,
          letExpOrAnnotation newMinStartCol
-      ] |> andThen (\final -> tailDeclarations newMinStartCol (final optCommaSpace wsBefore :: revPrevDeclarations))),
-    succeed []]
+      ] |>
+      inContext ("Declaration #" ++ toString (List.length revPrevDeclarations + 1)) |>
+      andThen (\final -> tailDeclarations newMinStartCol (final optCommaSpace wsBefore :: revPrevDeclarations)))
+    , succeed (List.reverse revPrevDeclarations)]
 
 -- Non-empty declarations
 declarations: MinStartCol -> Parser Declarations
 declarations minStartCol =
   inContext "Declarations" <| lazy <| \_ ->
-  (headDeclaration minStartCol |> andThen (\decl ->
-     let firstWS = precedingWhitespaceDeclarationWithInfo decl in
-     tailDeclarations firstWS.end.col [decl]) |>
+  (headDeclaration minStartCol |> andThen (\headDecl ->
+     let firstWS = precedingWhitespaceDeclarationWithInfo headDecl in
+     tailDeclarations firstWS.end.col [headDecl]) |>
     andThen (\definitions -> case reorderDefinitions definitions of
          Ok r -> succeed r
          Err msg -> fail msg)
@@ -2653,9 +2656,9 @@ sanitizeVariableName unsafeName =
       let msg = ParserUtils.showError parserError in
       case run program "0" of
         Ok k -> (Just msg, freshenClean 1 k)
-        Err err ->
-          Debug.crash <|
-            """ElmParser: "0" failed to parse?""" ++ ParserUtils.showError err
+        Err err -> (Just "Prelude did not parse and 0 either", freshenClean 1 (withDummyExpInfo <| EConst space0 0 dummyLoc noWidgetDecl))
+          --Debug.crash <|
+          --  """ElmParser: "0" failed to parse?""" ++ ParserUtils.showError err
 
 preludeIds = allIds prelude
 

@@ -680,8 +680,8 @@ onlyImplicitMain letExps = case letExps of
 
 unparseDeclarations: Declarations -> String
 unparseDeclarations declarations =
-   Utils.foldLeft "" (getDeclarationsInOrder declarations ) <|
-     \acc decl -> case decl of
+   Utils.foldLeft "" (getDeclarationsInOrder declarations) <|
+     \acc decl -> (++) acc <| case decl of
        DeclExp (LetExp wsBeforeComma wsBefore p funArgStyle wsEq e2) ->
          (case wsBeforeComma of
            Just ws -> ws.val ++ ","

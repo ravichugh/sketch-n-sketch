@@ -21,7 +21,6 @@ module ParserUtils exposing
   , keepRegex
   , singleLineString
   , unparseStringContent
-  , delayedCommitAndThen
   )
 
 import Pos exposing (..)
@@ -417,8 +416,3 @@ unparseStringContent quoteChar text =
   Regex.replace Regex.All (Regex.regex <| "\\\\|" ++ quoteChar ++ "|\r|\n|\t") ( -- EStrings are not multiline.
     \{match} -> if match == "\\" then "\\\\" else if match == "\n" then "\\n" else if match == "\r" then "\\r" else if match == "\t" then "\\t" else "\\" ++ quoteChar)
     text
-
-
-delayedCommitAndThen: (a -> b -> Parser c) -> Parser a -> Parser b -> Parser c
-delayedCommitAndThen fun parser1 parser2 =
-  delayedCommitMap fun parser1 parser2 |> Parser.andThen identity

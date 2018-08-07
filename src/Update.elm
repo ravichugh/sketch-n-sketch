@@ -1270,9 +1270,11 @@ updateLetExps: {-Give me -} Env -> {- Give me -} PrevLets -> {- Give me -} List 
         It will return you as a continuation the new letExps and differences, use them to produce the final updateResult -}
       (UpdatedEnv ->
         ContinuationUpdate3 UpdatedEnv (List (List LetExp)) (TupleDiffs EDiffs))
-updateLetExps env prevLets letExps continue = case letExps of
-  [] -> continue env prevLets <| \updatedEnv return ->
-    return (UpdatedEnv.original env) [] []
+updateLetExps env prevLets letExps continue =
+  case letExps of
+  [] ->
+    continue env prevLets <| \updatedEnv return ->
+    return updatedEnv [] []
   letexpGroup :: tailGroups ->
     let resAcc =
       Utils.foldLeft (Ok (prevLets, [], [])) letexpGroup <|
@@ -1303,7 +1305,9 @@ updateLetExps env prevLets letExps continue = case letExps of
         case conssWithInversion (groupPatterns, groupOldValues) <| Just (env, identity) of
           Just (envWithE1s, conssBuilder) ->
             updateLetExps envWithE1s newPrevLets tailGroups <| -- We update the tail of LetExps (A)
-             \envWithAllLetExps prevLetsWithoutLetExps afterUpdatedEnv ->
+            ((\env prevLets letExps continue letexpGroup tailGroups newPrevLets revPatList revValList
+               groupPatterns recursion groupOldValues_ groupOldValues envWithE1s conssBuilder -> -- Need to provide all closed variables because updateLetExp is tail-recursive.
+              \envWithAllLetExps prevLetsWithoutLetExps afterUpdatedEnv ->
             continue envWithAllLetExps prevLetsWithoutLetExps <| -- We invoke the continuation after evaluating all LetExps
              \updatedEnvWithAllLetExps return ->
             afterUpdatedEnv updatedEnvWithAllLetExps <| -- We give the updatedEnv to the closure provided by (A)
@@ -1345,7 +1349,8 @@ updateLetExps env prevLets letExps continue = case letExps of
               let newGroup = List.map2 (\(LetExp ms wp p fs we e) newE -> LetExp ms wp p fs we newE) letexpGroup updatedExpTuple.val in
               let newGroupDiffs = updatedExpTuple.changes |> Maybe.withDefault [] in
               return updatedEnv (newGroup::newTailGroups) (newGroupDiffs ++ UpdateUtils.offset (List.length letexpGroup) newTailGroupsDiffs)
-
+            ) env prevLets letExps continue letexpGroup tailGroups newPrevLets revPatList revValList
+              groupPatterns recursion groupOldValues_ groupOldValues envWithE1s conssBuilder) -- Need to provide all closed variables because updateLetExp is tail-recursive.
           Nothing ->
               UpdateCriticalError <| strPos (groupPatterns |> Utils.head "update letexps" |> .start) ++ " could not match pattern " ++
                 (List.map (Syntax.patternUnparser Syntax.Elm >> Utils.squish) groupPatterns |> String.join ",") ++

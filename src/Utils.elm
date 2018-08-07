@@ -1465,7 +1465,7 @@ orderWithDependencies elements elemToNamesDepsIsrec =
                else Err <| "I could not find a satisfying assignment for these mutually recursive definitions:\n" ++
                  (waitingDefs |> List.map (\(_, (n, d, isRec) as abst) ->
                    let reald = finalDependencies abst in
-                   (Set.toList n |> String.join ",") ++ " depend on " ++ (Set.toList reald |> String.join ",") ++
+                   (Set.toList n |> String.join ",") ++ " depend(s) on " ++ (Set.toList reald |> String.join ",") ++
                    (if isRec then " and recursively on each other" else "")
                  ) |> String.join ",\n") ++ "\nWe don't support mutual recursion between lambdas and non-lambda (yet). Create a lambda, and then call it if you wish."
           ((a, (names, deps, isRec) as abst) as headDef)::tailDefs ->

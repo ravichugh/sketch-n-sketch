@@ -111,13 +111,13 @@ spaceSameLineOrNextAfter: MinStartCol -> SpaceConstraint -> Parser WS
 spaceSameLineOrNextAfter minStartCol spConstraint =
   if spConstraint == NoSpace then nospace else
   spacesCustom <| SpaceCheck
-  (\start end -> start.line + 1 <= end.line && (if start.line + 1 == end.line then minStartCol <= end.col else True)) <|
+  (\start end -> end.line <= start.line + 1 && (if end.line == start.line + 1 then minStartCol <= end.col else True)) <|
     \() -> "Expected a min indentation of " ++ toString minStartCol ++ " if on the next line"
 
 spaceSameLineOrNextAfterOrTwoLines: MinStartCol -> Parser WS
 spaceSameLineOrNextAfterOrTwoLines minStartCol = spacesCustom <| SpaceCheck
   (\start end -> start.line + 1 < end.line ||
-    start.line + 1 <= end.line && (if start.line + 1 == end.line then minStartCol <= end.col else True)) <|
+    end.line <= start.line + 1 && (if start.line + 1 == end.line then minStartCol <= end.col else True)) <|
     \() -> "Expected a min indentation of " ++ toString minStartCol ++ " if on the next line"
 
 spaces : Parser WS

@@ -127,7 +127,7 @@ updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
     Ok (LazyList.Nil) -> fail state <| "Internal error: no diffs"
     Ok (LazyList.Cons Nothing _) -> fail state <| log state <| "There was no diff between the previous output and the new output"
     Ok ll->
-      let _ = ImpureGoodies.log <| "Diffs observed: " ++ toString (LazyList.toList ll) in
+      --let _ = ImpureGoodies.log <| "Diffs observed: " ++ toString (LazyList.toList ll) in
       case Ok (LazyList.filterMap identity ll) |> Results.andThen (\diffs ->
         update LazyList.Nil LazyList.Nil (updateContext "initial" env exp [] origOut newOut diffs)) of
         Ok (LazyList.Cons (envX, expX) lazyTail as ll) ->
@@ -138,7 +138,9 @@ updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
           if obtained == expected then success state else
             case Lazy.force lazyTail of
               LazyList.Cons (envX2, expX2) lazyTail2 ->
-                let obtained2 = (if checkEnv then envToString envX.val else if envX.changes == [] then "" else toString envX.changes) ++ " |- " ++ unparse expX2.val in
+                let obtained2 = (
+                  if checkEnv then envToString envX2.val else
+                  if envX2.changes == [] then "" else toString envX2.changes) ++ " |- " ++ unparse expX2.val in
                 if obtained2 == expected then success state else
                 fail state <|
                   log state <| "Expected \n'" ++ expected ++  "'\n, got\n'" ++ obtained ++ "'\n and \n'" ++ obtained2 ++ problemdesc
@@ -196,7 +198,9 @@ updateElmAssert_ envStr expStr newOutStr expectedEnvStr expectedExpStr state =
            Ok [exp, newOut] ->
              --let _ = Debug.log (log state <| toString exp) () in
              case Utils.projOk [evalEnv env exp, eval newOut] of
-             Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ Syntax.unparser Syntax.Elm exp ++ "," ++ Syntax.unparser Syntax.Elm newOut ++ ": " ++ error
+             Err error ->
+               let _ = Debug.log (toString exp) () in
+               fail state <| log state <| "Error while evaluating the expression or the output: " ++ Syntax.unparser Syntax.Elm exp ++ " <- " ++ Syntax.unparser Syntax.Elm newOut ++ ": " ++ error
              Ok [out, newOut] -> updateAssert_ True env exp out newOut expectedEnv expectedExpStr state
              Ok _ -> fail state "???"
            Ok _ -> fail state "???"
@@ -300,9 +304,8 @@ all_tests = init_state
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))] [(0, VConstDiffs), (2, VConstDiffs)]
                  ) ([("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 3))], [(0, VConstDiffs), (1, VConstDiffs), (2, VConstDiffs)]))
   |> test "update mutual recursion"
-  |> updateElmAssert [] "x=y\ny= 1\nx" "2"
-                     [] "x=y\ny= 2\nx"
-  |> onlyLast
+  |> updateElmAssert [] "x =y\ny= 1\nx" "2"
+                     [] "x =y\ny= 2\nx"
   |> test "update const"
   |> updateElmAssert [] "   1"   "2"
                      [] "   2"
@@ -372,6 +375,7 @@ all_tests = init_state
       |> updateElmAssert
         [("x", "1"), ("y", "2")] "  x+ y" "4"
         [("x", "1"), ("y", "3")] "  x+ y"
+      |> onlyLast
       |> updateElmAssert
         [("x", "5"), ("y", "2")] "  x- y" "1"
         [("x", "3"), ("y", "2")] "  x- y"
