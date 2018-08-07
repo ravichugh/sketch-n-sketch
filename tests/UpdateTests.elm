@@ -306,6 +306,10 @@ all_tests = init_state
   |> test "update mutual recursion"
   |> updateElmAssert [] "x =y\ny= 1\nx" "2"
                      [] "x =y\ny= 2\nx"
+  |> updateElmAssert [] "a = g 85\nf x = g (x - 17)\ng y = if y < 17 then y else f y\na" "2"
+                     [] "a = g 87\nf x = g (x - 17)\ng y = if y < 17 then y else f y\na"
+  |> updateElmAssert [] "a = g 85\nf x = g (x - 17)\ng y = if y < 17 then y else f y\na" "2"
+                     [] "a = g 85\nf x = g (x - 15)\ng y = if y < 17 then y else f y\na"
   |> test "update const"
   |> updateElmAssert [] "   1"   "2"
                      [] "   2"
@@ -451,7 +455,6 @@ all_tests = init_state
       |> updateElmAssert
         [("x", "[7, 1]")] "case x of\n  [a, b] -> a + b\n  u -> 0" "5"
         [("x", "[4, 1]")] "case x of\n  [a, b] -> a + b\n  u -> 0"
-      |> onlyLast
       |> updateElmAssert
         [("x", "[7]")] "case x of\n  [a, b] -> a + b\n  u -> 0" "5"
         [("x", "[7]")] "case x of\n  [a, b] -> a + b\n  u -> 5"
@@ -459,7 +462,6 @@ all_tests = init_state
       |> updateElmAssert
         [] "let   x= 5 in\nlet y  =2  in [x, y]" "[6, 3]"
         [] "let   x= 6 in\nlet y  =3  in [x, y]"
-        --}
   |> test "list constructor"
       |> updateElmAssert
         [] "let   x= 1 in\nlet y  =[2]  in x :: x :: y" "[3, 1, 2]"
@@ -481,8 +483,8 @@ all_tests = init_state
         [] "let   x= 1 in\nlet y  =[3]  in x  :: x :: y"
   |> test "rec let"
       |> updateElmAssert
-        [] "letrec f x = if x == 0 then x else (f (x - 1)) in\n f 2" "3"
-        [] "letrec f x = if x == 0 then x else (f (x - 1)) in\n f 5"
+        [] "let f x = if x == 0 then x else (f (x - 1)) in\n f 2" "3"
+        [] "let f x = if x == 0 then x else (f (x - 1)) in\n f 5"
   |> test "Comments"
       |> updateElmAssert
         [] "--This is a comment\n  1" "2"
@@ -527,14 +529,14 @@ all_tests = init_state
         [] "let x = \"Hello\" in \"\"\"@x world\"\"\"" "\"Helloworld\""
         [] "let x = \"Hello\" in \"\"\"@(x)world\"\"\""
       |> updateElmAssert
-        [] "\"\"\"@let x = \"Hello\"\n@x world\"\"\"" "\"Hello big world\""
-        [] "\"\"\"@let x = \"Hello big\"\n@x world\"\"\""
+        [] "\"\"\"@let x = \"Hello\" in\n@x world\"\"\"" "\"Hello big world\""
+        [] "\"\"\"@let x = \"Hello big\" in\n@x world\"\"\""
       |> updateElmAssert
-        [] "\"\"\"@let x = \"Hello\"\n@x world\"\"\"" "\"Hello big world\""
-        [] "\"\"\"@let x = \"Hello\"\n@x big world\"\"\""
+        [] "\"\"\"@let x = \"Hello\" in\n@x world\"\"\"" "\"Hello big world\""
+        [] "\"\"\"@let x = \"Hello\" in\n@x big world\"\"\""
       |> updateElmAssert
-        [] "\"\"\"@let x = (\"Hello\" + \n \" big\")\n@x world\"\"\"" "\"Hello tall world\""
-        [] "\"\"\"@let x = (\"Hello\" + \n \" tall\")\n@x world\"\"\""
+        [] "\"\"\"@let x = (\"Hello\" + \n \" big\") in\n@x world\"\"\"" "\"Hello tall world\""
+        [] "\"\"\"@let x = (\"Hello\" + \n \" tall\") in\n@x world\"\"\""
   |> test "Finding all regex matches"
     |> assertEqual (LazyList.toList <| allInterleavingsIn ["A", "BB", "C"] "xAyBBBzAoBBpCC")
       [ ["x","y","BzAoBBp","C"]
@@ -546,6 +548,7 @@ all_tests = init_state
       , ["xAyBBBz", "o", "p","C"]
       , ["xAyBBBz", "o", "pC",""]
       ]
+ |> onlyBefore
   |> test "GroupStartMap"
     |> assertEqual (List.map (\{submatches} -> submatches) (GroupStartMap.find Regex.All "a((bc)|cd)d" "aabcdacdd"))
         [[{match = Just "bc", start = 2}, {match = Just "bc", start = 2}], [{match = Just "cd", start = 6}, {match = Nothing, start = -1}]]

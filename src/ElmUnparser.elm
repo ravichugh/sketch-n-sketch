@@ -631,7 +631,7 @@ unparse e =
     ELet wsBefore letKind (Declarations _ _ _ (exps, _) as decls) wsIn body ->
        if onlyImplicitMain exps then ""
        else
-      (case letKind of
+      wsBefore.val ++ (case letKind of
         Let -> "let"
         Def -> "") ++ unparseDeclarations decls ++ wsIn.val ++
       (case letKind of

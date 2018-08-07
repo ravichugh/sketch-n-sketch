@@ -1180,7 +1180,8 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                [] -> Nothing
                x -> Just (EChildDiffs x)
              in
-             updateResult updatedEnv <| UpdatedExp (replaceE__ e <| ELet sp1 letKind updatedDecls.val wsIn updatedBody.val) finalDiff
+             updateResult updatedEnv <| UpdatedExp (replaceE__ e <|
+               ELet sp1 letKind updatedDecls.val wsIn updatedBody.val) finalDiff
 
      EColonType a exp b c d ->
        updateContinue "EColonType" env exp prevLets oldVal newVal diffs <|
@@ -1345,10 +1346,11 @@ updateLetExps env prevLets letExps continue =
             in
             let totalExpValOut = List.map3 (\(LetExp _ _ _ _ _ e) oldVal newVal -> (e, oldVal, newVal)) letexpGroup groupOldValues newGroupValues in
             --updateContinueMultiple: String -> Env -> PrevLets -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs -> ContinuationUpdate2 UpdatedEnv UpdatedExpTuple
-            updateContinueMultiple  "letexp-group" env [] totalExpValOut newValDiffs <| \updatedEnv updatedExpTuple ->
+            updateContinueMultiple  "letexp-group" env [] totalExpValOut newValDiffs <| \updatedEnvTuple updatedExpTuple ->
               let newGroup = List.map2 (\(LetExp ms wp p fs we e) newE -> LetExp ms wp p fs we newE) letexpGroup updatedExpTuple.val in
               let newGroupDiffs = updatedExpTuple.changes |> Maybe.withDefault [] in
-              return updatedEnv (newGroup::newTailGroups) (newGroupDiffs ++ UpdateUtils.offset (List.length letexpGroup) newTailGroupsDiffs)
+              let newUpdatedEnv = UpdatedEnv.merge env updatedEnv updatedEnvTuple in
+              return newUpdatedEnv (newGroup::newTailGroups) (newGroupDiffs ++ UpdateUtils.offset (List.length letexpGroup) newTailGroupsDiffs)
             ) env prevLets letExps continue letexpGroup tailGroups newPrevLets revPatList revValList
               groupPatterns recursion groupOldValues_ groupOldValues envWithE1s conssBuilder) -- Need to provide all closed variables because updateLetExp is tail-recursive.
           Nothing ->
