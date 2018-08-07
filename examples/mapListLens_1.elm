@@ -5,7 +5,7 @@ listMapLens =
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
 
-      letrec walk diffOps maybePreviousInput oldInputs acc =
+      let walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
           ([], []) ->

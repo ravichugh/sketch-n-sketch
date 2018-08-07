@@ -10,7 +10,7 @@ preferStringInsertionToLeft_ sa inserted sb = True
 ok1 x = Ok [x]
 
 joinEmpty list = 
-  letrec aux acc list = case list of
+  let aux acc list = case list of
       [] -> acc
       [head] -> acc + head
       (head::tail) -> aux (acc + head) tail
@@ -24,7 +24,7 @@ joinEmpty list =
         -- startHead is the real ending position in the oldOutput of the last element considered, hence the start position of the head of input.
         -- Since the first element might be modified recursively, the length of head might be affected, but the end position should still be the original one.
         -- Hence we need to offset startHead + length head by deltaLengthHeadInput to compute endHead.       
-        letrec gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput diffs =
+        let gather lastIndexDeleted input indexInput startHead deltaLengthHeadInput offsetOutput diffs =
           let _ = Debug.log ("""gather@(":") @lastIndexDeleted @input @indexInput @startHead @deltaLengthHeadInput @offsetOutput @diffs""") [] in
           Debug.log ("""gather@(":") @lastIndexDeleted @input @indexInput @startHead @deltaLengthHeadInput @offsetOutput @diffs""") <|
           case diffs of

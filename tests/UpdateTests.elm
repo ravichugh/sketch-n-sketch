@@ -602,7 +602,6 @@ all_tests = init_state
       |> updateElmAssert
         [] "let x = { a= 1, b= 2} in { x | a = 2 }.b" "3"
         [] "let x = { a= 1, b= 3} in { x | a = 2 }.b"
- |> onlyBefore
   |> test "Indented lists, second position of list > 1 elements"
       |> updateElmAssert
         [] "[1, 2, 3, 4]" "[1, 5, 2, 3, 4]"
@@ -688,15 +687,17 @@ all_tests = init_state
   |> test "freeze"
   |> updateElmAssert [("freeze", "\\x -> x")] "freeze 0 + 1" "2"
                      [("freeze", "\\x -> x")] "freeze 0 + 2"
+  |> updateElmAssert [("freezeExpression", "\\x -> x")] "let x = 1 in freezeExpression (0 + x)" "2"
+                     [("freezeExpression", "\\x -> x")] "let x = 2 in freezeExpression (0 + x)"
   |> test "dictionary"
-  |> updateElmAssert [("x", "1")] "get \"a\" (dict [(\"a\", x)])" "Just 2"
-                     [("x", "2")] "get \"a\" (dict [(\"a\", x)])"
-  |> updateElmAssert [("x", "1")] "remove \"b\" (dict [(\"a\", x), (\"b\", 2)])" "dict [(\"a\", 2)]"
-                     [("x", "2")] "remove \"b\" (dict [(\"a\", x), (\"b\", 2)])"
-  |> updateElmAssert [("x", "1")] "insert \"b\" x (dict [(\"a\", x)])" "dict [(\"a\", 1), (\"b\", 2)]"
-                     [("x", "2")] "insert \"b\" x (dict [(\"a\", x)])"
-  |> updateElmAssert [] "insert \"b\" 1 (dict [(\"a\", 2), (\"b\", 3)])" "dict [(\"a\", 1), (\"b\", 2)]"
-                     [] "insert \"b\" 2 (dict [(\"a\", 1), (\"b\", 3)])"
+  |> updateElmAssert [("x", "1")] "__DictGet__ \"a\" (__DictFromList__ [(\"a\", x)])" "Just 2"
+                     [("x", "2")] "__DictGet__ \"a\" (__DictFromList__ [(\"a\", x)])"
+  |> updateElmAssert [("x", "1")] "__DictRemove__ \"b\" (__DictFromList__ [(\"a\", x), (\"b\", 2)])" "__DictFromList__ [(\"a\", 2)]"
+                     [("x", "2")] "__DictRemove__ \"b\" (__DictFromList__ [(\"a\", x), (\"b\", 2)])"
+  |> updateElmAssert [("x", "1")] "__DictInsert__ \"b\" x (__DictFromList__ [(\"a\", x)])" "__DictFromList__ [(\"a\", 1), (\"b\", 2)]"
+                     [("x", "2")] "__DictInsert__ \"b\" x (__DictFromList__ [(\"a\", x)])"
+  |> updateElmAssert [] "__DictInsert__ \"b\" 1 (__DictFromList__ [(\"a\", 2), (\"b\", 3)])" "__DictFromList__ [(\"a\", 1), (\"b\", 2)]"
+                     [] "__DictInsert__ \"b\" 2 (__DictFromList__ [(\"a\", 1), (\"b\", 3)])"
   |> test "recursive delayed"
   |> updateElmAssert [] "f =\n  let x = 1 in\n  \\y -> x + y\n\nf 2" "4"
                      [] "f =\n  let x = 2 in\n  \\y -> x + y\n\nf 2"
@@ -715,7 +716,8 @@ all_tests = init_state
   |> assertEqual (alldiffs identity ["a", "a", "3", "a", "a"] ["a", "a"] |> Results.toList)
                     [[DiffEqual ["a", "a"], DiffRemoved ["3", "a", "a"]],
                      [DiffRemoved ["a", "a", "3"], DiffEqual ["a", "a"]]]
-  |> skipBefore
+  |> onlyBefore
+  --|> skipBefore
   |> test "updateReplace"
   -- newStart newEnd ... repStart repEnd
   |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
@@ -748,7 +750,6 @@ all_tests = init_state
   |> updateElmAssert2 builtinEnv "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"printer\"" "\"$translation1\""
                                  "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"$translation1\""
 
-  |> skipBefore
   |> updateElmPrelude (
       ExamplesGenerated.mapMaybeLens
         |> replaceStr "\n$" "" -- Remove newlines

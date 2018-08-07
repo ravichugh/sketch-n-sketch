@@ -23,7 +23,7 @@ addReferences references node =
     }.apply (references, node)
   in
   let refRegex = """\[(\d+)\]""" in
-  letrec -- returns a list of sorted references according to some criterion and an updated node.
+  let -- returns a list of sorted references according to some criterion and an updated node.
     sortReferences references node = 
       let (newPermutation, newReferences) = List.zipWithIndex references
       |> quicksort (\(i, ref1) (i2, ref2) -> 
@@ -63,7 +63,7 @@ addReferences references node =
   let finalReferences = {
     apply (references, node) = references
     update {input=(references, node), outputNew=newReferences, diffs=(VListDiffs diffs) as listDiffs} =
-      letrec aux offset currentNode nodeHasChanged diffs = case diffs of
+      let aux offset currentNode nodeHasChanged diffs = case diffs of
         [] -> if nodeHasChanged then
             case __diff__ node currentNode of
               Err msg -> Err msg

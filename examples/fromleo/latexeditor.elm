@@ -61,7 +61,7 @@ tokenize txt pos =
               [{tag="error", pos = pos, value="Expected text, got " + txt}]
 
 tokens txt =
-  letrec aux txt revAcc pos =
+  let aux txt revAcc pos =
     case tokenize txt pos of
       [{tag="EOF"} as t] -> reverse (t::revAcc)
       [{tag="error", pos = pos, value = value}] -> value + " at pos " + pos + ":" + txt
@@ -72,7 +72,7 @@ tokens txt =
   aux txt [] 0
 
 parse tokens = -- Group blocks together.
-  letrec aux revAcc tokens =
+  let aux revAcc tokens =
     case tokens of
       [] -> [List.reverse revAcc, tokens]
       [{tag="EOF"}] -> [List.reverse revAcc, []]
@@ -126,7 +126,7 @@ htmlConst html =
       toHtml toHtml opts args = [html, opts] }
 
 newcommandinstantiate args parsed =
-  letrec aux parsed = case parsed of
+  let aux parsed = case parsed of
     {tag="block", children=c} ->
       { parsed | children = List.map aux c }
     {tag="replacement", nth=n} ->
@@ -275,7 +275,7 @@ indent opts = if opts.indent then [["span", [["class", "paraindent"]], html "&nb
 newline opts = if opts.newline then [Html.br] else []
 
 splitargs n array =
-  letrec aux revAcc n array =
+  let aux revAcc n array =
     if n == 0 then [reverse revAcc, array] else
     case array of
       {tag="rawtext", value=text, pos = pos}:: rem ->
@@ -303,7 +303,7 @@ escape txt = txt |>
   replaceAllIn "</[bBiI]>" (\_ -> "}")
 
 toHtmlWithoutRefs opts tree =
-  letrec aux opts revAcc tree = case tree of
+  let aux opts revAcc tree = case tree of
     [] -> [List.reverse revAcc, opts]
     (head::rem) -> case head of
       {tag="block", children} ->
@@ -376,7 +376,7 @@ htmlOf text_tree = case text_tree of
 
 toHtml x =
   let [raw, opts] = toHtmlWithoutRefs initOptions x in
-  letrec replaceMap replaceReferences trees = case trees of
+  let replaceMap replaceReferences trees = case trees of
     [] -> freeze []
     (head :: tail) -> {
         apply x = x
@@ -385,7 +385,7 @@ toHtml x =
             Ok (Inputs [[["TEXT", htmlMapOf htmlOf outputNew outputNew]]]) else Ok (InputsWithDiffs [(outputNew, Just diffs)])
       }.apply [replaceReferences head] ++ replaceMap replaceReferences tail
   in
-  letrec replaceReferences tree = case tree of
+  let replaceReferences tree = case tree of
     ["ref", refname] -> Dict.get refname opts.labelToName  |> case of
       Nothing -> htmlError ("Reference " + refname + " not found.") "???"
       Just txt ->
@@ -412,7 +412,7 @@ toHtml x =
 latex2html latex = 
   { apply (f, latex) = f latex,
     update {input = (f, latex), outputOld, outputNew, diffs = (VListDiffs ldiffs) as diffs} = 
-      letrec gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
+      let gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
         [] -> Ok [[]]
         ((j, ListElemUpdate d) :: diffTail) ->
           if j > i then
@@ -429,7 +429,7 @@ latex2html latex =
               _ -> error "Unexpected size of cOld and cNew"
         ((j, subdiff)::diffTail) -> Err ("Insertion or deletions, cannot short-circuit at " + toString j + ", " + toString subdiff)
       in
-      letrec gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
+      let gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
         (["span", [["start", p]], [["TEXT", vOld]]], 
          ["span", [["start", p]], [["TEXT", vNew]]],
           VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 

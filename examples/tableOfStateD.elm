@@ -1,27 +1,27 @@
 -- prepend lSmall with its own element until it reaches the size of lBig
 map f l = 
   { apply [f, l] =
-      letrec aux = case of
+      let aux = case of
         [] -> []
         head::tail -> f head :: aux tail
       in aux l
     update {input = [f, input], output, outputOriginal} =
       let copyLengthFrom lBig lSmall =
-        letrec aux acc lb ls = case [lb, ls] of
+        let aux acc lb ls = case [lb, ls] of
           [[], ls] -> acc
           [head::tail, []] -> aux acc lb lSmall
           [head::tail, headS::tailS] -> aux (headS::acc) tail tailS
         in aux [] lBig lSmall
       in
       let splitByLength listLength list =
-        letrec aux length lPrev l = case length of
+        let aux length lPrev l = case length of
           [] -> [lPrev, l]
           head::tail -> case l of
             lHead::lTail -> aux tail (append lPrev [lHead]) lTail
             [] -> []
         in aux listLength [] list
       in
-      letrec aux newFuns newInputs inputElements thediff = case thediff of
+      let aux newFuns newInputs inputElements thediff = case thediff of
         [] -> [newFuns, newInputs]
         {kept}::tailDiff ->
           let [inputsElementsKept, inputElementsTail] = splitByLength kept inputElements in
@@ -30,7 +30,7 @@ map f l =
           let [inputsRemoved, remainingInputs] = splitByLength deleted inputElements in
           let inputsAligned = copyLengthFrom inserted inputsRemoved in
           -- inputsAligned has now the same size as inserted.
-          letrec recoverInputs newFs newIns oldIns newOuts = case [oldIns, newOuts] of
+          let recoverInputs newFs newIns oldIns newOuts = case [oldIns, newOuts] of
             [[], []] -> [newFs, newIns]
             [inHd::inTail, outHd::outTail] ->
               case Update.updateApp (\[f, x] -> f x) [f, inHd] (f inHd) outHd of
@@ -50,7 +50,7 @@ map f l =
               head::tail -> head
               _ -> "Error: Cannot update a call to a map if there is no input" + 1
           in
-          letrec recoverInputs newFs newIns newOuts = case newOuts of
+          let recoverInputs newFs newIns newOuts = case newOuts of
             [] -> [newFs, newIns]
             outHd::outTail ->
               case Update.updateApp (\[f, x] -> f x) [f, oneInput] (f oneInput) outHd of

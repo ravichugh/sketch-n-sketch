@@ -58,7 +58,7 @@ translate options language translations content =
   let allTranslationDicts = List.map (Tuple.mapSecond Dict.fromList) translations in
   let translationsLangDict = Dict.fromList allTranslationDicts in
   let currentTranslation = Dict.apply translationsLangDict language in
-  letrec replaceVariables translationDict string =
+  let replaceVariables translationDict string =
     Regex.replace "\\$(\\w+|\\$)" (\m -> 
       if m.match == "$" then m.match else
       let key = nth m.group 1 in
@@ -73,7 +73,7 @@ translate options language translations content =
          replaceVariables (Dict.remove key translationDict) finaldefinition
     ) string
   in
-  letrec freshVarName name i dictionary =
+  let freshVarName name i dictionary =
     if Dict.member (name + toString i) (dictionary) then freshVarName name (i + 1) (dictionary) else name + toString i
   in
   content |> replaceVariables currentTranslation |> \x ->
