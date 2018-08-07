@@ -299,7 +299,6 @@ keywords =
     , "sqrt"
     , "explode"
     , "mod"
-    , "pow"
     , "arctan2"
     , "if"
     , "case"
@@ -763,7 +762,7 @@ operator =
             , succeed Mod
                 |. keywordWithSpace "mod"
             , succeed Pow
-                |. keywordWithSpace "pow"
+                |. keywordWithSpace "^"
             , succeed ArcTan2
                 |. keywordWithSpace "arctan2"
             , succeed DictInsert

@@ -1552,7 +1552,7 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                 (ArcTan2, [l,r]) -> -- We keep the same radius but change the angle
                                     autoDiff l r <|
                                     let (radius, theta) = toPolar (r, l) in
-                                    ok1 <| fromPolar (radius, theta + newOut - oldOut)
+                                    ok1 <| (\(x, y) -> (y, x)) <| fromPolar (radius, theta + newOut - oldOut)
                 (Cos,     [n])   -> autoDiff1 n <|
                                     let newOutClamped = clamp -1 1 newOut in
                                     let moved = acos newOutClamped in -- value between 0 and PI

@@ -1599,8 +1599,6 @@ opFromIdentifier identifier =
       Just Eq
     "mod" ->
       Just Mod
-    "pow" ->
-      Just Pow
     "^" ->
       Just Pow
     "arctan2" ->

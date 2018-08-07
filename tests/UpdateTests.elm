@@ -375,7 +375,6 @@ all_tests = init_state
       |> updateElmAssert
         [("x", "1"), ("y", "2")] "  x+ y" "4"
         [("x", "1"), ("y", "3")] "  x+ y"
-      |> onlyLast
       |> updateElmAssert
         [("x", "5"), ("y", "2")] "  x- y" "1"
         [("x", "3"), ("y", "2")] "  x- y"
@@ -386,20 +385,20 @@ all_tests = init_state
         [("x", "18"), ("y", "3")] "  x/ y" "7"
         [("x", "21"), ("y", "3")] "  x/ y"
       |> updateElmAssert
-        [("x", "3"), ("y", "4")] " pow x   y" "16"
-        [("x", "2"), ("y", "4")] " pow x   y"
+        [("x", "3"), ("y", "4")] " x ^  y" "16"
+        [("x", "2"), ("y", "4")] " x ^  y"
       |> updateElmAssert
-        [("x", "-1"), ("y", "3")] " pow x   y" "1"
-        [("x", "1"), ("y", "3")] " pow x   y"
+        [("x", "-1"), ("y", "3")] "  x ^   y" "1"
+        [("x", "1"), ("y", "3")] "  x ^   y"
       |> updateElmAssert
-          [("x", "-2"), ("y", "3")] " pow x   y" "27"
-          [("x", "3"), ("y", "3")] " pow x   y"
+          [("x", "-2"), ("y", "3")] " x ^   y" "27"
+          [("x", "3"), ("y", "3")] " x ^   y"
       |> updateElmAssert
-        [("x", "-1"), ("y", "0")] " pow x   y" "-1"
-        [("x", "-1"), ("y", "1")] " pow x   y"
+        [("x", "-1"), ("y", "0")] "x ^   y" "-1"
+        [("x", "-1"), ("y", "1")] "x ^   y"
       |> updateElmAssert
-        [("x", "-1"), ("y", "3")] " pow x   y" "-8"
-        [("x", "-2"), ("y", "3")] " pow x   y"
+        [("x", "-1"), ("y", "3")] " x ^   y" "-8"
+        [("x", "-2"), ("y", "3")] " x ^   y"
       |> updateElmAssert
         [("x", "17"), ("y", "8")] " mod x  y" "3"
         [("x", "19"), ("y", "8")] " mod x  y"
@@ -448,6 +447,7 @@ all_tests = init_state
       |> updateElmAssert
         [("x", "16")] "sqrt x" "3"
         [("x", "9")] "sqrt x"
+      |> onlyBefore
   |> test "case of calls"
       |> updateElmAssert
         [("x", "[7, 1]")] "case x of\n  [a, b] -> a + b\n  u -> 0" "5"
