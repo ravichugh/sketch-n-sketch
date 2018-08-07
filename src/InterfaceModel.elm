@@ -146,7 +146,7 @@ type alias Model =
   , solutionsCache : Solver.SolutionsCache
   , synthesisResultsDict : Dict String (List SynthesisResult)
   , hoveredSynthesisResultPathByIndices : List Int
-  , renamingInOutput : Maybe (PId, String)
+  , renamingInOutput : Maybe (PId, Set.Set NodeId, Set.Set SelectableFeature, String)
   , randomColor : Int
   , lambdaTools : List LambdaTool
   , layoutOffsets : LayoutOffsets
@@ -754,10 +754,10 @@ prependDescription newPrefix synthesisResult =
 
 --------------------------------------------------------------------------------
 
-maybeRenamingPId : Maybe (PId, String) -> Maybe PId
+maybeRenamingPId : Maybe (PId, Set.Set NodeId, Set.Set SelectableFeature, String) -> Maybe PId
 maybeRenamingPId modelRenamingInOutput =
   modelRenamingInOutput
-  |> Maybe.map (\(renamingPId, _) -> renamingPId)
+  |> Maybe.map (\(renamingPId, _, _, _) -> renamingPId)
 
 --------------------------------------------------------------------------------
 

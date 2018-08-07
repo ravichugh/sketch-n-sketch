@@ -2270,23 +2270,23 @@ msgSelectList idAsShape = Msg "Select List" <| \old ->
 msgDeselectList idAsShape = Msg "Deselect List" <| \old ->
   { old | selectedShapes = Set.remove idAsShape old.selectedShapes }
 
-msgActivateRenameInOutput pid = Msg ("Active Rename Box for PId " ++ toString pid) <| \old ->
+msgActivateRenameInOutput pid shapes features = Msg ("Active Rename Box for PId " ++ toString pid) <| \old ->
   let oldPatStr =
     findPatByPId old.inputExp pid
     |> Maybe.map (Syntax.patternUnparser Syntax.Elm >> Utils.squish)
     |> Maybe.withDefault ""
   in
-  { old | renamingInOutput = Just (pid, oldPatStr) }
+  { old | renamingInOutput = Just (pid, shapes, features, oldPatStr) }
 
 msgUpdateRenameInOutputTextBox newText = Msg ("Update Rename In Output: " ++ newText) <| \old ->
   case old.renamingInOutput of
-    Just (pid, _) -> { old | renamingInOutput = Just (pid, newText) }
-    Nothing       -> old
+    Just (pid, shapes, features, _) -> { old | renamingInOutput = Just (pid, shapes, features, newText) }
+    Nothing                         -> old
 
 -- Shouldn't need pid b/c there should only be one rename box at a time, but I hate state.
 msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
   case old.renamingInOutput of
-    Just (renamingPId, newPatStr) ->
+    Just (renamingPId, _, _, newPatStr) ->
       if renamingPId == pid then
         let
           pat = LangTools.justFindPatByPId old.inputExp pid

@@ -30,7 +30,7 @@ import Syntax exposing (Syntax)
 
 import String
 import Dict
-import Set
+import Set exposing (Set)
 import Color
 import Keys
 
@@ -247,7 +247,7 @@ drawNewShape model =
 drawNewPointAndOffset model shouldHighlight (x1, y1) (x2, y2) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
   let xyDot = Draw.svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
-  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp Nothing ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
+  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp Nothing 0 ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
   [xyDot] ++ arrowParts
 
 
@@ -257,11 +257,11 @@ drawNewPointAndOffset model shouldHighlight (x1, y1) (x2, y2) =
 dummyVal : Val
 dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
 
-isRenamingMaybePat : Maybe Pat -> Maybe (PId, String) -> Bool
+isRenamingMaybePat : Maybe Pat -> Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool
 isRenamingMaybePat maybePat modelRenamingInOutput =
   maybePat /= Nothing && Maybe.map (.val >> .pid) maybePat == maybeRenamingPId modelRenamingInOutput
 
-svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
+svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput idAsShape ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
   let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
     offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
   in
@@ -311,7 +311,7 @@ svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, ba
       else []
     in
     case Provenance.valToMaybeLetPat program amountVal of
-      Just pat -> patInOutput modelRenamingInOutput False pat left top NoHoverPadding
+      Just pat -> patInOutput modelRenamingInOutput False pat (Set.singleton idAsShape) Set.empty left top NoHoverPadding
       Nothing ->
         let string = toString amount in
         flip Svg.text_ [VirtualDom.text string] <|
@@ -332,8 +332,8 @@ type HoverPadding
   = NoHoverPadding
   | HoverPadding Float
 
-patAsHTML : Maybe (PId, String) -> Bool -> Pat -> HoverPadding -> Html Msg
-patAsHTML modelRenamingInOutput showRemover pat hoverPadding =
+patAsHTML : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> HoverPadding -> Html Msg
+patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding =
   let nameStr = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
   let pid = pat.val.pid in
   let text =
@@ -352,7 +352,7 @@ patAsHTML modelRenamingInOutput showRemover pat hoverPadding =
         (
           [ Attr.class "pat"
           , Attr.title <| "Click to rename " ++ nameStr
-          , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
+          , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid associatedShapes associatedFeatures)
           ] ++ perhapsHoverPaddingAttr
         ) <|
         [ VirtualDom.text nameStr ] ++
@@ -365,9 +365,9 @@ patAsHTML modelRenamingInOutput showRemover pat hoverPadding =
   in
   let maybeRenameBox =
     modelRenamingInOutput
-    |> Utils.filterMaybe (\(renamingPId, _) -> renamingPId == pid)
+    |> Utils.filterMaybe (\(renamingPId, shapesAssociatedWithRename, featuresAssociatedWithRename, _) -> renamingPId == pid && shapesAssociatedWithRename == associatedShapes && featuresAssociatedWithRename == associatedFeatures)
     |> Maybe.map
-        (\(renamingPId, renameStr) ->
+        (\(renamingPId, _, _, renameStr) ->
           flip Html.input [] <|
             [ Attr.defaultValue renameStr
             , Attr.id "rename-box"
@@ -387,15 +387,19 @@ patAsHTML modelRenamingInOutput showRemover pat hoverPadding =
   Maybe.withDefault text maybeRenameBox
 
 
-patInOutput : Maybe (PId, String) -> Bool -> Pat -> Float -> Float -> HoverPadding -> Svg Msg
-patInOutput modelRenamingInOutput showRemover pat left top hoverPadding =
-  patsInOutput modelRenamingInOutput showRemover [pat] left top hoverPadding
+patInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> Float -> Float -> HoverPadding -> Svg Msg
+patInOutput modelRenamingInOutput showRemover pat associatedShapes associatedFeatures left top hoverPadding =
+  patsInOutput modelRenamingInOutput showRemover [(pat, associatedShapes, associatedFeatures)] left top hoverPadding
 
 
-patsInOutput : Maybe (PId, String) -> Bool -> List Pat -> Float -> Float -> HoverPadding -> Svg Msg
-patsInOutput modelRenamingInOutput showRemover pats left top hoverPadding =
-  let elements = pats |> List.map (\pat -> patAsHTML modelRenamingInOutput showRemover pat hoverPadding) in
-  flip Svg.foreignObject [Html.div [Attr.class "pats", Attr.style [("width", toString (100 * List.length pats) ++ "px")]] elements] <|
+patsInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> List (Pat, Set NodeId, Set SelectableFeature) -> Float -> Float -> HoverPadding -> Svg Msg
+patsInOutput modelRenamingInOutput showRemover patAndAssociatedSelectables left top hoverPadding =
+  let
+    elements =
+      patAndAssociatedSelectables
+      |> List.map (\(pat, associatedShapes, associatedFeatures) -> patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding)
+  in
+  flip Svg.foreignObject [Html.div [Attr.class "pats", Attr.style [("width", toString (100 * List.length patAndAssociatedSelectables) ++ "px")]] elements] <|
     [ attr "x" (toString (left - 2))
     , attr "y" (toString (top - 10 - 17))
     ]
@@ -446,65 +450,70 @@ type SelectedItem
   = SelectedShape NodeId
   | SelectedFeature ShapeWidgets.SelectableFeature
   | SelectedPoint ShapeWidgets.SelectableFeature ShapeWidgets.SelectableFeature
+  | SelectedEIdOnly EId
 
 
-perhapsPatOrExpInOutput : Exp -> LangSvg.RootedIndexedTree -> List Widget -> Maybe (PId, String) -> SelectedItem -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
-perhapsPatOrExpInOutput program ((rootI, shapeTree) as slate) widgets modelRenamingInOutput item left top hoverPadding shouldShow =
+perhapsPatOrExpInOutput : Exp -> LangSvg.RootedIndexedTree -> List Widget -> Maybe (PId, Set NodeId, Set SelectableFeature, String) -> SelectedItem -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
+perhapsPatOrExpInOutput program slate widgets modelRenamingInOutput item left top hoverPadding shouldShow =
   let
-    (features, shapes) =
+    (features, shapes, maybeInterpretations) =
       case item of
-        SelectedShape nodeId              -> (Set.empty, Set.singleton nodeId)
-        SelectedFeature selectableFeature -> (Set.singleton selectableFeature, Set.empty)
-        SelectedPoint xFeature yFeature   -> (Set.fromList [xFeature, yFeature], Set.empty)
+        SelectedShape nodeId              -> (Set.empty,                         Set.singleton nodeId, Nothing)
+        SelectedFeature selectableFeature -> (Set.singleton selectableFeature,   Set.empty,            Nothing)
+        SelectedPoint xFeature yFeature   -> (Set.fromList [xFeature, yFeature], Set.empty,            Nothing)
+        SelectedEIdOnly eid               -> (Set.empty,                         Set.empty,            Just [[eid]])
 
-    -- Trying to follow InterfaceController.deleteInOutput logic for what to show.
-    interpretations =
-      ShapeWidgets.selectionsUniqueProximalEIdInterpretations program slate widgets features shapes Dict.empty
+    showLabelWidget () =
+      let
+        -- Trying to follow InterfaceController.deleteInOutput logic for what to show.
+        interpretations =
+          case maybeInterpretations of
+            Just interpretations -> interpretations
+            Nothing              -> ShapeWidgets.selectionsUniqueProximalEIdInterpretations program slate widgets features shapes Dict.empty
+
+        singleEIdEffectiveInterpretations =
+          interpretations
+          |> List.filterMap Utils.maybeUnwrap1
+          |> List.map (LangTools.justFindExpByEId program >> expEffectiveExp >> .val >> .eid)
+
+        varEIdToMaybePat =
+          LangTools.allVarEIdsToBindingPat program
+
+        maybePat =
+          Utils.firstOrLazySecond
+              -- If interpretation is a variable usage, show the associated pat.
+              (singleEIdEffectiveInterpretations |> Utils.mapFirstSuccess (flip Dict.get varEIdToMaybePat >> Maybe.withDefault Nothing))
+              -- Otherwise see if an interpretation is a bound expression.
+              (\() ->
+                LangTools.allSimplyResolvableLetPatBindings program
+                |> Utils.mapFirstSuccess
+                    (\(pat, boundExp) ->
+                      if singleEIdEffectiveInterpretations |> List.any ((==) (expEffectiveExp boundExp).val.eid)
+                      then Just pat
+                      else Nothing
+                    )
+              )
+      in
+      case maybePat of
+        Just pat ->
+          [patInOutput modelRenamingInOutput False pat shapes features left top hoverPadding]
+
+        Nothing ->
+          interpretations
+          |> List.head
+          |> Maybe.andThen (List.map (findExpByEId program) >> Utils.projJusts)
+          |> Utils.filterMaybe (List.length >> (==) 1)
+          |> Maybe.andThen List.head
+          |> Maybe.map (\exp -> [expInOutput_ "" exp left top hoverPadding []])
+          |> Maybe.withDefault []
   in
-  perhapsPatOrExpInOutput_ program modelRenamingInOutput interpretations left top hoverPadding shouldShow
-
-
-perhapsPatOrExpInOutput_ : Exp -> Maybe (PId, String) -> List (List EId) -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
-perhapsPatOrExpInOutput_ program modelRenamingInOutput interpretations left top hoverPadding shouldShow =
-  let
-    singleEIdEffectiveInterpretations =
-      interpretations
-      |> List.filterMap Utils.maybeUnwrap1
-      |> List.map (LangTools.justFindExpByEId program >> expEffectiveExp >> .val >> .eid)
-
-    varEIdToMaybePat =
-      LangTools.allVarEIdsToBindingPat program
-
-    maybePat =
-      Utils.firstOrLazySecond
-          -- If interpretation is a variable usage, show the associated pat.
-          (singleEIdEffectiveInterpretations |> Utils.mapFirstSuccess (flip Dict.get varEIdToMaybePat >> Maybe.withDefault Nothing))
-          -- Otherwise see if an interpretation is a bound expression.
-          (\() ->
-            LangTools.allSimplyResolvableLetPatBindings program
-            |> Utils.mapFirstSuccess
-                (\(pat, boundExp) ->
-                  if singleEIdEffectiveInterpretations |> List.any ((==) (expEffectiveExp boundExp).val.eid)
-                  then Just pat
-                  else Nothing
-                )
-          )
-  in
-  if shouldShow || isRenamingMaybePat maybePat modelRenamingInOutput then
-    case maybePat of
-      Just pat ->
-        [patInOutput modelRenamingInOutput False pat left top hoverPadding]
-
-      Nothing ->
-        interpretations
-        |> List.head
-        |> Maybe.andThen (List.map (findExpByEId program) >> Utils.projJusts)
-        |> Utils.filterMaybe (List.length >> (==) 1)
-        |> Maybe.andThen List.head
-        |> Maybe.map (\exp -> [expInOutput_ "" exp left top hoverPadding []])
-        |> Maybe.withDefault []
-  else
-    []
+  case (shouldShow, modelRenamingInOutput) of
+    (True,  _)       -> showLabelWidget ()
+    (False, Nothing) -> []
+    (False, Just (_, shapesAssociatedWithRename, featuresAssociatedWithRename, _)) ->
+      if shapesAssociatedWithRename == shapes && featuresAssociatedWithRename == features
+      then showLabelWidget ()
+      else []
 
 
 buildSvgWidgets : Int -> Int -> Widgets -> List (Maybe (Num, Num, Num, Num)) -> Model -> List (Svg Msg)
@@ -642,7 +651,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
           [ attr "cursor" "default" ]
       in
       let (arrowParts, (endXNumTr, endYNumTr)) =
-        svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp model.renamingInOutput (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
+        svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp model.renamingInOutput idAsShape (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
       in
       let endPt =
         zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal
@@ -807,8 +816,8 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
           [ Just box
           , maybeRecOrBaseCaseLabel
           , maybeTerminationCondition
-          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput model.renamingInOutput False funcPat left (boxTop - if isCurrentContext then 20 else 0) NoHoverPadding)
-          , maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats left boxTop NoHoverPadding)
+          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput model.renamingInOutput False funcPat Set.empty Set.empty left (boxTop - if isCurrentContext then 20 else 0) NoHoverPadding)
+          , maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True (List.map (\argPat -> (argPat, Set.empty, Set.empty)) argPats) left boxTop NoHoverPadding)
           , maybeAddArg
           ] |> Utils.filterJusts
   in
@@ -859,7 +868,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
             || List.length model.hoveredBoundsWidgets == 1
           in -- Okay this is sort of an abuse of the hovered deuce widgets
           [ Svg.g edgeHoverEvents <|
-              [ box ] ++ perhapsPatOrExpInOutput_ program model.renamingInOutput [[(valExp listVal).val.eid]] left boxTop (HoverPadding 3) shouldShowLabel
+              [ box ] ++ perhapsPatOrExpInOutput program model.slate widgets model.renamingInOutput (SelectedEIdOnly (valExp listVal).val.eid) left boxTop (HoverPadding 3) shouldShowLabel
           ]
   in
 

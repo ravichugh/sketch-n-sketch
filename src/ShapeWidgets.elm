@@ -1133,8 +1133,7 @@ selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate)
         shapeTree
         |> Dict.toList
         |> List.filter (\(nodeId, shape) -> not <| Utils.anyOverlap [Set.singleton nodeId, Set.fromList (LangSvg.descendantNodeIds shapeTree shape), effectiveSelectedNodeIds])
-        |> List.map (\(nodeId, shape) -> shape.val)
-        |> List.concatMap Provenance.flattenValBasedOnTree
+        |> List.concatMap (\(nodeId, shape) -> Provenance.flattenValBasedOnTree shape.val)
         |> List.map (valExp >> .val >> .eid)
         -- |> List.map valExp
         -- |> List.filter (.val >> .eid >> FastParser.isProgramEId)
