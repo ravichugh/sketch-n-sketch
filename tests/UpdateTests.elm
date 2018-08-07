@@ -548,7 +548,6 @@ all_tests = init_state
       , ["xAyBBBz", "o", "p","C"]
       , ["xAyBBBz", "o", "pC",""]
       ]
- |> onlyBefore
   |> test "GroupStartMap"
     |> assertEqual (List.map (\{submatches} -> submatches) (GroupStartMap.find Regex.All "a((bc)|cd)d" "aabcdacdd"))
         [[{match = Just "bc", start = 2}, {match = Just "bc", start = 2}], [{match = Just "cd", start = 6}, {match = Nothing, start = -1}]]
@@ -582,9 +581,9 @@ all_tests = init_state
   --  |>
   |> test "Partial application"
     |> updateElmAssert
-      [] "letrec map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'green') ['hello', 'world']"
+      [] "let map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'green') ['hello', 'world']"
          "[[ 'td', [['style', ['border', 'padding', ['background-color', 'red']]]], [['TEXT', 'hello']]], [ 'td', [['style', ['border', 'padding', ['background-color', 'green']]]], [['TEXT', 'world']]]]"
-      [] "letrec map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'red') ['hello', 'world']"
+      [] "let map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'red') ['hello', 'world']"
   --|> ignore False
   |> test "Multiple solutions"
       |> updateElmAssert
@@ -603,6 +602,7 @@ all_tests = init_state
       |> updateElmAssert
         [] "let x = { a= 1, b= 2} in { x | a = 2 }.b" "3"
         [] "let x = { a= 1, b= 3} in { x | a = 2 }.b"
+ |> onlyBefore
   |> test "Indented lists, second position of list > 1 elements"
       |> updateElmAssert
         [] "[1, 2, 3, 4]" "[1, 5, 2, 3, 4]"
