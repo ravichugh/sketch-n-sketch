@@ -1846,12 +1846,13 @@ caseExpression minStartCol spConstraint =
                 succeed identity
                   |= (pattern nospace minStartCol
                      |> andThen (\p ->
-                        let minimumIndentation = sameLineOrIndentedByAtLeast "for an expression after a branch" ((p.start.col - 1) {- The column index-} + 1 {- The indentation increment-}) in
+                        let newMinStartCol = p.start.col + 1 in
+                        let spPolicy = spaceSameLineOrNextAfter newMinStartCol MinIndentSpace in
                         succeed (\wsBeforeArrow e -> (p, wsBeforeArrow, e))
                         |= spaces
                         |. symbol "->"
-                        |= expression spaces minStartCol spConstraint
-                        |. optional (delayedCommit minimumIndentation (symbol ";"))
+                        |= expression spaces newMinStartCol spConstraint
+                        |. optional (delayedCommit spPolicy (symbol ";"))
                      ))
                   )
       in

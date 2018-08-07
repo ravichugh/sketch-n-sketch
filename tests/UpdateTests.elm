@@ -447,11 +447,11 @@ all_tests = init_state
       |> updateElmAssert
         [("x", "16")] "sqrt x" "3"
         [("x", "9")] "sqrt x"
-      |> onlyBefore
   |> test "case of calls"
       |> updateElmAssert
         [("x", "[7, 1]")] "case x of\n  [a, b] -> a + b\n  u -> 0" "5"
         [("x", "[4, 1]")] "case x of\n  [a, b] -> a + b\n  u -> 0"
+      |> onlyLast
       |> updateElmAssert
         [("x", "[7]")] "case x of\n  [a, b] -> a + b\n  u -> 0" "5"
         [("x", "[7]")] "case x of\n  [a, b] -> a + b\n  u -> 5"
