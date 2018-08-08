@@ -761,9 +761,8 @@ Update =
       expressionFreeze x
     sizeFreeze = sizeFreeze
     foldDiff = foldDiff
-    applyLens lens x =
+    applyLens = applyLens
       -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway
-      applyLens lens x
 
     softFreeze = softFreeze
     splitStringDiffsAt = splitStringDiffsAt

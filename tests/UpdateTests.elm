@@ -760,6 +760,7 @@ all_tests = init_state
                                  "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"$translation1\""
 
   --|> onlyBefore
+  |> skipBefore
   |> updateElmPrelude (
       ExamplesGenerated.mapMaybeLens
         |> replaceStr "\n$" "" -- Remove newlines
@@ -767,5 +768,4 @@ all_tests = init_state
         |> replaceStr "\r?\nmaybeState(1|2).*" ""
       ) (replaceStr "New Jersey" "New Jersay")
       (replaceStr "New Jersey" "New Jersay")
-  |> skipBefore
   |> summary
