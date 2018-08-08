@@ -494,7 +494,9 @@ Update =
         |> addDiff (\d x -> {d | _4 = x}) mbDiff4
         |> (\(d, changed) -> if changed then Just (VRecordDiffs d) else Nothing)
   in
-  type SimpleListDiffOp = KeepValue | DeleteValue | InsertValue Value | UpdateValue Value
+  let
+    type SimpleListDiffOp = KeepValue | DeleteValue | InsertValue Value | UpdateValue Value
+  in
   let listDiffOp diffOp oldValues newValues =
    -- listDiffOp : DiffOp -> List Value -> List Value -> List SimpleListDiffOp
 

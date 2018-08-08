@@ -22,6 +22,7 @@ import Set
 import ImpureGoodies
 import EvalUpdate exposing (builtinEnv)
 import ExamplesGenerated
+import ElmParser
 
 type StateChanger = StateChanger (State -> State)
 
@@ -287,6 +288,10 @@ tPList sp0 listPat sp1= withDummyPatInfo <| PList sp0 listPat (ws "") Nothing sp
 tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat sp1 (Just tailPat) sp1
 
 onlySpecific = False
+
+display_prelude_message = case ElmParser.preludeNotParsed of
+  Nothing -> ()
+  Just msg -> Debug.log msg ()
 
 all_tests = init_state
   |> ignore onlySpecific
@@ -716,7 +721,11 @@ all_tests = init_state
   |> assertEqual (alldiffs identity ["a", "a", "3", "a", "a"] ["a", "a"] |> Results.toList)
                     [[DiffEqual ["a", "a"], DiffRemoved ["3", "a", "a"]],
                      [DiffRemoved ["a", "a", "3"], DiffEqual ["a", "a"]]]
-  |> onlyBefore
+  |> test "Type parsing"
+  |> evalElmAssert [] "type List a = Nil | Cons a\n2" "2"
+  |> evalElmAssert [] "let type List a = Nil | Cons a in 2" "2"
+  |> evalElmAssert [] "let type List a = Nil | Cons a\nin 2" "2"
+  |> evalElmAssert [] "let\n  type List a = Nil | Cons a\nin 2" "2"
   --|> skipBefore
   |> test "updateReplace"
   -- newStart newEnd ... repStart repEnd
@@ -750,6 +759,7 @@ all_tests = init_state
   |> updateElmAssert2 builtinEnv "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"printer\"" "\"$translation1\""
                                  "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"$translation1\""
 
+  --|> onlyBefore
   |> updateElmPrelude (
       ExamplesGenerated.mapMaybeLens
         |> replaceStr "\n$" "" -- Remove newlines
@@ -757,4 +767,5 @@ all_tests = init_state
         |> replaceStr "\r?\nmaybeState(1|2).*" ""
       ) (replaceStr "New Jersey" "New Jersay")
       (replaceStr "New Jersey" "New Jersay")
+  |> skipBefore
   |> summary

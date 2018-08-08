@@ -997,7 +997,7 @@ tnamePattern ident =
 typePattern : Parser (WS -> TPat)
 typePattern =
   inContext "type pattern" <|
-    tnamePattern bigIdentifier
+    tnamePattern littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Constants
@@ -1260,6 +1260,11 @@ variableType =
   inContext "variable type" <| unwrapInfo <|
     transferInfo (flip TVar) littleIdentifier
 
+dataType : Parser (WS -> Type)
+dataType =
+  inContext "data type" <| unwrapInfo <|
+    transferInfo (flip TVar) bigIdentifier
+
 --------------------------------------------------------------------------------
 -- Tuple Type
 --------------------------------------------------------------------------------
@@ -1375,6 +1380,7 @@ simpleType minStartCol =
       (oneOf
         [ nullType
         , variableType
+        , dataType
         , numType
         , boolType
         , stringType
@@ -1411,15 +1417,15 @@ typ spFirst minStartCol =
   inContext "type" <|
       lazy <| \_ ->
         let b: { greedySpaceParser : Parser WS
-                                    , precedenceTable : PrecedenceTable
-                                    , minimumPrecedence : Int
-                                    , expression : Parser (WS -> Type)
-                                    , withZeroSpace: (WS -> Type) -> Type
-                                    , operator : Parser (WithInfo Operator)
-                                    , representation : WithInfo Operator -> String
-                                    , combine : WS -> Type -> (WithInfo Operator)-> Type -> Type
-                                    }
-                                 -> Parser (WS -> Type)
+               , precedenceTable : PrecedenceTable
+               , minimumPrecedence : Int
+               , expression : Parser (WS -> Type)
+               , withZeroSpace: (WS -> Type) -> Type
+               , operator : Parser (WithInfo Operator)
+               , representation : WithInfo Operator -> String
+               , combine : WS -> Type -> (WithInfo Operator)-> Type -> Type
+               }
+               -> Parser (WS -> Type)
             b = binaryOperator
         in
         let operatorSpace = spaceSameLineOrNextAfter minStartCol MinIndentSpace in
@@ -1793,7 +1799,9 @@ record  =
            |= spaces)
           (symbol "|")
           )
-        |= declarations 0
+        |= oneOf[
+          declarations 0,
+          succeed (Declarations [] ([], []) [] ([], []))]
         |= spaces
         |. symbol "}"
         |= getPos)
@@ -2655,9 +2663,9 @@ sanitizeVariableName unsafeName =
       let msg = ParserUtils.showError parserError in
       case run program "0" of
         Ok k -> (Just msg, freshenClean 1 k)
-        Err err -> (Just "Prelude did not parse and 0 either", freshenClean 1 (withDummyExpInfo <| EConst space0 0 dummyLoc noWidgetDecl))
-          --Debug.crash <|
-          --  """ElmParser: "0" failed to parse?""" ++ ParserUtils.showError err
+        Err err -> --(Just "Prelude did not parse and 0 either", freshenClean 1 (withDummyExpInfo <| EConst space0 0 dummyLoc noWidgetDecl))
+          Debug.crash <|
+            """ElmParser: "0" failed to parse?""" ++ ParserUtils.showError err
 
 preludeIds = allIds prelude
 
