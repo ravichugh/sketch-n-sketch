@@ -115,6 +115,7 @@ tryUnparseTuple unparseTerm wsBefore keyValues wsBeforeEnd =
                      |> String.toInt
                      |> Result.withDefault -1
                )
+          |> Utils.mapHead (\(spc, spn, n, f, e) -> (Nothing, spn, n, f, e))
           |> List.map
                ( \(wsBeforeComma, wsBeforeName, _, _, elBinding) ->
                   ( wsBeforeComma |> Maybe.map (\x -> x.val ++ ",") |> Maybe.withDefault "") ++ wsBeforeName.val ++ unparseTerm elBinding
@@ -629,7 +630,7 @@ unparse e =
         ++ unparseBranches branches
 
     ELet wsBefore letKind (Declarations _ _ _ (exps, _) as decls) wsIn body ->
-       if onlyImplicitMain exps then ""
+       if onlyImplicitMain exps || exps == [] && eVarUnapply body == Just "main" then ""
        else
       wsBefore.val ++ (case letKind of
         Let -> "let"
