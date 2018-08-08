@@ -1848,7 +1848,7 @@ addToOutput old =
               |> Maybe.map List.length
               -- |> Debug.log "maybeNumberOfNewListItemsExpectedIfListInlined"
             in
-            DrawAddShape.addShape old (always True) Nothing (eHoleVal val) Nothing Nothing (Just 1) maybeNumberOfNewListItemsExpectedIfListInlined program |> freshen
+            DrawAddShape.addShape old (always True) Nothing (eHoleVal val) Nothing Nothing (Just 1) maybeNumberOfNewListItemsExpectedIfListInlined False program |> freshen
           )
       |> Syntax.unparser old.syntax
   in
@@ -1993,7 +1993,7 @@ doDuplicate old =
           (\expToDuplicate ->
             let name = LangTools.expNameForExp old.inputExp expToDuplicate |> LangTools.removeTrailingDigits in
             -- Attempt 1: Try to add to output as a shape.
-            let newProgram = DrawAddShape.addShape old (always True) (Just name) expToDuplicate (Just <| Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing old.inputExp in
+            let newProgram = DrawAddShape.addShape old (always True) (Just name) expToDuplicate (Just <| Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing False old.inputExp in
             if not <| LangUnparser.expsEquivalent newProgram old.inputExp then
               newProgram
             else

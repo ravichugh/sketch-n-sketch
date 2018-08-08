@@ -1129,7 +1129,7 @@ newFunctionCallExp fName model pt1 pt2 =
 
 addShapeToModel : Model -> String -> Exp -> Model
 addShapeToModel model newShapeName newShapeExp =
-  let newProgram = DrawAddShape.addShape model (always True) (Just newShapeName) newShapeExp (Just 1) Nothing Nothing Nothing model.inputExp in
+  let newProgram = DrawAddShape.addShape model (always True) (Just newShapeName) newShapeExp (Just 1) Nothing Nothing Nothing False model.inputExp in
   { model | code = Syntax.unparser model.syntax newProgram }
 
 

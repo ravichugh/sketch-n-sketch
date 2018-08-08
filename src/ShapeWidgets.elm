@@ -1277,7 +1277,9 @@ selectionsSingleEIdInterpretations program slate widgets selectedFeatures select
                   Just coveringsStillNeeded -> List.any ((==) []) coveringsStillNeeded
               )
           -- |> List.map (\parentVal -> let _ = Utils.log <| (++) "Passing parent: " <| LangUnparser.unparse <| valExp parentVal in parentVal)
-          |> List.map (valExp >> .val >> .eid)
+          |> List.map valExp
+          |> List.filter expFilter
+          |> List.map (.val >> .eid)
   in
   directSingleEIdInterpretations ++ parentSingleEIdInterpretations
 

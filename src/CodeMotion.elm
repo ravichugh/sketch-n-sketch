@@ -2972,11 +2972,18 @@ resolveValueHolesByLocLifting syncOptions programWithHolesUnfresh =
   |> List.singleton
 
 
+-- Returns unmodified program if cannot delete.
 deleteEId : EId -> Exp -> Exp
 deleteEId eidToDelete program =
+  maybeDeleteEId eidToDelete program
+  |> Maybe.withDefault program
+
+
+maybeDeleteEId : EId -> Exp -> Maybe Exp
+maybeDeleteEId eidToDelete program =
   case findExpByEId program eidToDelete of
     Just expToDelete ->
-      let programWithExpressionRemoved =
+      let maybeProgramWithExpressionRemoved =
         case findLetAndPatMatchingExpLoose expToDelete.val.eid program of
           Just (letExp, patBindingExpToDelete) ->
             let identsToDelete = identifiersListInPat patBindingExpToDelete in
@@ -2989,55 +2996,63 @@ deleteEId eidToDelete program =
               |> LangSimplify.simplifyAssignments
             in
             case pluckByPId patBindingExpToDelete.val.pid program of -- TODO allow unsafe pluck out of as-pattern
-              Just (_, programWithoutBinding) -> deleteVarUses programWithoutBinding
-              Nothing                         -> deleteVarUses program
+              Just (_, programWithoutBinding) -> Just (deleteVarUses programWithoutBinding)
+              Nothing                         -> Nothing
 
           Nothing ->
             case parentByEId program (outerSameValueExp program expToDelete).val.eid of
               (Just (Just parent)) ->
                 case parent.val.e__ of
                   EFun _ _ _ _ ->
-                    deleteEId parent.val.eid program
+                    maybeDeleteEId parent.val.eid program
 
                   EList ws1 heads ws2 maybeTail ws3 ->
                     case List.map Tuple.second heads |> Utils.findi (eidIs eidToDelete) of
-                      Just iToDelete -> program |> replaceExpNodeE__ parent (EList ws1 (List.map ((,) space0) (Utils.removei iToDelete (List.map Tuple.second heads) |> imitateExpListWhitespace (List.map Tuple.second heads))) ws2 maybeTail ws3)
+                      Just iToDelete ->
+                        program
+                        |> replaceExpNodeE__ parent (EList ws1 (List.map ((,) space0) (Utils.removei iToDelete (List.map Tuple.second heads)
+                        |> imitateExpListWhitespace (List.map Tuple.second heads))) ws2 maybeTail ws3)
+                        |> Just
                       Nothing ->
                         if Maybe.map (eidIs eidToDelete) maybeTail == Just True
-                        then program |> replaceExpNodeE__ parent (EList ws1 heads ws2 Nothing ws3)
-                        else program
+                        then Just <| replaceExpNodeE__ parent (EList ws1 heads ws2 Nothing ws3) program
+                        else Nothing
 
                   _ ->
                     let _ = Utils.log <| "can't remove from parent " ++ Syntax.unparser Syntax.Elm parent in
-                    program
+                    Nothing
 
               _ ->
                 let _ = Utils.log <| "can't find parent to remove from" in
-                program
+                Nothing
       in
-      -- This seems to remove too much (e.g. will remove function if an application is deleted).
-      -- let varEIdsPerhapsRemoved = LangTools.freeVars expToDelete |> List.map (.val >> .eid) |> Set.fromList in
-      let varEIdsPerhapsRemoved =
-        case expToMaybeVar (expEffectiveExp expToDelete) of
-          Just varExp -> Set.singleton (varExp.val.eid)
-          _           -> Set.empty
-      in
-      let pidsToMaybeRemove =
-        program
-        |> allVarEIdsToBindingPId
-        |> Dict.filter (\varEId _ -> Set.member varEId varEIdsPerhapsRemoved)
-        |> Dict.values
-        |> Utils.filterJusts -- Vars free in program are marked bound to "Nothing"
-        |> Set.fromList
-      in
-      programWithExpressionRemoved
-      |> LangSimplify.removeUnusedLetPatsMatching (\pat -> Set.member pat.val.pid pidsToMaybeRemove)
-      -- |> (\program -> let _ = Utils.log <| "Before simplify \n" ++ Syntax.unparser Syntax.Elm program in program)
-      |> LangSimplify.removeEmptyListsFromConcats
-      -- |> (\program -> let _ = Utils.log <| "After simplify \n" ++ Syntax.unparser Syntax.Elm program in program)
+      maybeProgramWithExpressionRemoved
+      |> Maybe.map
+          (\programWithExpressionRemoved ->
+            -- This seems to remove too much (e.g. will remove function if an application is deleted).
+            -- let varEIdsPerhapsRemoved = LangTools.freeVars expToDelete |> List.map (.val >> .eid) |> Set.fromList in
+            let varEIdsPerhapsRemoved =
+              case expToMaybeVar (expEffectiveExp expToDelete) of
+                Just varExp -> Set.singleton (varExp.val.eid)
+                _           -> Set.empty
+            in
+            let pidsToRemoveIfNowUnused =
+              program
+              |> allVarEIdsToBindingPId
+              |> Dict.filter (\varEId _ -> Set.member varEId varEIdsPerhapsRemoved)
+              |> Dict.values
+              |> Utils.filterJusts -- Vars free in program are marked bound to "Nothing"
+              |> Set.fromList
+            in
+            programWithExpressionRemoved
+            |> LangSimplify.removeUnusedLetPatsMatching (\pat -> Set.member pat.val.pid pidsToRemoveIfNowUnused)
+            -- |> (\program -> let _ = Utils.log <| "Before simplify \n" ++ Syntax.unparser Syntax.Elm program in program)
+            |> LangSimplify.removeEmptyListsFromConcats
+            -- |> (\program -> let _ = Utils.log <| "After simplify \n" ++ Syntax.unparser Syntax.Elm program in program)
+          )
 
-    _ ->
-      program
+    Nothing ->
+      Nothing
 
 
 ------------------------------------------------------------------------------

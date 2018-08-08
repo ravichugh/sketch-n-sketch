@@ -31,7 +31,7 @@ import Dict
 -- 6. Finally, use list the others do not depend on.
 addShape
   :  { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
-  -> (Exp -> Bool) -> Maybe String -> Exp -> Maybe Int -> Maybe Int -> Maybe Int -> Maybe Int -> Exp -> Exp
+  -> (Exp -> Bool) -> Maybe String -> Exp -> Maybe Int -> Maybe Int -> Maybe Int -> Maybe Int -> Bool -> Exp -> Exp
 addShape
   model
   targetListFilter
@@ -41,6 +41,7 @@ addShape
   maybeNumberOfNewShapesExpectedIfListInlined -- If provided, may attempt to inline newShapeExp if it is a list
   maybeNumberOfNewListItemsExpected
   maybeNumberOfNewListItemsExpectedIfListInlined -- If provided, may attempt to inline newShapeExp if it is a list
+  areCrashingProgramsOkay -- Caller may attempt alternative problem resolution. If True, above four args are ignored.
   originalProgram =
   let
     contextExp         = FocusedEditingContext.drawingContextExp model.editingContext originalProgram
@@ -60,6 +61,7 @@ addShape
 
     -- 1. Find all list literals.
     possibleTargetLists = flattenExpTree contextExp |> List.filter isPossibleTargetList
+    -- _ = Debug.log "possibleTargetLists" <| List.map (Syntax.unparser Syntax.Elm) possibleTargetLists
 
     -- 1.5 If the return value isn't a list, make some candidates where the return value is a wrapped in a singleton.
     maybeProgramWithListifiedReturnExpAndLists =
@@ -160,6 +162,7 @@ addShape
       -- 5. Keep those programs that result in one more shape in the output.
       |> List.filter
           (\(listEId, newProgram) ->
+            areCrashingProgramsOkay ||
             case InterfaceModel.runAndResolveAtContext model newProgram of
               Ok (val, _, (root, shapeTree), _) ->
                 let

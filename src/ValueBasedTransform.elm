@@ -817,7 +817,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
       let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
       -- Still doesn't correctly handle abstracting a shape list b/c provenance is not smart enough.
       ShapeWidgets.selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs (\e -> childExps e /= [] && freeVars e /= [])
-      |> List.map (\interp -> let _ = Utils.log <| String.join ", " <| List.map (justFindExpByEId program >> Syntax.unparser Syntax.Elm) interp in interp)
+      -- |> List.map (\interp -> let _ = Utils.log <| String.join ", " <| List.map (justFindExpByEId program >> Syntax.unparser Syntax.Elm) interp in interp)
       |> List.concatMap (\interpretation ->
         -- 1. Choose an expression to be the output (try all)
         -- 2. Successively pull free var definitions not used elsewhere into abstraction. (Also exclude free vars used only as functions in application, and free vars bound to something with no free vars because we have to leave something behind to be function arguments.)
@@ -985,6 +985,8 @@ buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputE
                   Debug.crash <| "buildAbstraction: pluck shouldn't fail, but did " ++ toString pat
             )
 
+      -- computeExpsGroupsToArgumentize should return a list of possible ways to turn pieces of the function into arguments
+      -- computeExpsGroupsToArgumentize : Exp -> List (List Exp)
       expsGroupsToArgumentize = computeExpsGroupsToArgumentize funcBodyAfterSlurpingBeforeArgumentization
     in
 
@@ -1140,6 +1142,7 @@ buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputE
             programsWithCallAndFuncPostProcessedAndCaption
             |> List.concatMap
                 (\(programWithCallAndFuncPostProcessed, caption) ->
+                  -- let _ = Utils.log <| "Candidate: " ++ Syntax.unparser Syntax.Elm programWithCallAndFuncPostProcessed in
                   CodeMotion.programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
                       caption -- baseDescription
                       uniqueNameToOldName3
@@ -1185,22 +1188,37 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
         allExplicitPointIntermediates = allIntermediates |> List.filter valIsPoint
         allNumericIntermediates       = allIntermediates |> List.filter valIsNum
 
+        -- _ =
+        --   allIntermediates
+        --   |> List.map valExp
+        --   |> List.filter (\exp -> FastParser.isProgramEId exp.val.eid)
+        --   |> List.map (Syntax.unparser Syntax.Elm)
+        --   |> List.map Utils.log
+
         intermediatePoints =
           allExplicitPointIntermediates ++
           Provenance.coordinateIntermediatesToSharedPointParents allNumericIntermediates allNumericIntermediates
 
-        intermediatePointEIdSet = intermediatePoints |> List.map (valExp >> .val >> .eid) |> List.filter FastParser.isProgramEId |> Set.fromList
+        -- _ =
+        --   intermediatePoints
+        --   |> List.map valExp
+        --   |> List.filter (\exp -> FastParser.isProgramEId exp.val.eid)
+        --   |> List.map (Syntax.unparser Syntax.Elm >> (++) "Intermediate point:")
+        --   |> List.map Utils.log
 
-        eidsContainingSomeRelevantPointExp =
-          program
-          |> findAllWithAncestors (\e -> Set.member e.val.eid intermediatePointEIdSet)
-          |> List.concat
-          |> List.map (.val >> .eid)
-          |> Set.fromList
+        intermediatePointEIdSet = intermediatePoints |> List.map (valExp >> .val >> .eid) |> List.filter FastParser.isProgramEId |> Set.fromList
 
         -- Step 2: Trace provenance of whole selected value to unique single exp interpretations that also include a point above
 
         possibleEIdsToAbstract =
+          let nonTrivialEIdsContainingSomeRelevantPointExp =
+            program
+              |> findAllWithAncestors (\e -> Set.member e.val.eid intermediatePointEIdSet)
+              |> List.concat
+              |> List.filter (\e -> nodeCount e >= 3)
+              |> List.map (.val >> .eid)
+              |> Set.fromList
+          in
           ShapeWidgets.selectionsSingleEIdInterpretations
               program
               slate
@@ -1208,7 +1226,7 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
               selectedFeatures
               selectedShapes
               selectedBlobs
-              (\e -> Set.member e.val.eid eidsContainingSomeRelevantPointExp)
+              (\e -> Set.member e.val.eid nonTrivialEIdsContainingSomeRelevantPointExp)
 
 
         -- Step 3: Use Build Abstraction infrastructure to turn the shape into a function over the point
@@ -1223,11 +1241,16 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                   slurpedBindingsFilter pat boundExp = True -- Slurp in all bindings not used outside new function.
 
                   computeExpsGroupsToArgumentize funcBodyAfterSlurpingBeforeArgumentization =
-                    -- For each point exp in the candidate function body, make a candidate result abstracted over that point exp.
-                    funcBodyAfterSlurpingBeforeArgumentization
-                    |> flattenExpTree
-                    |> List.filter (\e -> Set.member e.val.eid intermediatePointEIdSet)
-                    |> List.map List.singleton
+                    -- let _ = Utils.log (Syntax.unparser Syntax.Elm funcBodyAfterSlurpingBeforeArgumentization) in
+                    let expsGroupsToArgumentize =
+                      -- For each point exp in the candidate function body, make a candidate result abstracted over that point exp.
+                      funcBodyAfterSlurpingBeforeArgumentization
+                      |> flattenExpTree
+                      |> List.filter (\e -> Set.member e.val.eid intermediatePointEIdSet)
+                      |> List.map List.singleton
+                    in
+                    -- let _ = Debug.log "expsGroupsToArgumentize" (List.map (List.map (Syntax.unparser Syntax.Elm)) expsGroupsToArgumentize) in
+                    expsGroupsToArgumentize
 
                   postProcessBeforeProblemResolution programWithCallAndFunc funcLet callExp uniqueNameToOldName =
                     let
@@ -1284,17 +1307,8 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                             ]
                       repeatGroupUniqueName = nonCollidingName repeatGroupSuggestedName 2 uniqueNamesToAvoid
 
-                      mapCalls =
-                        case maybeRepeatFuncCall of
-                          Just repeatFuncCall ->
-                            [ eCall "map"       [eVar itemFuncUniqueName, repeatFuncCall]
-                            , eCall "concatMap" [eVar itemFuncUniqueName, repeatFuncCall]
-                            ]
-
-                          Nothing ->
-                            []
-
-                      programWithFuncButNoCallFresh =
+                      -- Only succeed if delete succeeds.
+                      maybeProgramWithFuncButNoCallFresh =
                         let
                           programWithCallAndFuncFresh = freshen programWithCallAndFunc
                           callEId =
@@ -1303,41 +1317,51 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                             |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction programWithFuncButNoCallFresh callEId"
                             |> (.val >> .eid)
                         in
-                        CodeMotion.deleteEId callEId programWithCallAndFuncFresh
-
-                      programWithCallAndFuncUnparsed =
-                        LangUnparser.unparseWithUniformWhitespace True True programWithFuncButNoCallFresh
-
-                      -- Find EIds in the abstraction so we can exclude these from possible insertion points for DrawAddShape.addShape
-                      -- to speed up synthesis considerably.
-                      -- (If DrawAddShape.addShape tries to insert the map call inside the new abstraction it creates a non-terminating recursive
-                      -- function...eval will "stack overflow" and the candidate program will correctly be rejected but it's slow, 1.0-1.5s)
-                      eidsInNewAbstraction =
-                        programWithFuncButNoCallFresh
-                        |> allSimplyResolvableLetBindings
-                        |> Utils.maybeFind itemFuncUniqueName
-                        |> Utils.fromJust_ ("ValueBasedTransform.repeatUsingFunction eidsInNewAbstraction Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName)
-                        |> expToFuncBody
-                        |> allEIds
-                        -- |> List.filter (\eid -> eid > 0 || let _ = Utils.log "ValueBasedTransform.repeatUsingFunction eid <= 0 in new abstraction!!!" in False)
-                        |> Set.fromList
+                        CodeMotion.maybeDeleteEId callEId programWithCallAndFuncFresh
                     in
-                    mapCalls
-                    |> List.filterMap
-                        (\repeatGroupCall ->
-                          -- Step 5: Replace the shape in the shape list with the shapes produced by the map call.
-                          let
-                            programWithRepeatCall =
-                              DrawAddShape.addShape model (\list -> not <| Set.member list.val.eid eidsInNewAbstraction) (Just repeatGroupName) repeatGroupCall Nothing Nothing Nothing Nothing programWithFuncButNoCallFresh
-                          in
-                          if LangUnparser.unparseWithUniformWhitespace True True programWithRepeatCall == programWithCallAndFuncUnparsed then
-                            Nothing
-                          else
-                            Just <|
-                              ( programWithRepeatCall
-                              , "Repeat " ++ itemFuncName ++ " using " ++ repeatFuncName
-                              )
-                        )
+                    case (maybeRepeatFuncCall, maybeProgramWithFuncButNoCallFresh) of
+                      (Just repeatFuncCall, Just programWithFuncButNoCallFresh) ->
+                        let
+                          programWithCallAndFuncUnparsed =
+                            LangUnparser.unparseWithUniformWhitespace True True programWithFuncButNoCallFresh
+
+                          -- Find EIds in the abstraction so we can exclude these from possible insertion points for DrawAddShape.addShape
+                          -- to speed up synthesis considerably.
+                          -- (If DrawAddShape.addShape tries to insert the map call inside the new abstraction it creates a non-terminating recursive
+                          -- function...eval will "stack overflow" and the candidate program will correctly be rejected but it's slow, 1.0-1.5s)
+                          eidsInNewAbstraction =
+                            programWithFuncButNoCallFresh
+                            |> allSimplyResolvableLetBindings
+                            |> Utils.maybeFind itemFuncUniqueName
+                            |> Utils.fromJust_ ("ValueBasedTransform.repeatUsingFunction eidsInNewAbstraction Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName)
+                            |> expToFuncBody
+                            |> allEIds
+                            -- |> List.filter (\eid -> eid > 0 || let _ = Utils.log "ValueBasedTransform.repeatUsingFunction eid <= 0 in new abstraction!!!" in False)
+                            |> Set.fromList
+                        in
+                        [ eCall "map"       [eVar itemFuncUniqueName, repeatFuncCall]
+                        , eCall "concatMap" [eVar itemFuncUniqueName, repeatFuncCall]
+                        ] |> List.filterMap
+                            (\repeatGroupCall ->
+                              -- Step 5: Replace the shape in the shape list with the shapes produced by the map call.
+                              -- let _ = Utils.log <| "Attempting to add\n" ++ Syntax.unparser Syntax.Elm repeatGroupCall ++ "\nto\n" ++ Syntax.unparser Syntax.Elm programWithFuncButNoCallFresh in
+                              let
+                                programWithRepeatCall =
+                                  DrawAddShape.addShape model (\list -> not <| Set.member list.val.eid eidsInNewAbstraction) (Just repeatGroupName) repeatGroupCall Nothing Nothing Nothing Nothing True programWithFuncButNoCallFresh
+                              in
+                              if LangUnparser.unparseWithUniformWhitespace True True programWithRepeatCall == programWithCallAndFuncUnparsed then
+                                -- let _ = Utils.log "Failed." in
+                                Nothing
+                              else
+                                -- let _ = Utils.log <| "Possible Success! (might be a crashing program)\n" ++ Syntax.unparser Syntax.Elm programWithRepeatCall in
+                                Just <|
+                                  ( programWithRepeatCall
+                                  , "Repeat " ++ itemFuncName ++ " using " ++ repeatFuncName
+                                  )
+                            )
+
+                      _ ->
+                        []
                 in
                 buildAbstraction_
                     program
@@ -1349,7 +1373,22 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                     postProcessBeforeProblemResolution
               )
       in
+      -- Since we bypassed DrawAddShape.addShape's crash check in order to allow buildAbstraction_ to do
+      -- unique name problem resolution (which may obviate some crashes), we should now do crash filtering.
+      --
+      -- Also remove results that screw up the SVG output (if original output was SVG).
+      let shapeCountBefore =
+        case InterfaceModel.runAndResolveAtContext model program of
+          Err _                        -> 0
+          Ok (_, _, (_, shapeTree), _) -> Dict.size shapeTree
+      in
       abstractedCandidatePrograms
+      |> List.filter
+          (\synthesisResult ->
+            case InterfaceModel.runAndResolveAtContext model (InterfaceModel.resultExp synthesisResult) of
+              Err s                                       -> False
+              Ok (_, widgets, (_, shapeTree) as slate, _) -> if shapeCountBefore > 1 then Dict.size shapeTree > 1 else True -- Top level 'svg' is an element
+          )
 
 
 deepestCommonAncestorOrSelfWithNewlineByLocSet : Exp -> LocSet -> Exp
