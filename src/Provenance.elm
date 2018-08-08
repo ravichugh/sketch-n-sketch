@@ -122,6 +122,7 @@ dedupSameVals vals =
 
 -- Given a list of vals, some of which may be x coordinates and y coordinates,
 -- consolidate any X/Y pairs that came from the same pair.
+-- May be multiple reasonable ways to do it: only do one way (unprincipled about which way).
 consolidatePointPartsIntoPoints : List Val -> List Val
 consolidatePointPartsIntoPoints vals =
   let

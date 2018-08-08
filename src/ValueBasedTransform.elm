@@ -1156,7 +1156,7 @@ buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputE
         )
   )
 
--- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
+
 repeatUsingFunction : Exp -> SlowTypeInference.TC2Graph -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
 repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   let
@@ -1182,7 +1182,13 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
         selectedVals = ShapeWidgets.selectedVals slate widgets selectedFeatures selectedShapes selectedBlobs
 
         allIntermediates = List.concatMap Provenance.flattenValBasedOnTree selectedVals
-        intermediatePoints = allIntermediates |> Provenance.consolidatePointPartsIntoPoints |> List.filter valIsPoint
+        allExplicitPointIntermediates = allIntermediates |> List.filter valIsPoint
+        allNumericIntermediates       = allIntermediates |> List.filter valIsNum
+
+        intermediatePoints =
+          allExplicitPointIntermediates ++
+          Provenance.coordinateIntermediatesToSharedPointParents allNumericIntermediates allNumericIntermediates
+
         intermediatePointEIdSet = intermediatePoints |> List.map (valExp >> .val >> .eid) |> List.filter FastParser.isProgramEId |> Set.fromList
 
         eidsContainingSomeRelevantPointExp =
