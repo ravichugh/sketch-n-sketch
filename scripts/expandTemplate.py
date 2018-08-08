@@ -1,4 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+#
+# Needs to be Python 3
 
 import sys
 import io
