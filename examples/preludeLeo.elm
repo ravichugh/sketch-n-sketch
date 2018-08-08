@@ -536,8 +536,10 @@ Update =
 
         result -> Debug.crash ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
   in
-  type StringDiffs = StringUpdate Int Int Int
-  type ConcStringDiffs = ConcStringUpdate Int Int String
+  let
+    type StringDiffs = StringUpdate Int Int Int
+    type ConcStringDiffs = ConcStringUpdate Int Int String
+  in
   -- Converts a VStringDiffs -> List ConcStringDiffs
   let strDiffToConcreteDiff newString diffs =
     case diffs of
@@ -1865,20 +1867,24 @@ String =
 -- Maybe --
 
 Maybe =
-  type Maybe a = Nothing | Just a
-  let withDefault x mb = case mb of
-    Nothing -> x
-    Just j -> j
-  in
-  let withDefaultLazy lazyX mb = case mb of
-    Nothing -> lazyX []
-    Just j -> j
-  in
-  { withDefault = withDefault
-    withDefaultLazy = withDefaultLazy
+  { type Maybe a = Nothing | Just a
+
+    withDefault x mb = case mb of
+        Nothing -> x
+        Just j -> j
+
+    withDefault x mb = case mb of
+        Nothing -> x
+        Just j -> j
+
+    withDefaultLazy lazyX mb = case mb of
+        Nothing -> lazyX []
+        Just j -> j
+
     map f a = case a of
       Nothing -> Nothing
       Just x -> Just (f x)
+
     andThen f a = case a of
       Nothing -> Nothing
       Just x -> f x

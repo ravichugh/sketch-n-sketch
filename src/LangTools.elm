@@ -2638,9 +2638,9 @@ expEnvAt_ exp targetEId =
               Just bindings ->
                 Just <| (if isMutuallyRecursive currentGroup then
                   Utils.foldLeft identity currentGroup <| \acc (LetExp _ _ p _ _ e1) ->
-                    acc >> addBindingsFrom p e1 else identity) bindings -- found targetEId in assigns
+                    (\p e1 acc -> acc >> (addBindingsFrom p e1)) p e1 acc else identity) bindings -- found targetEId in assigns
               Nothing ->
-                aux (accAdder >> addBindingsFrom p e1) currentGroup (groupTail :: tail)
+                aux ((\p e1 accAdder -> accAdder >> (addBindingsFrom p e1)) p e1 accAdder) currentGroup (groupTail :: tail)
         in aux identity [] ([]::(rebuildGroups grouppedExps))
 
       EColonType _ e _ tipe _    -> recurse e

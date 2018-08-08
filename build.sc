@@ -150,7 +150,7 @@ object SNS extends Module {
 }
 
 object SNSTests extends Module {
-  import SNS.{buildSummary,fixpoint,insertLinks,stderr}
+  import SNS.{buildSummary,fixpoint,insertLinks,stderr, examples, prelude}
   def millSourcePath = pwd
   implicit def src: Path = pwd / "tests"
 
@@ -158,6 +158,8 @@ object SNSTests extends Module {
 
   def test = T {
     testRoot()
+    examples()
+    prelude()
     SNS.sourceRoot()
     stderr(%%(ELM_MAKE, "UpdateTests.elm", "--output", "build/test.js")) match {
       case Left(msg) =>
