@@ -2706,10 +2706,11 @@ evaluate program =
 -- ListLenses --
 
 -- append is defined here because it is used when we want x ++ y to be reversible.
+-- Note that because this is not syntactically a lambda, the function is not recursive.
 append =
-  let {append=ap,split} = LensLess.List in
+  let {append,split} = LensLess.List in
   \\aas bs -> {
-    apply [aas, bs] = ap aas bs
+    apply [aas, bs] = append aas bs
     update {input = [aas, bs], outputNew, outputOld, diffs} =
       let asLength = len aas in
       Update.foldDiff {
