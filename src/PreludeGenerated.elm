@@ -3597,7 +3597,7 @@ String =
     in
     aux
   in
-  let join delimiter list =
+  let join__ delimiter list =
     let aux acc list = case list of
       [] -> acc
       [head] -> acc + head
@@ -3700,11 +3700,11 @@ String =
       }.apply x
     join delimiter x =
       if delimiter == \"\" then join_ x
-      else join delimiter x
+      else join__ delimiter x
     -- In the forward direction, it joins the string.
     -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
     joinAndSplitBack delimiter x = if delimiter == \"\" then join_ x else {
-        apply x = join delimiter x
+        apply x = join__ delimiter x
         update {output, oldOutput, diffs} =
           Ok (Inputs [Regex.split delimiter output])
       }.apply x

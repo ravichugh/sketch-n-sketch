@@ -7242,7 +7242,7 @@ main =
 """
 
 fromleo_modelviewcontroller =
- """# updatedelay:0
+ """--# updatedelay:0
 
 ui model =
   let
