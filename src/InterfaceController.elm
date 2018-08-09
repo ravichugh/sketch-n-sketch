@@ -1514,7 +1514,7 @@ msgKeyDown keyCode =
           |> Maybe.andThen (Utils.findFirst isResultSafe)
           |> Maybe.map (\synthesisResult -> { newModel | code = Syntax.unparser old.syntax  (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
           |> Maybe.withDefault old
-        else if old.outputMode /= ShowValue && keyCode == Keys.keyBackspace then
+        else if old.outputMode /= ShowValue && keyCode == Keys.keyBackspace && old.renamingInOutput == Nothing then
           deleteInOutput old
         else if old.outputMode /= ShowValue && keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doDuplicate old
