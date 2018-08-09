@@ -491,7 +491,7 @@ addPoint old (x, y) =
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (tApp space1 "Point" []))
+          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (tApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp))
       in
       { old | code = Syntax.unparser old.syntax programWithPoint }
 
@@ -564,7 +564,7 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
             programWithOffset =
               LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> Parser.freshen
             programWithOffsetAndPoint =
-              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (tApp space1 "Point" []))
+              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (tApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp))
           in
           { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
@@ -793,7 +793,7 @@ addStickyPath old keysAndPoints =
 eAsPoint e =
   let e_ = replacePrecedingWhitespace "" e in
   withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TApp space1 "Point" []) space1
+    EColonType space1 e_ space1 (withDummyRange <| TApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp) space1
 
 {-
 addLambda old (_,pt2) (_,pt1) =
@@ -811,8 +811,8 @@ addLambda selectedIdx old pt2 pt1 =
 addLambdaBounds old (_,pt2) (_,pt1) func =
   let (xa, xb, ya, yb) =
     if old.keysDown == [Keys.keyShift]
-      then squareBoundingBox pt2 pt1
-      else boundingBox pt2 pt1
+       then squareBoundingBox pt2 pt1
+       else boundingBox pt2 pt1
   in
 
   {- this version adds a call to main: -}
@@ -860,19 +860,21 @@ addFunction : Ident -> Model -> (KeysDown, (Int, Int)) -> (KeysDown, (Int, Int))
 addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
   let fillInArgPrimitive argType =
     case argType.val of
-      TNum _                         -> Just <| eConstDummyLoc 0
-      TBool _                        -> Just <| eFalse
-      TString _                      -> Just <| eStr "string"
-      TNull _                        -> Just <| eNull
-      TList _ _ _                    -> Just <| eTuple []
-      TDict _ _ _ _                  -> Just <| eOp DictEmpty []
-      TTuple _ headTypes _ Nothing _ -> List.map fillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
-      TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
-      TVar _ _                       -> Just <| eTuple []
-      TWildcard _                    -> Just <| eTuple []
-      TApp _ "Color" _               -> Just <| eConstDummyLoc 0
-      TApp _ "Point" _               -> Just <| eTuple (makeInts [0,0])
-      _                              -> Nothing
+       TNum _                         -> Just <| eConstDummyLoc 0
+       TBool _                        -> Just <| eFalse
+       TString _                      -> Just <| eStr "string"
+       TNull _                        -> Just <| eNull
+       TList _ _ _                    -> Just <| eTuple []
+       TDict _ _ _ _                  -> Just <| eOp DictEmpty []
+       TTuple _ headTypes _ Nothing _ -> List.map fillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
+       TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
+       TVar _ _                       -> Just <| eTuple []
+       TWildcard _                    -> Just <| eTuple []
+       TApp _ tFunArg _ _             -> case tFunArg.val of
+          TVar _ "Color" -> Just <| eConstDummyLoc 0
+          TVar _ "Point" -> Just <| eTuple (makeInts [0,0])
+          _ -> Nothing
+       _                              -> Nothing
   in
   case getDrawableFunctions old |> Utils.maybeFind fName |> Maybe.andThen Types.typeToMaybeArgTypesAndReturnType of
     Just (argTypes, returnType) ->
@@ -881,15 +883,20 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
         |> List.foldl
             (\argType (ptsRemaining, argMaybeExps) ->
               case (ptsRemaining, argType.val) of
-                ((x,y)::otherPts, TApp _ "Point" _) -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
+                ((x,y)::otherPts, TApp _ tFunArg _ _) -> case tFunArg.val of
+                  TVar _ "Point" -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
+                  _ -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
                 _                                   -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
             )
             ([(x1, y1), (x2, y2)], [])
       in
       case (Utils.projJusts argMaybeExps, returnType.val) of
-        (Just argExps, TApp _ "Point" _) -> addToEndOfProgram old fName (eCall fName argExps)
-        (Just argExps, TApp _ "Shape" _) -> addShapeToModel   old fName (eCall fName argExps)
-        _                                -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
+        (Just argExps, TApp _ funType _ _) -> case funType.val of
+           TVar _ "Point" -> addToEndOfProgram old fName (eCall fName argExps)
+           TVar _ "Shape" -> addShapeToModel   old fName (eCall fName argExps)
+           _ -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
+        _                                ->
+          let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
 
     Nothing -> let _ = Utils.log <| "Could not find function " ++ fName ++ " to draw!" in old
 
@@ -981,13 +988,13 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
 makeCallWithLocals locals func args =
   let recurse locals =
     case locals of
-      [] ->
-        -- if multi then
-        withDummyExpInfo (EApp (ws "\n    ") func args SpaceApp space0)
-        -- else
-        --   let app = withDummyExpInfo (EApp space1 func args SpaceApp space0) in
-        --   withDummyExpInfo (EList (ws "\n    ") [app] space0 Nothing space1)
-      (p,e)::locals_ -> withDummyExpInfo (ELet (ws "\n  ") Let False p space1 e space1 (recurse locals_) space0)
+       [] ->
+         -- if multi then
+         withDummyExpInfo (EApp (ws "\n    ") func args SpaceApp space0)
+         -- else
+         --   let app = withDummyExpInfo (EApp space1 func args SpaceApp space0) in
+         --   withDummyExpInfo (EList (ws "\n    ") [app] space0 Nothing space1)
+       (p,e)::locals_ -> withDummyExpInfo (eLet__ (ws "\n  ") Let False p space1 e space1 (recurse locals_) space0)
   in
   recurse locals
 
@@ -1042,6 +1049,9 @@ switchToCursorTool old =
 
 lambdaToolOptionsOf : Syntax -> SplitProgram -> Env -> List LambdaTool
 lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
+  let _ = Debug.log "Draw.lambdaToolOptionsOf uses a soon obsolete version of Blobs. Returning nothing" () in
+  []
+  {-
   case mainExp of
 
     Blobs blobs _ ->
@@ -1138,7 +1148,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
       lambdaCalls
 
     _ -> []
-
+  -}
 
 --------------------------------------------------------------------------------
 -- Function Tool (generalized lambda tool)
@@ -1169,12 +1179,15 @@ isDrawableType tipe =
   case tipe.val of
     TArrow _ argTypes _ ->
       case (Utils.maybeLast argTypes |> Maybe.map .val, Utils.dropLast 1 argTypes) of
-        (Just (TApp _ retAliasName _), otherArgs) ->
-          if retAliasName == "Shape" || retAliasName == "Point" then
-            let aliasArgIdents = List.filterMap Types.typeToMaybeAliasIdent otherArgs in
-            Utils.count ((==) "Point") aliasArgIdents == 2
-          else
-            False
+        (Just (TApp _ retAliasType _ _), otherArgs) ->
+          case retAliasType.val of
+            TVar _ retAliasName ->
+              if retAliasName == "Shape" || retAliasName == "Point" then
+                let aliasArgIdents = List.filterMap Types.typeToMaybeAliasIdent otherArgs in
+                Utils.count ((==) "Point") aliasArgIdents == 2
+              else
+                False
+            _ -> False
         _ ->
           False
     _ ->
@@ -1198,8 +1211,9 @@ getDrawableFunctions_ program viewerEId =
   |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"
   |> List.filterMap
       (\exp ->
+        let _ = Debug.log "TODO: Draw.getDrawableFunctions_ is expected ETyp but they are now moved as ELet's Declarationss' ELetAnnotation" () in
         case exp.val.e__ of
-          ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
+          {-ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
             if isDrawableType tipe then
               case LangTools.expToMaybeLetPatAndBoundExp body of
                 Just (letPat, boundExp) ->
@@ -1211,7 +1225,7 @@ getDrawableFunctions_ program viewerEId =
                     _ -> Nothing
                 _ -> Nothing
             else
-              Nothing
+              Nothing-}
           _ -> Nothing
       )
 

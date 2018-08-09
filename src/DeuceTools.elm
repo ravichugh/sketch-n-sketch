@@ -591,7 +591,7 @@ moveDefinitionTool model selections =
                   (pathedPatIdToScopeEId targetPathedPatId)
               ) |> Maybe.map (.val >> .e__)
             of
-              Just (ELet _ _ _ _ _ _ _ _ _) ->
+              Just (ELet _ _ _ _ _) ->
                 ( Utils.perhapsPluralizeList toolName pathedPatIds
                 , Just <| \() ->
                     CodeMotion.moveDefinitionsPat
@@ -1165,7 +1165,7 @@ createFunctionTool model selections =
             LangTools.findScopeExpAndPatByPathedPatternId pathedPatId model.inputExp
               |> Maybe.map (\(e,p) -> (e.val.e__, p.val.p__))
           of
-            Just (ELet _ _ _ _ _ _ _ _ _, PVar _ ident _) ->
+            Just (ELet _ _ _ _ _, PVar _ ident _) ->
               ( Just <| \() ->
                   CodeMotion.abstractPVar model.syntax pathedPatId [] model.inputExp
               , FullySatisfied
@@ -1752,6 +1752,24 @@ makeSingleLineTool model selections =
                 Just <|
                   \() ->
                     let
+                      deLineDecls ((Declarations po (tps, gt) anns (lex, ge)) as decls) =
+                        -- Make sure the first definition does not have a comma.
+                        case po of
+                          [] -> decls
+                          noCommaIndex::_ ->
+                            let annsOffset = List.length tps in
+                            let lexOffset = annsOffset + List.length anns in
+                            let commaIfNotFirst index = if index == noCommaIndex then Nothing else Just (ws "") in
+                            let tps2 = List.indexedMap (\i (LetType spComma spAlias spP pat fs wsEq e) ->
+                                 LetType (commaIfNotFirst i) (deLine spAlias) (Maybe.map deLine spP) (deLinePat pat) fs (deLine wsEq) e
+                               ) tps in
+                            let anns2 = List.indexedMap (\i (LetAnnotation spComma spP pat fs wsEq e) ->
+                                  LetAnnotation (commaIfNotFirst (i + annsOffset)) (deLine spP) (deLinePat pat) fs (deLine wsEq) e
+                               ) anns in
+                            let lex2 = List.indexedMap (\i (LetExp spComma spP pat fs wsEq e) ->
+                                  LetExp (commaIfNotFirst (i + lexOffset)) (deLine spP) (deLinePat pat) fs (deLine wsEq) e
+                               ) lex in
+                            Declarations po (tps2, gt) anns2 (lex2, ge)
                       deLine ws =
                         if String.contains "\n" ws.val then
                           space1
@@ -1787,18 +1805,19 @@ makeSingleLineTool model selections =
                               (deLine ws1)
                               (Utils.recordValuesMake ps (setPatListWhitespace "" " " (Utils.recordValues ps)))
                               (deLine ws2)
-                          PAs ws1 wsi ident ws2 p ->
+                          PAs ws1 p1 ws2 p2 ->
                             PAs
                               (deLine ws1)
-                              wsi
-                              ident
+                              p1
                               space1
-                              p
+                              p2
                           PParens ws1 p ws2 ->
                             PParens
                               (deLine ws1)
                               p
                               ws2
+                          PColonType ws1 p ws2 t ->
+                            PColonType (deLine ws1) p (deLine ws2) t
                       deLinePat p =
                         mapPatTopDown (mapNodeP__ deLineP__) p
                       deLineE__ e__ =
@@ -1832,49 +1851,24 @@ makeSingleLineTool model selections =
                               (deLine ws2)
                               rest
                               space0
-                          ERecord ws1 mb es ws2 ->
+                          ERecord ws1 mb decls ws2 ->
                             ERecord
                               (deLine ws1)
                               mb
-                              (Utils.recordValuesMake es (setExpListWhitespace "" " " (Utils.recordValues es)))
+                              (deLineDecls decls)
                               (deLine ws2)
                           ESelect ws0 e1 ws1 ws2 n ->
-                            ESelect ws0 e1 (deLine ws1) (deLine ws2) n
+                            ESelect (deLine ws0) e1 (deLine ws1) (deLine ws2) n
                           EOp ws1 wso op es ws2 ->
-                            EOp (deLine ws1) wso op es space0
+                            EOp (deLine ws1) (deLine wso) op es space0
                           EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
                             EIf (deLine ws1) e1 ws2 e2 ws3 e3 space0
-                          ELet ws1 kind rec p ws2 e1 ws3 e2 ws4 ->
-                            ELet (deLine ws1) kind rec p ws2 e1 ws3 e2 space0
+                          ELet ws1 kind decls ws2 e2 ->
+                            ELet (deLine ws1) kind (deLineDecls decls) (deLine ws2) e2
                           ECase ws1 e1 bs ws2 ->
                             ECase (deLine ws1) e1 bs space0
-                          ETypeCase ws1 e1 bs ws2 ->
-                            ETypeCase (deLine ws1) e1 bs space0
-                          ETyp ws1 pat tipe e ws2 ->
-                            ETyp (deLine ws1) pat tipe e space0
                           EColonType ws1 e ws2 tipe ws3 ->
                             EColonType (deLine ws1) e (deLine ws2) tipe space0
-                          ETypeAlias ws1 pat tipe e ws2 ->
-                            ETypeAlias (deLine ws1) pat tipe e space0
-                          ETypeDef ws1 (wsIdent, ident) vars ws2 dcs e ws3 ->
-                            ETypeDef
-                              (deLine ws1)
-                              (deLine wsIdent, ident)
-                              ( List.map
-                                  ( \(ws, name) ->
-                                      (deLine ws, name)
-                                  )
-                                  vars
-                              )
-                              (deLine ws2)
-                              ( List.map
-                                  ( \(wsa, name, ts, wsb) ->
-                                      (deLine wsa, name, ts, deLine wsb)
-                                  )
-                                  dcs
-                              )
-                              e
-                              space0
                           EParens ws1 e pStyle ws2 ->
                             EParens (deLine ws1) e pStyle (deLine ws2)
                           EHole ws mv ->
