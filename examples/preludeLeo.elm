@@ -754,11 +754,8 @@ Update =
         (Nothing, Just d2) -> Just (VRecordDiffs {_2=d2})
   in
   -- exports from Update module
-  { freeze x =
-      -- eta-expanded because "freeze x" is a syntactic form for U-Freeze
-      freeze x
-    expressionFreeze x =
-      expressionFreeze x
+  { freeze x = x
+    expressionFreeze x = x
     sizeFreeze = sizeFreeze
     foldDiff = foldDiff
     applyLens = applyLens
