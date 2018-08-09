@@ -1874,7 +1874,7 @@ eLetOrDef : LetKind -> List (Ident, Exp) -> Exp -> Exp
 eLetOrDef letKind namesAndAssigns bodyExp =
   let (pat, assign) = patBoundExpOf namesAndAssigns in
   withDummyExpInfo <|
-    ELet newline1 letKind (Declarations [0] ([], []) [] ([LetExp Nothing space1 pat FunArgAsPats space1 assign], [0])) space1 bodyExp
+    ELet newline1 letKind (Declarations [0] ([], []) [] ([LetExp Nothing space1 pat FunArgAsPats space1 assign], [1])) space1 bodyExp
 
 patBoundExpOf : List (Ident, Exp) -> (Pat, Exp)
 patBoundExpOf namesAndAssigns =
@@ -1890,7 +1890,7 @@ eDef = eLetOrDef Def
 
 -- Previous definition
 eLet__ wsStart letOrDef isRec name spEq binding spIn rest wsEnd =
-  ELet wsStart letOrDef (Declarations [0] ([], []) [] ([LetExp Nothing space0 name FunArgAsPats spEq binding], [0])) spIn rest
+  ELet wsStart letOrDef (Declarations [0] ([], []) [] ([LetExp Nothing space0 name FunArgAsPats spEq binding], [1])) spIn rest
 
 -- Previous definition
 eRecord__ wsBefore mbInit keyValues wsBeforeEnd =
@@ -1902,7 +1902,7 @@ eRecord__ wsBefore mbInit keyValues wsBeforeEnd =
     , rangeValues |> List.map (always 1))) wsBeforeEnd
 
 eTypeAlias__ ws1 pat t rest wsEnd =
-    ELet newline1 Def (Declarations [0] ([LetType Nothing ws1 (Just space1) pat FunArgAsPats space1 t], [0]) [] ([], [])) space1 rest
+    ELet newline1 Def (Declarations [0] ([LetType Nothing ws1 (Just space1) pat FunArgAsPats space1 t], [1]) [] ([], [])) space1 rest
 
 eTyp_ wsStart pat t rest wsEnd =
     ELet newline1 Def (Declarations [0] ([], []) [LetAnnotation Nothing wsStart pat FunArgAsPats space1 t] ([], [])) space1 rest

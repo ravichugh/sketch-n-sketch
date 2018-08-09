@@ -2764,8 +2764,8 @@ loadLambdaToolIcons finalEnv old =
   let foo tool acc =
     let icon = lambdaToolIcon tool in
     if Dict.member icon.filename.name old.icons
-      then acc
-      else loadIcon finalEnv icon old
+       then acc
+       else loadIcon finalEnv icon old
   in
   List.foldl foo old old.lambdaTools
 
