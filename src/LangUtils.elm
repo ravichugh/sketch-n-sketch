@@ -152,38 +152,43 @@ valToExpFull copyFrom sp_ indent v =
           in
           eLet__ sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 bigbody space0
     VRecord values ->
-      let (isTuple, keyValues) = case vRecordTupleUnapply v of
-        Just (kv, elements) -> (True, kv::elements)
-        Nothing -> (False, Dict.toList values)
-      in
-      let defaultspcHd = Nothing in
-      let defaultspkHd =  ws " " in
-      let defaultspeHd = ws " " in
-      let defaultspcTl = Just space1 in
-      let defaultspkTl = ws (foldIndent " " <| increaseIndent indent) in
-      let defaultspeTl = ws " " in
+      let copiedResult =
+       case copyFrom of
+        Just e ->
+           case e.val.e__ of
+             ERecord csp0 Nothing (Declarations po tps anns (lxs, ge) as decls) cspEnd ->
+               case lxs |> List.map (\(LetExp _ _ p _ _ _) ->
+                 pVarUnapply p) |> Utils.projJusts of
+                 Just keyList ->
+                    if Set.fromList keyList == Set.fromList (Dict.keys values) then
+                      lxs |> List.map (\(LetExp spc spe p fs se e1) ->
+                        pVarUnapply p |> Maybe.andThen (\key -> Dict.get key values) |> Maybe.map (\v ->
+                           LetExp spc spe p fs se <| valToExpFull (Just e1) space1 (increaseIndent indent) v
+                        )) |> Utils.projJusts |> Maybe.map (\newLxs ->
+                         ERecord csp0 Nothing (Declarations po tps anns (newLxs, ge)) cspEnd
+                        )
+                    else
+                      Nothing
+                 Nothing -> Nothing
+             _ -> Nothing
+        Nothing -> Nothing
+       in
+       case copiedResult of
+         Just x -> x
+         Nothing ->
+       let (isTuple, keyValues) = case vRecordTupleUnapply v of
+          Just (kv, elements) -> (True, kv::elements)
+          Nothing -> (False, Dict.toList values)
+       in
       let (precedingWS, keys, ((spaceComma, spaceKey, spaceEqual, v2expHead),
                                (spaceCommaTail, spaceKeyTail, spaceEqualTail, v2expTail)), spBeforeEnd) =
-           copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
-           ERecord csp0 _ decls cspend ->
-             let celems = recordEntriesFromDeclarations  decls in
-             let existingkeys =  recordKeys decls in
-             let finalKeys = existingkeys ++ (Dict.keys values |> List.filter (\k -> not (List.any (\e -> e == k) existingkeys))) |>
-                List.filterMap (\x -> if Dict.member x values then Just x else Nothing) in
-             let valToExps = case celems of
-                    Just ((spc1, spk1, _, spe1, hd1)::(spc2, spk2, _, spe2, hd2)::tail) ->
-                      ((spc1, spk1, spe1, valToExpFull <| Just hd1), (spc2, spk2, spe2, valToExpFull <| Just hd2))
-                    Just [(spc1, spk1, _, spe1, hd1)] ->
-                      ((spc1, spk1, spe1, valToExpFull <| Just hd1), (defaultspcTl, defaultspkTl, defaultspeTl, valToExpFull <| Just hd1))
-                    _ -> ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp))
-             in
-             Just (csp0, finalKeys, valToExps, cspend)
-           _ -> Nothing
-         ) |> Maybe.withDefault (sp, Dict.keys values, ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp)),
+           (sp, Dict.keys values,
+           ((Nothing, space1, space1, valToExp),
+            (Just space0, ws (foldIndent " " <| increaseIndent indent), space1, valToExp)),
            if isTuple then ws "" else if Dict.isEmpty values then space1 else ws <| foldIndent "" indent) in
       eRecord__ precedingWS Nothing (List.indexedMap (\i (key, v) ->
-          if i == 0 then (spaceComma, spaceKey, key, spaceEqual, v2expHead (if isTuple then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
-          else (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (if isTuple && i <= 1 then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
+          if i == 0 then (spaceComma,     spaceKey,     key, spaceEqual,     v2expHead (if isTuple then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
+          else           (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (if isTuple && i <= 1 then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
         ) keyValues) spBeforeEnd
     VDict vs ->
       EOp sp space0 (Info.withDummyInfo DictFromList) [withDummyExpInfo <|
