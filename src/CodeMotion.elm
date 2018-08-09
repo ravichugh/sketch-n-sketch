@@ -139,31 +139,31 @@ renamePat (scopeId, path) newName program =
           let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
           let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in
           let isSafe =
-            oldUseEIds == newUseEIds && not (List.member newName (LangUtils.identifiersListInPat pat))
+            oldUseEIds == newUseEIds && not (List.member newName (Lang.identifiersListInPat pat))
           in
           let newScopeExp =
             let scopeAreasReplaced =
-              newScopeAreas
-              |> List.foldl
-                  (\newScopeArea scopeExp -> replaceExpNode newScopeArea.val.eid newScopeArea scopeExp)
-                  scopeExp
+               newScopeAreas
+               |> List.foldl
+                   (\newScopeArea scopeExp -> replaceExpNode newScopeArea.val.eid newScopeArea scopeExp)
+                   scopeExp
             in
             LangTools.setPatName (scopeId, path) newName scopeAreasReplaced
           in
           let newProgram = replaceExpNode newScopeExp.val.eid newScopeExp program in
           let result =
             let
-              descriptionStart =
-                "Rename '" ++ oldName ++ "' to"
-              descriptionEnd =
-                if String.isEmpty newName then
-                  "..."
-                else
-                  " '" ++ newName ++ "'"
-              description =
-                descriptionStart ++ descriptionEnd
+               descriptionStart =
+                 "Rename '" ++ oldName ++ "' to"
+               descriptionEnd =
+                 if String.isEmpty newName then
+                   "..."
+                 else
+                   " '" ++ newName ++ "'"
+               description =
+                 descriptionStart ++ descriptionEnd
             in
-              synthesisResult description newProgram |> setResultSafe isSafe
+            synthesisResult description newProgram |> setResultSafe isSafe
           in
           [result]
 
@@ -233,8 +233,8 @@ pluck_ : Exp -> List Int -> Exp -> Maybe (PatBoundExpIsRec, Exp)
 pluck_ scopeExp path program =
   let (maybePluckedAndNewPatAndBoundExp, (ws1, letKind, wsP, pat, fs, ws2, e1, ws3, e2)) =
     case scopeExp.val.e__ of
-       ELet _ _ (Declarations _ ([], _) [] ([LetExp _ _ pat _ _ boundExp], _)) _ _ -> (pluck__ p boundExp path, expToLetParts scopeExp)
-       _                                                                           -> Debug.crash <| "pluck_: bad Exp__ (note: case branches, and func args not supported) " ++ unparseWithIds scopeExp
+       ELet _ _ (Declarations _ ([], _) [] ([LetExp _ _ p _ _ boundExp], _)) _ _ -> (pluck__ p boundExp path, expToLetParts scopeExp)
+       _                                                                         -> Debug.crash <| "pluck_: bad Exp__ (note: case branches, and func args not supported) " ++ unparseWithIds scopeExp
   in
   case maybePluckedAndNewPatAndBoundExp of
     Nothing ->
@@ -242,7 +242,7 @@ pluck_ scopeExp path program =
 
     Just ((pluckedPat, pluckedBoundExp), newPat, newBoundExp) ->
       Just <|
-        ( (pluckedPat, pluckedBoundExp, isRec)
+        ( (pluckedPat, pluckedBoundExp, isBodyPossiblyRecursive pluckedBoundExp)
         , replaceExpNodeE__ scopeExp (ELet ws1 letKind (Declarations [0] ([], []) [] ([LetExp Nothing wsP newPat fs ws2 newBoundExp], [1])) ws3 e2) program
         )
 
@@ -257,7 +257,7 @@ pluck__ p e1 path =
         , replaceE__ e1 <| EList (ws <| precedingWhitespace e1)   [] space0 Nothing space0
         )
 
-    (PAs _ _ _ _ childPat, _, i::is) ->
+    (PAs _ childPat1 _ childPat2, _, i::is) ->
       -- TODO: allow but mark unsafe if as-pattern is used
       let _ = Debug.log "can't pluck out of as-pattern yet (unsafe)" () in
       Nothing
@@ -330,7 +330,7 @@ deadPathsInPat pat =
       PConst _ _   -> Debug.log "why do you put constants in your function arguments?!" []
       PBase  _ _   -> Debug.log "why do you put base vals in your function arguments?!"[]
 
-      PAs _ _ _ _ _ ->
+      PAs _ _ _ _ ->
         -- plucking out of as-pattern is generally unsafe (not allowed yet)
         -- so we shouldn't be creating dead paths inside as-patterns
         []
@@ -352,6 +352,7 @@ deadPathsInPat pat =
 
       PRecord ws1 ps ws2 ->
         deadPathsInPats (Utils.recordValues ps)
+      PColonType _ _ _ _ -> []
 
 -- Returns Maybe (pluckedPat, patsWithoutPlucked)
 pluckPatFromPats : List Int -> List Pat -> Maybe (Pat, List Pat)
@@ -385,7 +386,7 @@ pluckPat path pat =
     (_, []) ->
       Just (pat, Nothing)
 
-    (PAs ws1 wsi ident ws2 p, 1::is) ->
+    (PAs ws1 p1 ws2 p2, 1::is) ->
       let _ = Debug.log "plucking out of as-pattern is generally unsafe (not allowed yet)" () in
       Nothing
 
@@ -703,10 +704,8 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
           Div   -> operands |> List.map expToMaybeMathExp |> Utils.projJusts |> Maybe.map (MathOp Div)
           _     -> Nothing
 
-      ELet _ _ _ _ _ _ _ body _ -> expToMaybeMathExp body
-      ETyp _ _ _ body _         -> expToMaybeMathExp body
+      ELet _ _ _ _ body         -> expToMaybeMathExp body
       EColonType _ e _ _ _      -> expToMaybeMathExp e
-      ETypeAlias _ _ _ body _   -> expToMaybeMathExp body
       _                         -> Nothing
   in
   let mathExpToExp mathExp =
@@ -1328,7 +1327,10 @@ duplicateDefinitionsPat syntax sourcePathedPatIds targetPathedPatId originalProg
 insertPat_ : (Pat, Exp) -> List Int -> Exp -> Exp
 insertPat_ (patToInsert, boundExp) targetPath exp =
   case exp.val.e__ of
-    ELet ws1 letKind rec p ws2 e1 ws3 e2 ws4 ->
+    ELet ws1 letKind decls ws3 e2 ->
+      let _ = Debug.log "TODO: CodeMotion.insertPat_ should take into account the new ELet's declarations" () in
+      exp
+    {-ELet ws1 letKind rec p ws2 e1 ws3 e2 ws4 ->
       case insertPat__ (patToInsert, boundExp) p e1 targetPath of
         Just (newPat, newBoundExp) ->
           replaceE__ exp (ELet ws1 letKind rec newPat ws2 newBoundExp ws3 e2 ws4)
@@ -1336,7 +1338,7 @@ insertPat_ (patToInsert, boundExp) targetPath exp =
         Nothing ->
           let _ = Debug.log "insertPat_: pattern, path " (p.val.p__, targetPath) in
           exp
-
+    -}
     _ ->
       let _ = Debug.log "insertPat_: not ELet" exp.val.e__ in
       exp
@@ -1350,11 +1352,11 @@ insertPat__ (patToInsert, boundExp) p e1 path =
         Just ( PList pws1                            (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") space0 Nothing space0
              , EList (ws <| precedingWhitespace e1)  (List.map ((,) space0) (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ")) space0 Nothing space0 )
 
-      (PAs pws1 _ _ _ _, _, [i]) ->
+      (PAs pws1 _ _ _, _, [i]) ->
         Just ( PList pws1                            (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") space0 Nothing space0
              , EList (ws <| precedingWhitespace e1)  (List.map ((,) space0) (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ")) space0 Nothing space0 )
 
-      (PAs pws1 _ _ _ _, _, i::is) ->
+      (PAs pws1 _ _ _, _, i::is) ->
         -- TODO: allow but mark unsafe if as-pattern is used
         let _ = Debug.log "can't insert into as-pattern yet (unsafe)" () in
         Nothing
@@ -1437,7 +1439,7 @@ addPatToPat patToInsert path pat =
     (_, []) ->
       Nothing
 
-    (PAs ws1 wsi ident ws2 p, 1::is) ->
+    (PAs ws1 p1 ws2 p2, 1::is) ->
       let _ = Debug.log "adding to as pattern not allowed yet because when adding argument, pattern path will not be the same as the path for adding arguments to call sites" () in
       Nothing
 
@@ -1529,7 +1531,8 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
               targetEId
               (\expToWrap ->
                 let insertedLetEId = Utils.justGet_ "moveEquationsBeforeEId" letEIdToDup letEIdToReinsertedLetEId in
-                let (ws1, _, isRec, pat, _, boundExp, _, _, _) = expToLetParts letExp in
+                let (ws1, _, _, pat, _, _, boundExp, _, _) = expToLetParts letExp in
+                let isRec = isBodyPossiblyRecursive boundExp in
                 newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program
                 -- let letOrDef = if isTopLevelEId targetEId program then Def else Let in
                 -- let newLetIndentation =
@@ -1881,6 +1884,10 @@ addArg_ syntax pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody origin
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
+        ELet ws1 letKind decls ws3 letBody ->
+          let _ = Debug.log "TODO: CodeMotion.addArg_ should take into account the new ELet's declarations. Returning nothing" () in
+          []
+        {-
         ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
           -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
           let funcVarUsageEIds =
@@ -1964,7 +1971,7 @@ addArg_ syntax pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody origin
 
             _ ->
               Debug.crash <| "CodeMotion.addArg_ should've had an EFun here"
-
+        -}
         _ ->
           Debug.crash <| "CodeMotion.addArg_ expected findLetAndIdentBindingExp to return ELet"
 
@@ -2110,6 +2117,10 @@ removeArg syntax pathedPatId originalProgram =
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
+        ELet ws1 letKind decls ws3 letBody ->
+          let _ = Debug.log "TODO: CodeMotion.removeArg should be reimplemented to support ELet's new declarations" () in
+          []
+        {-
         ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
           -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
           let funcVarUsageEIds =
@@ -2227,7 +2238,7 @@ removeArg syntax pathedPatId originalProgram =
 
             _ ->
               Debug.crash <| "CodeMotion.removeArg should've had an EFun here"
-
+        -}
         _ ->
           Debug.crash <| "CodeMotion.removeArg expected findLetAndIdentBindingExp to return ELet"
 
@@ -2302,7 +2313,10 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
       case letExp.val.e__ of
-        ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
+        ELet ws1 letKind decls spEq letBody ->
+          let _ = Debug.log "TODO: CodeMotion.reorderFunctionArgs needs ELet's new definition to be implemented" () in
+          []
+        {-ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
           -- If func is passed to itself as an arg, this probably breaks. (is fixable though, with flow craziness)
           let funcVarUsageEIds =
             if isRec
@@ -2385,7 +2399,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
             _ ->
               Debug.crash <| "CodeMotion.reorderFunctionArgs should've had an EFun here"
-
+        -}
         _ ->
           Debug.crash <| "CodeMotion.reorderFunctionArgs expected findLetAndIdentBindingExp to return ELet"
 
@@ -2508,10 +2522,10 @@ introduceVarTransformation_ m eidsToExtract addNewVarsAtThisId makeNewLet =
   in
   let existingNamesToAvoid =
     let targetBodyEId =
-      let exp = justFindExpByEId m.inputExp addNewVarsAtThisId in
-      case exp.val.e__ of
-        ELet _ _ _ _ _ _ _ e2 _ -> e2.val.eid
-        _                       -> exp.val.eid
+       let exp = justFindExpByEId m.inputExp addNewVarsAtThisId in
+       case exp.val.e__ of
+         ELet _ _ _ _ e2 -> e2.val.eid
+         _               -> exp.val.eid
     in
     -- If we could trust that the var target position was a higher scope, then the
     -- vars visible at the extraction site would be a superset of those at the

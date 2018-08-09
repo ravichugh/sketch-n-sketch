@@ -728,7 +728,7 @@ expPolygon msgs codeInfo e =
   in
     case e.val.e__ of
       -- Do not show def polygons (for now, at least)
-      ELet _ Def _ _ _ _ _ _ _ ->
+      ELet _ Def _ _ _ ->
         []
       _ ->
         codeObjectPolygon msgs codeInfo codeObject color
@@ -745,11 +745,11 @@ patPolygon msgs codeInfo e p =
     codeObjectPolygon msgs codeInfo codeObject color
 
 letBindingEquationPolygon
-  : Messages msg -> CodeInfo -> (WithInfo EId) -> List (Svg msg)
-letBindingEquationPolygon msgs codeInfo eid =
+  : Messages msg -> CodeInfo -> (WithInfo EId) -> Int -> List (Svg msg)
+letBindingEquationPolygon msgs codeInfo eid n =
   let
     codeObject =
-      LBE eid
+      LBE eid n
     color =
       objectColor codeInfo.displayInfo.colorScheme
   in
@@ -794,13 +794,16 @@ polygons msgs codeInfo ast =
                 patPolygon msgs codeInfo e p ++ acc
               T t ->
                 acc
-              LBE eid ->
-                letBindingEquationPolygon msgs codeInfo eid ++ acc
+              LBE eid bn ->
+                letBindingEquationPolygon msgs codeInfo eid bn ++ acc
               ET ba ws et ->
                 expTargetPolygon msgs codeInfo ba ws et ++ acc
               PT ba ws e pt ->
                 patTargetPolygon msgs codeInfo ba ws e pt ++ acc
               TT _ _ _ ->
+                acc
+              LXT _ _ _ _ ->
+                --TODO: Create a polygon for let exp targets.
                 acc
           --else
           --  blockerPolygon codeInfo codeObject ++ acc

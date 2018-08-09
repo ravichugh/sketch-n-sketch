@@ -3460,9 +3460,11 @@ groupBoundExps = List.map (\(LetExp _ _ _ _ _ e) -> e)
 -- A group is mutually recursive iff it has at least 2 members or all expressions are syntactic lambdas.
 -- In practice, only the second condition is valid, but it happens that the first one implies the second.
 isMutuallyRecursive: List LetExp -> Bool
-isMutuallyRecursive group = List.length group >= 2 || (List.all (\(LetExp _ _ _ _ _ e) -> case e.val.e__ of
-  EFun _ _ _ _ -> True
-  _ -> False) group)
+isMutuallyRecursive group = List.length group >= 2 || (
+  List.all (\(LetExp _ _ _ _ _ e) -> isBodyPossiblyRecursive e) group)
+
+isBodyPossiblyRecursive: Exp -> Bool
+isBodyPossiblyRecursive e = eFunUnapply e /= Nothing
 
 rebuildGroups: WithGroupingInfo (List a) -> List (List a)
 rebuildGroups grouppedElems =

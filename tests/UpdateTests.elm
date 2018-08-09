@@ -759,6 +759,9 @@ all_tests = init_state
   |> updateElmAssert2 builtinEnv "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"printer\"" "\"$translation1\""
                                  "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"$translation1\""
 
+  |> test "imperative-like assignments"
+  |> updateElmAssert [] "a = \"Hello \"\na = a + \"world\"\na" "\"Hella world\""
+                     [] "a = \"Hella \"\na = a + \"world\"\na"
   --|> onlyBefore
   |> updateElmPrelude (
       ExamplesGenerated.mapMaybeLens

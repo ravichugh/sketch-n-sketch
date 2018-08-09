@@ -1419,6 +1419,13 @@ stringSuggestions trueStrings wrongString =
 lastLine: String -> String
 lastLine s = snocUnapply (String.lines s) |> Maybe.map Tuple.second |> Maybe.withDefault ""
 
+transpose: List (List a) -> List (List a)
+transpose l =
+  if List.all List.isEmpty l then
+  []
+  else
+  (List.concatMap (List.take 1) l) :: transpose (List.map (List.drop 1) l)
+
 --------------------------------------------------------------------------------
 
 indexedMapFrom : Int -> (Int -> a -> b) -> List a -> List b
