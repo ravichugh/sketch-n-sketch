@@ -13,7 +13,7 @@ import InterfaceModel exposing
   ( Model, SynthesisResult(..)
   , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
   )
-import LocEqn                         -- For twiddling
+import LocEqn                         -- For twiddling and client-side simplification
 import MathExp exposing (MathExp(..)) -- For twiddling
 import Provenance
 import Sync
@@ -2956,17 +2956,32 @@ resolveValueHolesByLocLifting syncOptions programWithHolesUnfresh =
     valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeHoleVal >> Maybe.map valIsNum >> (==) (Just True))
     holeVals = programWithHoles |> flattenExpTree |> List.filterMap (expToMaybeHoleVal >> Utils.filterMaybe valIsNum)
     holeEIds = valHoles |> List.map (.val >> .eid)
-    holeTraces = holeVals |> List.map valToTrace
-    locIdsNeeded = holeTraces |> List.map (Sync.locsOfTrace syncOptions >> Set.map locToLocId) |> Utils.unionAll
+
+    -- Sometimes there's 0! * x, which means we needlessly lift x. Simplify first.
+    locIdToFrozenNum =
+      programWithHoles
+      |> flattenExpTree
+      |> List.filterMap expToMaybeNumAndLoc
+      |> List.filter (\(n, loc) -> Sync.locIsFrozen syncOptions loc)
+      |> List.map    (\(n, (locId,_,_)) -> (locId, n))
+      |> Dict.fromList
+      |> Dict.union Parser.preludeSubst
+
+    holeMathExps = holeVals |> List.map (valToTrace >> MathExp.traceToMathExp >>  MathExp.applySubst locIdToFrozenNum >> LocEqn.normalizeSimplify)
+
+    locIdsNeeded = holeMathExps |> List.concatMap (MathExp.mathExpVarIds) |> Set.fromList
     (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programWithHoles locIdsNeeded (Set.fromList holeEIds)
     locIdToExp = locIdToExpFromFrozenSubstAndNewNames (Parser.substOf programWithHoles) locIdToNewName
   in
-  Utils.zip3 holeEIds holeVals holeTraces
+  Utils.zip holeEIds holeMathExps
   |> List.foldl
-      (\(holeEId, holeVal, holeTrace) programSoFar ->
-        case traceToExp locIdToExp holeTrace of
-          Just filledHole -> programSoFar |> replaceExpNodePreservingPrecedingWhitespace holeEId filledHole
-          Nothing         -> programSoFar
+      (\(holeEId, holeMathExp) programSoFar ->
+        let filledHole =
+          holeMathExp
+          |> MathExp.mathExpToExp eConstFrozen (\locId -> Utils.getWithDefault locId (eVar ("couldNotFindLocId" ++ toString locId)) locIdToExp)
+        in
+        programSoFar
+        |> replaceExpNodePreservingPrecedingWhitespace holeEId filledHole
       )
       programWithLocsLifted
   |> List.singleton

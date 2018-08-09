@@ -1284,6 +1284,13 @@ expToMaybeNum exp =
     _              -> Nothing
 
 
+expToMaybeNumAndLoc : Exp -> Maybe (Num, Loc)
+expToMaybeNumAndLoc exp =
+  case exp.val.e__ of
+    EConst _ n loc _ -> Just (n, loc)
+    _                -> Nothing
+
+
 expToMaybeVar : Exp -> Maybe Exp
 expToMaybeVar exp =
   case exp.val.e__ of

@@ -1755,8 +1755,9 @@ clearNodeIds e =
 dummyLoc_ b = (0, b, "")
 dummyTrace_ b = TrLoc (dummyLoc_ b)
 
-dummyLoc     = dummyLoc_ unann
-dummyTrace   = dummyTrace_ unann
+dummyLoc        = dummyLoc_ unann
+dummyLocFrozen  = dummyLoc_ frozen
+dummyTrace      = dummyTrace_ unann
 dummyProvenance = Provenance [] (eTuple0 []) []
 
 -- TODO interacts badly with auto-abstracted variable names...
@@ -1840,6 +1841,8 @@ eConst0 a b       = withDummyExpInfo <| EConst space0 a b noWidgetDecl
 eConst a b        = withDummyExpInfo <| EConst space1 a b noWidgetDecl
 eConstDummyLoc0 a = withDummyExpInfo <| EConst space0 a dummyLoc noWidgetDecl
 eConstDummyLoc a  = withDummyExpInfo <| EConst space1 a dummyLoc noWidgetDecl
+eConstFrozen0 a   = withDummyExpInfo <| EConst space0 a dummyLocFrozen noWidgetDecl
+eConstFrozen a    = withDummyExpInfo <| EConst space1 a dummyLocFrozen noWidgetDecl
 eInt0 n           = eConstDummyLoc0 (toFloat n)
 eInt n            = eConstDummyLoc (toFloat n)
 eList0 a b        = withDummyExpInfo <| EList space0 (List.map ((,) space0) a) space0 b space0

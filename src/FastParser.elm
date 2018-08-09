@@ -1,6 +1,6 @@
 module FastParser exposing
   ( prelude, isPreludeLoc, isPreludeLocId, isPreludeEId, isActualEId, isProgramEId
-  , substOf, substStrOf, substPlusOf
+  , substOf, substStrOf, substPlusOf, preludeSubst
   , parseE, parseT
   , sanitizeVariableName
   , clearAllIds
@@ -1644,11 +1644,12 @@ duplicateAndAllIds exp =
       )
       (Set.empty, Set.empty)
 
-preludeSubst = substPlusOf_ Dict.empty prelude
+preludeSubstPlus = substPlusOf_ Dict.empty prelude
+preludeSubst     = Dict.map (always .val) preludeSubstPlus
 
 substPlusOf : Exp -> SubstPlus
 substPlusOf e =
-  substPlusOf_ preludeSubst e
+  substPlusOf_ preludeSubstPlus e
 
 substOf : Exp -> Subst
 substOf = Dict.map (always .val) << substPlusOf

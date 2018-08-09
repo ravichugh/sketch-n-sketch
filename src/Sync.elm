@@ -1,7 +1,7 @@
 module Sync exposing
   ( Options, defaultOptions, syncOptionsOf
   , HeuristicMode(..)
-  , locsOfTrace
+  , locsOfTrace, locIsFrozen
   , LiveInfo, Triggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
   , yellowAndGrayHighlights, hoverInfo
@@ -81,32 +81,29 @@ syncOptionsOf oldOptions e =
 ------------------------------------------------------------------------------
 -- Locations of Trace
 
+locIsFrozen : Options -> Loc -> Bool
+locIsFrozen opts ((_,annot,_) as loc) =
+  isPreludeLoc loc
+  || (annot == frozen && not opts.unfreezeAll)
+  || (annot == unann  && not opts.thawedByDefault)
+
 locsOfTrace : Options -> Trace -> Set Loc
-locsOfTrace opts =
-  let frozenByDefault = not opts.thawedByDefault in
-  let notUnfreezeAll = not opts.unfreezeAll in
-  let foo t = case t of
-    TrLoc l ->
-      let (_,b,_) = l in
-      if      isPreludeLoc l         then Set.empty
-      -- else if b == frozen                   then Set.empty
-      else if b == frozen && notUnfreezeAll then Set.empty
-      else if b == unann && frozenByDefault then Set.empty
-      else                                       Set.singleton l
-    TrOp _ ts -> List.foldl Set.union Set.empty (List.map foo ts)
+locsOfTrace opts trace =
+  let locsOfTrace_ t = case t of
+    TrLoc loc -> if locIsFrozen opts loc then [] else [loc]
+    TrOp _ ts -> List.concatMap locsOfTrace_ ts
   in
   -- TODO do this filtering later if want gray highlights
   --   even when not feeling lucky
-  \tr ->
-    let s = foo tr in
-    if opts.heuristicsMode == HeuristicsNone then
-      if List.length (Set.toList s) <= 1 then s else Set.empty
-    else
-      s
+  let locSet = Set.fromList (locsOfTrace_ trace) in
+  if opts.heuristicsMode == HeuristicsNone && Set.size locSet >= 2
+  then Set.empty
+  else locSet
 
 locsOfTraces : Options -> List Trace -> Set Loc
 locsOfTraces options traces =
-  List.foldl (\t acc -> Set.union acc (locsOfTrace options t)) Set.empty traces
+  List.map (locsOfTrace options) traces
+  |> Utils.unionAll
 
 
 ------------------------------------------------------------------------------
@@ -207,7 +204,7 @@ pickLocs subst options maybeCounts traces =
     |> List.map
         (\trace ->
           -- Validate that loc can affect trace (i.e. not multiplied by 0 or something).
-          let mathExp = Solver.traceToMathExp trace in
+          let mathExp = MathExp.traceToMathExp trace in
           locsOfTrace options trace
           |> Set.filter
               (\(locId, _, _) ->

@@ -3,7 +3,7 @@
 module MathExp exposing (..)
 
 
-import Lang exposing (Num, Op_(..))
+import Lang exposing (Exp, Num, Op_(..), Trace(..))
 import Utils
 
 import Dict exposing (Dict)
@@ -19,6 +19,21 @@ type MathExp
 
 neg : MathExp -> MathExp
 neg x = MathOp Minus [MathNum 0, x]
+
+
+traceToMathExp : Trace -> MathExp
+traceToMathExp trace =
+  case trace of
+    TrLoc (locId, _, _) -> MathVar locId
+    TrOp op_ children   -> MathOp op_ (List.map traceToMathExp children)
+
+
+mathExpVarIds : MathExp -> List Int
+mathExpVarIds mathExp =
+  case mathExp of
+    MathNum _           -> []
+    MathVar varId       -> [varId]
+    MathOp _ childTerms -> List.concatMap mathExpVarIds childTerms
 
 
 -- Assumes no variables remain, otherwise returns Nothing with a debug message.
@@ -124,3 +139,11 @@ derivative withRespectToVarId mathExp =
         (Ln,      [g])   -> MathOp Div [ddx g, g] -- (ln(g))' = g'/g
         (Pi,      [])    -> MathNum 0
         _                -> let _ = Debug.log "Don't know how to differentiate" mathExp in failure
+
+
+mathExpToExp : (Num -> Exp) -> (Int -> Exp) -> MathExp -> Exp
+mathExpToExp numberToExp varIdToExp mathExp =
+  case mathExp of
+    MathNum n            -> numberToExp n
+    MathVar varId        -> varIdToExp varId
+    MathOp op childTerms -> Lang.eOp op (List.map (mathExpToExp numberToExp varIdToExp) childTerms) -- Unparser adds parens for us

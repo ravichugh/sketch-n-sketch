@@ -34,14 +34,6 @@ debugLog = Config.debugLog Config.debugSync
 
 
 
--- Holdover until we can discard this file.
-type alias LocEquation = MathExp
--- type LocEquation
---   = LocMathNum Num
---   | LocEqnLoc LocId
---   | LocMathOp Op_ (List MathExp)
-
-
 -- Repeated perform simple simplifications:
 -- Remove multiply/divide by 1
 -- Turn divide by -1 into multiply by -1
@@ -858,13 +850,12 @@ normPolyPowToMathExp (NormPolyPow normPolyBase normPolyExponent) =
 
 normalizeSimplify : MathExp -> MathExp
 normalizeSimplify mathExp =
-  -- let _ = Debug.log ("Simplifying " ++ mathExpToLittle Dict.empty mathExp) () in
+  -- let _ = Debug.log ("Simplifying " ++ mathExpToString mathExp) () in
   let polyEqn = mathExpToPoly mathExp in
   -- let _ = Debug.log ("Poly version " ++ polyToString polyEqn) () in
   let normPolyResult = polyNorm polyEqn in
   -- let _ = Debug.log ("Got " ++ normPolyToString normPolyResult) () in
   let mathExpResult = normPolyToMathExp normPolyResult |> correctFloatErrors in
-  -- let _ = Debug.log ("As little " ++ mathExpToLittle Dict.empty littleResult) () in
   mathExpResult
 
 
@@ -1304,36 +1295,16 @@ mathExpToString mathExp =
       "(" ++ strOp op ++ " " ++ String.join " " (List.map mathExpToString children) ++ ")"
 
 
-mathExpToLittle : Dict.Dict LocId Ident -> MathExp -> String
-mathExpToLittle locIdToLittle mathExp =
-  case mathExp of
-    MathNum n ->
-      toString n ++ "!"
-
-    MathVar locId ->
-      case Dict.get locId locIdToLittle of
-        Just littleStr -> littleStr
-        Nothing        -> let _ = (debugLog "missing locId" locId) in "?"
-
-    MathOp op childMathExps ->
-      let childLittleStrs = List.map (mathExpToLittle locIdToLittle) childMathExps in
-      "(" ++ strOp op ++ " " ++ String.join " " childLittleStrs ++ ")"
-
-
 mathExpToExp : Frozen -> Dict.Dict LocId Num -> Dict.Dict LocId Ident -> MathExp -> Exp
 mathExpToExp constantAnnotation locIdToFrozenNum locIdToIdent mathExp =
-  case mathExp of
-    MathNum n ->
-      eConst n (dummyLoc_ constantAnnotation)
-
-    MathVar locId ->
-      case Dict.get locId locIdToIdent of
-        Just ident -> eVar ident
-        Nothing    ->
-          case Dict.get locId locIdToFrozenNum of
-            Just n  -> eConst n (dummyLoc_ frozen)
-            Nothing -> eVar ("couldNotFindLocId" ++ toString locId)
-
-    MathOp op childMathExps ->
-      let childExps = List.map (mathExpToExp constantAnnotation locIdToFrozenNum locIdToIdent) childMathExps in
-      eOp op childExps
+  mathExp
+  |> MathExp.mathExpToExp
+      (\n -> eConst n (dummyLoc_ constantAnnotation))
+      (\locId ->
+        case Dict.get locId locIdToIdent of
+          Just ident -> eVar ident
+          Nothing    ->
+            case Dict.get locId locIdToFrozenNum of
+              Just n  -> eConstFrozen n
+              Nothing -> eVar ("couldNotFindLocId" ++ toString locId)
+      )

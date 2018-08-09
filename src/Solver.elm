@@ -20,13 +20,6 @@ type alias SolutionsCache = Dict Problem (List Solution)
 type NeedSolutionException = NeedSolution Problem
 
 
-traceToMathExp : Trace -> MathExp
-traceToMathExp trace =
-  case trace of
-    TrLoc (locId, _, _) -> MathVar locId
-    TrOp op_ children   -> MathOp op_ (List.map traceToMathExp children)
-
-
 -- Some locId should be missing from the Subst: the missing locId will be solved for.
 --
 -- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
@@ -112,14 +105,6 @@ normalizedVarIdMapping mathExps =
         (1, Dict.empty, Dict.empty)
   in
   (oldToNew, newToOld)
-
-
-mathExpVarIds : MathExp -> List Int
-mathExpVarIds mathExp =
-  case mathExp of
-    MathNum _           -> []
-    MathVar varId       -> [varId]
-    MathOp _ childTerms -> List.concatMap mathExpVarIds childTerms
 
 
 remapVarIds : Dict Int Int -> MathExp -> Maybe MathExp
