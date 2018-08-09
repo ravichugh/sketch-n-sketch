@@ -1266,6 +1266,13 @@ locIdToEId program locId =
 locToLocId : Loc -> LocId
 locToLocId (locId, _, _) = locId
 
+-- Includes exps matching predicate.
+allExpsContaining : (Exp -> Bool) -> Exp -> List Exp
+allExpsContaining predicate exp =
+  findAllWithAncestors predicate exp
+  |> List.concat
+  |> Utils.dedup
+
 -- For each node for which `predicate` returns True, return it and its ancestors
 -- For each matching node, ancestors appear in order: root first, match last.
 findAllWithAncestors : (Exp -> Bool) -> Exp -> List (List Exp)

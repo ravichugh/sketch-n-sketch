@@ -847,7 +847,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
                 |> Utils.dedupBy expToIdent
               ]
 
-            postProcessBeforeProblemResolution programWithCallAndFunc funcLet callExp uniqueNameToOldName =
+            postProcessBeforeProblemResolution programWithCallAndFunc callExp argExps uniqueNameToOldName =
               [
                 ( programWithCallAndFunc
                 , "Build abstraction of " ++ Utils.squish (Syntax.unparser Syntax.Elm (renameIdentifiers uniqueNameToOldName callExp))
@@ -1134,8 +1134,8 @@ buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputE
               -- Return a list in case you want to produce more than one possible result.
               postProcessBeforeProblemResolution
                   programWithCallAndFunc
-                  funcLet
                   call
+                  argExps -- In case you want to determine the chosen argument order (and possibly reorder the pats/callsite)
                   uniqueNameToOldName3
           in
           if List.length argPats > 0 && nodeCount funcBody >= max 5 (2 * List.length argPats) then
@@ -1208,16 +1208,35 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
 
         intermediatePointEIdSet = intermediatePoints |> List.map (valExp >> .val >> .eid) |> List.filter FastParser.isProgramEId |> Set.fromList
 
+        intermediateXYExpPossibilities : List (Exp, Exp)
+        intermediateXYExpPossibilities =
+          intermediatePoints
+          |> List.filterMap valToMaybeXYVals
+          |> List.concatMap (\(xVal, yVal) -> Utils.cartProd (Provenance.valToSameVals xVal) (Provenance.valToSameVals yVal))
+          |> List.map (Utils.mapBoth valExp)
+          |> List.filter (\(xExp, yExp) -> xExp.val.eid /= yExp.val.eid && FastParser.isProgramEId xExp.val.eid && FastParser.isProgramEId yExp.val.eid)
+          |> Utils.dedupBy (Utils.mapBoth (.val >> .eid))
+
+        intermediateXYEIdPossibilities : List (EId, EId)
+        intermediateXYEIdPossibilities =
+          intermediateXYExpPossibilities
+          |> List.map (Utils.mapBoth (.val >> .eid))
+
+
         -- Step 2: Trace provenance of whole selected value to unique single exp interpretations that also include a point above
 
         possibleEIdsToAbstract =
-          let nonTrivialEIdsContainingSomeRelevantPointExp =
-            program
-              |> findAllWithAncestors (\e -> Set.member e.val.eid intermediatePointEIdSet)
-              |> List.concat
-              |> List.filter (\e -> nodeCount e >= 3)
-              |> List.map (.val >> .eid)
-              |> Set.fromList
+          let
+            intermediateXEIds = intermediateXYEIdPossibilities |> List.map Tuple.first  |> Set.fromList
+            intermediateYEIds = intermediateXYEIdPossibilities |> List.map Tuple.second |> Set.fromList
+
+            eidsContainingSomeRelevantPointExp = program |> allExpsContaining (\e -> Set.member e.val.eid intermediatePointEIdSet) |> List.filter (\e -> nodeCount e >= 3) |> List.map (.val >> .eid)
+            eidsContainingSomeRelevantXExp     = program |> allExpsContaining (\e -> Set.member e.val.eid intermediateXEIds)       |> List.filter (\e -> nodeCount e >= 3) |> List.map (.val >> .eid)
+            eidsContainingSomeRelevantYExp     = program |> allExpsContaining (\e -> Set.member e.val.eid intermediateYEIds)       |> List.filter (\e -> nodeCount e >= 3) |> List.map (.val >> .eid)
+
+            nonTrivialEIdsContainingSomeRelevantExps =
+                eidsContainingSomeRelevantPointExp ++ (Utils.intersectAsSet eidsContainingSomeRelevantXExp eidsContainingSomeRelevantYExp)
+                |> Set.fromList
           in
           ShapeWidgets.selectionsSingleEIdInterpretations
               program
@@ -1226,7 +1245,7 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
               selectedFeatures
               selectedShapes
               selectedBlobs
-              (\e -> Set.member e.val.eid nonTrivialEIdsContainingSomeRelevantPointExp)
+              (\e -> Set.member e.val.eid nonTrivialEIdsContainingSomeRelevantExps)
 
 
         -- Step 3: Use Build Abstraction infrastructure to turn the shape into a function over the point
@@ -1240,30 +1259,44 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                 let
                   slurpedBindingsFilter pat boundExp = True -- Slurp in all bindings not used outside new function.
 
+                  -- Try both point expressions and x and y separately
                   computeExpsGroupsToArgumentize funcBodyAfterSlurpingBeforeArgumentization =
+                    let expsInFunc = flattenExpTree funcBodyAfterSlurpingBeforeArgumentization in
                     -- let _ = Utils.log (Syntax.unparser Syntax.Elm funcBodyAfterSlurpingBeforeArgumentization) in
-                    let expsGroupsToArgumentize =
+                    let singlePointArgumentPossibilities =
                       -- For each point exp in the candidate function body, make a candidate result abstracted over that point exp.
-                      funcBodyAfterSlurpingBeforeArgumentization
-                      |> flattenExpTree
+                      expsInFunc
                       |> List.filter (\e -> Set.member e.val.eid intermediatePointEIdSet)
                       |> List.map List.singleton
                     in
+                    let xyArgumentPossibilities =
+                      let eidsInFunc = expsInFunc |> List.map (.val >> .eid) >> Set.fromList in
+                      intermediateXYExpPossibilities
+                      |> List.filter (\(xExp, yExp) -> Set.member xExp.val.eid eidsInFunc && Set.member yExp.val.eid eidsInFunc)
+                      |> List.map Utils.pairToList
+                    in
                     -- let _ = Debug.log "expsGroupsToArgumentize" (List.map (List.map (Syntax.unparser Syntax.Elm)) expsGroupsToArgumentize) in
-                    expsGroupsToArgumentize
+                    singlePointArgumentPossibilities ++ xyArgumentPossibilities
 
-                  postProcessBeforeProblemResolution programWithCallAndFunc funcLet callExp uniqueNameToOldName =
+                  postProcessBeforeProblemResolution programWithCallAndFunc callExp argExps uniqueNameToOldName =
                     let
-
                       -- Step 4: Insert a map call into the program
                       --         map/concatMap newFunc (pointsFunc ...)
+
+                      programWithCallAndFuncFresh = freshen programWithCallAndFunc
+
+                      shouldReverseXY =
+                        case argExps of
+                          [argExp1, argExp2] -> List.member (argExp2.val.eid, argExp1.val.eid) intermediateXYEIdPossibilities
+                          _                  -> False
 
                       maybeRepeatFuncCall =
                         let
                           ptArgExp =
-                            expToAppArgs callExp
-                            |> Utils.maybeUnwrap1
-                            |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction: ptArgExp = expToAppArgs callExp |> Utils.maybeUnwrap1"
+                            case argExps of
+                              [argExp]           -> argExp
+                              [argExp1, argExp2] -> eTuple <| setExpListWhitespace "" " " (if not shouldReverseXY then [argExp1, argExp2] else [argExp2, argExp1])
+                              _                  -> Debug.crash <| "ValueBasedTransform.repeatUsingFunction: ptArgExp should only have one or two argExps but got " ++ toString argExps
 
                           (_, repeatFuncExp, repeatFuncType) =
                             FindRepeatTools.getRepetitionFunctions program typeGraph editingContext -- Returns list of (fName, fExp, typeSig), fExp is an EFun
@@ -1302,7 +1335,7 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                       uniqueNamesToAvoid =
                         Utils.unionAll
                             [ identifiersSetPlusPrelude program
-                            , identifiersSet programWithCallAndFunc
+                            , identifiersSet programWithCallAndFuncFresh
                             , [repeatGroupSuggestedName, repeatGroupName] ++ Dict.keys uniqueNameToOldName ++ Dict.values uniqueNameToOldName |> Set.fromList
                             ]
                       repeatGroupUniqueName = nonCollidingName repeatGroupSuggestedName 2 uniqueNamesToAvoid
@@ -1310,7 +1343,6 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                       -- Only succeed if delete succeeds.
                       maybeProgramWithFuncButNoCallFresh =
                         let
-                          programWithCallAndFuncFresh = freshen programWithCallAndFunc
                           callEId =
                             programWithCallAndFuncFresh
                             |> findFirstNode (expToMaybeAppFunc >> Maybe.andThen expToMaybeIdent >> (==) (Just itemFuncUniqueName))
@@ -1322,18 +1354,37 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                     case (maybeRepeatFuncCall, maybeProgramWithFuncButNoCallFresh) of
                       (Just repeatFuncCall, Just programWithFuncButNoCallFresh) ->
                         let
+                          funcExpFreshWithOriginalPats =
+                            programWithFuncButNoCallFresh
+                            |> allSimplyResolvableLetBindings
+                            |> Utils.maybeFind itemFuncUniqueName
+                            |> Utils.fromJust_ ("ValueBasedTransform.repeatUsingFunction funcExpFreshWithOriginalPats Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName)
+
+
+                          -- If abstracting x and y separately, need to rewrite the function pats from `newFunc x y` or `newFunc y x` to `newFunc [x, y]`
+                          programWithFuncButNoCallFreshArgsRewritten =
+                            let funcExpFreshWithNewPats =
+                              case funcExpFreshWithOriginalPats.val.e__ of
+                                EFun fws1 [pat1, pat2] fBody fws2 ->
+                                  if not shouldReverseXY
+                                  then replaceE__ funcExpFreshWithOriginalPats <| EFun fws1 [pList <| setPatListWhitespace "" " " [pat1, pat2]] fBody fws2
+                                  else replaceE__ funcExpFreshWithOriginalPats <| EFun fws1 [pList <| setPatListWhitespace "" " " [pat2, pat1]] fBody fws2
+                                _ ->
+                                  funcExpFreshWithOriginalPats
+                            in
+                            programWithFuncButNoCallFresh
+                            |> replaceExpNode funcExpFreshWithOriginalPats.val.eid funcExpFreshWithNewPats
+
+
                           programWithCallAndFuncUnparsed =
-                            LangUnparser.unparseWithUniformWhitespace True True programWithFuncButNoCallFresh
+                            LangUnparser.unparseWithUniformWhitespace True True programWithFuncButNoCallFreshArgsRewritten
 
                           -- Find EIds in the abstraction so we can exclude these from possible insertion points for DrawAddShape.addShape
                           -- to speed up synthesis considerably.
                           -- (If DrawAddShape.addShape tries to insert the map call inside the new abstraction it creates a non-terminating recursive
                           -- function...eval will "stack overflow" and the candidate program will correctly be rejected but it's slow, 1.0-1.5s)
                           eidsInNewAbstraction =
-                            programWithFuncButNoCallFresh
-                            |> allSimplyResolvableLetBindings
-                            |> Utils.maybeFind itemFuncUniqueName
-                            |> Utils.fromJust_ ("ValueBasedTransform.repeatUsingFunction eidsInNewAbstraction Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName)
+                            funcExpFreshWithOriginalPats -- Okay that this version doesn't have the pats rewritten
                             |> expToFuncBody
                             |> allEIds
                             -- |> List.filter (\eid -> eid > 0 || let _ = Utils.log "ValueBasedTransform.repeatUsingFunction eid <= 0 in new abstraction!!!" in False)
@@ -1344,10 +1395,10 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                         ] |> List.filterMap
                             (\repeatGroupCall ->
                               -- Step 5: Replace the shape in the shape list with the shapes produced by the map call.
-                              -- let _ = Utils.log <| "Attempting to add\n" ++ Syntax.unparser Syntax.Elm repeatGroupCall ++ "\nto\n" ++ Syntax.unparser Syntax.Elm programWithFuncButNoCallFresh in
+                              -- let _ = Utils.log <| "Attempting to add\n" ++ Syntax.unparser Syntax.Elm repeatGroupCall ++ "\nto\n" ++ Syntax.unparser Syntax.Elm programWithFuncButNoCallFreshArgsRewritten in
                               let
                                 programWithRepeatCall =
-                                  DrawAddShape.addShape model (\list -> not <| Set.member list.val.eid eidsInNewAbstraction) (Just repeatGroupName) repeatGroupCall Nothing Nothing Nothing Nothing True programWithFuncButNoCallFresh
+                                  DrawAddShape.addShape model (\list -> not <| Set.member list.val.eid eidsInNewAbstraction) (Just repeatGroupName) repeatGroupCall Nothing Nothing Nothing Nothing True programWithFuncButNoCallFreshArgsRewritten
                               in
                               if LangUnparser.unparseWithUniformWhitespace True True programWithRepeatCall == programWithCallAndFuncUnparsed then
                                 -- let _ = Utils.log "Failed." in
