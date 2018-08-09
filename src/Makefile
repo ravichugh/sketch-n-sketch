@@ -16,7 +16,7 @@ html: elm-stuff/packages
 	cp ../img/* ../build/out/img/
 	# sed -i '' 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].api = _user$$project$$EvalUpdate$$api;/g' ../build/out/sns.js
 
-all: prelude examples html
+all: elm-stuff/packages prelude examples html
 
 elm-stuff/packages:
 	# Use our custom version of core that allows anything in sets.
@@ -39,6 +39,7 @@ remove_build_artifacts:
 # ../build/out from somwhere else during an html build, then clean could just delete everything under
 # ../build/out
 clean: remove_build_artifacts
+	rm -rf elm-stuff/*
 	cd ../build/out && rm -rf sns.js $(out_from_Native) $(out_from_ace-builds) viz.js img/*
 
 prelude:
