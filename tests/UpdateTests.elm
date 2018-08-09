@@ -308,6 +308,9 @@ all_tests = init_state
                   [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))] [(1, VConstDiffs), (2, VConstDiffs)]
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))] [(0, VConstDiffs), (2, VConstDiffs)]
                  ) ([("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 3))], [(0, VConstDiffs), (1, VConstDiffs), (2, VConstDiffs)]))
+  |> test "Minus sign as binary or unary operator"
+  |> evalElmAssert [] "1-1" "0"
+  |> evalElmAssert [] "(\\x->x) -1" "-1"
   |> test "update mutual recursion"
   |> updateElmAssert [] "x =y\ny= 1\nx" "2"
                      [] "x =y\ny= 2\nx"

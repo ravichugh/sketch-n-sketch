@@ -2233,8 +2233,8 @@ maybeConvertToOpN first rest =
 
 -- Either a simple expression or a function application or a data constructor
 -- Arguments must not be aligned with the main expression, AND indented by at least minStartCol
-simpleUntypedExpressionWithPossibleArguments : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
-simpleUntypedExpressionWithPossibleArguments minStartCol spConstraint =
+simpleExpressionWithPossibleArguments : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+simpleExpressionWithPossibleArguments minStartCol spConstraint =
   let
     combine : (WS -> Exp) -> List Exp -> WS -> Exp
     combine wsToFirst rest wsBefore =
@@ -2354,11 +2354,17 @@ simpleUntypedExpressionWithPossibleArguments minStartCol spConstraint =
         let appargSpace = spaceSameLineOrNextAfter (min minStartCol wsToMainExp.start.col) spConstraint in
         map (combine wsToMainExp.val) <|
           repeat zeroOrMore (delayedCommitMap (\ws wsExp -> wsExp ws)
-          appargSpace
+          (appargSpace |> andThen (\sp ->
+            if sp.val == "" then
+              succeed sp
+              |. negativeLookAhead (symbol "-")
+            else
+              succeed sp
+          ))
           (simpleExpression minStartCol spConstraint))))
 
-simpleExpressionWithPossibleArguments : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
-simpleExpressionWithPossibleArguments minStartCol spConstraint =
+simpleExpressionWithPossibleArgumentsMaybeTyped : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+simpleExpressionWithPossibleArgumentsMaybeTyped minStartCol spConstraint =
   lazy <| \_ ->
     ( delayedCommitMap (\startPos (wS2untypedExp, mbType) ->
         case mbType of
@@ -2373,7 +2379,7 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
       )
       getPos
       (succeed (,)
-      |= simpleUntypedExpressionWithPossibleArguments minStartCol spConstraint
+      |= simpleExpressionWithPossibleArguments minStartCol spConstraint
       |= ParserUtils.optional (spaceColonType minStartCol spConstraint))
     )
 
@@ -2443,7 +2449,7 @@ expressionGeneral isHtmlAttribute spFirst minStartCol    spConstraint =
         , minimumPrecedence =
             0
         , expression =
-            simpleExpressionWithPossibleArguments minStartCol spConstraint
+            simpleExpressionWithPossibleArgumentsMaybeTyped minStartCol spConstraint
         , withZeroSpace = \wsExp ->
             let finalExp = wsExp space0 in
             mapPrecedingWhitespaceWS (\ws -> withInfo ws.val finalExp.start finalExp.start) finalExp

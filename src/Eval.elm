@@ -404,7 +404,7 @@ evalOp syntax env e bt opWithInfo es =
       let mkClosureOrError () =
         let vLength = List.length vs in
         let nbArgs = ElmLang.arity opWithInfo in
-        if vLength > nbArgs then error() else
+        if vLength >= nbArgs then error() else
         let vars = List.range 1 nbArgs |> List.map (\i -> Parser.implicitVarName ++ if (i == 1) then "" else toString i) in
         let (varsComputed, varsRemaining) = Utils.split vLength vars in
         VClosure [] (varsRemaining |> List.map pVar) (
