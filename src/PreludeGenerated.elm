@@ -3591,17 +3591,17 @@ String =
   let strToInt =
     let d = Dict.fromList [(\"0\", 0), (\"1\", 1), (\"2\", 2), (\"3\", 3), (\"4\", 4), (\"5\", 5), (\"6\", 6), (\"7\", 7), (\"8\", 8), (\"9\", 9)] in
     let aux x =
-      case extractFirstIn \"^([0-9]*)([0-9])$\" x of
-        Just [init, last] -> (aux init)*10 + Dict.apply d last
-        Nothing -> 0
+       case extractFirstIn \"^([0-9]*)([0-9])$\" x of
+         Just [init, last] -> (aux init)*10 + Dict.apply d last
+         Nothing -> 0
     in
     aux
   in
   let join__ delimiter list =
     let aux acc list = case list of
-      [] -> acc
-      [head] -> acc + head
-      (head::tail) -> aux (acc + head + freeze delimiter) tail
+       [] -> acc
+       [head] -> acc + head
+       (head::tail) -> aux (acc + head + freeze delimiter) tail
     in aux \"\" list
   in
   let length x = len (explode x) in
@@ -3709,7 +3709,7 @@ String =
           Ok (Inputs [Regex.split delimiter output])
       }.apply x
     length x = {
-      apply x = length x
+      apply x = len (explode x)
       update {input, oldOutput, newOutput} =
         if newOutput < oldOutput then
           Ok (InputsWithDiffs [(take newOutput input, Just (VStringDiffs [StringUpdate newOutput oldOutput 0]))])

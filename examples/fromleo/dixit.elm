@@ -1,4 +1,4 @@
-# updatedelay: 0
+--# updatedelay: 0
 
 {select} = {
   select attributes strArray defaultSelected =
@@ -199,7 +199,7 @@ playerIndexFromName name =
   let totalInCards = List.sum (List.map (\j ->  if List.length j.betselfs == currentRound + 1 then nth (nth j.betselfs currentRound) 1 else 0) players) in
   let correctCard = totalNumCards - totalInCards in
   let guessedOk = players |> List.filterMap 
-    (\j ->  if List.length j.betselfs == currentRound + 1 then if (j.betselfs |> flip nth currentRound |> flip nth 0) == correctCard then Just j.name else Nothing else Nothing) in
+       (\j ->  if List.length j.betselfs == currentRound + 1 then if (j.betselfs |> flip nth currentRound |> flip nth 0) == correctCard then Just j.name else Nothing else Nothing) in
   let nGuessedOk = List.length guessedOk in
   let manyguessed = if nGuessedOk > 1 then "" else if nGuessedOk == 1 then " is the only one to have" else "Nobody" in
   let playersAyantVotePour nCarte = List.sum (List.map (\(i, j) ->  if i == dealerIndex then 0 else if nth (nth j.betselfs currentRound) 0 == nCarte then 1 else 0) playersWithIndex) in
