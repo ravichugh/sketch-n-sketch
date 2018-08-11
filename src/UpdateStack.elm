@@ -277,7 +277,7 @@ replaceInsertions e f =
                   aux i children tail revAccChildren
         in aux 0 children cd []
       EListDiffs ld ->
-        case e.val.val.e__ of
+        case unwrapExp e.val of
           EList sp0 children sp1 Nothing sp2 ->
             let aux: Int -> List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> UpdatedExp
                 aux i children diffs revAccChildren = case diffs of

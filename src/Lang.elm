@@ -58,7 +58,7 @@ type alias Frozen = String -- b/c comparable
 type alias LocSet = Set.Set Loc
 
 type alias Pat     = WithInfo Pat_
-type alias Exp     = WithInfo Exp_
+type Exp           = Expr (WithInfo Exp_)
 type alias Type    = WithInfo Type_
 type alias Op      = WithInfo Op_
 type alias Branch  = WithInfo Branch_
@@ -249,7 +249,8 @@ type FunArgStyle = FunArgAsPats | FunArgsAfterEqual
 type alias OptCommaSpace = Maybe WS
 type alias AliasSpace = Maybe WS
 
-type LetExp         = LetExp        OptCommaSpace WS Pat FunArgStyle WS{-before = -} Exp {- usual exp. -}
+type LetExp_ t      = LetExp        OptCommaSpace WS Pat FunArgStyle WS{-before = -} t {- usual exp. -}
+type alias LetExp   = LetExp_ Exp
 type LetType        = LetType       OptCommaSpace WS AliasSpace Pat FunArgStyle WS Type {- prefixed with ‘  type’. If the maybe is Just Ws, then it's an alias) -}
 type LetAnnotation  = LetAnnotation OptCommaSpace WS Pat FunArgStyle WS{-before : -} Type
 
@@ -261,28 +262,30 @@ type alias IsRec = Bool
 type alias GroupsOf a = List (IsRec, List a)
 type alias LetTypes       = GroupsOf LetType  -- I'd love to write it "List LetType |> GroupsOf"
 type alias LetAnnotations = List LetAnnotation
-type alias LetExps        = GroupsOf LetExp
+type alias LetExps t      = GroupsOf (LetExp_ t)
 
-type Declarations = Declarations PrintOrder LetTypes LetAnnotations LetExps
-type Declaration = DeclExp LetExp | DeclType LetType | DeclAnnotation LetAnnotation
+type Declarations_ t = Declarations PrintOrder LetTypes LetAnnotations (LetExps t)
+type alias Declarations = Declarations_ Exp
+type Declaration_ t = DeclExp (LetExp_ t) | DeclType LetType | DeclAnnotation LetAnnotation
+type alias Declaration = Declaration_ Exp
 
-type Exp__
+type ExpBuilder__ t1 t2
   = EConst WS Num Loc WidgetDecl
   | EBase WS EBaseVal
   | EVar WS Ident
-  | EFun WS (List Pat) Exp WS -- WS: before (, before )
+  | EFun WS (List Pat) t2 WS -- WS: before (, before )
   -- TODO remember paren whitespace for multiple pats, like TForall
-  | EApp WS Exp (List Exp) ApplicationType WS
-  | EOp WS WS Op (List Exp) WS
-  | EList WS (List (WS{-,-}, Exp)) WS (Maybe Exp) WS -- the first WS{-,-} is a dummy
-  | EIf WS Exp WS{-then-} Exp WS{-else-} Exp WS{-REMOVE-}
-  | ECase WS Exp (List Branch) WS
-  | ELet WS LetKind Declarations WS{-in or ;-} Exp
-  | EColonType WS Exp WS Type WS -- type annotation
-  | EParens WS Exp ParensStyle WS
+  | EApp WS t1 (List t1) ApplicationType WS
+  | EOp WS WS Op (List t1) WS
+  | EList WS (List (WS{-,-}, t1)) WS (Maybe t1) WS -- the first WS{-,-} is a dummy
+  | EIf WS t1 WS{-then-} t2 WS{-else-} t2 WS{-REMOVE-}
+  | ECase WS t1 (List Branch) WS
+  | ELet WS LetKind (Declarations_ t2) WS{-in or ;-} t2
+  | EColonType WS t2 WS Type WS -- type annotation
+  | EParens WS t2 ParensStyle WS
   | EHole WS Hole
-  | ERecord WS {- { -} (Maybe (Exp, WS) {- | -}) Declarations {- }-} WS
-  | ESelect WS Exp WS {-.-} WS Ident
+  | ERecord WS {- { -} (Maybe (t1, WS) {- | -}) (Declarations_ t1) {- }-} WS
+  | ESelect WS t1 WS {-.-} WS Ident
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
     -- EFun ps e     (\(p1 ... pn) e) === (\p1 (\p2 (... (\pn e) ...)))
@@ -290,6 +293,15 @@ type Exp__
     -- EApp f []     impossible
     -- EApp f [x]    (f x)
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
+
+type alias Exp__ = ExpBuilder__ Exp Exp
+type alias Indet = ExpBuilder__ Val Exp
+
+expEId : Exp -> EId
+expEId (Expr e) = e.val.eid
+
+unwrapExp : Exp -> Exp__
+unwrapExp (Expr e) = e.val.e__
 
 type ParensStyle = Parens | LongStringSyntax | ElmSyntax | HtmlSyntax
 
@@ -384,6 +396,7 @@ type Val_
          (List String) -- Name of arguments
          (List Val -> Result String (Val, Widgets)) -- Evaluation rule
          (Maybe (List Val -> Val -> Val -> VDiffs -> Results String (List Val, TupleDiffs VDiffs))) -- Maybe Update rule
+  -- TODO | VIndet Indet
 
 type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey
 
@@ -414,7 +427,7 @@ type Trace = TrLoc Loc | TrOp Op_ (List Trace)
 
 endPosLetExp: LetExp -> Pos
 endPosLetExp def = case def of
-  LetExp _ _ _ _ _ e1 -> e1.end
+  LetExp _ _ _ _ _ (Expr e1) -> e1.end
 
 patOfLetExp: LetExp -> Pat
 patOfLetExp (LetExp _ _ p _ _ _) = p
@@ -439,7 +452,7 @@ valExp : Val -> Exp
 valExp val = val.provenance |> provenanceExp
 
 valEId : Val -> EId
-valEId val = (valExp val).val.eid
+valEId val = valExp val |> expEId
 
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
@@ -611,27 +624,27 @@ fitsOnLine s =
   else if List.member '\n' (String.toList s) then False
   else True
 
-isLet e = case e.val.e__ of
+isLet e = case (unwrapExp e) of
   ELet _ _ _ _ _ -> True
   _                -> False
 
-isList e = case e.val.e__ of
+isList e = case (unwrapExp e) of
   EList _ _ _ _ _ -> True
   _               -> False
 
-isSingletonList e = case e.val.e__ of
+isSingletonList e = case (unwrapExp e) of
   EList _ [_] _ Nothing _ -> True
   _                       -> False
 
-isPair e = case e.val.e__ of
+isPair e = case (unwrapExp e) of
   EList _ [_, _] _ Nothing _ -> True
   _                          -> False
 
-isVar e = case e.val.e__ of
+isVar e = case (unwrapExp e) of
   EVar _ _ -> True
   _        -> False
 
-isFunc e = case e.val.e__ of
+isFunc e = case (unwrapExp e) of
   EFun _ _ _ _ -> True
   _            -> False
 
@@ -649,7 +662,7 @@ expEffectiveExp exp =
 -- What expressions will surely resolve to the same value?
 expEffectiveExps : Exp -> List Exp
 expEffectiveExps exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EColonType _ body _ _ _   -> exp :: expEffectiveExps body
     ELet _ _ _ _ body         -> exp :: expEffectiveExps body
     EParens _ e _ _           -> exp :: expEffectiveExps e
@@ -708,7 +721,7 @@ mapFoldExp f initAcc e =
        (Declarations printOrder tps annots (regroup letexps newLetExps))
      )
   in
-  case e.val.e__ of
+  case (unwrapExp e) of
     EConst _ _ _ _ -> f e initAcc
     EBase _ _      -> f e initAcc
     EVar _ _       -> f e initAcc
@@ -950,7 +963,7 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
     in
     (Declarations printOrder tps annots  (List.reverse newRevGroups), newGlobalAcc, newAccScope)
   in
-  case newE.val.e__ of
+  case unwrapExp newE of
     EConst _ _ _ _ -> (newE, newGlobalAcc)
     EBase _ _      -> (newE, newGlobalAcc)
     EVar _ _       -> (newE, newGlobalAcc)
@@ -1056,7 +1069,7 @@ mapPatTopDown f p =
 -- Preserves EIds
 mapExpViaExp__ : (Exp__ -> Exp__) -> Exp -> Exp
 mapExpViaExp__ f e =
-  let f_ exp = replaceE__ exp (f exp.val.e__) in
+  let f_ exp = replaceE__ exp (f (unwrapExp exp)) in
   mapExp f_ e
 
 -- Folding function returns just newGlobalAcc instead of (newExp, newGlobalAcc)
@@ -1080,6 +1093,31 @@ foldExpTopDownWithScope f handleLetExps handleEFun handleCaseBranch initGlobalAc
 replaceV_ : Val -> Val_ -> Val
 replaceV_ v v_ = { v | v_ = v_ }
 
+{- TODO
+getValsFromIndet : Indet -> Result String (List Val)
+getValsFromIndet i =
+  case i of
+    | EList _ es _ mRest _ ->
+      (++) <|
+        Utils.projOk <|
+          List.map
+            (\e -> case e of
+              | EHole _ ESnapHole
+            )
+            es <|
+              Maybe.withDefault [] <|
+                Maybe.map ? mRest
+    | ERecord
+    | EDict
+    | EApp
+    | EOp
+    | EIf
+    | ECase
+    | ESelect
+    | EHole _ EEmptyHole -> Ok []
+    | _ -> Err <| "Invalid cstor for Indet"
+-}
+
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
   VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }
@@ -1089,6 +1127,7 @@ mapVal f v = case v.v_ of
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
   VFun _ _ _ _     -> f v
+  -- TODO VIndet indet     -> f v -- TODO
 
 foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
@@ -1122,7 +1161,7 @@ foldExp f acc exp =
 
 foldExpViaE__ : (Exp__ -> a -> a) -> a -> Exp -> a
 foldExpViaE__ f acc exp =
-  let f_ exp = f exp.val.e__ in
+  let f_ exp = f (unwrapExp exp) in
   foldExp f_ acc exp
 
 -- Search for eid in root, replace matching node based on given function
@@ -1130,7 +1169,7 @@ mapExpNode : EId -> (Exp -> Exp) -> Exp -> Exp
 mapExpNode eid f root =
   mapExp
       (\exp ->
-        if exp.val.eid == eid
+        if expEId exp == eid
         then f exp
         else exp
       )
@@ -1149,7 +1188,7 @@ replaceExpNodePreservingPrecedingWhitespace eid newNode root =
 
 replaceExpNodeE__ : Exp -> Exp__ -> Exp -> Exp
 replaceExpNodeE__ oldNode newE__ root =
-  replaceExpNodeE__ByEId oldNode.val.eid newE__ root
+  replaceExpNodeE__ByEId (expEId oldNode) newE__ root
 
 replaceExpNodeE__ByEId : EId -> Exp__ -> Exp -> Exp
 replaceExpNodeE__ByEId eid newE__ root =
@@ -1161,7 +1200,7 @@ replaceExpNodes : (Dict EId Exp) -> Exp -> Exp
 replaceExpNodes eidToNewNode root =
   mapExpTopDown -- top down to handle replacements that are subtrees of each other; a naive eidToNewNode could however make this loop forever
     (\exp ->
-      case Dict.get exp.val.eid eidToNewNode of
+      case Dict.get (expEId exp) eidToNewNode of
         Just newExp -> newExp
         Nothing     -> exp
     )
@@ -1171,7 +1210,7 @@ replaceExpNodesPreservingPrecedingWhitespace : (Dict EId Exp) -> Exp -> Exp
 replaceExpNodesPreservingPrecedingWhitespace eidToNewNode root =
   mapExpTopDown -- top down to handle replacements that are subtrees of each other; a naive eidToNewNode could however make this loop forever
     (\exp ->
-      case Dict.get exp.val.eid eidToNewNode of
+      case Dict.get (expEId exp) eidToNewNode of
         Just newExp -> replacePrecedingWhitespace (precedingWhitespace exp) newExp
         Nothing     -> exp
     )
@@ -1265,7 +1304,7 @@ foldType f tipe acc =
 -- Traversing
 
 eidIs : EId -> Exp -> Bool
-eidIs targetEId exp = exp.val.eid == targetEId
+eidIs targetEId exp = expEId exp == targetEId
 
 -- Returns pre-order list of expressions
 -- O(n^2) memory
@@ -1295,7 +1334,7 @@ findExpByEId program targetEId =
 
 findLetexpByBindingNumber: Exp -> BindingNumber -> Maybe LetExp
 findLetexpByBindingNumber program targetBinding =
-  case program.val.e__ of
+  case unwrapExp program of
     ELet _ _ decls _ _ ->
       case getDeclarationsInOrder decls |> flip Utils.nth targetBinding of
          Ok (DeclExp x) -> Just x
@@ -1322,7 +1361,7 @@ findScopeExpAndPatByPId program targetPId =
       (\e ->
         let maybeTargetPat: Maybe (BindingNumber, Pat)
             maybeTargetPat =
-          case e.val.e__ of
+          case unwrapExp e of
              ELet _ _ decls _ _      ->
                getDeclarationsInOrderWithIndex decls |> Utils.mapFirstSuccess (
                  \(decl, i) -> case decl of
@@ -1356,7 +1395,7 @@ findPatInPat targetPId pat =
 findExpByLocId : Exp -> LocId -> Maybe Exp
 findExpByLocId program targetLocId =
   let isTarget exp =
-    case exp.val.e__ of
+    case (unwrapExp exp) of
        EConst _ _ (locId, _, _) _ -> locId == targetLocId
        _                          -> False
   in
@@ -1364,7 +1403,7 @@ findExpByLocId program targetLocId =
 
 locIdToEId : Exp -> LocId -> Maybe EId
 locIdToEId program locId =
-  findExpByLocId program locId |> Maybe.map (.val >> .eid)
+  findExpByLocId program locId |> Maybe.map expEId
 
 locToLocId : Loc -> LocId
 locToLocId (locId, _, _) = locId
@@ -1391,7 +1430,7 @@ commonAncestors pred exp =
 -- Target expression is last in list.
 findWithAncestorsByEId : Exp -> EId -> Maybe (List Exp)
 findWithAncestorsByEId exp targetEId =
-  if exp.val.eid == targetEId then
+  if expEId exp == targetEId then
     Just [exp]
   else
     childExps exp
@@ -1446,7 +1485,7 @@ declExtractors (Declarations printOrder tps annots letexpsGroups) =
 -- Children left-to-right, with a way to rebuild the expression if given the same exps)
 childExpsExtractors : Exp -> (List Exp, List Exp -> Exp)
 childExpsExtractors e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     EConst _ _ _ _          -> ([], \_ -> e)
     EBase _ _               -> ([], \_ -> e)
     EVar _ _                -> ([], \_ -> e)
@@ -1492,7 +1531,7 @@ childExpsExtractors e =
 
 allEIds : Exp -> List EId
 allEIds exp =
-  flattenExpTree exp |> List.map (.val >> .eid)
+  flattenExpTree exp |> List.map expEId
 
 
 ------------------------------------------------------------------------------
@@ -1539,7 +1578,7 @@ applySubst subst exp =
   let replacer =
     (\e ->
        let e__ConstReplaced =
-         let e__ = e.val.e__ in
+         let e__ = (unwrapExp e) in
          case e__ of
             EConst ws n loc wd ->
               let locId = Utils.fst3 loc in
@@ -1551,7 +1590,7 @@ applySubst subst exp =
             _ -> e__
        in
        let e__New =
-         case Dict.get e.val.eid subst.esubst of
+         case Dict.get (expEId e) subst.esubst of
             Just e__New -> e__New
             Nothing     -> e__ConstReplaced
        in
@@ -1565,7 +1604,7 @@ applyESubstPreservingPrecedingWhitespace : ESubst -> Exp -> Exp
 applyESubstPreservingPrecedingWhitespace esubst exp =
   let replacer =
     (\e ->
-       case Dict.get e.val.eid esubst of
+       case Dict.get (expEId e) esubst of
          Just e__New -> replaceE__PreservingPrecedingWhitespace e e__New
          Nothing     -> e
     )
@@ -1682,28 +1721,28 @@ tbranchTypes tbranches =
 isScope : Maybe Exp -> Exp -> Bool
 isScope maybeParent exp =
   let isObviouslyScope =
-    case exp.val.e__ of
+    case (unwrapExp exp) of
        ELet _ _ _ _ _  -> True
        EFun _ _ _ _      -> True
        _                 -> False
   in
   case maybeParent of
     Just parent ->
-      case parent.val.e__ of
+      case unwrapExp parent of
         ECase _ predicate branches _ -> predicate /= exp
         _                            -> isObviouslyScope
     Nothing -> isObviouslyScope
 
 isNumber : Exp -> Bool
 isNumber exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EConst _ _ _ _ -> True
     _              -> False
 
 -- Disregards syncOptions
 isFrozenNumber : Exp -> Bool
 isFrozenNumber exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EConst _ _ (_, ann, _) _ -> ann == frozen
     _                        -> False
 
@@ -1783,15 +1822,16 @@ pat_ = flip Pat_ (-1)
 
 withDummyRange x            = WithInfo x dummyPos dummyPos
 withDummyPatInfo p__        = WithInfo (pat_ p__) dummyPos dummyPos
-withDummyExpInfo e__        = WithInfo (exp_ e__) dummyPos dummyPos
+withDummyExp_Info e__       = WithInfo (exp_ e__) dummyPos dummyPos
+withDummyExpInfo e__        = Expr <| withDummyExp_Info e__
 withDummyPatInfoPId pid p__ = WithInfo (Pat_ p__ pid) dummyPos dummyPos
 withDummyExpInfoEId eid e__ = WithInfo (Exp_ e__ eid) dummyPos dummyPos
 
 replaceE__ : Exp -> Exp__ -> Exp
-replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }
+replaceE__ (Expr e) e__ = let e_ = e.val in Expr { e | val = { e_ | e__ = e__ } }
 
 mapNodeE__ : (Exp__ -> Exp__ ) -> Exp -> Exp
-mapNodeE__ f e = replaceE__ e (f e.val.e__)
+mapNodeE__ f e = replaceE__ e (f (unwrapExp e))
 
 replaceP__ : Pat -> Pat__ -> Pat
 replaceP__ p p__ = let p_ = p.val in { p | val = { p_ | p__ = p__ } }
@@ -1827,7 +1867,7 @@ replaceTBranchExp tbranch exp =
   { tbranch | val = TBranch_ tbws1 tipe exp tbws2 }
 
 setEId : EId -> Exp -> Exp
-setEId eid e = let e_ = e.val in { e | val = { e_ | eid = eid } }
+setEId eid (Expr e) = let e_ = e.val in Expr { e | val = { e_ | eid = eid } }
 
 setPId : PId -> Pat -> Pat
 setPId pid p = let p_ = p.val in { p | val = { p_ | pid = pid } }
@@ -1847,7 +1887,7 @@ mapAnnotPat f (LetAnnotation mbc sp0 name funStyle spEq t1) =
 
 clearNodeIds e =
   let eidCleared = clearEId e in
-  case eidCleared.val.e__ of
+  case unwrapExp eidCleared of
     EConst ws n (locId, annot, ident) wd  -> replaceE__ eidCleared (EConst ws n (0, annot, "") wd)
     ELet ws1 letkind (Declarations printOrder tps annots exps) s body ->
       replaceE__ eidCleared (ELet ws1 letkind (
@@ -1880,10 +1920,10 @@ eFalse = eBool False
 eNull  = withDummyExpInfo <| EBase space1 <| ENull
 eIf c t e   = withDummyExpInfo <| EIf space0 c space1 t space1 e space0
 
-eApp e es      = withInfo (exp_ <| EApp space1 e es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map .end |> Maybe.withDefault e.end)
-eCall fName es = eApp (eVar0 fName) es
-eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
-eRecord kvs    = withDummyExpInfo <| eRecord__ space1 Nothing (List.map
+eApp (Expr e) es = Expr <| withInfo (exp_ <| EApp space1 (Expr e) es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map (\(Expr e_) -> e_.end) |> Maybe.withDefault e.end)
+eCall fName es   = eApp (eVar0 fName) es
+eFun ps e        = withDummyExpInfo <| EFun space1 ps e space0
+eRecord kvs      = withDummyExpInfo <| eRecord__ space1 Nothing (List.map
   (\(k, v) -> (Just space0, space1, k, space1, v))
   kvs) space1
 eSelect e name = withDummyExpInfo  <| ESelect space0 e space0 space0 name
@@ -1997,7 +2037,7 @@ eSnapHoleVal v    = withDummyExpInfo <| EHole space1 (ESnapHole v)
 eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 EEmptyHole
 eEmptyHoleVal     = withDummyExpInfo <| EHole space1 EEmptyHole
 
-eColonType e t    = withInfo (exp_ <| EColonType space1 e space1 t space0) e.start t.end
+eColonType (Expr e) t = withInfo (exp_ <| EColonType space1 (Expr e) space1 t space0) e.start t.end
 
 pVar0 a        = withDummyPatInfo <| PVar space0 a noWidgetDecl
 pVar a         = withDummyPatInfo <| PVar space1 a noWidgetDecl
@@ -2008,7 +2048,7 @@ pAs x p        = withDummyPatInfo <| PAs space0 p space1 (withDummyPatInfo <| PV
 pListOfPVars names = pList (listOfPVars names)
 
 eLetUnapply: Exp -> Maybe ((Ident, Exp), Exp)
-eLetUnapply e = case e.val.e__ of
+eLetUnapply e = case unwrapExp e of
   ELet _ _ (Declarations _ [] [] [(_, [LetExp _ _ p _ _ assign])]) _ bodyExp ->
     case p.val.p__ of
       PVar _ ident _ -> Just ((ident, assign), bodyExp)
@@ -2016,52 +2056,52 @@ eLetUnapply e = case e.val.e__ of
   _ -> Nothing
 
 eFunUnapply: Exp -> Maybe (List Pat, Exp)
-eFunUnapply e = case e.val.e__ of
+eFunUnapply e = case (unwrapExp e) of
   EFun _ ps body _ -> Just (ps, body)
   _ -> Nothing
 
-eVarUnapply e = case e.val.e__ of
+eVarUnapply e = case (unwrapExp e) of
   EVar _ s -> Just s
   _ -> Nothing
 
-eStrUnapply e = case e.val.e__ of
+eStrUnapply e = case (unwrapExp e) of
   EBase _ (EString _ s) -> Just s
   _ -> Nothing
 
-eConstUnapply e = case e.val.e__ of
+eConstUnapply e = case (unwrapExp e) of
   EConst _ n _ _ -> Just n
   _ -> Nothing
 
-eListUnapply e = case e.val.e__ of
+eListUnapply e = case (unwrapExp e) of
   EList _ elems _ Nothing  _-> Just <| List.map Tuple.second elems
   _ -> Nothing
 
-eListUnapplyWS e = case e.val.e__ of
+eListUnapplyWS e = case (unwrapExp e) of
   EList _ elems _ Nothing  _-> Just <| elems
   _ -> Nothing
 
-eOpUnapply1 expectedOp e = case e.val.e__ of
+eOpUnapply1 expectedOp e = case (unwrapExp e) of
   EOp _ _ op [arg] _ -> if op.val == expectedOp then Just arg else Nothing
   _ -> Nothing
 
-eOpUnapply2 expectedOp e = case e.val.e__ of
+eOpUnapply2 expectedOp e = case (unwrapExp e) of
   EOp _ _ op [e1, e2] _ -> if op.val == expectedOp then Just (e1, e2) else Nothing
   _ -> Nothing
 
 
-eAppUnapply1 e = case e.val.e__ of
+eAppUnapply1 e = case (unwrapExp e) of
   EApp _ e1 [e2] _ _ -> Just (e1, e2)
   _ -> Nothing
 
-eAppUnapply2 e = case e.val.e__ of
+eAppUnapply2 e = case (unwrapExp e) of
   EApp _ e1 [e2, e3] _ _ -> Just (e1, e2, e3)
   _ -> Nothing
 
-eAppUnapply e = case e.val.e__ of
+eAppUnapply e = case (unwrapExp e) of
   EApp _ e1 es _ _ -> Just (e1, es)
   _ -> Nothing
 
-eParensUnapplyIf syntax e = case e.val.e__ of
+eParensUnapplyIf syntax e = case (unwrapExp e) of
   EParens _ inner s _ -> if s == syntax then Just inner else Nothing
   _ -> Nothing
 
@@ -2194,7 +2234,7 @@ minusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Minus [t1, t2])
 
 precedingWhitespace : Exp -> String
 precedingWhitespace exp =
-  precedingWhitespaceExp__ exp.val.e__
+  precedingWhitespaceExp__ (unwrapExp exp)
 
 
 extractIndentation : String -> String
@@ -2253,7 +2293,7 @@ precedingWhitespaceWithInfoPat pat =
 
 precedingWhitespaceWithInfoExp : Exp -> WS
 precedingWhitespaceWithInfoExp e =
-  precedingWhitespaceWithInfoExp__ e.val.e__
+  precedingWhitespaceWithInfoExp__ (unwrapExp e)
 
 
 precedingWhitespaceExp__ : Exp__ -> String
@@ -2329,7 +2369,7 @@ allWhitespaces_ exp =
     let (TBranch_ ws1 tipe e ws2) = tbranch.val in
     [ws1] ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
   in
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EBase      ws v                         -> [ws]
     EConst     ws n l wd                    -> [ws]
     EVar       ws x                         -> [ws]
@@ -2437,7 +2477,7 @@ mapPrecedingWhitespaceWS : (WS -> WS) -> Exp -> Exp
 mapPrecedingWhitespaceWS mapWs exp =
   let
     e__New =
-      case exp.val.e__ of
+      case (unwrapExp exp) of
         EBase      ws v                             -> EBase      (mapWs ws) v
         EConst     ws n l wd                        -> EConst     (mapWs ws) n l wd
         EVar       ws x                             -> EVar       (mapWs ws) x
@@ -2599,7 +2639,7 @@ setPatListWhitespace firstWs sepWs pats =
 -- copyListWhitespace is in LangTools to access the unparser
 -- copyListWhitespace : Exp -> Exp -> Exp
 -- copyListWhitespace templateList list =
---   case (templateList.val.e__, list.val.e__) of
+--   case (unwrapExp templateList, unwrapExp list) of
 --     (EList ws1 _ ws2 _ ws3, EList _ heads _ maybeTail _) ->
 --       replaceE__ list (EList ws1 heads ws2 maybeTail ws3)
 --
@@ -2796,7 +2836,7 @@ type CodeObject
 extractInfoFromCodeObject : CodeObject -> WithInfo CodeObject
 extractInfoFromCodeObject codeObject =
   case codeObject of
-    E e   -> replaceInfo e codeObject
+    E (Expr e)   -> replaceInfo e codeObject
     P _ p -> replaceInfo p codeObject
     T t   -> replaceInfo t codeObject
     D eid bindingNumber ->
@@ -2828,7 +2868,7 @@ isWord : CodeObject -> Bool
 isWord codeObject =
   case codeObject of
     E e ->
-      case e.val.e__ of
+      case (unwrapExp e) of
         (EConst _ _ _ _) ->
           True
         (EBase _ _) ->
@@ -2859,12 +2899,12 @@ hasChildElements codeObject =
   not (isTarget codeObject || isWord codeObject) &&
     case codeObject of
       E e ->
-        case e.val.e__ of
+        case unwrapExp e of
           (EOp _ _ _ exps _) ->
             not <| List.isEmpty exps
           (EList _ exps _ Nothing _) ->
             not <| List.isEmpty exps
-          (EHole _ Nothing) ->
+          (EHole _ EEmptyHole) ->
             False
           (ERecord _ Nothing (Declarations _ lT lA lE) _) ->
             let nonEmpty = not << List.isEmpty in
@@ -2902,14 +2942,14 @@ wsBefore codeObject =
 modifyWsBefore : (WS -> WS) -> CodeObject -> CodeObject
 modifyWsBefore f codeObject =
   case codeObject of
-    E e ->
+    E (Expr e) ->
       let
         eVal =
           e.val
         newE__ =
-           (mapPrecedingWhitespaceWS f e) |> .val |> .e__
+           mapPrecedingWhitespaceWS f (Expr e) |> unwrapExp
       in
-        E { e | val = { eVal | e__ = newE__ } }
+        E <| Expr { e | val = { eVal | e__ = newE__ } }
     P e p ->
       let
         pVal =
@@ -2996,7 +3036,7 @@ declarationsCodeObjects e letType declarations =
         (Maybe.map (\spc -> [DT After spc e (index - 1)]) mbSpColon |> Maybe.withDefault []) ++
         (spAfterPreviousDecl |> Maybe.map (\sp -> [DT After sp e (index - 1)]) |> Maybe.withDefault []) ++
         [ DT Before spBeforeThisDecl e index,
-          D (withInfo e.val.eid p1.start tp.end) index,
+          D (withInfo (expEId e) p1.start tp.end) index,
           P (e, index) p1,
           T tp,
           TT After (withInfo "" tp.end tp.end) tp
@@ -3009,12 +3049,12 @@ declarationsCodeObjects e letType declarations =
         (Maybe.map (\spc -> [DT After spc e (index - 1)]) mbSpColon |> Maybe.withDefault []) ++
         (spAfterPreviousDecl |> Maybe.map (\sp -> [DT After sp e (index - 1)]) |> Maybe.withDefault []) ++
         [ DT Before spBeforeThisDecl e index
-        , D (withInfo e.val.eid p1.start tp.end) index
+        , D (withInfo (expEId e) p1.start tp.end) index
         , P (e, index) p1
         , PT After ws2 (e, index) p1
         , T tp
         ]
-      DeclExp (LetExp mbSpColon sp1 p1 funStyle ws2 e1) ->
+      DeclExp (LetExp mbSpColon sp1 p1 funStyle ws2 (Expr e1)) ->
         let (spAfterPreviousDecl, spBeforeThisDecl) =
           if index == 0 then (Nothing, sp1)
           else splitBeforeWhitespace sp1
@@ -3023,15 +3063,15 @@ declarationsCodeObjects e letType declarations =
         (Maybe.map (\spc -> [DT After spc e (index - 1)]) mbSpColon |> Maybe.withDefault []) ++
         (spAfterPreviousDecl |> Maybe.map (\sp -> [DT After sp e (index - 1)]) |> Maybe.withDefault []) ++
         [ DT Before spBeforeThisDecl e index
-        , D (withInfo e.val.eid p1.start e1.end) index
+        , D (withInfo (expEId e) p1.start e1.end) index
         , P (e, index) p1
         , PT After ws2 (e, index) p1
-        , E e1
+        , E <| Expr e1
         ] ++  ( case letType of
             Let ->
               [ ]
             Def ->
-              [ ET After (withInfo "" e1.end e1.end) e1]
+              [ ET After (withInfo "" e1.end e1.end) <| Expr e1]
           )
         )
 
@@ -3040,7 +3080,7 @@ childCodeObjects co =
   List.filter (not << isHiddenCodeObject) <|
     case co of
       E e ->
-        case e.val.e__ of
+        case (unwrapExp e) of
           EConst ws1 _ _ _ ->
             [ ET Before ws1 e ]
           EBase ws1 _ ->
@@ -3148,15 +3188,15 @@ childCodeObjects co =
                 )
                 (Utils.zipWithIndex branches)
             )
-          ELet ws1 letType decls ws3 e2 ->
+          ELet ws1 letType decls ws3 (Expr e2) ->
             [ ET Before ws1 e] ++
             declarationsCodeObjects e letType decls ++ ( case letType of
                 Let ->
-                  [ E e2
-                  , ET After (withInfo "" e2.end e2.end) e2
+                  [ E <| Expr e2
+                  , ET After (withInfo "" e2.end e2.end) <| Expr e2
                   ]
                 Def ->
-                  [ E e2 ]
+                  [ E <| Expr e2 ]
             )
 
           EColonType _ e1 _ t1 _ ->
@@ -3434,19 +3474,19 @@ tagBranchList eid =
 -- Return the tags of the patterns of this current expression (not the children)
 taggedExpPats : Exp -> List (PId, PathedPatternId)
 taggedExpPats exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EFun _ ps _ _ ->
-      tagPatList (rootPathedPatternId (exp.val.eid, 1)) ps
+      tagPatList (rootPathedPatternId (expEId exp, 1)) ps
     ECase _ _ branches _ ->
-      tagBranchList exp.val.eid branches
+      tagBranchList (expEId exp) branches
     ELet _ _ defs _ _ ->
       List.concatMap (\(def, index) -> case def of
         DeclAnnotation (LetAnnotation _ _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (exp.val.eid, index + 1)) p0
+          tagSinglePat (rootPathedPatternId (expEId exp, index + 1)) p0
         DeclExp (LetExp _  _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (exp.val.eid, index + 1)) p0
+          tagSinglePat (rootPathedPatternId (expEId exp, index + 1)) p0
         DeclType (LetType _ _ _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (exp.val.eid, index + 1)) p0
+          tagSinglePat (rootPathedPatternId (expEId exp, index + 1)) p0
       ) (getDeclarations defs |> Utils.zipWithIndex)
     _ ->
       []
@@ -3467,7 +3507,7 @@ pidToPathedPatternId program pid =
 -- A "nested expression" is a non-top-level expression
 firstNestedExp : Exp -> Exp
 firstNestedExp e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     ELet _ Def _ _ eRest ->
       firstNestedExp eRest
     _ ->
@@ -3483,7 +3523,7 @@ firstNestedExp e =
 --    fixOp e =
 --      let
 --        newE__ =
---          case e.val.e__ of
+--          case (unwrapExp e) of
 --            EApp ws1 function arguments ws2 ->
 --              case function of
 --                EVar wsBeforeIdentifier identifier ->
@@ -3492,7 +3532,7 @@ firstNestedExp e =
 --                      EOp wsBeforeIdentifier op arguments ws2
 --
 --                _ ->
---                  e.val.e__
+--                  (unwrapExp e)
 --
 --  in
 --    map fixOp
@@ -3580,7 +3620,7 @@ identifiersSetInPats pats =
 
 expToMaybeIdent : Exp -> Maybe Ident
 expToMaybeIdent exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EVar _ ident -> Just ident
     _            -> Nothing
 
@@ -3590,7 +3630,7 @@ freeVars exp =
     let introduced = identifiersListInPats pats in
     vars |> List.filter (\var -> not <| List.member (Utils.fromJust_ "freeVars" <| expToMaybeIdent var) introduced)
   in
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EVar _ x                           -> [exp]
     EFun _ pats body _                 -> freeVars body |> removeIntroducedBy pats
     ECase _ scrutinee branches _       ->

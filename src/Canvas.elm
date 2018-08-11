@@ -528,9 +528,9 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         let (maybeFuncBody, maybeFuncPat, maybeArgPats) =
           case funcVal.v_ of
             VClosure _ argPats funcBody env ->
-              case parentByEId program funcBody.val.eid of
+              case parentByEId program (expEId funcBody) of
                 Just (Just funcExp) ->
-                  case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
+                  case LangTools.findLetAndPatMatchingExpLoose (expEId funcExp) program of
                     Just (_, funcPat) -> (Just funcBody, Just funcPat, Just argPats)
                     _                 -> (Just funcBody, Nothing,      Just argPats)
                 _ -> (Just funcBody, Nothing, Just argPats)

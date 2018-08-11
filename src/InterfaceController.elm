@@ -201,15 +201,15 @@ between1 i (j,k) = Utils.between i (j+1, k+1)
 {-
 cleanExp =
   mapExpViaExp__ <| \e__ -> case e__ of
-    EApp _ e0 [e1,_,_] _ -> case e0.val.e__ of
-      EVar _ "inferred"  -> e1.val.e__
+    EApp _ e0 [e1,_,_] _ -> case (unwrapExp e0) of
+      EVar _ "inferred"  -> (unwrapExp e1)
       _                  -> e__
-    EApp _ e0 [_,e1] _   -> case e0.val.e__ of
-      EVar _ "flow"      -> e1.val.e__
+    EApp _ e0 [_,e1] _   -> case (unwrapExp e0) of
+      EVar _ "flow"      -> (unwrapExp e1)
       _                  -> e__
     EOp _ op [e1,e2] _   ->
-      case (op.val, e2.val.e__) of
-        (Plus, EConst _ 0 _ _) -> e1.val.e__
+      case (op.val, (unwrapExp e2)) of
+        (Plus, EConst _ 0 _ _) -> (unwrapExp e1)
         _                      -> e__
     _                    -> e__
 -}
@@ -268,7 +268,7 @@ switchToCursorTool old =
 -- note that there's nothing special about calling this temp binding "main".
 --
 rewriteInnerMostExpToMain exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     ELet ws1 lk decls ws3 e2 ->
       replaceE__ exp (ELet ws1 lk decls ws3 (rewriteInnerMostExpToMain e2))
     _ ->
@@ -1853,14 +1853,14 @@ deleteInOutput old =
       case findExpByEId program eidToDelete of
         Just expToDelete ->
           let programWithDistalExpressionRemoved =
-            case LangTools.findLetAndPatMatchingExpLoose expToDelete.val.eid program of
+            case LangTools.findLetAndPatMatchingExpLoose (expEId expToDelete) program of
                Just (letExp, patBindingExpToDelete) ->
                  let identsToDelete = identifiersListInPat patBindingExpToDelete in
-                 let scopeAreas = LangTools.findScopeAreas (letExp.val.eid, 1) letExp in
+                 let scopeAreas = LangTools.findScopeAreas ((expEId letExp), 1) letExp in
                  let varUses = scopeAreas |> List.concatMap (LangTools.identifierSetUses (Set.fromList identsToDelete)) in
                  let deleteVarUses program =
                    varUses
-                   |> List.map (.val >> .eid)
+                   |> List.map expEId
                    |> List.foldr deleteEId program
                    |> LangSimplify.simplifyAssignments
                  in
@@ -1869,11 +1869,11 @@ deleteInOutput old =
                    Nothing                         -> deleteVarUses program
 
                Nothing ->
-                 case parentByEId program (LangTools.outerSameValueExp program expToDelete).val.eid of
+                 case parentByEId program (expEId <| LangTools.outerSameValueExp program expToDelete) of
                    (Just (Just parent)) ->
-                     case parent.val.e__ of
+                     case (unwrapExp parent) of
                        EFun _ _ _ _ ->
-                         deleteEId parent.val.eid program
+                         deleteEId (expEId parent) program
 
                        EList ws1 heads ws2 maybeTail ws3 ->
                          case Utils.listValues heads |> Utils.findi (eidIs eidToDelete) of
@@ -1892,10 +1892,10 @@ deleteInOutput old =
                      program
           in
           -- This seems to remove too much (e.g. will remove function if an application is deleted).
-          -- let varEIdsPerhapsRemoved = LangTools.freeVars expToDelete |> List.map (.val >> .eid) |> Set.fromList in
+          -- let varEIdsPerhapsRemoved = LangTools.freeVars expToDelete |> List.map expEId |> Set.fromList in
           let varEIdsPerhapsRemoved =
             case LangTools.expToMaybeVar (expEffectiveExp expToDelete) of
-               Just varExp -> Set.singleton (varExp.val.eid)
+               Just varExp -> Set.singleton ((expEId varExp))
                _           -> Set.empty
           in
           let pidsToMaybeRemove =
@@ -2040,7 +2040,7 @@ doDuplicate old =
       singleExpressionInterpretations
       -- |> Debug.log "possible eids to duplicate"
       -- |> List.map (\eid -> let _ = Utils.log <| unparse <| LangTools.justFindExpByEId old.inputExp eid in eid)
-      |> List.map (LangTools.outerSameValueExpByEId old.inputExp >> .val >> .eid)
+      |> List.map (LangTools.outerSameValueExpByEId old.inputExp >> expEId)
       |> Utils.dedup
       |> List.map (LangTools.justFindExpByEId old.inputExp)
       |> List.filter (not << isVar << expEffectiveExp)
@@ -2059,11 +2059,11 @@ doDuplicate old =
               -- TODO: Lift free vars? Should be uncommon.
               let
                 eidToInsertBefore =
-                  case LangTools.findLetAndPatMatchingExpLoose expToDuplicate.val.eid old.inputExp of
-                    Nothing          -> expToDuplicate.val.eid
-                    Just (letExp, _) -> letExp.val.eid
+                  case LangTools.findLetAndPatMatchingExpLoose (expEId expToDuplicate) old.inputExp of
+                    Nothing          -> (expEId expToDuplicate)
+                    Just (letExp, _) -> (expEId letExp)
 
-                (_, newProgram) = EvalUpdate.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid] old.inputExp
+                (_, newProgram) = EvalUpdate.newVariableVisibleTo -1 name 1 expToDuplicate [(expEId expToDuplicate)] old.inputExp
               in
               newProgram
           )
@@ -2568,17 +2568,17 @@ msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
 
 
 msgAddArg funcBody = Msg "Add Arg to Function in Output" <| \old ->
-  let maybeMaybeParent = parentByEId old.inputExp funcBody.val.eid in
-  case Maybe.map (Maybe.map (\parent -> (parent, parent.val.e__))) maybeMaybeParent of
+  let maybeMaybeParent = parentByEId old.inputExp (expEId funcBody) in
+  case Maybe.map (Maybe.map (\parent -> (parent, (unwrapExp parent)))) maybeMaybeParent of
     Just (Just (funcExp, EFun _ argPats funcBody _)) ->
       let targetPPId =
-        ( (funcExp.val.eid, 1)
+        ( ((expEId funcExp), 1)
         , [ 1 + List.length argPats ] -- By default, insert argument at the end
         )
       in
       let possibleArgEIds =
-        let domain = flattenExpTree funcBody |> List.map (.val >> .eid) |> Set.fromList in
-        let expFilter = .val >> .eid >> (flip Set.member) domain in
+        let domain = flattenExpTree funcBody |> List.map expEId |> Set.fromList in
+        let expFilter = expEId >> (flip Set.member) domain in
         -- let singleEIdInterps =
         --   ShapeWidgets.selectionsSingleEIdInterpretations
         --       old.inputExp

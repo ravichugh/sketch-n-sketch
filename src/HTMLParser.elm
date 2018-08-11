@@ -39,12 +39,12 @@ type HTMLAttributeValue_ =
     HTMLAttributeUnquoted WS WS String
   | HTMLAttributeString WS WS String {-Delimiter char-}  String
   | HTMLAttributeNoValue
-  | HTMLAttributeExp WS Exp
+  | HTMLAttributeExp WS (WithInfo Exp_)
 
 type alias HTMLAttribute = WithInfo HTMLAttribute_
 type HTMLAttribute_ =
     HTMLAttribute WS (WithInfo String) HTMLAttributeValue
-  | HTMLAttributeListExp WS Exp
+  | HTMLAttributeListExp WS (WithInfo Exp_)
 type HTMLCommentStyle = Less_Greater String {- The string should start with a ? -}
                       | LessSlash_Greater {- The string should start with a space -} String
                       | LessBang_Greater String
@@ -59,16 +59,16 @@ type alias HTMLNode = WithInfo HTMLNode_
 type HTMLNode_ = HTMLInner String
                | HTMLElement HTMLTag (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
                | HTMLComment HTMLCommentStyle
-               | HTMLListNodeExp Exp
+               | HTMLListNodeExp (WithInfo Exp_)
 
-type HTMLTag = HTMLTagString (WithInfo String) | HTMLTagExp Exp
+type HTMLTag = HTMLTagString (WithInfo String) | HTMLTagExp (WithInfo Exp_)
 
 type ParsingMode = Raw |
   Interpolation {
-    tagName: Parser Exp,
-    attributevalue: Parser WS -> Parser Exp,
-    attributelist: Parser Exp,
-    childlist: Parser WS -> Parser Exp}
+    tagName: ParserI Exp_,
+    attributevalue: Parser WS -> ParserI Exp_,
+    attributelist: ParserI Exp_,
+    childlist: Parser WS -> ParserI Exp_}
 
 voidElements: Set String
 voidElements =

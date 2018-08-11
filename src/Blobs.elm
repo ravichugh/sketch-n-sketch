@@ -46,7 +46,7 @@ maybeSimpleProgram e =
 
 splitExp : Exp -> SplitProgram
 splitExp e =
-  case e.val.e__ of
+  case unwrapExp e of
     ELet ws1 Def (Declarations printOrder _ _ exps as decls) ws main ->
       ((List.map (\(LetExp _ ws1 p1 _ ws2 e1) -> (ws1, p1, e1, ws2)) <| elemsOf exps, Just decls), toMainExp main)
     _ ->
@@ -76,11 +76,11 @@ fromMainExp me =
 
 maybeSvgConcat : Exp -> Maybe MainExp
 maybeSvgConcat main =
-  case main.val.e__ of
+  case unwrapExp main of
     EApp ws1 e1 [eAppConcat] appType ws2 ->
-      case (e1.val.e__, eAppConcat.val.e__) of
+      case ((unwrapExp e1), (unwrapExp eAppConcat)) of
         (EVar _ "svg", EApp ws3 eConcat [e2] appType2 ws4) ->
-          case (eConcat.val.e__, e2.val.e__) of
+          case ((unwrapExp eConcat), (unwrapExp e2)) of
             (EVar _ "concat", EList ws5 oldList ws6 Nothing ws7) ->
               let updateExpressionList newList =
                 let
@@ -101,9 +101,9 @@ maybeSvgConcat main =
 -- very similar to above
 maybeBlobs : Exp -> Maybe MainExp
 maybeBlobs main =
-  case main.val.e__ of
+  case (unwrapExp main) of
     EApp ws1 eBlobs [eArgs] appType ws2 ->
-      case (eBlobs.val.e__, eArgs.val.e__) of
+      case ((unwrapExp eBlobs), (unwrapExp eArgs)) of
         (EVar _ "blobs", EList ws5 oldList ws6 Nothing ws7) ->
           let rebuildExp newBlobExpList =
             let newExpList = List.map fromBlobExp newBlobExpList in
@@ -123,19 +123,19 @@ maybeBlobs main =
 
 toBlobExp : Exp -> BlobExp
 toBlobExp e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     EVar _ x -> varBlob e x
     EApp _ eWith [eWithArg, eFunc] appType _ ->
-      case (eWith.val.e__) of
+      case ((unwrapExp eWith)) of
         EVar _ with ->
-          case eFunc.val.e__ of
+          case (unwrapExp eFunc) of
             EVar _ x ->
               case with of
                 "withBounds" -> NiceBlob e (WithBoundsBlob (eWithArg, x, []))
                 "withAnchor" -> NiceBlob e (WithAnchorBlob (eWithArg, x, []))
                 _            -> OtherBlob e
             EApp _ eF eArgs appType2 _ ->
-              case eF.val.e__ of
+              case (unwrapExp eF) of
                 EVar _ f ->
                   case with of
                     "withBounds" -> NiceBlob e (WithBoundsBlob (eWithArg, f, eArgs))
@@ -145,7 +145,7 @@ toBlobExp e =
             _ -> OtherBlob e
         _ -> OtherBlob e
     EApp _ eFunc eArgs appType _ ->
-      case eFunc.val.e__ of
+      case (unwrapExp eFunc) of
         EVar _ f -> NiceBlob e (CallBlob (f, eArgs))
         _        -> OtherBlob e
     _ -> OtherBlob e

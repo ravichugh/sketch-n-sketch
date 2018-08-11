@@ -287,7 +287,7 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
                     -- If loc was copied, its original location was replaced with a var, and that's the var we want to replace.
                     let locEId = Dict.get locId locIdToVarEId |> Maybe.withDefault originalLocEId in
                     let mathExpExp = mathExpToExp unann (Dict.singleton indexLocId (toFloat i)) locIdToNewName mathExp in
-                    replaceExpNodeE__ByEId locEId mathExpExp.val.e__ priorExp
+                    replaceExpNodeE__ByEId locEId (unwrapExp mathExpExp) priorExp
                   )
                   locsLifted
             in
@@ -353,7 +353,7 @@ type RelationToSynthesize
 rankComparedTo : Exp -> List PartialSynthesisResult -> List InterfaceModel.SynthesisResult
 rankComparedTo originalExp synthesisResults =
   let isLocId targetLocId exp =
-    case exp.val.e__ of
+    case (unwrapExp exp) of
       EConst ws n (locId, frozen, ident) wd -> targetLocId == locId
       _                                     -> False
   in
@@ -365,7 +365,7 @@ rankComparedTo originalExp synthesisResults =
           |> List.map
               (\locId ->
                 case findFirstNode (isLocId locId) originalExp of
-                  Just constExp -> toFloat constExp.start.line
+                  Just (Expr constExp) -> toFloat constExp.start.line
                   Nothing       -> -Utils.infinity
               )
         in
@@ -826,7 +826,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                       (EvalUpdate.visibleIdentifiersAtEIds program (Set.singleton outputEId))
                 funcBody = justFindExpByEId program outputEId
                 funcLocation = deepestCommonAncestorWithNewline program ((==) funcBody) -- Place function just before abstracted expression
-                expEnv = expEnvAt_ program funcLocation.val.eid -- Skip prelude
+                expEnv = expEnvAt_ program (expEId funcLocation) -- Skip prelude
                 -- Assumes no renamings between selected pat and extracted expression
                 -- Also assumes selected pat is not part of extracted expression
                 varEIdToBindingPat = allVarEIdsToBindingPatList program
@@ -841,7 +841,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                 argPats =
                   selectedOtherPatterns ++
                   ( otherFreeVarsToParameterize
-                    |> List.filter (\freeVar -> not <| List.member freeVar.val.eid varEIdsCoveredBySelectedPatterns)
+                    |> List.filter (\freeVar -> not <| List.member (expEId freeVar) varEIdsCoveredBySelectedPatterns)
                     |> List.map expToIdent
                     |> Utils.dedup
                     |> List.map pVar
@@ -857,12 +857,12 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                       -1 False
                       (pVar funcName)
                       (eFun (argPats |> setPatListWhitespace "" " ") (funcBody |> unindent |> replacePrecedingWhitespace "\n" |> indent "  "))
-                      (justFindExpByEId programWithCall funcLocation.val.eid)
+                      (justFindExpByEId programWithCall (expEId funcLocation))
                       programWithCall
                 programWithCallAndFunc =
                   program
                   |> replaceExpNode
-                      funcLocation.val.eid
+                      (expEId funcLocation)
                       funcLet
                 caption = "Build abstraction of " ++ Utils.squish (unparse call)
                 funcBodyFreeIdents = funcBodyFreeVars |> List.map expToIdent |> Set.fromList
@@ -879,7 +879,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
 deepestCommonAncestorWithNewlineByLocSet : Exp -> LocSet -> Exp
 deepestCommonAncestorWithNewlineByLocSet exp locset =
   let isLocsetNode exp =
-    case exp.val.e__ of
+    case (unwrapExp exp) of
       EConst ws n loc wd -> Set.member loc locset
       _                  -> False
   in
@@ -895,10 +895,10 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   in
   let newProgram =
     program
-    |> replaceExpNodeE__ByEId targetExp.val.eid targetExpReplaced.val.e__
+    |> replaceExpNodeE__ByEId (expEId targetExp) (unwrapExp targetExpReplaced)
     |> wrapWithLets
         listOfListsOfNamesAndAssigns
-        targetExp.val.eid
+        (expEId targetExp)
   in
   Parser.freshen newProgram
 

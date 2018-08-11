@@ -670,7 +670,7 @@ typ =
 -- Identifier Expressions
 --------------------------------------------------------------------------------
 
-variableExpression : Parser Exp
+variableExpression : ParserI Exp_
 variableExpression =
   mapExp_ <|
     paddedBefore EVar spaces variableIdentifierString
@@ -679,7 +679,7 @@ variableExpression =
 -- Constant Expressions
 --------------------------------------------------------------------------------
 
-constantExpression : Parser Exp
+constantExpression : ParserI Exp_
 constantExpression =
   mapExp_ <|
     delayedCommitMap
@@ -700,7 +700,7 @@ constantExpression =
 -- Base Value Expressions
 --------------------------------------------------------------------------------
 
-baseValueExpression : Parser Exp
+baseValueExpression : ParserI Exp_
 baseValueExpression =
   inContext "base value expression" <|
     mapExp_ <|
@@ -710,7 +710,7 @@ baseValueExpression =
 -- Primitive Operators
 --------------------------------------------------------------------------------
 
-operator : Parser Exp
+operator : ParserI Exp_
 operator =
   mapExp_ <|
     let
@@ -781,7 +781,7 @@ operator =
         lazy <| \_ ->
           parenBlock
             ( \wsStart (opName, args) wsEnd ->
-                EOp wsStart space0 opName args wsEnd
+                EOp wsStart space0 opName (List.map Expr args) wsEnd
             )
             ( succeed (,)
                 |= op
@@ -792,14 +792,14 @@ operator =
 -- Conditionals
 --------------------------------------------------------------------------------
 
-conditional : Parser Exp
+conditional : ParserI Exp_
 conditional =
   mapExp_ <|
     inContext "conditional" <|
       lazy <| \_ ->
         parenBlock
           ( \wsStart (c, a, b) wsEnd ->
-              EIf wsStart c (ws "") a (ws "") b wsEnd
+              EIf wsStart (Expr c) (ws "") (Expr a) (ws "") (Expr b) wsEnd
           )
           ( succeed (,,)
              |. keywordWithSpace "if"
@@ -812,7 +812,7 @@ conditional =
 -- Lists
 --------------------------------------------------------------------------------
 
-list : Parser Exp
+list : ParserI Exp_
 list =
   mapExp_ <|
     lazy <| \_ ->
@@ -825,11 +825,11 @@ list =
             "multi cons literal"
         , listLiteralCombiner =
             ( \wsStart heads wsEnd ->
-                EList wsStart (List.map ((,) space0) heads) space0 Nothing wsEnd
+                EList wsStart (List.map (\e_ -> (space0, Expr e_)) heads) space0 Nothing wsEnd
             )
         , multiConsCombiner =
             ( \wsStart heads wsBar tail wsEnd ->
-                EList wsStart (List.map ((,) space0) heads) wsBar (Just tail) wsEnd
+                EList wsStart (List.map (\e_ -> (space0, Expr e_)) heads) wsBar (Just <| Expr tail) wsEnd
             )
         , elem =
             exp
@@ -846,7 +846,7 @@ genericCase
   -> (WS -> b -> Exp -> WS -> branch)
   -> Parser a
   -> Parser b
-  -> Parser Exp
+  -> ParserI Exp_
 genericCase context kword combiner branchCombiner parser branchParser =
   let
     path =
@@ -854,7 +854,7 @@ genericCase context kword combiner branchCombiner parser branchParser =
         lazy <| \_ ->
           parenBlock
             ( \wsStart (p, e) wsEnd ->
-                branchCombiner wsStart p e wsEnd
+                branchCombiner wsStart p (Expr e) wsEnd
             )
             ( succeed (,)
                 |= branchParser
@@ -878,31 +878,31 @@ genericCase context kword combiner branchCombiner parser branchParser =
 -- Case Expressions
 --------------------------------------------------------------------------------
 
-caseExpression : Parser Exp
+caseExpression : ParserI Exp_
 caseExpression =
     lazy <| \_ ->
       genericCase
         "case expression" "case"
-        ECase Branch_ exp pattern
+        ECase Branch_ (map Expr exp) pattern
 
 --------------------------------------------------------------------------------
 -- Type Case Expressions
 --------------------------------------------------------------------------------
 
-typeCaseExpression : Parser Exp
+typeCaseExpression : ParserI Exp_
 typeCaseExpression =
     lazy <| \_ ->
       genericCase
         "type case expression" "typecase"
         ECase (\wsStart tp e wsEnd ->
           Branch_ space1 (withDummyPatInfo <| PColonType space0 (withDummyPatInfo <| PWildcard space0) space1 tp) e space1
-        ) exp typ
+        ) (map Expr exp) typ
 
 --------------------------------------------------------------------------------
 -- Functions
 --------------------------------------------------------------------------------
 
-function : Parser Exp
+function : ParserI Exp_
 function =
   let
     parameters =
@@ -916,7 +916,7 @@ function =
         lazy <| \_ ->
           parenBlock
             ( \wsStart (params, body) wsEnd ->
-                EFun wsStart params body wsEnd
+                EFun wsStart params (Expr body) wsEnd
             )
             ( succeed (,)
                 |. symbol "\\"
@@ -928,14 +928,14 @@ function =
 -- Function Applications
 --------------------------------------------------------------------------------
 
-functionApplication : Parser Exp
+functionApplication : ParserI Exp_
 functionApplication =
   mapExp_ <|
     inContext "function application" <|
       lazy <| \_ ->
         parenBlock
           ( \wsStart (f, x) wsEnd ->
-              EApp wsStart f x SpaceApp wsEnd
+              EApp wsStart (Expr f) (List.map Expr x) SpaceApp wsEnd
           )
           ( succeed (,)
               |= exp
@@ -946,13 +946,13 @@ functionApplication =
 -- Let Bindings
 --------------------------------------------------------------------------------
 
-genericLetBinding : String -> String -> Bool -> Parser Exp
+genericLetBinding : String -> String -> Bool -> ParserI Exp_
 genericLetBinding context kword isRec =
   mapExp_ <|
     inContext context <|
       parenBlock
         ( \wsStart (name, binding, rest) wsEnd ->
-            eLet__ wsStart Let isRec name space1 binding space1 rest wsEnd
+            eLet__ wsStart Let isRec name space1 (Expr binding) space1 (Expr rest) wsEnd
         )
         ( succeed (,,)
             |. keywordWithSpace kword
@@ -961,14 +961,14 @@ genericLetBinding context kword isRec =
             |= exp
         )
 
-genericDefBinding : String -> String -> Bool -> Parser Exp
+genericDefBinding : String -> String -> Bool -> ParserI Exp_
 genericDefBinding context kword isRec =
   mapExp_ <|
     inContext context <|
       delayedCommitMap
         ( \(wsStart, open) (name, binding, wsEnd, close, rest) ->
             WithInfo
-              (eLet__ wsStart Def isRec name space1 binding space1 rest wsEnd)
+              (eLet__ wsStart Def isRec name space1 (Expr binding) space1 (Expr rest) wsEnd)
               open.start
               close.end
         )
@@ -985,27 +985,27 @@ genericDefBinding context kword isRec =
             |= exp
         )
 
-recursiveLetBinding : Parser Exp
+recursiveLetBinding : ParserI Exp_
 recursiveLetBinding =
   lazy <| \_ ->
     genericLetBinding "recursive let binding" "letrec" True
 
-simpleLetBinding : Parser Exp
+simpleLetBinding : ParserI Exp_
 simpleLetBinding =
   lazy <| \_ ->
     genericLetBinding "non-recursive let binding" "let" False
 
-recursiveDefBinding : Parser Exp
+recursiveDefBinding : ParserI Exp_
 recursiveDefBinding =
   lazy <| \_ ->
     genericDefBinding "recursive def binding" "defrec" True
 
-simpleDefBinding : Parser Exp
+simpleDefBinding : ParserI Exp_
 simpleDefBinding =
   lazy <| \_ ->
     genericDefBinding "non-recursive def binding" "def" False
 
-letBinding : Parser Exp
+letBinding : ParserI Exp_
 letBinding =
   inContext "let binding" <|
     lazy <| \_ ->
@@ -1020,7 +1020,7 @@ letBinding =
 -- Holes
 --------------------------------------------------------------------------------
 
-hole : Parser Exp
+hole : ParserI Exp_
 hole =
   inContext "hole" <|
     mapExp_ <|
@@ -1030,14 +1030,14 @@ hole =
 -- Type Declarations
 --------------------------------------------------------------------------------
 
-typeDeclaration : Parser Exp
+typeDeclaration : ParserI Exp_
 typeDeclaration =
   mapExp_ <|
     inContext "type declaration" <|
       delayedCommitMap
         ( \(wsStart, open) (pat, t, wsEnd, close, rest) ->
             WithInfo
-              (eTyp_ wsStart pat t rest wsEnd)
+              (eTyp_ wsStart pat t (Expr rest) wsEnd)
               open.start
               close.end
         )
@@ -1058,14 +1058,14 @@ typeDeclaration =
 -- Type Aliases
 --------------------------------------------------------------------------------
 
-typeAlias : Parser Exp
+typeAlias : ParserI Exp_
 typeAlias =
   mapExp_ <|
     inContext "type alias" <|
       delayedCommitMap
         ( \(wsStart, open, pat) (t, wsEnd, close, rest) ->
             WithInfo
-              (eTypeAlias__ wsStart pat t rest wsEnd)
+              (eTypeAlias__ wsStart pat t (Expr rest) wsEnd)
               open.start
               close.end
         )
@@ -1086,14 +1086,14 @@ typeAlias =
 -- Type Annotations
 --------------------------------------------------------------------------------
 
-typeAnnotation : Parser Exp
+typeAnnotation : ParserI Exp_
 typeAnnotation =
   mapExp_ <|
     inContext "type annotation" <|
       lazy <| \_ ->
         parenBlock
           ( \wsStart (e, wsColon, t) wsEnd ->
-              EColonType wsStart e wsColon t wsEnd
+              EColonType wsStart (Expr e) wsColon t wsEnd
           )
           ( delayedCommitMap
               ( \(e, wsColon) t ->
@@ -1111,7 +1111,7 @@ typeAnnotation =
 -- General Expressions
 --------------------------------------------------------------------------------
 
-exp : Parser Exp
+exp : ParserI Exp_
 exp =
   inContext "expression" <|
     lazy <| \_ ->
@@ -1147,7 +1147,7 @@ genericTopLevelDef context kword isRec =
     parenBlock
       ( \wsStart (name, binding) wsEnd ->
           ( \rest ->
-              exp_ <| eLet__ wsStart Def isRec name space1 binding space1 rest wsEnd
+              exp_ <| eLet__ wsStart Def isRec name space1 (Expr binding) space1 rest wsEnd
           )
       )
       ( succeed (,)
@@ -1238,10 +1238,10 @@ allTopLevelExps =
 --= PROGRAMS
 --==============================================================================
 
-implicitMain : Parser Exp
+implicitMain : ParserI Exp_
 implicitMain =
   let
-    builder : Pos -> Exp
+    builder : Pos -> WithInfo Exp_
     builder p =
       let
         withCorrectInfo x =
@@ -1250,11 +1250,13 @@ implicitMain =
           withCorrectInfo << pat_ <|
             PVar space1 "_IMPLICIT_MAIN" (withDummyInfo NoWidgetDecl)
         binding =
-          withCorrectInfo << exp_ <|
-            EBase space1 (EString defaultQuoteChar "...")
+          Expr <|
+            withCorrectInfo << exp_ <|
+              EBase space1 (EString defaultQuoteChar "...")
         body =
-          withCorrectInfo << exp_ <|
-            EVar space1 "main"
+          Expr <|
+            withCorrectInfo << exp_ <|
+              EVar space1 "main"
       in
         withCorrectInfo << exp_ <|
           ELet newline2 Let (Declarations [0] [] [] [(False, [LetExp Nothing space1 name FunArgAsPats space1 binding])]) space1 body
@@ -1262,11 +1264,11 @@ implicitMain =
     succeed builder
       |= getPos
 
-mainExp : Parser Exp
+mainExp : ParserI Exp_
 mainExp =
   oneOf [exp, implicitMain]
 
-program : Parser Exp
+program : ParserI Exp_
 program =
   succeed fuseTopLevelExps
     |= allTopLevelExps
@@ -1283,7 +1285,7 @@ program =
 --------------------------------------------------------------------------------
 
 parseE_ : (Exp -> Exp) -> String -> Result Error Exp
-parseE_ f = run (map f program)
+parseE_ f = run (map (f << Expr) program)
 
 parseE : String -> Result Error Exp
 parseE = parseE_ freshen
@@ -1366,8 +1368,9 @@ freshenPreserving idsToPreserve initK e =
     then getId (k+1)
     else k
   in
-  let assignIds exp k =
-    let e__ = exp.val.e__ in
+  let assignIds (Expr exp_) k =
+    let exp = Expr exp_ in
+    let e__ = unwrapExp exp in
     let (newE__, newK) =
       case e__ of
         EConst ws n (locId, frozen, ident) wd ->
@@ -1419,11 +1422,11 @@ freshenPreserving idsToPreserve initK e =
         _ ->
           (e__, k)
     in
-    if Set.member exp.val.eid idsToPreserve then
+    if Set.member (expEId exp) idsToPreserve then
       (replaceE__ exp newE__, newK)
     else
       let eid = getId newK in
-      (WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
+      (Expr <| WithInfo (Exp_ newE__ eid) exp_.start exp_.end, eid + 1)
   in
   mapFoldExp assignIds initK e
 
@@ -1477,12 +1480,12 @@ allIdsRaw exp =
     (exps  |> elemsOf |> List.map (\(LetExp _ _ p _ _ t) -> p))
   in
   let flattened = flattenExpTree exp in
-  let eids = flattened |> List.map (.val >> .eid) in
+  let eids = flattened |> List.map expEId in
   let otherIds =
     flattened
     |> List.concatMap
         (\exp ->
-          case exp.val.e__ of
+          case (unwrapExp exp) of
             EConst ws n (locId, frozen, ident) wd -> [locId]
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
@@ -1523,9 +1526,10 @@ substStrOf = Dict.map (always toString) << substOf
 
 -- Record the primary identifier in the EConsts_ Locs, where appropriate.
 recordIdentifiers : (Pat, Exp) -> Exp
-recordIdentifiers (p,e) =
- let ret e__ = WithInfo (Exp_ e__ e.val.eid) e.start e.end in
- case (p.val.p__, e.val.e__) of
+recordIdentifiers (p, (Expr e)) =
+ let exp = Expr e in
+ let ret e__ = Expr <| WithInfo (Exp_ e__ <| expEId exp) e.start e.end in
+ case (p.val.p__, unwrapExp exp) of
 
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
   (PVar _ x _, EConst ws n (k, b, _) wd) -> ret <| EConst ws n (k, b, x) wd
@@ -1540,7 +1544,7 @@ recordIdentifiers (p,e) =
                       _                  -> me in
                   ret <| EList ws1 (U.listValuesMake es es_) ws2 me_ ws3
 
-  (PAs _ p1 _ p_, _) -> recordIdentifiers (p1, recordIdentifiers (p_,e))
+  (PAs _ p1 _ p_, _) -> recordIdentifiers (p1, recordIdentifiers (p_,exp))
 
   (_, EColonType ws1 e1 ws2 t ws3) ->
     ret <| EColonType ws1 (recordIdentifiers (p,e1)) ws2 t ws3
@@ -1551,8 +1555,8 @@ recordIdentifiers (p,e) =
 
 substPlusOf_ : SubstPlus -> Exp -> SubstPlus
 substPlusOf_ substPlus exp =
-  let accumulator e s =
-    case e.val.e__ of
+  let accumulator (Expr e) s =
+    case unwrapExp <| Expr e of
       EConst _ n (locId,_,_) _ ->
         case Dict.get locId s of
           Nothing ->

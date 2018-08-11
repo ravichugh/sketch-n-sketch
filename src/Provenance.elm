@@ -19,7 +19,7 @@ nameForVal program val =
 valToMaybeLetPat : Exp -> Val -> Maybe Pat
 valToMaybeLetPat program val =
   LangTools.allSimplyResolvableLetPatBindings program
-  |> Utils.findFirst (\(_, boundExp) -> isPossibleSingleEIdInterpretation (expEffectiveExp boundExp).val.eid val)
+  |> Utils.findFirst (\(_, boundExp) -> isPossibleSingleEIdInterpretation (expEId <| expEffectiveExp boundExp) val)
   |> Maybe.map (\(pat, _) -> pat)
 
 
@@ -32,7 +32,7 @@ valToMaybeLetPat program val =
 -- EId explanation, can they be consolidated into this parent?
 expNonControlFlowChildren : Exp -> List Exp
 expNonControlFlowChildren exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EConst _ _ _ _                               -> []
     EBase _ _                                    -> []
     EVar _ _                                     -> []
@@ -59,7 +59,7 @@ expandEIdInterpretationOutward program interpretation =
     -- Simple expansion of inner expressions into parents (e.g. we want the expression (3 : Num) instead of just the inner 3).
     interpPiecesExpanded =
       interpretation
-      |> List.map (LangTools.outerSameValueExpByEId program >> .val >> .eid)
+      |> List.map (LangTools.outerSameValueExpByEId program >> expEId)
 
     -- If all of some expression's children are in an interpretation, then we can use that expression instead of its children.
     parents =
@@ -67,14 +67,14 @@ expandEIdInterpretationOutward program interpretation =
       |> List.map (parentByEId program)
       |> Utils.filterJusts -- Found exps only
       |> Utils.filterJusts -- Parent of entire program is "Nothing"
-      |> Utils.dedupBy (.val >> .eid)
+      |> Utils.dedupBy expEId
     interpExpandedIntoParents =
       parents
       |> List.foldl
           (\parent interpretation ->
-            let parentNonControlFlowChildrenEIds = expNonControlFlowChildren parent |> List.map (.val >> .eid) in
+            let parentNonControlFlowChildrenEIds = expNonControlFlowChildren parent |> List.map expEId in
             if Utils.isSublistAsSet parentNonControlFlowChildrenEIds interpretation then
-              parent.val.eid :: Utils.diffAsSet interpretation parentNonControlFlowChildrenEIds
+              expEId parent :: Utils.diffAsSet interpretation parentNonControlFlowChildrenEIds
             else
               interpretation
           )
@@ -212,7 +212,7 @@ valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter val
 valTreeToAllProgramEIdInterpretations_ : Bool -> (Exp -> Bool) -> Val -> List (Set EId)
 valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  let perhapsThisExp = if Parser.isProgramEId exp.val.eid && expFilter exp then [Set.singleton exp.val.eid] else [] in
+  let perhapsThisExp = if Parser.isProgramEId (expEId exp) && expFilter exp then [Set.singleton (expEId exp)] else [] in
   basedOnVals
   |> List.map (valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter)
   |> (if ignoreUninterpretedSubtress then List.filter (not << List.isEmpty) else identity)
@@ -323,7 +323,7 @@ isRelevantParentPoint expFilter pointVals parent =
   let (Provenance _ parentExp _) = parent.provenance in
   -- Former condition should always be true; Eval won't add parent unless it's in the program.
   -- Leave it here though: eventually we will narrow contexts further.
-  Parser.isProgramEId parentExp.val.eid && List.member parent pointVals && expFilter parentExp
+  Parser.isProgramEId (expEId parentExp) && List.member parent pointVals && expFilter parentExp
 
 
 -- Provide a list of vals known to be points.
@@ -337,7 +337,7 @@ valTreeToMostProximalProgramPointEIdInterpretation expFilter pointVals val =
   case valParents val |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
     Just parent ->
       let (Provenance _ parentExp _) = parent.provenance in
-      (Set.singleton parentExp.val.eid, [parent])
+      (Set.singleton (expEId parentExp), [parent])
 
     Nothing ->
       let (childrenInterpretations, pointValsUsed) =
@@ -348,9 +348,9 @@ valTreeToMostProximalProgramPointEIdInterpretation expFilter pointVals val =
       if List.any ((/=) []) pointValsUsed then
         -- Child interpretations contain a point, use as given.
         (Utils.unionAll childrenInterpretations, Utils.unionAllAsSet pointValsUsed)
-      else if Parser.isProgramEId exp.val.eid && expFilter exp then
+      else if Parser.isProgramEId (expEId exp) && expFilter exp then
         -- No point intepretation yet, most proximal intepretation we can give is ourself.
-        (Set.singleton exp.val.eid, [])
+        (Set.singleton (expEId exp), [])
       else
         -- No point intepretation yet, most proximal intepretation we can give is our children's proximal interpretations.
         (Utils.unionAll childrenInterpretations, [])
@@ -377,14 +377,14 @@ valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
     case List.reverse (valParents val) |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
       Just parent ->
         let (Provenance _ parentExp _) = parent.provenance in
-        (Set.singleton parentExp.val.eid, [parent])
+        (Set.singleton (expEId parentExp), [parent])
 
       Nothing ->
         -- No point intepretation yet.
         if childrenInterpretations |> List.any (not << Set.isEmpty) then
           (Utils.unionAll childrenInterpretations, [])
-        else if Parser.isProgramEId exp.val.eid && expFilter exp then
-          (Set.singleton exp.val.eid, [])
+        else if Parser.isProgramEId (expEId exp) && expFilter exp then
+          (Set.singleton (expEId exp), [])
         else
           (Set.empty, [])
 
@@ -393,8 +393,8 @@ valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
 valTreeToMostProximalProgramEIdInterpretation : (Exp -> Bool) -> Val -> Set EId
 valTreeToMostProximalProgramEIdInterpretation expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  if Parser.isProgramEId exp.val.eid && expFilter exp then
-    Set.singleton exp.val.eid
+  if Parser.isProgramEId (expEId exp) && expFilter exp then
+    Set.singleton (expEId exp)
   else
     basedOnVals
     |> List.map (valTreeToMostProximalProgramEIdInterpretation expFilter)
@@ -415,8 +415,8 @@ valTreeToMostDistalProgramEIdInterpretation expFilter val =
   --   Utils.unionAll childrenInterpretations
   if childrenInterpretations |> List.any (not << Set.isEmpty) then
     Utils.unionAll childrenInterpretations
-  else if Parser.isProgramEId exp.val.eid && expFilter exp then
-    Set.singleton exp.val.eid
+  else if Parser.isProgramEId (expEId exp) && expFilter exp then
+    Set.singleton (expEId exp)
   else
     Set.empty
 
@@ -426,8 +426,8 @@ valTreeToSingleEIdInterpretations program expFilter val =
   program
   |> flattenExpTree
   |> List.filter expFilter
-  |> List.filter (\exp -> isPossibleSingleEIdInterpretation exp.val.eid val)
-  |> List.map (.val >> .eid)
+  |> List.filter (\exp -> isPossibleSingleEIdInterpretation (expEId exp) val)
+  |> List.map expEId
 
 
 -- Still combinatorically explosive :/
@@ -435,7 +435,7 @@ valTreeToSingleEIdInterpretations program expFilter val =
 valTreeToSingleEIdInterpretationsSlow : Exp -> (Exp -> Bool) -> Val -> List EId
 valTreeToSingleEIdInterpretationsSlow program expFilter val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  let perhapsThisExp = if Parser.isProgramEId exp.val.eid && expFilter exp then [exp.val.eid] else [] in
+  let perhapsThisExp = if Parser.isProgramEId (expEId exp) && expFilter exp then [(expEId exp)] else [] in
   basedOnVals
   |> List.map (valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter)
   |> List.filter (not << List.isEmpty)
@@ -463,13 +463,13 @@ valTreeToSingleEIdInterpretationsSlow program expFilter val =
 interpretationIsNonEmpty : Val -> Bool
 interpretationIsNonEmpty val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  Parser.isProgramEId exp.val.eid || List.any interpretationIsNonEmpty basedOnVals
+  Parser.isProgramEId (expEId exp) || List.any interpretationIsNonEmpty basedOnVals
 
 
 isPossibleSingleEIdInterpretation : EId -> Val -> Bool
 isPossibleSingleEIdInterpretation eid val =
   let (Provenance _ exp basedOnVals) = val.provenance in
-  (exp.val.eid == eid && Parser.isProgramEId exp.val.eid)
+  ((expEId exp) == eid && Parser.isProgramEId (expEId exp))
   || let relevantChildren = List.filter interpretationIsNonEmpty basedOnVals in
   case relevantChildren of
     [] -> False

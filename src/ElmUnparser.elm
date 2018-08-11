@@ -50,7 +50,7 @@ unparseBaseValue ebv =
 
 expName : Exp -> Maybe String
 expName e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     EBase _ baseVal ->
       case baseVal of
         EString _ name ->
@@ -74,7 +74,7 @@ patName p =
 
 expArgs : Exp -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
 expArgs e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     ERecord _ _ decls _ ->
       recordEntriesFromDeclarations decls
     _ ->
@@ -454,7 +454,7 @@ wrapWithTightParens unparsed =
 
 unparse : Exp -> String
 unparse e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     EConst wsBefore num (_, frozen, _) wd ->
       wsBefore.val
         ++ toString num
@@ -479,7 +479,7 @@ unparse e =
       in
       case parameters of
         (p::_) -> if pVarUnapply p == Just ElmParser.implicitVarName then
-          case functionBinding.val.e__ of
+          case (unwrapExp functionBinding) of
             ECase wsBefore examinedExpression branches wsBeforeOf -> if eVarUnapply examinedExpression == Just ElmParser.implicitVarName then
                 unparse (replaceE__ functionBinding <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
               else default ()
@@ -505,7 +505,7 @@ unparse e =
     EApp wsBefore function arguments appType _ ->
       -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
       let unparseArg e =
-        case e.val.e__ of
+        case (unwrapExp e) of
            EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
            EOp _ _ _ _ _        -> wrapWithTightParens (unparse e)
            EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
@@ -713,7 +713,7 @@ unparseDeclarations declarations =
 getParametersBinding: FunArgStyle -> Exp -> (String, Exp)
 getParametersBinding funArgStyle binding_  =
   let (parameters, binding) =
-    case (funArgStyle, binding_.val.e__) of
+    case (funArgStyle, (unwrapExp binding_)) of
        (FunArgAsPats, EFun _ parameters functionBinding _) ->
          let default = (parameters, functionBinding) in
          case parameters of
@@ -767,7 +767,7 @@ unparseLongStringContent s =
 
 --Parses and unparses long interpolated strings.
 multilineContentUnparse : Exp -> String
-multilineContentUnparse e = case e.val.e__ of
+multilineContentUnparse e = case (unwrapExp e) of
   EBase sp0 (EString _ s) ->
     unparseLongStringContent s
   EOp sp1 spOp op [left, right] sp2 ->
@@ -778,19 +778,19 @@ multilineContentUnparse e = case e.val.e__ of
              Just arg ->
                case eParensUnapplyIf ElmSyntax arg of
                Just arg ->
-                 (arg, arg.val.e__)
-               Nothing ->  (arg, arg.val.e__)
-             _ -> (left, x.val.e__)
+                 (arg, (unwrapExp arg))
+               Nothing ->  (arg, (unwrapExp arg))
+             _ -> (left, (unwrapExp x))
         in
         case unwrapToStrExceptStr left of
           (_, EBase sp0 (EString _ s)) ->
             multilineContentUnparse left ++ multilineContentUnparse right
           (_, EVar sp0 ident as left) ->
-            case right.val.e__ of
+            case (unwrapExp right) of
               EOp sp2 spOp2 op2 [left2, _] sp4->
                 case op2.val of
                   Plus ->
-                    case left2.val.e__ of
+                    case (unwrapExp left2) of
                       EBase sp3 (EString _ s) ->
                         let varRep = case String.uncons s of
                           Nothing -> "@" ++ ident
@@ -829,16 +829,16 @@ unparseHtmlAttributes: Exp -> String
 unparseHtmlAttributes attrExp =
   case eListUnapply attrExp of
     Just attrs ->
-      attrs |> List.map (\attr -> case attr.val.e__ of
+      attrs |> List.map (\attr -> case (unwrapExp attr) of
         EList attrNameSpace [(_, attrName), (attrEqSpace, attrValue)] _ Nothing _ ->
           let beforeSpace = if attrNameSpace.val == "" then " " else attrNameSpace.val in
-          case attrName.val.e__ of
+          case unwrapExp attrName of
             EBase _ (EString _ attrNameStr) ->
               let attrValueToConsider = case attrNameStr of
                 "style" -> eAppUnapply1 attrValue |> Maybe.map Tuple.second |> Maybe.withDefault attrValue
                 _ -> attrValue
               in
-              case attrValueToConsider.val.e__ of
+              case (unwrapExp attrValueToConsider) of
                 EBase spIfNoValue (EString _ attrValueStr) ->
                   if attrValueStr == "" && spIfNoValue.val == " " then
                     beforeSpace ++ attrNameStr
@@ -853,7 +853,7 @@ unparseHtmlAttributes attrExp =
             _ -> " @[" ++ unparse attr ++"]"
         _ -> " @[" ++ unparse attr ++"]"
       ) |> String.join ""
-    Nothing -> case attrExp.val.e__ of
+    Nothing -> case (unwrapExp attrExp) of
       EApp sp _ [e1, e2] _ _ -> case eAppUnapply2 e1 of
         Just (_, eleft, e) ->
           unparseHtmlAttributes eleft ++ sp.val ++ "@" ++ unparse e ++ unparseHtmlAttributes e2
@@ -866,11 +866,11 @@ unparseHtmlChildList childExp =
     Just children ->
       children |> List.map unparseHtmlNode |> String.join ""
     Nothing ->
-      case childExp.val.e__ of
+      case (unwrapExp childExp) of
         EApp _ _ [e1, eRight] _ _ ->
-          case e1.val.e__ of
+          case (unwrapExp e1) of
             EApp _ _ [eLeft, eToRenderwrapped] _ _ ->
-              case eToRenderwrapped.val.e__ of
+              case (unwrapExp eToRenderwrapped) of
                 EApp  _ _ [eToRender] _ _ ->
                   unparseHtmlChildList eLeft ++ "@" ++ unparse eToRender ++ unparseHtmlChildList eRight
                 _ ->
@@ -892,14 +892,14 @@ unparseHtmlTextContent content =
   Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@") <| content
 
 unparseHtmlNode: Exp -> String
-unparseHtmlNode e = case e.val.e__ of
+unparseHtmlNode e = case (unwrapExp e) of
   EList _ [text, (_, content)] _ Nothing _ ->
-    case content.val.e__ of
+    case (unwrapExp content) of
       EBase _ (EString _ content) -> unparseHtmlTextContent content
       EVar _ varname -> "@" ++ varname
       x -> "@[" ++ unparse e ++ "]"
   EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->
-    let (tagStart, tagEnd) = case tagExp.val.e__ of
+    let (tagStart, tagEnd) = case (unwrapExp tagExp) of
           EBase _ (EString _ content) -> (content, content)
           _ -> ("@" ++ unparse tagExp, "@")
     in
@@ -919,7 +919,7 @@ unparseHtmlNode e = case e.val.e__ of
 -- Detects if there are nodes, text, attributes and call the correct unparser. Use it for displaying local difference only.
 unparseAnyHtml: Exp -> String
 unparseAnyHtml e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     EList _ [(_, text), (_, content)] _ Nothing _ ->
       case eStrUnapply text of
         Just "TEXT" -> unparseHtmlNode e
@@ -936,7 +936,7 @@ unparseAnyHtml e =
                 Just "++" ->  unparseHtmlNode e
                 _ -> unparse e
               _ -> unparse e
-        Nothing -> case tag.val.e__ of
+        Nothing -> case (unwrapExp tag) of
           EParens _ inner ElmSyntax _-> unparseHtmlNode e
           _ -> unparse e
     _ -> unparseHtmlChildList e
@@ -944,12 +944,12 @@ unparseAnyHtml e =
 -- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-contained
 getExpPrecedence: Exp -> Maybe Int
 getExpPrecedence exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EList _ [head] _ (Just tail) _ -> Just 5
     EApp _ _ _ (LeftApp _) _       -> Just 0
     EApp _ _ _ (RightApp _) _      -> Just 0
     EApp _ f _ (InfixApp) _        ->
-      case f.val.e__ of
+      case (unwrapExp f) of
         EVar _ name ->
           case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
             Nothing -> Nothing
@@ -970,12 +970,12 @@ getExpPrecedence exp =
 
 getExpAssociativity: Exp -> Maybe BinaryOperatorParser.Associativity
 getExpAssociativity exp =
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EList _ [head] _ (Just tail) _ -> Just BinaryOperatorParser.Right
     EApp _ _ _ (LeftApp _) _       -> Just BinaryOperatorParser.Right
     EApp _ _ _ (RightApp _) _      -> Just BinaryOperatorParser.Left
     EApp _ f _ (InfixApp) _        ->
-      case f.val.e__ of
+      case (unwrapExp f) of
         EVar _ name ->
           case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
             Nothing -> Nothing

@@ -224,7 +224,7 @@ unparseDecls withIds (Declarations _ types anns exps) =
     ))
 
 unparse_ : Exp -> String
-unparse_ e = case e.val.e__ of
+unparse_ e = case (unwrapExp e) of
   EBase ws v -> ws.val ++ unparseBaseVal v
   EConst ws n l wd ->
     let (_,b,_) = l in
@@ -277,8 +277,8 @@ unparse_ e = case e.val.e__ of
 
 unparseWithIds : Exp -> String
 unparseWithIds e =
-  let eidTag = "<" ++ toString e.val.eid ++ ">" in
-  case e.val.e__ of
+  let eidTag = "<" ++ toString (expEId e) ++ ">" in
+  case (unwrapExp e) of
     EBase ws v -> ws.val ++ unparseBaseVal v ++ eidTag
     EConst ws n l wd ->
       let (locId,b,_) = l in
@@ -348,7 +348,7 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
        ) |> String.join "")
     ))
   in
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EBase _ v -> " " ++ unparseBaseValWithUniformWhitespace v
     EConst _ n l wd ->
       let (_,b,_) = l in

@@ -17,10 +17,10 @@ type alias TopLevelExp = WithInfo (Exp -> Exp_)
 -- Top-Level Expression Fusing
 --------------------------------------------------------------------------------
 
-fuseTopLevelExp : TopLevelExp -> Exp -> Exp
+fuseTopLevelExp : TopLevelExp -> WithInfo Exp_ -> WithInfo Exp_
 fuseTopLevelExp tld rest =
-  withInfo (tld.val rest) tld.start tld.end
+  withInfo (tld.val (Expr rest)) tld.start tld.end
 
-fuseTopLevelExps : (List TopLevelExp) -> Exp -> Exp
+fuseTopLevelExps : (List TopLevelExp) -> WithInfo Exp_ -> WithInfo Exp_
 fuseTopLevelExps tlds rest =
   List.foldr fuseTopLevelExp rest tlds
