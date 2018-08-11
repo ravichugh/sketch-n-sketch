@@ -1,16 +1,16 @@
 map f =
-  letrec aux l = case l of
+  let aux l = case l of
     [] -> []
     head::tail -> f head::map f tail
   in aux
 take n =
-  letrec aux l = let _ = debug "take" in let _ = debug n in let _ = debug l in if n == 0 then [] else
+  let aux l = let _ = debug "take" in let _ = debug n in let _ = debug l in if n == 0 then [] else
     case l of
       [] -> []
       head::tail -> head :: (take (n - 1) tail)
   in aux
 drop n =
-  letrec aux l = if n == 0 then l else
+  let aux l = if n == 0 then l else
     case l of
       [] -> []
       head::tail -> drop (n - 1) tail
@@ -19,7 +19,7 @@ drop n =
 -- Returns a list of HTML nodes parsed from a string. This function is bidirectional
 html string = {
   apply trees = 
-    letrec domap tree = case tree of
+    let domap tree = case tree of
       HTMLInner v -> let _ = debug (" HTMLInner" + v) in ["TEXT", replaceAllIn "&amp;|&lt;|&gt;|</[^>]*>" (\{match} -> case match of "&amp;" -> "&"; "&lt;" -> "<"; "&gt;" -> ">"; _ -> "") v]
       HTMLElement tagName attrs ws1 endOp children closing ->
         [ tagName
@@ -35,7 +35,7 @@ html string = {
   update {input, outputOld, outputNew} =
     let toHTMLAttribute [name, value] = HTMLAttribute " " name (HTMLAttributeString "" "" "\"" value) in
     let toHTMLInner text = HTMLInner (replaceAllIn "<|>|&" (\{match} -> case match of "&" -> "&amp;"; "<" -> "&lt;"; ">" -> "&gt;"; _ -> "") text) in
-    letrec mergeAttrs acc ins d = case d of
+    let mergeAttrs acc ins d = case d of
       [] -> acc
       {kept}::dt -> mergeAttrs (append acc (take (len kept) ins)) (drop (len kept) ins) dt
       {deleted=[deleted]}::{inserted=[inserted]}::dt ->
@@ -61,12 +61,12 @@ html string = {
         let newIns = map toHTMLAttribute inserted in
         mergeAttrs (append acc newIns) ins dt
     in
-    letrec toHTMLNode e = case e of
+    let toHTMLNode e = case e of
       ["TEXT",v2] -> toHTMLInner v2
       [tag, attrs, children] -> HTMLElement tag (map toHTMLAttribute attrs) ""
            RegularEndOpening (map toHTMLNode children) RegularClosing ""
     in
-    letrec mergeNodes acc ins d = let _ = debug "mergeNodes, acc=" in let _ = debug acc in case d of
+    let mergeNodes acc ins d = let _ = debug "mergeNodes, acc=" in let _ = debug acc in case d of
       [] -> acc
       {kept}::dt -> mergeNodes (append acc (take (len kept) ins)) (drop (len kept) ins) dt
       {deleted=[deleted]}::{inserted=[inserted]}::dt ->

@@ -12,7 +12,7 @@ listAppendLens = {
     let consLefts v list = List.simpleMap (Tuple.mapFirst (List.cons v)) list in
     let consRights v list = List.simpleMap (Tuple.mapSecond (List.cons v)) list in
 
-    letrec walk insertLeft diffOps xs ys acc =
+    let walk insertLeft diffOps xs ys acc =
       case diffOps of
         [] ->
           case (xs, ys) of

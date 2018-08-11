@@ -5,8 +5,6 @@ import Lang exposing (..)
 import ParserUtils exposing (..)
 import LangUtils exposing (valToString)
 import LangParserUtils exposing (explodeStyleValue)
-import UpdateUtils
-import Utils
 import Results exposing (Results)
 import ValUnbuilder as Vu
 import ValBuilder as Vb
@@ -148,7 +146,8 @@ styleAttrToElmViewInLeo vb (name, content) =
 
 filterHTMLInnerWhitespace: List HTMLNode -> List HTMLNode
 filterHTMLInnerWhitespace nodes =
-  let aux revAcc nodes =
+  let aux: List HTMLNode -> List HTMLNode -> List HTMLNode
+      aux revAcc nodes =
     case nodes of
        [] -> List.reverse revAcc
        head :: tail ->

@@ -3,7 +3,6 @@ module Provenance exposing (..)
 import ElmParser as Parser
 import Lang exposing (..)
 import LangTools
-import LangUnparser
 import Utils
 
 import Set exposing (Set)
@@ -43,15 +42,11 @@ expNonControlFlowChildren exp =
     ERecord _ _ _ _                              -> childExps exp
     ESelect _ _ _ _ _                            -> childExps exp
     EApp _ func es _ _                           -> es -- Provenance implicit: when func returns a val, it's based on a terminal expression inside the EFun.
-    ELet _ _ _ _ _ boundExp _ body _             -> [body] -- lets are actually pass-through and won't appear the val provenance tree; not sure it matters what we return here
+    ELet _ _ (Declarations _ ([], _) [] ([LetExp _ _ pat _ _ assigns], _)) _ body -> [body] -- lets are actually pass-through and won't appear the val provenance tree; not sure it matters what we return here
+    ELet _ _ _ _ _                               -> [] -- TODO: It is surely not correct, but (Mikaël Mayer) do not understand this function.
     EIf _ predicate _ trueBranch _ falseBranch _ -> [trueBranch, falseBranch]
     ECase _ scrutinee branches _                 -> branchExps branches
-    ETypeCase _ scrutinee tbranches _            -> tbranchExps tbranches
-    EOption _ _ _ _ _                            -> childExps exp
-    ETyp _ _ _ _ _                               -> childExps exp
     EColonType _ _ _ _ _                         -> childExps exp
-    ETypeAlias _ _ _ _ _                         -> childExps exp
-    ETypeDef _ _ _ _ _ _ _                       -> childExps exp
     EParens _ _ _ _                              -> childExps exp
     EHole _ _                                    -> []
 

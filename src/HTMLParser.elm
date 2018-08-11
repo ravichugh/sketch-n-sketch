@@ -65,9 +65,9 @@ type HTMLTag = HTMLTagString (WithInfo String) | HTMLTagExp Exp
 
 type ParsingMode = Raw |
   Interpolation {
-    tagName: Parser WS -> Parser Exp,
+    tagName: Parser Exp,
     attributevalue: Parser WS -> Parser Exp,
-    attributelist: Parser WS -> Parser Exp,
+    attributelist: Parser Exp,
     childlist: Parser WS -> Parser Exp}
 
 voidElements: Set String
@@ -229,7 +229,7 @@ nodeElementStart parsingMode =
           defaultParser,
           succeed (\s x -> (HTMLTagExp x, "@"))
           |= symbol "@"
-          |= tagName nospace
+          |= tagName
         ]
 
 nodeStart: Parser String
@@ -282,7 +282,7 @@ parseHTMLAttribute parsingMode =
           oneOf [
             (succeed (flip HTMLAttributeListExp)
             |. symbol "@"
-            |= attributelist nospace),
+            |= attributelist),
             defaultAttributeParser]
 
 mergeInners: List HTMLNode -> List HTMLNode
@@ -509,7 +509,8 @@ unparseList: (a -> a -> Unparser) -> (a -> String) -> List a -> List a -> Unpars
 unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
   --let _ = Debug.log ("unparseList " ++ toString mbdiffs) () in
   -- Things that did not change
-  let default (strAcc, offset, listDiffs) list1 list2 =
+  let default: (String, Int, List StringDiffs) -> List a -> List a -> (String, Int, List StringDiffs)
+      default (strAcc, offset, listDiffs) list1 list2 =
     List.foldl (\(a1, a2) (str, offset, strDiffs) ->
        let str2 = defaultUnparser a2 in
        (str ++ str2, offset + String.length str2, strDiffs)
@@ -518,7 +519,8 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
   case mbdiffs of
     Nothing -> Ok <| default ("", offset, []) list1 list2
     Just (VListDiffs ds) ->
-      let aux i ds remaining1 remaining2 (strAcc, offset, listDiffs)=
+      let aux: Int -> ListDiffs VDiffs -> List a -> List a -> (String, Int, List StringDiffs) -> Result String (String, Int, List StringDiffs)
+          aux i ds remaining1 remaining2 (strAcc, offset, listDiffs) =
         --let _ = Debug.log ("unparseList.aux " ++toString i++ " " ++ toString ds ++ " " ++ toString remaining1 ++ " " ++ toString remaining2 ++ " "  ++ " " ++ toString (strAcc, offset, listDiffs)) () in
         case ds of
         [] -> Ok <| default (strAcc, offset, listDiffs) remaining1 remaining2

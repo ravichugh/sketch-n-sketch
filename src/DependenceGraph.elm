@@ -86,11 +86,12 @@ foldPatternsWithIds f (scopeId, path) pats init =
         PBase _ _   -> acc
         PWildcard _ -> acc
         PVar _ x _  -> f pathedPatId x acc
-        PAs _ _ x _ p -> f pathedPatId x (doOne f pathedPatId p acc)
+        PAs _ p1 _ p2 -> doOne f pathedPatId p2 (doOne f pathedPatId p1 acc)
         PList _ ps _ Nothing _  -> doMany f pathedPatId ps acc
         PList _ ps _ (Just p) _ -> doMany f pathedPatId (ps ++ [p]) acc
         PParens _ p _ -> doOne f pathedPatId p acc
         PRecord _ p _ -> doMany f pathedPatId (Utils.recordValues p) acc
+        PColonType _ p _ _ -> doOne f pathedPatId p acc
 
     doMany f (scopeId, path) pats acc =
       Utils.foldli1 (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
@@ -254,23 +255,30 @@ compute e =
 
 traverse : Env -> Exp -> ScopeGraph -> ScopeGraph
 traverse env exp acc =
-
   let recurse es = List.foldl (traverse env) acc es in
 
   let newScopeId = (exp.val.eid, 1) in -- only if e is ELet or EFun; ECase not handled yet
 
   case exp.val.e__ of
 
-    ELet _ _ _ p _ e1 _ e2 _ ->
-      let env1 = updateEnv newScopeId [p] env in
-      acc
-        |> addScopeNode newScopeId True
-        |> addScopeEdge newScopeId env.currentScope
-        |> foldPatternsWithIds addVarNode (newScopeId, []) [p]
-        |> traverseAndAddDependencies newScopeId env p e1
-        |> addVarBindingsBefore newScopeId env.varBindings
-        |> addVarBindingsAfter newScopeId env1.varBindings
-        |> traverse env1 e2
+    ELet _ _ (Declarations _ _ _ exps as decls) _ e2 ->
+      (foldLeftGroup (acc, env) exps <| \(acc, env) group ->
+        let ps = List.map (\(LetExp _ _ p  _ _ e1) -> p) group in
+        let pes = List.map (\(LetExp _ _ p  _ _ e1) -> (p, e1)) group in
+        let env1 = updateEnv newScopeId ps env in
+        let executeAll funs acc = case funs of
+          [] -> acc
+          head :: tail -> executeAll tail (head acc)
+        in
+        (acc
+          |> addScopeNode newScopeId True
+          |> addScopeEdge newScopeId env.currentScope
+          |> foldPatternsWithIds addVarNode (newScopeId, []) ps
+          |> executeAll (List.map (\(p, e1) -> traverseAndAddDependencies newScopeId env p e1) pes)
+          |> addVarBindingsBefore newScopeId env.varBindings
+          |> addVarBindingsAfter newScopeId env1.varBindings, env1)
+      )
+      |> (\(acc, env1) -> traverse env1 e2 acc)
 
     EFun _ ps eBody _ ->
       let env1 = updateEnv newScopeId ps env in
@@ -300,22 +308,14 @@ traverse env exp acc =
     EList _ es _ (Just eRest) _  -> recurse (Utils.listValues es ++ [eRest])
     EList _ es _ Nothing _       -> recurse (Utils.listValues es)
 
-    ERecord _ (Just (init, _)) es _ -> recurse ([init] ++ Utils.recordValues es)
-    ERecord _ Nothing es _ -> recurse (Utils.recordValues es)
+    ERecord _ _ es _ -> recurse (childExps exp)
 
     ESelect _ e _ _ s -> recurse [e]
 
     ECase _ e branches _ ->
       let _ = Debug.log "TODO: scope tree ECase" () in acc
 
-    ETypeCase _ _ tbranches _ ->
-      let _ = Debug.log "TODO: scope tree ETypeCase" () in acc
-
-    EOption _ _ _ _ e      -> recurse [e]
-    ETyp _ _ _ e _         -> recurse [e]
     EColonType _ e _ _ _   -> recurse [e]
-    ETypeAlias _ _ _ e _   -> recurse [e]
-    ETypeDef _ _ _ _ _ e _ -> recurse [e]
     EParens _ e _ _        -> recurse [e]
     EHole _ _              -> let _ = Utils.log "DependenceGraph.traverse: EHole in exp!!" in acc
 
@@ -369,11 +369,12 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
           |> traverse env exp
           |> addDependencies pathedPatId
 
-    (PAs _ _ x _ p, _) ->
+    (PAs _ p1  _ p2, _) ->
       acc |> clearUsed
           |> traverse env exp
           |> addDependencies pathedPatId
-          |> traverseAndAddDependencies_ pathedPatId env p exp
+          |> traverseAndAddDependencies_ pathedPatId env p1 exp
+          |> traverseAndAddDependencies_ pathedPatId env p2 exp
                -- NOTE: exp gets traversed twice...
 
     (PParens _ p _, _) ->
@@ -406,8 +407,15 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
           |> traverse env exp
           |> addConservativeDependencies
 
-    (PRecord _ ps _, ERecord _ Nothing es _) ->
-      let mergeOperations = Record.getPatternMatch Utils.recordKey Utils.recordKey ps es in
+    (PRecord _ ps _, ERecord _ Nothing (Declarations _ _ _ exps) _) ->
+      let recordKeyValues = foldLeftGroup [] exps <|
+        \acc group -> Utils.foldLeft acc group <|
+        \acc (LetExp _ _ p _ _ e) ->
+          case p.val.p__ of
+            PVar _ indent _ -> (indent, e)::acc
+            _ -> acc
+      in
+      let mergeOperations = Record.getPatternMatch Utils.recordKey Tuple.first ps recordKeyValues in
 
       case mergeOperations of
         Nothing -> acc |> clearUsed
@@ -418,8 +426,12 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
             Utils.foldli1 (\(i,(pi, ei)) acc ->
                 let pathedPatId2 = (scopeId, basePath ++ [i]) in
                 traverseAndAddDependencies_ pathedPatId2 env pi ei acc
-              ) acc (List.map (Utils.mapFirstSecond Utils.recordValue Utils.recordValue) replacements)
+              ) acc (List.map (Utils.mapFirstSecond Utils.recordValue Tuple.second) replacements)
     (PRecord _ _ _, _) ->
+          acc |> clearUsed
+              |> traverse env exp
+              |> addConservativeDependencies
+    (PColonType _ _ _ _, _) ->
           acc |> clearUsed
               |> traverse env exp
               |> addConservativeDependencies

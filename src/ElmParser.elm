@@ -1,9 +1,7 @@
 module ElmParser exposing
-  ( parse,
-    builtInPrecedenceTable,
-    builtInPatternPrecedenceTable,
-    isRestChar,
-    isTopLevelDefImplicitlyRec
+  ( parse
+  , builtInPrecedenceTable
+  , builtInPatternPrecedenceTable
 
   -- All of these exports are copied from FastParser,
   -- so that ElmParser can be a drop-in replacement
@@ -34,13 +32,13 @@ import Utils
 import Lang exposing (..)
 import Info exposing (..)
 import ElmLang
-import TopLevelExp exposing (TopLevelExp, fuseTopLevelExps)
 
 -- import FastParser
 import PreludeGenerated as Prelude
 import Regex
 import HTMLParser
 import ImpureGoodies
+import Array
 
 --==============================================================================
 --= Helpers
@@ -81,7 +79,7 @@ genericNonEmptyList { item, combiner }=
              |= item
            )
     in
-      transferInfo
+    transferInfo
         ( \(members, wsBeforeEnd) spaceBefore ->
             combiner spaceBefore members wsBeforeEnd
         )
@@ -141,7 +139,7 @@ genericList { item, tailItem, combiner, combinerTail } =
       [ try <|
           genericEmptyList
             { combiner =
-                \wsBefore wsAfter -> combiner wsBefore [] wsAfter,
+                \wsBefore wsAfter -> combiner wsBefore [] wsAfter
             }
       , try <|
           genericNonEmptyList
@@ -179,20 +177,20 @@ genericEmptyRecord { combiner} =
 
 genericNonEmptyRecord
   :  { keyValue : Parser (String, WS, elemValue)
-     , combiner : WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
+     , combiner : WS -> List (Maybe WS, WS, String, WS, elemValue) -> WS -> record
      }
   -> ParserI (WS -> record)
 genericNonEmptyRecord { keyValue, combiner }=
   lazy <| \_ ->
     let
-      keyValueSeqHelper : Set String -> List (WS, WS, String, WS, elemValue)-> Parser (List (WS, WS, String, WS, elemValue))
+      keyValueSeqHelper : Set String -> List (Maybe WS, WS, String, WS, elemValue)-> Parser (List (Maybe WS, WS, String, WS, elemValue))
       keyValueSeqHelper keys revKeyValues =
         oneOf [
-          delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
+          delayedCommitMap (\ws (opt, a, (b, c, d)) -> (opt |> Maybe.map (\_ -> ws), if opt == Nothing then ws else a, b, c, d))
             spaces
-            (succeed (,)
+            (succeed (,,)
               |. negativeLookAhead (symbol "}")
-              |. optional (symbol ",")
+              |= optional (symbol ",")
               |= spaces
               |= keyValue
             )
@@ -214,7 +212,7 @@ genericNonEmptyRecord { keyValue, combiner }=
                   |= spaces
                   |= keyValue)
                   |> andThen (\((wsBefore, (k, w, v)) as kv) ->
-                    keyValueSeqHelper (Set.singleton k) [(space0, wsBefore, k, w, v)]
+                    keyValueSeqHelper (Set.singleton k) [(Nothing, wsBefore, k, w, v)]
                     )
                  )
               |= spaces
@@ -224,20 +222,20 @@ genericNonEmptyRecord { keyValue, combiner }=
 genericNonEmptyRecordWithInit
   :  { keyValue : Parser (String, WS, elemValue)
      , initItem: Parser elemInit
-     , combinerInit : WS-> elemInit -> WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
+     , combinerInit : WS-> elemInit -> WS -> List (Maybe WS, WS, String, WS, elemValue) -> WS -> record
      }
   -> ParserI (WS -> record)
 genericNonEmptyRecordWithInit { keyValue, initItem, combinerInit }=
   lazy <| \_ ->
     let
-      keyValueSeqHelper : Set String -> List (WS, WS, String, WS, elemValue)-> Parser (List (WS, WS, String, WS, elemValue))
+      keyValueSeqHelper : Set String -> List (Maybe WS, WS, String, WS, elemValue)-> Parser (List (Maybe WS, WS, String, WS, elemValue))
       keyValueSeqHelper keys revKeyValues =
         oneOf [
-          delayedCommitMap (\ws (a, (b, c, d)) -> (ws, a, b, c, d))
+          delayedCommitMap (\ws (opt, a, (b, c, d)) -> (opt |> Maybe.map (\_ -> ws), if opt == Nothing then ws else a, b, c, d))
             spaces
-            (succeed (,)
+            (succeed (,,)
               |. negativeLookAhead (symbol "}")
-              |. optional (symbol ",")
+              |= optional (symbol ",")
               |= spaces
               |= keyValue
             )
@@ -262,7 +260,7 @@ genericNonEmptyRecordWithInit { keyValue, initItem, combinerInit }=
                   |= spaces
                   |= keyValue)
                   |> andThen (\((wsBefore, (k, w, v)) as kv) ->
-                    keyValueSeqHelper (Set.singleton k) [(space0, wsBefore, k, w, v)]
+                    keyValueSeqHelper (Set.singleton k) [(Nothing, wsBefore, k, w, v)]
                     )
                  )
               |= spaces
@@ -274,15 +272,15 @@ genericRecord
   :  { key : Parser String
      , equalSign: Parser ()
      , optNoEqualSign: Maybe (String -> elemValue)
-     , value : SpacePolicy -> Parser elemValue
+     , value : Parser WS -> MinStartCol -> Parser elemValue
      , fundef : Maybe { -- Optional arguments to records, e.g. { myfun arg1 arg2 = value }
           arguments : Parser (List arguments),
           buildValue : List arguments -> elemValue -> elemValue
        }
-     , combiner : WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
+     , combiner : WS -> List (Maybe WS, WS, String, WS, elemValue) -> WS -> record
      , optionalInitParser: Maybe
        { initItem : Parser elemInit
-       , combinerInit : WS -> elemInit -> WS -> List (WS, WS, String, WS, elemValue) -> WS -> record
+       , combinerInit : WS -> elemInit -> WS -> List (Maybe WS, WS, String, WS, elemValue) -> WS -> record
        }
      }
   -> ParserI (WS -> record)
@@ -297,10 +295,7 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, optiona
         |= oneOf [
             succeed (,)
             |= delayedCommitMap (\a b -> a) spaces equalSign
-            |= (let firstappargpolicy =
-                  sameLineOrIndentedByAtLeast "for a value in this record" (keyWithInfos.start.col - 1 {- The column index-} + 1 {- The indentation increment-}) in -- No newlines, or be at least indented after the keyword.
-              inContext "record value" <| value { first = spaces, apparg = firstappargpolicy }
-             )
+            |= (inContext "record value" <| value spaces (keyWithInfos.start.col + 1))
           , case optNoEqualSign of
               Nothing -> fail "Expected ="
               Just f ->
@@ -318,7 +313,7 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, optiona
       ([ try <|
           genericEmptyRecord
             { combiner =
-                \wsBefore wsAfter -> combiner wsBefore [] wsAfter,
+                \wsBefore wsAfter -> combiner wsBefore [] wsAfter
             }
       ] ++ (
         case optionalInitParser of
@@ -345,16 +340,16 @@ genericRecord { key, equalSign, optNoEqualSign, value, fundef, combiner, optiona
 --------------------------------------------------------------------------------
 
 genericTuple
-  :  { term : SpacePolicy -> Parser t
+  :  { term : Parser t
      , tagger : String -> t
      , one : WS -> t -> WS -> r
-     , record : WS -> List (WS, WS, Ident, WS, t) -> WS -> r
+     , record : WS -> List (Maybe WS, WS, Ident, WS, t) -> WS -> r
      , implicitFun: Maybe (Ident -> (pvar, t), WS -> List pvar -> r -> r)
      }
   -> ParserI (WS -> r)
 genericTuple { term, tagger, one, record, implicitFun } =
   let
-    combiner:(t, List (WS, t), WS)       -> WS -> r
+    combiner:(t, List (Maybe WS, t), WS)       -> WS -> r
     combiner (fst, rest, wsBeforeEnd) wsBefore =
       if List.isEmpty rest then
         one wsBefore fst wsBeforeEnd
@@ -367,7 +362,7 @@ genericTuple { term, tagger, one, record, implicitFun } =
           Lang.ctor tagger Lang.TupleCtor name
 
         firstEntry =
-          Lang.numericalEntry 1 (space0, fst)
+          Lang.numericalEntry 1 (Nothing, fst)
 
         restEntries =
           Utils.indexedMapFrom 2 Lang.numericalEntry rest
@@ -390,7 +385,7 @@ genericTuple { term, tagger, one, record, implicitFun } =
            implicitVarName ++ toString i
         ) |> List.map identToPvarVar |> List.unzip
       in
-      funBuilder wsBefore (firstPvar::restPvar) (combiner (firstVar, (List.map ((,) space0) restVar), space0) space0)
+      funBuilder wsBefore (firstPvar::restPvar) (combiner (firstVar, (List.map ((,) (Just space0)) restVar), space0) space0)
 
   in
     lazy <| \_ ->
@@ -403,13 +398,13 @@ genericTuple { term, tagger, one, record, implicitFun } =
             ( trackInfo <|
                 succeed (,,)
 
-                  |= term allSpacesPolicy
+                  |= term
                   |= repeat zeroOrMore
-                       ( delayedCommitMap (\ws term -> (ws, term))
+                       ( delayedCommitMap (\ws term -> (Just ws, term)) -- In the future, we could write tuples (1\n 2)
                           spaces
                           (succeed identity
                            |. symbol ","
-                           |= term allSpacesPolicy)
+                           |= term)
                        )
                   |= spaces
                   |. symbol ")"
@@ -479,23 +474,6 @@ keywords =
     , "False"
     ]
 
-
-
-isFirstChar : Char -> Bool
-isFirstChar char =
-  Char.isLower char ||
-  Char.isUpper char ||
-  char == '_' ||
-  char == '$'
-
-isRestChar : Char -> Bool
-isRestChar char =
-  Char.isLower char ||
-  Char.isUpper char ||
-  Char.isDigit char ||
-  char == '_' ||
-  char == '$'
-
 identifier : Parser Ident
 identifier =
   LK.variable
@@ -551,6 +529,17 @@ patternSymbolIdentifier =
     oneOf
       [ source (symbol "::")
       , source (keyword "as")
+      ]
+
+typeSymbolIdentifier: ParserI Ident
+typeSymbolIdentifier =
+  trackInfo <|
+    oneOf
+      [ source (symbol "&")
+      , source (symbol "|")
+      , source (symbol "->")
+      , source (symbol "<|")
+      , source (symbol "|>")
       ]
 
 --==============================================================================
@@ -676,8 +665,8 @@ multilineConcatExp exps startPosition =
     head::tail ->
       let tailPart = multilineConcatExp tail head.end in
       case head.val.e__ of
-        ELet sp0 letType isRec pattern wsBeforeEq binding wsBeforeIn _ sp1 ->
-          replaceE__ head <| ELet sp0 letType isRec pattern wsBeforeEq binding wsBeforeIn tailPart sp1
+        ELet sp0 letType decls wsBeforeIn _ ->
+          replaceE__ head <| ELet sp0 letType decls wsBeforeIn tailPart
         _ ->
           withInfo
             (exp_ <| EOp space0 space1 (withInfo Plus head.end tailPart.start) [head, tailPart] space0)
@@ -724,7 +713,7 @@ multilineEscapedElmExpression =
   oneOf [
     lazy <| \_ -> trackInfo <|
       succeed (\wsv -> let v = wsv space0 in exp_ <| EOp space0 space1 (withInfo ToStrExceptStr v.start v.start) [v] space0)
-      |= (variableExpression |> addSelections False nospace),
+      |= (variableExpression |> addSelections),
     lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ -> mapExp_ <| trackInfo <|
         (succeed (\wsToExp ->
@@ -737,45 +726,11 @@ multilineEscapedElmExpression =
 multilineGenericLetBinding : Parser Exp
 multilineGenericLetBinding =
   inContext ("let binding within a long string") <|
-    lazy <| \_ ->
-      succeed (\letdefWithInfo pattern parameters wsBeforeEq binding_  ->
-         let isRec = letdefWithInfo.val == "letrec" in
-         let
-           binding =
-             if List.isEmpty parameters then
-               binding_
-             else
-               withInfo
-                 (exp_ <| EFun space0 parameters binding_ space0)
-                 binding_.start
-                 binding_.end
-         in
-           withInfo
-             (
-                 exp_ <|
-                   ELet
-                     space0
-                     Let
-                     isRec
-                     pattern
-                     wsBeforeEq
-                     binding
-                     space0
-                     (withDummyExpInfo <| EHole space0 Nothing)
-                     space0
-             )
-             letdefWithInfo.start
-             binding.end
-       )
-      |= (trackInfo <| source <| oneOf [keywordWithSpace "let", keywordWithSpace "letrec"])
-      |= pattern spacesWithoutNewline
-      |= repeat zeroOrMore (pattern spacesWithoutNewline)
-      |= spacesWithoutNewline.first
-      |. symbol "="
-      |= expression spacesWithoutNewline
-      |. ignore zeroOrMore (\c -> c == ' ' || c == '\t')-- This will remove trailing whitespace.
+    map (\p -> p space0) <|
+    genericLetBinding (
+      succeed identity
       |. symbol "\n"
-
+      |= succeed (withDummyExpInfo <| EHole space0 Nothing))
 
 --------------------------------------------------------------------------------
 -- HTML Literals
@@ -957,7 +912,7 @@ addRightApplications parser =
       succeed (\sp spToExp -> spToExp sp)
       |. symbol "<|"
       |= spaces
-      |= (simpleExpression nospace |> addParenthesizedParameters))
+      |= (simpleExpression 0 NoSpace |> addParenthesizedParameters))
 
 htmlliteral: Parser (WS -> Exp)
 htmlliteral =
@@ -969,20 +924,19 @@ htmlliteral =
            (symbol "<")
            (oneOf [identifier, source <| symbol "@"])))
       |= HTMLParser.parseOneNode (HTMLParser.Interpolation
-        { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << (\apparg -> map always <| expressionWithoutGreater { first = spaces, apparg = apparg})
-        , attributelist = inContext "HTML special attribute list" << wrapWithSyntax ElmSyntax << simpleExpression
+        { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << (\apparg -> map always <| expressionWithoutGreater nospace 0 NoSpace)
+        , attributelist = inContext "HTML special attribute list" <| wrapWithSyntax ElmSyntax <| simpleExpression 0 NoSpace
         , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << (\spaceapparg ->
               oneOf [
-                variableExpression |> addSelections False nospace |> addParenthesizedParameters |> addRightApplications,
-                letBinding nospace,
-                letrecBinding nospace,
+                variableExpression |> addSelections |> addParenthesizedParameters |> addRightApplications,
+                letBinding 0 NoSpace,
                 lazy <| \_ -> multiLineInterpolatedString,
                 baseValueExpression,
                 tuple,
                 list
               ]
             )
-        , tagName = inContext "HTML special tag name" << wrapWithSyntax ElmSyntax << simpleExpression
+        , tagName = inContext "HTML special tag name" <| wrapWithSyntax ElmSyntax <| simpleExpression 0 NoSpace
         })) |> andThen htmlToExp)
 
 --------------------------------------------------------------------------------
@@ -1034,11 +988,16 @@ wildcardPattern =
 --------------------------------------------------------------------------------
 -- Types  (SPECIAL-USE ONLY; not included in `pattern`)
 --------------------------------------------------------------------------------
+tnamePattern : ParserI Ident -> Parser (WS -> TPat)
+tnamePattern ident =
+  mapWSInfo <|
+    transferInfo (\name wsBefore -> TPatVar wsBefore name) ident
 
-typePattern : Parser (WS -> Pat)
+
+typePattern : Parser (WS -> TPat)
 typePattern =
   inContext "type pattern" <|
-    namePattern bigIdentifier
+    tnamePattern littleIdentifier
 
 --------------------------------------------------------------------------------
 -- Constants
@@ -1071,9 +1030,9 @@ listPattern =
       mapWSPat_ <|
         genericList
           { item =
-              pattern allSpacesPolicy
+              pattern spaces 0
           , tailItem =
-              pattern allSpacesPolicy
+              pattern spaces 0
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 -- PList wsBefore members space0 Nothing wsBeforeEnd
@@ -1115,7 +1074,7 @@ tuplePattern =
       mapWSPat_ <|
         genericTuple
           { term =
-              pattern
+              pattern spaces 0
           , tagger =
               withDummyPatInfo << PBase space0 << EString defaultQuoteChar
           , one = PParens
@@ -1143,11 +1102,11 @@ dataConstructorPattern =
 
             insideArgsEntries =
               args
-                |> List.map (\p -> (space0, p))
+                |> List.map (\p -> (Just space0, p))
                 |> Utils.indexedMapFrom 1 Lang.numericalEntry
 
             argsEntry =
-              ( space0
+              ( Just space0
               , space0
               , Lang.ctorArgs
               , space0
@@ -1179,55 +1138,52 @@ dataConstructorPattern =
                    )
           )
           ( succeed (,)
-              |= repeat zeroOrMore (pattern allSpacesPolicy)
+              |= repeat zeroOrMore (pattern spaces 0)
               |= getPos
           )
 
---------------------------------------------------------------------------------
--- As-Patterns (@-Patterns)
---------------------------------------------------------------------------------
 
-parensPattern : Parser (WS -> Pat)
-parensPattern =
-  inContext "parentheses" <|
-    mapWSPat_ <|
-      lazy <| \_ ->
-        transferInfo
-          ( \(innerPattern, wsBeforeEnd) wsBefore ->
-              PParens wsBefore innerPattern wsBeforeEnd
-          )
-          ( trackInfo <|
-              succeed (,)
-                |. symbol "("
-                |= pattern allSpacesPolicy
-                |= spaces
-                |. symbol ")"
-          )
 
 simplePattern : Parser (WS -> Pat)
 simplePattern =
-  inContext "simple pattern" <|
-    oneOf <| Debug.log "simplePattern=" <|
-      [ lazy <| \_ -> listPattern
-      , lazy <| \_ -> recordPattern
-      , lazy <| \_ -> tuplePattern
+  inContext "simple pattern" <| lazy <| \_ ->
+    oneOf <|
+      [ listPattern
+      , recordPattern
+      , tuplePattern
       , constantPattern
       , baseValuePattern
-      , lazy <| \_ -> dataConstructorPattern
+      , dataConstructorPattern
       , variablePattern
       , wildcardPattern
       ]
+
+simplePatternWithMaybeColonType: Parser (WS -> Pat)
+simplePatternWithMaybeColonType =
+  inContext "simplePatternWithMaybeColonType" <| lazy <| \_ ->
+  delayedCommitMap (\pos posToRes -> posToRes pos)
+  getPos
+  (
+  succeed (\wsToP mbT startPos wsBefore ->
+    case mbT of
+      Just (ws, typ) ->
+        withInfo (pat_ <| PColonType wsBefore (wsToP space0) ws typ) startPos typ.end
+      Nothing -> wsToP wsBefore
+  )
+  |= simplePattern
+  |= ParserUtils.optional (spaceColonType 0 MinIndentSpace))
 
 --------------------------------------------------------------------------------
 -- General Patterns
 --------------------------------------------------------------------------------
 
-pattern : SpacePolicy -> Parser Pat
-pattern sp =
+pattern : Parser WS -> MinStartCol -> Parser Pat
+pattern spFirst minStartCol =
   inContext "pattern" <|
     lazy <| \_ ->
+      let operatorSpace = spaceSameLineOrNextAfter minStartCol MinIndentSpace in
       delayedCommitMap (\wsFront binaryWSPat -> binaryWSPat wsFront)
-        sp.first <| binaryOperator
+        spFirst <| binaryOperator
         { greedySpaceParser =
             spaces
         , precedenceTable =
@@ -1235,12 +1191,12 @@ pattern sp =
         , minimumPrecedence =
             0
         , expression =
-            simplePattern
+            simplePatternWithMaybeColonType
         , withZeroSpace =  \wsPat ->
             let finalPat = wsPat space0 in
             mapPrecedingWhitespacePatWS (\ws -> withInfo ws.val finalPat.start finalPat.start) finalPat
         , operator =
-            patternOperator sp.apparg
+            patternOperator operatorSpace
         , representation =
             .val >> Tuple.second
         , combine =
@@ -1256,20 +1212,10 @@ pattern sp =
                         pat_ <| PList wsBeforeEverything [left] wsBefore (Just right) space0
                       ) left.start right.end
                   "as" ->
-                    case right.val.p__ of
-                      PVar wsName name _ ->
-                        withInfo
-                          (
-                            pat_ <| PAs wsBeforeEverything wsName name wsBefore left
-                          ) left.start right.end
-                      _ ->
-                        case left.val.p__ of
-                          PVar wsName name _ ->
-                            withInfo
-                              (
-                                pat_ <| PAs wsBeforeEverything wsName name wsBefore right
-                              ) left.start right.end
-                          _ -> Debug.crash "Parser does not support conjunction of patterns" -- TODO: Let PAs support arbitrary conjonction of patterns.
+                    withInfo
+                      (
+                        pat_ <| PAs wsBeforeEverything left wsBefore right
+                      ) left.start right.end
                   m -> Debug.crash <| "Internal error: Got pattern operator other than :: or as " ++ m
         }
 
@@ -1314,50 +1260,10 @@ variableType =
   inContext "variable type" <| unwrapInfo <|
     transferInfo (flip TVar) littleIdentifier
 
---------------------------------------------------------------------------------
--- Function Type
---------------------------------------------------------------------------------
-
-functionType : Parser (WS -> Type)
-functionType =
-  lazy <| \_ ->
-    inContext "function type" <| unwrapInfo <|
-      parenBlock TArrow <|
-        succeed identity
-          |. keywordWithSpace "->"
-          |= repeat oneOrMore (typ allSpacesPolicy)
-
---------------------------------------------------------------------------------
--- List Type
---------------------------------------------------------------------------------
-
-listType : Parser (WS -> Type)
-listType =
-  inContext "list type" <|
-    lazy <| \_ ->
-      unwrapInfo <|
-      parenBlock TList <|
-        succeed identity
-          |. keywordWithSpace "List"
-          |= typ allSpacesPolicy
-
---------------------------------------------------------------------------------
--- Dict Type
---------------------------------------------------------------------------------
-
-dictType : Parser (WS -> Type)
-dictType =
-  inContext "dictionary type" <|
-    lazy <| \_ -> unwrapInfo <|
-      parenBlock
-        ( \wsBefore (tKey, tVal) wsEnd ->
-            TDict wsBefore tKey tVal wsEnd
-        )
-        ( succeed (,)
-            |. keywordWithSpace "TDict"
-            |= typ allSpacesPolicy
-            |= typ allSpacesPolicy
-        )
+dataType : Parser (WS -> Type)
+dataType =
+  inContext "data type" <| unwrapInfo <|
+    transferInfo (flip TVar) bigIdentifier
 
 --------------------------------------------------------------------------------
 -- Tuple Type
@@ -1367,23 +1273,29 @@ tupleType : Parser (WS -> Type)
 tupleType =
   inContext "tuple type" <|
     lazy <| \_ ->
-      unwrapInfo <|
-      genericList
-        { item =
-            typ allSpacesPolicy
-        , tailItem =
-            typ allSpacesPolicy
-        , combiner =
-            ( \wsBefore heads wsEnd ->
-                -- TTuple wsBefore heads space0 Nothing wsEnd
-                TTuple wsBefore (Utils.listValues heads) space0 Nothing wsEnd
-            )
-        , combinerTail =
-            ( \wsBefore heads wsMiddle tail wsEnd ->
-                -- TTuple wsBefore heads wsMiddle (Just tail) wsEnd
-                TTuple wsBefore (Utils.listValues heads) wsMiddle (Just tail) wsEnd
-            )
-        }
+      mapWSInfo <|
+        let t:  { term : Parser Type
+                   , tagger : String -> Type
+                   , one : WS -> Type -> WS -> Type_
+                   , record : WS -> List (Maybe WS, WS, Ident, WS, Type) -> WS -> Type_
+                   , implicitFun: Maybe (Ident -> (TPat, Type), WS -> List TPat -> Type_ -> Type_)
+                   }
+                -> ParserI (WS -> Type_)
+            t = genericTuple
+        in t
+          { term = typ spaces 0
+          , tagger = -- TODO: TSingleton
+              withDummyRange << TVar space0
+          , record =
+              \ws1 entries ws2 ->
+                TRecord ws1 Nothing entries ws2
+          , one =
+              \wsBefore innerExpression wsBeforeEnd -> TParens wsBefore innerExpression wsBeforeEnd
+          , implicitFun = -- The type (,) is equivalent to forall a b.(a, b)
+              Just (\ident -> (withDummyRange (TPatVar space1 ident), withDummyRange <| TVar space1 ident),
+                \wsBefore pvars body -> TForall wsBefore pvars (withDummyRange body) space0)
+          }
+
 
 recordType : Parser (WS -> Type)
 recordType =
@@ -1408,68 +1320,43 @@ recordType =
 -- Forall Type
 --------------------------------------------------------------------------------
 
-forallType : Parser (WS -> Type)
-forallType =
+forallType : MinStartCol -> Parser (WS -> Type)
+forallType minStartCol =
   let
-    wsIdentifierPair =
+    patVar =
       delayedCommitMap
         ( \ws name ->
-            (ws, name.val)
+            withInfo (TPatVar ws name.val) name.start name.end
         )
         spaces
         littleIdentifier
-    quantifiers =
-      oneOf
-        [ inContext "forall type (one)" <|
-            map (\idp _ -> One idp) wsIdentifierPair
-        , inContext "forall type (many) "<|
-            untrackInfo <|
-              parenBlock Many <|
-                repeat zeroOrMore wsIdentifierPair
-        ]
+    quantifiers = inContext "forall type (one)" <| repeat zeroOrMore patVar
   in
     inContext "forall type" <|
       lazy <| \_ ->
         unwrapInfo <|
         parenBlock
-          ( \wsBefore (wsBeforeGiveQs, t) wsEnd ->
-              let qs = wsBeforeGiveQs wsBefore in
+          ( \wsBefore (qs, t) wsEnd ->
               TForall wsBefore qs t wsEnd
           )
           ( succeed (,)
               |. keywordWithSpace "forall"
               |= quantifiers
-              |= typ allSpacesPolicy
+              |= typ spaces minStartCol
           )
 
 --------------------------------------------------------------------------------
 -- Union Type
 --------------------------------------------------------------------------------
 
-unionType : Parser (WS -> Type)
-unionType=
+unionType : MinStartCol -> Parser (WS -> Type)
+unionType minStartCol =
   inContext "union type" <|
-    lazy <| \_ ->
       unwrapInfo <|
       parenBlock TUnion <|
         succeed identity
           |. keywordWithSpace "union"
-          |= repeat oneOrMore (typ allSpacesPolicy)
-
---------------------------------------------------------------------------------
--- App Types
---------------------------------------------------------------------------------
-
-appType : Parser (WS -> Type)
-appType =
-  lazy <| \_ ->
-    inContext "app type" <| unwrapInfo <|
-      trackInfo <|
-        succeed (\ident ts wsBefore ->
-            TApp wsBefore ident ts
-        )
-        |= untrackInfo bigIdentifier
-        |= repeat zeroOrMore (typ spacesWithoutNewline)
+          |= repeat oneOrMore (typ spaces minStartCol)
 
 --------------------------------------------------------------------------------
 -- Wildcard Type
@@ -1484,28 +1371,91 @@ wildcardType =
 -- General Types
 --------------------------------------------------------------------------------
 
-typ : SpacePolicy -> Parser Type
-typ sp =
+
+
+simpleType : MinStartCol -> Parser (WS -> Type)
+simpleType minStartCol =
   inContext "type" <|
     lazy <| \_ ->
-      delayedCommitMap (\ws wsType -> wsType ws)
-        sp.first
-        (oneOf
-          [ nullType
-          , numType
-          , boolType
-          , stringType
-          , wildcardType
-          , lazy <| \_ -> functionType
-          , lazy <| \_ -> listType
-          , lazy <| \_ -> dictType
-          , lazy <| \_ -> tupleType
-          , lazy <| \_ -> recordType
-          , lazy <| \_ -> forallType
-          , lazy <| \_ -> unionType
-          , lazy <| \_ -> appType
-          , variableType
-          ])
+      (oneOf
+        [ nullType
+        , variableType
+        , dataType
+        , numType
+        , boolType
+        , stringType
+        , wildcardType
+        , lazy <| \_ -> tupleType
+        , lazy <| \_ -> recordType
+        , lazy <| \_ -> forallType minStartCol
+        ])
+
+simpleTypeWithPossibleArguments : MinStartCol -> Parser (WS -> Type)
+simpleTypeWithPossibleArguments minStartCol =
+  inContext "simple type with arguments" <|
+    mapWSInfo <|
+    trackInfo <| andThen (\(first, args) ->
+        let f = first space0 in
+        case f.val of
+          TVar _ "List" -> case args of
+            [arg] -> succeed <| \spApp -> TList spApp arg space0
+            _ -> fail "List takes exactly one type argument"
+          TVar _ "Dict" -> case args of
+            [tkey, tvalue] -> succeed <| \spApp -> TDict spApp tkey tvalue space0
+            _ -> fail "Dict takes exactly two type arguments"
+          _ -> succeed <| \spApp -> TApp spApp f args SpaceApp
+      ) <|
+      (trackInfo (simpleType minStartCol) |> andThen (\wsToMainTypeI ->
+         let appargSpace = spaceSameLineOrNextAfter (min minStartCol wsToMainTypeI.start.col) MinIndentSpace in
+         map ((,) wsToMainTypeI.val) <|
+           repeat zeroOrMore (delayedCommitMap (\ws wsType -> wsType ws)
+             appargSpace
+             (simpleType minStartCol))))
+
+typ: Parser WS -> MinStartCol -> Parser Type
+typ spFirst minStartCol =
+  inContext "type" <|
+      lazy <| \_ ->
+        let b: { greedySpaceParser : Parser WS
+               , precedenceTable : PrecedenceTable
+               , minimumPrecedence : Int
+               , expression : Parser (WS -> Type)
+               , withZeroSpace: (WS -> Type) -> Type
+               , operator : Parser (WithInfo Operator)
+               , representation : WithInfo Operator -> String
+               , combine : WS -> Type -> (WithInfo Operator)-> Type -> Type
+               }
+               -> Parser (WS -> Type)
+            b = binaryOperator
+        in
+        let operatorSpace = spaceSameLineOrNextAfter minStartCol MinIndentSpace in
+        delayedCommitMap (\ws wsToType -> wsToType ws)
+         spFirst <| b
+          { withZeroSpace = \wsTyp ->
+             let finalTyp = wsTyp space0 in
+             mapPrecedingWhitespaceTypeWS (\ws -> withInfo ws.val finalTyp.start finalTyp.start) finalTyp
+          , greedySpaceParser =
+              spaces
+          , precedenceTable =
+              builtInTypePrecedenceTable
+          , minimumPrecedence =
+              0
+          , expression =
+              simpleTypeWithPossibleArguments minStartCol
+          , operator =
+              typeOperator operatorSpace
+          , representation =
+              .val >> Tuple.second
+          , combine =
+              \wsBefore left operator right ->
+                let
+                  (wsBeforeOp, identifier) =
+                    operator.val
+                in
+                withInfo
+                  (TApp wsBefore (replaceInfo operator <| TVar space1 identifier) [left, right] InfixApp)
+                    left.start right.end
+          }
 
 --==============================================================================
 -- Operators
@@ -1572,6 +1522,26 @@ builtInPatternPrecedenceList =
    )
  ]
 
+builtInTypePrecedenceList: List (Int, List String, List String)
+builtInTypePrecedenceList =
+ [ ( 3
+   , []
+   , ["&"]
+   )
+ , ( 2
+   , []
+   , ["|"]
+   )
+ , ( 1
+   , ["->"]
+   , []
+   )
+ , ( 0
+   , ["|>"]
+   , ["<|"]
+   )
+ ]
+
 builtInPrecedenceTable : PrecedenceTable
 builtInPrecedenceTable =
   buildPrecedenceTable builtInPrecedenceList
@@ -1579,6 +1549,10 @@ builtInPrecedenceTable =
 builtInPatternPrecedenceTable : PrecedenceTable
 builtInPatternPrecedenceTable =
   buildPrecedenceTable builtInPatternPrecedenceList
+
+builtInTypePrecedenceTable: PrecedenceTable
+builtInTypePrecedenceTable =
+  buildPrecedenceTable builtInTypePrecedenceList
 
 builtInOperators : List Ident
 builtInOperators =
@@ -1631,8 +1605,6 @@ opFromIdentifier identifier =
       Just Eq
     "mod" ->
       Just Mod
-    "pow" ->
-      Just Pow
     "^" ->
       Just Pow
     "arctan2" ->
@@ -1667,6 +1639,10 @@ htmlAttributeOperator appargSpace =
 patternOperator : Parser WS -> ParserI Operator
 patternOperator appargSpace =
   paddedBefore (,) appargSpace patternSymbolIdentifier
+
+typeOperator: Parser WS -> ParserI Operator
+typeOperator appargSpace =
+  paddedBefore (,) appargSpace typeSymbolIdentifier
 
 --==============================================================================
 -- Modules
@@ -1764,10 +1740,9 @@ variableExpression =
 -- Functions (lambdas)
 --------------------------------------------------------------------------------
 
-function : Parser WS -> Parser (WS -> Exp)
-function appargSpace =
+function : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+function minStartCol spConstraint =
   inContext "function" <|
-    lazy <| \_ ->
       mapWSExp_ <|
           transferInfo ( \(parameters, body) wsBefore ->
               EFun wsBefore parameters body space0
@@ -1775,10 +1750,10 @@ function appargSpace =
           ( trackInfo <|
               succeed (,)
                 |. symbol "\\"
-                |= repeat oneOrMore (pattern allSpacesPolicy)
+                |= repeat oneOrMore (pattern spaces minStartCol)
                 |. spaces
                 |. symbol "->"
-                |= expression { first = spaces, apparg = appargSpace }
+                |= expression spaces minStartCol spConstraint
           )
 
 --------------------------------------------------------------------------------
@@ -1792,9 +1767,9 @@ list =
       mapWSExp_ <|
         genericList
           { item =
-              expression allSpacesPolicy
+              expression spaces 0 MinIndentSpace
           , tailItem =
-              expression allSpacesPolicy
+              expression spaces 0 MinIndentSpace
           , combiner =
               \wsBefore members wsBeforeEnd ->
                 EList wsBefore members space0 Nothing wsBeforeEnd
@@ -1811,37 +1786,32 @@ record : Parser (WS -> Exp)
 record  =
   inContext "record expression" <|
     lazy <| \_ ->
-      mapWSExp_ <|
-        genericRecord
-         { key =  identifier
-         , equalSign = symbol "="
-         , optNoEqualSign = Nothing
-         , value = expression
-         , fundef = Just { -- Optional arguments to records, e.g. { myfun arg1 arg2 = value }
-           arguments = repeat zeroOrMore (pattern allSpacesPolicy),
-           buildValue = \parameters binding_ ->
-             if List.isEmpty parameters then
-               binding_
-             else
-               withInfo
-                 (exp_ <| EFun space0 parameters binding_ space0)
-                 binding_.start
-                 binding_.end
-         }
-         , combiner =
-            \wsBefore keyValues wsAfter ->
-              ERecord wsBefore Nothing keyValues wsAfter
-         , optionalInitParser = Just { initItem = expression allSpacesPolicy
-           , combinerInit = \wsBefore init wsBar elems wsEnd -> ERecord wsBefore (Just (init, wsBar)) elems wsEnd
-           }
-         }
+        delayedCommitMap (\startPos f -> f startPos)
+        getPos
+        (succeed (\mbInit decls wsEnd endPos startPos wsBefore ->
+          withInfo (exp_ <| ERecord wsBefore mbInit decls wsEnd) startPos endPos
+        )
+        |. symbol "{"
+        |= optional (delayedCommitMap always
+          (succeed (,)
+           |= (let customSpace = LangParserUtils.spacesWithoutNewline in
+             expression customSpace 0 MinIndentSpace)
+           |= spaces)
+          (symbol "|")
+          )
+        |= oneOf[
+          declarations 0,
+          succeed (Declarations [] ([], []) [] ([], []))]
+        |= spaces
+        |. symbol "}"
+        |= getPos)
 
 --------------------------------------------------------------------------------
 -- Conditionals
 --------------------------------------------------------------------------------
 
-conditional : Parser WS -> Parser (WS -> Exp)
-conditional  appargSpace =
+conditional : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+conditional minStartCol spConstraint =
   inContext "conditional" <|
     lazy <| \_ ->
       mapWSExp_ <|
@@ -1852,21 +1822,21 @@ conditional  appargSpace =
           ( trackInfo <|
               delayedCommit (keywordWithSpace "if") <|
                 succeed (,,,,)
-                  |= expression allSpacesPolicy
+                  |= expression spaces minStartCol MinIndentSpace
                   |= spaces
                   |. keywordWithSpace "then"
-                  |= expression allSpacesPolicy
+                  |= expression spaces minStartCol MinIndentSpace
                   |= spaces
                   |. keywordWithSpace "else"
-                  |= expression { first = spaces, apparg = appargSpace }
+                  |= expression spaces minStartCol spConstraint
           )
 
 --------------------------------------------------------------------------------
 -- Case Expressions
 --------------------------------------------------------------------------------
 
-caseExpression : Parser (WS -> Exp)
-caseExpression =
+caseExpression : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+caseExpression minStartCol spConstraint =
   inContext "case expression" <|
     lazy <| \_ ->
       let
@@ -1882,14 +1852,15 @@ caseExpression =
               |. lookAhead (ignore (Exactly 1) (\c -> not (isSpace c)))) -- Tries to consume spaces and correct indentation.
             ( inContext "Branch" <|
                 succeed identity
-                  |= (pattern { spacesWithoutNewline | first = nospace }
+                  |= (pattern nospace minStartCol
                      |> andThen (\p ->
-                        let minimumIndentation = sameLineOrIndentedByAtLeast "for an expression after a branch" ((p.start.col - 1) {- The column index-} + 1 {- The indentation increment-}) in
+                        let newMinStartCol = p.start.col + 1 in
+                        let spPolicy = spaceSameLineOrNextAfter newMinStartCol MinIndentSpace in
                         succeed (\wsBeforeArrow e -> (p, wsBeforeArrow, e))
                         |= spaces
                         |. symbol "->"
-                        |= expression {first = spaces, apparg = minimumIndentation }
-                        |. optional (delayedCommit minimumIndentation (symbol ";"))
+                        |= expression spaces newMinStartCol spConstraint
+                        |. optional (delayedCommit spPolicy (symbol ";"))
                      ))
                   )
       in
@@ -1900,113 +1871,216 @@ caseExpression =
               , succeed (List.reverse prevBranches)
             ]
       in
-        mapWSExp_ <|
-          transferInfo
-            ( \(examinedExpression, wsBeforeOf, branches) wsBefore ->
-                if eVarUnapply examinedExpression == Just implicitVarName then
-                    EFun space1 [withDummyPatInfo <| PVar space0 implicitVarName noWidgetDecl] (
-                      withInfo (exp_ <| ECase wsBefore examinedExpression branches wsBeforeOf)
-                        wsBefore.start wsBeforeOf.end
-                      ) space0
-                 else ECase wsBefore examinedExpression branches wsBeforeOf
-            )
-            ( trackInfo <|
-                delayedCommit (keywordWithSpace "case") <|
-                  succeed (,,)
-                    |= oneOf [
-                         expression allSpacesPolicy,
-                         succeed (withDummyExpInfo <| EVar space1 implicitVarName) -- Unparsable var
-                       ]
-                    |= spaces
-                    |. keyword "of"
-                    |= (
-                        branch allSpacesPolicy.first |>
-                        andThen (\b ->
-                          case b.val of
-                            Branch_ wsBefore p e wsBeforeArrow ->
-                              let branchIndentation = sameLineOrIndentedByExactly "for a branch after the first one" (p.start.col - 1 {- The column index-}) in
-                              branchHelper [b] (branch branchIndentation)
-                        )
+      mapWSExp_ <| transferInfo
+          ( \(examinedExpression, wsBeforeOf, branches) wsBefore ->
+              if eVarUnapply examinedExpression == Just implicitVarName then
+                  EFun space1 [withDummyPatInfo <| PVar space0 implicitVarName noWidgetDecl] (
+                    withInfo (exp_ <| ECase wsBefore examinedExpression branches wsBeforeOf)
+                      wsBefore.start wsBeforeOf.end
+                    ) space0
+               else ECase wsBefore examinedExpression branches wsBeforeOf
+          )
+          ( trackInfo <|
+              delayedCommit (keywordWithSpace "case") <|
+                succeed (,,)
+                  |= oneOf [
+                       expression spaces 0 MinIndentSpace,
+                       succeed (withDummyExpInfo <| EVar space1 implicitVarName) -- Unparsable var
+                     ]
+                  |= spaces
+                  |. keyword "of"
+                  |= (
+                      branch spaces |>
+                      andThen (\b ->
+                        case b.val of
+                          Branch_ wsBefore p e wsBeforeArrow ->
+                            let branchIndentation = sameLineOrIndentedByExactly "for a branch after the first one" (p.start.col - 1 {- The column index-}) in
+                            branchHelper [b] (branch branchIndentation)
                       )
-            )
+                    )
+          )
 
 --------------------------------------------------------------------------------
 -- Let Bindings
 --------------------------------------------------------------------------------
 
-letBinding : Parser WS -> Parser (WS -> Exp)
-letBinding appargSpace =     lazy <| \_ ->
-  genericLetBinding appargSpace "let" False
-
-letrecBinding : Parser WS -> Parser (WS -> Exp)
-letrecBinding appargSpace =      lazy <| \_ ->
-  genericLetBinding appargSpace "letrec" True
-
-genericLetBinding : Parser WS -> String -> Bool -> Parser (WS -> Exp)
-genericLetBinding appargSpace letkeyword isRec =
-  inContext (letkeyword ++ " binding") <|
-    lazy <| \_ ->
-      mapWSExp_ <|
-        transferInfo
-          ( \(name, parameters, wsBeforeEq, binding_, wsBeforeIn, body) wsBefore ->
-              let
-                binding =
-                  if List.isEmpty parameters then
-                    binding_
-                  else
-                    withInfo
-                      (exp_ <| EFun space0 parameters binding_ space0)
-                      binding_.start
-                      binding_.end
+-- In let or def context
+letExpOrAnnotation : MinStartCol -> Parser (OptCommaSpace -> WS -> Declaration)
+letExpOrAnnotation minStartCol =
+  inContext "let/def binding" <| andThen identity <|
+     delayedCommitAndThen (\(name, parameters, wsBeforeEq) final ->
+       final name parameters wsBeforeEq
+     )
+     (succeed (,,)
+     |= pattern nospace minStartCol
+     |= repeat zeroOrMore (pattern spaces minStartCol)
+     |= spaces)
+     (\(p1, ps, sps) ->
+      oneOf [source <| symbol "=", source <| symbol ":"] |>
+      andThen (\eqSymbol ->
+       if eqSymbol == "=" then
+         expression spaces (p1.start.col + 1) MinIndentSpace
+         |> map (\binding_ ->
+           \pat parameters wsBeforeEq ->
+             let (binding, funArgStyle) =
+               if List.isEmpty parameters then
+                  (binding_, FunArgsAfterEqual)
+               else
+                  (withInfo
+                    (exp_ <| EFun space0 parameters binding_ space0)
+                    binding_.start
+                    binding_.end
+                  ,FunArgAsPats)
+             in
+             succeed <| \optCommaSpace wsBeforePat -> DeclExp <|
+               LetExp optCommaSpace wsBeforePat pat funArgStyle wsBeforeEq binding
+         )
+       else
+         typ spaces minStartCol
+         |> map (\binding_ ->
+           \pat parameters wsBeforeEq ->
+              let mbBindingsFunArgStyles =
+                if List.isEmpty parameters then
+                   Ok (binding_, FunArgsAfterEqual)
+                else
+                   case parameters |> List.map patToTPat |> Utils.projJusts of
+                    Just tpats -> Ok (withInfo
+                       (TForall space0 tpats binding_ space0)
+                        binding_.start
+                        binding_.end
+                       ,FunArgAsPats)
+                    Nothing -> Err "Could not interpret this pattern as a type pattern"
               in
-                ELet wsBefore Let isRec name wsBeforeEq binding wsBeforeIn body space0
-          )
-          ( trackInfo <|
-              delayedCommit (keywordWithSpace letkeyword) <|
-                succeed (,,,,,)
-                  |= pattern allSpacesPolicy
-                  |= repeat zeroOrMore (pattern allSpacesPolicy)
-                  |= spaces
-                  |. symbol "="
-                  |= expression allSpacesPolicy
-                  |= spaces
-                  |. keywordWithSpace "in"
-                  |= expression { first = spaces, apparg = appargSpace }
-          )
+              case mbBindingsFunArgStyles of
+                Ok (binding, funArgStyle) ->
+                  succeed <| \optCommaSpace wsBeforePat -> DeclAnnotation <| LetAnnotation optCommaSpace wsBeforePat pat funArgStyle wsBeforeEq binding
+                Err msg -> fail msg
+         )
+     ))
+
+computePrintOrder: List Int -> List Int
+computePrintOrder evaluationOrder =
+  (Utils.foldLeft (Array.initialize (List.length evaluationOrder) (\_ -> 0)) (Utils.zipWithIndex evaluationOrder) <|
+                \array (n, i) ->
+                  Array.set n i array
+  ) |> Array.toList
+
+reorderDefinitions: List Declaration -> Result String Declarations
+reorderDefinitions letExps =
+  -- We put types at the top
+  -- We put expressions which are not EFuns at the top, keeping their order if it is possible
+  -- Lastly, we keep all remaining functions in their given order.
+  -- It does not matter since functions will be mutually recursive
+  let (revTypesWithIndex, revAnnWithIndex, revExpWithIndex, _) =
+    Utils.foldLeft ([], [], [], 0) letExps <|
+       \(accType, accAnn, accExp, index) def -> case def of
+        DeclType t -> ((t, index)::accType, accAnn, accExp, index + 1)
+        DeclAnnotation a -> (accType, (a, index)::accAnn, accExp, index + 1)
+        DeclExp e -> (accType, accAnn, (e, index)::accExp, index + 1)
+  in
+  let (typesWithIndex, annWithIndex, expWithIndex) = (
+    List.reverse revTypesWithIndex,
+    List.reverse revAnnWithIndex,
+    List.reverse revExpWithIndex) in
+  let canBeRecursive = eFunUnapply >> Utils.maybeIsEmpty >> not in
+  let expDefsWithDependencies = List.map (\(LetExp _ _ pats _ _ e as def, index) ->
+        ((def, index), (identifiersSetInPat pats, freeIdentifiers e, canBeRecursive e))
+       ) expWithIndex
+  in
+  let typeDefsWithDependencies = List.map(\(LetType _ _ _ pats _ _ t as def, index) ->
+        ((def, index), (identifiersSetInPat pats, {-freeIdentifiers e-}Set.empty, False)) -- TODO: Set of free identifiers in types, and recursive types
+       ) typesWithIndex
+  in
+  let takeIndices = List.map (Tuple.first >> Tuple.second) in
+  case Utils.orderWithDependencies expDefsWithDependencies Tuple.second of
+    Err msg -> Err msg
+    Ok expsGrouped ->
+      case Utils.orderWithDependencies typeDefsWithDependencies Tuple.second  of
+          Err msg -> Err msg
+          Ok typesGrouped ->
+            let reorderingTypes = typesGrouped |> List.concatMap takeIndices in
+            let (finalAnnotations, reorderingAnnotations) = List.unzip annWithIndex in
+            let reorderingExp = expsGrouped |> List.concatMap takeIndices in
+            let evaluationOrder = reorderingTypes ++ reorderingAnnotations ++ reorderingExp in
+            let finalTypes = extractGroupInfo (Tuple.first >> Tuple.first) typesGrouped in
+            let finalExps = extractGroupInfo (Tuple.first >> Tuple.first) expsGrouped in
+            let printOrder = computePrintOrder evaluationOrder in
+            Ok <| Declarations printOrder finalTypes finalAnnotations finalExps
+
+headDeclaration: MinStartCol -> Parser Declaration
+headDeclaration minStartCol =
+  inContext "Declaration #1" <| lazy <| \_ ->
+    delayedCommitMap (\sp declBuilder -> declBuilder Nothing sp)
+    spaces
+    (oneOf [
+      typeDefOrAlias minStartCol,
+      letExpOrAnnotation minStartCol
+      ])
+
+tailDeclarations: MinStartCol -> List Declaration -> Parser (List Declaration)
+tailDeclarations minStartCol revPrevDeclarations =
+  let spaceBeforeNewDeclaration: Parser (OptCommaSpace, WS)
+      spaceBeforeNewDeclaration = oneOf [
+       try <|
+        (succeed (\a b -> (Just a, b))
+          |= spaces
+          |. symbol ","
+          |= spaces)
+       , succeed ((,) Nothing) |= (spaceSameLineOrNextAfterOrTwoLines minStartCol)
+    ]
+  in
+    succeed identity
+    |= oneOf [
+      delayedCommitAndThen (\_ -> identity)
+        spaceBeforeNewDeclaration (\(optCommaSpace, wsBefore) ->
+      let newMinStartCol = if wsBefore.start.line + 1 < wsBefore.end.line then
+           wsBefore.end.col
+        else minStartCol
+      in
+      oneOf [
+         typeDefOrAlias newMinStartCol,
+         letExpOrAnnotation newMinStartCol
+      ] |>
+      inContext ("Declaration #" ++ toString (List.length revPrevDeclarations + 1)) |>
+      andThen (\final -> tailDeclarations newMinStartCol (final optCommaSpace wsBefore :: revPrevDeclarations)))
+    , succeed (List.reverse revPrevDeclarations)]
+
+-- Non-empty declarations
+declarations: MinStartCol -> Parser Declarations
+declarations minStartCol =
+  inContext "Declarations" <| lazy <| \_ ->
+  (headDeclaration minStartCol |> andThen (\headDecl ->
+     let firstWS = precedingWhitespaceDeclarationWithInfo headDecl in
+     tailDeclarations firstWS.end.col [headDecl]) |>
+    andThen (\definitions -> case reorderDefinitions definitions of
+         Ok r -> succeed r
+         Err msg -> fail msg)
+  )
+
+genericLetBinding : Parser Exp -> Parser (WS -> Exp)
+genericLetBinding bodyParser =
+  lazy <| \_ ->
+    delayedCommitMap (\startPos (decls, wsBeforeIn, endPos, body) wsBefore ->
+       withInfo (exp_ <| ELet wsBefore Let decls wsBeforeIn body) startPos endPos
+    )
+    getPos
+    (succeed (,,,)
+    |. keyword "let"
+    |= (getPos |> andThen (\pos -> declarations (pos.col - 3)))
+    |= spaces
+    |. keywordWithSpace "in"
+    |= getPos
+    |= bodyParser
+    )
+
+
+letBinding : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+letBinding minStartCol spConstraint =
+  inContext ("let binding") <|
+  genericLetBinding <| expression spaces minStartCol spConstraint
 
 --------------------------------------------------------------------------------
--- Options
---------------------------------------------------------------------------------
-
-option : Parser WS -> Parser (WS -> Exp)
-option appargSpace =
-  inContext "option" <|
-    mapWSExp_ <|
-      lazy <| \_ ->
-        succeed
-          ( \open opt wsMid val rest ->
-              withInfo
-                (\wsBefore -> EOption wsBefore opt wsMid val rest)
-                open.start
-                val.end
-          )
-        |= trackInfo (symbol "#")
-        |. spaces
-        |= trackInfo
-             ( keep zeroOrMore <| \c ->
-                 c /= '\n' && c /= ' ' && c /= ':'
-             )
-        |. symbol ":"
-        |= spaces
-        |= trackInfo
-             ( keep zeroOrMore <| \c ->
-                 c /= '\n'
-             )
-        |. symbol "\n"
-        |= expression { first = spaces, apparg = appargSpace }
-
---------------------------------------------------------------------------------
--- Tuples, Parentheses
+-- Tuples, parentheses, implicit tupling functions
 --------------------------------------------------------------------------------
 
 tuple : Parser (WS -> Exp)
@@ -2015,12 +2089,12 @@ tuple =
     lazy <| \_ ->
       mapWSExp_ <|
         genericTuple
-          { term = expression
+          { term = expression spaces 0 MinIndentSpace
           , tagger =
               withDummyExpInfo << EBase space0 << EString defaultQuoteChar
           , record =
               \ws1 entries ws2 ->
-                ERecord ws1 Nothing entries ws2
+                eRecord__ ws1 Nothing entries ws2
           , one =
               \wsBefore innerExpression wsBeforeEnd -> EParens wsBefore innerExpression Parens wsBeforeEnd
           , implicitFun =
@@ -2038,107 +2112,35 @@ hole =
       transferInfo (flip EHole) (trackInfo <| token "??" Nothing)
 
 --------------------------------------------------------------------------------
--- Type Aliases
---------------------------------------------------------------------------------
-
-typeAlias : Parser WS -> Parser (WS -> Exp)
-typeAlias appargSpace =
-  inContext "type alias" <|
-    lazy <| \_ ->
-      mapWSExp_ <|
-        transferInfo
-          ( \(ws, wsToPat, t, rest) wsBefore ->
-              ETypeAlias wsBefore (wsToPat ws) t rest space0
-          )
-          ( trackInfo <|
-              succeed (,,,)
-                |. keywordWithSpace "type alias"
-                |= appargSpace
-                |= typePattern
-                |. spaces
-                |. symbol "="
-                |= typ { first = spaces, apparg = appargSpace }
-                |= expression { first = spaces, apparg = appargSpace }
-          )
-
---------------------------------------------------------------------------------
--- Type Definitions
---------------------------------------------------------------------------------
-
-typeDefinition : Parser WS -> Parser (WS -> Exp)
-typeDefinition appargSpace =
-  inContext "type definition" <|
-    lazy <| \_ ->
-      let
-        var =
-          delayedCommitMap (,)
-            spaces
-            (untrackInfo littleIdentifier)
-        dc =
-          delayedCommitMap
-            ( \wsBefore (i, ts, wsAfter) ->
-                (wsBefore, i, ts, wsAfter)
-            )
-            spaces
-            ( succeed (,,)
-                |= untrackInfo bigIdentifier
-                |= repeat zeroOrMore (typ {first = appargSpace, apparg = appargSpace})
-                |= spaces
-            )
-      in
-        mapWSExp_ <|
-          transferInfo
-            ( \(wsBeforeIdent, ident, vars, wsBeforeEq, dcs, rest) wsBefore ->
-                ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEq dcs rest space0
-            )
-            ( trackInfo <|
-                succeed (,,,,,)
-                  |. keywordWithSpace "type"
-                  |= spaces
-                  |= untrackInfo bigIdentifier
-                  |= repeat zeroOrMore var
-                  |= spaces
-                  |. symbol "="
-                  |= separateBy oneOrMore (symbol "|") dc
-                  |= expression { first = spaces, apparg = appargSpace }
-            )
-
---------------------------------------------------------------------------------
 -- General Expressions
 --------------------------------------------------------------------------------
 
-selection : Bool -> Parser WS -> Parser ((WS -> Exp) -> (WS -> Exp))
-selection tolerateSpaces appargSpace =
+selection : Parser ((WS -> Exp) -> (WS -> Exp))
+selection =
+  lazy <| \_ ->
   delayedCommitMap (\wsBeforeDot (wsAfterDot,idWithInfo) ws2Exp ->
       \wsBefore ->
         let exp = ws2Exp space0 in
         withInfo (exp_ <| ESelect wsBefore exp wsBeforeDot wsAfterDot idWithInfo.val)
            exp.start idWithInfo.end
     )
-    (if tolerateSpaces then
-      appargSpace
-    else
-      succeed (\x -> x)
+    ( succeed (\x -> x)
       |= (trackInfo <| source <| symbol "")
       |. symbol "."
     )
-    ((if tolerateSpaces then
-       succeed (,)
-       |. symbol "."
-       |= appargSpace
-        else
-       succeed (\x -> (ws "", x)))
-     |= (trackInfo <| identifier)
+    (( succeed (\wsAfterDot x -> (wsAfterDot, x)))
+      |= (trackInfo <| source <| symbol "")
+      |= (trackInfo <| identifier)
     )
 
 -- Add all following .identifier1.identifiers2 as wrappers to the original expression
-addSelections : Bool -> Parser WS -> Parser (WS -> Exp) -> Parser (WS -> Exp)
-addSelections tolerateSpaces appargSpace parser =
+addSelections : Parser (WS -> Exp) -> Parser (WS -> Exp)
+addSelections parser =
   succeed (\simpExp selections ->
       List.foldl (\sel updatedExp -> sel updatedExp) simpExp selections
       )
     |= parser
-    |= repeat zeroOrMore (selection tolerateSpaces appargSpace)
+    |= repeat zeroOrMore selection
 
 implicitSelectionFun: Parser (WS -> Exp)
 implicitSelectionFun =
@@ -2146,7 +2148,7 @@ implicitSelectionFun =
     withInfo (exp_ <| EFun initSpace [withInfo (pat_ <| PVar space0 implicitVarName noWidgetDecl) start start]
     (List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore implicitVarName) start start) val space0) space0) start end
   )
-  |= (trackInfo <| repeat oneOrMore (selection False nospace))
+  |= (trackInfo <| repeat oneOrMore selection)
 
 implicitOp: Parser (WS -> Exp)
 implicitOp =
@@ -2159,36 +2161,32 @@ implicitOp =
   )
 
 -- Not a function application nor a binary operator
-simpleExpression : Parser WS -> Parser (WS -> Exp)
-simpleExpression appargSpace =
+simpleExpression : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+simpleExpression minStartCol spConstraint =
     oneOf
-      [ addSelections True appargSpace <| variableExpression
+      [ addSelections variableExpression
       , constantExpression
       , lazy <| \_ -> htmlliteral
-      , conditional appargSpace
-      , caseExpression
-      , letBinding appargSpace
-      , letrecBinding appargSpace
-      , typeAlias appargSpace
-      , typeDefinition appargSpace
+      , conditional minStartCol spConstraint
+      , caseExpression minStartCol spConstraint
+      , letBinding minStartCol spConstraint
       , lazy <| \_ -> multiLineInterpolatedString
       , baseValueExpression
-      , lazy <| \_ -> function appargSpace
+      , lazy <| \_ -> function minStartCol spConstraint
       , lazy <| \_ -> implicitSelectionFun
       , lazy <| \_ -> list
-      , lazy <| \_ -> (addSelections True appargSpace <| record)
-      , lazy <| \_ -> option appargSpace
-      , lazy <| \_ -> (addSelections True appargSpace <| tuple)
-      , lazy <| \_ -> (addSelections True appargSpace <| hole)
+      , lazy <| \_ -> addSelections record
+      , lazy <| \_ -> addSelections tuple
+      , lazy <| \_ -> addSelections hole
     ]
 
-spaceColonType: Parser WS -> Parser (WS, Type)
-spaceColonType appargSpace =
+spaceColonType: MinStartCol -> SpaceConstraint -> Parser (WS, Type)
+spaceColonType minStartCol spConstraint =
   lazy <| \_ ->
      try ( succeed (,)
-          |= appargSpace
+          |= (spaceSameLineOrNextAfter minStartCol spConstraint)
           |. symbol ":"
-          |= typ { first= spaces, apparg = appargSpace }
+          |= typ spaces minStartCol
      )
 
 maybeConvertToOp0 : Exp -> Exp
@@ -2234,8 +2232,9 @@ maybeConvertToOpN first rest =
 
 
 -- Either a simple expression or a function application or a data constructor
-simpleUntypedExpressionWithPossibleArguments : Parser WS -> Parser (WS -> Exp)
-simpleUntypedExpressionWithPossibleArguments appargSpace =
+-- Arguments must not be aligned with the main expression, AND indented by at least minStartCol
+simpleExpressionWithPossibleArguments : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+simpleExpressionWithPossibleArguments minStartCol spConstraint =
   let
     combine : (WS -> Exp) -> List Exp -> WS -> Exp
     combine wsToFirst rest wsBefore =
@@ -2257,17 +2256,17 @@ simpleUntypedExpressionWithPossibleArguments appargSpace =
                     -- This must be a data constructor with no args because of
                     -- precedence/associativity rules
                     argsEntry =
-                      ( space0
+                      ( Just space0
                       , space0
                       , Lang.ctorArgs
                       , space0
                       , withDummyExpInfo <|
-                          ERecord space0 Nothing [] space0
+                          eRecord__ space0 Nothing [] space0
                       )
                   in
                     withInfo
                       ( exp_ <|
-                          ERecord
+                          eRecord__
                             wsBefore
                             Nothing
                             [ctorEntry, argsEntry]
@@ -2295,20 +2294,20 @@ simpleUntypedExpressionWithPossibleArguments appargSpace =
 
                   insideArgsEntries =
                     constructedRest
-                      |> List.map (\e -> (space0, e))
+                      |> List.map (\e -> (Just space0, e))
                       |> Utils.indexedMapFrom 1 Lang.numericalEntry
 
                   argsEntry =
-                    ( space0
+                    ( Just space0
                     , space0
                     , Lang.ctorArgs
                     , space0
                     , withDummyExpInfo <|
-                        ERecord space0 Nothing insideArgsEntries space0
+                        eRecord__ space0 Nothing insideArgsEntries space0
                     )
                 in
                   Just << exp_ <|
-                    ERecord
+                    eRecord__
                       wsBefore
                       Nothing
                       [ctorEntry, argsEntry]
@@ -2350,14 +2349,22 @@ simpleUntypedExpressionWithPossibleArguments appargSpace =
                   withInfo e_ first.start last.end
   in
     lazy <| \_ ->
-      succeed combine
-        |= oneOf [simpleExpression appargSpace, implicitOp]
-        |= repeat zeroOrMore (delayedCommitMap (\ws wsExp -> wsExp ws)
-           appargSpace
-           (simpleExpression appargSpace))
+      ( trackInfo (oneOf [simpleExpression minStartCol spConstraint, implicitOp])
+      |> andThen (\wsToMainExp ->
+        let appargSpace = spaceSameLineOrNextAfter (min minStartCol wsToMainExp.start.col) spConstraint in
+        map (combine wsToMainExp.val) <|
+          repeat zeroOrMore (delayedCommitMap (\ws wsExp -> wsExp ws)
+          (appargSpace |> andThen (\sp ->
+            if sp.val == "" then
+              succeed sp
+              |. negativeLookAhead (symbol "-")
+            else
+              succeed sp
+          ))
+          (simpleExpression minStartCol spConstraint))))
 
-simpleExpressionWithPossibleArguments : Parser WS -> Parser (WS -> Exp)
-simpleExpressionWithPossibleArguments appargSpace =
+simpleExpressionWithPossibleArgumentsMaybeTyped : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+simpleExpressionWithPossibleArgumentsMaybeTyped minStartCol spConstraint =
   lazy <| \_ ->
     ( delayedCommitMap (\startPos (wS2untypedExp, mbType) ->
         case mbType of
@@ -2372,8 +2379,8 @@ simpleExpressionWithPossibleArguments appargSpace =
       )
       getPos
       (succeed (,)
-      |= simpleUntypedExpressionWithPossibleArguments appargSpace
-      |= ParserUtils.optional (spaceColonType appargSpace))
+      |= simpleExpressionWithPossibleArguments minStartCol spConstraint
+      |= ParserUtils.optional (spaceColonType minStartCol spConstraint))
     )
 
 -- No indentation for top-level expressions, at least one newline or the beginning of the string.
@@ -2403,24 +2410,38 @@ noSpacePolicy =
 
 sameLineOrIndentedByAtLeast: String -> Int -> Parser WS
 sameLineOrIndentedByAtLeast msg nSpaces =
-  oneOf [
-    try <| LangParserUtils.spacesCustom {forwhat = msg, withNewline=False, minIndentation=Nothing, maxIndentation=Nothing},
-    LangParserUtils.spacesCustom {forwhat = msg, withNewline=True, minIndentation=Just nSpaces, maxIndentation=Nothing}
-  ]
+  LangParserUtils.spacesCustom <|
+    LangParserUtils.SpaceCheck (\start end -> start.line == end.line || end.col - 1 >= nSpaces) <|
+      \() -> "I expect that to be on the same line or indented by at least " ++ toString nSpaces ++ " spaces."
 
 sameLineOrIndentedByExactly: String -> Int -> Parser WS
 sameLineOrIndentedByExactly msg nSpaces =
-  oneOf [
-    try <| LangParserUtils.spacesCustom {forwhat = msg, withNewline=False, minIndentation=Nothing, maxIndentation=Nothing},
-    LangParserUtils.spacesCustom {forwhat = msg, withNewline=True, minIndentation=Just nSpaces, maxIndentation=Just nSpaces}
-  ]
+  LangParserUtils.spacesCustom <|
+    LangParserUtils.SpaceCheck (\start end -> start.line == end.line || end.col - 1 == nSpaces) <|
+      \() -> "I expect that to be on the same line or indented by exactly " ++ toString nSpaces ++ " spaces."
 
-expressionGeneral : Bool -> SpacePolicy -> Parser Exp
-expressionGeneral isHtmlAttribute sp =
+-- A next declaration should be on the next line aligned with the previous one, or anywhere else after two lines
+nextDeclarationSpace: String -> Int -> Parser WS
+nextDeclarationSpace msg nSpaces =
+  LangParserUtils.spacesCustom <|
+    LangParserUtils.SpaceCheck (\start end -> start.line + 1 == end.line && end.col - 1 == nSpaces
+      || start.line + 1 < end.line
+      ) <|
+      \() -> "I expect that to be on a different line and indented by exactly " ++ toString nSpaces ++ " spaces."
+
+sameLineOrIndentedByDifferentThan: String -> Int -> Parser WS
+sameLineOrIndentedByDifferentThan msg nSpaces =
+  LangParserUtils.spacesCustom <|
+      LangParserUtils.SpaceCheck (\start end -> start.line == end.line || end.col - 1 /= nSpaces) <|
+        \() -> "I expect that to be on the same line or not indented by " ++ toString nSpaces ++ " spaces."
+
+expressionGeneral : Bool -> Parser WS ->  MinStartCol -> SpaceConstraint -> Parser Exp
+expressionGeneral isHtmlAttribute spFirst minStartCol    spConstraint =
   inContext "expression" <|
     lazy <| \_ ->
+      let operatorSpace = spaceSameLineOrNextAfter minStartCol spConstraint in
       delayedCommitMap (\wsFront binaryExp -> binaryExp wsFront)
-        sp.first <| binaryOperator
+        spFirst <| binaryOperator
         { greedySpaceParser =
             spaces
         , precedenceTable =
@@ -2428,12 +2449,12 @@ expressionGeneral isHtmlAttribute sp =
         , minimumPrecedence =
             0
         , expression =
-            simpleExpressionWithPossibleArguments sp.apparg
+            simpleExpressionWithPossibleArgumentsMaybeTyped minStartCol spConstraint
         , withZeroSpace = \wsExp ->
             let finalExp = wsExp space0 in
             mapPrecedingWhitespaceWS (\ws -> withInfo ws.val finalExp.start finalExp.start) finalExp
         , operator =
-            if isHtmlAttribute then htmlAttributeOperator sp.apparg else operator sp.apparg
+            if isHtmlAttribute then htmlAttributeOperator operatorSpace else operator operatorSpace
         , representation =
             .val >> Tuple.second
         , combine =
@@ -2487,11 +2508,11 @@ expressionGeneral isHtmlAttribute sp =
                           right.end
         }
 
-expression : SpacePolicy -> Parser Exp
-expression sp = expressionGeneral False sp
+expression : Parser WS -> MinStartCol -> SpaceConstraint -> Parser Exp
+expression firstSpace minStartCol spConstraint= expressionGeneral False firstSpace minStartCol spConstraint
 
-expressionWithoutGreater : SpacePolicy -> Parser Exp
-expressionWithoutGreater sp = expressionGeneral True sp
+expressionWithoutGreater : Parser WS -> MinStartCol -> SpaceConstraint -> Parser Exp
+expressionWithoutGreater firstSpace minStartCol spConstraint = expressionGeneral True firstSpace minStartCol spConstraint
 
 
 --==============================================================================
@@ -2502,229 +2523,46 @@ expressionWithoutGreater sp = expressionGeneral True sp
 optionalTopLevelSemicolon = optional (paddedBefore (\_ _ _ -> ()) spaces (trackInfo <| symbol ";"))
 
 --------------------------------------------------------------------------------
--- Top-Level Defs
+-- Type Aliases
 --------------------------------------------------------------------------------
 
-isTopLevelDefImplicitlyRec : Pat -> Exp -> Bool
-isTopLevelDefImplicitlyRec pat binding =
-  isPVar (patEffectivePat pat) && isFunc (expEffectiveExp binding)
-  -- Uncomment when mutually recursive functions implmented in eval
-  -- || case ((patEffectivePat pat).val.p__, (expEffectiveExp binding).val.e__) of
-  --       (PList _ pHeads _ Nothing _, EList _ eHeads _ Nothing _) ->
-  --         List.all (patEffectivePat >> isPVar) pHeads &&
-  --         List.all (expEffectiveExp >> isFunc) eHeads &&
-  --         List.length pHeads == List.length eHeads
-  --       _ ->
-  --         False
-
-topLevelDef : Parser TopLevelExp
-topLevelDef =
-  inContext "top-level def binding" <|
-    delayedCommitMap
-      ( \(wsBefore, pat, parameters, wsBeforeEq)
-         binding_ ->
-          let
-            binding =
-              if List.isEmpty parameters then
-                binding_
-              else
-                withInfo
-                  (exp_ <| EFun space0 parameters binding_ space0)
-                  binding_.start
-                  binding_.end
-
-            isRec =
-              isTopLevelDefImplicitlyRec pat binding
-          in
-            withInfo
-              ( \rest ->
-                  exp_ <|
-                    ELet
-                      wsBefore
-                      Def
-                      isRec
-                      pat
-                      wsBeforeEq
-                      binding
-                      space0
-                      rest
-                      space0
-              )
-              pat.start
-              binding.end
+typeDefOrAlias : MinStartCol -> Parser (OptCommaSpace -> WS -> Declaration)
+typeDefOrAlias minStartCol =
+  inContext "type or type alias" <|
+    succeed
+      ( \spAfterType mbSpaceAfterAlias wsToName parameters spEq binding_ optCommaSpace wsBeforeType ->
+         let
+           (binding, funArgStyle) =
+             if List.isEmpty parameters then
+               (binding_, FunArgsAfterEqual)
+             else
+               (withInfo
+                 (TForall space0 parameters binding_ space0)
+                 binding_.start
+                 binding_.end, FunArgAsPats)
+         in
+         let (mbSpaceBeforeAlias, spaceBeforePattern) = case mbSpaceAfterAlias of
+           Nothing -> (Nothing, spAfterType)
+           Just spPattern -> (Just spAfterType, spPattern)
+         in
+         DeclType <| LetType optCommaSpace wsBeforeType mbSpaceBeforeAlias (wsToName spaceBeforePattern) funArgStyle spEq binding
       )
-      ( succeed (,,,)
-          |= topLevelBetweenDefSpacePolicy.first
-          |= pattern {topLevelInsideDefSpacePolicy | first = nospace }
-          |= repeat zeroOrMore (pattern topLevelInsideDefSpacePolicy)
-          |= topLevelInsideDefSpacePolicy.first
-          |. symbol "="
-      )
-      ( succeed identity
-          |= expression topLevelInsideDefSpacePolicy
-          |. optionalTopLevelSemicolon
-      )
-
---------------------------------------------------------------------------------
--- Top-Level Type Declarations
---------------------------------------------------------------------------------
-
-topLevelTypeDeclaration : Parser TopLevelExp
-topLevelTypeDeclaration =
-  inContext "top-level type declaration" <|
-    lazy <| \_ ->
-      delayedCommitMap
-        ( \(name, wsBeforeColon) t ->
-            withInfo
-              ( \rest ->
-                  exp_ <|
-                    ETyp
-                      space0
-                      name
-                      t
-                      rest
-                      wsBeforeColon
-              )
-              name.start
-              t.end
-        )
-        ( succeed (,)
-            |= pattern topLevelInsideDefSpacePolicy
-            |= topLevelInsideDefSpacePolicy.first
-        )
-        ( succeed identity
-          |. symbol ":"
-          |= typ topLevelInsideDefSpacePolicy
-          |. optionalTopLevelSemicolon
-        )
-
---------------------------------------------------------------------------------
--- Top-Level Type Aliases
---------------------------------------------------------------------------------
-
-topLevelTypeAlias : Parser TopLevelExp
-topLevelTypeAlias =
-  inContext "top-level type alias" <|
-    delayedCommitMap
-      ( \wsBefore (startPos, ws, wsPat, t, endPos) ->
-          withInfo
-            ( \rest ->
-                exp_ <|
-                  ETypeAlias wsBefore (wsPat ws) t rest space0
-            )
-            startPos
-            endPos
-      )
-      spaces
-      ( succeed (,,,,)
-        |= getPos
-        |. keywordWithSpace "type alias"
-        |= topLevelInsideDefSpacePolicy.apparg
-        |= typePattern
-        |. topLevelInsideDefSpacePolicy.apparg
-        |. symbol "="
-        |= typ topLevelInsideDefSpacePolicy
-        |. optionalTopLevelSemicolon
-        |= getPos
-      )
-
---------------------------------------------------------------------------------
--- Top-Level Type Definitions
---------------------------------------------------------------------------------
-
-topLevelTypeDefinition : Parser TopLevelExp
-topLevelTypeDefinition =
-  inContext "top-level type definition" <|
-    lazy <| \_ ->
-      let
-        var =
-          delayedCommitMap (,)
-            topLevelInsideDefSpacePolicy.first
-            (untrackInfo littleIdentifier)
-        dc =
-          delayedCommitMap
-            ( \wsBefore (i, ts, wsAfter) ->
-                (wsBefore, i, ts, wsAfter)
-            )
-            topLevelInsideDefSpacePolicy.first
-            ( succeed (,,)
-                |= untrackInfo bigIdentifier
-                |= repeat zeroOrMore (typ topLevelInsideDefSpacePolicy)
-                |= topLevelInsideDefSpacePolicy.first
-            )
-      in
-        delayedCommitMap
-          ( \wsBefore (startPos, wsBeforeIdent, ident, vars, wsBeforeEq, dcs, endPos) ->
-              withInfo
-                ( \rest ->
-                    exp_ <|
-                      ETypeDef wsBefore (wsBeforeIdent, ident) vars wsBeforeEq dcs rest space0
-                )
-                startPos
-                endPos
-          )
-          spaces
-          ( succeed (,,,,,,)
-            |= getPos
-            |. keywordWithSpace "type"
-            |= topLevelInsideDefSpacePolicy.first
-            |= untrackInfo bigIdentifier
-            |= repeat zeroOrMore var
-            |= topLevelInsideDefSpacePolicy.first
-            |. symbol "="
-            |= separateBy oneOrMore (symbol "|") dc
-            |= getPos
-            |. optionalTopLevelSemicolon
-          )
-
---------------------------------------------------------------------------------
--- Top-Level Options
---------------------------------------------------------------------------------
-
-topLevelOption : Parser TopLevelExp
-topLevelOption =
-  inContext "top-level option" <|
-    paddedBefore
-      ( \wsBefore (opt, wsMid, val) ->
-          ( \rest ->
-              exp_ <| EOption wsBefore opt wsMid val rest
-          )
-      )
-      spaces
-      ( trackInfo <| succeed (,,)
-          |. symbol "#"
-          |. spacesWithoutNewline.first
-          |= trackInfo
-               ( keep zeroOrMore <| \c ->
-                   c /= '\n' && c /= ' ' && c /= ':'
-               )
-          |. symbol ":"
-          |= spacesWithoutNewline.first
-          |= trackInfo
-               ( keep zeroOrMore <| \c ->
-                   c /= '\n'
-               )
-          |. symbol "\n"
-      )
-
---------------------------------------------------------------------------------
--- General Top-Level Expressions
---------------------------------------------------------------------------------
-
-topLevelExpression : Parser TopLevelExp
-topLevelExpression =
-  inContext "top-level expression" <|
-    oneOf
-      [ topLevelDef
-      , topLevelTypeAlias
-      , topLevelTypeDefinition
-      , topLevelTypeDeclaration
-      , topLevelOption
-      ]
-
-allTopLevelExpressions : Parser (List TopLevelExp)
-allTopLevelExpressions =
-  repeat zeroOrMore topLevelExpression
+      |. keyword "type"
+      |= spaces
+      |= optional (
+         succeed identity
+        |. keyword "alias"
+        |= spaces)
+      |= simplePattern
+      |= repeat zeroOrMore (
+         delayedCommitMap (\ws wsPat -> wsPat ws)
+         spaces
+         typePattern)
+      |= spaces
+      |. symbol "="
+      |= typ spaces minStartCol
+      |. optionalTopLevelSemicolon
+      --|= getPos
 
 --==============================================================================
 -- Programs
@@ -2748,7 +2586,7 @@ implicitMain =
             EVar space1 "main"
       in
         withCorrectInfo << exp_ <|
-          ELet newline2 Let False name space1 binding space1 body space0
+          ELet newline2 Let (Declarations [0] ([], []) [] ([LetExp Nothing space1 name FunArgAsPats space1 binding], [0])) space1 body
   in
     succeed builder
       |= getPos
@@ -2757,17 +2595,22 @@ mainExpression : Parser Exp
 mainExpression =
   inContext "Main expression" <|
   oneOf
-    [ expression allSpacesPolicy
+    [ expression spaces 0 MinIndentSpace
     , implicitMain
     ]
 
 program : Parser Exp
 program =
-  succeed fuseTopLevelExps
-    |= allTopLevelExpressions
-    |= mainExpression
-    |. spaces
-    |. end
+  succeed (\declsOpt mainExp ->
+    case declsOpt of
+      Nothing -> mainExp.val
+      Just decls ->
+        withInfo (exp_ <| ELet space0 Def decls.val space0 mainExp.val) decls.start mainExp.val.end
+  )
+  |= optional (trackInfo (declarations 0))
+  |= trackInfo mainExpression
+  |. spaces
+  |. end
 
 --==============================================================================
 -- Exports
@@ -2783,7 +2626,7 @@ parse =
 
 parseT : String -> Result P.Error Type
 parseT =
-  run (typ topLevelInsideDefSpacePolicy)
+  run (typ spaces 0)
 
 
 
@@ -2826,7 +2669,7 @@ sanitizeVariableName unsafeName =
       let msg = ParserUtils.showError parserError in
       case run program "0" of
         Ok k -> (Just msg, freshenClean 1 k)
-        Err err ->
+        Err err -> --(Just "Prelude did not parse and 0 either", freshenClean 1 (withDummyExpInfo <| EConst space0 0 dummyLoc noWidgetDecl))
           Debug.crash <|
             """ElmParser: "0" failed to parse?""" ++ ParserUtils.showError err
 
@@ -2883,71 +2726,76 @@ freshenPreserving idsToPreserve initK e =
   let assignIds exp k =
     let e__ = exp.val.e__ in
     let (newE__, newK) =
-      case e__ of
-        EConst ws n (locId, frozen, ident) wd ->
-          if Set.member locId idsToPreserve then
-            (e__, k)
-          else
-            let locId = getId k in
-            (EConst ws n (locId, frozen, ident) wd, locId + 1)
+       case e__ of
+         EConst ws n (locId, frozen, ident) wd ->
+           if Set.member locId idsToPreserve then
+             (e__, k)
+           else
+             let locId = getId k in
+             (EConst ws n (locId, frozen, ident) wd, locId + 1)
 
-        ELet ws1 kind b p ws2 e1 ws3 e2 ws4 ->
-          let (newP, newK) = freshenPatPreserving idsToPreserve k p in
-          let newE1 = recordIdentifiers (newP, e1) in
-          (ELet ws1 kind b newP ws2 newE1 ws3 e2 ws4, newK)
+         ELet ws1 kind (Declarations po (tpes, got) ann (exps, goe)) wsIn body ->
+           let (newRevTpes, newK) = Utils.foldLeft ([], k) tpes <|
+             \(revAcc, k) (LetType sp1 spType mbSpAlias pat funPolicy spEq tp) ->
+                let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
+                (LetType sp1 spType mbSpAlias newPat funPolicy spEq tp :: revAcc, newK)
+           in
+           let (newRevAnn, newK2) = Utils.foldLeft ([], newK) ann <|
+             \(revAcc, k) (LetAnnotation sp1 sp0 pat funPolicy spEq e1) ->
+                let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
+                (LetAnnotation sp1 sp0 newPat funPolicy spEq e1::revAcc, newK)
+           in
+           let (newRevExps, newK3) = Utils.foldLeft ([], newK2) exps <|
+             \(revAcc, k)  (LetExp sp1 sp0 p funPolicy spEq e1) ->
+                 let (newP, newK) = freshenPatPreserving idsToPreserve (p, k) in
+                 let newE1 = recordIdentifiers (newP, e1) in
+                 (LetExp sp1 sp0 newP funPolicy spEq newE1 :: revAcc, newK)
+           in
+           (ELet ws1 kind (Declarations po (List.reverse newRevTpes, got) (List.reverse newRevAnn) (List.reverse newRevExps, goe)) wsIn body, newK3)
 
-        EFun ws1 pats body ws2 ->
-          let (newPats, newK) = freshenPatsPreserving idsToPreserve k pats in
-          (EFun ws1 newPats body ws2, newK)
+         EFun ws1 pats body ws2 ->
+           let (newPats, newK) = freshenPatsPreserving idsToPreserve (pats, k) in
+           (EFun ws1 newPats body ws2, newK)
 
-        ECase ws1 scrutinee branches ws2 ->
-          let (newBranches, newK) =
-            branches
-            |> List.foldl
-                (\branch (newBranches, k) ->
-                  let (Branch_ bws1 pat ei bws2) = branch.val in
-                  let (newPi, newK) = freshenPatPreserving idsToPreserve k pat in
-                  (newBranches ++ [{ branch | val = Branch_ bws1 newPi ei bws2 }], newK)
-                )
-                ([], k)
-          in
-          (ECase ws1 scrutinee newBranches ws2, newK)
-
-        ETyp ws1 pat tipe e ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETyp ws1 newPat tipe e ws2, newK)
-
-        ETypeAlias ws1 pat tipe e ws2 ->
-          let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
-          (ETypeAlias ws1 newPat tipe e ws2, newK)
-
-        _ ->
-          (e__, k)
+         ECase ws1 scrutinee branches ws2 ->
+           let (newBranches, newK) =
+             branches
+             |> List.foldl
+                 (\branch (newBranches, k) ->
+                   let (Branch_ bws1 pat ei bws2) = branch.val in
+                   let (newPi, newK) = freshenPatPreserving idsToPreserve (pat, k) in
+                   (newBranches ++ [{ branch | val = Branch_ bws1 newPi ei bws2 }], newK)
+                 )
+                 ([], k)
+           in
+           (ECase ws1 scrutinee newBranches ws2, newK)
+         _ ->
+           (e__, k)
     in
     if Set.member exp.val.eid idsToPreserve then
-      (replaceE__ exp newE__, newK)
+       (replaceE__ exp newE__, newK)
     else
-      let eid = getId newK in
-      (WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
+       let eid = getId newK in
+       (WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
   in
   mapFoldExp assignIds initK e
 
 
 -- Reassign any id not in idsToPreserve
-freshenPatsPreserving : Set.Set Int -> Int -> List Pat -> (List Pat, Int)
-freshenPatsPreserving idsToPreserve initK pats =
+freshenPatsPreserving : Set.Set Int -> (List Pat, Int) -> (List Pat, Int)
+freshenPatsPreserving idsToPreserve (pats, initK) =
   pats
   |> List.foldl
       (\pat (finalPats, k) ->
-        let (newPat, newK) = freshenPatPreserving idsToPreserve k pat in
+        let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
         (finalPats ++ [newPat], newK)
       )
       ([], initK)
 
 
 -- Reassign any id not in idsToPreserve
-freshenPatPreserving : Set.Set Int -> Int -> Pat -> (Pat, Int)
-freshenPatPreserving idsToPreserve initK p =
+freshenPatPreserving : Set.Set Int -> (Pat, Int) -> (Pat, Int)
+freshenPatPreserving idsToPreserve (p, initK) =
   let getId k =
     if Set.member k idsToPreserve
     then getId (k+1)
@@ -2955,10 +2803,10 @@ freshenPatPreserving idsToPreserve initK p =
   in
   let assignIds pat k =
     if Set.member pat.val.pid idsToPreserve then
-      (pat, k)
+       (pat, k)
     else
-      let pid = getId k in
-      (setPId pid pat, pid + 1)
+       let pid = getId k in
+       (setPId pid pat, pid + 1)
   in
   mapFoldPatTopDown assignIds initK p
 
@@ -2984,11 +2832,10 @@ allIdsRaw exp =
         (\exp ->
           case exp.val.e__ of
             EConst ws n (locId, frozen, ident) wd -> [locId]
-            ELet ws1 kind b p _ e1 _ e2 ws2       -> pidsInPat p
+            ELet _ kind (Declarations _ _ _ (defs, _)) _ e2     ->
+              defs |> List.concatMap (\(LetExp _ _ p _ _ e1) -> pidsInPat p)
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
-            ETyp ws1 pat tipe e ws2               -> pidsInPat pat
-            ETypeAlias ws1 pat tipe e ws2         -> pidsInPat pat
             _                                     -> []
         )
   in
@@ -3037,11 +2884,12 @@ recordIdentifiers (p,e) =
       Just pes -> let es_ = List.map recordIdentifiers pes in
                   let me_ =
                     case (mp, me) of
-                      (Just p1, Just e1) -> Just (recordIdentifiers (p1,e1))
-                      _                  -> me in
+                       (Just p1, Just e1) -> Just (recordIdentifiers (p1,e1))
+                       _                  -> me in
                   ret <| EList ws1 (Utils.listValuesMake es es_) ws2 me_ ws3
 
-  (PAs _ _ _ _ p_, _) -> recordIdentifiers (p_,e)
+  (PAs _ p1 _ p2, _) ->
+    recordIdentifiers (p1,e)
 
   (_, EColonType ws1 e1 ws2 t ws3) ->
     ret <| EColonType ws1 (recordIdentifiers (p,e1)) ws2 t ws3
@@ -3054,7 +2902,7 @@ substPlusOf_ : SubstPlus -> Exp -> SubstPlus
 substPlusOf_ substPlus exp =
   let accumulator e s =
     case e.val.e__ of
-      EConst _ n (locId,_,_) _ ->
+       EConst _ n (locId,_,_) _ ->
         case Dict.get locId s of
           Nothing ->
             Dict.insert locId { e | val = n } s
@@ -3063,6 +2911,6 @@ substPlusOf_ substPlus exp =
               s
             else
               Debug.crash <| "substPlusOf_ Duplicate locId " ++ toString locId ++ " with differing value " ++ toString n ++ "\n" ++ "BLAH" -- LangUnparser.unparseWithIds exp
-      _ -> s
+       _ -> s
   in
   foldExp accumulator substPlus exp

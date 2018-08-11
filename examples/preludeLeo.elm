@@ -224,64 +224,64 @@ never x = Debug.crash "Never can never be called"
 
 LensLess =
   let reverse l =
-    letrec r acc l = case l of [] -> acc; head::tail -> r (head::acc) tail in
+    let r acc l = case l of [] -> acc; head::tail -> r (head::acc) tail in
     r [] l
   in
-  letrec map f l =
+  let map f l =
      case l of
        []    -> []
        x::xs -> f x :: map f xs
   in
-  letrec append xs ys =
+  let append xs ys =
      case xs of
        [] -> ys
        x::xs1 -> x :: append xs1 ys
   in
   let split n l =
-    letrec aux acc n l =
+    let aux acc n l =
       if n == 0 then (reverse acc, l) else
       case l of
         [] -> (reverse acc, l)
         head::tail -> aux (head::acc) (n - 1) tail
     in aux [] n l in
   let take =
-    letrec aux n l = if n == 0 then [] else
+    let aux n l = if n == 0 then [] else
       case l of
         [] -> []
         head::tail -> head :: (aux (n - 1) tail)
     in aux in
   let drop =
-    letrec aux n l = if n == 0 then l else
+    let aux n l = if n == 0 then l else
       case l of
         [] -> []
         head::tail -> aux (n - 1) tail
     in aux in
-  letrec reverse_move n stack from = if n <= 0 then (stack, from) else case from of
+  let reverse_move n stack from = if n <= 0 then (stack, from) else case from of
     [] -> (stack, from)
     head::tail -> reverse_move (n - 1) (head::stack) tail
   in
-  letrec filterMap f l = case l of
+  let filterMap f l = case l of
     [] -> []
     (head :: tail) -> case f head of
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
   in
-  letrec concatMap f l = case l of
+  let concatMap f l = case l of
     [] -> []
     head :: tail -> f head ++ concatMap f tail
   in
-  letrec last l = case l of
+  let last l = case l of
     [head] -> Just head
     _ :: tail -> last tail
     _ -> Nothing
   in
-  letrec map2 f xs ys =
+  let map2 f xs ys =
     case [xs, ys] of
       [x::xs1, y::ys1] -> f x y :: map2 f xs1 ys1
       _                -> []
   in
   let zip = map2 (,) in
-  { appendStrDef = """letrec append a b = case a of [] -> b; (h::t) -> h :: append t b in """
+  { appendStrDef = """let append a b = case a of [] -> b; (h::t) -> h :: append t b in """
     List = {
       append = append
       split = split
@@ -310,13 +310,13 @@ LensLess =
         andThen = andThen
     },
     Results =
-      letrec keepOks l =
+      let keepOks l =
         case l of
           [] -> []
           (Err _) ::tail -> keepOks tail
           (Ok ll) :: tail -> ll ++ keepOks tail
       in
-      letrec projOks l =
+      let projOks l =
         case l of
           [] -> Ok []
           (Ok []) :: tail -> projOks tail
@@ -355,7 +355,7 @@ LensLess =
     String =
       let strToInt =
         let d = __DictFromList__ [("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8), ("9", 9)] in
-        letrec aux x =
+        let aux x =
           case extractFirstIn "^([0-9]*)([0-9])$" x of
             Just [init, last] -> (aux init)*10 + case __DictGet__ d last of
               Just x -> x
@@ -365,7 +365,7 @@ LensLess =
         aux
       in
       let join delimiter list =
-        letrec aux acc list = case list of
+        let aux acc list = case list of
           [] -> acc
           [head] -> acc + head
           (head::tail) -> aux (acc + head + freeze delimiter) tail
@@ -458,7 +458,7 @@ Update =
   in
   -- TODO: Replace this by enabling the return of Result String (Values [values...] | ValuesDiffs [(values, diffs)])
   let valuesWithDiffs valuesDiffs = Ok (InputsWithDiffs valuesDiffs) in
-  letrec resultValuesWithDiffs valuesDiffs = case valuesDiffs of
+  let resultValuesWithDiffs valuesDiffs = case valuesDiffs of
      [] -> Ok (InputsWithDiffs [])
      (Ok vd)::tail -> case resultValuesWithDiffs tail of
        Err msg -> Ok (InputsWithDiffs [vd])
@@ -494,7 +494,9 @@ Update =
         |> addDiff (\d x -> {d | _4 = x}) mbDiff4
         |> (\(d, changed) -> if changed then Just (VRecordDiffs d) else Nothing)
   in
-  type SimpleListDiffOp = KeepValue | DeleteValue | InsertValue Value | UpdateValue Value
+  let
+    type SimpleListDiffOp = KeepValue | DeleteValue | InsertValue Value | UpdateValue Value
+  in
   let listDiffOp diffOp oldValues newValues =
    -- listDiffOp : DiffOp -> List Value -> List Value -> List SimpleListDiffOp
 
@@ -502,7 +504,7 @@ Update =
      let {append} = List in
      case diffOp oldValues newValues of
         Ok (Just (VListDiffs listDiffs)) ->
-          letrec aux i revAcc oldValues newValues listDiffs =
+          let aux i revAcc oldValues newValues listDiffs =
             case listDiffs of
               [] ->
                 reverse (map1 (\_ -> KeepValue) oldValues ++ revAcc)
@@ -534,13 +536,15 @@ Update =
 
         result -> Debug.crash ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
   in
-  type StringDiffs = StringUpdate Int Int Int
-  type ConcStringDiffs = ConcStringUpdate Int Int String
+  let
+    type StringDiffs = StringUpdate Int Int Int
+    type ConcStringDiffs = ConcStringUpdate Int Int String
+  in
   -- Converts a VStringDiffs -> List ConcStringDiffs
   let strDiffToConcreteDiff newString diffs =
     case diffs of
       VStringDiffs d ->
-        letrec aux offset d revAcc = case d of
+        let aux offset d revAcc = case d of
           [] -> List.reverse revAcc
           ((StringUpdate start end replaced) :: tail) ->
              ConcStringUpdate start end (String.slice (start + offset) (start + replaced + offset) newString) :: revAcc |>
@@ -555,14 +559,14 @@ Update =
        _ -> 5
   in
   let preferStringInsertionToLeft s1 inserted s2 = affinity s1 inserted > affinity inserted s2 in
-  letrec offsetStr n list = case list of
+  let offsetStr n list = case list of
       (StringUpdate start end replaced) :: tail -> StringUpdate (start + n) (end + n) replaced :: offsetStr n tail
       [] -> []
   in
   let mbConsStringUpdate start end replaced tail =
     if start == end && replaced == 0 then tail else (StringUpdate start end replaced) :: tail
   in
-  letrec
+  let
     -- Returns all the possible ways of splitting the string differences at a particular index,
     -- at which the oldString used to be concatenated.
     -- Returns the new strings for left and for right.
@@ -597,7 +601,7 @@ Update =
           then [insertionToLeft, insertionToRight]
           else [insertionToRight, insertionToLeft]
   in
-  letrec
+  let
     offsetList n list = case list of
       (i, d)::tail -> (i + n, d)::offsetList n tail
       [] -> []
@@ -605,7 +609,7 @@ Update =
   -- Given a split index n (offset is zero at the beginning), split the newList that is being
   -- pushed back at the index n (n should be the original length of the left list being concatenated)
   -- Returns the new list to the left and its differences, and the new list on the right and its differences.
-  letrec
+  let
     splitListDiffsAt n offset newList listDiffs = case listDiffs of
       [] ->
         let (left, right) = List.split (n + offset) newList in
@@ -668,7 +672,7 @@ Update =
         in
         -- Returns either Err msg or Ok (list of values)
         --     fold: Int -> List b -> List b -> List (Int, ListElemDiff) -> a -> Results String c
-        letrec fold  j      oldOutput  newOutput  listDiffs                    acc =
+        let fold  j      oldOutput  newOutput  listDiffs                    acc =
             let next i      oldOutput_ newOutput_ d newAcc =
               newAcc |> Results.andThen (\accCase ->
                 fold i oldOutput_ newOutput_ d accCase
@@ -713,7 +717,7 @@ Update =
         case fold 0 oldOutput newOutput listDiffs start of
           Err msg -> Err msg
           Ok values -> -- values might be a pair of value and diffs. We use onGather to do the split.
-            letrec aux revAccValues revAccDiffs values = case values of
+            let aux revAccValues revAccDiffs values = case values of
               [] -> case revAccDiffs of
                 Nothing -> Ok (Inputs (reverse revAccValues))
                 Just revDiffs -> Ok (InputsWithDiffs (LensLess.List.zip (reverse revAccValues) (reverse revDiffs)))
@@ -732,7 +736,7 @@ Update =
          apply l = l
          update {outputNew=newL, diffs=d} =
            let lengthNotModified = case d of
-             VListDiffs ds -> letrec aux ds = case ds of
+             VListDiffs ds -> let aux ds = case ds of
                (_, ListElemDelete _)::tail -> False
                (_, ListElemInsert _)::tail -> False
                _::tail -> aux tail
@@ -750,16 +754,12 @@ Update =
         (Nothing, Just d2) -> Just (VRecordDiffs {_2=d2})
   in
   -- exports from Update module
-  { freeze x =
-      -- eta-expanded because "freeze x" is a syntactic form for U-Freeze
-      freeze x
-    expressionFreeze x =
-      expressionFreeze x
+  { freeze x = x
+    expressionFreeze x = x
     sizeFreeze = sizeFreeze
     foldDiff = foldDiff
-    applyLens lens x =
+    applyLens = applyLens
       -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway
-      applyLens lens x
 
     softFreeze = softFreeze
     splitStringDiffsAt = splitStringDiffsAt
@@ -780,7 +780,7 @@ Update =
         replace regex replacement string diffs = updateReplace
       }
     mapInserted fun modifiedStr diffs =
-       letrec aux offset d strAcc = case d of
+       let aux offset d strAcc = case d of
        [] -> strAcc
        ((ConcStringUpdate start end inserted) :: dtail) ->
          let left = String.take (start + offset) strAcc in
@@ -817,10 +817,11 @@ evaluate program =
 -- ListLenses --
 
 -- append is defined here because it is used when we want x ++ y to be reversible.
+-- Note that because this is not syntactically a lambda, the function is not recursive.
 append =
-  let {append=ap,split} = LensLess.List in
+  let {append,split} = LensLess.List in
   \aas bs -> {
-    apply [aas, bs] = ap aas bs
+    apply [aas, bs] = append aas bs
     update {input = [aas, bs], outputNew, outputOld, diffs} =
       let asLength = len aas in
       Update.foldDiff {
@@ -1126,7 +1127,7 @@ take xs n =
       x::xs1 -> x :: take xs1 (n - 1)
 
 -- (def take
---   (letrec take_ (\(n xs)
+--   (let take_ (\(n xs)
 --     (case [n xs]
 --       ([0 _]       [])
 --       ([_ []]      [])
@@ -1153,7 +1154,7 @@ elem x ys =
     y::ys1 -> or (x == y) (elem x ys1)
 
 sortBy f xs =
-  letrec ins x ys =   -- insert is a keyword...
+  let ins x ys =   -- insert is a keyword...
     case ys of
       []    -> [x]
       y::ys -> if f x y then x :: y :: ys else y :: ins x ys
@@ -1257,7 +1258,7 @@ parens = delimit "(" ")"
 --
 -- (def addColToRows (\(col rows)
 --   (let width (maximum (map len rows))
---   (letrec foo (\(col rows)
+--   (let foo (\(col rows)
 --     (case [col rows]
 --       ([ []     []     ] [                                          ])
 --       ([ [x|xs] [r|rs] ] [ (snoc x r)                 | (foo xs rs) ])
@@ -1325,7 +1326,7 @@ parens = delimit "(" ")"
 -- Regex --
 
 Regex =
-  letrec split regex s =
+  let split regex s =
     case extractFirstIn ("^([\\s\\S]*?)(" + regex + ")([\\s\\S]*)$") s of
       Just [before, removed, after] ->
         if before == "" && removed == "" then
@@ -1338,7 +1339,7 @@ Regex =
         else before :: split regex after
       _ -> [s]
   in
-  letrec find regex s =
+  let find regex s =
     case extractFirstIn ("(" + regex + ")([\\s\\S]*)") s of
       Nothing -> []
       Just matchremaining ->
@@ -1400,14 +1401,14 @@ List =
   in
   let simpleMap = LensLess.List.map
   in
-  letrec filterMap f l = case l of
+  let filterMap f l = case l of
     [] -> []
     (head :: tail) -> case f head of
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
   in
   -- This filter lens supports insertions and deletions in output
-  letrec filter f l =
+  let filter f l =
     case l of
       [] -> l
       head::tail ->
@@ -1464,7 +1465,7 @@ List =
   let cartesianProductWith f xs ys =
     concatMap (\x -> map (\y -> f x y) ys) xs
   in
-  letrec unzip xys =
+  let unzip xys =
     case xys of
       []          -> ([], [])
       (x,y)::rest -> let (xs,ys) = unzip rest in
@@ -1485,30 +1486,30 @@ List =
   in
   -- In this version of foldl, the function f accepts a 1-element list instead of just the element.
   -- This enable programmers to insert or delete values from the accumulator.
-  letrec foldl2 f b l =
-    letrec aux b l = case l of
+  let foldl2 f b l =
+    let aux b l = case l of
       [] -> b
       _ ->
         let (h1, t1) = split 1 l in
         aux (f h1 b) t1
     in aux b l
   in
-  letrec reverseInsert elements revAcc =
+  let reverseInsert elements revAcc =
     case elements of
       [] -> revAcc
       head::tail -> reverseInsert tail (head::revAcc)
   in
   let sum l = foldl (\x y -> x + y) 0 l in
-  letrec range min max = if min > max then [] else min :: range (min + 1) max in
-  letrec find f l = case l of [] -> Nothing; head :: tail -> if f head then Just head else find f tail in
-  letrec mapFirstSuccess f l = case l of
+  let range min max = if min > max then [] else min :: range (min + 1) max in
+  let find f l = case l of [] -> Nothing; head :: tail -> if f head then Just head else find f tail in
+  let mapFirstSuccess f l = case l of
     [] -> Nothing
     head :: tail -> case f head of
       Nothing -> mapFirstSuccess f tail
       x -> x
   in
   let contains n =
-    letrec aux l = case l of
+    let aux l = case l of
       [] -> False
       head::tail -> if head == n then True else aux tail
     in aux
@@ -1537,7 +1538,7 @@ List =
              |> concatMap (\(newAcc, newAccDiffs, newFHeadList, newFHeadListDiffs) ->
                let finalAccDiffs = if newAccDiffs == [] then Nothing else Just (VListDiffs newAccDiffs) in
                let finalAccDeletedRight =
-                 letrec aux diffs = case diffs of
+                 let aux diffs = case diffs of
                    [] -> False
                    (i, d)::tail -> case d of
                      ListElemDelete count -> if count + i == lengthAcc then True else
@@ -1622,13 +1623,13 @@ List =
   let singleton elem = [elem] in
   let repeat n a =
     {apply (n, a) =
-      letrec aux i = if i == 0 then [] else a :: aux (i - 1)
+      let aux i = if i == 0 then [] else a :: aux (i - 1)
       in aux n
      update {input, outputNew, diffs = VListDiffs ds} =
        let nNew = length outputNew in
        let nNewDiffs = if nNew == n then Nothing else Just (VConstDiffs) in
        let mergeEnabled =
-         letrec aux i diffs outputNew = case diffs of
+         let aux i diffs outputNew = case diffs of
            [] -> []
            (j, diff)::tailDiffs ->
              if i == j then
@@ -1653,6 +1654,10 @@ List =
        let (nA, nDiffsA) = __merge__ a mergeEnabled in
        Ok (InputsWithDiffs [((nNew, nA), Update.mbPairDiffs (nNewDiffs, nDiffsA))])
     }.apply (n, a)
+  in
+  let insertAt index newElem elements =
+    let (before, after) = split index elements in
+    before ++ [newElem] ++ after
   in
   -- TODO: Continue to insert List functions from Elm (http://package.elm-lang.org/packages/elm-lang/core/latest/List#range)
   { simpleMap = simpleMap
@@ -1689,6 +1694,7 @@ List =
     tail = tail
     singleton = singleton
     repeat = repeat
+    insertAt = insertAt
   }
 
 
@@ -1698,18 +1704,18 @@ List =
 String =
   let strToInt =
     let d = Dict.fromList [("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8), ("9", 9)] in
-    letrec aux x =
-      case extractFirstIn "^([0-9]*)([0-9])$" x of
-        Just [init, last] -> (aux init)*10 + Dict.apply d last
-        Nothing -> 0
+    let aux x =
+       case extractFirstIn "^([0-9]*)([0-9])$" x of
+         Just [init, last] -> (aux init)*10 + Dict.apply d last
+         Nothing -> 0
     in
     aux
   in
-  let join delimiter list =
-    letrec aux acc list = case list of
-      [] -> acc
-      [head] -> acc + head
-      (head::tail) -> aux (acc + head + freeze delimiter) tail
+  let join__ delimiter list =
+    let aux acc list = case list of
+       [] -> acc
+       [head] -> acc + head
+       (head::tail) -> aux (acc + head + freeze delimiter) tail
     in aux "" list
   in
   let length x = len (explode x) in
@@ -1734,7 +1740,7 @@ String =
           Update.splitStringDiffsAt (length oldAcc) 0 (oldAcc + head) newAcc diffs
           |> List.concatMap (\(leftValue, leftDiffs, rightValue, rightDiffs) ->
             let lastCharLeftDeleted =
-              letrec aux leftDiffs = case leftDiffs of
+              let aux leftDiffs = case leftDiffs of
                 [StringUpdate _ end 0] -> end == length oldAcc
                 head::tail -> aux tail
                 _ -> leftValue == ""
@@ -1779,7 +1785,7 @@ String =
             Just [substr] -> substr
             Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
   in
-  letrec sprintf str inline = case inline of
+  let sprintf str inline = case inline of
     a::tail -> sprintf (replaceFirstIn "%s" a str) tail
     [] -> str
     a -> replaceFirstIn "%s" a str
@@ -1808,23 +1814,23 @@ String =
       }.apply x
     join delimiter x =
       if delimiter == "" then join_ x
-      else join delimiter x
+      else join__ delimiter x
     -- In the forward direction, it joins the string.
     -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
     joinAndSplitBack delimiter x = if delimiter == "" then join_ x else {
-        apply x = join delimiter x
+        apply x = join__ delimiter x
         update {output, oldOutput, diffs} =
           Ok (Inputs [Regex.split delimiter output])
       }.apply x
     length x = {
-      apply x = length x
+      apply x = len (explode x)
       update {input, oldOutput, newOutput} =
         if newOutput < oldOutput then
           Ok (InputsWithDiffs [(take newOutput input, Just (VStringDiffs [StringUpdate newOutput oldOutput 0]))])
         else if newOutput == oldOutput then
           Ok (InputsWithDiffs [(input, Nothing)])
         else
-          letrec makeSize s targetLength =
+          let makeSize s targetLength =
             let n = length s in
             if n < targetLength then makeSize (s + s) targetLength
             else if n == targetLength then s
@@ -1858,20 +1864,24 @@ String =
 -- Maybe --
 
 Maybe =
-  type Maybe a = Nothing | Just a
-  let withDefault x mb = case mb of
-    Nothing -> x
-    Just j -> j
-  in
-  let withDefaultLazy lazyX mb = case mb of
-    Nothing -> lazyX []
-    Just j -> j
-  in
-  { withDefault = withDefault
-    withDefaultLazy = withDefaultLazy
+  { type Maybe a = Nothing | Just a
+
+    withDefault x mb = case mb of
+        Nothing -> x
+        Just j -> j
+
+    withDefault x mb = case mb of
+        Nothing -> x
+        Just j -> j
+
+    withDefaultLazy lazyX mb = case mb of
+        Nothing -> lazyX []
+        Just j -> j
+
     map f a = case a of
       Nothing -> Nothing
       Just x -> Just (f x)
+
     andThen f a = case a of
       Nothing -> Nothing
       Just x -> f x
@@ -1927,7 +1937,7 @@ Editor = {}
 textInner s = {
   apply s = [["TEXT", s]]
   update {output} =
-    letrec textOf = case of
+    let textOf = case of
       ["TEXT", s]::tail -> s + textOf tail
       [tag, attrs, children]::tail ->
         textOf children + textOf tail
@@ -1963,7 +1973,7 @@ updateOutputToResults c = case c of
 -- Example: html "Hello<b>world</b>" returns [["TEXT","Hello"],["b",[], [["TEXT", "world"]]]]
 html string = {
   apply trees =
-    letrec domap tree = case tree of
+    let domap tree = case tree of
       HTMLInner v -> ["TEXT",
         replaceAllIn "&nbsp;|&amp;|&lt;|&gt;|</[^>]*>" (\{match} ->
           case match of "&nbsp;" -> " "; "&amp;" -> "&"; "&lt;" -> "<"; "&gt;" -> ">"; _ -> "") v]
@@ -1999,7 +2009,7 @@ html string = {
       in
       HTMLAttribute " " name (HTMLAttributeString "" "" "\"" value) in
     let toHTMLInner text = HTMLInner (replaceAllIn "<|>|&" (\{match} -> case match of "&" -> "&amp;"; "<" -> "&lt;"; ">" -> "&gt;"; _ -> "") text) in
-    letrec toHTMLNode e = case e of
+    let toHTMLNode e = case e of
       ["TEXT",v2] -> toHTMLInner v2
       [tag, attrs, children] -> HTMLElement tag (map toHTMLAttribute attrs) ""
            RegularEndOpening (map toHTMLNode children) (RegularClosing "")
@@ -2063,7 +2073,7 @@ html string = {
       } oldOutput newOutput diffs
     in
     -- Returns Ok (List (List HTMLNode)., diffs = List (Maybe ListDiff)} or Err msg
-    letrec mergeNodes input oldOutput newOutput diffs =
+    let mergeNodes input oldOutput newOutput diffs =
       Update.foldDiff {
         start =
           -- Accumulator of values, accumulator of differences, original input
@@ -2164,7 +2174,7 @@ Html =
     }.apply (value, selected, content)
   in
   let select attributes strArray index =
-    letrec aux acc i options = case options of
+    let aux acc i options = case options of
        [] -> acc
        (opt :: tail) ->
          let newAcc = acc ++ [option (toString i) (i == index) [["TEXT", opt]]] in
@@ -2190,24 +2200,17 @@ Html =
         ["label", [["for",id], ["title", title]], [["TEXT", text]]]
       ]]
   in
-  let button =
-    let
-    stringFlagForUpdate state1 state2 f model =
-        { apply _ = state1
-        , update {input = model, outputNew} =
-            if outputNew == state2
-              then Ok (Inputs [f model])
-              else Ok (Inputs [model])
-        }.apply model
-    in
-    \name title model controller ->
-      forceRefresh <| [ "button"
-        , [ ["trigger", stringFlagForUpdate "" "#" controller model]
-          , ["title", title]
-          , ["onclick", "this.setAttribute('trigger', '#')"]
-          ]
-        , [textNode name]
-      ]
+  let onClickCallback model controller =  {
+    apply model = """/*@getCurrentTime*/this.setAttribute('onclick', " " + this.getAttribute('onclick'))"""
+    update {input, outputNew} =
+      if String.take 1 outputNew == " " then
+      Ok (Inputs [controller model])
+      else
+      Ok (InputsWithDiffs [(input, Nothing)])
+    }.apply model
+  in
+  let button name title model controller =
+    <button title=title onclick=(onClickCallback model controller)>@name</button>
   in
   let observeCopyValueToAttribute query attribute =
     <script>
@@ -2227,7 +2230,7 @@ Html =
     }.apply model
   in
   -- Reversibly merges the text nodes from a list of nodes.
-  letrec mergeTextNodes nodes = case nodes of
+  let mergeTextNodes nodes = case nodes of
     [] -> nodes
     [head] -> nodes
     ["TEXT", str1]::["TEXT", str2]::tail -> mergeTextNodes (["TEXT", str1+str2]::tail)
@@ -2242,7 +2245,7 @@ Html =
      This functions returns a node, (excepted if the top-level node is a ["TEXT", _] and is splitted.
   -}
   let replace regex replacement node =
-    letrec aux node = case node of
+    let aux node = case node of
       ["TEXT", text] ->
         findInterleavings 0 regex text
         |> List.concatMap_ identity (\[head] ->
@@ -2257,7 +2260,7 @@ Html =
       y -> y
   in
   let find regex node =
-    letrec aux node = case node of
+    let aux node = case node of
        ["TEXT", text] ->
          findInterleavings 0 regex text
          |> List.concatMap (case of
@@ -2271,7 +2274,7 @@ Html =
   let -- Takes a regex, a function that accepts a match and an accumulator and returns a list of nodes and the new accumulator's value.
       -- a starting accumulator and a starting node. Returns the final accumulator and the final node.
       foldAndReplace regex matchAccToNewNodesNewAcc startAcc node =
-          letrec aux acc node = case node of
+          let aux acc node = case node of
              ["TEXT", text] ->
                findInterleavings 0 regex text
                |> List.foldl (\interleaving (nodes, acc) ->
@@ -2323,6 +2326,7 @@ Html =
     replace = replace
     find = find
     foldAndReplace = foldAndReplace
+    onClickCallback = onClickCallback
   }
 
 -- TODO remove this; add as imports as needed in examples
@@ -3091,7 +3095,7 @@ button_ dropBall xStart y caption xCur =
       line 'black' wLine xStart y xEnd y,
       text (xEnd + 10) (y + 5) (caption + toString val) ] in
   let shapes2 =
-    [ if xBall_ == xBall then circle if val then 'darkgreen' else 'darkred' xBall y rBall else
+    [ if xBall_ == xBall then circle (if val then 'darkgreen' else 'darkred') xBall y rBall else
       if dropBall then         circle 'black' 0! 0! 0! else
                            circle 'red' xBall y rBall ] in
   let shapes = append (zones 'none' shapes1) (zones 'basic' shapes2) in
@@ -3465,7 +3469,7 @@ stretchyPolygon bounds fill stroke strokeWidth percentages =
 -- TODO no longer used...
 pointyPath fill stroke w d =
   let dot x y = ghost (circle 'orange' x y 5) in
-  letrec pointsOf cmds =
+  let pointsOf cmds =
     case cmds of
       []->                     []
       ['Z']->                  []
@@ -3487,7 +3491,7 @@ stretchyPath bounds fill stroke w d =
   let [left, top, right, bot] = bounds in
   let [xScale, yScale] = [scaleBetween left right, scaleBetween top bot] in
   let dot x y = ghost (circle 'orange' x y 5) in
-  letrec toPath cmds =
+  let toPath cmds =
     case cmds of
       []->    []
       ['Z']-> ['Z']
@@ -3500,7 +3504,7 @@ stretchyPath bounds fill stroke w d =
         append ['C', xScale x1, yScale y1, xScale x2, yScale y2, xScale x, yScale y]
                 (toPath rest)
       _-> 'ERROR' in
-  letrec pointsOf cmds =
+  let pointsOf cmds =
     case cmds of
       []->    []
       ['Z']-> []

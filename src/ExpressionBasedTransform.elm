@@ -126,6 +126,10 @@ inlineListSynthesisResults originalExp =
     |> List.concatMap
         (\exp ->
           case exp.val.e__ of
+            ELet letWs1 letKind decls spEq letBody ->
+              let _ = Debug.log "TODO: ExpressionBasedTransformed.inlineListSynthesisResults should be implemented for the new ELet's declaratiosn" () in
+              []
+            {-
             ELet letWs1 letKind False letPat letWs2 letAssign letWs3 letBody letWs4 -> -- non-recursive lets only
               let letExp = exp in
               case letPat.val.p__ of
@@ -281,7 +285,7 @@ inlineListSynthesisResults originalExp =
 
                 _ ->
                   []
-
+              -}
             _ ->
               []
         )
@@ -295,13 +299,18 @@ inlineListSynthesisResults originalExp =
       )
 
 
--- Returns List of (Sorted List of (EId, Expression to Replace, Argument Expressions), Replacing Function, Common Scope, Suggested Function Name, Argument Names)
+-- Returns List of (Sorted List of (EId, Expression to Replace, Argument Expressions),
+--   Replacing Function, Common Scope, Suggested Function Name, Argument Names)
 --
 -- Suggested function name has *not* been checked for collisions.
 --
--- Resulting abstracted functions will evaluate correctly but may not type check (may have more polymorphism in the arguments than the type system can handle).
+-- Resulting abstracted functions will evaluate correctly but may not type check
+-- (may have more polymorphism in the arguments than the type system can handle).
 detectClones : Exp -> (Exp -> Bool) -> Int -> Int -> Int -> Bool -> List (List (EId, Exp, List Exp), Exp, Exp, String, List String)
 detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount allowCurrying =
+  let _ = Debug.log "TODO: ExpressionBasedTransform.detectClones should take into account the new ELet's format. Returning nothing" () in
+  []
+  {-
   let argVar = eVar "INSERT_ARGUMENT_HERE" in
   -- Sister function in LangTools.extraExpsDiff
   -- This version returns the various differing subtrees replaced by argVar:
@@ -328,7 +337,6 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (EIf ws1A e1A ws2A e2A ws3A e3A ws4A,  EIf ws1B e1B ws2B e2B ws3B e3B ws4B)  -> replaceE__ expA (EIf ws1A (merge e1A e1B) ws2A (merge e2A e2B) ws3A (merge e3A e3B) ws4A)
       (ECase ws1A eA branchesA ws2A,         ECase ws1B eB branchesB ws2B)         -> Utils.maybeZip branchesA  branchesB  |> Maybe.andThen (\branchPairs  -> let bValPairs  = branchPairs  |> List.map (\(bA, bB)   -> (bA.val,  bB.val))  in if bValPairs  |> List.all (\(Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B)  -> patternsEqual bpatA bpatB)   then Just (replaceE__ expA (ECase     ws1A (merge eA eB) (Utils.zip branchPairs  bValPairs  |> List.map (\((bA,  bB),  (Branch_  bws1A  bpatA   beA  bws2A,  Branch_  bws1B  bpatB   beB  bws2B))  -> {bA  | val = Branch_  bws1A  bpatA   (merge beA  beB)  bws2A}))  ws2A)) else Nothing) |> Maybe.withDefault argVar
       (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)    -> Utils.maybeZip tbranchesA tbranchesB |> Maybe.andThen (\tbranchPairs -> let tbValPairs = tbranchPairs |> List.map (\(tbA, tbB) -> (tbA.val, tbB.val)) in if tbValPairs |> List.all (\(TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B) -> Types.equal tbtypeA tbtypeB) then Just (replaceE__ expA (ETypeCase ws1A (merge eA eB) (Utils.zip tbranchPairs tbValPairs |> List.map (\((tbA, tbB), (TBranch_ tbws1A tbtypeA tbeA tbws2A, TBranch_ tbws1B tbtypeB tbeB tbws2B)) -> {tbA | val = TBranch_ tbws1A tbtypeA (merge tbeA tbeB) tbws2A})) ws2A)) else Nothing) |> Maybe.withDefault argVar
-      (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> argVar
       (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> if patternsEqual patA patB && Types.equal typeA typeB then replaceE__ expA (ETyp ws1A patA typeA (merge eA eB) ws2A) else argVar
       (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> if Types.equal typeA typeB then replaceE__ expA (EColonType ws1A (merge eA eB) ws2A typeA ws3A) else argVar
       (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> if patternsEqual patA patB && Types.equal typeA typeB then replaceE__ expA (ETypeAlias ws1A patA typeA (merge eA eB) ws2A) else argVar
@@ -389,7 +397,6 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (ETypeCase ws1A eA tbranchesA ws2A,    ETypeCase ws1B eB tbranchesB ws2B)  ->
         let precondition = Utils.listsEqualBy Types.equal (tbranchTypes tbranchesA) (tbranchTypes tbranchesB) in
         generalizedMerge precondition (Just (eA, eB)) Nothing Nothing (Just (tbranchExps tbranchesA, tbranchExps tbranchesB)) (\eMerged _ _ tbranchExpsMerged -> ETypeCase ws1A eMerged (List.map2 replaceTBranchExp tbranchesA tbranchExpsMerged) ws2A)
-      (EOption ws1A s1A ws2A s2A e1A,        EOption ws1B s1B ws2B s2B e1B)        -> retArgVar
       (ETyp ws1A patA typeA eA ws2A,         ETyp ws1B patB typeB eB ws2B)         -> generalizedMerge (patternsEqual patA patB && Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> ETyp ws1A patA typeA mergedE ws2A)
       (EColonType ws1A eA ws2A typeA ws3A,   EColonType ws1B eB ws2B typeB ws3B)   -> generalizedMerge (Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> EColonType ws1A mergedE ws2A typeA ws3A)
       (ETypeAlias ws1A patA typeA eA ws2A,   ETypeAlias ws1B patB typeB eB ws2B)   -> generalizedMerge (patternsEqual patA patB && Types.equal typeA typeB) (Just (eA, eB)) Nothing Nothing Nothing (\mergedE _ _ _ -> ETypeAlias ws1A patA typeA mergedE ws2A)
@@ -409,7 +416,6 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
         )
   in
   subExpsOfSizeAtLeast minCloneSize originalExp
-  |> List.filter (\e -> not <| isOption e) -- Comments and options should not be a base expression of a clone
   |> List.filter candidateExpFilter
   |> List.foldl
       (\exp mergeGroups ->
@@ -526,7 +532,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
         , argNames
         )
       )
-
+  -}
 
 -- Ensure program won't crash or have bad behavior because we lifted a variable usage out of the variable's scope.
 noExtraneousFreeVarsInRemovedClones : List Exp -> Exp -> Bool
@@ -670,7 +676,12 @@ matchesAnySelectedVarBlob_ selectedNiceBlobs def =
   let (_,p,_,_) = def in
   case p.val.p__ of
     PVar _ y _  -> findBlobForIdent y
-    PAs _ _ y _ _ -> findBlobForIdent y
+    PAs _ p1 _ p2 ->
+      case p1.val.p__ of
+        PVar _ y _ -> findBlobForIdent y
+        _ -> case p2.val.p__ of
+          PVar _ y _  -> findBlobForIdent y
+          _ -> Nothing
     _           -> Nothing
 
 matchesAnySelectedVarBlob selectedNiceBlobs def =
@@ -698,7 +709,12 @@ matchesAnySelectedCallBlob_ selectedNiceBlobs def =
   let (_,p,_,_) = def in
   case p.val.p__ of
     PVar _ y _  -> findBlobForIdent y
-    PAs _ _ y _ _ -> findBlobForIdent y
+    PAs _ p1 _ p2 ->
+      case p1.val.p__ of
+        PVar _ y _ -> findBlobForIdent y
+        _ -> case p2.val.p__ of
+          PVar _ y _  -> findBlobForIdent y
+          _ -> Nothing
     _           -> Nothing
 
 matchesAnySelectedCallBlob selectedNiceBlobs def =
@@ -717,6 +733,9 @@ matchesAnySelectedBlob selectedNiceBlobs def =
 
 groupAndRearrange model newGroup defs blobs selectedNiceBlobs
     groupDefs eSubst finalExpOfNewGroup =
+  let _ = Debug.log "ExpressionBasedTransform.groupAndRearrange should take into account the new ELet's declarations" () in
+  (defs, blobs)
+  {-
   let (pluckedBlobs, beforeBlobs, afterBlobs) =
     let indexedBlobs = Utils.zip (List.range 1 (List.length blobs)) blobs in
     let matches (i,_) = Dict.member i model.selectedBlobs in
@@ -773,7 +792,7 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs
     let newBlob = varBlob (withDummyExpInfo (EVar (ws "\n  ") newGroup)) newGroup in
     beforeBlobs ++ [newBlob] ++ afterBlobs
   in
-  (defs_, blobs_)
+  (defs_, blobs_)-}
 
 -- TODO maybe stop using this to keep total ordering
 pluckFromList pred xs =
@@ -1098,12 +1117,12 @@ eAsPoint e =
 
   let e_ =  replacePrecedingWhitespace "" e in
   withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TApp space1 "Point" []) space0
+    EColonType space1 e_ space1 (withDummyRange <| TApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp) space0
 
 
 pAsTight x p =
   let p_ =  replacePrecedingWhitespacePat "" p in
-  withDummyPatInfo <| PAs space0 space1 x space0 p_
+  withDummyPatInfo <| PAs space0 p_ space1 (pVar x)
 
 
 --------------------------------------------------------------------------------
@@ -1122,6 +1141,9 @@ selectedBlobsToSelectedVarBlobs model blobs =
      (selectedBlobsToSelectedNiceBlobs model blobs)
 
 abstractSelectedBlobs model =
+  let _ = Debug.log "TODO: ExpressionBasedTransform.abstractSelectedBlobs should support the new kind of ELet's declarations" () in
+  model
+  {-
   let (defs,mainExp) = splitExp model.inputExp in
   case mainExp of
     Blobs blobs f ->
@@ -1135,6 +1157,7 @@ abstractSelectedBlobs model =
                 }
     _ ->
       model
+   -}
 
 abstractOne (i, eBlob, x) (defs, blobs) =
 
@@ -1294,10 +1317,16 @@ findAnchorInMapping mapping =
     _ ->
       Nothing
 
+redundantLetExp (LetExp _ _ p _ _ e2) = redundantBinding(p, e2)
+
 removeRedundantBindings =
   mapExp <| \e ->
     case e.val.e__ of
-      ELet _ _ _ p _ e1 _ e2 _ -> if redundantBinding (p, e1) then e2 else e
+      ELet sl def (Declarations po tps anns (letexps, ge)) spIn e2 ->
+        if tps == ([], []) && anns == [] &&
+          List.all redundantLetExp letexps then
+          e2
+        else e
       _                        -> e
 
 redundantBinding (p, e) =
@@ -1532,6 +1561,9 @@ shiftDownAndRight (left, top, right, bot) =
 -- Merge Blobs
 
 mergeSelectedBlobs model =
+  let _ = Debug.log "TODO: ExpressionBasedTransform.mergeSelectedBlobs uses a soon obsolete version of blobs" () in
+  model
+  {-
   let (defs,mainExp) = splitExp model.inputExp in
   case mainExp of
     Blobs blobs f ->
@@ -1539,17 +1571,16 @@ mergeSelectedBlobs model =
       if List.length selectedVarBlobs /= Dict.size model.selectedBlobs then
         model -- should display error caption for remaining selected blobs...
       else
-        let (defs_, blobs_) = mergeSelectedVarBlobs model defs blobs selectedVarBlobs in
+        let (defs_, blobs_) = mergeSelectedVarBlobs model (Tuple.first defs) blobs selectedVarBlobs in
         let code_ = unparse (fuseExp (defs_, Blobs blobs_ f)) in
         -- upstate Run
           { model | code = code_
                   , selectedBlobs = Dict.empty
                   }
     _ ->
-      model
+      model-}
 
 mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
-
   let (pluckedDefs, beforeDefs, afterDefs) =
     let selectedNiceBlobs = List.map (\(i,e,x) -> (i, e, VarBlob x)) selectedVarBlobs in
     pluckFromList (matchesAnySelectedVarBlob selectedNiceBlobs) defs in
@@ -1605,6 +1636,85 @@ mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
       let defs_ = beforeDefs ++ [newDef] ++ afterDefs in
       let blobs_ = beforeBlobs ++ newBlobs ++ afterBlobs in
       (defs_, blobs_)
+
+mergeList:
+  (a -> List a -> Maybe (a, List (Ident, List AnnotatedNum))) ->
+  List a -> List (List a) ->
+  Maybe (List a, List (Ident, List AnnotatedNum))
+mergeList submerger elems elemss =
+  let elemss2 = Utils.transpose elemss in
+  if List.length elemss2 == List.length elems then
+    List.map2 submerger elems elemss2
+    |> Utils.projJusts
+    |> Maybe.map (\stuff ->
+        let (newAList, newListListAnnotatedNum) = List.unzip stuff in
+        (newAList, List.concatMap identity newListListAnnotatedNum)
+       )
+  else Nothing
+
+mergeLetType: LetType -> List LetType ->
+  Maybe (LetType, List (Ident, List AnnotatedNum))
+mergeLetType ((LetType spc spAlias spPat pat fs spEq t) as input) eRest =
+  let match (LetType spc spAlias spPat pat fs spEq t) =
+    Just (pat, t)
+  in
+  matchAllAndBind match eRest <| \stuff ->
+    let (patList, typeList) = List.unzip stuff in
+    Maybe.map2
+      (\_ _ -> (input, []))
+      (mergePatterns pat patList)
+      (mergeTypes t typeList)
+
+mergeLetExp: LetExp -> List LetExp ->
+  Maybe (LetExp, List (Ident, List AnnotatedNum))
+mergeLetExp (LetExp spc spPat pat fs spEq e1) eRest =
+  let match (LetExp spc_ spPat_ pat_ fs_ spEq_ e1_) =
+    Just (pat_, e1_) in
+  matchAllAndBind match eRest <| \stuff ->
+    let (pats, e1s) = List.unzip stuff in
+    Maybe.map2
+      (\_ (e1_, l1) -> (LetExp spc spPat pat fs spEq e1_, l1))
+      (mergePatterns pat pats)
+      (mergeExpressions e1 e1s)
+
+mergeLetAnnotation: LetAnnotation -> List LetAnnotation ->
+  Maybe (LetAnnotation, List (Ident, List AnnotatedNum))
+mergeLetAnnotation ((LetAnnotation spc spPat pat fs spEq t) as input) eRest =
+  let match (LetAnnotation spc spPat pat fs spEq t) =
+    Just (pat, t)
+  in
+  matchAllAndBind match eRest <| \stuff ->
+    let (patList, typeList) = List.unzip stuff in
+    Maybe.map2
+      (\_ _ -> (input, []))
+      (mergePatterns pat patList)
+      (mergeTypes t typeList)
+
+mergeDeclarations: Declarations -> List Declarations
+  -> Maybe (Declarations, List (Ident, List AnnotatedNum))
+mergeDeclarations (Declarations po (tps, gt) anns (letexps, ge)) dRest =
+  let match (Declarations po_ (tps_, gt_) anns_ (letexps_, ge_)) =
+    Just (((po_, anns_), (tps_, gt_)), (letexps_, ge_))
+  in
+  matchAllAndBind match dRest <| \declMatter ->
+    let (((poL, annsL), (tpsL, gtL)), (letexpsL, geL)) =
+      Tuple.mapFirst (
+         Tuple.mapFirst List.unzip <<
+         Tuple.mapSecond List.unzip <<
+         List.unzip) <|
+      Tuple.mapSecond List.unzip <|
+      List.unzip declMatter
+    in
+    if List.all ((==) po) poL &&
+       List.all ((==) gt) gtL &&
+       List.all ((==) ge) geL then
+       Maybe.map3 (\(newTps, l1) (newLetexps, l2) (newAnns, l3) ->
+         (Declarations po (newTps, gt) newAnns (newLetexps, ge), l1 ++ l2 ++ l3)
+       )
+         (mergeList mergeLetType tps tpsL)
+         (mergeList mergeLetExp letexps letexpsL)
+         (mergeList mergeLetAnnotation anns annsL)
+    else Nothing
 
 -- Merge 2+ expressions
 mergeExpressions
@@ -1674,20 +1784,20 @@ mergeExpressions eFirst eRest =
           (mergeExpressionLists (eArgs::eArgsList))
           (Just appType)
 
-    ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 ->
+    ELet ws1 letKind decls wsEq e2 ->
       let match eNext = case eNext.val.e__ of
-        ELet _ _ nextRec p1_ _ e1_ _ e2_ _ -> if rec == nextRec then Just ((p1_, e1_), e2_) else Nothing
-        _                                  -> Nothing
+         ELet _ _ decls_ _ e2_ ->
+            Just (decls_, e2_)
+         _ ->
+            Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
-        let ((p1List, e1List), e2List) =
-          Tuple.mapFirst List.unzip (List.unzip stuff)
-        in
-        Utils.bindMaybe3
-          (\_ (e1_,l1) (e2_,l2) ->
-            return (ELet ws1 letKind rec p1 ws2 e1_ ws3 e2_ ws4) (l1 ++ l2))
-          (mergePatterns p1 p1List)
-          (mergeExpressions e1 e1List)
+        let (declsList, e2List) = List.unzip stuff in
+        Utils.bindMaybe2
+          (\(newDecls, l1) (e2_, l2) ->
+            return (ELet ws1 letKind newDecls wsEq e2_) (l1 ++ l2)
+          )
+          (mergeDeclarations decls declsList)
           (mergeExpressions e2 e2List)
 
     EList ws1 es ws2 me ws3 ->
@@ -1702,17 +1812,17 @@ mergeExpressions eFirst eRest =
           (mergeExpressionLists (Utils.listValues es :: List.map Utils.listValues esList))
           (mergeMaybeExpressions me meList)
 
-    ERecord ws1 mi es ws2 ->
+    ERecord ws1 mi decls ws2 ->
       let match eNext = case eNext.val.e__ of
-        ERecord _ mi_ es_ _ -> Just (Utils.recordInitValue mi_, Utils.recordValues es_)
+        ERecord _ mi_ decls_ _ -> Just (Utils.recordInitValue mi_, decls)
         _                   -> Nothing
       in
       matchAllAndBind match eRest <| \stuff ->
-        let (miList, esList) = List.unzip stuff in
+        let (miList, declsList) = List.unzip stuff in
         Utils.bindMaybe2
-          (\(mi_,l1) (es_,l2) -> return (ERecord ws1 (Utils.recordInitMake mi mi_) (Utils.recordValuesMake es es_) ws2) (l1 ++ l2))
+          (\(mi_,l1) (newDecls,l2) -> return (ERecord ws1 (Utils.recordInitMake mi mi_) newDecls ws2) (l1 ++ l2))
           (mergeMaybeExpressions (Utils.recordInitValue mi) miList)
-          (mergeExpressionLists  (Utils.recordValues es :: esList))
+          (mergeDeclarations decls declsList)
 
     ESelect ws0 eRec ws1 ws2 m ->
       let match eNext = case eNext.val.e__ of
@@ -1754,22 +1864,6 @@ mergeExpressions eFirst eRest =
           (mergeExpressions e2 e2List)
           (mergeExpressions e3 e3List)
 
-    ETyp ws1 pat tipe e ws2 ->
-      let match eNext = case eNext.val.e__ of
-        ETyp _ pat tipe e _ -> Just ((pat, tipe), e)
-        _                   -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let ((patList, typeList), eList) =
-          Tuple.mapFirst List.unzip (List.unzip stuff)
-        in
-        Utils.bindMaybe3
-          (\_ _ (e_,l) ->
-            return (ETyp ws1 pat tipe e_ ws2) l)
-          (mergePatterns pat patList)
-          (mergeTypes tipe typeList)
-          (mergeExpressions e eList)
-
     EColonType ws1 e ws2 tipe ws3 ->
       let match eNext = case eNext.val.e__ of
         EColonType _ e _ tipe _ -> Just (e,tipe)
@@ -1783,37 +1877,8 @@ mergeExpressions eFirst eRest =
           (mergeExpressions e eList)
           (mergeTypes tipe typeList)
 
-    ETypeAlias ws1 pat tipe e ws2 ->
-      let match eNext = case eNext.val.e__ of
-        ETypeAlias _ pat tipe e _ -> Just ((pat, tipe), e)
-        _                         -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let ((patList, typeList), eList) =
-          Tuple.mapFirst List.unzip (List.unzip stuff)
-        in
-        Utils.bindMaybe3
-          (\_ _ (e_,l) ->
-            return (ETypeAlias ws1 pat tipe e_ ws2) l)
-          (mergePatterns pat patList)
-          (mergeTypes tipe typeList)
-          (mergeExpressions e eList)
-
-    ETypeDef _ _ _ _ _ _ _ ->
-      -- TODO-TD mergeExpressions for TypeDef
-      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
-      Nothing
-
     ECase _ _ _ _ ->
-      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
-      Nothing
-
-    ETypeCase _ _ _ _ ->
-      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
-      Nothing
-
-    EOption _ _ _ _ _ ->
-      let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
+      let _ = Debug.log "mergeExpressions: TODO handle ECase: " eFirst in
       Nothing
 
     EParens ws1 e pStyle ws2 ->
@@ -1917,25 +1982,33 @@ mergePatterns pFirst pRest =
          let psList = stuff in
          mergePatternLists (Utils.recordValues ps::psList)
 
-    PAs _ _ x _ p ->
+    PAs _ p1 _ p2 ->
       let match pNext = case pNext.val.p__ of
-        PAs _ _ x_ _ p_ -> Just (x_, p_)
-        _             -> Nothing
+        PAs _ p1_ _ p2_ -> Just (p1_, p2_)
+        _               -> Nothing
       in
       matchAllAndBind match pRest <| \stuff ->
-        let (indentList, pList) = List.unzip stuff in
-        Utils.bindMaybe
-          (\() -> if List.all ((==) x) indentList then Just () else Nothing)
-          (mergePatterns p pList)
+        let (p1List, p2List) = List.unzip stuff in
+        mergePatterns p1 p1List |>
+        Maybe.andThen (\() ->
+          mergePatterns p2 p1List)
     PParens _ p _ ->
       let match pNext = case pNext.val.p__ of
         PParens _ p_ _ -> Just p_
         _             -> Nothing
       in
       matchAllAndBind match pRest <| \pList ->
-        Utils.bindMaybe
-          (\() -> Just ())
-          (mergePatterns p pList)
+        mergePatterns p pList
+    PColonType _ p _ t ->
+      let match pNext = case pNext.val.p__ of
+        PColonType _ p_ _ t_ -> Just (p_, t_)
+        _             -> Nothing
+      in
+      matchAllAndBind match pRest <| \ptList ->
+        let (pList, tList) = List.unzip ptList in
+        mergePatterns p pList |>
+        Maybe.andThen (\() ->
+          if List.all ((==) t) tList then Just () else Nothing)
 
 mergeTypes : Type -> List Type -> Maybe ()
 mergeTypes tFirst tRest =
@@ -1943,8 +2016,10 @@ mergeTypes tFirst tRest =
   then Just ()
   else Nothing
 
+matchAllAndCheckEqual: (a -> Maybe b) -> List a -> b -> Maybe ()
 matchAllAndCheckEqual f xs x =
-  let g ys = if List.all ((==) x) ys then Just () else Nothing in
+  let g: List b -> Maybe ()
+      g ys = if List.all ((==) x) ys then Just () else Nothing in
   matchAllAndBind f xs g
 
 mergePatternLists : List (List Pat) -> Maybe ()
@@ -1954,8 +2029,8 @@ mergePatternLists lists =
     Just listListPat ->
       let foo listPat maybeAcc =
         case (listPat, maybeAcc) of
-          (p::ps, Just ()) -> mergePatterns p ps
-          _                -> Nothing
+           (p::ps, Just ()) -> mergePatterns p ps
+           _                -> Nothing
       in
       List.foldl foo (Just ()) listListPat
 

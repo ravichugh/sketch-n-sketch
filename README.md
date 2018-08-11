@@ -119,10 +119,13 @@ By convention, the `main` definition is often the last top-level definition.
 #### Long string literals with interpolation
 
     """Here @y @x.hello @(let y = "2" in y)
-    This is on a second line"""
+    @let t = "third" in
+    This is on a @t line"""
 
-is roughly equivalent to `"Here " + S y + " " + S x.hello + " " + S (let y = "2" in y) + "\nThis is on a second line"`
+is roughly equivalent to `"Here " + S y + " " + S x.hello +
+ " " + S (let y = "2" in y) + "\n" + (let t = "third" in "This is on a " + t + " line"`
 where S converts its argument to a string if it is not.
+Note that inline @let always require the space after "in" to be a newline.
 
 ### Primitive Operators
 
@@ -372,9 +375,12 @@ If needed in the future, we could add other elements (e.g. `ignore`) or attribut
 ### Comments and Options
 
 Comments are part of whitespace and can be one-line `-- Comment` or nested multi-line `{- This is {-a-} comment -}`.
+Options are one-line comments immediately starting with "#", then a keyword, then a value.
 
 ```
-  e  ::= # option: value; e
+  e  ::=  ...
+      |   --single-line-comment; e
+      |   --# option: value; e
 ```
 
 Options are separated by expressions by a newline (the semicolon above is actually a newline).

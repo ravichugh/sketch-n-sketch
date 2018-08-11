@@ -37,17 +37,19 @@ object SNS extends Module {
     %%("python", pwd/'scripts/"expandTemplate.py", "Prelude") //'
     println("Prelude regenerated")
   }
+
+  def currentDate = new SimpleDateFormat("HH:mm:ss  (yyyy-MM-dd)").format(Calendar.getInstance().getTime())
   
   def all = T{
     packages()
     examples()
     prelude()
     sourceRoot()
-    println("elm_make started" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime()));
+    println("elm_make started at " + currentDate)
     stderr(%%(ELM_MAKE,"Main.elm", "--output", outSNS)) match {
       case Left(msg) =>
         System.out.print("\033[H\033[2J") // Clears the console to display the error
-        println(fixpoint(insertLinks)(msg))
+        println(buildSummary(fixpoint(insertLinks)(msg)))
       case Right(ok) =>
         val output = read(outSNS)
         write.over(outSNS, output.replace("""var Elm = {};""",
@@ -57,6 +59,20 @@ object SNS extends Module {
           |""".stripMargin))
     }
     true
+  }
+
+  def buildSummary(errorMsg: String): String = {
+    errorMsg + """
+    |Last errors by files:
+    |""".stripMargin +
+    """\.\((\w+\.elm):(\d+)\)""".r.findAllMatchIn(errorMsg).map(m =>
+      (m.group(1), m.group(2))
+    ).toList.groupBy(_._1).map{case (filename, filename_linenums) =>
+      val lineNums = filename_linenums.map(_._2.toInt)
+      val numErrors = lineNums.filter(x => !lineNums.exists(y => y == x + 1))
+      "at .(" + filename + ":" + lineNums.sorted.last + ")" +
+        (if(filename_linenums.length > 1) " and " + numErrors.length + " errors covering " + lineNums.length + " lines." else " and this is the last error!")
+    }.mkString("\n")
   }
   
   def copyNative = T{
@@ -95,7 +111,7 @@ object SNS extends Module {
       { m =>
         val link = "at .("+m.group(2)+":" +m.group(3)+")"
         val result = m.group(1)+link+m.group(4)+(if(m.group(5) != null) " " * (link.length - m.group(3).length - 1) else "")
-        "\\\\".r.replaceAllIn(result, (_ => "\\\\\\\\"))
+        """\$""".r.replaceAllIn("""\\""".r.replaceAllIn(result, _ => """\\\\"""), _ => """\\\$""")
       })
   }
   @tailrec def fixpoint[A](f: A => A, max: Int = 100)(x: A): A = {
@@ -133,4 +149,44 @@ object SNS extends Module {
   }
 }
 
+object SNSTests extends Module {
+  import SNS.{buildSummary,fixpoint,insertLinks,stderr, examples, prelude}
+  def millSourcePath = pwd
+  implicit def src: Path = pwd / "tests"
+
+  def testRoot = T.sources { pwd / 'tests }
+
+  def test = T {
+    testRoot()
+    examples()
+    prelude()
+    SNS.sourceRoot()
+    stderr(%%(ELM_MAKE, "UpdateTests.elm", "--output", "build/test.js")) match {
+      case Left(msg) =>
+        System.out.print("\033[H\033[2J") // Clears the console to display the error
+        println(buildSummary(fixpoint(insertLinks)(msg)))
+      case Right(ok) =>
+        println("Let's run the tests")
+        try {
+          %("node", "--stack_size=2048", "support/runner.js")
+        } catch {
+          case ammonite.ops.InteractiveShelloutException() =>
+            println("Exception 1 caught")
+            // Re-running to get the error:
+            try {
+              %%("node", "--stack_size=2048", "support/runner.js")
+              println("Executed normally")
+            } catch {
+              case ammonite.ops.ShelloutException(commandResult) =>
+                println("Exception caught")
+                println(SNS.currentDate + ":" + commandResult.err.string)
+            }
+        }
+        ()
+    }
+  }
+}
+
 def html = T{ SNS.html() }
+
+def test =  T{ SNSTests.test() }

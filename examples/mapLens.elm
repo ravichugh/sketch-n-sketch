@@ -1,13 +1,13 @@
 -- prepend lSmall with its own element until it reaches the size of lBig
 copyLengthFrom lBig lSmall =
-  letrec aux acc lb ls = case [lb, ls] of
+  let aux acc lb ls = case [lb, ls] of
     [[], ls] -> acc
     [head::tail, []] -> aux acc lb lSmall
     [head::tail, headS::tailS] -> aux (headS::acc) tail tailS
   in aux [] lBig lSmall
 
 splitByLength listLength list =
-  letrec aux length lPrev l = case length of
+  let aux length lPrev l = case length of
     [] -> [lPrev, l]
     head::tail -> case l of
       lHead::lTail -> aux tail (append lPrev [lHead]) lTail
@@ -16,12 +16,12 @@ splitByLength listLength list =
 
 map f l = {
   apply [f, l] =
-    letrec aux = case of
+    let aux = case of
       [] -> []
       head::tail -> f head :: aux tail
     in aux l
   update {input = [f, input], output, outputOriginal} =
-    letrec aux newFuns newInputs inputElements thediff = case thediff of
+    let aux newFuns newInputs inputElements thediff = case thediff of
       [] -> [newFuns, newInputs]
       {same,elements}::tailDiff ->
         let [inputsElementsKept, inputElementsTail] = splitByLength elements inputElements in

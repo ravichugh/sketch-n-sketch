@@ -5,6 +5,7 @@ import Debug
 import Set exposing (Set)
 import Dict exposing (Dict)
 import Regex
+import Array
 
 infinity = 1/0
 
@@ -143,11 +144,6 @@ maybeOrElse: Maybe a -> Maybe a -> Maybe a
 maybeOrElse mb ma = case ma of
   Just _ -> ma
   Nothing -> mb
-
-maybeOrElseLazy: (() -> Maybe a) -> Maybe a -> Maybe a
-maybeOrElseLazy mb ma = case ma of
-  Just _ -> ma
-  Nothing -> mb ()
 
 maybeWithLazyDefault: Maybe a -> (() -> a) -> a
 maybeWithLazyDefault mba callback = case mba of
@@ -570,20 +566,31 @@ removeLastElement list =
 
 -- Equivalent to Maybe.oneOf (List.map f list)
 -- but maps the list lazily to return early
+-- Equivalent of collectFirst
 mapFirstSuccess : (a -> Maybe b) -> List a -> Maybe b
 mapFirstSuccess f list =
   case list of
     []   -> Nothing
-    x::xs ->
-      case f x of
-        Just result -> Just result
+    x::xs -> case f x of
         Nothing     -> mapFirstSuccess f xs
+        res -> res
+
+removeFirstSuccess : (a -> Maybe b) -> List a -> Maybe (b, List a)
+removeFirstSuccess f list =
+  case list of
+    []   -> Nothing
+    x::xs -> case f x of
+        Nothing     -> removeFirstSuccess f xs |> Maybe.map (Tuple.mapSecond <| (::) x)
+        Just res -> Just (res, xs)
 
 firstOrLazySecond : Maybe a -> (() -> Maybe a) -> Maybe a
 firstOrLazySecond maybe1 lazyMaybe2 =
   case maybe1 of
     Just x  -> maybe1
     Nothing -> lazyMaybe2 ()
+
+maybeOrElseLazy: (() -> Maybe a) -> Maybe a -> Maybe a
+maybeOrElseLazy = Basics.flip firstOrLazySecond
 
 -- In:  [1, 2, 3]
 -- Out: [(1,2), (2,3), (3,1)]
@@ -1412,7 +1419,128 @@ stringSuggestions trueStrings wrongString =
 lastLine: String -> String
 lastLine s = snocUnapply (String.lines s) |> Maybe.map Tuple.second |> Maybe.withDefault ""
 
+transpose: List (List a) -> List (List a)
+transpose l =
+  if List.all List.isEmpty l then
+  []
+  else
+  (List.concatMap (List.take 1) l) :: transpose (List.map (List.drop 1) l)
+
 --------------------------------------------------------------------------------
 
 indexedMapFrom : Int -> (Int -> a -> b) -> List a -> List b
 indexedMapFrom n f = List.indexedMap (\i -> f (i + n))
+
+--------------------------------------------------------------------------
+-- Given a print order and a list, outputs the list with the correct order
+reorder: List Int -> List a -> List a
+reorder order elements =
+  if List.isEmpty order then elements else
+  let elementArray = Array.fromList elements in
+  let aux order revAcc = case order of
+    [] -> List.reverse revAcc
+    (head::tailOrder) -> Array.get head elementArray |> Maybe.map (\x -> x :: revAcc) |> Maybe.withDefault revAcc |>
+       aux tailOrder
+  in
+  aux order []
+
+type alias DefinedNames = Set String
+type alias Dependencies = Set String
+type alias NamesDepsIsRec = (DefinedNames, Dependencies, Bool)
+type alias NamesDepsIsRecFirst = (DefinedNames, Dependencies, {isRec: Bool, isFirst: Bool})
+
+-- Orders a list of definitions, grouping the potentially recursive definitions,
+-- keeping the order of definitions as much as possible
+orderWithDependencies: List a -> (a -> NamesDepsIsRec) -> Result String (List (List a))
+orderWithDependencies elements elemToNamesDepsIsrec =
+  -- Group elements with the names they define, the dependencies they need, and if they can be recursive.
+  let elemsWithDefs: List (a, NamesDepsIsRecFirst)
+      elemsWithDefs =
+      let aux definedNames elements revAcc = case elements of
+        [] -> List.reverse revAcc
+        a :: tailElems ->
+          let ((names, deps, isRec) as abst) = elemToNamesDepsIsrec a in
+          (a, (names, deps, {isRec= isRec, isFirst= Set.intersect names definedNames |> Set.isEmpty}))::revAcc |>
+          aux (Set.union definedNames names) tailElems
+      in aux Set.empty elements []
+  in
+  let dependenciesToConsider =
+    elemsWithDefs |> List.concatMap (\(_, (names, _, _)) -> Set.toList names) |> Set.fromList in
+  let aux:Bool ->     List (List a) -> Set String -> List (List a, NamesDepsIsRecFirst) -> List (a, NamesDepsIsRecFirst) -> Result String (List (List a))
+      aux testWaiting okGroups         definedNames  waitingDefs                           elemsWithDefs =
+       -- Given a set of definitions, returns its set of external dependencies which are not yet in definedNames
+       let finalDependencies (names, deps, isRecFirst) =
+         Set.diff (Set.intersect dependenciesToConsider deps) <|
+           if isRecFirst.isRec then Set.union names definedNames else
+           if isRecFirst.isFirst then Set.union names definedNames else
+           definedNames
+       in
+       -- Are there any waiting definitions whose dependencies are all satisfied?
+       -- If yes, we can output them right now (next step)
+       let mbWaitingDefSatisfied = if not testWaiting then Nothing else
+        waitingDefs |> removeFirstSuccess (\(defs, (names, deps, _) as abst) ->
+            let theDependenciesAreSatisfied = finalDependencies abst |> Set.isEmpty in
+            if theDependenciesAreSatisfied then Just (defs, names)
+            else Nothing
+          )
+       in
+       case mbWaitingDefSatisfied of
+         -- Output a set of definitions whose dependencies are all satisfied.
+         Just ((defs, names), newWaitingDefs) ->
+           aux True (defs::okGroups) (Set.union definedNames names) newWaitingDefs elemsWithDefs
+         Nothing ->
+       -- We consider the next set of definitions.
+       case elemsWithDefs of
+          -- No more definitions to consider.
+          [] -> if List.isEmpty waitingDefs then Ok <| List.reverse okGroups
+               else Err <| "I could not find a satisfying assignment for these mutually recursive definitions:\n" ++
+                 (waitingDefs |> List.map (\(_, (n, d, isRecFirst) as abst) ->
+                   let reald = finalDependencies abst in
+                   (Set.toList n |> String.join ",") ++ " depend(s) on " ++ (Set.toList reald |> String.join ",") ++
+                   (if isRecFirst.isRec then " and recursively on each other" else "")
+                 ) |> String.join ",\n") ++ "\nWe don't support mutual recursion between lambdas and non-lambda (yet). Create a lambda, and then call it if you wish."
+          ((a, (names, deps, isRecFirst) as abst) as headDef)::tailDefs ->
+            let theDependenciesAreSatisfied = finalDependencies abst |> Set.isEmpty in
+            if theDependenciesAreSatisfied then
+              aux True ([a]::okGroups) (Set.union definedNames names) waitingDefs tailDefs
+            else -- Add to the first group of rec if rec, and as a single element else.
+            let (newWaitingDefs, retestWaiting) = if isRecFirst.isRec then
+                 let xau: Bool ->
+                            List (List a, NamesDepsIsRecFirst) ->
+                              List (List a, NamesDepsIsRecFirst) ->
+                                (List a, NamesDepsIsRecFirst) ->
+                                  (List (List a, NamesDepsIsRecFirst), Bool)
+                     xau  retestWaiting
+                            collectedWaitingGroups
+                              remainingWaitingGroups
+                                ((newDefs, (namesToIntegrate, depsToIntegrate, r) as abst1) as defToIntegrate) =
+                   case remainingWaitingGroups of
+                      [] -> (List.reverse (defToIntegrate::collectedWaitingGroups), retestWaiting)
+                      ((otherDefs, (otherNames, otherDeps, isRecFirst) as abst2) as headGroup) :: tailGroup ->
+                        if isRecFirst.isRec &&
+                          (Set.intersect (finalDependencies abst2) namesToIntegrate |> Set.isEmpty |> not) &&
+                                (Set.intersect (finalDependencies abst1) otherNames |> Set.isEmpty |> not) then
+                          let newDefToIntegrate = (otherDefs ++ newDefs, (Set.union otherNames namesToIntegrate, Set.union otherDeps depsToIntegrate, {isRec=True, isFirst=isRecFirst.isFirst && r.isFirst})) in
+                          -- Mutual recursion found ! we merge the two.
+                          xau True [] (reverseInsert collectedWaitingGroups tailGroup) newDefToIntegrate
+                        else
+                          xau retestWaiting (headGroup::collectedWaitingGroups) tailGroup defToIntegrate
+                 in xau False [] waitingDefs ([a], abst)
+               else (waitingDefs ++ [([a], abst)], False)
+            in
+            aux retestWaiting okGroups definedNames newWaitingDefs tailDefs
+  in aux False [] Set.empty [] elemsWithDefs
+
+{- -- Nice way to present circular errors.
+   case correctDependencies elements Set.empty [] of
+     (result, []) -> Ok result
+     (result, notResolved) ->
+       case smallestCycle notResolved of
+         Nothing -> Ok (result ++ notResolved) -- Let's leave it to the type checker.
+         Just cycle ->
+           Err <| "Cycle in explicit dependencies not allowed:\n    ┌─────┐" ++ (cycle |>
+            List.map (\a ->
+              let nameDisplay = elemToNameDisplay a in
+              "\n    |    " ++ nameDisplay) |> String.join "\n    |     |"
+           ) ++ "\n    └─────┘\n\nHint: An explicit dependency happens when a variable is not bound by a lambda."
+-}

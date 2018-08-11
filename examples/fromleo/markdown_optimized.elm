@@ -100,7 +100,7 @@ markdown text =
 newlines_lens x = {
   apply x = x
   update {outputNew,diffs} =
-    letrec aux offset d strAcc = case d of
+    let aux offset d strAcc = case d of
       [] -> strAcc
       ((ConcStringUpdate start end inserted) :: dtail) ->
         let left = String.take (start + offset) strAcc in

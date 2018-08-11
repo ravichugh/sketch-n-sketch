@@ -6092,7 +6092,7 @@ main =
          (on the right/bottom). For example:</p>
       @(evalupdate \"let x = \\\"Hello \\\" in\\nx + \\\"\\\"\\\"and @(x)world\\\"\\\"\\\"\" True)
       @(evalupdate \"\"\"let x = \"blue\" in
-<h3 style=(\"color:\"+x)>This is @@x, change me!</h3>\"\"\" False)
+<h3 style=\"color:\"+x>This is @@x, change me!</h3>\"\"\" False)
       <p>Turn auto-sync on (on the right) to see the changes be applied
       immediately if they are not ambiguous !</p>
       <p>See some more examples from File -&gt; New From Template in
@@ -6363,7 +6363,7 @@ mapListLens_1 =
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
 
-      letrec walk diffOps maybePreviousInput oldInputs acc =
+      let walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
           ([], []) ->
@@ -6423,7 +6423,7 @@ mapListLens_2 =
   , update { input = (f, oldInputList)
            , outputOld = oldOutputList
            , outputNew = newOutputList } =
-      letrec walk diffOps maybePreviousInput oldInputs acc =
+      let walk diffOps maybePreviousInput oldInputs acc =
 
         case (diffOps, oldInputs) of
           ([], []) ->
@@ -6499,7 +6499,7 @@ listAppendLens = {
     let consLefts v list = List.simpleMap (Tuple.mapFirst (List.cons v)) list in
     let consRights v list = List.simpleMap (Tuple.mapSecond (List.cons v)) list in
 
-    letrec walk insertLeft diffOps xs ys acc =
+    let walk insertLeft diffOps xs ys acc =
       case diffOps of
         [] ->
           case (xs, ys) of
@@ -6658,7 +6658,7 @@ markdown text =
 newlines_lens x = {
   apply x = x
   update {outputNew,diffs} =
-    letrec aux offset d strAcc = case d of
+    let aux offset d strAcc = case d of
       [] -> strAcc
       ((ConcStringUpdate start end inserted) :: dtail) ->
         let left = String.take (start + offset) strAcc in
@@ -6788,7 +6788,7 @@ markdown text =
 newlines_lens x = {
   apply x = x
   update {outputNew,diffs} =
-    letrec aux offset d strAcc = case d of
+    let aux offset d strAcc = case d of
       [] -> strAcc
       ((ConcStringUpdate start end inserted) :: dtail) ->
         let left = String.take (start + offset) strAcc in
@@ -6897,19 +6897,10 @@ Html.span [] [] <| html ((freeze markdown) original)
 """
 
 fromleo_conference_budgetting =
- """notBelow bound x = {
-  apply x = x
-  update {input, outputNew} =
-    if outputNew <= bound &&
-       input     >  bound     then Ok (Inputs [bound])
-    else if outputNew > bound then Ok (Inputs [outputNew])
-    else                           Ok (Inputs [])
-  }.apply x
-
-exactly x = freeze x
+ """-- Use of 'exactly' and 'notBelow X' to specify how values can(not) be changed.
 
 days =  exactly 3
-venue = exactly (10000 * days)
+venue = exactly 10000 * days
 lunch = (notBelow 20) 30
 
 participants = 200
@@ -6921,18 +6912,32 @@ income   = exactly participants * fee + sponsors
 
 surplus = income - expenses
 
+
 -- Change surplus to 0, it changes the lunch but will stop at 20, so the surplus will be negative.
 -- Change surplus to 0 again, it changes the registration fee.
-[\"div\", [[\"style\", \"margin:20px\"]], [
-  [\"TEXT\", \"Current surplus of conference:\"],
-  [\"br\", [], []],
-  [\"h3\", [[\"id\", \"surplus\"]], [
-    [\"TEXT\", toString surplus]]],
-  if surplus /= 0 then
-    [\"button\", [[\"onclick\", \"document.getElementById('surplus').innerText = '0'\"]], [[\"TEXT\", \"Set to zero\"]]]
-  else
-    [\"TEXT\", \"Hurray, the budget is coherent!\"]
-    ]]
+main =
+  <div style=\"margin:20px\">Current surplus of conference:
+    <br><h3 id=\"surplus\">@(toString surplus)</h3>
+    @(if surplus /= 0 then
+       <button onclick=\"document.getElementById('surplus').innerText = '0'\">Set to zero</button>
+      else
+       <span>Hurray, the budget is coherent!</span>)
+    </div>
+
+
+
+-- Useful library definitions
+
+exactly x = freeze x
+
+notBelow bound x = {
+  apply x = x
+  update {input, outputNew} =
+    if outputNew <= bound &&
+       input     >  bound     then Ok (Inputs [bound])
+    else if outputNew > bound then Ok (Inputs [outputNew])
+    else                           Ok (Inputs [])
+  }.apply x
 """
 
 fromleo_recipe =
@@ -7237,7 +7242,7 @@ main =
 """
 
 fromleo_modelviewcontroller =
- """# updatedelay:0
+ """--# updatedelay:0
 
 ui model =
   let
@@ -7480,7 +7485,7 @@ translate options language translations content =
   let allTranslationDicts = List.map (Tuple.mapSecond Dict.fromList) translations in
   let translationsLangDict = Dict.fromList allTranslationDicts in
   let currentTranslation = Dict.apply translationsLangDict language in
-  letrec replaceVariables translationDict string =
+  let replaceVariables translationDict string =
     Regex.replace \"\\\\$(\\\\w+|\\\\$)\" (\\m -> 
       if m.match == \"$\" then m.match else
       let key = nth m.group 1 in
@@ -7495,7 +7500,7 @@ translate options language translations content =
          replaceVariables (Dict.remove key translationDict) finaldefinition
     ) string
   in
-  letrec freshVarName name i dictionary =
+  let freshVarName name i dictionary =
     if Dict.member (name + toString i) (dictionary) then freshVarName name (i + 1) (dictionary) else name + toString i
   in
   content |> replaceVariables currentTranslation |> \\x ->
@@ -7614,7 +7619,7 @@ tokenize txt pos =
               [{tag=\"error\", pos = pos, value=\"Expected text, got \" + txt}]
 
 tokens txt =
-  letrec aux txt revAcc pos =
+  let aux txt revAcc pos =
     case tokenize txt pos of
       [{tag=\"EOF\"} as t] -> reverse (t::revAcc)
       [{tag=\"error\", pos = pos, value = value}] -> value + \" at pos \" + pos + \":\" + txt
@@ -7625,7 +7630,7 @@ tokens txt =
   aux txt [] 0
 
 parse tokens = -- Group blocks together.
-  letrec aux revAcc tokens =
+  let aux revAcc tokens =
     case tokens of
       [] -> [List.reverse revAcc, tokens]
       [{tag=\"EOF\"}] -> [List.reverse revAcc, []]
@@ -7679,7 +7684,7 @@ htmlConst html =
       toHtml toHtml opts args = [html, opts] }
 
 newcommandinstantiate args parsed =
-  letrec aux parsed = case parsed of
+  let aux parsed = case parsed of
     {tag=\"block\", children=c} ->
       { parsed | children = List.map aux c }
     {tag=\"replacement\", nth=n} ->
@@ -7828,7 +7833,7 @@ indent opts = if opts.indent then [[\"span\", [[\"class\", \"paraindent\"]], htm
 newline opts = if opts.newline then [Html.br] else []
 
 splitargs n array =
-  letrec aux revAcc n array =
+  let aux revAcc n array =
     if n == 0 then [reverse revAcc, array] else
     case array of
       {tag=\"rawtext\", value=text, pos = pos}:: rem ->
@@ -7856,7 +7861,7 @@ escape txt = txt |>
   replaceAllIn \"</[bBiI]>\" (\\_ -> \"}\")
 
 toHtmlWithoutRefs opts tree =
-  letrec aux opts revAcc tree = case tree of
+  let aux opts revAcc tree = case tree of
     [] -> [List.reverse revAcc, opts]
     (head::rem) -> case head of
       {tag=\"block\", children} ->
@@ -7929,7 +7934,7 @@ htmlOf text_tree = case text_tree of
 
 toHtml x =
   let [raw, opts] = toHtmlWithoutRefs initOptions x in
-  letrec replaceMap replaceReferences trees = case trees of
+  let replaceMap replaceReferences trees = case trees of
     [] -> freeze []
     (head :: tail) -> {
         apply x = x
@@ -7938,7 +7943,7 @@ toHtml x =
             Ok (Inputs [[[\"TEXT\", htmlMapOf htmlOf outputNew outputNew]]]) else Ok (InputsWithDiffs [(outputNew, Just diffs)])
       }.apply [replaceReferences head] ++ replaceMap replaceReferences tail
   in
-  letrec replaceReferences tree = case tree of
+  let replaceReferences tree = case tree of
     [\"ref\", refname] -> Dict.get refname opts.labelToName  |> case of
       Nothing -> htmlError (\"Reference \" + refname + \" not found.\") \"???\"
       Just txt ->
@@ -7965,7 +7970,7 @@ toHtml x =
 latex2html latex = 
   { apply (f, latex) = f latex,
     update {input = (f, latex), outputOld, outputNew, diffs = (VListDiffs ldiffs) as diffs} = 
-      letrec gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
+      let gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
         [] -> Ok [[]]
         ((j, ListElemUpdate d) :: diffTail) ->
           if j > i then
@@ -7982,7 +7987,7 @@ latex2html latex =
               _ -> error \"Unexpected size of cOld and cNew\"
         ((j, subdiff)::diffTail) -> Err (\"Insertion or deletions, cannot short-circuit at \" + toString j + \", \" + toString subdiff)
       in
-      letrec gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
+      let gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
         ([\"span\", [[\"start\", p]], [[\"TEXT\", vOld]]], 
          [\"span\", [[\"start\", p]], [[\"TEXT\", vNew]]],
           VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 
@@ -8086,7 +8091,7 @@ latex-sc {
 """
 
 fromleo_dixit =
- """# updatedelay: 0
+ """--# updatedelay: 0
 
 {select} = {
   select attributes strArray defaultSelected =
@@ -8287,7 +8292,7 @@ playerIndexFromName name =
   let totalInCards = List.sum (List.map (\\j ->  if List.length j.betselfs == currentRound + 1 then nth (nth j.betselfs currentRound) 1 else 0) players) in
   let correctCard = totalNumCards - totalInCards in
   let guessedOk = players |> List.filterMap 
-    (\\j ->  if List.length j.betselfs == currentRound + 1 then if (j.betselfs |> flip nth currentRound |> flip nth 0) == correctCard then Just j.name else Nothing else Nothing) in
+       (\\j ->  if List.length j.betselfs == currentRound + 1 then if (j.betselfs |> flip nth currentRound |> flip nth 0) == correctCard then Just j.name else Nothing else Nothing) in
   let nGuessedOk = List.length guessedOk in
   let manyguessed = if nGuessedOk > 1 then \"\" else if nGuessedOk == 1 then \" is the only one to have\" else \"Nobody\" in
   let playersAyantVotePour nCarte = List.sum (List.map (\\(i, j) ->  if i == dealerIndex then 0 else if nth (nth j.betselfs currentRound) 0 == nCarte then 1 else 0) playersWithIndex) in
@@ -9474,7 +9479,7 @@ addReferences references node =
     }.apply (references, node)
   in
   let refRegex = \"\"\"\\[(\\d+)\\]\"\"\" in
-  letrec -- returns a list of sorted references according to some criterion and an updated node.
+  let -- returns a list of sorted references according to some criterion and an updated node.
     sortReferences references node = 
       let (newPermutation, newReferences) = List.zipWithIndex references
       |> quicksort (\\(i, ref1) (i2, ref2) -> 
@@ -9514,7 +9519,7 @@ addReferences references node =
   let finalReferences = {
     apply (references, node) = references
     update {input=(references, node), outputNew=newReferences, diffs=(VListDiffs diffs) as listDiffs} =
-      letrec aux offset currentNode nodeHasChanged diffs = case diffs of
+      let aux offset currentNode nodeHasChanged diffs = case diffs of
         [] -> if nodeHasChanged then
             case __diff__ node currentNode of
               Err msg -> Err msg

@@ -22,6 +22,7 @@ import Set
 import ImpureGoodies
 import EvalUpdate exposing (builtinEnv)
 import ExamplesGenerated
+import ElmParser
 
 type StateChanger = StateChanger (State -> State)
 
@@ -127,10 +128,10 @@ updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
     Ok (LazyList.Nil) -> fail state <| "Internal error: no diffs"
     Ok (LazyList.Cons Nothing _) -> fail state <| log state <| "There was no diff between the previous output and the new output"
     Ok ll->
-      let _ = ImpureGoodies.log <| "Diffs observed: " ++ toString (LazyList.toList ll) in
+      --let _ = ImpureGoodies.log <| "Diffs observed: " ++ toString (LazyList.toList ll) in
       case Ok (LazyList.filterMap identity ll) |> Results.andThen (\diffs ->
-        update LazyList.Nil LazyList.Nil (updateContext "initial" env exp origOut newOut diffs)) of
-        Results.Ok (LazyList.Cons (envX, expX) lazyTail as ll) ->
+        update LazyList.Nil LazyList.Nil (updateContext "initial" env exp [] origOut newOut diffs)) of
+        Ok (LazyList.Cons (envX, expX) lazyTail as ll) ->
           let _ = LazyList.toList ll in
           --let _ = ImpureGoodies.log <| toString expX.changes in
           --let _ = ImpureGoodies.log <| eDiffsToString "" exp expX.val (expX.changes |> Maybe.withDefault (EConstDiffs EAnyDiffs)) in
@@ -138,16 +139,18 @@ updateAssert_ checkEnv env exp origOut newOut expectedEnv expectedExpStr state =
           if obtained == expected then success state else
             case Lazy.force lazyTail of
               LazyList.Cons (envX2, expX2) lazyTail2 ->
-                let obtained2 = (if checkEnv then envToString envX.val else if envX.changes == [] then "" else toString envX.changes) ++ " |- " ++ unparse expX2.val in
+                let obtained2 = (
+                  if checkEnv then envToString envX2.val else
+                  if envX2.changes == [] then "" else toString envX2.changes) ++ " |- " ++ unparse expX2.val in
                 if obtained2 == expected then success state else
                 fail state <|
                   log state <| "Expected \n'" ++ expected ++  "'\n, got\n'" ++ obtained ++ "'\n and \n'" ++ obtained2 ++ problemdesc
               LazyList.Nil ->
                 fail state <|
                   log state <| "Expected \n'" ++ expected ++  "'\n, got\n'" ++ obtained ++ "'\n" ++ problemdesc
-        Results.Ok LazyList.Nil ->
+        Ok LazyList.Nil ->
            fail state <| log state <| "Expected \n'" ++ expected ++  "', got no solutions without error" ++ problemdesc
-        Results.Err msg ->
+        Err msg ->
            fail state <| log state <| "Expected \n'" ++ expected ++  "', got '" ++ msg ++ problemdesc
 updateAssert env exp origOut newOut expectedEnv expectedExpStr =
   gather <| updateAssert_ True env exp origOut newOut expectedEnv expectedExpStr
@@ -196,7 +199,9 @@ updateElmAssert_ envStr expStr newOutStr expectedEnvStr expectedExpStr state =
            Ok [exp, newOut] ->
              --let _ = Debug.log (log state <| toString exp) () in
              case Utils.projOk [evalEnv env exp, eval newOut] of
-             Err error -> fail state <| log state <| "Error while evaluating the expression or the output: " ++ Syntax.unparser Syntax.Elm exp ++ "," ++ Syntax.unparser Syntax.Elm newOut ++ ": " ++ error
+             Err error ->
+               let _ = Debug.log (toString exp) () in
+               fail state <| log state <| "Error while evaluating the expression or the output: " ++ Syntax.unparser Syntax.Elm exp ++ " <- " ++ Syntax.unparser Syntax.Elm newOut ++ ": " ++ error
              Ok [out, newOut] -> updateAssert_ True env exp out newOut expectedEnv expectedExpStr state
              Ok _ -> fail state "???"
            Ok _ -> fail state "???"
@@ -284,6 +289,10 @@ tPListCons sp0 listPat sp1 tailPat sp2 = withDummyPatInfo <| PList sp0 listPat s
 
 onlySpecific = False
 
+display_prelude_message = case ElmParser.preludeNotParsed of
+  Nothing -> ()
+  Just msg -> Debug.log msg ()
+
 all_tests = init_state
   |> ignore onlySpecific
   |> test "triCombineTest"
@@ -296,9 +305,19 @@ all_tests = init_state
   |> delay (\() -> assertEqual
       (mergeEnv
                   [("x", (tVal 1)), ("y", (tVal 1)), ("z", (tVal 1))]
-                  [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal    2))] [(1, VConstDiffs), (2, VConstDiffs)]
+                  [("x", (tVal 1)), ("y", (tVal 2)), ("z", (tVal 2))] [(1, VConstDiffs), (2, VConstDiffs)]
                   [("x", (tVal 3)), ("y", (tVal 1)), ("z", (tVal 3))] [(0, VConstDiffs), (2, VConstDiffs)]
-                 ) ([("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 2))], [(0, VConstDiffs), (1, VConstDiffs), (2, VConstDiffs)]))
+                 ) ([("x", (tVal 3)), ("y", (tVal 2)), ("z", (tVal 3))], [(0, VConstDiffs), (1, VConstDiffs), (2, VConstDiffs)]))
+  |> test "Minus sign as binary or unary operator"
+  |> evalElmAssert [] "1-1" "0"
+  |> evalElmAssert [] "(\\x->x) -1" "-1"
+  |> test "update mutual recursion"
+  |> updateElmAssert [] "x =y\ny= 1\nx" "2"
+                     [] "x =y\ny= 2\nx"
+  |> updateElmAssert [] "a = g 85\nf x = g (x - 17)\ng y = if y < 17 then y else f y\na" "2"
+                     [] "a = g 87\nf x = g (x - 17)\ng y = if y < 17 then y else f y\na"
+  |> updateElmAssert [] "a = g 85\nf x = g (x - 17)\ng y = if y < 17 then y else f y\na" "2"
+                     [] "a = g 85\nf x = g (x - 15)\ng y = if y < 17 then y else f y\na"
   |> test "update const"
   |> updateElmAssert [] "   1"   "2"
                      [] "   2"
@@ -378,20 +397,20 @@ all_tests = init_state
         [("x", "18"), ("y", "3")] "  x/ y" "7"
         [("x", "21"), ("y", "3")] "  x/ y"
       |> updateElmAssert
-        [("x", "3"), ("y", "4")] " pow x   y" "16"
-        [("x", "2"), ("y", "4")] " pow x   y"
+        [("x", "3"), ("y", "4")] " x ^  y" "16"
+        [("x", "2"), ("y", "4")] " x ^  y"
       |> updateElmAssert
-        [("x", "-1"), ("y", "3")] " pow x   y" "1"
-        [("x", "1"), ("y", "3")] " pow x   y"
+        [("x", "-1"), ("y", "3")] "  x ^   y" "1"
+        [("x", "1"), ("y", "3")] "  x ^   y"
       |> updateElmAssert
-          [("x", "-2"), ("y", "3")] " pow x   y" "27"
-          [("x", "3"), ("y", "3")] " pow x   y"
+          [("x", "-2"), ("y", "3")] " x ^   y" "27"
+          [("x", "3"), ("y", "3")] " x ^   y"
       |> updateElmAssert
-        [("x", "-1"), ("y", "0")] " pow x   y" "-1"
-        [("x", "-1"), ("y", "1")] " pow x   y"
+        [("x", "-1"), ("y", "0")] "x ^   y" "-1"
+        [("x", "-1"), ("y", "1")] "x ^   y"
       |> updateElmAssert
-        [("x", "-1"), ("y", "3")] " pow x   y" "-8"
-        [("x", "-2"), ("y", "3")] " pow x   y"
+        [("x", "-1"), ("y", "3")] " x ^   y" "-8"
+        [("x", "-2"), ("y", "3")] " x ^   y"
       |> updateElmAssert
         [("x", "17"), ("y", "8")] " mod x  y" "3"
         [("x", "19"), ("y", "8")] " mod x  y"
@@ -451,7 +470,6 @@ all_tests = init_state
       |> updateElmAssert
         [] "let   x= 5 in\nlet y  =2  in [x, y]" "[6, 3]"
         [] "let   x= 6 in\nlet y  =3  in [x, y]"
-        --}
   |> test "list constructor"
       |> updateElmAssert
         [] "let   x= 1 in\nlet y  =[2]  in x :: x :: y" "[3, 1, 2]"
@@ -473,8 +491,8 @@ all_tests = init_state
         [] "let   x= 1 in\nlet y  =[3]  in x  :: x :: y"
   |> test "rec let"
       |> updateElmAssert
-        [] "letrec f x = if x == 0 then x else (f (x - 1)) in\n f 2" "3"
-        [] "letrec f x = if x == 0 then x else (f (x - 1)) in\n f 5"
+        [] "let f x = if x == 0 then x else (f (x - 1)) in\n f 2" "3"
+        [] "let f x = if x == 0 then x else (f (x - 1)) in\n f 5"
   |> test "Comments"
       |> updateElmAssert
         [] "--This is a comment\n  1" "2"
@@ -519,14 +537,14 @@ all_tests = init_state
         [] "let x = \"Hello\" in \"\"\"@x world\"\"\"" "\"Helloworld\""
         [] "let x = \"Hello\" in \"\"\"@(x)world\"\"\""
       |> updateElmAssert
-        [] "\"\"\"@let x = \"Hello\"\n@x world\"\"\"" "\"Hello big world\""
-        [] "\"\"\"@let x = \"Hello big\"\n@x world\"\"\""
+        [] "\"\"\"@let x = \"Hello\" in\n@x world\"\"\"" "\"Hello big world\""
+        [] "\"\"\"@let x = \"Hello big\" in\n@x world\"\"\""
       |> updateElmAssert
-        [] "\"\"\"@let x = \"Hello\"\n@x world\"\"\"" "\"Hello big world\""
-        [] "\"\"\"@let x = \"Hello\"\n@x big world\"\"\""
+        [] "\"\"\"@let x = \"Hello\" in\n@x world\"\"\"" "\"Hello big world\""
+        [] "\"\"\"@let x = \"Hello\" in\n@x big world\"\"\""
       |> updateElmAssert
-        [] "\"\"\"@let x = (\"Hello\" + \n \" big\")\n@x world\"\"\"" "\"Hello tall world\""
-        [] "\"\"\"@let x = (\"Hello\" + \n \" tall\")\n@x world\"\"\""
+        [] "\"\"\"@let x = (\"Hello\" + \n \" big\") in\n@x world\"\"\"" "\"Hello tall world\""
+        [] "\"\"\"@let x = (\"Hello\" + \n \" tall\") in\n@x world\"\"\""
   |> test "Finding all regex matches"
     |> assertEqual (LazyList.toList <| allInterleavingsIn ["A", "BB", "C"] "xAyBBBzAoBBpCC")
       [ ["x","y","BzAoBBp","C"]
@@ -571,9 +589,9 @@ all_tests = init_state
   --  |>
   |> test "Partial application"
     |> updateElmAssert
-      [] "letrec map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'green') ['hello', 'world']"
+      [] "let map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'green') ['hello', 'world']"
          "[[ 'td', [['style', ['border', 'padding', ['background-color', 'red']]]], [['TEXT', 'hello']]], [ 'td', [['style', ['border', 'padding', ['background-color', 'green']]]], [['TEXT', 'world']]]]"
-      [] "letrec map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'red') ['hello', 'world']"
+      [] "let map f l = case l of head::tail -> f head::map f tail; [] -> [] in let td color txt = [ 'td', [['style', ['border', 'padding', ['background-color', color]]]], [['TEXT', txt]]] in map (td 'red') ['hello', 'world']"
   --|> ignore False
   |> test "Multiple solutions"
       |> updateElmAssert
@@ -677,15 +695,17 @@ all_tests = init_state
   |> test "freeze"
   |> updateElmAssert [("freeze", "\\x -> x")] "freeze 0 + 1" "2"
                      [("freeze", "\\x -> x")] "freeze 0 + 2"
+  |> updateElmAssert [("freezeExpression", "\\x -> x")] "let x = 1 in freezeExpression (0 + x)" "2"
+                     [("freezeExpression", "\\x -> x")] "let x = 2 in freezeExpression (0 + x)"
   |> test "dictionary"
-  |> updateElmAssert [("x", "1")] "get \"a\" (dict [(\"a\", x)])" "Just 2"
-                     [("x", "2")] "get \"a\" (dict [(\"a\", x)])"
-  |> updateElmAssert [("x", "1")] "remove \"b\" (dict [(\"a\", x), (\"b\", 2)])" "dict [(\"a\", 2)]"
-                     [("x", "2")] "remove \"b\" (dict [(\"a\", x), (\"b\", 2)])"
-  |> updateElmAssert [("x", "1")] "insert \"b\" x (dict [(\"a\", x)])" "dict [(\"a\", 1), (\"b\", 2)]"
-                     [("x", "2")] "insert \"b\" x (dict [(\"a\", x)])"
-  |> updateElmAssert [] "insert \"b\" 1 (dict [(\"a\", 2), (\"b\", 3)])" "dict [(\"a\", 1), (\"b\", 2)]"
-                     [] "insert \"b\" 2 (dict [(\"a\", 1), (\"b\", 3)])"
+  |> updateElmAssert [("x", "1")] "__DictGet__ \"a\" (__DictFromList__ [(\"a\", x)])" "Just 2"
+                     [("x", "2")] "__DictGet__ \"a\" (__DictFromList__ [(\"a\", x)])"
+  |> updateElmAssert [("x", "1")] "__DictRemove__ \"b\" (__DictFromList__ [(\"a\", x), (\"b\", 2)])" "__DictFromList__ [(\"a\", 2)]"
+                     [("x", "2")] "__DictRemove__ \"b\" (__DictFromList__ [(\"a\", x), (\"b\", 2)])"
+  |> updateElmAssert [("x", "1")] "__DictInsert__ \"b\" x (__DictFromList__ [(\"a\", x)])" "__DictFromList__ [(\"a\", 1), (\"b\", 2)]"
+                     [("x", "2")] "__DictInsert__ \"b\" x (__DictFromList__ [(\"a\", x)])"
+  |> updateElmAssert [] "__DictInsert__ \"b\" 1 (__DictFromList__ [(\"a\", 2), (\"b\", 3)])" "__DictFromList__ [(\"a\", 1), (\"b\", 2)]"
+                     [] "__DictInsert__ \"b\" 2 (__DictFromList__ [(\"a\", 1), (\"b\", 3)])"
   |> test "recursive delayed"
   |> updateElmAssert [] "f =\n  let x = 1 in\n  \\y -> x + y\n\nf 2" "4"
                      [] "f =\n  let x = 2 in\n  \\y -> x + y\n\nf 2"
@@ -704,7 +724,12 @@ all_tests = init_state
   |> assertEqual (alldiffs identity ["a", "a", "3", "a", "a"] ["a", "a"] |> Results.toList)
                     [[DiffEqual ["a", "a"], DiffRemoved ["3", "a", "a"]],
                      [DiffRemoved ["a", "a", "3"], DiffEqual ["a", "a"]]]
-  |> skipBefore
+  |> test "Type parsing"
+  |> evalElmAssert [] "type List a = Nil | Cons a\n2" "2"
+  |> evalElmAssert [] "let type List a = Nil | Cons a in 2" "2"
+  |> evalElmAssert [] "let type List a = Nil | Cons a\nin 2" "2"
+  |> evalElmAssert [] "let\n  type List a = Nil | Cons a\nin 2" "2"
+  --|> skipBefore
   |> test "updateReplace"
   -- newStart newEnd ... repStart repEnd
   |> evalElmAssert2 [("updateReplace", UpdateRegex.updateReplace EvalUpdate.eval EvalUpdate.update)]
@@ -737,12 +762,15 @@ all_tests = init_state
   |> updateElmAssert2 builtinEnv "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"printer\"" "\"$translation1\""
                                  "replaceAllIn \"\\\\$(\\\\w+|\\\\$)\" (\\m -> m.match) \"$translation1\""
 
-  |> skipBefore
+  |> test "imperative-like assignments"
+  |> updateElmAssert [] "a = \"Hello \"\na = a + \"world\"\na" "\"Hella world\""
+                     [] "a = \"Hella \"\na = a + \"world\"\na"
+  --|> onlyBefore
   |> updateElmPrelude (
       ExamplesGenerated.mapMaybeLens
-        |> replaceStr "\n$" "" -- Remove newlines
-        |> replaceStr "showValues \\[maybeState1, maybeState2, maybeState3, maybeState4\\]" "showValues [maybeState3, maybeState4]"
-        |> replaceStr "\r?\nmaybeState(1|2).*" ""
+        |> replaceStr "(\r?\n)+$" "" -- Remove newlines at the end
+        |> replaceStr "showValues \\[maybeRowA, maybeRowB, maybeRow1, maybeRow2\\]" "showValues [maybeRow1, maybeRow2]"
+        |> replaceStr "\r?\nmaybeRow(A|B).*" ""
       ) (replaceStr "New Jersey" "New Jersay")
       (replaceStr "New Jersey" "New Jersay")
   |> summary

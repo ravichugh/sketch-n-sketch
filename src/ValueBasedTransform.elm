@@ -846,7 +846,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                     |> Utils.dedup
                     |> List.map pVar
                   )
-                call = eCall funcName (List.map (patToExp >> replacePrecedingWhitespace " ") argPats)
+                call = eCall funcName (List.map (patToExp >> Utils.fromJust_ "ValueBasedTransform patToExp" >> replacePrecedingWhitespace " ") argPats)
                 programWithCall =
                   program
                   |> replaceExpNodePreservingPrecedingWhitespace

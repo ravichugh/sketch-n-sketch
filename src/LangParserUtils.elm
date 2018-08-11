@@ -3,6 +3,7 @@ module LangParserUtils exposing
   , spaces
   , oldSpaces
   , spacesCustom
+  , SpaceCheck
   , nospace
   , keywordWithSpace
   , spaceSaverKeyword
@@ -15,12 +16,19 @@ module LangParserUtils exposing
   , mapWSPat_
   , mapExp_
   , mapWSExp_
+  , mapWSInfo
   , SpacePolicy
   , spacesWithoutIndentation
   , spacesNotBetweenDefs
   , spacesWithoutNewline
   , explodeStyleValue
   , implodeStyleValue
+  , isFirstChar
+  , isRestChar
+  , MinStartCol
+  , SpaceConstraint(..)
+  , spaceSameLineOrNextAfter
+  , spaceSameLineOrNextAfterOrTwoLines
   )
 
 import Parser exposing (..)
@@ -33,6 +41,8 @@ import Lang exposing (..)
 import Info exposing (..)
 import Regex
 import ImpureGoodies
+import Pos exposing (Pos)
+import Char
 
 --------------------------------------------------------------------------------
 -- Whitespace
@@ -51,34 +61,36 @@ space =
   trackInfo <|
     keep (Exactly 1) isSpace
 
-type alias SpaceParserState = { forwhat: String, withNewline: Bool, minIndentation: Maybe Int, maxIndentation: Maybe Int  }
+--withNewline: Bool, minIndentation: Maybe Int, maxIndentation: Maybe Int, differentIndentation: Maybe Int
+type alias SpaceCheck = {spaceCheck: Pos -> Pos -> Bool, msgBuilder: () -> String}
 
-spacesCustom: SpaceParserState -> Parser WS
-spacesCustom ({forwhat, withNewline, minIndentation, maxIndentation} as options) =
-  spaces |>
-  map (\ws ->
-    let testMinIndentation continue =
-      case minIndentation of
-         Just x -> if ws.end.col - 1 < x then fail <| "I need an indentation of at least " ++ toString x ++ " spaces " ++ forwhat
-           else continue ()
-         Nothing -> continue ()
-    in
-    let testMaxIndentation continue =
-      case maxIndentation of
-         Just x -> if ws.end.col - 1 > x then fail <| "I need an indentation of at most " ++ toString x ++ " spaces " ++ forwhat
-           else continue ()
-         Nothing -> continue ()
-    in
-    let testNewline continue =
-      if withNewline then continue ()
-      else if ws.start.line < ws.end.line then -- There might be comments, but For now, we just ignore them.
-         fail <| "No newline allowed " ++ forwhat
-      else continue ()
-    in
-    testMinIndentation <| \() ->
-    testMaxIndentation <| \() ->
-    testNewline <| \() ->
-    succeed ws
+minIndentation: String -> Int -> SpaceCheck
+minIndentation forwhat i =
+  SpaceCheck (\start end -> end.col - 1 >= i) <| \() -> "I need an indentation of at least " ++ toString i ++ " spaces " ++ forwhat
+
+maxIndentation: String -> Int -> SpaceCheck
+maxIndentation forwhat i =
+  SpaceCheck (\start end -> end.col - 1 <= i) <| \() -> "I need an indentation of at most " ++ toString i ++ " spaces " ++ forwhat
+
+differentIndentation: String -> Int -> SpaceCheck
+differentIndentation forwhat i =
+  SpaceCheck (\start end -> end.col - 1 /= i) <| \() -> "I need an indentation of not " ++ toString i ++ " spaces " ++ forwhat
+
+withoutNewline: String -> SpaceCheck
+withoutNewline forwhat =
+  SpaceCheck (\start end -> start.line == end.line) <| \() -> "I need a space not containing a newline for " ++ forwhat
+
+maxOneLine: String -> SpaceCheck
+maxOneLine forwhat =
+  SpaceCheck (\start end -> start.line + 1 >= end.line) <| \() -> "Cannot have more than one newline for " ++ forwhat
+
+spacesCustom: SpaceCheck -> Parser WS
+spacesCustom {spaceCheck, msgBuilder} =
+  spaces |> map (\ws ->
+    if spaceCheck ws.start ws.end then
+      succeed ws
+    else
+      fail <| msgBuilder ()
   ) |>
   andThen identity
 
@@ -92,17 +104,33 @@ spacesRaw =
         succeed ()
       ])
 
+type alias MinStartCol = Int
+type SpaceConstraint = NoSpace | MinIndentSpace
+
+spaceSameLineOrNextAfter: MinStartCol -> SpaceConstraint -> Parser WS
+spaceSameLineOrNextAfter minStartCol spConstraint =
+  if spConstraint == NoSpace then nospace else
+  spacesCustom <| SpaceCheck
+  (\start end -> end.line <= start.line + 1 && (if end.line == start.line + 1 then minStartCol <= end.col else True)) <|
+    \() -> "Expected a min indentation of " ++ toString minStartCol ++ " if on the next line"
+
+spaceSameLineOrNextAfterOrTwoLines: MinStartCol -> Parser WS
+spaceSameLineOrNextAfterOrTwoLines minStartCol = spacesCustom <| SpaceCheck
+  (\start end -> start.line + 1 < end.line ||
+    end.line <= start.line + 1 && (if start.line + 1 == end.line then minStartCol <= end.col else True)) <|
+    \() -> "Expected a min indentation of " ++ toString minStartCol ++ " if on the next line"
+
 spaces : Parser WS
 spaces = trackInfo <| source <| spacesRaw
 
 spacesWithoutIndentation: Parser WS
-spacesWithoutIndentation = spacesCustom {forwhat = "at this place", withNewline=True, minIndentation=Nothing, maxIndentation=Just 0}
+spacesWithoutIndentation = spacesCustom <| maxIndentation "at this place" 0
 
 spacesNotBetweenDefs: Parser WS
-spacesNotBetweenDefs =  spacesCustom {forwhat = "at this place", withNewline=True, minIndentation=Just 1, maxIndentation=Nothing}
+spacesNotBetweenDefs =  spacesCustom <| minIndentation "at this place" 1
 
 spacesWithoutNewline: Parser WS
-spacesWithoutNewline = spacesCustom {forwhat = "at this place", withNewline=False, minIndentation=Nothing, maxIndentation=Nothing}
+spacesWithoutNewline = spacesCustom <| withoutNewline "at this place"
 
 lineComment: Parser ()
 lineComment =
@@ -171,6 +199,21 @@ nospace : Parser WS
 nospace =
   trackInfo <| succeed ""
 
+isFirstChar : Char -> Bool
+isFirstChar char =
+  Char.isLower char ||
+  Char.isUpper char ||
+  char == '_' ||
+  char == '$'
+
+isRestChar : Char -> Bool
+isRestChar char =
+  Char.isLower char ||
+  Char.isUpper char ||
+  Char.isDigit char ||
+  char == '_' ||
+  char == '$'
+
 guardSpace : ParserI ()
 guardSpace =
   trackInfo
@@ -181,7 +224,7 @@ guardSpace =
       |> andThen
       ( \(offset, source) ->
            guard "expecting space or an opening parenthese" <|
-             (\x -> isOnlySpaces x || x == "(") <| String.slice offset (offset + 1) source
+             (String.all (not << isRestChar)) <| String.slice offset (offset + 1) source
       )
     )
 
@@ -238,6 +281,9 @@ mapExp_ = (map << mapInfo) exp_
 
 mapWSExp_ : ParserI (WS -> Exp__) -> Parser (WS -> Exp)
 mapWSExp_ = (map << mapInfoWS) exp_
+
+mapWSInfo : ParserI (WS -> a) -> Parser (WS -> (WithInfo a))
+mapWSInfo = (map << mapInfoWS) identity
 
 -- This is useful to get rid of semicolon or colons in the top-level language.
 -- app   how spaces before applications argument can be parsed (e.g. if they can go one line)

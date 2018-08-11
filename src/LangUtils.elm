@@ -4,121 +4,10 @@ import Syntax exposing (Syntax)
 import Lang exposing (..)
 import Utils
 import Dict
-import Set
+import Set exposing (Set)
 import Info
 import ParserUtils
 import ImpureGoodies
-
-branchPatExps : List Branch -> List (Pat, Exp)
-branchPatExps branches =
-  List.map
-    (.val >> \(Branch_ _ pat exp _) -> (pat, exp))
-    branches
-
-
-identifiersListInPat : Pat -> List Ident
-identifiersListInPat pat =
-  case pat.val.p__ of
-    PVar _ ident _              -> [ident]
-    PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
-    PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
-    PAs _ _ ident _ pat         -> ident::(identifiersListInPat pat)
-    PRecord _ pvalues _         -> List.concatMap identifiersListInPat (Utils.recordValues pvalues)
-    PConst _ _                  -> []
-    PBase _ _                   -> []
-    PWildcard _                 -> []
-    PParens _ p _               -> identifiersListInPat p
-
-
-identifiersListInPats : List Pat -> List Ident
-identifiersListInPats pats =
-  List.concatMap
-    identifiersListInPat
-    pats
-
-
--- All identifiers used or bound throughout the given exp
-identifiersList : Exp -> List Ident
-identifiersList exp =
-  let folder e__ acc =
-    case e__ of
-       EVar _ ident ->
-         ident::acc
-
-       EFun _ pats _ _ ->
-         (List.concatMap identifiersListInPat pats) ++ acc
-
-       ECase _ _ branches _ ->
-         let pats = branchPats branches in
-         (List.concatMap identifiersListInPat pats) ++ acc
-
-       ELet _ _ _ pat _ _ _ _ _ ->
-         (identifiersListInPat pat) ++ acc
-
-       _ ->
-         acc
-  in
-  foldExpViaE__
-    folder
-    []
-    exp
-
-
-
-identifiersSet : Exp -> Set.Set Ident
-identifiersSet exp =
-  identifiersList exp
-  |> Set.fromList
-
-
-identifiersSetInPat : Pat -> Set.Set Ident
-identifiersSetInPat pat =
-  identifiersListInPat pat
-  |> Set.fromList
-
-
-identifiersSetInPats : List Pat -> Set.Set Ident
-identifiersSetInPats pats =
-  List.map identifiersSetInPat pats
-  |> Utils.unionAll
-
-
-expToMaybeIdent : Exp -> Maybe Ident
-expToMaybeIdent exp =
-  case exp.val.e__ of
-    EVar _ ident -> Just ident
-    _            -> Nothing
-
-freeVars : Exp -> List Exp
-freeVars exp =
-  let removeIntroducedBy pats vars =
-    let introduced = identifiersListInPats pats in
-    vars |> List.filter (\var -> not <| List.member (Utils.fromJust_ "freeVars" <| expToMaybeIdent var) introduced)
-  in
-  case exp.val.e__ of
-    EVar _ x                           -> [exp]
-    EFun _ pats body _                 -> freeVars body |> removeIntroducedBy pats
-    ECase _ scrutinee branches _       ->
-      let freeInEachBranch =
-        branchPatExps branches
-        |> List.concatMap (\(bPat, bExp) -> freeVars bExp |> removeIntroducedBy [bPat])
-      in
-      freeVars scrutinee ++ freeInEachBranch
-    ELet _ _ False pat _ boundExp _ body _ -> freeVars boundExp ++ (freeVars body |> removeIntroducedBy [pat])
-    ELet _ _ True  pat _ boundExp _ body _ -> freeVars boundExp ++ freeVars body |> removeIntroducedBy [pat]
-    _                                  -> childExps exp |> List.concatMap freeVars
-
-
--- Which var idents in this exp refer to something outside this exp?
--- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).
-freeIdentifiers : Exp -> Set.Set Ident
-freeIdentifiers exp =
-  --ImpureGoodies.getOrUpdateCache exp "freeIdentifiers" <| \() -> -- This is not working for now.
-  freeVars exp
-  |> List.map expToMaybeIdent
-  |> Utils.projJusts
-  |> Utils.fromJust_ "LangTools.freeIdentifiers"
-  |> Set.fromList
 
 -- Removes from the environment all variables that are already bound by a pattern
 pruneEnvPattern: List Pat -> Env -> Env
@@ -130,6 +19,10 @@ pruneEnvPattern pats env =
         List.filter (\(x, _) -> not <| Set.member x varspattern) env
         |> pruneEnvPattern tail
 
+removeVarsInEnv: Set Ident -> Env -> Env
+removeVarsInEnv boundVars env =
+  List.filter (\(x, _) -> not (Set.member x boundVars)) env
+        
 pruneEnv: Exp -> Env -> Env
 pruneEnv exp env = -- Remove all the initial environment that is on the right.
   let freeVars = freeIdentifiers exp in
@@ -165,8 +58,12 @@ simpleExpToVal syntax e =
     EBase  _ ENull -> Ok <| valFromExpVal_ e <| VBase (VNull)
     EList _ elems _ Nothing _ -> Utils.listValues elems |> List.map (simpleExpToVal syntax)
         |> Utils.projOk |> Result.map (VList >> valFromExpVal_ e)
-    ERecord _ Nothing elems _ -> elems |> List.map (\(_, _, k, _, v) -> simpleExpToVal syntax v |> Result.map (\v -> (k, v)))
-        |> Utils.projOk |> Result.map (Dict.fromList >> VRecord >> valFromExpVal_ e)
+    ERecord _ Nothing elems _ ->
+      recordEntriesFromDeclarations elems
+      |> Result.fromMaybe "Record is not simple enough not to be computed"
+      |> Result.andThen (\l -> l
+        |> List.map (\(_, _, k, _, v) -> simpleExpToVal syntax v |> Result.map (\v -> (k, v)))
+        |> Utils.projOk |> Result.map (Dict.fromList >> VRecord >> valFromExpVal_ e))
     EOp _ _ op [arg] _ ->
       case op.val of
         DictFromList ->
@@ -235,52 +132,63 @@ valToExpFull copyFrom sp_ indent v =
             let headExp = (spaceCommaHead, v2expHead (ws <| foldIndentStyle "" (\_ -> " ") indent) (increaseIndent indent) head) in
             let tailExps = List.map (\y -> (spaceCommaTail, v2expTail (ws <| foldIndent " " <| increaseIndent indent) (increaseIndent indent) y)) tail in
             EList precedingWS (headExp :: tailExps) space0 Nothing spBeforeEnd
-    VClosure mRec patterns body env ->
-      let prunedEnv = pruneEnvPattern patterns (pruneEnv body env) in
+    VClosure recNames patterns body env ->
+      let (recEnv, remEnv) = Utils.split (List.length recNames) env in
+      let prunedEnv = removeVarsInEnv (Set.fromList <| List.map Tuple.first recEnv) <| pruneEnvPattern patterns <| pruneEnv body <| env in
       case prunedEnv of
         [] -> EFun sp patterns body space0
         (name, v)::tail ->
           let baseCase =  withDummyExpInfo <| EFun (ws <| foldIndent "" indent) patterns body space0 in
           let startCase =
-                case mRec of
-                  Nothing -> baseCase
-                  Just f -> withDummyExpInfo <| ELet sp Let True (withDummyPatInfo <| PVar (ws " ") f noWidgetDecl) space1 baseCase space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f) space0
+                case recNames of
+                  [] -> baseCase
+                  [f] -> withDummyExpInfo <|
+                    ELet sp Let (Declarations [0] ([], []) [] (
+                      [LetExp Nothing space1 (withDummyPatInfo <| PVar space0 f noWidgetDecl) FunArgAsPats space1 baseCase], [])) space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f)
+                  _ -> Debug.crash "cannot convert back a VCLosure with multiple defs to an ELet. Need syntax support for that."
           in
-          let bigbody = List.foldl (\(n, v) body -> withDummyExpInfo <| ELet (ws <| foldIndent "" indent) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 body space0) startCase tail
+          let bigbody = List.foldl (\(n, v) body ->
+            withDummyExpInfo <| eLet__ (ws <| foldIndent "" indent) Let False (withDummyPatInfo <| PVar (ws " ") n noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 body space0) startCase tail
           in
-          ELet sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 bigbody space0
+          eLet__ sp Let False (withDummyPatInfo <| PVar (ws " ") name noWidgetDecl) space1 (valToExp space1 (increaseIndent indent) v) space1 bigbody space0
     VRecord values ->
-      let (isTuple, keyValues) = case vRecordTupleUnapply v of
-        Just (kv, elements) -> (True, kv::elements)
-        Nothing -> (False, Dict.toList values)
-      in
-      let defaultspcHd = space0 in
-      let defaultspkHd =  ws " " in
-      let defaultspeHd = ws " " in
-      let defaultspcTl = space0 in
-      let defaultspkTl = ws (foldIndent " " <| increaseIndent indent) in
-      let defaultspeTl = ws " " in
+      let copiedResult =
+       case copyFrom of
+        Just e ->
+           case e.val.e__ of
+             ERecord csp0 Nothing (Declarations po tps anns (lxs, ge) as decls) cspEnd ->
+               case lxs |> List.map (\(LetExp _ _ p _ _ _) ->
+                 pVarUnapply p) |> Utils.projJusts of
+                 Just keyList ->
+                    if Set.fromList keyList == Set.fromList (Dict.keys values) then
+                      lxs |> List.map (\(LetExp spc spe p fs se e1) ->
+                        pVarUnapply p |> Maybe.andThen (\key -> Dict.get key values) |> Maybe.map (\v ->
+                           LetExp spc spe p fs se <| valToExpFull (Just e1) space1 (increaseIndent indent) v
+                        )) |> Utils.projJusts |> Maybe.map (\newLxs ->
+                         ERecord csp0 Nothing (Declarations po tps anns (newLxs, ge)) cspEnd
+                        )
+                    else
+                      Nothing
+                 Nothing -> Nothing
+             _ -> Nothing
+        Nothing -> Nothing
+       in
+       case copiedResult of
+         Just x -> x
+         Nothing ->
+       let (isTuple, keyValues) = case vRecordTupleUnapply v of
+          Just (kv, elements) -> (True, kv::elements)
+          Nothing -> (False, Dict.toList values)
+       in
       let (precedingWS, keys, ((spaceComma, spaceKey, spaceEqual, v2expHead),
                                (spaceCommaTail, spaceKeyTail, spaceEqualTail, v2expTail)), spBeforeEnd) =
-           copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
-           ERecord csp0 _ celems cspend ->
-             let existingkeys =  Utils.recordKeys celems in
-             let finalKeys = existingkeys ++ (Dict.keys values |> List.filter (\k -> not (List.any (\e -> e == k) existingkeys))) |>
-                List.filterMap (\x -> if Dict.member x values then Just x else Nothing) in
-             let valToExps = case celems of
-                    (spc1, spk1, _, spe1, hd1)::(spc2, spk2, _, spe2, hd2)::tail ->
-                      ((spc1, spk1, spe1, valToExpFull <| Just hd1), (spc2, spk2, spe2, valToExpFull <| Just hd2))
-                    [(spc1, spk1, _, spe1, hd1)] ->
-                      ((spc1, spk1, spe1, valToExpFull <| Just hd1), (defaultspcTl, defaultspkTl, defaultspeTl, valToExpFull <| Just hd1))
-                    [] -> ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp))
-             in
-             Just (csp0, finalKeys, valToExps, cspend)
-           _ -> Nothing
-         ) |> Maybe.withDefault (sp, Dict.keys values, ((defaultspcHd, defaultspkHd, defaultspeHd, valToExp), (defaultspcTl, defaultspkTl, defaultspeTl, valToExp)),
+           (sp, Dict.keys values,
+           ((Nothing, space1, space1, valToExp),
+            (Just space0, ws (foldIndent " " <| increaseIndent indent), space1, valToExp)),
            if isTuple then ws "" else if Dict.isEmpty values then space1 else ws <| foldIndent "" indent) in
-      ERecord precedingWS Nothing (List.indexedMap (\i (key, v) ->
-          if i == 0 then (spaceComma, spaceKey, key, spaceEqual, v2expHead (if isTuple then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
-          else (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (if isTuple && i <= 1 then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
+      eRecord__ precedingWS Nothing (List.indexedMap (\i (key, v) ->
+          if i == 0 then (spaceComma,     spaceKey,     key, spaceEqual,     v2expHead (if isTuple then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
+          else           (spaceCommaTail, spaceKeyTail, key, spaceEqualTail, v2expTail (if isTuple && i <= 1 then ws "" else ws " ") (increaseIndent <| increaseIndent indent) v)
         ) keyValues) spBeforeEnd
     VDict vs ->
       EOp sp space0 (Info.withDummyInfo DictFromList) [withDummyExpInfo <|
@@ -385,18 +293,14 @@ typeEqual ty1 ty2 = --let _ = Debug.log "typeEqual " (ty1, ty2) in
   (TUnion sp1 types1 sp2, TUnion sp3 types2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4  &&
           listForAll2 typeEqual types1 types2
-  (TApp sp1 ident1 types1, TApp sp2 ident2 types2) ->
-    wsEqual sp1 sp2 && ident1 == ident2 && listForAll2 typeEqual types1 types2
+  (TApp sp1 ident1 types1 _, TApp sp2 ident2 types2 _) ->
+    wsEqual sp1 sp2 && typeEqual ident1 ident2 && listForAll2 typeEqual types1 types2
   (TVar sp1 ident1, TVar sp2 ident2) ->
     wsEqual sp1 sp2 && ident1 == ident2
-  (TForall sp1 ts1 t1 sp2, TForall sp3 ts2 t2 sp4) ->
+  (TForall sp1 pats1 t1 sp2, TForall sp3 pats2 t2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
-    ( case (ts1, ts2) of
-        (One (sp1, a1), One (sp2, a2)) -> wsEqual sp1 sp2 && a1 == a2
-        (Many sp1 elems sp2, Many sp3 elems2 sp4) -> wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
-          listForAll2 (\(sp1, a1) (sp2, a2) -> wsEqual sp1 sp2 && a1 == a2) elems elems2
-        _ -> False
-    ) && typeEqual t1 t2
+    listForAll2 (\a1 a2 -> a1 == a2) pats1 pats2
+    && typeEqual t1 t2
   (TWildcard sp1, TWildcard sp2) -> wsEqual sp1 sp2
   _ -> False
 
@@ -450,10 +354,6 @@ expEqual e1_ e2_ =
     wsEqual sp14 sp24 &&
     lk1 == lk2 && rec1 == rec2 &&
     patEqual pat1 pat2 && expEqual body1 body2 && expEqual exp1 exp2
-  (EOption sp1 wStr1 sp2 wStr2 exp1, EOption sp3 wStr3 sp4 wStr4 exp2) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
-    wStr1.val == wStr3.val && wStr2.val == wStr4.val &&
-    expEqual exp1 exp2
   (ETyp sp1 pat1 t1 e1 sp2, ETyp sp3 pat2 t2 e2 sp4) ->
     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
     patEqual pat1 pat2 &&
