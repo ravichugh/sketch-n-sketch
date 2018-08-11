@@ -142,7 +142,7 @@ type alias Model =
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
   , autoSynthesis : Bool
-  , problemsSentToSolver : List (Solver.Problem, Msg) -- Equation(s) sent to the solver server and and the message that should be re-run upon a reply. Shouldn't ever be more than a singleton in practice.
+  , queriesSentToSolver : List (Solver.NeededFromSolver, Msg) -- Equation(s) sent to the solver server and and the message that should be re-run upon a reply. Shouldn't ever be more than a singleton in practice.
   , solutionsCache : Solver.SolutionsCache
   , synthesisResultsDict : Dict String (List SynthesisResult)
   , hoveredSynthesisResultPathByIndices : List Int
@@ -1197,8 +1197,8 @@ initModel =
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , autoSynthesis = False
-    , problemsSentToSolver = []
-    , solutionsCache = Dict.empty
+    , queriesSentToSolver = []
+    , solutionsCache = { eqnSystemSolutions = Dict.empty, simplifications = Dict.empty }
     , synthesisResultsDict = Dict.empty
     , hoveredSynthesisResultPathByIndices = []
     , renamingInOutput = Nothing

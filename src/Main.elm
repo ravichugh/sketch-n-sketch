@@ -48,9 +48,9 @@ update msg model =
     ResponseFromSolver str ->
       SolverServer.handleReduceResponse str model
     Msg _ _ ->
-      ImpureGoodies.tryCatch "NeedSolution"
-        (\()                            -> Controller.update msg model)
-        (\(Solver.NeedSolution problem) -> SolverServer.askForSolution problem msg model)
+      ImpureGoodies.tryCatch "NeedSomethingFromSolverException"
+        (\()                                                         -> Controller.update msg model)
+        (\(Solver.NeedSomethingFromSolverException neededFromSolver) -> SolverServer.ask neededFromSolver msg model)
 
 initCmd : Cmd Msg
 initCmd =

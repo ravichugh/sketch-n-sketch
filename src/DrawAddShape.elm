@@ -12,6 +12,7 @@ import InterfaceModel
 import Lang exposing (..)
 import LangTools
 import SlowTypeInference
+import Solver
 import StaticAnalysis
 import Sync
 import Syntax
@@ -30,7 +31,7 @@ import Dict
 -- 5. Keep those programs that result in one more shape in the output.
 -- 6. Finally, use list the others do not depend on.
 addShape
-  :  { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
+  :  { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, solutionsCache : Solver.SolutionsCache, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
   -> (Exp -> Bool) -> Maybe String -> Exp -> Maybe Int -> Maybe Int -> Maybe Int -> Maybe Int -> Bool -> Exp -> Exp
 addShape
   model
@@ -147,7 +148,7 @@ addShape
       in
       -- 3. Resolve value holes.
       newCandidates
-      |> List.concatMap (CodeMotion.resolveValueHoles model.syncOptions model.maybeEnv)
+      |> List.concatMap (CodeMotion.resolveValueHoles model.solutionsCache model.syncOptions model.maybeEnv)
       |> List.map ((,) listExp.val.eid)
 
     listEIdWithPossiblePrograms =

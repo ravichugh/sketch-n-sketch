@@ -641,6 +641,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
         let equations =
           featureEqns
           |> List.map (featureEquationToMathExp removedLocIdToMathExp)
+          |> List.map (MathExp.applySubst frozenLocIdToNum) -- Sometimes there's 0! * x, which causes us to needlessly lift x. Solver should simplify for us.
           |> Utils.overlappingAdjacentPairs
         in
         let dependentIdentDescs = dependentLocs |> List.map (locDescription originalExp) in
@@ -1160,14 +1161,15 @@ buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputE
   )
 
 
-repeatUsingFunction : Exp -> SlowTypeInference.TC2Graph -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
-repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
+repeatUsingFunction : Exp -> SlowTypeInference.TC2Graph -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let
     model =
       { slideNumber    = slideNumber
       , movieNumber    = movieNumber
       , movieTime      = movieTime
       , syntax         = Syntax.Elm
+      , solutionsCache = solutionsCache
       , syncOptions    = syncOptions
       , maybeEnv       = maybeEnv
       , editingContext = editingContext

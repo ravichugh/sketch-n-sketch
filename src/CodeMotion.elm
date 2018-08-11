@@ -16,6 +16,7 @@ import InterfaceModel exposing
 import LocEqn                         -- For twiddling and client-side simplification
 import MathExp exposing (MathExp(..)) -- For twiddling
 import Provenance
+import Solver
 import Sync
 import Syntax exposing (Syntax)
 import Utils
@@ -709,6 +710,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
           if Set.member exp.val.eid boundEIdsToSimplify then
             case expToMaybeMathExp exp of
               -- TODO: constant annotations thrown away (can't always be helped, but trivial cases should be saved)
+              -- TODO: use better simplifier: normalizeSimplify will crash on sin/cos etc
               Just mathExp -> LocEqn.normalizeSimplify mathExp |> mathExpToExp |> copyPrecedingWhitespace exp
               Nothing     -> exp
           else
@@ -788,6 +790,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
                         else
                           case expToMaybeMathExp inlined of
                             -- TODO: constant annotations thrown away (can't always be helped, but trivial cases should be saved)
+                            -- TODO: use better simplifier: normalizeSimplify will crash on sin/cos etc
                             Just mathExp -> LocEqn.normalizeSimplify mathExp |> mathExpToExp
                             Nothing      -> inlined
                       in
@@ -2867,8 +2870,8 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
 
 -- Resolves as many holes as possible by simple lifting.
 -- Then reverts to loc lifting + inlining traces.
-resolveValueHoles : Sync.Options -> Maybe Env -> Exp -> List Exp
-resolveValueHoles syncOptions maybeEnv programWithHolesUnfresh =
+resolveValueHoles : Solver.SolutionsCache -> Sync.Options -> Maybe Env -> Exp -> List Exp
+resolveValueHoles solutionsCache syncOptions maybeEnv programWithHolesUnfresh =
   let
     env = maybeEnv |> Maybe.withDefault []
 
@@ -2946,11 +2949,11 @@ resolveValueHoles syncOptions maybeEnv programWithHolesUnfresh =
           programWithSomePointHolesResolvedByLifting
   in
   -- Resolve any remaining holes by loc lifting.
-  resolveValueHolesByLocLifting syncOptions programWithSomeHolesResolvedByLifting
+  resolveValueHolesByLocLifting solutionsCache syncOptions programWithSomeHolesResolvedByLifting
 
 
-resolveValueHolesByLocLifting : Sync.Options -> Exp -> List Exp
-resolveValueHolesByLocLifting syncOptions programWithHolesUnfresh =
+resolveValueHolesByLocLifting : Solver.SolutionsCache -> Sync.Options -> Exp -> List Exp
+resolveValueHolesByLocLifting solutionsCache syncOptions programWithHolesUnfresh =
   let
     programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
     valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeHoleVal >> Maybe.map valIsNum >> (==) (Just True))
@@ -2959,15 +2962,13 @@ resolveValueHolesByLocLifting syncOptions programWithHolesUnfresh =
 
     -- Sometimes there's 0! * x, which means we needlessly lift x. Simplify first.
     locIdToFrozenNum =
-      programWithHoles
-      |> flattenExpTree
-      |> List.filterMap expToMaybeNumAndLoc
-      |> List.filter (\(n, loc) -> Sync.locIsFrozen syncOptions loc)
-      |> List.map    (\(n, (locId,_,_)) -> (locId, n))
+      allLocsAndNumbers programWithHoles
+      |> List.filter (\(loc, n) -> Sync.locIsFrozen syncOptions loc)
+      |> List.map    (\((locId,_,_), n) -> (locId, n))
       |> Dict.fromList
       |> Dict.union Parser.preludeSubst
 
-    holeMathExps = holeVals |> List.map (valToTrace >> MathExp.traceToMathExp >>  MathExp.applySubst locIdToFrozenNum >> LocEqn.normalizeSimplify)
+    holeMathExps = holeVals |> List.map (valToTrace >> MathExp.traceToMathExp >>  MathExp.applySubst locIdToFrozenNum >> Solver.simplify solutionsCache)
 
     locIdsNeeded = holeMathExps |> List.concatMap (MathExp.mathExpVarIds) |> Set.fromList
     (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programWithHoles locIdsNeeded (Set.fromList holeEIds)

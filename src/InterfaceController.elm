@@ -1779,6 +1779,7 @@ msgRepeatUsingFunction repeatFuncName =
           old.slideNumber
           old.movieNumber
           old.movieTime
+          old.solutionsCache
           old.syncOptions
     in
     { old | synthesisResultsDict = Dict.insert synthesisResultsDictKey (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }

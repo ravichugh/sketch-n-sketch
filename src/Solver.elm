@@ -12,12 +12,20 @@ import Dict exposing (Dict)
 
 type alias Eqn = (MathExp, MathExp) -- LHS, RHS
 
-type alias Problem  = (List Eqn, List Int) -- System of equations, and varIds to solve for (usually a singleton).
+type alias Problem = (List Eqn, List Int) -- System of equations, and varIds to solve for (usually a singleton).
+
 type alias Solution = List (MathExp, Int)
 
-type alias SolutionsCache = Dict Problem (List Solution)
+type NeededFromSolver
+  = NeedProblemSolution Problem
+  | NeedSimplification MathExp
 
-type NeedSolutionException = NeedSolution Problem
+type alias SolutionsCache =
+  { eqnSystemSolutions : Dict Problem (List Solution)
+  , simplifications    : Dict MathExp MathExp
+  }
+
+type NeedSomethingFromSolverException = NeedSomethingFromSolverException NeededFromSolver
 
 
 -- Some locId should be missing from the Subst: the missing locId will be solved for.
@@ -71,17 +79,36 @@ solve solutionsCache eqns targetVarIds =
   case targetVarIds |> List.map (\targetVarId -> Dict.get targetVarId oldToNormalizedVarIds) |> Utils.projJusts of
     Just normalizedTargetVarIds ->
       let problem = (List.map removeCommonSuperExps normalizedEquations, normalizedTargetVarIds) in
-      case Dict.get problem solutionsCache of
+      case Dict.get problem solutionsCache.eqnSystemSolutions of
         Just solutions ->
           -- Now convert back to given varIds
           solutions |> List.filterMap (remapSolutionVarIds normalizedToOldVarIds)
 
         Nothing ->
-          ImpureGoodies.throw (NeedSolution problem)
+          ImpureGoodies.throw (NeedSomethingFromSolverException (NeedProblemSolution problem))
 
     Nothing ->
       let _ = Debug.log "WARNING: Asked to solve for variable(s) not in equation! No solutions." (eqns, targetVarIds) in
       []
+
+
+-- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
+simplify : SolutionsCache -> MathExp -> MathExp
+simplify solutionsCache mathExp =
+  let
+    (oldToNormalizedVarIds, normalizedToOldVarIds) = normalizedVarIdMapping [mathExp]
+
+    normalizedMathExp =
+      remapVarIds oldToNormalizedVarIds mathExp
+      |> Utils.fromJust_ "Shouldn't happen: Bug in Solver.simplify/normalizedVarIdMapping"
+  in
+  case Dict.get normalizedMathExp solutionsCache.simplifications of
+    Just simplifiedMathExp ->
+      remapVarIds normalizedToOldVarIds simplifiedMathExp
+      |> Utils.fromJust__ (\() -> "Shouldn't happen: Bug in Solver.simplify/normalizedVarIdMapping or some race condition, missing varId " ++ toString (mathExp, normalizedMathExp, simplifiedMathExp, normalizedToOldVarIds))
+
+    Nothing ->
+      ImpureGoodies.throw (NeedSomethingFromSolverException (NeedSimplification normalizedMathExp))
 
 
 -- Let the first variable encountered be 1, second 2, etc...

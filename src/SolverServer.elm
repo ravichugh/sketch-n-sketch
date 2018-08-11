@@ -5,7 +5,7 @@ import InterfaceController
 import Lang exposing (Num, Op_(..))
 import Parser exposing (Parser, Count(..), (|.), (|=), succeed, symbol, int, float, ignore, repeat, zeroOrMore, oneOf, lazy, delayedCommit, delayedCommitMap, inContext, end)
 import BinaryOperatorParser exposing (PrecedenceTable(..), Associativity(..), Precedence, binaryOperator)
-import Solver exposing (Eqn, Problem, Solution, SolutionsCache)
+import Solver exposing (Eqn, Problem, Solution, SolutionsCache, NeededFromSolver(..))
 import MathExp exposing (MathExp(..))
 import Utils
 
@@ -41,35 +41,58 @@ port queryReduce : String -> Cmd msg
 port reduceResponse : (String -> msg) -> Sub msg
 
 
-askForSolution : Problem -> Msg -> Model -> (Model, Cmd Msg)
-askForSolution problem failedMsg oldModel =
-  ( { oldModel | problemsSentToSolver = oldModel.problemsSentToSolver ++ [(problem, failedMsg)] }
-  , queryReduce (problemToREDUCE problem)
+ask : NeededFromSolver -> Msg -> Model -> (Model, Cmd Msg)
+ask neededFromSolver failedMsg oldModel =
+  let reduceQueryString =
+    case neededFromSolver of
+      NeedProblemSolution problem -> problemToREDUCE problem
+      NeedSimplification mathExp  -> simplificationToREDUCE mathExp
+  in
+  ( { oldModel | queriesSentToSolver = oldModel.queriesSentToSolver ++ [(neededFromSolver, failedMsg)] }
+  , queryReduce reduceQueryString
   )
 
 
 handleReduceResponse : String -> Model -> (Model, Cmd Msg)
 handleReduceResponse reduceResponse oldModel =
-  case oldModel.problemsSentToSolver of
-    (oldestProblem, interruptedMsg)::outstandingProblems ->
-      let solutions =
-        let perhapsParsedSolutions = parseReduceResponse reduceResponse in
-        let parsedSolutions        = Utils.filterOks  perhapsParsedSolutions in
-        let failedParses           = Utils.filterErrs perhapsParsedSolutions in
-        case (parsedSolutions, failedParses) of
-          (_::_, _)         -> parsedSolutions |> Solver.mapSolutionsExps distributeNegation
-          ([], badParse::_) -> let _ = Utils.log ("Reduce response parse error: " ++ toString badParse) in []
-          ([], [])          -> []
+  case oldModel.queriesSentToSolver of
+    (oldestItemNeeded, interruptedMsg)::outstandingItemsNeeded ->
+      let newSolutionsCache =
+        case oldestItemNeeded of
+          NeedProblemSolution problem ->
+            let solutions =
+              let perhapsParsedSolutions = parseReduceSolutionResponse reduceResponse in
+              let parsedSolutions        = Utils.filterOks  perhapsParsedSolutions in
+              let failedParses           = Utils.filterErrs perhapsParsedSolutions in
+              case (parsedSolutions, failedParses) of
+                (_::_, _)         -> parsedSolutions |> Solver.mapSolutionsExps distributeNegation
+                ([], badParse::_) -> let _ = Utils.log ("Reduce solution response parse error: " ++ toString badParse) in []
+                ([], [])          -> []
+            in
+            { eqnSystemSolutions  = Dict.insert problem solutions oldModel.solutionsCache.eqnSystemSolutions
+            , simplifications     = oldModel.solutionsCache.simplifications
+            }
+
+          NeedSimplification unsimplifiedMathExp ->
+            let simplifiedMathExp =
+              case reduceResponse |> Parser.run (parseMathExp |. skipSpaces |. end) of
+                Ok simplifiedMathExp -> distributeNegation simplifiedMathExp
+                Err badParse         -> let _ = Utils.log ("Reduce simplification response parse error: " ++ toString badParse) in unsimplifiedMathExp
+            in
+            { eqnSystemSolutions  = oldModel.solutionsCache.eqnSystemSolutions
+            , simplifications     = Dict.insert unsimplifiedMathExp simplifiedMathExp oldModel.solutionsCache.simplifications
+            }
       in
       let newModel =
-        { oldModel | problemsSentToSolver = outstandingProblems
-                   , solutionsCache       = Dict.insert oldestProblem solutions oldModel.solutionsCache
+        { oldModel | queriesSentToSolver = outstandingItemsNeeded
+                   , solutionsCache      = newSolutionsCache
         }
       in
       let _ = Utils.log ("Solutions Cache:\n" ++ solutionsCacheToString newModel.solutionsCache) in
       (newModel, Task.perform (\_ -> interruptedMsg) (Task.succeed ()))
+
     [] ->
-      let _ = Utils.log "SolverServer.handleReduceResponse: Shouldn't happen: got a REDUCE response but there are no outstanding problems!!!" in
+      let _ = Utils.log "SolverServer.handleReduceResponse: Shouldn't happen: got a REDUCE response but there are no outstanding queries to REDUCE!!!" in
       (oldModel, Cmd.none)
 
 
@@ -88,22 +111,31 @@ distributeNegation mathExp =
 -- solve({x=y,y=z},{x,z});  => {{x=y,z=y}}
 solutionsCacheToString : SolutionsCache -> String
 solutionsCacheToString solutionsCache =
-  solutionsCache
-  |> Dict.toList
-  |> List.map
-      (\(problem, solutions) ->
-        let solutionStrs =
-          -- ["{x1=123,x2=123}", "{x1=456,x2=456}"]
-          solutions
-          |> List.map
-              (\solution ->
-                "{" ++ (solution |> List.map (\(mathExp, varId) -> varIdToREDUCE varId ++ "=" ++ mathExpToREDUCE mathExp) |> String.join ",") ++ "}"
-              )
-        in
-        -- solve({x=y,y=z},{x}); => {{x1=123,x2=123},{x1=456,x2=456}}
-        problemToREDUCE problem ++ ";\t=> {" ++ String.join "," solutionStrs ++ "}"
-      )
-  |> String.join "\n"
+  let equationSolutionsStr =
+    solutionsCache.eqnSystemSolutions
+    |> Dict.toList
+    |> List.map
+        (\(problem, solutions) ->
+          let solutionStrs =
+            -- ["{x1=123,x2=123}", "{x1=456,x2=456}"]
+            solutions
+            |> List.map
+                (\solution ->
+                  "{" ++ (solution |> List.map (\(mathExp, varId) -> varIdToREDUCE varId ++ "=" ++ mathExpToREDUCE mathExp) |> String.join ",") ++ "}"
+                )
+          in
+          -- solve({x=y,y=z},{x}); => {{x1=123,x2=123},{x1=456,x2=456}}
+          problemToREDUCE problem ++ ";\t=> {" ++ String.join "," solutionStrs ++ "}"
+        )
+    |> String.join "\n"
+  in
+  let simplificationsStr =
+    solutionsCache.simplifications
+    |> Dict.toList
+    |> List.map (\(unsimplified, simplified) -> mathExpToREDUCE unsimplified ++ ";\t=> " ++ mathExpToREDUCE simplified)
+    |> String.join "\n"
+  in
+  equationSolutionsStr ++ "\n" ++ simplificationsStr
 
 
 
@@ -124,6 +156,13 @@ problemToREDUCE ((equations, targetVarIds) as problem) =
   -- e.g. "on factor; solve({x=y,y=z},{x,z})"
   -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
   "on factor; solve({" ++ String.join "," (List.map eqnToREDUCE equations) ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "})"
+
+
+simplificationToREDUCE : MathExp -> String
+simplificationToREDUCE mathExp =
+  -- e.g. "on factor; x / x"
+  -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
+  "on factor; " ++ mathExpToREDUCE mathExp
 
 
 mathExpToREDUCE : MathExp -> String
@@ -202,8 +241,8 @@ precedenceTable =
 --
 -- REDUCE will sometimes send solutions we cannot deal with (imaginary numbers), so need to be
 -- able to skip those solutions without destroying the whole parse.
-parseReduceResponse : String -> List (Result Parser.Error Solution)
-parseReduceResponse responseStr  =
+parseReduceSolutionResponse : String -> List (Result Parser.Error Solution)
+parseReduceSolutionResponse responseStr  =
   let solutionStrs =
     if String.startsWith "{{" responseStr
     then String.split "}," responseStr
@@ -375,4 +414,4 @@ parseNegation =
     delayedCommitMap (\_ mathExp -> MathExp.neg mathExp) (symbol "-") parseEqnAtom
 
 
--- test = Debug.log "REDUCE parsing test" <| parseReduceResponse "{{x3=(sqrt(3)*x1 - sqrt(3)*x2 + x1 + x2)/2, x3=( - sqrt(3)*x1 + sqrt(3)*x2 + x1 + x2)/2}, {x3=( - sqrt(3)*x1 + sqrt(3)*x2 + x1 + x2)/2, x3=(sqrt(3)*x1 - sqrt(3)*x2 + x1 + x2)/2}}"
+-- test = Debug.log "REDUCE parsing test" <| parseReduceSolutionResponse "{{x3=(sqrt(3)*x1 - sqrt(3)*x2 + x1 + x2)/2, x3=( - sqrt(3)*x1 + sqrt(3)*x2 + x1 + x2)/2}, {x3=( - sqrt(3)*x1 + sqrt(3)*x2 + x1 + x2)/2, x3=(sqrt(3)*x1 - sqrt(3)*x2 + x1 + x2)/2}}"
