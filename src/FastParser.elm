@@ -1466,7 +1466,7 @@ isPreludeLocId : LocId -> Bool
 isPreludeLocId k = k < initK
 
 isPreludeEId : EId -> Bool
-isPreludeEId k = k < initK
+isPreludeEId eid = isActualEId eid && eid < initK
 
 isActualEId : EId -> Bool
 isActualEId eid = eid >= 0

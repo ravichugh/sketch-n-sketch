@@ -11,6 +11,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools
 import Provenance
+import FastParser
 import FocusedEditingContext
 import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing
@@ -1803,9 +1804,11 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
       ] ++ if model.tool /= Cursor then [] else
         [ onMouseDownAndStop (toggleSelected [ySelectableFeature]) ]
   in
+  let isFromOutsideProgram = FastParser.isPreludeEId (valEId xVal) || FastParser.isPreludeEId (valEId yVal) in
+  let perhapsFaded = if isFromOutsideProgram then [ attr "opacity" "0.4" ] else [] in
   -- using nested group for onMouseLeave handler
   List.singleton <| Svg.g
-    [onMouseLeave (removeHoveredCrosshair thisCrosshair)]
+    ([onMouseLeave (removeHoveredCrosshair thisCrosshair)] ++ perhapsFaded)
     ([backDisc, xLine, yLine, frontDisc] ++ perhapsPointPatWidget ++ perhapsXPatWidget ++ perhapsYPatWidget ++ [xyDot])
 
 perhapsZoneSelectLine : Num -> Model -> LangSvg.NodeId -> ShapeWidgets.ShapeFeature -> (Num, Num) -> (Num, Num) -> List (Svg Msg)

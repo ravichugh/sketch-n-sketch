@@ -227,6 +227,12 @@ type Widget
 
 type alias Widgets = List Widget
 
+isPointWidget : Widget -> Bool
+isPointWidget widget =
+  case widget of
+    WPoint _ _ _ _ _ -> True
+    _                -> False
+
 offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) =
   let (effectiveAmount, op) =
     case sign of
