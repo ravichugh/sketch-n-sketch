@@ -950,13 +950,13 @@ filterMaybe pred mx =
 bindMaybe : (a -> Maybe b) -> Maybe a -> Maybe b
 bindMaybe = Maybe.andThen
 
-plusMaybe : Maybe a -> Maybe a -> Maybe a
-plusMaybe mx my = case mx of
+orMaybe : Maybe a -> Maybe a -> Maybe a
+orMaybe mx my = case mx of
   Just _  -> mx
   Nothing -> my
 
 firstMaybe : List (Maybe a) -> Maybe a
-firstMaybe list = List.foldr plusMaybe Nothing list
+firstMaybe list = List.foldr orMaybe Nothing list
 
 -- Use Maybe.withDefault (note: argument order is reversed)
 elseMaybe : Maybe a -> a -> a

@@ -1278,7 +1278,7 @@ findSpecialBindingsInMapping
     : List (Ident, AnnotatedNum)
    -> Maybe (List (Ident, AnnotatedNum), SpecialBindings)
 findSpecialBindingsInMapping mapping =
-  findBoundsInMapping mapping |> Utils.plusMaybe (findAnchorInMapping mapping)
+  findBoundsInMapping mapping |> Utils.orMaybe (findAnchorInMapping mapping)
 
 findBoundsInMapping mapping =
   case mapping of

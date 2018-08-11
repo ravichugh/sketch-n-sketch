@@ -66,7 +66,7 @@ fuseExp (defs, mainExp) =
 toMainExp : Exp -> MainExp
 toMainExp e =
   Utils.elseMaybe
-    (Utils.plusMaybe (maybeSvgConcat e) (maybeBlobs e))
+    (Utils.orMaybe (maybeSvgConcat e) (maybeBlobs e))
     (OtherExp e)
 
 fromMainExp : MainExp -> Exp

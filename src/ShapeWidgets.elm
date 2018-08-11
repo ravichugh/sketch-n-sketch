@@ -1003,7 +1003,7 @@ rejiggerWidgetBounds widgets boundsMaybes =
   boundsMaybes
   |> Utils.mapi1
       (\(i, maybeBounds) ->
-        Utils.plusMaybe
+        Utils.orMaybe
             (Dict.get i indexToNewBounds)
             maybeBounds
       )

@@ -1094,7 +1094,7 @@ newFunctionCallExp fName model pt1 pt2 =
                 )
           in
           let perhapsPointAnnotation = if Types.isPointType returnType then identity else identity in -- eAsPoint
-          Utils.plusMaybe
+          Utils.orMaybe
               (Utils.projJusts argMaybeExpsTwoPoints        |> Utils.filterMaybe (always (ptsUnused == [])))
               (Utils.projJusts argMaybeExpsPointWidthHeight |> Utils.filterMaybe (always (ptUsed && widthUsed && heightUsed)))
           |> Maybe.map (\argExps -> (perhapsPointAnnotation (eCall fName argExps), funcExp, returnType))

@@ -189,8 +189,8 @@ eval maybeRetEnvEId abortPred syntax env bt e =
   let addParentToRet ((v,ws),envOut)             = ((addParent v, ws), envOut) in
   let addProvenanceToRet basedOn ((v,ws),envOut) = ((addParent { v | provenance = makeProvenance basedOn}, ws), envOut) in
   let addWidgets ws1 ((v1,ws2),env1)             = ((v1, ws1 ++ ws2), env1) in
-  let attachEarlierRetEnv earlierRetEnv ((v1,ws1), env1) = ((v1, ws1), Utils.plusMaybe env1 earlierRetEnv) in
-  let attachLaterRetEnv laterRetEnv ((v1,ws1), env1) = ((v1, ws1), Utils.plusMaybe laterRetEnv env1) in
+  let attachEarlierRetEnv earlierRetEnv ((v1,ws1), env1) = ((v1, ws1), Utils.orMaybe env1 earlierRetEnv) in
+  let attachLaterRetEnv laterRetEnv ((v1,ws1), env1) = ((v1, ws1), Utils.orMaybe laterRetEnv env1) in
 
 
 
@@ -270,7 +270,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
               Err s -> Err s
               Ok ((vRest, ws_), deeperRetEnv_) ->
                 case vRest.v_ of
-                  VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_) (Utils.plusMaybe deeperRetEnv_ deeperRetEnv)
+                  VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_) (Utils.orMaybe deeperRetEnv_ deeperRetEnv)
                   _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list."
 
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
@@ -290,7 +290,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
       Ok ((v1,ws1), deeperRetEnv1) ->
         case evalBranches maybeRetEnvEId abortPred syntax env bt_ v1 bs of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
-          Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) (Utils.plusMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s                               -> Err s
           _                                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
 
@@ -300,7 +300,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
       Ok ((v1,ws1), deeperRetEnv1) ->
         case evalTBranches maybeRetEnvEId abortPred syntax env bt_ v1 tbranches of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
-          Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) (Utils.plusMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s                               -> Err s
           _                                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
 
@@ -329,7 +329,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
                 then [WCall e.val.eid v1 argVals fRetVal fRetWs]
                 else []
               in
-              retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget) (Utils.plusMaybe deeperRetEnv2 deeperRetEnv1)
+              retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1)
             )
 
           _ ->
@@ -635,8 +635,8 @@ apply maybeRetEnvEId abortPred syntax env bt bt_ e psLeft esLeft funcBody closur
             case fRetVal1.v_ of
               VClosure maybeRecName ps funcBody closureEnv ->
                 case maybeRecName of
-                  Nothing    -> recurse ps esLeft funcBody closureEnv                      |> Result.map (\(argVals, ((v2, ws2), deeperRetEnv2)) -> (argVals, ((v2, fRetWs1 ++ ws2), Utils.plusMaybe deeperRetEnv2 deeperRetEnv1)))
-                  Just fName -> recurse ps esLeft funcBody ((fName, fRetVal1)::closureEnv) |> Result.map (\(argVals, ((v2, ws2), deeperRetEnv2)) -> (argVals, ((v2, fRetWs1 ++ ws2), Utils.plusMaybe deeperRetEnv2 deeperRetEnv1)))
+                  Nothing    -> recurse ps esLeft funcBody closureEnv                      |> Result.map (\(argVals, ((v2, ws2), deeperRetEnv2)) -> (argVals, ((v2, fRetWs1 ++ ws2), Utils.orMaybe deeperRetEnv2 deeperRetEnv1)))
+                  Just fName -> recurse ps esLeft funcBody ((fName, fRetVal1)::closureEnv) |> Result.map (\(argVals, ((v2, ws2), deeperRetEnv2)) -> (argVals, ((v2, fRetWs1 ++ ws2), Utils.orMaybe deeperRetEnv2 deeperRetEnv1)))
               _ ->
                 errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " too many arguments given to function"
           )
@@ -655,7 +655,7 @@ apply maybeRetEnvEId abortPred syntax env bt bt_ e psLeft esLeft funcBody closur
         Err s -> Err s
         Ok ((argVal, argWs), deeperRetEnv1) ->
           case cons (p, argVal) (Just closureEnv) of
-            Just closureEnv -> recurse psLeft esLeft funcBody closureEnv |> Result.map (\(laterArgs, ((v2, ws2), deeperRetEnv2)) -> (argVal::laterArgs, ((v2, argWs ++ ws2), Utils.plusMaybe deeperRetEnv2 deeperRetEnv1)))
+            Just closureEnv -> recurse psLeft esLeft funcBody closureEnv |> Result.map (\(laterArgs, ((v2, ws2), deeperRetEnv2)) -> (argVal::laterArgs, ((v2, argWs ++ ws2), Utils.orMaybe deeperRetEnv2 deeperRetEnv1)))
             Nothing         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " bad arguments to function"
 
 

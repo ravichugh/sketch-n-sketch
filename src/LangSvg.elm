@@ -527,7 +527,7 @@ removeSpecialAttrs =
 desugarShapeAttrs : Int -> Int -> ShapeKind -> List Attr -> (ShapeKind, List Attr)
 desugarShapeAttrs xCanvas yCanvas shape0 attrs0 =
   Maybe.withDefault (shape0, attrs0) <|
-    Utils.plusMaybe
+    Utils.orMaybe
       (desugarFixedPosition xCanvas yCanvas shape0 attrs0)
       (desugarBoundedShapes shape0 attrs0)
 
