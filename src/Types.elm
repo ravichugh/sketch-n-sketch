@@ -226,7 +226,7 @@ tForall vars t =
              withDummyRange (TForall space1 typeVars t space0)
 
 eInfoOf : Exp -> EInfo
-eInfoOf e = { val = e.val.eid, start = e.start, end = e.end }
+eInfoOf (Expr e) = { val = expEId <| Expr e, start = e.start, end = e.end }
 
 strEInfo : EInfo -> String
 strEInfo eInfo = Utils.spaces [toString eInfo.val, strPos eInfo.start ]
@@ -626,8 +626,8 @@ isWellFormed typeEnv tipe =
 -- Type Conversion ------------------------------------------ G |- e < T; C --
 
 checkType : TypeInfo -> TypeEnv -> Exp -> Type -> AndTypeInfo Bool
-checkType typeInfo typeEnv e goalType =
-  case e.val.e__ of
+checkType typeInfo typeEnv (Expr e) goalType =
+  case unwrapExp <| Expr e of
 
     EFun _ pats eBody _ -> -- [TC-Fun]
       case stripPolymorphicArrow goalType of
@@ -708,14 +708,14 @@ checkType typeInfo typeEnv e goalType =
     -- TODO push goal down other sequencing forms
     -}
     _ -> -- [TC-Sub]
-      let result1 = synthesizeType typeInfo typeEnv e in
+      let result1 = synthesizeType typeInfo typeEnv <| Expr e in
       let typeInfo1 = result1.typeInfo in
       case result1.result of
         Nothing ->
           let err =
             Utils.spaces <|
               [ "checkType"
-              , (toString e.val.eid)
+              , (toString (expEId <| Expr e))
               , String.trim (unparseType goalType)
               , "failed to synthesize a type"
               ]
@@ -728,7 +728,7 @@ checkType typeInfo typeEnv e goalType =
               let err_ =
                 Utils.spaces <|
                   [ "checkType"
-                  , (toString e.val.eid)
+                  , (toString (expEId <| Expr e))
                   , err
                   ]
               in
@@ -761,20 +761,21 @@ propagateResult result =
 -- Nothing means type error or N/A (ETyp, etc.)
 --
 synthesizeType : TypeInfo -> TypeEnv -> Exp -> AndTypeInfo (Maybe Type)
-synthesizeType typeInfo typeEnv e =
+synthesizeType typeInfo typeEnv (Expr e_) =
+  let e = Expr e_ in
   let finish =
-    { withType  = finishSynthesizeWithType e.val.eid e.start
-    , withError = finishSynthesizeWithError e.start
+    { withType  = finishSynthesizeWithType (expEId e) e_.start
+    , withError = finishSynthesizeWithError e_.start
     }
     in
 
-  case e.val.e__ of
+  case (unwrapExp e) of
 
     EColonType _ e1 _ t1 _ -> -- [TS-AnnotatedExp]
       if not (isWellFormed typeEnv t1) then
         let err =
           Utils.spaces <|
-            [ (toString e.val.eid)
+            [ (toString (expEId e))
             , strPos t1.start
             , "Type annotation not well-formed:"
             , String.trim (unparseType t1)
@@ -802,7 +803,7 @@ synthesizeType typeInfo typeEnv e =
         Nothing ->
           let err =
             Utils.spaces <|
-              [ (toString e.val.eid)
+              [ (toString (expEId e))
               , "var not found: "
               , x
               ]
@@ -1000,7 +1001,7 @@ synthesizeType typeInfo typeEnv e =
       , typeInfo = { typeInfo | preludeTypeEnv = Just typeEnv }
       } -- TODO: Synthesize type of ELet
       {-
-      case (p.val.p__, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
+      case (p.val.p__, lookupTypAnnotation typeEnv p, rec, (unwrapExp e1)) of
 
         (PVar _ "dummyPreludeMain" _, _, _, _) ->
           { result = Nothing
@@ -1025,7 +1026,7 @@ synthesizeType typeInfo typeEnv e =
             let err =
               Utils.spaces <|
                 [ "checkType"
-                , (toString e.val.eid)
+                , (toString (expEId e))
                 , "Double annotation. Remove one."
                 ]
             in
@@ -1035,7 +1036,7 @@ synthesizeType typeInfo typeEnv e =
           if not (isWellFormed typeEnv t1) then
             let err =
               Utils.spaces <|
-                [ (toString e.val.eid)
+                [ (toString (expEId e))
                 , strPos t1.start
                 , "Type annotation not well-formed, at def:"
                 , String.trim (unparseType t1)

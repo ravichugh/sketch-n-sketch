@@ -92,7 +92,7 @@ toDeuceWidget patMap codeObject =
   case codeObject of
     E e ->
       Just <|
-        DeuceExp e.val.eid
+        DeuceExp (expEId e)
     P e p ->
       Maybe.map DeucePat <|
         Dict.get p.val.pid patMap
@@ -103,10 +103,10 @@ toDeuceWidget patMap codeObject =
         DeuceLetBindingEquation (eid.val, bNum)
     DT beforeAfter ws exp bnum ->
       Just <|
-        DeuceDeclTarget (beforeAfter, (exp.val.eid, bnum))
+        DeuceDeclTarget (beforeAfter, (expEId exp, bnum))
     ET ba _ et ->
       Just <|
-        DeuceExpTarget (ba, et.val.eid)
+        DeuceExpTarget (ba, (expEId et))
     PT ba _ _ pt ->
       Maybe.map
         ( \ppid ->

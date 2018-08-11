@@ -257,9 +257,9 @@ traverse : Env -> Exp -> ScopeGraph -> ScopeGraph
 traverse env exp acc =
   let recurse es = List.foldl (traverse env) acc es in
 
-  let newScopeId = (exp.val.eid, 1) in -- only if e is ELet or EFun; ECase not handled yet
+  let newScopeId = (expEId exp, 1) in -- only if e is ELet or EFun; ECase not handled yet
 
-  case exp.val.e__ of
+  case (unwrapExp exp) of
 
     ELet _ _ (Declarations _ _ _ exps as decls) _ e2 ->
       (foldLeftGroup (acc, env) exps <| \(acc, env) group isRec ->
@@ -356,7 +356,7 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
 
   let clearUsed acc = { acc | usedVars = Set.empty } in
 
-  case (pat.val.p__, exp.val.e__) of
+  case (pat.val.p__, (unwrapExp exp)) of
 
     (PConst _ _, _) -> acc |> traverse env exp
 

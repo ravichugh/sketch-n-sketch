@@ -491,7 +491,7 @@ addPoint old (x, y) =
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (tApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp))
+          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) <| Expr (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (tApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp))
       in
       { old | code = Syntax.unparser old.syntax programWithPoint }
 
@@ -523,7 +523,7 @@ addOffset old snap (x1Val, y1Val) (x2, y2) =
 addToEndOfProgram : Model -> Ident -> Exp -> Model
 addToEndOfProgram old varSuggestedName exp =
   let originalProgram = old.inputExp in
-  let insertBeforeEId = (LangTools.lastTopLevelExp originalProgram).val.eid in
+  let insertBeforeEId = expEId <| LangTools.lastTopLevelExp originalProgram in
   let varName = LangTools.nonCollidingName varSuggestedName 2 <| EvalUpdate.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
   let newProgram =
     originalProgram
@@ -564,7 +564,7 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
             programWithOffset =
               LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> Parser.freshen
             programWithOffsetAndPoint =
-              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (tApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp))
+              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) <| Expr (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (tApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp))
           in
           { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
@@ -951,14 +951,14 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
     lists
     |> List.concatMap
         (\listExp ->
-          let (varName, programWithNewDef) = EvalUpdate.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] program in
+          let (varName, programWithNewDef) = EvalUpdate.newVariableVisibleTo -1 newShapeName 1 newShapeExp [(expEId listExp)] program in
           let (ws1, heads, ws2, maybeTail, ws3) = LangTools.expToListParts listExp in
           let newListFlat      = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eVar varName])))           ws2 maybeTail ws3 in
           let newListSingleton = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [eVar0 varName]]))) ws2 maybeTail ws3 in
-          let newProgramFlat      = programWithNewDef |> replaceExpNode listExp.val.eid newListFlat in
-          let newProgramSingleton = programWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
-          [ (listExp.val.eid, newProgramFlat)
-          , (listExp.val.eid, newProgramSingleton)
+          let newProgramFlat      = programWithNewDef |> replaceExpNode (expEId listExp) newListFlat in
+          let newProgramSingleton = programWithNewDef |> replaceExpNode (expEId listExp) newListSingleton in
+          [ ((expEId listExp), newProgramFlat)
+          , ((expEId listExp), newProgramSingleton)
           ]
         )
     -- 3. Resolve value holes.
@@ -1058,7 +1058,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
       let lambdaPreFuncs =
         -- will be easier with better TopDefs
         List.concatMap (\(_,p,e,_) ->
-          case (p.val.p__, e.val.e__) of
+          case (p.val.p__, (unwrapExp e)) of
             (PVar _ fName _, EFun _ params _ _) ->
               case List.reverse params of
                 lastParam :: _ ->
@@ -1156,14 +1156,14 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
 
 preludeDrawableFunctions : List (Ident, Type)
 preludeDrawableFunctions =
-  getDrawableFunctions_ Parser.prelude (LangTools.lastTopLevelExp Parser.prelude).val.eid
+  getDrawableFunctions_ Parser.prelude (expEId <| LangTools.lastTopLevelExp Parser.prelude)
 
 
 getDrawableFunctions : Model -> List (Ident, Type)
 getDrawableFunctions model =
   getDrawableFunctions_
       model.inputExp
-      (LangTools.lastTopLevelExp model.inputExp).val.eid ++
+      (expEId <| LangTools.lastTopLevelExp model.inputExp) ++
   preludeDrawableFunctions
   |> Utils.dedupBy Tuple.first -- Remove shadowed prelude functions.
 
@@ -1212,7 +1212,7 @@ getDrawableFunctions_ program viewerEId =
   |> List.filterMap
       (\exp ->
         let _ = Debug.log "TODO: Draw.getDrawableFunctions_ is expected ETyp but they are now moved as ELet's Declarationss' ELetAnnotation" () in
-        case exp.val.e__ of
+        case (unwrapExp exp) of
           {-ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
             if isDrawableType tipe then
               case LangTools.expToMaybeLetPatAndBoundExp body of

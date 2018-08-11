@@ -51,7 +51,7 @@ valFromExpVal_ e v_ = { v_ = v_, provenance = Provenance [] e [], parents = Pare
 -- Transforms an expression that does not need evaluation to a value
 simpleExpToVal: Syntax -> Exp -> Result String Val
 simpleExpToVal syntax e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     EConst _ num _ _ -> Ok <| valFromExpVal_ e <| VConst Nothing (num, dummyTrace)
     EBase  _ (EBool b) -> Ok <| valFromExpVal_ e <| VBase (VBool b)
     EBase  _ (EString _ s) -> Ok <| valFromExpVal_ e <| VBase (VString s)
@@ -115,7 +115,7 @@ valToExpFull copyFrom sp_ indent v =
     VList vals ->
       let defaultSpCommaHd = ws "" in
       let defaultSpCommaTail = space0 in
-      let (precedingWS, ((spaceCommaHead, v2expHead), (spaceCommaTail, v2expTail)), spBeforeEnd) = copyFrom |> Maybe.andThen (\e -> case e.val.e__ of
+      let (precedingWS, ((spaceCommaHead, v2expHead), (spaceCommaTail, v2expTail)), spBeforeEnd) = copyFrom |> Maybe.andThen (\e -> case (unwrapExp e) of
         EList csp0 celems _ _ cspend ->
 
             let valToExps =  case celems of
@@ -156,7 +156,7 @@ valToExpFull copyFrom sp_ indent v =
       let copiedResult =
        case copyFrom of
         Just e ->
-           case e.val.e__ of
+           case unwrapExp e of
              ERecord csp0 Nothing (Declarations po tps anns lxs as decls) cspEnd ->
                case lxs |> elemsOf |> List.map (\(LetExp _ _ p _ _ _) ->
                  pVarUnapply p) |> Utils.projJusts of
@@ -311,7 +311,7 @@ expEqual e1_ e2_ =
   --let _ = Debug.log "expEqual " (Syntax.unparser Syntax.Elm e1_, Syntax.unparser Syntax.Elm e2_) in
   Syntax.unparser Syntax.Elm e1_ == Syntax.unparser Syntax.Elm e2_
 {--
-  case (e1_.val.e__, e2_.val.e__) of
+  case ((unwrapExp e1_), (unwrapExp e2_)) of
   (EConst sp1 num1 _ _, EConst sp2 num2 _ _) -> wsEqual sp1 sp2 && num1 == num2
   (EBase sp1 bv1, EBase sp2 bv2) -> wsEqual sp1 sp2 && bv1 == bv2
   (EVar sp1 id1, EVar sp2 id2) -> wsEqual sp1 sp2 && id1 == id2

@@ -28,8 +28,8 @@ import Info exposing (WithInfo)
 import Lang exposing
   ( WS
   , BeforeAfter(..)
-  , Exp
-  , Exp__(..)
+  , Exp(..)
+  , ExpBuilder__(..)
   , Pat
   , LetKind(..)
   , EId
@@ -43,6 +43,7 @@ import Lang exposing
   , childCodeObjects
   , computePatMap
   , firstNestedExp
+  , unwrapExp
   )
 
 import DeuceWidgets exposing
@@ -89,10 +90,10 @@ startEnd codeInfo codeObject =
       )
     (startCol, startLine, endCol, endLine) =
       case codeObject of
-        E e ->
+        E (Expr e) ->
           let
-            endExp =
-              firstNestedExp e
+            (Expr endExp) =
+              firstNestedExp <| Expr e
           in
             ( e.start.col
             , e.start.line
@@ -612,8 +613,8 @@ codeObjectPolygon msgs codeInfo codeObject color =
         ]
 
 diffpolygon: CodeInfo -> Exp -> Svg msg
-diffpolygon codeInfo exp =
-  let color = diffColor codeInfo.displayInfo.colorScheme <| Maybe.withDefault "+" <| Lang.eStrUnapply exp in
+diffpolygon codeInfo (Expr exp) =
+  let color = diffColor codeInfo.displayInfo.colorScheme <| Maybe.withDefault "+" <| Lang.eStrUnapply <| Expr exp in
   let thehull = hullPoints <| hull codeInfo True False False exp.start.col exp.start.line exp.end.col exp.end.line in
     Svg.polygon
         [ SAttr.points thehull
@@ -637,7 +638,7 @@ expPolygon msgs codeInfo e =
     color =
       objectColor codeInfo.displayInfo.colorScheme
   in
-    case e.val.e__ of
+    case (unwrapExp e) of
       -- Do not show def polygons (for now, at least)
       ELet _ Def _ _ _ ->
         []

@@ -276,10 +276,10 @@ mapWSPat_ = (map << mapInfoWS) pat_
 -- Expressions
 --------------------------------------------------------------------------------
 
-mapExp_ : ParserI Exp__ -> Parser Exp
+mapExp_ : ParserI Exp__ -> ParserI Exp_
 mapExp_ = (map << mapInfo) exp_
 
-mapWSExp_ : ParserI (WS -> Exp__) -> Parser (WS -> Exp)
+mapWSExp_ : ParserI (WS -> Exp__) -> Parser (WS -> WithInfo Exp_)
 mapWSExp_ = (map << mapInfoWS) exp_
 
 mapWSInfo : ParserI (WS -> a) -> Parser (WS -> (WithInfo a))

@@ -47,6 +47,10 @@ import Array
 
 implicitVarName = " i"
 
+wsExp_ParserToWsExpParser : Parser (WS -> WithInfo Exp_) -> Parser (WS -> Exp)
+wsExp_ParserToWsExpParser =
+  map (\wsToExp_ ws -> Expr <| wsToExp_ ws)
+
 --------------------------------------------------------------------------------
 -- Lists
 --------------------------------------------------------------------------------
@@ -637,11 +641,11 @@ eString =
     trackInfo <|
       (singleLineString |> map (\(quoteChar, content) -> EString quoteChar content))
 
-multiLineInterpolatedString : Parser (WS -> Exp)
+multiLineInterpolatedString : Parser (WS -> WithInfo Exp_)
 multiLineInterpolatedString =
   inContext "multi-line interpolated string" <| lazy <| \_ ->
     mapWSExp_ <| trackInfo <|
-      (succeed (\e wsBefore -> EParens wsBefore e LongStringSyntax space0 )
+      (succeed (\e wsBefore -> EParens wsBefore (Expr e) LongStringSyntax space0 )
         |. symbol "\"\"\""
         |= multilineContentParser
         |. symbol "\"\"\""
@@ -649,31 +653,31 @@ multiLineInterpolatedString =
 
 multilineParseUntilRegex = Regex.regex <| "@|\"\"\"(?!\")"
 
-multilineContentParser : Parser Exp
+multilineContentParser : ParserI Exp_
 multilineContentParser =
   inContext "multi-line string content" <|
   ((mapExp_ <| trackInfo <|
     succeed (\str -> EBase space0 <| EString "\"" str)
   |= ParserUtils.keepUntilRegex multilineParseUntilRegex
   )
-  |> andThen (\exp -> multilineContentParserHelp [exp]))
+  |> andThen (\exp -> multilineContentParserHelp [Expr exp]))
 
-multilineConcatExp: List Exp -> Pos.Pos -> Exp
+multilineConcatExp: List Exp -> Pos.Pos -> WithInfo Exp_
 multilineConcatExp exps startPosition =
   case exps of
     [] ->  Debug.crash "Internal error: No expression in longstring literal"
-    [head] -> head
-    head::tail ->
+    [Expr head] -> head
+    (Expr head)::tail ->
       let tailPart = multilineConcatExp tail head.end in
-      case head.val.e__ of
+      case unwrapExp <| Expr head of
         ELet sp0 letType decls wsBeforeIn _ ->
-          replaceE__ head <| ELet sp0 letType decls wsBeforeIn tailPart
+          let (Expr e) = replaceE__ (Expr head) <| ELet sp0 letType decls wsBeforeIn (Expr tailPart) in e
         _ ->
           withInfo
-            (exp_ <| EOp space0 space1 (withInfo Plus head.end tailPart.start) [head, tailPart] space0)
+            (exp_ <| EOp space0 space1 (withInfo Plus head.end tailPart.start) [Expr head, Expr tailPart] space0)
             head.start tailPart.end
 
-multilineContentParserHelp: List Exp -> Parser Exp
+multilineContentParserHelp: List Exp -> ParserI Exp_
 multilineContentParserHelp prevExps =
   inContext "multi-line string end or escape" <|
   oneOf
@@ -694,37 +698,39 @@ multilineContentParserHelp prevExps =
              succeed (\str -> EBase space0 <| EString "\"" str)
            |= ParserUtils.keepUntilRegex multilineParseUntilRegex
          ))
-     |> andThen (\(potentialExp, stringExp) ->
+     |> andThen (\(potentialExp_, stringExp_) ->
+        let stringExp = Expr stringExp_ in
+        let potentialExp = Expr potentialExp_ in
         case prevExps of
-          lastPrev :: lastTail ->
-            case (lastPrev.val.e__, potentialExp.val.e__, stringExp.val.e__) of
+          (Expr lastPrev) :: lastTail ->
+            case (unwrapExp <| Expr lastPrev, unwrapExp <| potentialExp, unwrapExp stringExp) of
               (EBase sp0 (EString qc prevChars), EBase sp1 (EString eqc expChars), EBase sp2 (EString sqc stringChars)) ->
-                multilineContentParserHelp <| (withInfo (
+                multilineContentParserHelp <| Expr (withInfo (
                   exp_ <| EBase sp0 <| EString qc (prevChars ++ expChars ++ stringChars))
-                  lastPrev.start stringExp.end) :: lastTail
+                  lastPrev.start stringExp_.end) :: lastTail
               _ ->
-                multilineContentParserHelp (stringExp :: potentialExp:: prevExps)
+                multilineContentParserHelp (stringExp :: potentialExp :: prevExps)
           [] -> Debug.crash "Internal error: There should be always at least one expression in a longstring literal."
       )
   ]
 
-multilineEscapedElmExpression: Parser Exp
+multilineEscapedElmExpression: ParserI Exp_
 multilineEscapedElmExpression =
   inContext "expression in multi-line string" <|
   oneOf [
     lazy <| \_ -> trackInfo <|
-      succeed (\wsv -> let v = wsv space0 in exp_ <| EOp space0 space1 (withInfo ToStrExceptStr v.start v.start) [v] space0)
+      succeed (\wsv -> let v = wsv space0 in exp_ <| EOp space0 space1 (withInfo ToStrExceptStr v.start v.start) [Expr v] space0)
       |= (variableExpression |> addSelections),
     lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ -> mapExp_ <| trackInfo <|
         (succeed (\wsToExp ->
           let exp = wsToExp space0 in
           (EOp space0 space1 (withInfo ToStrExceptStr exp.start exp.start) [
-            withInfo (exp_ <| EParens space0 exp ElmSyntax space0) exp.start exp.end] space0))
+            Expr <| withInfo (exp_ <| EParens space0 (Expr exp) ElmSyntax space0) exp.start exp.end] space0))
         |= tuple)
   ]
 
-multilineGenericLetBinding : Parser Exp
+multilineGenericLetBinding : ParserI Exp_
 multilineGenericLetBinding =
   inContext ("let binding within a long string") <|
     map (\p -> p space0) <|
@@ -740,37 +746,37 @@ htmlEscape = ImpureGoodies.htmlescape
 
 forbiddenTagsInHtmlInner = Regex.regex "</[^>\n]*>"
 
-htmlText: WithInfo a -> String -> Exp
+htmlText: WithInfo a -> String -> WithInfo Exp_
 htmlText  source        htmltext =
   let origin = replaceInfo source << exp_ in
   origin <| EList space0 [
-    (space0, withInfo (exp_ <| EBase space0 (EString "\"" "TEXT")) source.start source.start),
-    (space0, origin  <| EBase space0 (EString "\"" (ImpureGoodies.htmlunescape htmltext)))] space0 Nothing space0
+    (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" "TEXT")) source.start source.start),
+    (space0, Expr <| origin <| EBase space0 (EString "\"" (ImpureGoodies.htmlunescape htmltext)))] space0 Nothing space0
 
-htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->  Bool ->     Bool ->     WS ->                  Exp
+htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->   Bool ->     Bool ->     WS ->                  WithInfo Exp_
 htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing spaceAfterTagClosing =
   let origin = replaceInfo source << exp_ in
-  let spaceBeforeTail = withDummyInfo <| if autoclosing then " " else if voidClosing then "  " else"" in -- Hack: If there is a space and no children, mark the element autoclose.
+  let spaceBeforeTail = withDummyInfo <| if autoclosing then " " else if voidClosing then "  " else "" in -- Hack: If there is a space and no children, mark the element autoclose.
   let tag = case tagName of
     HTMLParser.HTMLTagString s -> withInfo (exp_ <| EBase space0 <| EString "\"" s.val) s.start s.end
     HTMLParser.HTMLTagExp e -> e
   in
   origin <| EList space0 [
-    (space0, tag),
+    (space0, Expr tag),
     (space0, attributes),
     (spaceBeforeEndOpeningTag, children)] spaceBeforeTail Nothing spaceAfterTagClosing
 
 appendToLeft: (WS, Exp) -> Exp -> Result String Exp
-appendToLeft thisAttribute x = case x.val.e__ of
+appendToLeft (attrWS, Expr thisAttribute_) (Expr x) = let thisAttribute = (attrWS, Expr thisAttribute_) in case unwrapExp <| Expr x of
   EList sp0 attrs sp1 t sp2 ->
-    Ok <| withInfo (exp_ <| EList sp0 (thisAttribute::attrs) sp1 t sp2) (Tuple.second thisAttribute |> .start) x.end
+    Ok <| Expr <| withInfo (exp_ <| EList sp0 (thisAttribute::attrs) sp1 t sp2) thisAttribute_.start x.end
   EApp sp1 fun [left, right] appType sp2 ->
-    appendToLeft thisAttribute left |> Result.map (\newLeft ->
-      withInfo (exp_ <| EApp sp1 fun [newLeft, right] appType sp2) (newLeft.start) x.end
+    appendToLeft thisAttribute left |> Result.map (\(Expr newLeft) ->
+      Expr <| withInfo (exp_ <| EApp sp1 fun [Expr newLeft, right] appType sp2) newLeft.start x.end
     )
   _ -> Err <| "Expected EList, EApp, but got something else for attributes (line " ++ toString x.start.line ++ ")"
 
-attrsToExp: Pos.Pos -> List HTMLParser.HTMLAttribute -> Parser Exp
+attrsToExp: Pos.Pos -> List HTMLParser.HTMLAttribute -> ParserI Exp_
 attrsToExp lastPos attrs =
   case attrs of
     [] -> succeed <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
@@ -783,11 +789,11 @@ attrsToExp lastPos attrs =
             case value.val of
                HTMLParser.HTMLAttributeNoValue ->
                  -- Hack: space1 is here to tell that it's a NoValue.
-                 Ok (space0, withDummyExpInfo <| EBase space1 <| EString "\"" "")
+                 Ok (space0, withDummyExp_Info <| EBase space1 <| EString "\"" "")
                HTMLParser.HTMLAttributeExp s e ->
                  -- Normally, all the space is inside s
                  let final_e = case nameInfo.val of
-                      "style" -> replaceInfo e <| exp_ <| EApp space0 (withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [e] SpaceApp space0
+                      "style" -> replaceInfo e <| exp_ <| EApp space0 (Expr <| withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [Expr e] SpaceApp space0
                       _ -> e
                  in
                  Ok (s, final_e)
@@ -797,45 +803,47 @@ attrsToExp lastPos attrs =
             Err msg -> fail msg
             Ok (attrSpace, attrValue) ->
               let thisAttribute = replaceInfo head <| exp_ <| EList sp [
-                 (space0, nameExp),
-                 (attrSpace, attrValue)
+                 (space0, Expr nameExp),
+                 (attrSpace, Expr attrValue)
                  ] space0 Nothing space0
               in
               attrsToExp head.end tail |> andThen (\tailAttrExp ->
-                case appendToLeft (space0, thisAttribute) tailAttrExp of
+                case appendToLeft (space0, Expr thisAttribute) (Expr tailAttrExp) of
                   Err msg -> fail msg
-                  Ok newExp -> succeed newExp
+                  Ok (Expr newExp) -> succeed newExp
               )
         HTMLParser.HTMLAttributeListExp sp e ->
            attrsToExp head.end tail |> map (\tailAttrExp ->
              let appendFun = replaceInfo head <| exp_ <| EVar space0 "++" in
-             withInfo (exp_ <| EApp sp appendFun [
-               withInfo (exp_ <| EApp space0 appendFun [
-                 withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos,
-                 e] InfixApp space0 ) head.start e.end,
-               tailAttrExp] InfixApp space0) head.start tailAttrExp.end
+             withInfo (exp_ <| EApp sp (Expr appendFun) [
+               Expr <|
+                 withInfo (exp_ <| EApp space0 (Expr appendFun) [
+                   Expr <|
+                     withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos,
+                     Expr e] InfixApp space0 ) head.start e.end,
+               Expr tailAttrExp] InfixApp space0) head.start tailAttrExp.end
            )
 
-childrenToExp: Pos.Pos -> List HTMLParser.HTMLNode -> Parser Exp
+childrenToExp: Pos.Pos -> List HTMLParser.HTMLNode -> ParserI Exp_
 childrenToExp lastPos children =
   case children of
     [] -> succeed <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
     head::tail ->
       htmlToExp head |> andThen (\headExp ->
         childrenToExp head.end tail |> andThen (\tailExp ->
-          case headExp.val.e__ of
+          case unwrapExp (Expr headExp) of
             EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp
-               let appendFun = withInfo (exp_ <| EVar space0 "++") headExp.end tailExp.start in
+               let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") headExp.end tailExp.start in
                succeed <| withInfo (exp_ <| EApp space0 appendFun [
-                 headExp, tailExp] InfixApp space0) headExp.start tailExp.end
+                 Expr headExp, Expr tailExp] InfixApp space0) headExp.start tailExp.end
             _ ->
-              case appendToLeft (space0, headExp) tailExp of
+              case appendToLeft (space0, Expr headExp) (Expr tailExp) of
                 Err msg -> fail msg
-                Ok newExp -> succeed newExp
+                Ok (Expr newExp) -> succeed newExp
         )
       )
 
-htmlToExp: HTMLParser.HTMLNode -> Parser Exp
+htmlToExp: HTMLParser.HTMLNode -> ParserI Exp_
 htmlToExp node =
   case node.val of
     HTMLParser.HTMLInner content ->
@@ -857,7 +865,7 @@ htmlToExp node =
           andThen (\finalattrs ->
             childrenToExp { line = sp0.end.line, col = sp0.end.col + (if endOpeningStyle == HTMLParser.RegularEndOpening then 1 else 2) } children |>
               andThen (\finalchildren ->
-                 succeed <| htmlnode node tagName finalattrs sp0 finalchildren
+                 succeed <| htmlnode node tagName (Expr finalattrs) sp0 (Expr finalchildren)
                    (closingStyle == HTMLParser.AutoClosing)
                    (closingStyle == HTMLParser.VoidClosing) <|
                    case closingStyle of
@@ -868,43 +876,46 @@ htmlToExp node =
     HTMLParser.HTMLComment commentStyle ->
       fail <| "Line " ++ toString node.start.line ++ ": comments are not supported by Elm at this moment. Got " ++ HTMLParser.unparseNode node
     HTMLParser.HTMLListNodeExp e ->
-      let appendFun = withInfo (exp_ <| EVar space0 "++") node.start node.start in
+      let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") node.start node.start in
       succeed <| withInfo (exp_ <| EApp space0 appendFun [
-        withInfo (exp_ <| EList space0 [] space0 Nothing space0) node.start node.start,
-        withInfo (exp_ <| EApp space1 (withInfo (exp_ <| EVar space1  "__mbwraphtmlnode__") e.start e.start) [e] SpaceApp space0) e.start e.end
+        Expr <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) node.start node.start,
+        Expr <| withInfo (exp_ <| EApp space1 (Expr <| withInfo (exp_ <| EVar space1  "__mbwraphtmlnode__") e.start e.start) [Expr e] SpaceApp space0) e.start e.end
         ] InfixApp space0 ) node.start e.end
 
-wrapWithSyntax: ParensStyle -> Parser (WS -> Exp) -> Parser Exp
+wrapWithSyntax: ParensStyle -> Parser (WS -> WithInfo Exp_) -> ParserI Exp_
 wrapWithSyntax parensStyle parser =
   succeed (\wsToE ->
     let e = wsToE space0 in
-    withInfo (exp_ <| EParens space0 e parensStyle space0) e.start e.end)
+    withInfo (exp_ <| EParens space0 (Expr e) parensStyle space0) e.start e.end)
   |= parser
 
 
-addParenthesizedParameters: Parser (WS -> Exp) -> Parser (WS -> Exp)
+addParenthesizedParameters: Parser (WS -> WithInfo Exp_) -> Parser (WS -> WithInfo Exp_)
 addParenthesizedParameters parser =
   succeed (\simpExp arguments wsBefore ->
     if List.length arguments == 0 then simpExp wsBefore
     else
      let simpExpZeroSpace = simpExp space0 in
-     let argumentsZeroSpace = List.map (\arg -> arg space0) arguments in
-      withInfo (exp_ <| EApp wsBefore simpExpZeroSpace argumentsZeroSpace SpaceApp space0) simpExpZeroSpace.start (Utils.last "addParenthesizedParameters" argumentsZeroSpace |> .end)
+     let argumentsZeroSpace = List.map (\arg -> Expr <| arg space0) arguments in
+      withInfo
+        (exp_ <| EApp wsBefore (Expr simpExpZeroSpace) argumentsZeroSpace SpaceApp space0)
+        simpExpZeroSpace.start
+        (Utils.last "addParenthesizedParameters" arguments space0 |> .end)
   )
   |= parser
   |= repeat zeroOrMore (oneOf [tuple, list, record])
 
 -- In html text inner, makes @toCss<|<scss>...</scss> possible (and avoids the closing parentheses yeah!
 -- Or also @bold<|"""Hello""" We only parse a simple expression after
-addRightApplications: Parser (WS -> Exp) -> Parser (WS -> Exp)
+addRightApplications: Parser (WS -> WithInfo Exp_) -> Parser (WS -> WithInfo Exp_)
 addRightApplications parser =
   succeed (\simpExp apps wsBefore ->
-     let finalExps: List Exp
+     let finalExps: List (WithInfo Exp_)
          finalExps = simpExp wsBefore :: apps in
      case Utils.maybeInitLast finalExps of
        Just (functions, argument) ->
          List.foldr (\simpExp argExp ->
-           withInfo (exp_ <| EApp space0 simpExp [argExp] (LeftApp space0) space0) simpExp.start argExp.end
+           withInfo (exp_ <| EApp space0 (Expr simpExp) [Expr argExp] (LeftApp space0) space0) simpExp.start argExp.end
          ) argument functions
        _ -> Debug.crash "Finally, P = NP."
     )
@@ -915,11 +926,11 @@ addRightApplications parser =
       |= spaces
       |= (simpleExpression 0 NoSpace |> addParenthesizedParameters))
 
-htmlliteral: Parser (WS -> Exp)
+htmlliteral: Parser (WS -> WithInfo Exp_)
 htmlliteral =
   inContext "html literal" <|
      lazy <| \_ ->
-     succeed (\newExp space -> withInfo (exp_ <| EParens space newExp HtmlSyntax space0) newExp.start newExp.end)
+     succeed (\newExp space -> withInfo (exp_ <| EParens space (Expr newExp) HtmlSyntax space0) newExp.start newExp.end)
     |= ((succeed identity
       |. (lookAhead <| (delayedCommit
            (symbol "<")
@@ -1705,7 +1716,7 @@ isDataConstructor name =
 -- Constants
 --------------------------------------------------------------------------------
 
-constantExpression : Parser (WS -> Exp)
+constantExpression : Parser (WS -> WithInfo Exp_)
 constantExpression =
   inContext "constant expression" <|
     mapWSExp_ <| map (\(n, fa, w) ->
@@ -1724,7 +1735,7 @@ constantExpression =
 -- Base Values
 --------------------------------------------------------------------------------
 
-baseValueExpression : Parser (WS -> Exp)
+baseValueExpression : Parser (WS -> WithInfo Exp_)
 baseValueExpression =
   inContext "base value expression" <|
     mapWSExp_ <| transferInfo (flip EBase) baseValue
@@ -1733,7 +1744,7 @@ baseValueExpression =
 -- Variables
 --------------------------------------------------------------------------------
 
-variableExpression : Parser (WS -> Exp)
+variableExpression : Parser (WS -> WithInfo Exp_)
 variableExpression =
   mapWSExp_ <| transferInfo (flip EVar) anyIdentifier
 
@@ -1741,7 +1752,7 @@ variableExpression =
 -- Functions (lambdas)
 --------------------------------------------------------------------------------
 
-function : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+function : MinStartCol -> SpaceConstraint -> Parser (WS -> WithInfo Exp_)
 function minStartCol spConstraint =
   inContext "function" <|
       mapWSExp_ <|
@@ -1761,8 +1772,9 @@ function minStartCol spConstraint =
 -- Lists
 --------------------------------------------------------------------------------
 
-list : Parser (WS -> Exp)
+list : Parser (WS -> WithInfo Exp_)
 list =
+  let mapExpr = List.map <| Tuple.mapSecond Expr in
   inContext "list" <|
     lazy <| \_ ->
       mapWSExp_ <|
@@ -1783,7 +1795,7 @@ list =
 -- Records
 --------------------------------------------------------------------------------
 
-record : Parser (WS -> Exp)
+record : Parser (WS -> WithInfo Exp_)
 record  =
   inContext "record expression" <|
     lazy <| \_ ->
@@ -1811,7 +1823,7 @@ record  =
 -- Conditionals
 --------------------------------------------------------------------------------
 
-conditional : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+conditional : MinStartCol -> SpaceConstraint -> Parser (WS -> WithInfo Exp_)
 conditional minStartCol spConstraint =
   inContext "conditional" <|
     lazy <| \_ ->
@@ -1836,7 +1848,7 @@ conditional minStartCol spConstraint =
 -- Case Expressions
 --------------------------------------------------------------------------------
 
-caseExpression : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+caseExpression : MinStartCol -> SpaceConstraint -> Parser (WS -> WithInfo Exp_)
 caseExpression minStartCol spConstraint =
   inContext "case expression" <|
     lazy <| \_ ->
@@ -1844,8 +1856,8 @@ caseExpression minStartCol spConstraint =
         branch: Parser WS -> Parser Branch
         branch branchsp =
           delayedCommitMap
-            (\wsBefore (p, wsBeforeArrow, e) ->
-                withInfo (Branch_ wsBefore p e wsBeforeArrow) p.start e.end
+            (\wsBefore (p, wsBeforeArrow, Expr e) ->
+                withInfo (Branch_ wsBefore p (Expr e) wsBeforeArrow) p.start e.end
             )
             ( inContext "Indentation for branch" <|
               succeed identity
@@ -1876,8 +1888,10 @@ caseExpression minStartCol spConstraint =
           ( \(examinedExpression, wsBeforeOf, branches) wsBefore ->
               if eVarUnapply examinedExpression == Just implicitVarName then
                   EFun space1 [withDummyPatInfo <| PVar space0 implicitVarName noWidgetDecl] (
-                    withInfo (exp_ <| ECase wsBefore examinedExpression branches wsBeforeOf)
-                      wsBefore.start wsBeforeOf.end
+                    Expr <|
+                      withInfo
+                        (exp_ <| ECase wsBefore examinedExpression branches wsBeforeOf)
+                        wsBefore.start wsBeforeOf.end
                     ) space0
                else ECase wsBefore examinedExpression branches wsBeforeOf
           )
@@ -1921,20 +1935,20 @@ letExpOrAnnotation minStartCol =
       andThen (\eqSymbol ->
        if eqSymbol == "=" then
          expression spaces (p1.start.col + 1) MinIndentSpace
-         |> map (\binding_ ->
+         |> map (\(Expr binding_) ->
            \pat parameters wsBeforeEq ->
              let (binding, funArgStyle) =
                if List.isEmpty parameters then
                   (binding_, FunArgsAfterEqual)
                else
                   (withInfo
-                    (exp_ <| EFun space0 parameters binding_ space0)
+                    (exp_ <| EFun space0 parameters (Expr binding_) space0)
                     binding_.start
                     binding_.end
                   ,FunArgAsPats)
              in
              succeed <| \optCommaSpace wsBeforePat -> DeclExp <|
-               LetExp optCommaSpace wsBeforePat pat funArgStyle wsBeforeEq binding
+               LetExp optCommaSpace wsBeforePat pat funArgStyle wsBeforeEq (Expr binding)
          )
        else
          typ spaces minStartCol
@@ -2059,7 +2073,7 @@ declarations minStartCol =
          Err msg -> fail msg)
   )
 
-genericLetBinding : Parser Exp -> Parser (WS -> Exp)
+genericLetBinding : Parser Exp -> Parser (WS -> WithInfo Exp_)
 genericLetBinding bodyParser =
   lazy <| \_ ->
     delayedCommitMap (\startPos (decls, wsBeforeIn, endPos, body) wsBefore ->
@@ -2076,7 +2090,7 @@ genericLetBinding bodyParser =
     )
 
 
-letBinding : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+letBinding : MinStartCol -> SpaceConstraint -> Parser (WS -> WithInfo Exp_)
 letBinding minStartCol spConstraint =
   inContext ("let binding") <|
   genericLetBinding <| expression spaces minStartCol spConstraint
@@ -2085,7 +2099,7 @@ letBinding minStartCol spConstraint =
 -- Tuples, parentheses, implicit tupling functions
 --------------------------------------------------------------------------------
 
-tuple : Parser (WS -> Exp)
+tuple : Parser (WS -> WithInfo Exp_)
 tuple =
   inContext "tuple" <|
     lazy <| \_ ->
@@ -2107,7 +2121,7 @@ tuple =
 -- Holes
 --------------------------------------------------------------------------------
 
-hole : Parser (WS -> Exp)
+hole : Parser (WS -> WithInfo Exp_)
 hole =
   inContext "hole" <|
     mapWSExp_ <|
@@ -2117,13 +2131,13 @@ hole =
 -- General Expressions
 --------------------------------------------------------------------------------
 
-selection : Parser ((WS -> Exp) -> (WS -> Exp))
+selection : Parser ((WS -> WithInfo Exp_) -> (WS -> WithInfo Exp_))
 selection =
   lazy <| \_ ->
   delayedCommitMap (\wsBeforeDot (wsAfterDot,idWithInfo) ws2Exp ->
       \wsBefore ->
         let exp = ws2Exp space0 in
-        withInfo (exp_ <| ESelect wsBefore exp wsBeforeDot wsAfterDot idWithInfo.val)
+        withInfo (exp_ <| ESelect wsBefore (Expr exp) wsBeforeDot wsAfterDot idWithInfo.val)
            exp.start idWithInfo.end
     )
     ( succeed (\x -> x)
@@ -2136,7 +2150,7 @@ selection =
     )
 
 -- Add all following .identifier1.identifiers2 as wrappers to the original expression
-addSelections : Parser (WS -> Exp) -> Parser (WS -> Exp)
+addSelections : Parser (WS -> WithInfo Exp_) -> Parser (WS -> WithInfo Exp_)
 addSelections parser =
   succeed (\simpExp selections ->
       List.foldl (\sel updatedExp -> sel updatedExp) simpExp selections
@@ -2144,15 +2158,15 @@ addSelections parser =
     |= parser
     |= repeat zeroOrMore selection
 
-implicitSelectionFun: Parser (WS -> Exp)
+implicitSelectionFun: Parser (WS -> WithInfo Exp_)
 implicitSelectionFun =
   succeed (\{val,start,end} initSpace ->
     withInfo (exp_ <| EFun initSpace [withInfo (pat_ <| PVar space0 implicitVarName noWidgetDecl) start start]
-    (List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore implicitVarName) start start) val space0) space0) start end
+    (Expr <| List.foldl (\sel updatedExp -> sel updatedExp) (\wsBefore -> withInfo (exp_ <| EVar wsBefore implicitVarName) start start) val space0) space0) start end
   )
   |= (trackInfo <| repeat oneOrMore selection)
 
-implicitOp: Parser (WS -> Exp)
+implicitOp: Parser (WS -> WithInfo Exp_)
 implicitOp =
   lazy <| \_ ->
   operator nospace |> andThen (\op ->
@@ -2163,7 +2177,7 @@ implicitOp =
   )
 
 -- Not a function application nor a binary operator
-simpleExpression : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
+simpleExpression : MinStartCol -> SpaceConstraint -> Parser (WS -> WithInfo Exp_)
 simpleExpression minStartCol spConstraint =
     oneOf
       [ addSelections variableExpression
@@ -2192,8 +2206,9 @@ spaceColonType minStartCol spConstraint =
      )
 
 maybeConvertToOp0 : Exp -> Exp
-maybeConvertToOp0 exp =
-  case exp.val.e__ of
+maybeConvertToOp0 (Expr exp_) =
+  let exp = Expr exp_ in
+  case unwrapExp exp of
     EVar wsBefore identifier ->
       case opFromIdentifier identifier of
         Just op_ ->
@@ -2201,7 +2216,7 @@ maybeConvertToOp0 exp =
             EOp
               wsBefore
               space0
-              (withInfo op_ exp.start exp.end)
+              (withInfo op_ exp_.start exp_.end)
               []
               space0
 
@@ -2211,19 +2226,20 @@ maybeConvertToOp0 exp =
       exp
 
 maybeConvertToOpN : Exp -> List Exp -> Exp__
-maybeConvertToOpN first rest =
+maybeConvertToOpN (Expr first_) rest =
+  let first = Expr first_ in
   let
     default =
       EApp space0 first (List.map maybeConvertToOp0 rest) SpaceApp space0
   in
-    case first.val.e__ of
+    case unwrapExp first of
       EVar wsBefore identifier ->
         case opFromIdentifier identifier of
           Just op_ ->
             EOp
               wsBefore
               space0
-              (withInfo op_ first.start first.end)
+              (withInfo op_ first_.start first_.end)
               (List.map maybeConvertToOp0 rest)
               space0
 
@@ -2240,11 +2256,11 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
   let
     combine : (WS -> Exp) -> List Exp -> WS -> Exp
     combine wsToFirst rest wsBefore =
-      let first = wsToFirst wsBefore in
+      let (Expr first) = wsToFirst wsBefore in
       let
         constructedRest =
-          flip List.map rest <| \e ->
-            case e.val.e__ of
+          flip List.map rest <| \(Expr e) ->
+            case (unwrapExp <| Expr e) of
               EVar wsBefore identifier ->
                 -- Datatypes desugar to records
                 if isDataConstructor identifier then
@@ -2266,24 +2282,25 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
                           eRecord__ space0 Nothing [] space0
                       )
                   in
-                    withInfo
-                      ( exp_ <|
-                          eRecord__
-                            wsBefore
-                            Nothing
-                            [ctorEntry, argsEntry]
-                            space0
-                      )
-                      e.start
-                      e.end
+                    Expr <|
+                      withInfo
+                        ( exp_ <|
+                            eRecord__
+                              wsBefore
+                              Nothing
+                              [ctorEntry, argsEntry]
+                              space0
+                        )
+                        e.start
+                        e.end
                 else
-                  e
+                  Expr e
               _ ->
-                e
+                Expr e
 
         -- Some special cases
         maybeSpecial =
-          case first.val.e__ of
+          case (unwrapExp <| Expr first) of
             EVar wsBefore identifier ->
               -- Datatypes desugar to records
               if isDataConstructor identifier then
@@ -2327,12 +2344,12 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
             Nothing ->
               first.end
 
-            Just last ->
+            Just (Expr last) ->
               last.end
       in
         case maybeSpecial of
           Just special ->
-            withInfo special start end
+            Expr <| withInfo special start end
 
           Nothing ->
             -- If there are no arguments, then we do not have a function
@@ -2341,20 +2358,20 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
             case Utils.maybeLast constructedRest of
               -- rest is empty
               Nothing ->
-                maybeConvertToOp0 first
+                maybeConvertToOp0 <| Expr first
 
               -- rest is non-empty
-              Just last ->
+              Just (Expr last) ->
                 let
-                  e_ = exp_ (maybeConvertToOpN first constructedRest)
+                  e_ = exp_ (maybeConvertToOpN (Expr first) constructedRest)
                 in
-                  withInfo e_ first.start last.end
+                  Expr <| withInfo e_ first.start last.end
   in
     lazy <| \_ ->
-      ( trackInfo (oneOf [simpleExpression minStartCol spConstraint, implicitOp])
+      ( trackInfo (wsExp_ParserToWsExpParser <| oneOf [simpleExpression minStartCol spConstraint, implicitOp])
       |> andThen (\wsToMainExp ->
         let appargSpace = spaceSameLineOrNextAfter (min minStartCol wsToMainExp.start.col) spConstraint in
-        map (combine wsToMainExp.val) <|
+        map (combine <| wsToMainExp.val) <|
           repeat zeroOrMore (delayedCommitMap (\ws wsExp -> wsExp ws)
           (appargSpace |> andThen (\sp ->
             if sp.val == "" then
@@ -2363,7 +2380,7 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
             else
               succeed sp
           ))
-          (simpleExpression minStartCol spConstraint))))
+          (wsExp_ParserToWsExpParser <| simpleExpression minStartCol spConstraint))))
 
 simpleExpressionWithPossibleArgumentsMaybeTyped : MinStartCol -> SpaceConstraint -> Parser (WS -> Exp)
 simpleExpressionWithPossibleArgumentsMaybeTyped minStartCol spConstraint =
@@ -2373,11 +2390,12 @@ simpleExpressionWithPossibleArgumentsMaybeTyped minStartCol spConstraint =
           Nothing -> wS2untypedExp
           Just (wsColon, typ) ->
             \wsBefore ->
-               withInfo
-                 (exp_ <|
-                     EColonType wsBefore (wS2untypedExp space0) wsColon typ space0
-                 )
-                 startPos typ.end
+               Expr <|
+                 withInfo
+                   (exp_ <|
+                       EColonType wsBefore (wS2untypedExp space0) wsColon typ space0
+                   )
+                   startPos typ.end
       )
       getPos
       (succeed (,)
@@ -2453,19 +2471,19 @@ expressionGeneral isHtmlAttribute spFirst minStartCol    spConstraint =
         , expression =
             simpleExpressionWithPossibleArgumentsMaybeTyped minStartCol spConstraint
         , withZeroSpace = \wsExp ->
-            let finalExp = wsExp space0 in
-            mapPrecedingWhitespaceWS (\ws -> withInfo ws.val finalExp.start finalExp.start) finalExp
+            let (Expr finalExp) = wsExp space0 in
+            mapPrecedingWhitespaceWS (\ws -> withInfo ws.val finalExp.start finalExp.start) <| Expr finalExp
         , operator =
             if isHtmlAttribute then htmlAttributeOperator operatorSpace else operator operatorSpace
         , representation =
             .val >> Tuple.second
         , combine =
-            \wsBeforeEverything left operator right ->
+            \wsBeforeEverything (Expr left) operator (Expr right) ->
               let
                 (wsBefore, identifier) =
                   operator.val
               in
-                case opFromIdentifier identifier of
+                Expr <| case opFromIdentifier identifier of
                   Just op_ ->
                     let
                       op =
@@ -2473,7 +2491,7 @@ expressionGeneral isHtmlAttribute spFirst minStartCol    spConstraint =
                     in
                         withInfo
                           ( exp_ <|
-                              EOp wsBeforeEverything wsBefore op [ left, right ] space0
+                              EOp wsBeforeEverything wsBefore op [ Expr left, Expr right ] space0
                           )
                           left.start
                           right.end
@@ -2482,39 +2500,41 @@ expressionGeneral isHtmlAttribute spFirst minStartCol    spConstraint =
                   Nothing ->
                     if identifier == "::" then
                       withInfo (exp_ <|
-                        EList wsBeforeEverything [(space0, left)] wsBefore (Just right) space0
+                        EList wsBeforeEverything [(space0, Expr left)] wsBefore (Just <| Expr right) space0
                       ) left.start right.end
                     else if identifier == "<|" then
                       withInfo (exp_ <|
-                        EApp wsBeforeEverything left [right] (LeftApp wsBefore) space0
+                        EApp wsBeforeEverything (Expr left) [Expr right] (LeftApp wsBefore) space0
                       ) left.start right.end
                     else if identifier == "|>" then
                       withInfo (exp_ <|
-                        EApp wsBeforeEverything right [left] (RightApp wsBefore) space0
+                        EApp wsBeforeEverything (Expr right) [Expr left] (RightApp wsBefore) space0
                       ) left.start right.end
                     else
                       let
                         opExp =
-                          withInfo
-                            ( exp_ <|
-                                EVar wsBefore identifier
-                            )
-                            operator.start
-                            operator.end
+                          Expr <|
+                            withInfo
+                              ( exp_ <|
+                                  EVar wsBefore identifier
+                              )
+                              operator.start
+                              operator.end
                       in
                         withInfo
                           ( exp_ <|
-                              EApp wsBeforeEverything opExp [ left, right ] InfixApp space0
+                              EApp wsBeforeEverything opExp [ Expr left, Expr right ] InfixApp space0
                           )
                           left.start
                           right.end
         }
 
 expression : Parser WS -> MinStartCol -> SpaceConstraint -> Parser Exp
-expression firstSpace minStartCol spConstraint= expressionGeneral False firstSpace minStartCol spConstraint
+expression firstSpace minStartCol spConstraint = expressionGeneral False firstSpace minStartCol spConstraint
 
-expressionWithoutGreater : Parser WS -> MinStartCol -> SpaceConstraint -> Parser Exp
-expressionWithoutGreater firstSpace minStartCol spConstraint = expressionGeneral True firstSpace minStartCol spConstraint
+expressionWithoutGreater : Parser WS -> MinStartCol -> SpaceConstraint -> ParserI Exp_
+expressionWithoutGreater firstSpace minStartCol spConstraint =
+  map (\(Expr e) -> e) <| expressionGeneral True firstSpace minStartCol spConstraint
 
 
 --==============================================================================
@@ -2577,17 +2597,19 @@ implicitMain =
       let
         withCorrectInfo x =
           WithInfo x p p
+        withCorrectExpInfo x =
+          Expr <| withCorrectInfo x
         name =
           withCorrectInfo << pat_ <|
             PVar space1 "_IMPLICIT_MAIN" (withDummyInfo NoWidgetDecl)
         binding =
-          withCorrectInfo << exp_ <|
+          withCorrectExpInfo << exp_ <|
             EBase space1 (EString defaultQuoteChar "...")
         body =
-          withCorrectInfo << exp_ <|
+          withCorrectExpInfo << exp_ <|
             EVar space1 "main"
       in
-        withCorrectInfo << exp_ <|
+        withCorrectExpInfo << exp_ <|
           ELet newline2 Let (Declarations [0] [] [] [(False, [LetExp Nothing space1 name FunArgAsPats space1 binding])]) space1 body
   in
     succeed builder
@@ -2604,10 +2626,10 @@ mainExpression =
 program : Parser Exp
 program =
   succeed (\declsOpt mainExp ->
-    case declsOpt of
-      Nothing -> mainExp.val
-      Just decls ->
-        withInfo (exp_ <| ELet space0 Def decls.val space0 mainExp.val) decls.start mainExp.val.end
+    case (declsOpt, mainExp.val) of
+      (Nothing, _) -> mainExp.val
+      (Just decls, Expr mainExpAsWithInfoExp_) ->
+        Expr <| withInfo (exp_ <| ELet space0 Def decls.val space0 mainExp.val) decls.start mainExpAsWithInfoExp_.end
   )
   |= optional (trackInfo (declarations 0))
   |= trackInfo mainExpression
@@ -2725,8 +2747,9 @@ freshenPreserving idsToPreserve initK e =
     then getId (k+1)
     else k
   in
-  let assignIds exp k =
-    let e__ = exp.val.e__ in
+  let assignIds (Expr exp_) k =
+    let exp = Expr exp_ in
+    let e__ = unwrapExp exp in
     let (newE__, newK) =
        case e__ of
          EConst ws n (locId, frozen, ident) wd ->
@@ -2777,11 +2800,11 @@ freshenPreserving idsToPreserve initK e =
          _ ->
            (e__, k)
     in
-    if Set.member exp.val.eid idsToPreserve then
+    if Set.member (expEId exp) idsToPreserve then
        (replaceE__ exp newE__, newK)
     else
        let eid = getId newK in
-       (WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
+       (Expr <| WithInfo (Exp_ newE__ eid) exp_.start exp_.end, eid + 1)
   in
   mapFoldExp assignIds initK e
 
@@ -2830,12 +2853,12 @@ allIdsRaw exp =
   let pidsInPat pat   = flattenPatTree pat |> List.map (.val >> .pid) in
   let pidsInPats pats = pats |> List.concatMap pidsInPat in
   let flattened = flattenExpTree exp in
-  let eids = flattened |> List.map (.val >> .eid) in
+  let eids = flattened |> List.map expEId in
   let otherIds =
     flattened
     |> List.concatMap
         (\exp ->
-          case exp.val.e__ of
+          case (unwrapExp exp) of
             EConst ws n (locId, frozen, ident) wd -> [locId]
             ELet _ kind (Declarations _ _ _ decls) _ e2     ->
               decls |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ e1) -> pidsInPat p)
@@ -2876,9 +2899,10 @@ substStrOf = Dict.map (always toString) << substOf
 
 -- Record the primary identifier in the EConsts_ Locs, where appropriate.
 recordIdentifiers : (Pat, Exp) -> Exp
-recordIdentifiers (p,e) =
- let ret e__ = WithInfo (Exp_ e__ e.val.eid) e.start e.end in
- case (p.val.p__, e.val.e__) of
+recordIdentifiers (p, Expr e) =
+ let exp = Expr e in
+ let ret e__ = Expr <| WithInfo (Exp_ e__ <| expEId exp) e.start e.end in
+ case (p.val.p__, unwrapExp exp) of
 
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
   (PVar _ x _, EConst ws n (k, b, _) wd) -> ret <| EConst ws n (k, b, x) wd
@@ -2894,7 +2918,7 @@ recordIdentifiers (p,e) =
                   ret <| EList ws1 (Utils.listValuesMake es es_) ws2 me_ ws3
 
   (PAs _ p1 _ p2, _) ->
-    recordIdentifiers (p1,e)
+    recordIdentifiers (p1,exp)
 
   (_, EColonType ws1 e1 ws2 t ws3) ->
     ret <| EColonType ws1 (recordIdentifiers (p,e1)) ws2 t ws3
@@ -2905,8 +2929,8 @@ recordIdentifiers (p,e) =
 
 substPlusOf_ : SubstPlus -> Exp -> SubstPlus
 substPlusOf_ substPlus exp =
-  let accumulator e s =
-    case e.val.e__ of
+  let accumulator (Expr e) s =
+    case unwrapExp <| Expr e of
        EConst _ n (locId,_,_) _ ->
         case Dict.get locId s of
           Nothing ->

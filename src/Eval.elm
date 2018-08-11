@@ -140,7 +140,9 @@ eval_ syntax env bt e = Result.map Tuple.first <| eval syntax env bt e
 
 
 eval : Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Env)
-eval syntax env bt e =
+eval syntax env bt (Expr exp_) =
+  let e = Expr exp_ in
+  let e_start = exp_.start in
   let makeProvenance basedOn = Provenance env e basedOn in
 
   --let _ = Debug.log ("Evaluating " ++ (Syntax.unparser Syntax.Elm e)) () in
@@ -164,7 +166,7 @@ eval syntax env bt e =
     ()
   in
   let addParent v =
-    if Parser.isProgramEId e.val.eid then
+    if Parser.isProgramEId (expEId e) then
        case v.v_ of
          VConst _ _       -> v
          VBase _          -> v
@@ -190,12 +192,12 @@ eval syntax env bt e =
   let addProvenanceToRet basedOn ((vws), envOut) = (addProvenanceToValWidgets basedOn vws, envOut) in
   let addWidgets ws1 ((v1,ws2),env1)             = ((v1, ws1 ++ ws2), env1) in
   let bt_ =
-    if e.start.line >= 1
+    if e_start.line >= 1
     then e::bt
     else bt
   in
 
-  case e.val.e__ of
+  case (unwrapExp e) of
 
   EConst _ n loc wd ->
     let v_ = VConst Nothing (n, TrLoc loc) in
@@ -210,7 +212,7 @@ eval syntax env bt e =
         Ok ((retVal, [widget]), env)
 
   EBase _ v     -> Ok <| ret [] <| VBase (eBaseToVBase v)
-  EVar _ x      -> Result.map (\v -> retV [v] v) <| lookupVar syntax env (e::bt) x e.start
+  EVar _ x      -> Result.map (\v -> retV [v] v) <| lookupVar syntax env (e::bt) x e_start
   EFun _ ps e _ -> Ok <| ret [] <| VClosure [] ps e env
   EOp _ _ op es _ -> Result.map (\res -> addParentToRet (res, env)) <| evalOp syntax env e (e::bt) op es
 
@@ -222,8 +224,8 @@ eval syntax env bt e =
         let ws = List.concat wss in
         case m of
           Nothing   -> Ok <| retBoth vs (VList vs, ws)
-          Just rest ->
-            case eval_ syntax env bt_ rest of
+          Just (Expr rest) ->
+            case eval_ syntax env bt_ <| Expr rest of
               Err s -> Err s
               Ok (vRest, ws_) ->
                 case vRest.v_ of
@@ -233,7 +235,7 @@ eval syntax env bt e =
   ERecord _ mi (Declarations _ _ _ letexpsGroups as declarations) _ ->
     let resInitDictWidgets  = case mi of
       Nothing -> Ok <| (Nothing, Dict.empty, [])
-      Just (init, ws) -> case eval_ syntax env bt_ init of
+      Just (Expr init, ws) -> case eval_ syntax env bt_ <| Expr init of
          Ok (v, ws) -> case v.v_ of
            VRecord d -> Ok (Just v, d, ws)
            _ -> errorWithBacktrace syntax (e::bt) <| strPos init.start ++ " init expression not a record, but " ++ valToString v
@@ -246,12 +248,13 @@ eval syntax env bt e =
        -- Find the value of each newly added ident and adds it to records.
        let ids = letexpsGroups |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
        let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
-         \i -> (i, lookupVar syntax newEnv (e::bt) i e.start |> Utils.fromOk "Record variable"))
+         \i -> (i, lookupVar syntax newEnv (e::bt) i e_start |> Utils.fromOk "Record variable"))
              |> Set.toList |> Dict.fromList) d) in
        Ok <| retBoth (Maybe.withDefault [] <| Maybe.map (\x -> [x]) v) (kvs, ws)
 
-  ESelect ws0 e _ wsId id ->
-    case eval_ syntax env bt_ e of
+  ESelect ws0 (Expr exp1_) _ wsId id ->
+    let e1 = Expr exp1_ in
+    case eval_ syntax env bt_ e1 of
       Err s -> Err s
       Ok (d, ws) ->
         case d.v_ of
@@ -260,16 +263,16 @@ eval syntax env bt e =
               Just v -> Ok <| retBoth [d] (v.v_, ws)
               _ ->
                   let suggestions = Utils.stringSuggestions (Dict.keys dict) id in
-                  errorWithBacktrace syntax (e::bt) <| strPos wsId.end ++ " Key " ++ id ++ " not found." ++ (case suggestions of
+                  errorWithBacktrace syntax (e1::bt) <| strPos wsId.end ++ " Key " ++ id ++ " not found." ++ (case suggestions of
                     [] -> ""
                     l -> " Did you mean '" ++ String.join "', or '" l ++ "'?"
                   )
-          _ -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " select expression applied to non-dict "
+          _ -> errorWithBacktrace syntax (e1::bt) <| strPos exp1_.start ++ " select expression applied to non-dict "
 
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
   -- But that would suggest that we *might* avoid doing so for EApp as well, which is more dubious. We'll see.
-  EIf _ e1 _ e2 _ e3 _ ->
-    case eval_ syntax env bt e1 of
+  EIf _ (Expr e1) _ e2 _ e3 _ ->
+    case eval_ syntax env bt <| Expr e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
         case v1.v_ of
@@ -277,8 +280,8 @@ eval syntax env bt e =
           VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> addProvenanceToRet [v] <| addWidgets ws1 result) <| eval syntax env bt e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           _                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
-  ECase _ e1 bs _ ->
-    case eval_ syntax env (e::bt) e1 of
+  ECase _ (Expr e1) bs _ ->
+    case eval_ syntax env (e::bt) <| Expr e1 of
       Err s -> Err s
       Ok (v1,ws1) ->
         case evalBranches syntax env (e::bt) v1 bs of
@@ -287,10 +290,11 @@ eval syntax env bt e =
           Err s              -> Err s
           _                  -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement, cannot match " ++ valToString v1
 
-  EApp _ e1 [] _ _ ->
+  EApp _ (Expr e1) [] _ _ ->
     errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " application with no arguments"
 
-  EApp sp0 e1 es appStyle sp1 ->
+  EApp sp0 (Expr exp1_) es appStyle sp1 ->
+    let e1 = Expr exp1_ in
     if appStyle == InfixApp && eVarUnapply e1 == Just "++" then
         case es of
           [eLeft, eRight] -> -- We rewrite ++ to a call to "append" or "plus" depending on the arguments
@@ -324,7 +328,7 @@ eval syntax env bt e =
               argValsAndFuncRes
               |> Result.map (\(argVals, (fRetVal, fRetWs)) ->
                 let perhapsCallWidget =
-                  if Parser.isProgramEId e.val.eid && Parser.isProgramEId funcBody.val.eid
+                  if Parser.isProgramEId (expEId e) && Parser.isProgramEId (expEId funcBody)
                   then [WCall v1 argVals fRetVal fRetWs]
                   else []
                 in
@@ -355,7 +359,7 @@ eval syntax env bt e =
                         Err s -> errorWithBacktrace syntax bt_ s
                         Ok vw -> Ok (vw, env)
             _ ->
-              errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
+              errorWithBacktrace syntax (e::bt) <| strPos exp1_.start ++ " not a function"
        in evalVApp v1 es
 
   ELet wsLet lk declarations _ e2 ->
@@ -383,7 +387,7 @@ eval syntax env bt e =
 
   EParens _ e1 _ _      -> eval syntax env bt e1
   EHole _ (ESnapHole val) -> Ok <| retV [val] val
-  EHole _ EEmptyHole    -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
+  EHole _ EEmptyHole    -> errorWithBacktrace syntax (e::bt) <| strPos e_start ++ " empty hole!"
 
 
 evalOp : Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> Result String (Val, Widgets)
@@ -624,7 +628,7 @@ evalDeclarations syntax env bt (Declarations  _ _ _ letexpsGroups) continuation 
                                  \mbEnv (name, value) -> cons (name, value) mbEnv
             of
              Just newEnv -> aux tail (widgets ++ newWidgets) newEnv
-             _         -> errorWithBacktrace syntax bt <| (bt |> Utils.head "bt.first" |> .start |> strPos) ++
+             _         -> errorWithBacktrace syntax bt <| (bt |> Utils.head "bt.first" |> (\(Expr exp) -> exp.start) |> strPos) ++
                "match error in deconstructing the value of " ++ (pValuesWidgets |> List.map (\(name, (value, _)) ->
                  (Syntax.patternUnparser Syntax.Elm name) ++ " with " ++ valToString value
                ) |> String.join "\n")
@@ -674,7 +678,8 @@ evalDelta syntax bt op is =
 -- applications: cleaner provenance (one record for entire app).
 --
 -- Returns: Result String (argVals, (functionResult, widgets))
-apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
+apply syntax env bt bt_ (Expr exp_) psLeft esLeft funcBody closureEnv =
+  let e = Expr exp_ in
   let recurse = apply syntax env bt bt_ e in
   case (psLeft, esLeft) of
     ([], []) ->
@@ -691,7 +696,7 @@ apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
                 in
                 recurse ps esLeft funcBody (newEnv ++ closureEnv) |> Result.map (\(argVals, (v2, ws2)) -> (argVals, (v2, fRetWs1 ++ ws2)))
               _ ->
-                errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " too many arguments given to function"
+                errorWithBacktrace syntax (e::bt) <| strPos exp_.start ++ " too many arguments given to function"
           )
 
     (psLeft, []) ->
@@ -709,7 +714,7 @@ apply syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
         Ok (argVal, argWs) ->
           case cons (p, argVal) (Just closureEnv) of
             Just closureEnv -> recurse psLeft esLeft funcBody closureEnv |> Result.map (\(laterArgs, (v2, ws2)) -> (argVal::laterArgs, (v2, argWs ++ ws2)))
-            Nothing         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " bad arguments to function, cannot match " ++ Syntax.patternUnparser Syntax.Elm p ++ " with " ++ Syntax.unparser Syntax.Elm e ++ "(evaluates to " ++ valToString argVal ++ ")"
+            Nothing         -> errorWithBacktrace syntax (e::bt) <| strPos exp_.start ++ " bad arguments to function, cannot match " ++ Syntax.patternUnparser Syntax.Elm p ++ " with " ++ Syntax.unparser Syntax.Elm e ++ "(evaluates to " ++ valToString argVal ++ ")"
 
 
 eBaseToVBase eBaseVal =
