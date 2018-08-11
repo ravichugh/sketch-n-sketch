@@ -9,7 +9,7 @@ icons =
     , ("text", text)
     -- , ("line", line)
     -- , ("rect", rect)
-    , ("ellipse", ellipse)
+    -- , ("ellipse", ellipse)
     , ("polygon", polygon)
     , ("path", path)
     , ("lambda", lambda)

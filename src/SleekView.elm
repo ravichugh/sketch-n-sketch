@@ -1659,9 +1659,9 @@ toolPanel model =
       ( [ toolButton model Cursor
         , toolButton model PointOrOffset
         , toolButton model Text
-        , toolButton model (Line model.toolMode)
-        , toolButton model (Rect model.toolMode)
-        , toolButton model (Oval model.toolMode)
+        -- , toolButton model (Line model.toolMode)
+        -- , toolButton model (Rect model.toolMode)
+        -- , toolButton model (Oval model.toolMode)
         , toolButton model (Poly model.toolMode)
         , toolButton model (Path model.toolMode)
         ] ++

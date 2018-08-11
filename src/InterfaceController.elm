@@ -612,8 +612,8 @@ onMouseUp old =
       let resetMouseMode model = { model | mouseMode = MouseNothing } in
       case (old.tool, points, old.keysDown == [Keys.keyShift]) of
 
-        (Line _,     TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt1 pt2
-        (HelperLine, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt1 pt2
+        -- (Line _,     TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt1 pt2
+        -- (HelperLine, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLine old pt1 pt2
 
         -- (Rect Raw,      TwoPoints pt1 pt2, False) -> upstateRun <| resetMouseMode <| Draw.addRawRect old pt1 pt2
         -- (Rect Raw,      TwoPoints pt1 pt2, True)  -> upstateRun <| resetMouseMode <| Draw.addRawSquare old pt1 pt2

@@ -65,6 +65,13 @@ isPointType tipe =
     _ -> False
 
 
+isPointListType : Type -> Bool
+isPointListType tipe =
+  maybeListElementsType tipe
+  |> Maybe.map isPointType
+  |> Maybe.withDefault False
+
+
 isNumType : Type -> Bool
 isNumType tipe =
   case tipe.val of

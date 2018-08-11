@@ -103,11 +103,14 @@ maybeFillInArgPrimitive argType =
       TUnion _ (firstType::_) _      -> maybeFillInArgPrimitive firstType
       TVar _ _                       -> Just <| eTuple []
       TWildcard _                    -> Just <| eTuple []
+      TNamed _ "Ratio"               -> Just <| eConstDummyLoc 0.62 -- Golden Ratio
       TNamed _ "Color"               -> Just <| eConstDummyLoc 0
       TNamed _ "StrokeWidth"         -> Just <| eConstDummyLoc 5
       TNamed _ "Point"               -> Just <| eTuple [eInt0 0, eInt 0]
       TNamed _ "Width"               -> Just <| eConstDummyLoc 162 -- Golden ratio
       TNamed _ "Height"              -> Just <| eConstDummyLoc 100
+      TNamed _ "HalfWidth"           -> Just <| eConstDummyLoc 81 -- Golden ratio
+      TNamed _ "HalfHeight"          -> Just <| eConstDummyLoc 50
       TNamed _ "Count"               -> Just <| withDummyExpInfo <| EConst space1 3 dummyLoc (rangeSlider IntSlider 1 10)
       TNamed _ "Radians"             -> Just <| withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider NumSlider -3.14 3.14)
       TNamed _ "Degrees"             -> Just <| withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider IntSlider -180 180)

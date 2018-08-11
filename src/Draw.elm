@@ -11,7 +11,7 @@ module Draw exposing
   , svgXYDot
   -- , newFunctionCallExp
   , boundingBoxOfPoints_
-  , addLine
+  -- , addLine
   -- , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
   -- , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
   , addPath , addPolygon
@@ -299,8 +299,8 @@ drawNewFunction fName model pt1 pt2 =
   newFunctionCallExp fName model pt1 pt2
   |> Maybe.andThen
     (\(callExp, funcExp, returnType) ->
-      if Types.isPointType returnType then
-        let maybePoint =
+      if Types.isPointType returnType || Types.isPointListType returnType then
+        let maybePoints =
           let pseudoProgram =
             model.inputExp
             |> replaceExpNode
@@ -310,15 +310,14 @@ drawNewFunction fName model pt1 pt2 =
           Eval.doEval Syntax.Elm Eval.initEnv pseudoProgram
           |> Utils.perhapsLogError "drawNewFunction error"
           |> Result.toMaybe
-          |> Maybe.andThen (\((val, _), _) -> valToMaybePoint val)
+          -- Handle single point or list of points
+          |> Maybe.andThen (\((val, _), _) -> (valToMaybePoint val |> Maybe.map List.singleton) |> Utils.orMaybe (vListToMaybeVals val |> Maybe.andThen (List.map valToMaybePoint >> Utils.projJusts)) )
         in
-        case maybePoint of
-          Just (x, y) -> Just <| svgXYDot (x, y) pointZoneStyles.fill.shown True []
-          _           -> Nothing
+        maybePoints
+        |> Maybe.map (List.map (\(x,y) -> svgXYDot (x, y) pointZoneStyles.fill.shown True []))
       else
-        LangSvg.evalToSvg Syntax.Elm Eval.initEnv callExp |> Result.toMaybe
+        LangSvg.evalToSvg Syntax.Elm Eval.initEnv callExp |> Result.toMaybe |> Maybe.map List.singleton
     )
-  |> Maybe.map List.singleton
   |> Maybe.withDefault []
   |> (flip (++) inputPtDots)
 
@@ -357,34 +356,34 @@ randomColor1WithSlider model =
 
 --------------------------------------------------------------------------------
 
--- when line is snapped, not enforcing the angle in code
-addLine : Model -> PointWithSnap -> PointWithSnap -> Model
-addLine old pt1 pt2 =
-  let ((x1Exp, y1Exp), (x2Exp, y2Exp)) =
-    case pt2 of
-      ((_, NoSnap), (_, NoSnap)) -> (makeIntPairOrSnap pt1, makeIntPair (snapLine old.keysDown pt1 pt2))
-      _                          -> (makeIntPairOrSnap pt1, makeIntPairOrSnap pt2)
-  in
-  let color =
-    if old.tool == HelperLine
-      then eStr "aqua"
-      else randomColor old
-  in
-  let (f, args) =
-    maybeGhost (old.tool == HelperLine)
-       (eVar0 "line")
-       (List.map eVar ["color","width","x1","y1","x2","y2"])
-  in
-  let lineExp =
-    makeCallWithLocals
-        [ makeLet ["x1","y1","x2","y2"] [removePrecedingWhitespace x1Exp, y1Exp, x2Exp, y2Exp]
-        , makeLet ["color", "width"]
-                  [ color , eConst 5 dummyLoc ]
-        ]
-        f
-        args
-  in
-  addShapeToModel old "line" lineExp
+-- -- when line is snapped, not enforcing the angle in code
+-- addLine : Model -> PointWithSnap -> PointWithSnap -> Model
+-- addLine old pt1 pt2 =
+--   let ((x1Exp, y1Exp), (x2Exp, y2Exp)) =
+--     case pt2 of
+--       ((_, NoSnap), (_, NoSnap)) -> (makeIntPairOrSnap pt1, makeIntPair (snapLine old.keysDown pt1 pt2))
+--       _                          -> (makeIntPairOrSnap pt1, makeIntPairOrSnap pt2)
+--   in
+--   let color =
+--     if old.tool == HelperLine
+--       then eStr "aqua"
+--       else randomColor old
+--   in
+--   let (f, args) =
+--     maybeGhost (old.tool == HelperLine)
+--        (eVar0 "line")
+--        (List.map eVar ["color","width","x1","y1","x2","y2"])
+--   in
+--   let lineExp =
+--     makeCallWithLocals
+--         [ makeLet ["x1","y1","x2","y2"] [removePrecedingWhitespace x1Exp, y1Exp, x2Exp, y2Exp]
+--         , makeLet ["color", "width"]
+--                   [ color , eConst 5 dummyLoc ]
+--         ]
+--         f
+--         args
+--   in
+--   addShapeToModel old "line" lineExp
 
 
 {- using variables x1/x2/y1/y2 instead of left/top/right/bot:
@@ -1049,7 +1048,7 @@ addFunction : Ident -> Model -> PointWithSnap -> PointWithSnap -> Model
 addFunction fName old pt1 pt2 =
   case newFunctionCallExp fName old pt1 pt2 of
     Just (callExp, _, returnType) ->
-      if Types.isPointType returnType then
+      if Types.isPointType returnType || Types.isPointListType returnType then
         addToEndOfDrawingContext old fName callExp
       else
         addShapeToModel old fName callExp
@@ -1079,24 +1078,29 @@ newFunctionCallExp fName model pt1 pt2 =
             let maxId = FastParser.maxId model.inputExp in
             let x1y1Exp = makePointExpFromPointWithSnap pt1 |> FastParser.freshenFrom (maxId + 1) in
             let maybeX1Y1Vals = Eval.simpleEvalToMaybeVal x1y1Exp |> Maybe.andThen valToMaybeXYVals in
+            let ((x1Int, _), (y1Int, _)) = pt1 in
+            let ((x2Int, _), (y2Int, _)) = pt2 in
+            let majorAxis = if abs (x2Int - x1Int) >= abs (y2Int - y1Int) then X else Y in -- For circle drawing which is the "Radius"?
             argTypes
             |> Utils.foldl
                 (False, False, False, [])
                 (\argType (pointUsed, widthUsed, heightUsed, argMaybeExps) ->
-                  case ( pointUsed  , Types.isPointType argType
-                       , widthUsed  , Types.typeToMaybeAliasIdent argType == Just "Width"
-                       , heightUsed , Types.typeToMaybeAliasIdent argType == Just "Height"
+                  case ( pointUsed               , Types.isPointType argType
+                       , widthUsed               , Types.typeToMaybeAliasIdent argType |> flip List.member [Just "Width", Just "HalfWidth"]
+                       , heightUsed              , Types.typeToMaybeAliasIdent argType |> flip List.member [Just "Height", Just "HalfHeight"]
+                       , heightUsed || widthUsed , Types.typeToMaybeAliasIdent argType == Just "Radius"
                        ) of
-                    (False, True, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just x1y1Exp])
-                    (_, _, False, True, _, _) -> (pointUsed, True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals X pt2 pt1)])
-                    (_, _, _, _, False, True) -> (pointUsed, widthUsed, True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals Y pt2 pt1)])
-                    _                         -> (pointUsed, widthUsed, heightUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
+                    (False, True, _, _, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just x1y1Exp])
+                    (_, _, False, True, _, _, _, _) -> (pointUsed, True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals X pt2 pt1)])
+                    (_, _, _, _, False, True, _, _) -> (pointUsed, widthUsed, True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals Y pt2 pt1)])
+                    (_, _, _, _, _, _, False, True) -> (pointUsed, True,      True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals majorAxis pt2 pt1)])
+                    _                               -> (pointUsed, widthUsed, heightUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
                 )
           in
           let perhapsPointAnnotation = if Types.isPointType returnType then identity else identity in -- eAsPoint
           Utils.orMaybe
               (Utils.projJusts argMaybeExpsTwoPoints        |> Utils.filterMaybe (always (ptsUnused == [])))
-              (Utils.projJusts argMaybeExpsPointWidthHeight |> Utils.filterMaybe (always (ptUsed && widthUsed && heightUsed)))
+              (Utils.projJusts argMaybeExpsPointWidthHeight |> Utils.filterMaybe (always (ptUsed && (widthUsed || heightUsed))))
           |> Maybe.map (\argExps -> (perhapsPointAnnotation (eCall fName argExps), funcExp, returnType))
 
         Nothing -> Debug.crash <| "Draw.newFunctionCallExp bad function type: " ++ toString funcType
@@ -1377,8 +1381,11 @@ isDrawableType tipe =
       Utils.count Types.isPointType inputTypes >= 2 ||
       (
         Utils.count Types.isPointType inputTypes >= 1 &&
-        Utils.count (Types.typeToMaybeAliasIdent >> (==) (Just "Width"))  inputTypes >= 1 &&
-        Utils.count (Types.typeToMaybeAliasIdent >> (==) (Just "Height")) inputTypes >= 1
+        (
+          Utils.count (Types.typeToMaybeAliasIdent >> flip List.member [Just "Width",  Just "HalfWidth"])  inputTypes >= 1 ||
+          Utils.count (Types.typeToMaybeAliasIdent >> flip List.member [Just "Height", Just "HalfHeight"]) inputTypes >= 1 ||
+          Utils.count (Types.typeToMaybeAliasIdent >> (==) (Just "Radius")) inputTypes >= 1
+        )
       )
 
     _ -> False

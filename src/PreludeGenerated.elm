@@ -361,6 +361,7 @@ prelude =
 
 ; === SVG Types ===
 
+(def Ratio Num)
 (def Point [Num Num])
 (def Width Num)
 (def Height Num)
@@ -567,7 +568,7 @@ prelude =
 
 ;; argument order - color, x, y, x-radius, y-radius
 ;; Just as circle, except radius is separated into x and y parameters
-(typ ellipse (-> Color Point Radius Radius Ellipse))
+(typ ellipse (-> Color Point HalfWidth HalfHeight Ellipse))
 (def ellipse (\\(fill [x y] rx ry)
   ['ellipse'
      [ ['cx' x] ['cy' y] ['rx' rx] ['ry' ry] ['fill' fill] ]
@@ -925,13 +926,13 @@ prelude =
     shapes])))
 
 ;; As rect, except x & y represent the center of the defined rectangle
-(typ rectByCenter (-> Color Point Width Height Rect))
-(def rectByCenter (\\(fill [cx cy] w h)
-  (rect fill (- cx (/ w 2)) (- cy (/ h 2)) w h)))
+(typ rectByCenter (-> Color Point HalfWidth HalfHeight Rect))
+(def rectByCenter (\\(fill [cx cy] halfW halfH)
+  (rect fill [(- cx halfW) (- cy halfH)] (* 2 halfW) (* 2 halfH))))
 
 ;; As square, except x & y represent the center of the defined rectangle
-(typ squareByCenter (-> Color Point Width Rect))
-(def squareByCenter (\\(fill center w) (rectByCenter fill center w w)))
+(typ squareByCenter (-> Color Point HalfWidth Rect))
+(def squareByCenter (\\(fill center halfWidth) (rectByCenter fill center halfWidth halfWidth)))
 
 ;; Some shapes with given default values for fill, stroke, and stroke width
 ; TODO remove these
@@ -1635,7 +1636,7 @@ prelude =
 ))
 
 ; Point on line segment, at `ratio` location.
-(typ onLine (-> Point Point Num Point))
+(typ onLine (-> Point Point Ratio Point))
 (def onLine (\\(pt1 pt2 ratio)
   (let vec (vec2DMinus pt2 pt1)
   (vec2DPlus pt1 (vec2DScalarMult ratio vec)))))
