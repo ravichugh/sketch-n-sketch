@@ -78,6 +78,7 @@ type Op_
   | DictEmpty
   -- unary ops
   | Cos | Sin | ArcCos | ArcSin
+  | Abs
   | Floor | Ceil | Round
   | ToStr
   | OptNumToString -- Keeps every values as they are, convert numbers to their string representation
@@ -112,6 +113,7 @@ maybeEvalMathOp op_ operands =
     (Sin,     [n])   -> Just <| sin n
     (ArcCos,  [n])   -> Just <| acos n
     (ArcSin,  [n])   -> Just <| asin n
+    (Abs,     [n])   -> Just <| abs n
     (Floor,   [n])   -> Just <| toFloat <| floor n
     (Ceil,    [n])   -> Just <| toFloat <| ceiling n
     (Round,   [n])   -> Just <| toFloat <| round n

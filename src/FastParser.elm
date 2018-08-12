@@ -288,6 +288,7 @@ keywords =
     , "sin"
     , "arccos"
     , "arcsin"
+    , "abs"
     , "floor"
     , "ceiling"
     , "round"
@@ -738,6 +739,8 @@ operator =
                 |. keywordWithSpace "arccos"
             , succeed ArcSin
                 |. keywordWithSpace "arcsin"
+            , succeed Abs
+                |. keywordWithSpace "abs"
             , succeed Floor
                 |. keywordWithSpace "floor"
             , succeed Ceil

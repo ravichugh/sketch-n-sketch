@@ -2428,6 +2428,7 @@ numericLetBoundIdentifiers program =
           Sin            -> True
           ArcCos         -> True
           ArcSin         -> True
+          Abs            -> True
           Floor          -> True
           Ceil           -> True
           Round          -> True

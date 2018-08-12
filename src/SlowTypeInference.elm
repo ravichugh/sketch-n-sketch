@@ -1590,6 +1590,7 @@ gatherConstraints exp =
         (ArcCos,     [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (ArcSin,     [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (ArcTan2,    [eid1, eid2]) -> eidIs TCNum  ++ [EIdIsType eid1 TCNum, EIdIsType eid2 TCNum]
+        (Abs,        [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (Floor,      [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (Ceil,       [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]
         (Round,      [eid])        -> eidIs TCNum  ++ [EIdIsType eid TCNum]

@@ -113,6 +113,7 @@ Extra parentheses are not permitted.
 ```
   op0  ::=  pi
   op1  ::=  cos | sin | arccos | arcsin
+        |   abs
         |   floor | ceiling | round
         |   toString
         |   sqrt
@@ -306,7 +307,7 @@ Make sure to run these commands with administrator rights.
   `git fetch brian`  
   `git checkout faster_exhaustiveness_checker_0.18`  
 
-- Comment out line 188 in the file `installers\BuildFromSource.hs` which should look like 
+- Comment out line 188 in the file `installers\BuildFromSource.hs` which should look like
   `--      mapM_ (uncurry (makeRepo root)) repos`
 - Re-run the install script again in `installers\`  
   `runhaskell BuildFromSource.hs 0.18`

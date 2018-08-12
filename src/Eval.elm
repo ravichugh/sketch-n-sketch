@@ -511,6 +511,7 @@ evalOp maybeRetEnvEId abortPred syntax env e bt opWithInfo es =
           Sin        -> unaryMathOp op args
           ArcCos     -> unaryMathOp op args
           ArcSin     -> unaryMathOp op args
+          Abs        -> unaryMathOp op args
           Floor      -> unaryMathOp op args
           Ceil       -> unaryMathOp op args
           Round      -> unaryMathOp op args

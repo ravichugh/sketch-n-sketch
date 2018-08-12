@@ -279,10 +279,6 @@
 (typ neg (-> Num Num))
 (def neg (\x (- 0 x)))
 
-;; Absolute value
-(typ abs (-> Num Num))
-(def abs (\x (if (< x 0) (neg x) x)))
-
 ;; Sign function; -1, 0, or 1 based on sign of given number
 (typ sgn (-> Num Num))
 (def sgn (\x (if (= 0 x) 0 (/ x (abs x)))))

@@ -5,7 +5,7 @@ var oop = require("../lib/oop");
 var TextHighlightRules = require("./text_highlight_rules").TextHighlightRules;
 
 var LittleHighlightRules = function() {
-    var builtinFunctions = "if|pi|cos|sin|arccos|arcsin|floor|ceiling|round|empty|insert|get|remove|always|compose|fst|len|map|map2|foldl|foldr|append|concat|concatMap|cartProd|zip|nil|cons|snoc|hd|tl|reverse|range|list0N|list1N|repeat|intermingle|mult|minus|div|neg|not|implies|clamp|joinStrings|concatStrings|spaces|delimit|parens|circle|ring|ellipse|rect|square|line|polygon|polyline|path|text|addAttr|rectCenter|square|squareCenter|circle_|ellipse_|rect_|square_|line_|polygon_|path_|updateCanvas|twoPi|halfPi|nPointsOnUnitCircle|nPointsOnCircle|nStar|zones|hideZonesTail|basicZonesTail|hSlider_|hSlider|button_|button|rotate";
+    var builtinFunctions = "if|pi|cos|sin|arccos|arcsin|abs|floor|ceiling|round|empty|insert|get|remove|always|compose|fst|len|map|map2|foldl|foldr|append|concat|concatMap|cartProd|zip|nil|cons|snoc|hd|tl|reverse|range|list0N|list1N|repeat|intermingle|mult|minus|div|neg|not|implies|clamp|joinStrings|concatStrings|spaces|delimit|parens|circle|ring|ellipse|rect|square|line|polygon|polyline|path|text|addAttr|rectCenter|square|squareCenter|circle_|ellipse_|rect_|square_|line_|polygon_|path_|updateCanvas|twoPi|halfPi|nPointsOnUnitCircle|nPointsOnCircle|nStar|zones|hideZonesTail|basicZonesTail|hSlider_|hSlider|button_|button|rotate";
 
     // regexp must not have capturing parentheses. Use (?:) instead.
     // regexps are ordered -> the first match is used

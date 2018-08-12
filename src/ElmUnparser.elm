@@ -150,6 +150,8 @@ unparseOp op =
       "arccos"
     ArcSin ->
       "arcsin"
+    Abs ->
+      "abs"
     Floor ->
       "floor"
     Ceil ->

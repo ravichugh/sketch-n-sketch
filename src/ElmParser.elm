@@ -997,6 +997,8 @@ opFromIdentifier identifier =
       Just ArcCos
     "arcsin" ->
       Just ArcSin
+    "abs" ->
+      Just Abs
     "floor" ->
       Just Floor
     "ceiling" ->

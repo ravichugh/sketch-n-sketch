@@ -189,6 +189,7 @@ mathExpToREDUCE mathExp =
         (Sin,     [n])   -> "sin(" ++ mathExpToREDUCE n ++ ")"
         (ArcCos,  [n])   -> "acos(" ++ mathExpToREDUCE n ++ ")"
         (ArcSin,  [n])   -> "asin(" ++ mathExpToREDUCE n ++ ")"
+        (Abs,     [n])   -> "abs(" ++ mathExpToREDUCE n ++ ")"
         (Floor,   [n])   -> "floor(" ++ mathExpToREDUCE n ++ ")"
         (Ceil,    [n])   -> "ceiling(" ++ mathExpToREDUCE n ++ ")"
         (Round,   [n])   -> "round(" ++ mathExpToREDUCE n ++ ")"
@@ -396,6 +397,7 @@ parseEqnFunction =
         , parseUnaryFunction  "sin"     Sin
         , parseUnaryFunction  "acos"    ArcCos
         , parseUnaryFunction  "asin"    ArcSin
+        , parseUnaryFunction  "abs"     Abs
         , parseUnaryFunction  "floor"   Floor
         , parseUnaryFunction  "ceiling" Ceil
         , parseUnaryFunction  "round"   Round

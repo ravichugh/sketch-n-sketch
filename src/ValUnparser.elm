@@ -61,6 +61,7 @@ strOp op = case op of
   ArcCos        -> "arccos"
   ArcSin        -> "arcsin"
   ArcTan2       -> "arctan2"
+  Abs           -> "abs"
   Floor         -> "floor"
   Ceil          -> "ceiling"
   Round         -> "round"

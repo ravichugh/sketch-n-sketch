@@ -431,6 +431,7 @@ opType op =
       ArcCos         -> " (-> Num Num)"
       ArcSin         -> " (-> Num Num)"
       ArcTan2        -> " (-> Num Num Num)"
+      Abs            -> " (-> Num Num)"
       Floor          -> " (-> Num Num)"
       Ceil           -> " (-> Num Num)"
       Round          -> " (-> Num Num)"

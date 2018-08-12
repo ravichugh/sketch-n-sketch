@@ -132,6 +132,7 @@ derivative withRespectToVarId mathExp =
         (Sin,     [g])   -> g |> chainRule (\x -> MathOp Cos [x]) -- (sin(x))' = cos(x)
         (ArcCos,  [g])   -> g |> chainRule (\x -> MathOp Div [MathNum -1, MathOp Sqrt [MathOp Minus [MathNum 1, MathOp Mult [x, x]]]]) -- (acos(x))' = - 1/sqrt(1-x^2)
         (ArcSin,  [g])   -> g |> chainRule (\x -> MathOp Div [MathNum  1, MathOp Sqrt [MathOp Minus [MathNum 1, MathOp Mult [x, x]]]]) -- (asin(x))' =   1/sqrt(1-x^2)
+        (Abs,     [g])   -> g |> chainRule (\x -> MathOp Div [x, MathOp Abs [x]]) -- (abs(x))' = x/abs(x) = sgn(x) -- Discontinuous at 0
         (Floor,   [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0
         (Ceil,    [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0
         (Round,   [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0.5
