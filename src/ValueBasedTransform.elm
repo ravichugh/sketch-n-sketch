@@ -1393,8 +1393,8 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                             -- |> List.filter (\eid -> eid > 0 || let _ = Utils.log "ValueBasedTransform.repeatUsingFunction eid <= 0 in new abstraction!!!" in False)
                             |> Set.fromList
                         in
-                        [ eCall "map"       [eVar itemFuncUniqueName, repeatFuncCall]
-                        , eCall "concatMap" [eVar itemFuncUniqueName, repeatFuncCall]
+                        [ eCall "map"       [eVar itemFuncUniqueName, repeatFuncCall] |> replacePrecedingWhitespace "\n" |> indent "  "
+                        , eCall "concatMap" [eVar itemFuncUniqueName, repeatFuncCall] |> replacePrecedingWhitespace "\n" |> indent "  "
                         ] |> List.filterMap
                             (\repeatGroupCall ->
                               -- Step 5: Replace the shape in the shape list with the shapes produced by the map call.
