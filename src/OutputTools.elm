@@ -9,9 +9,16 @@ import Dict exposing (Dict)
 
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
+import Lang
+import LangTools
 import LangSvg exposing (NodeId)
 import FindRepeatTools
+import Provenance
 import ShapeWidgets exposing (SelectableFeature(..), ShapeFeature(..), DistanceFeature(..))
+import ValWidgets
+import Syntax
+import Utils
+
 
 --==============================================================================
 --= Data Types
@@ -411,12 +418,40 @@ functionBasedRepeatTools model =
   |> List.map
       (\(funcName, _, _) ->
         (\selections ->
-          { name = "Repeat Using " ++ funcName
+          let name = "Repeat With Function " ++ funcName in
+          { name = name
           , shortcut = Nothing
           , kind = Multi
-          , func = Just (Controller.msgRepeatUsingFunction funcName)
+          , func = Just (Controller.msgRepeatUsingFunction funcName name)
           , reqs = [ atLeastOneSelection selections ]
           , id = funcName
+          }
+        )
+      )
+
+
+pointListBasedRepeatTools : Model -> List (Selections a -> OutputTool)
+pointListBasedRepeatTools model =
+  model.widgets
+  |> List.filterMap ValWidgets.widgetToMaybeVal
+  |> List.filter (Lang.vListToMaybePointVals >> Maybe.withDefault [] >> (/=) []) -- Empty lists pass vListToMaybePointVals but we want them excluded.
+  |> Utils.dedupBy (Provenance.valToDistalSameVal) -- Avoid showing same list multiple times.
+  |> Utils.mapi1
+      (\(i, pointListVal) ->
+        (\selections ->
+          let name =
+            -- Name is also used as synthesisResultsDict key, so include an index i to avoid collisions.
+            "Repeat Over List " ++ toString i ++ ": " ++
+                case LangTools.findLetAndIdentBindingExpLoose (Lang.valEId pointListVal) model.inputExp of
+                  Just (_, ident) -> ident
+                  Nothing         -> Utils.squish (Syntax.unparser Syntax.Elm (Lang.valExp pointListVal))
+          in
+          { name = name
+          , shortcut = Nothing
+          , kind = Multi
+          , func = Just (Controller.msgRepeatUsingPointList pointListVal name)
+          , reqs = [ atLeastOneSelection selections ]
+          , id = "repeatOverList" ++ toString i
           }
         )
       )
@@ -507,6 +542,7 @@ tools model =
       , groupTool
       , abstractTool
       ]
+    , pointListBasedRepeatTools model
     , functionBasedRepeatTools model
     , [ repeatRightTool
       , repeatToTool

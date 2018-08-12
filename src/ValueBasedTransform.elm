@@ -1163,7 +1163,85 @@ buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputE
 
 
 repeatUsingFunction : Exp -> SlowTypeInference.TC2Graph -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
-repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
+repeatUsingFunction program typeGraph editingContext maybeEnv pointsFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
+  let maybeMakePointsExpAndRepeatingOverWhatDesc argExps shouldReverseXY =
+    let
+      ptArgExp =
+        case argExps of
+          [argExp]           -> argExp
+          [argExp1, argExp2] -> eTuple <| setExpListWhitespace "" " " (if not shouldReverseXY then [argExp1, argExp2] else [argExp2, argExp1])
+          _                  -> Debug.crash <| "ValueBasedTransform.repeatUsingFunction: ptArgExp should only have one or two argExps but got " ++ toString argExps
+
+      (_, pointsFuncExp, pointsFuncType) =
+        FindRepeatTools.getRepetitionFunctions program typeGraph editingContext -- Returns list of (fName, fExp, typeSig), fExp is an EFun
+        |> Utils.findFirst (Utils.fst3 >> (==) pointsFuncName)
+        |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction FindRepeatTools.getRepetitionFunctions model |> Utils.findFirst (Utils.fst3 >> (==) pointsFuncName)"
+
+      (pointsFuncArgTypes, pointsFuncReturnType) =
+        pointsFuncType
+        |> Types.typeToMaybeArgTypesAndReturnType
+        |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction pointsFuncType |> Types.typeToMaybeArgTypesAndReturnType"
+
+
+      (isPointUsed, pointsCallArgMaybeExps) =
+        pointsFuncArgTypes
+        |> Utils.foldl
+            (False, [])
+            (\argType (isPointUsed, argMaybeExps) ->
+              case (isPointUsed, Types.isPointType argType) of
+                (False, True) -> (True,        argMaybeExps ++ [Just <| replacePrecedingWhitespace " " ptArgExp])
+                _             -> (isPointUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
+            )
+
+      _ = isPointUsed |> Utils.assert ("Expected pointsFuncArgTypes to have a point type but was " ++ toString pointsFuncArgTypes)
+    in
+    case Utils.projJusts pointsCallArgMaybeExps of
+      Just pointsCallArgExps ->
+        Just (eCall pointsFuncName pointsCallArgExps, "using " ++ pointsFuncName)
+      Nothing ->
+        let _ = Debug.log ("Could not generate all arguments for " ++ pointsFuncName) (pointsFuncArgTypes, pointsCallArgMaybeExps) in
+        Nothing
+  in
+  repeat_
+    program
+    editingContext
+    maybeEnv
+    maybeMakePointsExpAndRepeatingOverWhatDesc
+    selectedFeatures
+    selectedShapes
+    selectedBlobs
+    slideNumber
+    movieNumber
+    movieTime
+    solutionsCache
+    syncOptions
+
+
+repeatUsingPointList : Exp -> Maybe (EId, a) -> Maybe Env -> Val -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeatUsingPointList program editingContext maybeEnv pointListVal selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
+  let maybeMakePointsExpAndRepeatingOverWhatDesc argExps shouldReverseXY =
+    Just <|
+      ( eHoleVal pointListVal -- There is a round of hole resolution after this exp is inserted.
+      , "over " ++ Utils.squish (Syntax.unparser Syntax.Elm (Lang.valExp pointListVal))
+      )
+  in
+  repeat_
+    program
+    editingContext
+    maybeEnv
+    maybeMakePointsExpAndRepeatingOverWhatDesc
+    selectedFeatures
+    selectedShapes
+    selectedBlobs
+    slideNumber
+    movieNumber
+    movieTime
+    solutionsCache
+    syncOptions
+
+
+repeat_ : Exp -> Maybe (EId, a) -> Maybe Env -> (List Exp -> Bool -> Maybe (Exp, String)) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDesc selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let
     model =
       { slideNumber    = slideNumber
@@ -1293,43 +1371,8 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                           [argExp1, argExp2] -> List.member (argExp2.val.eid, argExp1.val.eid) intermediateXYEIdPossibilities
                           _                  -> False
 
-                      maybeRepeatFuncCall =
-                        let
-                          ptArgExp =
-                            case argExps of
-                              [argExp]           -> argExp
-                              [argExp1, argExp2] -> eTuple <| setExpListWhitespace "" " " (if not shouldReverseXY then [argExp1, argExp2] else [argExp2, argExp1])
-                              _                  -> Debug.crash <| "ValueBasedTransform.repeatUsingFunction: ptArgExp should only have one or two argExps but got " ++ toString argExps
-
-                          (_, repeatFuncExp, repeatFuncType) =
-                            FindRepeatTools.getRepetitionFunctions program typeGraph editingContext -- Returns list of (fName, fExp, typeSig), fExp is an EFun
-                            |> Utils.findFirst (Utils.fst3 >> (==) repeatFuncName)
-                            |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction FindRepeatTools.getRepetitionFunctions model |> Utils.findFirst (Utils.fst3 >> (==) repeatFuncName)"
-
-                          (repeatFuncArgTypes, repeatFuncReturnType) =
-                            repeatFuncType
-                            |> Types.typeToMaybeArgTypesAndReturnType
-                            |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction repeatFuncType |> Types.typeToMaybeArgTypesAndReturnType"
-
-
-                          (isPointUsed, repeatCallArgMaybeExps) =
-                            repeatFuncArgTypes
-                            |> Utils.foldl
-                                (False, [])
-                                (\argType (isPointUsed, argMaybeExps) ->
-                                  case (isPointUsed, Types.isPointType argType) of
-                                    (False, True) -> (True,        argMaybeExps ++ [Just <| replacePrecedingWhitespace " " ptArgExp])
-                                    _             -> (isPointUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
-                                )
-
-                          _ = isPointUsed |> Utils.assert ("Expected repeatFuncArgTypes to have a point type but was " ++ toString repeatFuncArgTypes)
-                        in
-                        case Utils.projJusts repeatCallArgMaybeExps of
-                          Just repeatCallArgExps ->
-                            Just (eCall repeatFuncName repeatCallArgExps)
-                          Nothing ->
-                            let _ = Debug.log ("Could not generate all arguments for " ++ repeatFuncName) (repeatFuncArgTypes, repeatCallArgMaybeExps) in
-                            Nothing
+                      maybePointsExpAndRepeatingOverWhatDesc =
+                        maybeMakePointsExpAndRepeatingOverWhatDesc argExps shouldReverseXY
 
                       itemFuncUniqueName = callExp |> expToAppFunc |> expToIdent
                       itemFuncName = Utils.justGet_ "ValueBasedTransform.repeatUsingFunction postProcessBeforeProblemResolution itemFuncName" itemFuncUniqueName uniqueNameToOldName
@@ -1354,8 +1397,8 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                         in
                         CodeMotion.maybeDeleteEId callEId programWithCallAndFuncFresh
                     in
-                    case (maybeRepeatFuncCall, maybeProgramWithFuncButNoCallFresh) of
-                      (Just repeatFuncCall, Just programWithFuncButNoCallFresh) ->
+                    case (maybePointsExpAndRepeatingOverWhatDesc, maybeProgramWithFuncButNoCallFresh) of
+                      (Just (pointsExp, repeatingOverWhatDesc), Just programWithFuncButNoCallFresh) ->
                         let
                           funcExpFreshWithOriginalPats =
                             programWithFuncButNoCallFresh
@@ -1393,8 +1436,8 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                             -- |> List.filter (\eid -> eid > 0 || let _ = Utils.log "ValueBasedTransform.repeatUsingFunction eid <= 0 in new abstraction!!!" in False)
                             |> Set.fromList
                         in
-                        [ eCall "map"       [eVar itemFuncUniqueName, repeatFuncCall] |> replacePrecedingWhitespace "\n" |> indent "  "
-                        , eCall "concatMap" [eVar itemFuncUniqueName, repeatFuncCall] |> replacePrecedingWhitespace "\n" |> indent "  "
+                        [ eCall "map"       [eVar itemFuncUniqueName, pointsExp] |> replacePrecedingWhitespace "\n" |> indent "  "
+                        , eCall "concatMap" [eVar itemFuncUniqueName, pointsExp] |> replacePrecedingWhitespace "\n" |> indent "  "
                         ] |> List.filterMap
                             (\repeatGroupCall ->
                               -- Step 5: Replace the shape in the shape list with the shapes produced by the map call.
@@ -1410,7 +1453,7 @@ repeatUsingFunction program typeGraph editingContext maybeEnv repeatFuncName sel
                                 -- let _ = Utils.log <| "Possible Success! (might be a crashing program)\n" ++ Syntax.unparser Syntax.Elm programWithRepeatCall in
                                 Just <|
                                   ( programWithRepeatCall
-                                  , "Repeat " ++ itemFuncName ++ " using " ++ repeatFuncName
+                                  , "Repeat " ++ itemFuncName ++ " " ++ repeatingOverWhatDesc
                                   )
                             )
 

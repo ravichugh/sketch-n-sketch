@@ -13,7 +13,7 @@ port module InterfaceController exposing
   , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgHideWidgets
-  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction, msgRepeatUsingFunction
+  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction, msgRepeatUsingFunction, msgRepeatUsingPointList
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
@@ -1763,8 +1763,7 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
   { old | synthesisResultsDict = Dict.insert "Build Abstraction" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 
-msgRepeatUsingFunction repeatFuncName =
-  let synthesisResultsDictKey = "Repeat Using " ++ repeatFuncName in
+msgRepeatUsingFunction repeatFuncName synthesisResultsDictKey =
   Msg synthesisResultsDictKey <| \old ->
     let synthesisResults =
       ValueBasedTransform.repeatUsingFunction
@@ -1773,6 +1772,26 @@ msgRepeatUsingFunction repeatFuncName =
           old.editingContext
           old.maybeEnv
           repeatFuncName
+          old.selectedFeatures
+          old.selectedShapes
+          old.selectedBlobs
+          old.slideNumber
+          old.movieNumber
+          old.movieTime
+          old.solutionsCache
+          old.syncOptions
+    in
+    { old | synthesisResultsDict = Dict.insert synthesisResultsDictKey (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
+
+
+msgRepeatUsingPointList pointListVal synthesisResultsDictKey =
+  Msg synthesisResultsDictKey <| \old ->
+    let synthesisResults =
+      ValueBasedTransform.repeatUsingPointList
+          old.inputExp
+          old.editingContext
+          old.maybeEnv
+          pointListVal
           old.selectedFeatures
           old.selectedShapes
           old.selectedBlobs

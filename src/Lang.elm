@@ -1412,6 +1412,11 @@ vListToMaybeVals v = case v.v_ of
   VList vs -> Just vs
   _        -> Nothing
 
+vListToMaybePointVals : Val -> Maybe (List Val)
+vListToMaybePointVals v =
+  vListToMaybeVals v
+  |> Utils.filterMaybe (List.all valIsPoint)
+
 vListToMaybeValsExcludingPoint : Val -> Maybe (List Val)
 vListToMaybeValsExcludingPoint v =
   if valIsPoint v
