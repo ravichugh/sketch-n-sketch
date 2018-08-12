@@ -646,6 +646,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
         in
         let dependentIdentDescs = dependentLocs |> List.map (locDescription originalExp) in
         Solver.solve solutionsCache equations dependentLocIds
+        |> List.filter (\solution -> List.length solution > 0)
         -- |> Debug.log ("solutions for dependentLocIds " ++ toString dependentLocIds)
         |> List.map (\solution -> (solution, "by removing " ++ Utils.toSentence dependentIdentDescs))
 
