@@ -155,14 +155,15 @@ problemToREDUCE : Problem -> String
 problemToREDUCE ((equations, targetVarIds) as problem) =
   -- e.g. "on factor; solve({x=y,y=z},{x,z})"
   -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
-  "on factor; solve({" ++ String.join "," (List.map eqnToREDUCE equations) ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "})"
+  -- "trigsimp" applys trig identities to simplify (e.g. cos(x)^2 + sin(x)^2 = 1)
+  "on factor; trigsimp(solve({" ++ String.join "," (List.map eqnToREDUCE equations) ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "}),compact)"
 
 
 simplificationToREDUCE : MathExp -> String
 simplificationToREDUCE mathExp =
   -- e.g. "on factor; x / x"
   -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
-  "on factor; " ++ mathExpToREDUCE mathExp
+  "on factor; trigsimp(" ++ mathExpToREDUCE mathExp ++ ",compact)"
 
 
 mathExpToREDUCE : MathExp -> String
