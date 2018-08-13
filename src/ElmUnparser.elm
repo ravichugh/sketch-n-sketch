@@ -219,6 +219,14 @@ wrapWithTightParens unparsed =
 
 unparse : Exp -> String
 unparse e =
+  -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
+  let unparseArg e =
+    case e.val.e__ of
+      EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
+      EOp _ _ (_::_) _     -> wrapWithTightParens (unparse e)
+      EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
+      _                    -> unparse e
+  in
   case e.val.e__ of
     EConst wsBefore num (_, frozen, _) wd ->
       wsBefore.val
@@ -242,20 +250,10 @@ unparse e =
         ++ unparse body
 
     EApp wsBefore function arguments appType _ ->
-      -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
-      let unparseArg e =
-        case e.val.e__ of
-          EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
-          EOp _ _ _ _          -> wrapWithTightParens (unparse e)
-          EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
-          _                    -> unparse e
-      in
       case appType of
         SpaceApp ->
           wsBefore.val
             ++ unparse function
-            -- NOTE: to help with converting Little to Elm
-            -- ++ String.concat (List.map unparse arguments)
             ++ String.concat (List.map unparseArg arguments)
         LeftApp lws ->
           case arguments of
@@ -278,10 +276,10 @@ unparse e =
 
     EOp wsBefore op arguments _ ->
       let
-        default =
+        unparsedLikeAnApplication =
           wsBefore.val
             ++ unparseOp op
-            ++ String.concat (List.map (\x -> wrapWithParensIfLessPrecedence e x (unparse x)) arguments)
+            ++ String.concat (List.map unparseArg arguments)
       in
         if ElmLang.isInfixOperator op then
           case arguments of
@@ -291,9 +289,9 @@ unparse e =
                 ++ unparseOp op
                 ++ wrapWithParensIfLessPrecedence e right (unparse right)
             _ ->
-              default
+              unparsedLikeAnApplication
         else
-          default
+          unparsedLikeAnApplication
 
     EList wsBefore members wsmiddle Nothing wsBeforeEnd ->
       wsBefore.val
