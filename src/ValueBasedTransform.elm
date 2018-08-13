@@ -713,10 +713,14 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
             valueCloseEnoughToLoc && equationResultRelativelyCloseEnough
         in
         let possibleEquationConstants =
-          if List.length featureMathExps <= 2 then
-            littleConstants
-          else
-            littleConstants |> List.filter (\n -> n <= 10)
+          if List.length featureMathExps <= 2
+          then littleConstants
+          else littleConstants |> List.filter (\n -> n <= 10)
+        in
+        let astSizeRange =
+          if List.length featureMathExps <= 2
+          then (List.range 1 3)
+          else (List.range 1 7)
         in
         let resultMathExps =
           case maybeTermShape of
@@ -738,7 +742,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
                   in
                   results ++ newMathExps
               in
-              List.foldl synthesizeMore [] (List.range 1 7)
+              List.foldl synthesizeMore [] astSizeRange
               |> Utils.dedup
 
             Just termShape ->
