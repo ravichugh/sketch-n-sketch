@@ -24,11 +24,11 @@ type alias ContinuationUpdate a = Continuation UpdateStack a
 type alias ContinuationUpdate2 a b = Continuation2 UpdateStack a b
 type alias ContinuationUpdate3 a b c = Continuation3 UpdateStack a b c
 
-type HandlePreviousResult = HandlePreviousResult String (UpdatedEnv -> UpdatedExp -> UpdateStack)
+type HandlePreviousResult = HandlePreviousResult String (UpdatedEnv -> UpdatedExp -> UpdatedVal -> UpdateStack)
 type Fork = Fork String UpdateStack (LazyList HandlePreviousResult) (LazyList Fork)
 
-type UpdateStack = UpdateResultS     UpdatedEnv UpdatedExp (Maybe HandlePreviousResult)
-                 | UpdateContextS    Env Exp PrevLets PrevOutput Output VDiffs (Maybe HandlePreviousResult)
+type UpdateStack = UpdateResultS     UpdatedEnv UpdatedExp UpdatedVal (Maybe HandlePreviousResult)
+                 | UpdateContextS    Env Exp PrevLets PrevOutput UpdatedVal (Maybe HandlePreviousResult)
                  | UpdateResultAlternative String UpdateStack (Lazy.Lazy (Maybe UpdateStack))
                  | UpdateFails String -- Soft fails, might try other branches. If no branch is available, will report this error.
                  | UpdateCriticalError String
@@ -55,9 +55,9 @@ updateStackName = updateStackName_ ""
 
 updateStackName_: String -> UpdateStack ->  String
 updateStackName_ indent u = case u of
-  UpdateResultS _ exp mb -> "\n" ++ indent ++ "Res(" ++Syntax.unparser Syntax.Elm exp.val ++ (Maybe.map (handleResultToString_ indent) mb |> Maybe.withDefault "") ++ ")"
-  UpdateContextS _ exp _ _ o _ (Just n) -> "\n" ++ indent ++ "Contn(" ++Syntax.unparser Syntax.Elm exp ++ " <-- " ++ outputToString o ++ ")[" ++ handleResultToString_ (indent ++ " ") n ++ "]"
-  UpdateContextS _ e _ _ o _ Nothing->   "\n" ++ indent ++ "Ctx " ++ Syntax.unparser Syntax.Elm e ++ "<--" ++ outputToString o
+  UpdateResultS _ exp uVal mb -> "\n" ++ indent ++ "Res(" ++Syntax.unparser Syntax.Elm exp.val ++ (Maybe.map (handleResultToString_ indent) mb |> Maybe.withDefault "") ++ ")"
+  UpdateContextS _ exp _ _ {val} (Just n) -> "\n" ++ indent ++ "Contn(" ++Syntax.unparser Syntax.Elm exp ++ " <-- " ++ outputToString val ++ ")[" ++ handleResultToString_ (indent ++ " ") n ++ "]"
+  UpdateContextS _ e _ _ {val} Nothing->   "\n" ++ indent ++ "Ctx " ++ Syntax.unparser Syntax.Elm e ++ "<--" ++ outputToString val
   UpdateResultAlternative msg u ll -> "\n" ++ indent ++ "Alt("++updateStackName u ++") then [" ++ (case Lazy.force ll of
       Just u -> updateStackName_ (indent ++ " ") u ++ "]"
       Nothing -> "]"
@@ -66,25 +66,25 @@ updateStackName_ indent u = case u of
   UpdateCriticalError msg -> "\n" ++ indent ++ "UpdateCriticalError " ++ msg
 
 
-updateResultSameEnvExp: Env -> Exp -> UpdateStack
-updateResultSameEnvExp env exp = updateResult (UpdatedEnv.original env) (UpdatedExp exp Nothing)
+updateResultSameEnvExp: Env -> Exp -> Val -> UpdateStack
+updateResultSameEnvExp env exp val = updateResult (UpdatedEnv.original env) (UpdatedExp exp Nothing) (UpdatedVal val Nothing)
 
-updateResultSameEnv: Env -> Exp -> UpdateStack
-updateResultSameEnv env exp = updateResult (UpdatedEnv.original env) (UpdatedExp exp (Just <| EConstDiffs EAnyDiffs))
+updateResultSameEnv: Env -> Exp -> Val -> UpdateStack
+updateResultSameEnv env exp val = updateResult (UpdatedEnv.original env) (UpdatedExp exp (Just <| EConstDiffs EAnyDiffs)) (UpdatedVal val (Just <| VConstDiffs))
 
-updateResultSameEnvDiffs: Env -> Exp -> EDiffs-> UpdateStack
-updateResultSameEnvDiffs env exp diffs = updateResult (UpdatedEnv.original env) (UpdatedExp exp (Just <| diffs))
+updateResultSameEnvDiffs: Env -> Exp -> EDiffs -> Val -> VDiffs -> UpdateStack
+updateResultSameEnvDiffs env exp diffs val vdiffs = updateResult (UpdatedEnv.original env) (UpdatedExp exp (Just <| diffs)) (UpdatedVal val (Just vdiffs))
 
 
-updateResult: UpdatedEnv-> UpdatedExp -> UpdateStack
-updateResult updatedEnv exp = UpdateResultS updatedEnv exp Nothing
+updateResult: UpdatedEnv-> UpdatedExp -> UpdatedVal -> UpdateStack
+updateResult updatedEnv exp val = UpdateResultS updatedEnv exp val Nothing
 
-updateContinue: String -> Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> ContinuationUpdate2 UpdatedEnv UpdatedExp
-updateContinue msg env exp prevLets oldVal newVal newValDiffs continuation =
-  UpdateContextS env exp prevLets oldVal newVal newValDiffs <| Just <| HandlePreviousResult msg <| continuation
+updateContinue: String -> Env -> Exp -> PrevLets -> PrevOutput -> UpdatedVal -> ContinuationUpdate3 UpdatedEnv UpdatedExp UpdatedVal
+updateContinue msg env exp prevLets oldVal updatedVal continuation =
+  UpdateContextS env exp prevLets oldVal updatedVal <| Just <| HandlePreviousResult msg <| continuation
 
-updateContext: String -> Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> UpdateStack
-updateContext msg env exp prevLets oldVal newVal newValDiffs = UpdateContextS env exp prevLets oldVal newVal newValDiffs Nothing
+updateContext: String -> Env -> Exp -> PrevLets -> PrevOutput -> UpdatedVal -> UpdateStack
+updateContext msg env exp prevLets oldVal updatedVal = UpdateContextS env exp prevLets oldVal updatedVal Nothing
 
 type alias Output = Val
 type alias PrevOutput = Val
@@ -152,40 +152,54 @@ updateMaybeFirst2 msg canContinueAfter mb ll =
 
 
 -- Constructor for updating multiple expressions evaluated in the same environment.
-updateContinueMultiple: String -> Env -> PrevLets -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs -> ContinuationUpdate2 UpdatedEnv UpdatedExpTuple
-updateContinueMultiple  msg       env    prevLets     totalExpValOut                    diffs                continuation  =
+updateContinueMultiple: String -> Env -> PrevLets -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs ->
+    ContinuationUpdate3 UpdatedEnv UpdatedExpTuple UpdatedValTuple
+updateContinueMultiple  msg       env    prevLets     totalExpValOut                   diffs
+    continuation  =
   let totalExp = withDummyExpInfo <| EList space0 (totalExpValOut |> List.map (\(e, _, _) -> (space1, e))) space0 Nothing space0 in
-  let aux: Int -> List Exp   -> TupleDiffs EDiffs -> UpdatedEnv -> List (Exp, PrevOutput, Output) ->TupleDiffs VDiffs -> UpdateStack
-      aux  i      revAccExps    revAccEDiffs         updatedEnvAcc expValOut                        diffs =
+  let aux: Int -> List Exp   -> TupleDiffs EDiffs -> List Val -> TupleDiffs VDiffs -> UpdatedEnv -> List (Exp, PrevOutput, Output) ->TupleDiffs VDiffs -> UpdateStack
+      aux  i      revAccExps    revAccEDiffs         revAccVals  revAccVDiffs         updatedEnvAcc expValOut                        diffs =
         case diffs of
          [] ->
            let finalExpTupleDiffs = case List.reverse revAccEDiffs of
              [] -> Nothing
              l -> Just l
            in
-           continuation updatedEnvAcc (UpdatedExpTuple (List.reverse (Utils.reverseInsert (List.map (\(e, _, _) -> e) expValOut) revAccExps)) finalExpTupleDiffs)
+           let finalValTupleDiffs = case List.reverse revAccVDiffs of
+             [] -> Nothing
+             l -> Just l
+           in
+           continuation updatedEnvAcc
+             (UpdatedExpTuple (List.reverse (Utils.reverseInsert (List.map (\(e, _, _) -> e) expValOut) revAccExps)) finalExpTupleDiffs)
+             (UpdatedValTuple (List.reverse (Utils.reverseInsert (List.map (\(_, _, v) -> v) expValOut) revAccVals)) finalValTupleDiffs)
          (j, m) :: td ->
             if j > i then
               let (unchanged, remaining) = Utils.split (j - i) expValOut in
               let unchangedExps = unchanged |> List.map (\(e, _, _) -> e) in
-               aux j (Utils.reverseInsert unchangedExps revAccExps) revAccEDiffs updatedEnvAcc remaining diffs
+              let unchangedVals = unchanged |> List.map (\(_, v, _) -> v) in
+               aux j (Utils.reverseInsert unchangedExps revAccExps) revAccEDiffs (Utils.reverseInsert unchangedVals revAccVals) revAccVDiffs updatedEnvAcc remaining diffs
             else if j < i then Debug.crash <| "Unexpected modification index : " ++ toString j ++ ", expected " ++ toString i ++ " or above."
             else
               case expValOut of
                 (e, oldOut, newOut)::tail ->
-                  updateContinue (toString (i + 1) ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg) env e prevLets oldOut newOut m <|  \newUpdatedEnv newUpdatedExp ->
+                  updateContinue (toString (i + 1) ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg) env e prevLets oldOut (UpdatedVal newOut (Just m)) <|  \newUpdatedEnv newUpdatedExp newUpdatedVal ->
                     --let _ = Debug.log "started tricombine" () in
                     let newUpdatedEnvAcc = UpdatedEnv.merge env updatedEnvAcc newUpdatedEnv in
                     let newRevAccEDiffs = case newUpdatedExp.changes of
                       Nothing -> revAccEDiffs
                       Just d -> (i, d)::revAccEDiffs
                     in
+                    let newRevACcVals = newUpdatedVal.val :: revAccVals in
+                    let newRevAccVDiffs = case newUpdatedVal.changes of
+                      Nothing -> revAccVDiffs
+                      Just d -> (i, d)::revAccVDiffs
+                    in
                     --let _ = Debug.log "Finished tricombine" () in
-                    aux (i + 1) (newUpdatedExp.val::revAccExps) newRevAccEDiffs newUpdatedEnvAcc tail td
+                    aux (i + 1) (newUpdatedExp.val::revAccExps) newRevAccEDiffs newRevACcVals newRevAccVDiffs newUpdatedEnvAcc tail td
                 [] -> Debug.crash <| msg ++
                    "Expected at least one element because it was modified at index " ++ toString j ++
                    ", got nothing. We are at index " ++ toString i ++ " / length = " ++ toString (List.length totalExpValOut)
-  in aux 0 [] [] (UpdatedEnv.original env) totalExpValOut diffs
+  in aux 0 [] [] [] [] (UpdatedEnv.original env) totalExpValOut diffs
 
 updateManyMbHeadTail: a -> Lazy.Lazy (LazyList (Maybe a)) -> ContinuationUpdate a
 updateManyMbHeadTail  firstdiff otherdiffs builder =
@@ -206,7 +220,7 @@ updateOpMultiple  hint     env    es          eBuilder             prevLets     
        Ok LazyList.Nil ->
          \continuation -> UpdateCriticalError "[internal error] Empty diffs in updateOpMultiple"
        Ok (LazyList.Cons Nothing _) ->
-         \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing)
+         \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing) (UpdatedValTuple)
        Ok (LazyList.Cons (Just d) tail) ->
          \continuation -> updateManyMbHeadTail d tail <| \diff ->
            updateContinueMultiple (hint ++ " #" ++ toString nth) env prevLets (Utils.zip3 es prevOutputs outputsHead) diff continuation

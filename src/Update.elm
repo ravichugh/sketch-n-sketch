@@ -139,7 +139,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
               VBase (VString newChars) ->
                 case diffs of
                   VStringDiffs l ->
-                    updateResultSameEnvDiffs env  (ret <| EBase ws (EString quoteChar newChars)) (EStringDiffs l)
+                    updateResultSameEnvDiffs env  (ret <| EBase ws (EString quoteChar newChars)) (EStringDiffs l) newVal diffs
                   _ -> UpdateCriticalError <| "Expected VStringDiffs 2, got " ++ toString diffs
               _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
           _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal

@@ -3584,6 +3584,7 @@ type alias UpdatedExp = { val: Exp, changes: Maybe EDiffs }
 type alias UpdatedExpTuple = { val: List Exp, changes: Maybe (TupleDiffs EDiffs) }
 type alias UpdatedDeclarations = {val: Declarations, changes: Maybe (TupleDiffs EDiffs)}
 type alias UpdatedVal = { val: Val, changes: Maybe VDiffs }
+type alias UpdatedValTuple = { val: List Val, changes: Maybe (TupleDiffs VDiffs) }
 type alias UpdatedEnv = { val: Env, changes: EnvDiffs }
 
 updatedVal = { unapply = \updatedVal -> (updatedVal.val, updatedVal.changes) }
