@@ -297,6 +297,7 @@ maybeDrawOnSelect selectedIdAsShape old =
     _ ->
       Nothing
 
+
 onMouseClick clickPos old maybeClickable =
   let (isOnCanvas, (canvasX, canvasY) as pointOnCanvas) = clickToCanvasPoint old clickPos in
   case (old.tool, old.mouseMode) of
@@ -535,12 +536,15 @@ onMouseDrag lastPosition newPosition old =
             old.widgets
             |> Utils.mapFirstSuccess
                 (\widget ->
+                  let maybeSnapTo xVal yVal =
+                    if Utils.distance (valToNum xVal, valToNum yVal) (toFloat mx, toFloat my) <= 7.0
+                    then Just ((valToInt xVal, SnapVal xVal), (valToInt yVal, SnapVal yVal))
+                    else Nothing
+                  in
                   case widget of
-                    WPoint _ xVal _ yVal _ ->
-                      if Utils.distance (valToNum xVal, valToNum yVal) (toFloat mx, toFloat my) <= 7.0
-                      then Just ((valToInt xVal, SnapVal xVal), (valToInt yVal, SnapVal yVal))
-                      else Nothing
-                    _ -> Nothing
+                    WPoint _ xVal _ yVal _                -> maybeSnapTo xVal yVal
+                    WOffset1D _ _ _ _ _ _ endXVal endYVal -> maybeSnapTo endXVal endYVal
+                    _                                     -> Nothing
                 )
             |> Maybe.withDefault ((mx, NoSnap), (my, NoSnap))
           in
