@@ -55,7 +55,7 @@ strOp op = case op of
   Div           -> "/"
   Lt            -> "<"
   Eq            -> "="
-  Pi            -> "pi"
+  Pi            -> "π"
   Cos           -> "cos"
   Sin           -> "sin"
   ArcCos        -> "arccos"

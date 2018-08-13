@@ -139,7 +139,7 @@ unparseOp : Op -> String
 unparseOp op =
   case op.val of
     Pi ->
-      "pi"
+      "π"
     DictEmpty ->
       "empty"
     Cos ->

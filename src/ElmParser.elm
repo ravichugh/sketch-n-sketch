@@ -207,18 +207,27 @@ keywords =
     , "type"
     ]
 
+nonIdentifierCharSet : Set Char
+nonIdentifierCharSet =
+  "`~+-=/|\\!@#$%^&*() \t\r\n\b[]{};':\",.?<>"
+  |> String.toList |> Set.fromList
+
+isSmallFirstChar : Char -> Bool
+isSmallFirstChar char =
+  not <|
+    Char.isUpper char ||
+    Char.isDigit char ||
+    Set.member char nonIdentifierCharSet
+
 isRestChar : Char -> Bool
 isRestChar char =
-  Char.isLower char ||
-  Char.isUpper char ||
-  Char.isDigit char ||
-  char == '_'
+  not (Set.member char nonIdentifierCharSet)
 
-littleIdentifier : ParserI Ident
-littleIdentifier =
+smallIdentifier : ParserI Ident
+smallIdentifier =
   trackInfo <|
     LK.variable
-      Char.isLower
+      isSmallFirstChar
       isRestChar
       keywords
 
@@ -397,7 +406,7 @@ multilineContentParser =
   )
   |> andThen (\exp -> multilineContentParserHelp [exp]))
 
-multilineConcatExp: List Exp -> Pos.Pos -> Exp
+multilineConcatExp : List Exp -> Pos.Pos -> Exp
 multilineConcatExp exps startPosition =
   case exps of
     [] ->  Debug.crash "Internal error: No expression in longstring literal"
@@ -412,7 +421,7 @@ multilineConcatExp exps startPosition =
             (exp_ <| EOp space0 (withInfo Plus head.end tailPart.start) [head, tailPart] space0)
             head.start tailPart.end
 
-multilineContentParserHelp: List Exp -> Parser Exp
+multilineContentParserHelp : List Exp -> Parser Exp
 multilineContentParserHelp prevExps =
   inContext "multi-line string end or escape" <|
   oneOf
@@ -453,7 +462,7 @@ multilineEscapedElmExpression =
   oneOf [
     try <| trackInfo <|
       succeed (\v -> exp_ <| EOp space0 (withInfo OptNumToString v.start v.start) [v] space0)
-      |= variableExpression spacesWithoutNewline,
+      |= variableOrUnaryOpExpression spacesWithoutNewline,
     try <| lazy <| \_ -> multilineGenericLetBinding,
     lazy <| \_ ->
       ( mapExp_ <| trackInfo <|
@@ -539,7 +548,7 @@ namePattern sp ident =
 variablePattern : SpacePolicy -> Parser Pat
 variablePattern sp =
   inContext "variable pattern" <|
-    namePattern sp littleIdentifier
+    namePattern sp smallIdentifier
 
 --------------------------------------------------------------------------------
 -- Wildcards
@@ -744,7 +753,7 @@ namedType sp =
 variableType : SpacePolicy -> Parser Type
 variableType sp =
   inContext "variable type" <|
-    paddedBefore TVar sp littleIdentifier
+    paddedBefore TVar sp smallIdentifier
 
 --------------------------------------------------------------------------------
 -- Function Type
@@ -831,7 +840,7 @@ forallType sp =
             (ws, name.val)
         )
         spaces
-        littleIdentifier
+        smallIdentifier
     quantifiers =
       oneOf
         [ inContext "forall type (one)" <|
@@ -982,10 +991,20 @@ builtInOperators =
     (\(_, ls, rs) -> ls ++ rs)
     builtInPrecedenceList
 
+unaryOpFromIdentifier : Ident -> Maybe Op_
+unaryOpFromIdentifier identifier =
+  case identifier of
+    "π" ->
+      Just Pi
+    "empty" ->
+      Just DictEmpty
+    _ ->
+      Nothing
+
 opFromIdentifier : Ident -> Maybe Op_
 opFromIdentifier identifier =
   case identifier of
-    "pi" ->
+    "π" ->
       Just Pi
     "empty" ->
       Just DictEmpty
@@ -1096,10 +1115,15 @@ baseValueExpression sp =
 -- Variables
 --------------------------------------------------------------------------------
 
-variableExpression : SpacePolicy -> Parser Exp
-variableExpression sp =
+variableOrUnaryOpExpression : SpacePolicy -> Parser Exp
+variableOrUnaryOpExpression sp =
+  let eVarOrEOp ws ident =
+    case unaryOpFromIdentifier ident of
+      Just unaryOp -> EOp  ws (withInfo unaryOp ws.end { line = ws.end.line, col = ws.end.col + String.length ident }) [] space0
+      Nothing      -> EVar ws ident
+  in
   mapExp_ <|
-    paddedBefore EVar sp littleIdentifier
+    paddedBefore eVarOrEOp sp smallIdentifier
 
 --------------------------------------------------------------------------------
 -- Functions (lambdas)
@@ -1419,7 +1443,7 @@ simpleExpression sp =
     -- , lazy <| \_ -> typeCaseExpression
     -- , lazy <| \_ -> typeAlias
     -- , lazy <| \_ -> typeDeclaration
-    , variableExpression sp
+    , variableOrUnaryOpExpression sp
     ]
 
 spaceColonType: SpacePolicy -> Parser (WS, Type)
@@ -1440,36 +1464,36 @@ simpleUntypedExpressionWithPossibleArguments sp =
       -- If there are no arguments, then we do not have a function application,
       -- so just return the first expression. Otherwise, build a function
       -- application.
-      case Utils.maybeLast rest of
-        -- rest is empty
-        Nothing ->
-          first
+      let
+        application =
+          EApp (ws (precedingWhitespace first)) (removePrecedingWhitespace first) rest SpaceApp space0
 
-        -- rest is non-empty
-        Just last ->
-          let
-            e_ =
-              exp_ <|
-                let
-                  default =
-                    EApp (ws (precedingWhitespace first)) (removePrecedingWhitespace first) rest SpaceApp space0
-                in
-                  case first.val.e__ of
-                    EVar wsBefore identifier ->
-                      case opFromIdentifier identifier of
-                        Just op_ ->
-                          EOp
-                            wsBefore
-                            (withInfo op_ first.start first.end)
-                            rest
-                            space0
+        nonOpExp__ =
+          case rest of
+            [] -> first.val.e__
+            _  -> application
 
-                        Nothing ->
-                          default
-                    _ ->
-                      default
-          in
-            withInfo e_ first.start last.end
+        e_ =
+          exp_ <|
+            case first.val.e__ of
+              EVar wsBefore identifier ->
+                case opFromIdentifier identifier of
+                  Just op_ ->
+                    EOp
+                      wsBefore
+                      (withInfo op_ first.start first.end)
+                      rest
+                      space0
+
+                  Nothing ->
+                    nonOpExp__
+              _ ->
+                nonOpExp__
+
+        last =
+          Utils.maybeLast rest |> Maybe.withDefault first
+      in
+      withInfo e_ first.start last.end
   in
     lazy <| \_ ->
       succeed combine

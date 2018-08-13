@@ -966,8 +966,8 @@
 (def flow (\(_ x) x))
 
 ; 'constant folding'
-(def twoPi (* 2 (pi)))
-(def halfPi (/ (pi) 2))
+(def twoPi (* 2 (π)))
+(def halfPi (/ (π) 2))
 
 ;; Helper function for nPointsOnCircle, calculates angle of points
 ;; Note: angles are calculated clockwise from the traditional pi/2 mark
@@ -1013,7 +1013,7 @@
 ;; Creates stars that can be modified on a number of parameters
 (def nStar (\(fill stroke w n len1 len2 rot [cx cy])
   (let pti (\[i len]
-    (let anglei (+ (- (/ (* i (pi)) n) rot) halfPi)
+    (let anglei (+ (- (/ (* i (π)) n) rot) halfPi)
     (let xi (+ cx (* len (cos anglei)))
     (let yi (+ cy (neg (* len (sin anglei))))
       [xi yi]))))
@@ -1231,11 +1231,11 @@
 
 ; Convert radians to degrees
 (typ radToDeg (-> Num Num))
-(def radToDeg (\rad (* (/ rad (pi)) 180!)))
+(def radToDeg (\rad (* (/ rad (π)) 180!)))
 
 ; Convert degrees to radians
 (typ degToRad (-> Num Num))
-(def degToRad (\deg (* (/ deg 180!) (pi))))
+(def degToRad (\deg (* (/ deg 180!) (π))))
 
 ; Polygon and Path Helpers
 

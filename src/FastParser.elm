@@ -283,7 +283,7 @@ keywords =
   Set.fromList
     [ "true"
     , "false"
-    , "pi"
+    , "π"
     , "cos"
     , "sin"
     , "arccos"
@@ -727,7 +727,7 @@ operator =
           oneOf
             [ -- Unary Operators
               succeed Pi
-                |. keyword "pi"
+                |. keyword "π"
             , succeed DictEmpty
                 |. keyword "empty"
               -- Non-unary operators
