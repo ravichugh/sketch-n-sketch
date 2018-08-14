@@ -2805,7 +2805,9 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
       in
       let visibleNameSuggestion = expNameForEId originalProgram mobileEId in
       case maybeNewProgramWithLiftedDependenciesOldNames of
-        Nothing -> Nothing
+        Nothing ->
+          let _ = Utils.log <| "makeEIdVisibleToEIdsByInsertingNewBinding failed to lift eid " ++ toString mobileEId ++ " because tryResolvingProblemsAfterTransformNoTwiddling didn't produce a safe result resolving " ++ unparseWithIds newProgramUniqueNames ++ "\n\nyou may need to fix a transform so it doesn't insert dummy EIDs" in
+          Nothing
         Just newProgramWithLiftedDependenciesOldNames ->
           let namesToAvoid =
             let finalViewerEIds =
@@ -2822,6 +2824,7 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
           Just (visibleName, insertedVarEId, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
 
     Nothing ->
+      let _ = Utils.log <| "makeEIdVisibleToEIdsByInsertingNewBinding failed to lift eid " ++ toString mobileEId ++ " because can't find it in " ++ unparseWithIds originalProgramUniqueNames in
       Nothing
 
 
@@ -2869,84 +2872,372 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
 
 
 -- Resolves as many holes as possible by simple lifting.
--- Then reverts to loc lifting + inlining traces.
-resolveValueHoles : Solver.SolutionsCache -> Sync.Options -> Maybe Env -> Exp -> List Exp
-resolveValueHoles solutionsCache syncOptions maybeEnv programWithHolesUnfresh =
+--
+-- Looks at the expression around each hole and first sees if it can replace that larger expression--to avoid inserting
+-- duplicate code into the program.
+--
+-- The logic there is possibly stricter than it needs to be for val holes (replacement expression must be a provenance parent
+-- of all hole vals replaced, consequently math expressions are excluded; however it is sufficient for replacing points) but
+-- loc holes will look for identical math.
+--
+-- If any val holes cannot be resolved reverts to dumb loc lifting + inlining traces.
+--
+-- Currently _always_ returns a singleton list, even if program unchanged. Why? I don't know.
+resolveValueAndLocHoles : Solver.SolutionsCache -> Sync.Options -> Maybe Env -> Exp -> List Exp
+resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfresh =
   let
-    env = maybeEnv |> Maybe.withDefault []
+    -- _ = Utils.log <| "incoming program: " ++ unparseWithIds programWithHolesUnfresh
+
+    env = maybeEnv |> Maybe.withDefault [] |> Utils.removeShadowedKeys
+
+    envDistalSameVals =
+      env |> List.map (\(ident, val) -> (ident, Provenance.valToDistalSameVal val))
 
     -- Need EIds on all inserted expressions.
     programWithHoles = Parser.freshen programWithHolesUnfresh
 
-    -- First, try to find and lift points.
-    programWithSomePointHolesResolvedByLifting =
-      programWithHoles
-      |> findExpMatches (ePair (eHolePred isValHole) (eHolePred isValHole))
-      |> List.foldl
-          (\(pairExpWithHoles, holes) program ->
-            case holes |> List.filterMap expToMaybeHoleVal of
-              [xHoleVal, yHoleVal] ->
-                -- Look for values in env
-                let
-                  provenancePointVals = Provenance.pointPartsToPointValsStrict xHoleVal yHoleVal
-                in
-                case env |> Utils.removeShadowedKeys |> Utils.findFirst (\(ident, envVal) -> List.any (Provenance.valsSame envVal) provenancePointVals) of
-                  Just (ident, envVal) ->
-                    program
-                    |> replaceExpNodePreservingPrecedingWhitespace pairExpWithHoles.val.eid (eVar ident)
+    -- _ = Utils.log <| "freshened: " ++ unparseWithIds programWithHoles
 
-                  _ ->
-                    -- Look for point exp in program
-                    case Provenance.pointPartsToProgramPointEIdsStrict (not << isVar << expEffectiveExp) xHoleVal yHoleVal of -- Only want var origins so we aren't just rebinding variables.
-                      pointEIdInProgram::_ ->
-                        case makeEIdVisibleToEIds program pointEIdInProgram (Set.singleton pairExpWithHoles.val.eid) of
-                          Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace pairExpWithHoles.val.eid (eVar newName)
-                          Nothing                       -> program
-                      [] -> program
-              _ -> program
-          )
+    -- Want to see if we can de-duplicate expressions "around" a hole.
+    -- This is the defintion of "around": non-control flow, non-lets, non-base vals.
+    isPossibleExpandedExpForLifting exp =
+      [isNumber, isTuple, isMathOp, isVar, isParens, isComment, isValHole, isLocHole]
+      |> List.any (\pred -> pred exp)
+
+    expsForMatching program =
+      flattenExpTree program
+      |> List.filter (.val >> .eid >> Parser.isProgramEId) -- Exclude expressions inserted during resolution without EIds (shouldn't happen).
+      |> List.filter (allNodesSatisfy isPossibleExpandedExpForLifting)
+
+    expandedExpsWithHoles program =
+      expsForMatching program
+      |> List.filter (containsNode (\e -> isValHole e || isLocHole e))
+      |> List.sortBy nodeCount
+      |> List.reverse -- Try to replace biggest exps first.
+
+    -- First look in the environment for a variable holding a matching value.
+    -- A environment variable value "matches" some ancestor expression of a hole if:
+    --   1. Each val hole's provenance indicates they are a child of a value with the "same value" as the environment value.
+    --   2. The environment value structurally matches the ancestor expression of the hole.
+    --
+    -- LocHoles match a "same value" of the loc in the program (i.e. the const itself, or variable uses of the const).
+    --
+    -- In practice, this will probably only end up matching lone hole expressions and point pair expressions, as the rules
+    -- for matching other exps are necessarily strict.
+
+    -- Fast, conservative first pass filter.
+    expCouldMatchEnvVal : Exp -> Val -> Bool
+    expCouldMatchEnvVal exp envVal =
+      case ((expEffectiveExp exp).val.e__, envVal.v_) of
+        (EVar _ _, _)                                                       -> True
+        (EList _ heads _ Nothing _, VList vals)                             -> Utils.maybeZip heads vals |> Maybe.map (List.all (\((_, head), val) -> expCouldMatchEnvVal head val)) |> Maybe.withDefault False
+        (EOp _ op _ _, VConst _ (_, TrOp _ _))                              -> isMathOp_ op.val
+        (EConst _ expNum _ _, VConst _ (vNum, _))                           -> expNum == vNum
+        (EHole _ (HoleVal holeVal), _)                                      -> valToMaybeNum holeVal == valToMaybeNum envVal && (vListToMaybeVals holeVal |> Maybe.map List.length) == (vListToMaybeVals envVal |> Maybe.map List.length)
+        (EHole _ (HoleLoc holeLocId), VConst _ (_, TrLoc (valLocId, _, _))) -> holeLocId == valLocId
+        _                                                                   -> False
+
+
+    -- Slow, definitive matching. Slow b/c resolve variables.
+    expMatchesEnvVal : Exp -> Env -> EId -> Exp -> Val -> Bool
+    expMatchesEnvVal program envDistalSameVals viewerEId exp envVal =
+      case ((expEffectiveExp exp).val.e__, envVal.v_) of
+        (EVar _ expIdent, _) ->
+          case Utils.maybeFind expIdent envDistalSameVals of
+            Just resolvedVarVal -> Provenance.valEqFast resolvedVarVal envVal -- Both already distal-same
+            Nothing ->
+              if Parser.isProgramEId viewerEId then
+                -- This is the expensive step.
+                maybeResolveIdentifierToExp expIdent viewerEId program
+                |> Maybe.map (\resolvedVarExp -> expMatchesEnvVal program envDistalSameVals resolvedVarExp.val.eid resolvedVarExp envVal)
+                |> Maybe.withDefault False
+              else
+                False
+
+        (EList _ heads _ Nothing _, VList vals) ->
+          Utils.maybeZip heads vals
+          |> Maybe.map (List.all (\((_, head), val) -> expMatchesEnvVal program envDistalSameVals viewerEId head val))
+          |> Maybe.withDefault False
+
+        (EOp _ expOp childExps _, VConst _ (_, TrOp trOp_ _)) ->
+          -- A math EOp would never show up as a provenance parent of an EHoleVal.
+          -- BUT we could still get here if only LocHoles in the expanded exp.
+          expOp.val == trOp_ &&
+          let
+            childVals = valBasedOn envVal |> List.map Provenance.valToDistalSameVal
+            childValOrdersToTry =
+              case trOp_ of
+                Plus -> [childVals, List.reverse childVals]
+                Mult -> [childVals, List.reverse childVals]
+                _    -> [childVals]
+          in
+          childValOrdersToTry
+          |> List.any
+              (\childVals ->
+                Utils.maybeZip childExps childVals
+                |> Maybe.map (List.all (\(childExp, childVal) -> expMatchesEnvVal program envDistalSameVals viewerEId childExp childVal))
+                |> Maybe.withDefault False
+              )
+
+        (EConst _ expNum _ _, VConst _ (vNum, TrLoc (_,annot,_))) ->
+          expNum == vNum && annot == frozen
+
+        (EHole _ (HoleVal holeVal), _) ->
+          Provenance.valsSame envVal holeVal
+
+        (EHole _ (HoleLoc holeLocId), _) ->
+          envVal |> Provenance.valToDistalSameVal |> valExp |> expToMaybeLocId |> (==) (Just holeLocId)
+
+        _ ->
+          False
+
+
+    -- Bare hole resolution in program.
+    -- Look for exp in program
+    -- Trace back to non-var EId (unless free)
+    valProvenanceToProgramExp : Exp -> Val -> Maybe Exp
+    valProvenanceToProgramExp program val =
+      List.head (valProvenanceToProgramExps program val)
+
+    -- Possible hole resolutions in program.
+    valProvenanceToProgramExps : Exp -> Val -> List Exp
+    valProvenanceToProgramExps program val =
+      case (Parser.isProgramEId (valEId val), (expEffectiveExp (valExp val)).val.e__, valBasedOn val) of
+        -- If, proximally, val is a variable, try to walk back to resolve it.
+        (True, EVar _ ident, [basedOnVal]) ->
+          if resolveIdentifierToExp ident (valEId val) program == Nothing then -- Ident is free in program
+            val |> Provenance.valToSameVals |> List.map valExp |> List.filter (.val >> .eid >> Parser.isProgramEId)
+          else
+            valProvenanceToProgramExps program basedOnVal -- Should be correct even though not on expEffectiveExp (all expEffectiveExp will have only one basedOn)
+
+        (True, _, _) ->
+          val |> Provenance.valToSameVals |> List.map valExp |> List.filter (.val >> .eid >> Parser.isProgramEId)
+
+        (False, _, _) ->
+          -- Step backwards in the provenance by one step, if prior step is the same value.
+          Provenance.valToMaybePreviousSameVal val
+          |> Maybe.map (valProvenanceToProgramExps program)
+          |> Maybe.withDefault []
+
+
+    -- Slow, definitive matching for resolving val/loc holes to a program expression.
+    -- Slow b/c does static variable lookups.
+    expMatchesExpWithHoles : Exp -> EId -> Exp -> Exp -> Bool
+    expMatchesExpWithHoles program viewerEId expWithHoles existingExp =
+      case ((expEffectiveExp expWithHoles).val.e__, existingExp.val.e__) of -- Don't do expEffectivExp for existingExp so that the outermost existingExp is never an EComment. Recursions should call expEffectiveExp on it before recursing however.
+        (EVar _ expWithHolesIdent, _) ->
+          if Parser.isProgramEId viewerEId then
+            -- This is the expensive step.
+            case maybeResolveIdentifierToExp expWithHolesIdent viewerEId program |> Maybe.map expEffectiveExp of
+              Just expWithHolesVarResolved -> expWithHolesVarResolved.val.eid > 0 && expMatchesExpWithHoles program expWithHolesVarResolved.val.eid expWithHolesVarResolved existingExp
+              Nothing -> False -- Could add special handling for vars free in program (can't us maybeResolveIdentifierToExp b/c conflates free vars and vars not statically resolvable)
+          else
+            False
+
+        (_, EVar _ existingExpIdent) ->
+          if Parser.isProgramEId existingExp.val.eid then
+            -- This is the expensive step.
+            case maybeResolveIdentifierToExp existingExpIdent existingExp.val.eid program |> Maybe.map expEffectiveExp of
+              Just existingExpVarResolved -> existingExpVarResolved.val.eid > 0 && expMatchesExpWithHoles program viewerEId expWithHoles existingExpVarResolved
+              Nothing -> False -- Could add special handling for vars free in program (can't us maybeResolveIdentifierToExp b/c conflates free vars and vars not statically resolvable)
+          else
+            False
+
+        (EList _ expWithHolesHeads _ Nothing _, EList _ existingExpHeads _ Nothing _) ->
+          Utils.maybeZip expWithHolesHeads existingExpHeads
+          |> Maybe.map (List.all (\((_, expWithHolesHead), (_, existingExpHead)) -> expMatchesExpWithHoles program viewerEId expWithHolesHead (expEffectiveExp existingExpHead)))
+          |> Maybe.withDefault False
+
+        (EOp _ expWithHolesOp expWithHolesChildExps _, EOp _ existingExpOp existingExpChildExps _) ->
+          -- A math EOp would never show up as a provenance parent of an EHoleVal.
+          -- BUT we could still get here if only LocHoles in the expanded exp.
+          expWithHolesOp.val == existingExpOp.val &&
+          let
+            existingExpChildExpOrdersToTry =
+              case existingExpOp.val of
+                Plus -> [existingExpChildExps, List.reverse existingExpChildExps]
+                Mult -> [existingExpChildExps, List.reverse existingExpChildExps]
+                _    -> [existingExpChildExps]
+          in
+          existingExpChildExpOrdersToTry
+          |> List.any
+              (\existingExpChildExps ->
+                Utils.maybeZip expWithHolesChildExps existingExpChildExps
+                |> Maybe.map (List.all (\(expWithHolesChildExp, existingExpChildExp) -> expMatchesExpWithHoles program viewerEId expWithHolesChildExp (expEffectiveExp existingExpChildExp)))
+                |> Maybe.withDefault False
+              )
+
+        (EConst _ expWithHolesNum (expWithHolesLocId, expWithHolesAnnot, _) _, EConst _ existingExpNum (existingExpLocId, existingExpAnnot, _) _) ->
+          (expWithHolesLocId > 0 && expWithHolesLocId == existingExpLocId) ||
+          (expWithHolesNum == existingExpNum && expWithHolesAnnot == frozen && existingExpAnnot == frozen)
+
+        (EHole _ (HoleVal holeVal), _) ->
+          List.member existingExp.val.eid (valProvenanceToProgramExps program holeVal |> List.map (.val >> .eid))
+
+        (EHole _ (HoleLoc holeLocId), EConst _ _ (existingExpLocId, _, _) _) ->
+          holeLocId == existingExpLocId
+
+        _ ->
+          False
+
+
+    programWithSomeHolesResolvedFromEnv =
+      case maybeEnv of
+        Just _ ->
+          expandedExpsWithHoles programWithHoles
+          |> Utils.foldl
+              programWithHoles
+              (\expWithHoles program ->
+                -- Make sure candidate exp is not yet changed in the program.
+                if program |> containsNode ((==) expWithHoles) then
+                  -- First pass filter to avoid later expensive checks.
+                  case envDistalSameVals |> List.filter (\(ident, envVal) -> expCouldMatchEnvVal expWithHoles envVal) of
+                    [] -> program
+                    ((_::_) as envCandidates1) ->
+                      -- Okay, now find a val in the env that
+                      --   1. Appears as a parent of all holes
+                      --   2. Structurally matches the hole-containing program exp
+                      case (expEffectiveExp expWithHoles).val.e__ of
+                        EHole _ (HoleVal holeVal) -> -- No need to look at parents for lone holes.
+                          case envCandidates1 |> Utils.findFirst (\(ident, envVal) -> Provenance.valsSame envVal holeVal) of
+                            Just (ident, envVal) ->
+                              program
+                              |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar ident |> setEId (1 + Parser.maxId program))
+
+                            Nothing ->
+                              program
+
+                        EHole _ (HoleLoc holeLocId) -> -- No need to look at parents for lone holes.
+                          case envCandidates1 |> Utils.findFirst (\(ident, envVal) -> envVal |> Provenance.valToDistalSameVal |> valExp |> expToMaybeLocId |> (==) (Just holeLocId)) of
+                            Just (ident, envVal) ->
+                              program
+                              |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar ident |> setEId (1 + Parser.maxId program))
+
+                            Nothing ->
+                              program
+
+                        _ ->
+                          let
+                            locHoleLocIds = flattenExpTree expWithHoles |> List.filterMap expToMaybeHoleLocId |> Utils.dedup
+                            holeVals      = flattenExpTree expWithHoles |> List.filterMap expToMaybeHoleVal
+
+                            envCandidates2 =
+                              case holeVals of
+                                [] -> envCandidates1
+                                _ ->
+                                  let sharedParents = Provenance.sharedParents holeVals |> List.map Provenance.valToDistalSameVal in
+                                  envCandidates1
+                                  |> List.filterMap
+                                      (\(ident, envVal) ->
+                                        sharedParents
+                                        |> Utils.findFirst (Provenance.valEqFast envVal)
+                                        |> Maybe.map (\sharedParentVal -> (ident, sharedParentVal))
+                                      )
+
+                            envCandidates3 =
+                              case locHoleLocIds of
+                                [] -> envCandidates2
+                                _ ->
+                                  envCandidates2
+                                  |> List.filter
+                                      (\(ident, envVal) ->
+                                        let locIdsInProvenance = Provenance.flattenValBasedOnTree envVal |> List.filterMap (valExp >> expToMaybeLocId) in
+                                        Utils.isSublistAsSet locHoleLocIds locIdsInProvenance
+                                      )
+
+                            maybeMatchingEnvIdent =
+                              envCandidates3
+                              |> Utils.findFirst
+                                  (\(ident, envVal) ->
+                                    -- This is the expensive check b/c we do some attempt at variable resolution.
+                                    expMatchesEnvVal program envDistalSameVals expWithHoles.val.eid expWithHoles envVal
+                                  )
+                              |> Maybe.map (\(ident, _) -> ident)
+                          in
+                          case maybeMatchingEnvIdent of
+                            Just ident ->
+                              program
+                              |> replaceExpNodePreservingPrecedingWhitespace expWithHoles.val.eid (eVar ident |> setEId (1 + Parser.maxId program))
+
+                            Nothing ->
+                              program
+
+                else
+                  program
+              )
+
+        Nothing ->
           programWithHoles
 
-    -- Second, try to find and lift simple existing expressions.
-    valHoles = programWithSomePointHolesResolvedByLifting |> flattenExpTree |> List.filter isValHole
-    holeVals = valHoles |> List.filterMap expToMaybeHoleVal
+
+    -- Now look in the program for some expression we can use to fill the val hole/loc hole.
+    --
+    --
     programWithSomeHolesResolvedByLifting =
-      Utils.zip holeVals valHoles
-      |> List.foldl
-          (\(holeVal, valHoleExp) program ->
-            -- Look for value in env
-            case env |> Utils.removeShadowedKeys |> Utils.findFirst (\(ident, envVal) -> Provenance.valsSame envVal holeVal) of
-              Just (ident, envVal) ->
-                program
-                |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar ident)
+      expandedExpsWithHoles programWithSomeHolesResolvedFromEnv
+      |> Utils.foldl
+          programWithSomeHolesResolvedFromEnv
+          (\expWithHoles program ->
+            -- let _ = Utils.log <| "candidate expanded expWithHoles: " ++ unparseWithIds expWithHoles in
+            -- Make sure candidate exp is not yet changed in the program.
+            (\newProgram ->
+              if newProgram == program then
+                -- let _ = Utils.log <| "not resolved" in
+                newProgram
+              else
+                -- let _ = Utils.log <| "resolved, new program: " ++ unparseWithIds newProgram in
+                newProgram
+            ) <|
+            if program |> containsNode ((==) expWithHoles) then
+              -- let _ = Utils.log <| "...is in program" in
+              case (expEffectiveExp expWithHoles).val.e__ of
+                EHole _ (HoleVal holeVal) -> -- No need to look at parents for lone holes.
+                  case valProvenanceToProgramExp program holeVal of
+                    Just expInProgram ->
+                      case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton (expEffectiveExp expWithHoles).val.eid) of
+                        Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar newName |> setEId (1 + Parser.maxId newProgram))
+                        Nothing                       -> program
+                    Nothing -> program
 
-              _ ->
-                -- Look for exp in program
-                -- Trace back to non-var EId (unless free)
-                let valProvenanceToProgramExp val =
-                  case (Parser.isProgramEId (valEId val), (expEffectiveExp (valExp val)).val.e__, valBasedOn val) of
-                    (True, EVar _ ident, [basedOnVal]) ->
-                      if resolveIdentifierToExp ident (valEId val) program == Nothing then -- Ident is free in program
-                        Just (valExp val)
-                      else
-                        valProvenanceToProgramExp basedOnVal -- Should be correct even though not on expValueExp (all expValueExp will have only one basedOn)
+                EHole _ (HoleLoc holeLocId) -> -- No need to look at parents for lone holes.
+                  let
+                    (programWithLocLifted, locIdToNewName, _) = liftLocsSoVisibleTo program (Set.singleton holeLocId) (Set.singleton (expEffectiveExp expWithHoles).val.eid)
+                  in
+                  case Dict.get holeLocId locIdToNewName of
+                    Just newName -> programWithLocLifted |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar newName |> setEId (1 + Parser.maxId programWithLocLifted))
+                    Nothing      -> programWithLocLifted |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar ("couldNotFindHoleLocId" ++ toString holeLocId) |> setEId (1 + Parser.maxId programWithLocLifted))
 
-                    (True, _, _) ->
-                      Just (valExp val)
+                _ ->
+                  let
+                    locHoleLocIds = flattenExpTree expWithHoles |> List.filterMap expToMaybeHoleLocId |> Utils.dedup
+                    holeVals      = flattenExpTree expWithHoles |> List.filterMap expToMaybeHoleVal
 
-                    (False, _, _) ->
-                      -- Step backwards in the provenance by one step, if prior step is the same value.
-                      Provenance.valToMaybePreviousSameVal val
-                      |> Maybe.andThen valProvenanceToProgramExp
-                in
-                case valProvenanceToProgramExp holeVal of
-                  Just expInProgram ->
-                    case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton valHoleExp.val.eid) of
-                      Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar newName)
-                      Nothing                       -> program
-                  Nothing -> program
+                    -- Gross filter of exps by val hole provenance.
+                    possibleExpsFromValHoles : List Exp
+                    possibleExpsFromValHoles =
+                      case holeVals of
+                        [] -> expsForMatching program -- No constraint.
+                        _ ->
+                          let sharedParents = Provenance.sharedParents holeVals in
+                          sharedParents
+                          |> List.map valExp
+                          |> Utils.dedupBy (.val >> .eid)
+
+                    -- If no value holes, this is might be a source of slowness: we're not filtering out very many expressions.
+                    -- May want to start with needed locs and look where they are used.
+                    possibleExps =
+                      possibleExpsFromValHoles
+                      |> List.filter (not << isVar << expEffectiveExp) -- Only want var origins.
+                  in
+                  case possibleExps |> Utils.findFirst (\existingExp -> expMatchesExpWithHoles program expWithHoles.val.eid expWithHoles existingExp) of
+                    Just expInProgram ->
+                      case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton (expEffectiveExp expWithHoles).val.eid) of
+                        Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar newName |> setEId (1 + Parser.maxId newProgram))
+                        Nothing                       -> program
+                    Nothing -> program
+            else
+              program
           )
-          programWithSomePointHolesResolvedByLifting
   in
   -- Resolve any remaining holes by loc lifting.
   resolveValueHolesByLocLifting solutionsCache syncOptions programWithSomeHolesResolvedByLifting

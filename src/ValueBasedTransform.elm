@@ -417,7 +417,7 @@ makeEqual syntax solutionsCache originalExp selectedFeatures slideNumber movieNu
   let featuresAndEquations =
     selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
   in
-  let relateByPairs priorResults featuresAndEquations =
+  let equalizeAll priorResults featuresAndEquations =
     -- equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions
     let (features, featureEqns) = List.unzip featuresAndEquations in
     let descriptionPrefix = features |> List.map ShapeWidgets.featureDesc |> String.join " = " in
@@ -433,7 +433,9 @@ makeEqual syntax solutionsCache originalExp selectedFeatures slideNumber movieNu
 
   in
   synthesizeRelationCoordinateWiseAndSortResults
-      relateByPairs
+      solutionsCache
+      syncOptions
+      equalizeAll
       originalExp
       featuresAndEquations
 
@@ -455,6 +457,8 @@ relate syntax solutionsCache originalExp selectedFeatures slideNumber movieNumbe
         )
   in
   synthesizeRelationCoordinateWiseAndSortResults
+      solutionsCache
+      syncOptions
       relateOneInTermsOfAllOthers
       originalExp
       featuresAndEquations
@@ -464,11 +468,13 @@ relate syntax solutionsCache originalExp selectedFeatures slideNumber movieNumbe
 -- When points selected, relates x's and y's separately.
 -- Ranks all results
 synthesizeRelationCoordinateWiseAndSortResults
-  :  (List PartialSynthesisResult -> List SelectedFeatureAndEquation -> List PartialSynthesisResult)
+  :  Solver.SolutionsCache
+  -> Sync.Options
+  -> (List PartialSynthesisResult -> List SelectedFeatureAndEquation -> List PartialSynthesisResult)
   -> Exp
   -> List SelectedFeatureAndEquation
   -> List InterfaceModel.SynthesisResult
-synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresAndEquations =
+synthesizeRelationCoordinateWiseAndSortResults solutionsCache syncOptions doSynthesis originalExp featuresAndEquations =
   let selectedPoints = featurePoints featuresAndEquations in
   let startingResult = { description = "Original", exp = originalExp, maybeTermShape = Nothing, dependentLocIds = [], removedLocIdToMathExp = [] } in
   if 2 * (List.length selectedPoints) == List.length featuresAndEquations then
@@ -479,11 +485,21 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
     let xsRelated  = doSynthesis [startingResult] xFeatures in
     let xysRelated = doSynthesis xsRelated yFeatures in
     xysRelated
+    |> List.concatMap
+        (\partialResult ->
+          CodeMotion.resolveValueAndLocHoles solutionsCache syncOptions Nothing partialResult.exp
+          |> List.map (\newExp -> { partialResult | exp = newExp })
+        )
     |> rankComparedTo originalExp
   else
     -- We have not selected only x&y of different points.
     -- Equalize all selected attributes naively.
     doSynthesis [startingResult] featuresAndEquations
+    |> List.concatMap
+        (\partialResult ->
+          CodeMotion.resolveValueAndLocHoles solutionsCache syncOptions Nothing partialResult.exp
+          |> List.map (\newExp -> { partialResult | exp = newExp })
+        )
     |> rankComparedTo originalExp
 
 
@@ -776,13 +792,35 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
           resultMathExpsAndLocIds
           |> List.foldl
               (\(resultMathExp, dependentLocId) (programSoFar, dependentLocExpsSoFar) ->
-                let independentLocIdSet = Set.intersect (mathExpLocIdSet resultMathExp) unfrozenLocIdSet in
+                -- let independentLocIdSet = Set.intersect (mathExpLocIdSet resultMathExp) unfrozenLocIdSet in
                 let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust_ "relate__: dependendLocId locIdToEId" in
-                let (programWithLocsLifted, locIdToNewName, _) = CodeMotion.liftLocsSoVisibleTo programSoFar independentLocIdSet (Set.singleton dependentEId) in
+                -- let (programWithLocsLifted, locIdToNewName, _) = CodeMotion.liftLocsSoVisibleTo programSoFar independentLocIdSet (Set.singleton dependentEId) in
+                -- let dependentLocExp =
+                --   mathExpToExp (if relationToSynthesize == Equalize then frozen else unann) frozenLocIdToNum locIdToNewName resultMathExp
+                -- in
+                -- mathExp
+                -- |> MathExp.mathExpToExp
+                --     (\n -> eConst n (dummyLoc_ constantAnnotation))
+                --     (\locId ->
+                --       case Dict.get locId locIdToIdent of
+                --         Just ident -> eVar ident
+                --         Nothing    ->
+                --           case Dict.get locId locIdToFrozenNum of
+                --             Just n  -> eConstFrozen n
+                --             Nothing -> eVar ("couldNotFindLocId" ++ toString locId)
+                --     )
+                --
                 let dependentLocExp =
-                  mathExpToExp (if relationToSynthesize == Equalize then frozen else unann) frozenLocIdToNum locIdToNewName resultMathExp
+                  MathExp.mathExpToExp
+                      eConstFrozen -- Make frozen constants.
+                      (\locId ->
+                        case Dict.get locId frozenLocIdToNum of
+                          Just n  -> eConstFrozen n
+                          Nothing -> eHoleLoc locId
+                      )
+                      resultMathExp
                 in
-                ( programWithLocsLifted |> replaceExpNode dependentEId dependentLocExp
+                ( programSoFar |> replaceExpNodePreservingPrecedingWhitespace dependentEId dependentLocExp
                 , dependentLocExpsSoFar ++ [dependentLocExp]
                 )
               )

@@ -704,7 +704,7 @@ addToEndOfDrawingContext old varSuggestedName exp =
     originalProgram
     |> LangTools.newLetAfterComments insertBeforeEId (pVar varName) exp
     |> perhapsPrepareRecursiveFunction insertBeforeEId
-    |> CodeMotion.resolveValueHoles old.solutionsCache old.syncOptions old.maybeEnv
+    |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
     |> List.head
     |> Maybe.withDefault originalProgram
   in

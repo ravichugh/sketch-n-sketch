@@ -1291,6 +1291,13 @@ expToMaybeNumAndLoc exp =
     _                -> Nothing
 
 
+expToMaybeLocId : Exp -> Maybe LocId
+expToMaybeLocId exp =
+  case exp.val.e__ of
+    EConst _ n (locId,_,_) _ -> Just locId
+    _                        -> Nothing
+
+
 expToMaybeVar : Exp -> Maybe Exp
 expToMaybeVar exp =
   case exp.val.e__ of
@@ -1500,6 +1507,13 @@ expToMaybeHoleVal exp =
   case exp.val.e__ of
     EHole _ (HoleVal val) -> Just val
     _                     -> Nothing
+
+
+expToMaybeHoleLocId : Exp -> Maybe LocId
+expToMaybeHoleLocId exp =
+  case exp.val.e__ of
+    EHole _ (HoleLoc locId) -> Just locId
+    _                       -> Nothing
 
 
 expToMaybeHoleName : Exp -> Maybe Ident

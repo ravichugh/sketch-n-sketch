@@ -435,6 +435,11 @@ unparse e =
         ++ "??"
         ++ name
 
+    EHole wsBefore (HoleLoc locId) ->
+      wsBefore.val
+        ++ "??k"
+        ++ toString locId
+
     EHole wsBefore holeType ->
       wsBefore.val
         ++ "??"

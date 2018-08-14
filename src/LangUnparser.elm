@@ -245,6 +245,8 @@ unparse_ e = case e.val.e__ of
     unparse_ e
   EHole ws (HoleNamed name) ->
     ws.val ++ "??" ++ name
+  EHole ws (HoleLoc locId) ->
+    ws.val ++ "??k" ++ toString locId
   EHole ws holeType ->
     ws.val ++ "??"
 
@@ -308,6 +310,8 @@ unparseWithIds e =
       ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
     EHole ws (HoleNamed name) ->
       ws.val ++ "??" ++ name ++ eidTag
+    EHole ws (HoleLoc locId) ->
+      ws.val ++ "??k" ++ toString locId ++ eidTag
     EHole ws holeType ->
       ws.val ++ "??" ++ eidTag
 

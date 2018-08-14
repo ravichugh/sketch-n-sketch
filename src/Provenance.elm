@@ -72,6 +72,7 @@ valToMaybePreviousSameVal val =
     EParens _ _ _ _                            -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: EParens shouldn't appear in provenance" in Nothing
     EHole _ (HoleNamed "terminationCondition") -> Nothing
     EHole _ (HoleVal _)                        -> success ()
+    EHole _ (HoleLoc _)                        -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Loc hole shouldn't appear in provenance" in Nothing
     EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
     EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
     EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
@@ -158,6 +159,22 @@ flattenValBasedOnTree : Val -> List Val
 flattenValBasedOnTree val =
   let (Provenance _ _ basedOnVals) = val.provenance in
   val :: List.concatMap flattenValBasedOnTree basedOnVals
+
+
+equivalentValParents : Val -> List Val
+equivalentValParents =
+  valToSameVals
+  >> List.concatMap valParents
+  >> List.concatMap valToSameVals
+  >> Utils.dedup
+
+
+sharedParents : List Val -> List Val
+sharedParents vals =
+  case vals of
+    []            -> []
+    [val]         -> equivalentValParents val
+    val::restVals -> Utils.intersectAsSet (sharedParents restVals) (equivalentValParents val)
 
 
 coordinateIntermediatesToSharedPointParents : List Val -> List Val -> List Val

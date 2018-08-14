@@ -1646,6 +1646,7 @@ gatherConstraints exp =
       eidIs (expToTC e)
     EParens _ e _ _       -> eidIs (expToTC e)
     EHole _ (HoleVal val) -> val |> Types.valToMaybeType |> Maybe.map (typeToTC >> eidIs) |> Maybe.withDefault []
+    EHole _ (HoleLoc _)   -> eidIs TCNum
     EHole _ _             -> []
 
 

@@ -148,7 +148,7 @@ addShape
       in
       -- 3. Resolve value holes.
       newCandidates
-      |> List.concatMap (CodeMotion.resolveValueHoles model.solutionsCache model.syncOptions model.maybeEnv)
+      |> List.concatMap (CodeMotion.resolveValueAndLocHoles model.solutionsCache model.syncOptions model.maybeEnv)
       |> List.map ((,) listExp.val.eid)
 
     listEIdWithPossiblePrograms =

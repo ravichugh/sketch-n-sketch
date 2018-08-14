@@ -4,7 +4,7 @@ import Char
 import String
 import Debug
 import Dict exposing (Dict)
-import Set
+import Set exposing (Set)
 import Debug
 import Regex
 
@@ -53,7 +53,7 @@ type alias Num = Float
 type alias Frozen = String -- b/c comparable
 (frozen, unann, thawed, assignOnlyOnce) = ("!", "", "?", "~")
 
-type alias LocSet = Set.Set Loc
+type alias LocSet = Set Loc
 
 type alias Pat     = WithInfo Pat_
 type alias Exp     = WithInfo Exp_
@@ -98,6 +98,11 @@ type Op_
   -- trinary ops
   | DictInsert
 
+mathOps : List Op_
+mathOps = [Plus, Minus, Mult, Div, Pow, Mod, ArcTan2, Cos, Sin, ArcCos, ArcSin, Abs, Floor, Ceil, Round, Sqrt, Ln, Pi]
+
+mathOpSet : Set Op_
+mathOpSet = Set.fromList mathOps
 
 maybeEvalMathOp : Op_ -> List Num -> Maybe Num
 maybeEvalMathOp op_ operands =
@@ -169,6 +174,7 @@ type HoleContents
   = HoleEmpty
   | HoleNamed Ident
   | HoleVal Val
+  | HoleLoc LocId
   | HolePredicate (Exp -> Bool) -- For matching code structure, see LangTools.matchExp below.
 
     -- EFun [] e     impossible
@@ -448,6 +454,10 @@ isList e = case e.val.e__ of
   EList _ _ _ _ _ -> True
   _               -> False
 
+isTuple e = case e.val.e__ of
+  EList _ _ _ Nothing _ -> True
+  _                     -> False
+
 isEmptyList e = case e.val.e__ of
   EList _ [] _ Nothing _ -> True
   _                      -> False
@@ -472,12 +482,26 @@ isApp e = case e.val.e__ of
   EApp _ _ _ _ _ -> True
   _              -> False
 
+isMathOp_ op_ = Set.member op_ mathOpSet
+
+isMathOp e = case e.val.e__ of
+  EOp _ op _ _ -> isMathOp_ op.val
+  _            -> False
+
+isParens e = case e.val.e__ of
+  EParens _ _ _ _ -> True
+  _               -> False
+
 isColonType e = case e.val.e__ of
   EColonType _ _ _ _ _ -> True
   _                    -> False
 
 isValHole e = case e.val.e__ of
   EHole _ (HoleVal _) -> True
+  _                   -> False
+
+isLocHole e = case e.val.e__ of
+  EHole _ (HoleLoc _) -> True
   _                   -> False
 
 isPVar p = case p.val.p__ of
@@ -1206,6 +1230,11 @@ findFirstNode predicate exp =
     childExps exp
     |> Utils.mapFirstSuccess (findFirstNode predicate)
 
+containsNode : (Exp -> Bool) -> Exp -> Bool
+containsNode predicate exp =
+  predicate exp
+  || List.any (containsNode predicate) (childExps exp)
+
 -- find+map a node (DFS)
 mapFirstSuccessNode : (Exp -> Maybe a) -> Exp -> Maybe a
 mapFirstSuccessNode f exp =
@@ -1375,6 +1404,11 @@ valToNum v = case v.v_ of
   VConst _  (n, _) -> n
   _                -> Debug.crash "Lang.valToNum"
 
+valToMaybeNum : Val -> Maybe Num
+valToMaybeNum v = case v.v_ of
+  VConst _  (n, _) -> Just n
+  _                -> Nothing
+
 valToTrace : Val -> Trace
 valToTrace v = case v.v_ of
   VConst _  (n, tr) -> tr
@@ -1535,6 +1569,11 @@ allEIds exp =
 allPIds : Pat -> List PId
 allPIds pat =
   flattenPatTree pat |> List.map (.val >> .pid)
+
+allNodesSatisfy : (Exp -> Bool) -> Exp -> Bool
+allNodesSatisfy predicate exp =
+  predicate exp &&
+  List.all (allNodesSatisfy predicate) (childExps exp)
 
 headExps : List (WS, Exp) -> List Exp
 headExps listHeads =
@@ -1869,6 +1908,8 @@ eHoleNamed0 s     = withDummyExpInfo <| EHole space0 (HoleNamed s)
 eHoleNamed s      = withDummyExpInfo <| EHole space1 (HoleNamed s)
 eHoleVal0 v       = withDummyExpInfo <| EHole space0 (HoleVal v)
 eHoleVal v        = withDummyExpInfo <| EHole space1 (HoleVal v)
+eHoleLoc0 locId   = withDummyExpInfo <| EHole space0 (HoleLoc locId)
+eHoleLoc locId    = withDummyExpInfo <| EHole space1 (HoleLoc locId)
 eHolePred p       = withDummyExpInfo <| EHole space1 (HolePredicate p)
 
 eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 (withDummyRange t) space0
