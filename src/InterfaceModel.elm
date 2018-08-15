@@ -808,9 +808,9 @@ iconNames = Dict.keys DefaultIconTheme.icons
 
 --------------------------------------------------------------------------------
 
-starLambdaTool = LambdaBounds (eVar "star")
+-- starLambdaTool = LambdaBounds (eVar "star")
 
-starLambdaToolIcon = lambdaToolIcon starLambdaTool
+-- starLambdaToolIcon = lambdaToolIcon starLambdaTool
 
 lambdaToolIcon tool =
   { filename =
@@ -1203,7 +1203,7 @@ initModel =
     , hoveredSynthesisResultPathByIndices = []
     , renamingInOutput = Nothing
     , randomColor   = 100
-    , lambdaTools   = [starLambdaTool]
+    , lambdaTools   = [] -- [starLambdaTool]
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = Nothing

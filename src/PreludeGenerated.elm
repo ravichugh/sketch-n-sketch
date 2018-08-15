@@ -460,7 +460,8 @@ prelude =
   ]
 ))
 
-(typ vec2DMinus (-> Point Point Vec2D))
+; Hide from shape tools
+; (typ vec2DMinus (-> Point Point Vec2D))
 (def vec2DMinus (\\(pt vec)
   [
     (- (fst pt) (fst vec))
@@ -1624,11 +1625,6 @@ prelude =
 (typ midpoint (-> Point Point Point))
 (def midpoint (\\(pt1 pt2)
   (vec2DScalarMult 0.5 (vec2DPlus pt1 pt2))
-))
-
-(typ nextInLine (-> Point Point Point))
-(def nextInLine (\\(pt1 pt2)
-  (vec2DPlus pt2 (vec2DMinus pt2 pt1))
 ))
 
 ; Point on line segment, at `ratio` location.
