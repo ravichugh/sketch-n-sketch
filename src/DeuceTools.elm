@@ -2101,6 +2101,9 @@ selectionsTuple program selectedWidgets =
   )
 
 toolList =
+  []
+-- TODO: get Deuce tools to work with the ELet AST
+{-
   [ [ createFunctionTool
     , createFunctionFromArgsTool
     , mergeTool
@@ -2138,6 +2141,7 @@ toolList =
   , [ flipBooleanTool
     ]
   ]
+-}
 
 deuceToolsOf : Model -> List (List DeuceTool)
 deuceToolsOf model =
