@@ -21,7 +21,7 @@ import Info exposing (parsedThingToLocation)
 import InterfaceModel
 import Eval
 import Sync
-import LocEqn exposing (mathExpEval, traceToMathExp, mathExpLocIdSet, mathExpToExp, mathExpSize, normalizeSimplify, mathExpTemplateLocFillings, mathExpTemplateConstantFillings, mathExpTemplateFillingsLocsFilled, mathExpsTemplatesOfSize, littleConstants)
+import LocEqn exposing (traceToMathExp, mathExpLocIdSet, mathExpToExp, mathExpSize, normalizeSimplify, mathExpTemplateLocFillings, mathExpTemplateConstantFillings, mathExpTemplateFillingsLocsFilled, mathExpsTemplatesOfSize, littleConstants)
 import MathExp exposing (MathExp(..))
 import Solver
 import CodeMotion
@@ -223,7 +223,7 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp =
   in
   let sumOfSquares =
     indexedLocIdsWithTarget
-    |> List.map (\(i, _, target) -> mathExpEval (Dict.insert indexLocId (toFloat i) subst) mathExp - target)
+    |> List.map (\(i, _, target) -> LocEqn.mathExpEval (Dict.insert indexLocId (toFloat i) subst) mathExp - target)
     |> List.map (\distance -> (distance / meanAbsoluteDeviation)^2)
     |> List.sum
   in
@@ -620,6 +620,7 @@ relate__
     -> Sync.Options
     -> List PartialSynthesisResult
 relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp maybeTermShape removedLocIdToMathExp syncOptions =
+  let locIdToNumberAndLoc = locIdToNumberAndLocOf originalExp in
   let removedLocIds = List.map Tuple.first removedLocIdToMathExp |> Set.fromList in
   let frozenLocIdToNum =
     ((frozenLocIdsAndNumbers originalExp) ++
@@ -705,14 +706,14 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
             False
           else
             -- Loc replaced must be within 20% of its original value.
-            let newValueAtLoc = mathExpEval subst mathExp in
+            let newValueAtLoc = LocEqn.mathExpEval subst mathExp in
             let valueCloseEnoughToLoc =
               let diff = newValueAtLoc - targetLocValue in
               if targetLocValue == 0
               then diff == 0
               else abs (diff / targetLocValue) < 0.2
             in
-            let newFeatureValue = mathExpEval (Dict.insert dependentLocId newValueAtLoc subst) originalMathExp in
+            let newFeatureValue = LocEqn.mathExpEval (Dict.insert dependentLocId newValueAtLoc subst) originalMathExp in
             -- And difference between evaluated equation and other equations must be within 20% of original difference.
             let equationResultRelativelyCloseEnough =
               otherReferenceValues
@@ -841,7 +842,26 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
               Nothing
         in
         let (_, dependentLocIds) = List.unzip resultMathExpsAndLocIds in
-        { description           = description ++ if relationToSynthesize == Equalize then "" else Syntax.unparser syntax (Utils.head "relate__ description" dependentLocExps)
+        let augmentedDescription =
+          description ++
+          case relationToSynthesize of
+            Equalize -> ""
+            Relate   ->
+              -- Do a naive hole-filling of the dependent expression and then unparse.
+              Utils.head "relate__ augmentedDescription" dependentLocExps
+              |> mapExpViaExp__
+                  (\e__ ->
+                    case e__ of
+                      EHole _ (HoleLoc locId) ->
+                        case Dict.get locId locIdToNumberAndLoc of
+                          Just (n, (_, _, ident) as loc) -> if ident /= "" then EVar space1 ident else EConst space1 n loc noWidgetDecl
+                          _                              -> e__
+                      _ ->
+                        e__
+                  )
+              |> Syntax.unparser syntax
+        in
+        { description           = augmentedDescription
         , exp                   = let _ = Utils.log (Syntax.unparser syntax newProgram) in freshen newProgram
         , maybeTermShape        = maybeTermShape
         , dependentLocIds       = dependentLocIds
@@ -1557,18 +1577,18 @@ variableifyConstantsAndWrapTargetExpWithLets locIdToNewName listOfListsOfNamesAn
   freshen newProgram
 
 
--- locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)
--- locIdToNumberAndLocOf exp =
---   exp
---   |> foldExpViaE__
---       (\e__ dict ->
---         case e__ of
---           EConst _ n (locId, annotation, ident) wd ->
---             Dict.insert locId (n, (locId, annotation, ident)) dict
---           _ ->
---             dict
---       )
---       Dict.empty
+locIdToNumberAndLocOf : Exp -> Dict.Dict LocId (Num, Loc)
+locIdToNumberAndLocOf exp =
+  exp
+  |> foldExpViaE__
+      (\e__ dict ->
+        case e__ of
+          EConst _ n (locId, annotation, ident) wd ->
+            Dict.insert locId (n, (locId, annotation, ident)) dict
+          _ ->
+            dict
+      )
+      Dict.empty
 
 
 locIdToWidgetDeclOf : Exp -> Dict.Dict LocId WidgetDecl
