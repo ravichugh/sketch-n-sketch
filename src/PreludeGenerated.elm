@@ -862,7 +862,7 @@ prelude =
 
 (typ lineMidPoint (-> Line Point))
 (def lineMidPoint (\\line
-  (halfwayBetween (lineStart line) (lineEnd line))
+  (midpoint (lineStart line) (lineEnd line))
 ))
 
 
@@ -1621,8 +1621,8 @@ prelude =
 
 ; === Relations ===
 
-(typ halfwayBetween (-> Point Point Point))
-(def halfwayBetween (\\(pt1 pt2)
+(typ midpoint (-> Point Point Point))
+(def midpoint (\\(pt1 pt2)
   (vec2DScalarMult 0.5 (vec2DPlus pt1 pt2))
 ))
 

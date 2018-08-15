@@ -3881,7 +3881,7 @@ snsLogoWheel =
   (def line3
     (lineBetween lineColor lineWidth
       [left bot]
-      (halfwayBetween topLeft botRight)))
+      (midpoint topLeft botRight)))
 
   [ rect1 line2 line3 ]))
 
@@ -4654,7 +4654,7 @@ kochSnowflake =
 ; relative to line length.
 (def normPt (\\(pt1@[x1 y1] pt2@[x2 y2] ratio)
   (let vec@[dx dy] [(- x2 x1) (- y2 y1)]
-  (vec2DPlus (vec2DScalarMult ratio [(neg dy) dx]) (halfwayBetween pt1 pt2)))))
+  (vec2DPlus (vec2DScalarMult ratio [(neg dy) dx]) (midpoint pt1 pt2)))))
 
 ; Recursive fractal edge.
 ;

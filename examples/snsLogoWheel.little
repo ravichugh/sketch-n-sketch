@@ -16,7 +16,7 @@
   (def line3
     (lineBetween lineColor lineWidth
       [left bot]
-      (halfwayBetween topLeft botRight)))
+      (midpoint topLeft botRight)))
 
   [ rect1 line2 line3 ]))
 
