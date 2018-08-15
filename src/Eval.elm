@@ -37,7 +37,7 @@ match (p,v) = case (p.val.p__, v.v_) of
       let (vs1,vs2) = Utils.split n vs in
       let vRest =
         { v_ = VList vs2
-        , provenance = Provenance (provenanceEnv v.provenance) (eApp (eVar0 "drop") [provenanceExp v.provenance, eConstDummyLoc (toFloat n)]) [v] -- TODO: should be based on "drop" prelude function and a dummy int. Doesn't matter for selected val -> program EId determination.
+        , provenance = Provenance (eApp (eVar0 "drop") [provenanceExp v.provenance, eConstDummyLoc (toFloat n)]) [v] -- TODO: should be based on "drop" prelude function and a dummy int. Doesn't matter for selected val -> program EId determination.
         , parents = Parents []
         }
       in
@@ -140,7 +140,7 @@ simpleEvalToMaybeVal e = eval Nothing runUntilTheEnd Syntax.Elm initEnv [] e |> 
 eval : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Maybe Env)
 eval maybeRetEnvEId abortPred syntax env bt e =
 
-  let makeProvenance basedOn = Provenance env e basedOn in
+  let makeProvenance basedOn = Provenance e basedOn in
 
   -- Deeply tag value's children to say the child flowed through here.
   --
@@ -449,7 +449,7 @@ evalOp maybeRetEnvEId abortPred syntax env e bt opWithInfo es =
           <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
           ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (strVal v) ++ " from " ++ (Syntax.unparser syntax e)))
       in
-      let addProvenance val_   = Val val_ (Provenance env e vs) (Parents []) in
+      let addProvenance val_   = Val val_ (Provenance e vs) (Parents []) in
       let addProvenanceOk val_ = Ok (addProvenance val_) in
       let nullaryOp args retVal_ =
         case args of
@@ -525,7 +525,7 @@ evalOp maybeRetEnvEId abortPred syntax env e bt opWithInfo es =
               |> Utils.mapi0
                   (\(i, charStr) ->
                     { v_ = VBase (VString charStr)
-                    , provenance = Provenance env (eCall "nth" [e, eConstDummyLoc (toFloat i)]) vs
+                    , provenance = Provenance (eCall "nth" [e, eConstDummyLoc (toFloat i)]) vs
                     , parents = Parents []
                     }
                   )

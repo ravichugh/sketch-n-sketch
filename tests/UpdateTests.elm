@@ -118,7 +118,7 @@ dws4 = ws "    "
 dws5 = ws "     "
 dws6 = ws "      "
 
-val x = Val x (Provenance [] (tConst (ws "") 0) []) (Parents [])
+val x = Val x (Provenance (tConst (ws "") 0) []) (Parents [])
 
 tVal n = val <| (VConst Nothing (n, dummyTrace))
 tVClosure maybeIndent pats body env = val <| VClosure maybeIndent pats body env

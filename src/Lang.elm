@@ -304,11 +304,10 @@ allTraceLocs trace =
     TrLoc loc     -> [loc]
     TrOp _ traces -> List.concatMap allTraceLocs traces
 
-type Provenance = Provenance Env Exp (List Val) -- Env, Exp, Vals immediately used to calculate this; "basedOn" provenance, like traces, ignores control flow.
+type Provenance = Provenance Exp (List Val) -- (List Val) is vals immediately used to calculate this; "basedOn" provenance, like traces, ignores control flow.
 
-provenanceEnv     (Provenance env exp basedOn) = env
-provenanceExp     (Provenance env exp basedOn) = exp
-provenanceBasedOn (Provenance env exp basedOn) = basedOn
+provenanceExp     (Provenance exp basedOn) = exp
+provenanceBasedOn (Provenance exp basedOn) = basedOn
 
 -- If using these, you may also want expEffectiveExp and friends.
 valExp : Val -> Exp
@@ -1734,7 +1733,7 @@ strPos p =
 -- NOTE: the Exp builders use dummyPos
 
 -- val : Val_ -> Val
--- val = flip Val (Provenance [] dummyExp)
+-- val = flip Val (Provenance dummyExp [])
 
 exp_ : Exp__ -> Exp_
 exp_ = flip Exp_ (-1)
@@ -1810,7 +1809,7 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 dummyLoc        = dummyLoc_ unann
 dummyLocFrozen  = dummyLoc_ frozen
 dummyTrace      = dummyTrace_ unann
-dummyProvenance = Provenance [] (eTuple0 []) []
+dummyProvenance = Provenance (eTuple0 []) []
 
 -- TODO interacts badly with auto-abstracted variable names...
 dummyLocWithDebugInfo : Frozen -> Num -> Loc
