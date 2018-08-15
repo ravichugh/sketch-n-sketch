@@ -17,7 +17,8 @@ except IndexError:
   sourceFolder = "../examples/"
 
 inn = open(baseTemplate)
-out = open(baseGenerated, "w+")
+
+generatedStr = ""
 
 for s in inn:
   s = trimNewline(s)
@@ -28,8 +29,16 @@ for s in inn:
       sys.exit()
     else:
       name = toks[1]
-      for t in readLittle(name, sourceFolder): write(out, t)
+      for t in readLittle(name, sourceFolder): generatedStr += t
   else:
-    writeLn(out, s)
+    generatedStr += s + "\n"
 
-print("Wrote to " + baseGenerated)
+oldGenerated = open(baseGenerated, "r")
+oldGeneratedStr = oldGenerated.read()
+oldGenerated.close()
+
+if generatedStr != oldGeneratedStr:
+  write(open(baseGenerated, "w+"), generatedStr)
+  print("Wrote to " + baseGenerated)
+else:
+  print(baseGenerated + " unchanged")
