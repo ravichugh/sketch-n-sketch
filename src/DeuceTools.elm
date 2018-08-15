@@ -22,13 +22,9 @@ import ColorNum
 
 import InterfaceModel as Model exposing
   ( Model
-  , SynthesisResult(..)
-  , synthesisResult
   , oneSafeResult
   , setResultSafe
-  , DeuceTool
   , CachedDeuceTool
-  , PredicateValue(..)
   )
 
 import Lang exposing (..)
@@ -46,7 +42,7 @@ import ExpressionBasedTransform
 -- Selections
 --------------------------------------------------------------------------------
 
-type alias Selections = Model.DeuceSelections
+type alias Selections = Lang.DeuceSelections
 
 selectedNumsAndBaseVals
     : Exp

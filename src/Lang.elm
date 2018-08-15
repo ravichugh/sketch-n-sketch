@@ -434,6 +434,128 @@ valEId val = (valExp val).val.eid
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
 
+
+--------------------------------------------------------------------------------
+-- Synthesis Results (for DeuceTools and OutputTools)
+--------------------------------------------------------------------------------
+
+type SynthesisResult =
+  SynthesisResult { description : String
+                  , exp         : Exp
+                  , diffs       : List Exp -- These exps can be virtual, only the start and end position matter
+                  , isSafe      : Bool -- Is this transformation considered "safe"?
+                  , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
+                  , children    : Maybe (List SynthesisResult) -- Nothing means not calculated yet.
+                  }
+
+synthesisResult description exp =
+  SynthesisResult <|
+    { description = description
+    , exp         = exp
+    , diffs       = []
+    , isSafe      = True
+    , sortKey     = []
+    , children    = Nothing
+    }
+
+
+--------------------------------------------------------------------------------
+-- Predicates (for DeuceTools and OutputTools)
+--------------------------------------------------------------------------------
+
+type PredicateValue
+    -- Good to go, and can accept no more arguments
+  = FullySatisfied
+    -- Good to go, but can accept more arguments if necessary
+  | Satisfied
+    -- Not yet good to go, but with more arguments may be okay
+  | Possible
+    -- Not good to go, and no additional arguments will make a difference
+  | Impossible
+
+-- NOTE: Descriptions should be an *action* in sentence case with no period at
+--       the end, e.g.:
+--         * Select a boolean value
+--         * Select 4 integers
+type alias Predicate =
+  { description : String
+  , value : PredicateValue
+  }
+
+predicateFullySatisfied : Predicate -> Bool
+predicateFullySatisfied pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      False
+    Possible ->
+      False
+    Impossible ->
+      False
+
+predicateSatisfied : Predicate -> Bool
+predicateSatisfied pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      True
+    Possible ->
+      False
+    Impossible ->
+      False
+
+predicatePossible : Predicate -> Bool
+predicatePossible pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      True
+    Possible ->
+      True
+    Impossible ->
+      False
+
+predicateImpossible : Predicate -> Bool
+predicateImpossible pred =
+  case pred.value of
+    FullySatisfied ->
+      False
+    Satisfied ->
+      False
+    Possible ->
+      False
+    Impossible ->
+      True
+
+
+--------------------------------------------------------------------------------
+-- Deuce Selections and Tools
+--------------------------------------------------------------------------------
+
+type alias DeuceSelections =
+  ( List (LocId, (WS, Num, Loc, WidgetDecl))  -- number literals
+  , List (EId, (WS, EBaseVal))                -- other base value literals
+  , List EId                                  -- expressions (including literals)
+  , List PathedPatternId                      -- patterns
+  , List EId                                  -- equations
+  , List ExpTargetPosition                    -- expression target positions
+  , List PatTargetPosition                    -- pattern target positions
+  )
+
+type alias DeuceTransformation =
+  () -> List SynthesisResult
+
+type alias DeuceTool =
+  { name : String
+  , func : Maybe DeuceTransformation
+  , reqs : List Predicate -- requirements to run the tool
+  , id : String -- unique, unchanging identifier
+  }
+
+
 ------------------------------------------------------------------------------
 
 -- We currently have two forms of pattern ids.

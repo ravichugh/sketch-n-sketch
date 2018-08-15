@@ -57,7 +57,7 @@ import String
 -- TODO: turn off overlapping pairs relation
 
 
-passiveSynthesisSearch : Model -> Exp -> List InterfaceModel.SynthesisResult
+passiveSynthesisSearch : Model -> Exp -> List SynthesisResult
 passiveSynthesisSearch model originalExp =
   cloneEliminationSythesisResults (always True) 2 5 originalExp ++
   mapAbstractSynthesisResults originalExp ++
@@ -66,7 +66,7 @@ passiveSynthesisSearch model originalExp =
   |> List.filter (\synthesisResult -> InterfaceModel.runAndResolve model (resultExp synthesisResult) |> Utils.resultToBool)
 
 
-rangeSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
+rangeSynthesisResults : Exp -> List SynthesisResult
 rangeSynthesisResults originalExp =
   let eidAndRangeLists =
     flattenExpTree originalExp
@@ -113,7 +113,7 @@ rangeSynthesisResults originalExp =
   eidAndRangeLists
   |> List.map
       (\(eid, newExp) ->
-        InterfaceModel.synthesisResult
+        synthesisResult
             ("Replace " ++ (unparse >> Utils.squish) (justFindExpByEId originalExp eid) ++ " with " ++ unparse newExp)
             (replaceExpNodePreservingPrecedingWhitespace eid newExp originalExp)
       )
@@ -295,7 +295,7 @@ inlineListSynthesisResults originalExp =
   candidatesAndDescription
   |> List.map
       (\(candidateExp, description) ->
-        InterfaceModel.synthesisResult description candidateExp
+        synthesisResult description candidateExp
       )
 
 
@@ -546,7 +546,7 @@ noExtraneousFreeVarsInRemovedClones cloneExps commonScopeWhereAbstractionWillBeD
         freeVars cloneExp |> List.all (\var -> List.member var freeAtAbstraction)
       )
 
-cloneEliminationSythesisResults : (Exp -> Bool) -> Int -> Int -> Exp -> List InterfaceModel.SynthesisResult
+cloneEliminationSythesisResults : (Exp -> Bool) -> Int -> Int -> Exp -> List SynthesisResult
 cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToArgumentRatio originalExp =
   detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 1) 1 False ++
   detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 2) 2 False ++
@@ -586,13 +586,13 @@ cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToA
           else
             toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ name ++ "s"
         in
-        InterfaceModel.synthesisResult
+        synthesisResult
             ("Merge " ++ clonesName ++ " by abstracting over " ++ Utils.toSentence argNames)
             newProgram
       )
 
 
-mapAbstractSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
+mapAbstractSynthesisResults : Exp -> List SynthesisResult
 mapAbstractSynthesisResults originalExp =
   detectClones originalExp (always True) 3 3 1 True
   |> List.filter
@@ -635,7 +635,7 @@ mapAbstractSynthesisResults originalExp =
           else
             eidsToReplace |> List.map (expNameForEId originalExp) |> Utils.toSentence
         in
-        InterfaceModel.synthesisResult
+        synthesisResult
             ("Merge " ++ clonesName ++ " by mapping over " ++ String.join " " argNames)
             newProgram
       )

@@ -30,8 +30,7 @@ import ElmParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
 import InterfaceModel exposing
-  ( Model, SynthesisResult(..)
-  , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
+  ( Model, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
   )
 import LocEqn                        -- For twiddling
 import Solver exposing (MathExp(..)) -- For twiddling

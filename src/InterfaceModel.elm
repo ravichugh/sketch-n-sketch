@@ -402,6 +402,8 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
+{- NOTE: moved to Lang
+
 type SynthesisResult =
   SynthesisResult { description : String
                   , exp         : Exp
@@ -420,6 +422,7 @@ synthesisResult description exp =
     , sortKey     = []
     , children    = Nothing
     }
+-}
 
 synthesisResultDiffs description exp diffs =
   SynthesisResult <|
@@ -624,6 +627,8 @@ configurationPanelShown model =
 
 importCodeFileInputId = "import-code-file-input"
 
+{- NOTE: moved to Lang
+
 --------------------------------------------------------------------------------
 -- Predicates
 --------------------------------------------------------------------------------
@@ -694,10 +699,13 @@ predicateImpossible pred =
       False
     Impossible ->
       True
+-}
 
 --------------------------------------------------------------------------------
 -- Deuce Tools
 --------------------------------------------------------------------------------
+
+{- NOTE: moved to Lang
 
 type alias DeuceSelections =
   ( List (LocId, (WS, Num, Loc, WidgetDecl))  -- number literals
@@ -718,6 +726,8 @@ type alias DeuceTool =
   , reqs : List Predicate -- requirements to run the tool
   , id : String -- unique, unchanging identifier
   }
+
+-}
 
 type alias CachedDeuceTool =
   (DeuceTool, List SynthesisResult, Bool)

@@ -219,7 +219,7 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp =
   sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
 
 
-indexedRelate : Syntax -> Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
+indexedRelate : Syntax -> Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List SynthesisResult
 indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
   case evalToSlateAndWidgetsResult originalExp slideNumber movieNumber movieTime of
     Err _    -> []
@@ -292,7 +292,7 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
                   locsLifted
             in
             let distanceScore = indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp in
-            InterfaceModel.SynthesisResult <|
+            SynthesisResult <|
               { description = description
               , exp         = newProgram
               , isSafe      = True
@@ -350,7 +350,7 @@ type RelationToSynthesize
 -- 2. Position in program of locs removed (later is better)
 --
 -- May want to incorporate thawing into the result ranking.
-rankComparedTo : Exp -> List PartialSynthesisResult -> List InterfaceModel.SynthesisResult
+rankComparedTo : Exp -> List PartialSynthesisResult -> List SynthesisResult
 rankComparedTo originalExp synthesisResults =
   let isLocId targetLocId exp =
     case exp.val.e__ of
@@ -375,7 +375,7 @@ rankComparedTo originalExp synthesisResults =
           else
             (List.maximum locLineNums |> Utils.fromJust_ "rankComparedTo1") - (List.minimum locLineNums |> Utils.fromJust_ "rankComparedTo2")
         in
-        InterfaceModel.SynthesisResult <|
+        SynthesisResult <|
           { description = description
           , exp         = exp
           , isSafe      = True
@@ -457,7 +457,7 @@ synthesizeRelationCoordinateWiseAndSortResults
   :  (List PartialSynthesisResult -> List SelectedFeatureAndEquation -> List PartialSynthesisResult)
   -> Exp
   -> List SelectedFeatureAndEquation
-  -> List InterfaceModel.SynthesisResult
+  -> List SynthesisResult
 synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresAndEquations =
   let selectedPoints = featurePoints featuresAndEquations in
   let startingResult = { description = "Original", exp = originalExp, maybeTermShape = Nothing, dependentLocIds = [], removedLocIdToMathExp = [] } in
@@ -871,7 +871,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
               if List.length unusedArgs == List.length argPats then
                 Nothing
               else
-                Just (InterfaceModel.synthesisResult caption programWithCallAndFunc |> InterfaceModel.setResultSafe False)
+                Just (synthesisResult caption programWithCallAndFunc |> InterfaceModel.setResultSafe False)
         )
       )
 
