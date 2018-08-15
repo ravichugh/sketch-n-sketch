@@ -993,7 +993,7 @@ newFunctionCallExp fName model pt1 pt2 =
                     _                    -> (ptsRemaining, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
                 )
           in
-          -- See if func can take 1 Point + Width + Height
+          -- See if func can take 1 Point + some distance(s)
           let (ptUsed, widthUsed, heightUsed, argMaybeExpsPointWidthHeight) =
             let maxId = FastParser.maxId model.inputExp in
             let x1y1Exp = makePointExpFromPointWithSnap pt1 |> FastParser.freshenFrom (maxId + 1) in

@@ -1552,7 +1552,7 @@ toolButton model tool =
       , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
       ]
       [ iconButton
-          model cap (Msg cap (\m -> { m | tool = tool })) btnKind False
+          model cap (Msg cap (\m -> { m | mouseMode = MouseNothing, tool = tool })) btnKind False
       ]
 
 lambdaTools : Model -> List (Html Msg)
