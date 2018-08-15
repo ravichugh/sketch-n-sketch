@@ -1048,7 +1048,7 @@ addFunction : Ident -> Model -> PointWithSnap -> PointWithSnap -> Model
 addFunction fName old pt1 pt2 =
   case newFunctionCallExp fName old pt1 pt2 of
     Just (callExp, _, returnType) ->
-      if Types.isPointType returnType || Types.isPointListType returnType then
+      if TypeDirectedFunctionUtils.clearlyNotShapeOrListOfShapesType returnType then
         addToEndOfDrawingContext old fName callExp
       else
         addShapeToModel old fName callExp

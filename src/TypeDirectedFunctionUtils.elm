@@ -89,6 +89,26 @@ getFunctionsByPredicateOnType hasDesiredType typeGraph program editingContext =
     explicitlyAnnotatedFunctions
 
 
+clearlyNotShapeOrListOfShapesType : Type -> Bool
+clearlyNotShapeOrListOfShapesType tipe =
+  Types.isPointType tipe ||
+  Types.isPointListType tipe ||
+  (
+    maybeFillInArgPrimitive tipe
+    |> Maybe.map clearlyNotShapeOrListOfShapesExp
+    |> Maybe.withDefault False
+  )
+
+
+clearlyNotShapeOrListOfShapesExp : Exp -> Bool
+clearlyNotShapeOrListOfShapesExp exp =
+  case (expEffectiveExp exp).val.e__ of
+    EConst _ _ _ _              -> True
+    EBase _ _                   -> True
+    EList _ ((_,head)::_) _ _ _ -> let effectiveHead = expEffectiveExp head in if isList effectiveHead then clearlyNotShapeOrListOfShapesExp effectiveHead else not (isString effectiveHead || isVar effectiveHead || isApp effectiveHead)
+    _                           -> False
+
+
 maybeFillInArgPrimitive : Type -> Maybe Exp
 maybeFillInArgPrimitive argType =
   Maybe.map (if Types.isPointType argType then identity else identity) <| -- eAsPoint
@@ -107,6 +127,7 @@ maybeFillInArgPrimitive argType =
       TNamed _ "Color"               -> Just <| eConstDummyLoc 0
       TNamed _ "StrokeWidth"         -> Just <| eConstDummyLoc 5
       TNamed _ "Point"               -> Just <| eTuple [eInt0 0, eInt 0]
+      TNamed _ "Vec2D"               -> Just <| eTuple [eInt0 0, eInt 0]
       TNamed _ "Width"               -> Just <| eConstDummyLoc 162 -- Golden ratio
       TNamed _ "Height"              -> Just <| eConstDummyLoc 100
       TNamed _ "HalfWidth"           -> Just <| eConstDummyLoc 81 -- Golden ratio

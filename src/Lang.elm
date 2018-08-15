@@ -445,6 +445,11 @@ fitsOnLine s =
   else if List.member '\n' (String.toList s) then False
   else True
 
+
+isString e = case e.val.e__ of
+  EBase _ (EString _ _) -> True
+  _                     -> False
+
 isLet e = case e.val.e__ of
   ELet _ _ _ _ _ _ _ _ _ -> True
   _                      -> False
