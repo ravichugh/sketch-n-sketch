@@ -30,6 +30,7 @@ import InterfaceModel as Model exposing
 import Lang exposing (..)
 import LangTools
 import Syntax
+import Types2
 
 import DeuceWidgets exposing
   ( DeuceWidget(..)
@@ -2068,6 +2069,32 @@ alignExpressionsTool model selections =
   , id = "alignExpressions"
   }
 
+
+--------------------------------------------------------------------------------
+-- Type System Tool
+--------------------------------------------------------------------------------
+
+typesTool : Model -> DeuceSelections -> DeuceTool
+typesTool model selections =
+  let
+    (func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], []) ->
+          (Nothing, Possible)
+
+        (_, _, [eId], [], [], [], []) ->
+          (Just (Types2.makeDeuceTool model.inputExp eId), Satisfied)
+
+        _ ->
+          (Nothing, Impossible)
+  in
+    { name = "Type Information"
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "typeInfo"
+    }
+
+
 --==============================================================================
 --= EXPORTS
 --==============================================================================
@@ -2089,7 +2116,9 @@ selectionsTuple program selectedWidgets =
   )
 
 toolList =
-  []
+  [ [ typesTool
+    ]
+  ]
 -- TODO: get Deuce tools to work with the ELet AST
 {-
   [ [ createFunctionTool

@@ -77,7 +77,7 @@ port module InterfaceController exposing
 
 import Updatable exposing (Updatable)
 import Lang exposing (..) --For access to what makes up the Vals
-import Types
+import Types2
 import Ace
 import ParserUtils exposing (showError)
 -- import FastParser exposing (freshen)
@@ -251,7 +251,7 @@ handleError oldModel result =
     Ok newModel -> newModel
     Err s       -> { oldModel | errorBox = Just s }
 
-updateCodeBoxInfo : Types.AceTypeInfo -> Model -> CodeBoxInfo
+updateCodeBoxInfo : Types2.AceTypeInfo -> Model -> CodeBoxInfo
 updateCodeBoxInfo ati m =
   let codeBoxInfo = m.codeBoxInfo in
   { codeBoxInfo | annotations = ati.annotations
@@ -769,6 +769,7 @@ tryRun old =
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok e ->
         let resultThunk () =
+          let aceTypeInfo = Types2.aceTypeInfo e in
           -- let aceTypeInfo = Types.typecheck e in
 
           -- want final environment of top-level definitions when evaluating e,
@@ -882,7 +883,8 @@ tryRun old =
                     }
 
                   _ ->
-                    Types.dummyAceTypeInfo
+                    -- Types.dummyAceTypeInfo
+                    aceTypeInfo
               in
               resetDeuceState <|
               { new_ | liveSyncInfo = refreshLiveInfo new_
@@ -1952,7 +1954,7 @@ doSelectSynthesisResult newExp old =
       } |> clearSelections
       in
       { newer | liveSyncInfo = refreshLiveInfo newer
-              , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
+              , codeBoxInfo = updateCodeBoxInfo Types2.dummyAceTypeInfo newer
               , outputMode  = Graphics -- switch out of ValueText
               }
   )
@@ -2815,7 +2817,7 @@ handleNew template = (\old ->
   let f = loadTemplate template () in
   let
     {e,v,ws,env,ati} = case f of
-         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types.AceTypeInfo [] [] []}
+         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types2.dummyAceTypeInfo}
          Ok ff -> ff
   in
   let so = Sync.syncOptionsOf old.syncOptions e in

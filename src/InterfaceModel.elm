@@ -1393,8 +1393,8 @@ initModel =
     , deuceRightClickMenuMode = Nothing
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
-    , codeToolsMenuMode = CTDisabled -- default for Sketch-n-Sketch Docs
-    , outputToolsMenuMode = False -- default for Sketch-n-Sketch Docs
+    , codeToolsMenuMode = CTAll
+    , outputToolsMenuMode = True
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True
