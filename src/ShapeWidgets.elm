@@ -858,7 +858,7 @@ maybeShapeBounds svgNode =
 heightForWCallPats     = 25
 heightForWCallFuncName = 0 -- 25
 heightForWListExp      = 0 -- 25
-widgetBoundsPadding    = 10 -- 15
+widgetBoundsPadding    = 12 -- 15
 
 
 widgetTopSpaceNeeded : Widget -> Num
