@@ -993,13 +993,10 @@ code {
   font-size: 11pt;
 }
 
-.pats {
-}
-
 .pat {
+  font-family: Tahoma, sans-serif;
+  font-size: 11pt;
   display: inline-block;
-  margin-right: 10px;
-  width: 90px;
   cursor: text;
   background-color: rgba(255,255,255,0.6);
 }

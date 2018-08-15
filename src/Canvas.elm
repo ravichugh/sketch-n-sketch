@@ -333,77 +333,106 @@ type HoverPadding
   = NoHoverPadding
   | HoverPadding Float
 
-patAsHTML : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> HoverPadding -> Html Msg
+-- Returns (div, estimated width)
+patAsHTML : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> HoverPadding -> (Html Msg, Int)
 patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding =
-  let nameStr = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
   let pid = pat.val.pid in
-  let text =
-    let perhapsHoverPaddingAttr =
-      case hoverPadding of
-        NoHoverPadding -> []
-        HoverPadding paddingAmount ->
-          [ Attr.style
-              [ ("padding", toString paddingAmount ++ "px")
-              , ("margin-left", "-" ++ toString paddingAmount ++ "px")
-              , ("margin-top",  "-" ++ toString paddingAmount ++ "px")
-              ]
-          ]
-    in
-    Html.span
-        (
-          [ Attr.class "pat"
-          , Attr.title <| "Click to rename " ++ nameStr
-          , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid associatedShapes associatedFeatures)
-          ] ++ perhapsHoverPaddingAttr
-        ) <|
-        [ VirtualDom.text nameStr ] ++
-        if showRemover
-        then [ Html.span [Attr.class "remove-arg", Attr.title <| "Remove arg "  ++ nameStr, onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"] ]
-        else []
-      -- [ attr "font-family" params.mainSection.uiWidgets.font
-      -- , attr "font-size" params.mainSection.uiWidgets.fontSize
-      -- , attr "text-anchor" "start"
-  in
-  let maybeRenameBox =
+  let nameWidth nameStr = String.length nameStr * 10 in
+  let maybeRenamingInOutput =
     modelRenamingInOutput
     |> Utils.filterMaybe (\(renamingPId, shapesAssociatedWithRename, featuresAssociatedWithRename, _) -> renamingPId == pid && shapesAssociatedWithRename == associatedShapes && featuresAssociatedWithRename == associatedFeatures)
-    |> Maybe.map
-        (\(renamingPId, _, _, renameStr) ->
-          flip Html.input [] <|
-            [ Attr.defaultValue renameStr
-            , Attr.id "rename-box"
-            , Attr.class "pat"
-            , Attr.style [("width", toString (max 90 (String.length renameStr * 10)) ++ "px")]
-            , onInput Controller.msgUpdateRenameInOutputTextBox
-            , onClickWithoutPropagation Controller.msgNoop
-            , onKeyDown <|
-                \keyCode ->
-                  if keyCode == enterKeyCode then -- Enter button
-                    Controller.msgDoRename renamingPId
-                  else
-                    Controller.msgNoop
-            ]
-        )
   in
-  Maybe.withDefault text maybeRenameBox
+  case maybeRenamingInOutput of
+    Just (renamingPId, _, _, renameStr) ->
+      let width = nameWidth renameStr in
+      let renameBox =
+        flip Html.input [] <|
+          [ Attr.defaultValue renameStr
+          , Attr.id "rename-box"
+          , Attr.class "pat"
+          , Attr.style [("width", toString width ++ "px")]
+          , onInput Controller.msgUpdateRenameInOutputTextBox
+          , onClickWithoutPropagation Controller.msgNoop
+          , onKeyDown <|
+              \keyCode ->
+                if keyCode == enterKeyCode then -- Enter button
+                  Controller.msgDoRename renamingPId
+                else
+                  Controller.msgNoop
+          ]
+      in
+      ( renameBox
+      , width
+      )
+
+    Nothing ->
+      let nameStr = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
+      let width = nameWidth nameStr + if showRemover then 10 else 0 in
+      let perhapsHoverPaddingAttr =
+        case hoverPadding of
+          NoHoverPadding -> []
+          HoverPadding paddingAmount ->
+            [ Attr.style
+                [ ("padding", toString paddingAmount ++ "px")
+                , ("margin-left", "-" ++ toString paddingAmount ++ "px")
+                , ("margin-top",  "-" ++ toString paddingAmount ++ "px")
+                ]
+            ]
+      in
+      let textAndPerhapsRemover =
+        Html.span
+            (
+              [ Attr.class "pat"
+              , Attr.style [("width", toString width ++ "px")]
+              , Attr.title <| "Click to rename " ++ nameStr
+              , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid associatedShapes associatedFeatures)
+              ] ++ perhapsHoverPaddingAttr
+            ) <|
+            [ VirtualDom.text nameStr ] ++
+            if showRemover
+            then [ Html.span [Attr.class "remove-arg", Attr.title <| "Remove arg "  ++ nameStr, onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"] ]
+            else []
+          -- [ attr "font-family" params.mainSection.uiWidgets.font
+          -- , attr "font-size" params.mainSection.uiWidgets.fontSize
+          -- , attr "text-anchor" "start"
+      in
+      ( textAndPerhapsRemover
+      , width
+      )
 
 
 patInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> Float -> Float -> HoverPadding -> Svg Msg
 patInOutput modelRenamingInOutput showRemover pat associatedShapes associatedFeatures left top hoverPadding =
   patsInOutput modelRenamingInOutput showRemover [(pat, associatedShapes, associatedFeatures)] left top hoverPadding
+  |> Utils.maybeUnwrap1
+  |> Utils.fromJust_ "Canvas.patInOutput expected exactly 1 SVG when giving a single pat to patsInOutput"
 
 
-patsInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> List (Pat, Set NodeId, Set SelectableFeature) -> Float -> Float -> HoverPadding -> Svg Msg
+patsInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> List (Pat, Set NodeId, Set SelectableFeature) -> Float -> Float -> HoverPadding -> List (Svg Msg)
 patsInOutput modelRenamingInOutput showRemover patAndAssociatedSelectables left top hoverPadding =
+  let paddingBetweenPats = 10 in
   let
-    elements =
+    (htmlForeignObjectPats, _) =
       patAndAssociatedSelectables
-      |> List.map (\(pat, associatedShapes, associatedFeatures) -> patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding)
+      |> Utils.foldl
+          ([], 0)
+          (\(pat, associatedShapes, associatedFeatures) (htmlForeignObjectPats, widthSoFar) ->
+            let
+              (htmlPat, patWidth) = patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding
+
+              htmlForeignObjectPat =
+                flip Svg.foreignObject [htmlPat] <|
+                  [ attr "x" (toString (left - 2 + toFloat widthSoFar))
+                  , attr "y" (toString (top - 10 - 17))
+                  ]
+            in
+            ( htmlForeignObjectPats ++ [htmlForeignObjectPat]
+            , widthSoFar + patWidth + paddingBetweenPats
+            )
+          )
   in
-  flip Svg.foreignObject [Html.div [Attr.class "pats", Attr.style [("width", toString (100 * List.length patAndAssociatedSelectables) ++ "px")]] elements] <|
-    [ attr "x" (toString (left - 2))
-    , attr "y" (toString (top - 10 - 17))
-    ]
+  htmlForeignObjectPats
+
 
 
 expInOutput_ : String -> Exp -> Float -> Float -> HoverPadding -> List (VirtualDom.Property Msg) -> Svg Msg
@@ -820,8 +849,8 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
           , maybeRecOrBaseCaseLabel
           , maybeTerminationCondition
           , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput model.renamingInOutput False funcPat Set.empty Set.empty left (boxTop - if isCurrentContext then 20 else 0) NoHoverPadding)
-          , maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True (List.map (\argPat -> (argPat, Set.empty, Set.empty)) argPats) left boxTop NoHoverPadding)
-          , maybeAddArg
+          ] ++ (maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True (List.map (\argPat -> (argPat, Set.empty, Set.empty)) argPats) left boxTop NoHoverPadding) |> Maybe.withDefault [] |> List.map Just) ++
+          [ maybeAddArg
           ] |> Utils.filterJusts
   in
   let drawListWidget i_ maybeBounds listVal model =
