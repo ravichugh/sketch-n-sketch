@@ -727,10 +727,10 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
             let emptyDeuceState = DeuceWidgets.emptyDeuceState in
             flip Svg.rect perhapsTitleAttribute <|
               [ attr "fill" "none"
-              , attr "stroke" (if isCurrentContext then colorPointSelected else "black")
+              , attr "stroke" "black"
               , attr "stroke-width" "7px"
               -- , attr "stroke-dasharray" "20,10"
-              , attr "opacity" (if isCurrentContext then "1.0" else "0.15")
+              , attr "opacity" (if isCurrentContext then "0.6" else "0.07")
               , attr "rx" (toString ShapeWidgets.widgetBoundsPadding)
               , attr "ry" (toString ShapeWidgets.widgetBoundsPadding)
               , attr "x" (toString left)
