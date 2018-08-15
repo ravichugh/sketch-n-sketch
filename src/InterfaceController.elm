@@ -50,7 +50,6 @@ port module InterfaceController exposing
   , msgChooseDeuceExp
   , msgHideMenu, msgToggleMenu -- , msgShowMenu
   , msgUpdateFontSize
-  , msgSetToolMode
   , msgSetGhostsShown
   , msgHoverDeuceResult
   , msgLeaveDeuceResult
@@ -291,7 +290,7 @@ maybeClickableToPointWithSnap (defaultX, defaultY) maybeClickable =
 
 maybeDrawOnSelect selectedIdAsShape old =
   case (old.tool, Set.size old.selectedFeatures, Set.size old.selectedShapes, Dict.size old.selectedBlobs, Utils.maybeGeti1 (-2 - selectedIdAsShape) old.widgets) of
-    (Poly Raw, 0, 0, 0, Just (WList listVal)) ->
+    (Poly, 0, 0, 0, Just (WList listVal)) ->
       Just <| upstateRun <| switchToCursorTool <| Draw.addRawPolygonList old (eHoleVal listVal)
 
     _ ->
@@ -313,7 +312,7 @@ onMouseClick clickPos old maybeClickable =
     (Cursor, _) ->
       { old | mouseMode = MouseNothing }
 
-    (Poly stk, MouseDrawNew polyPoints) ->
+    (Poly, MouseDrawNew polyPoints) ->
       let pointToAdd = maybeClickableToPointWithSnap (canvasX, canvasY) maybeClickable in
       case polyPoints of
         DrawJustStarted _ -> { old | mouseMode = MouseDrawNew (PolyPoints [pointToAdd]) } -- maybeClickable of DrawJustStarted will be same as the given maybeClickable
@@ -324,13 +323,13 @@ onMouseClick clickPos old maybeClickable =
           if Utils.distanceInt (thisX, thisY) (initialX, initialY) > Draw.drawDotSize then { old | mouseMode = MouseDrawNew (PolyPoints (pointToAdd :: points)) }
           else if List.length points == 2 then { old | mouseMode = MouseNothing }
           else if List.length points == 1 then switchToCursorTool old
-          else upstateRun <| switchToCursorTool <| Draw.addPolygon stk old points
+          else upstateRun <| switchToCursorTool <| Draw.addPolygon old points
         _ -> Debug.crash "invalid state, points should be DrawJustStarted or PolyPoints for polygon tool"
 
-    (Path stk, MouseDrawNew (DrawJustStarted _)) ->
+    (Path, MouseDrawNew (DrawJustStarted _)) ->
       { old | mouseMode = MouseDrawNew (PathPoints [(old.keysDown, pointOnCanvas)]) }
 
-    (Path stk, MouseDrawNew (PathPoints points)) ->
+    (Path, MouseDrawNew (PathPoints points)) ->
       let add new =
         let points_ = (old.keysDown, new) :: points in
         (points_, { old | mouseMode = MouseDrawNew (PathPoints points_) })
@@ -343,13 +342,13 @@ onMouseClick clickPos old maybeClickable =
           else Tuple.second (add pointOnCanvas)
         (_,lastClick) :: _ ->
           if Utils.distanceInt pointOnCanvas lastClick < Draw.drawDotSize
-          then upstateRun <| Draw.addPath stk old points
+          then upstateRun <| Draw.addPath old points
           else
             let (_,firstClick) = Utils.last_ points in
             if Utils.distanceInt pointOnCanvas firstClick < Draw.drawDotSize
             then
               let (points_,old_) = add firstClick in
-              upstateRun <| switchToCursorTool <| Draw.addPath stk old_ points_
+              upstateRun <| switchToCursorTool <| Draw.addPath old_ points_
             else
               Tuple.second (add pointOnCanvas)
 
@@ -518,8 +517,8 @@ onMouseDrag lastPosition newPosition old =
 
     MouseDrawNew shapeBeingDrawn ->
       case (old.tool, shapeBeingDrawn) of
-        (Poly _, _) -> old -- handled by onMouseClick instead
-        (Path _, _) -> old -- handled by onMouseClick instead
+        (Poly, _) -> old -- handled by onMouseClick instead
+        (Path, _) -> old -- handled by onMouseClick instead
 
         (_, DrawJustStarted maybeClickable) ->
           let lastPointOnCanvas = maybeClickableToPointWithSnap (mxLast, myLast) maybeClickable in
@@ -2898,44 +2897,6 @@ msgUpdateFontSize fontSize = Msg "Update Font Size" <| \old ->
     { old | codeBoxInfo =
       { oldCodeBoxInfo | fontSize = fontSize }
     }
-
---------------------------------------------------------------------------------
--- Tools
-
-msgSetToolMode : ShapeToolKind -> Msg
-msgSetToolMode mode =
-  Msg "Set Tool Mode" <| \old ->
-    let
-      newTool =
-        case old.tool of
-          -- Tools with mode
-          Line _ ->
-            Line mode
-          Rect _ ->
-            Rect mode
-          Oval _ ->
-            Oval mode
-          Poly _ ->
-            Poly mode
-          Path _ ->
-            Path mode
-          -- Tools without mode
-          Cursor ->
-            Cursor
-          PointOrOffset ->
-            PointOrOffset
-          Text ->
-            Text
-          HelperLine ->
-            HelperLine
-          Lambda i ->
-            Lambda i
-          Function fName ->
-            Function fName
-    in
-      { old | toolMode = mode
-            , tool = newTool
-      }
 
 --------------------------------------------------------------------------------
 -- Ghosts

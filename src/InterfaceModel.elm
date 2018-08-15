@@ -169,7 +169,6 @@ type alias Model =
   , selectedDeuceTool : Maybe CachedDeuceTool
   , showOnlyBasicTools : Bool
   , viewState : ViewState
-  , toolMode : ShapeToolKind
   , popupPanelPositions : PopupPanelPositions
   , deuceRightClickMenuMode : Maybe DeuceRightClickMenuMode
   , enableDeuceBoxSelection : Bool
@@ -334,19 +333,14 @@ type Tool
   = Cursor
   | PointOrOffset
   | Text
-  | Line ShapeToolKind
-  | Rect ShapeToolKind
-  | Oval ShapeToolKind
-  | Poly ShapeToolKind
-  | Path ShapeToolKind
+  | Line
+  | Rect
+  | Oval
+  | Poly
+  | Path
   | HelperLine
   | Lambda Int -- 1-based index of selected LambdaTool
   | Function Ident -- Generalized lambda tool, hopefully will subsume Lambda tool
-
-type ShapeToolKind
-  = Raw
-  | Stretchy
-  | Sticky
 
 type LambdaTool
   = LambdaBounds Exp
@@ -1226,7 +1220,6 @@ initModel =
     , viewState =
         { menuActive = False
         }
-    , toolMode = Raw
     , popupPanelPositions =
         { deuce = (200, 200)
         , editCode = (400, 400)

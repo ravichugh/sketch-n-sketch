@@ -979,21 +979,6 @@ menuBar model =
                 "False"
                 Controller.msgSetAllowMultipleTargetPositions
           ]
-        , [ hoverMenu "Shape Code Templates"
-              [ simpleTextRadioButton
-                  (model.toolMode == Raw)
-                  "Raw"
-                  (Controller.msgSetToolMode Raw)
-              , simpleTextRadioButton
-                  (model.toolMode == Stretchy)
-                  "Stretchy"
-                  (Controller.msgSetToolMode Stretchy)
-              , simpleTextRadioButton
-                  (model.toolMode == Sticky)
-                  "Sticky"
-                  (Controller.msgSetToolMode Sticky)
-              ]
-          ]
         , [ hoverMenu "Automatically Suggest Code Changes"
               [ simpleTextRadioButton
                   model.autoSynthesis
@@ -1541,15 +1526,15 @@ toolButton model tool =
         "Cursor"
       PointOrOffset ->
         "Point or Offset"
-      Line _ ->
+      Line ->
         "Line"
-      Rect _ ->
+      Rect ->
         "Rect"
-      Oval _  ->
+      Oval ->
         "Ellipse"
-      Poly _ ->
+      Poly ->
         "Polygon"
-      Path _ ->
+      Path ->
         "Path"
       Text ->
         "Text"
@@ -1559,19 +1544,15 @@ toolButton model tool =
         "Lambda" -- Utils.uniLambda
       Function fName ->
         fName
-    -- TODO temporarily disabling a couple tools
-    (btnKind, disabled) =
-     case (model.tool == tool, tool) of
-       (True, _)            -> (Selected, False)
-       (False, Path Sticky) -> (Regular, True)
-       (False, _)           -> (Unselected, False)
+
+    btnKind = if model.tool == tool then Selected else Unselected
   in
     Html.div
       [ Attr.class "tool"
       , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
       ]
       [ iconButton
-          model cap (Msg cap (\m -> { m | tool = tool })) btnKind disabled
+          model cap (Msg cap (\m -> { m | tool = tool })) btnKind False
       ]
 
 lambdaTools : Model -> List (Html Msg)
@@ -1610,32 +1591,6 @@ functionTools model =
           ]
       )
 
-toolModeIndicator : Model -> Html Msg
-toolModeIndicator model =
-  let
-    toolModeDisplay mode modeText =
-      let
-        flag =
-          if model.toolMode == mode then
-             " active"
-          else
-            ""
-      in
-        Html.div
-          [ Attr.class <| "tool-mode" ++ flag
-          , E.onClick <| Controller.msgSetToolMode mode
-          ]
-          [ Html.text modeText
-          ]
-  in
-    Html.div
-      [ Attr.class "tool-mode-indicator"
-      ]
-      [ toolModeDisplay Raw "Raw"
-      , toolModeDisplay Stretchy "Stretchy"
-      , toolModeDisplay Sticky "Sticky"
-      ]
-
 toolPanel : Model -> Html Msg
 toolPanel model =
   let
@@ -1659,16 +1614,14 @@ toolPanel model =
       ( [ toolButton model Cursor
         , toolButton model PointOrOffset
         -- , toolButton model Text
-        -- , toolButton model (Line model.toolMode)
-        -- , toolButton model (Rect model.toolMode)
-        -- , toolButton model (Oval model.toolMode)
-        , toolButton model (Poly model.toolMode)
-        -- , toolButton model (Path model.toolMode)
+        -- , toolButton model Line
+        -- , toolButton model Rect
+        -- , toolButton model Oval
+        , toolButton model Poly
+        -- , toolButton model Path
         ] ++
         lambdaTools model ++
-        functionTools model ++
-        [ toolModeIndicator model
-        ]
+        functionTools model
       )
 
 --------------------------------------------------------------------------------

@@ -790,12 +790,9 @@ pointWithSnapToPairExp pointWithSnap =
   let (xExp, yExp) = pointWithSnapToXYExps pointWithSnap in
   eTuple [xExp, yExp]
 
-addPolygon stk old pointsWithSnap =
+addPolygon old pointsWithSnap =
   let points = pointsWithSnap |> List.map (\((x, _), (y, _)) -> (x, y)) in
-  case stk of
-    Raw      -> addRawPolygon old pointsWithSnap
-    Stretchy -> addStretchablePolygon old points
-    Sticky   -> addStickyPolygon old points
+  addRawPolygon old pointsWithSnap
 
 addRawPolygon old pointsWithSnap =
   let ePts =
@@ -827,66 +824,11 @@ addRawPolygonList old listExp =
   in
   addShapeToModel old "polygon" polygonExp
 
-addStretchablePolygon old points =
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
-  let (width, height) = (xMax - xMin, yMax - yMin) in
-  let sPcts =
-    Utils.bracks <| Utils.spaces <|
-      flip List.map (List.reverse points) <| \(x,y) ->
-        let xPct = (toFloat x - toFloat xMin) / toFloat width in
-        let yPct = (toFloat y - toFloat yMin) / toFloat height in
-        let xStr = maybeThaw xPct in
-        let yStr = maybeThaw yPct in
-        Utils.bracks (Utils.spaces [xStr,yStr])
-  in
-  let polygonExp =
-    makeCallWithLocals
-        [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-        , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
-        , makeLet ["pcts"] [eRaw sPcts] ]
-        (eVar0 "stretchyPolygon")
-        (List.map eVar ["bounds","color","strokeColor","strokeWidth","pcts"])
-  in
-  addShapeToModel old "polygon" polygonExp
-
-addStickyPolygon old points =
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
-  let (width, height) = (xMax - xMin, yMax - yMin) in
-  let sOffsets =
-    Utils.bracks <| Utils.spaces <|
-      flip List.map (List.reverse points) <| \(x,y) ->
-        let
-          (dxLeft, dxRight) = (x - xMin, x - xMax)
-          (dyTop , dyBot  ) = (y - yMin, y - yMax)
-          xOff = if dxLeft <= abs dxRight
-                   then Utils.bracks (Utils.spaces ["left", maybeThaw0 (toString dxLeft)])
-                   else Utils.bracks (Utils.spaces ["right", maybeThaw0 (toString dxRight)])
-          yOff = if dyTop <= abs dyBot
-                   then Utils.bracks (Utils.spaces ["top", maybeThaw0 (toString dyTop)])
-                   else Utils.bracks (Utils.spaces ["bot", maybeThaw0 (toString dyBot)])
-        in
-        Utils.bracks (Utils.spaces [xOff,yOff])
-  in
-  let polygonExp =
-    makeCallWithLocals
-        [ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-        , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
-        , makeLet ["offsets"] [eRaw sOffsets] ]
-        (eVar0 "stickyPolygon")
-        (List.map eVar ["bounds","color","strokeColor","strokeWidth","offsets"])
-  in
-  addShapeToModel old "polygon" polygonExp
-
 strPoint strX strY (x,y) = Utils.spaces [strX x, strY y]
 
-addPath : ShapeToolKind -> Model -> List (KeysDown, (Int, Int)) -> Model
-addPath stk old keysAndPoints =
-  case stk of
-    Raw      -> addAbsolutePath old keysAndPoints
-    Stretchy -> addStretchyPath old keysAndPoints
-    Sticky   -> addStretchyPath old keysAndPoints -- TODO
+addPath : Model -> List (KeysDown, (Int, Int)) -> Model
+addPath old keysAndPoints =
+  addAbsolutePath old keysAndPoints
 
 pathCommands strX strY keysAndPoints =
   let strPt = strPoint strX strY in
@@ -952,28 +894,6 @@ addAbsolutePath old keysAndPoints =
         , eVar "d", eConst 0 dummyLoc ]
   in
   addShapeToModel old "path" pathExp
-
-addStretchyPath old keysAndPoints =
-  let points = List.map Tuple.second keysAndPoints in
-  let (xMin, xMax, yMin, yMax) = boundingBoxOfPoints points in
-  let (width, height) = (toFloat (xMax - xMin), toFloat (yMax - yMin)) in
-  let strX x = maybeThaw (toFloat (x - xMin) / width) in
-  let strY y = maybeThaw (toFloat (y - yMin) / height) in
-  let (extraLets, sD) = pathCommands strX strY keysAndPoints in
-  let pathExp =
-    makeCallWithLocals
-        ([ makeLetAs "bounds" ["left","top","right","bot"] (makeInts [xMin,yMin,xMax,yMax])
-         , makeLet ["strokeColor","strokeWidth","color"]
-                   [ randomColor old, eConst 5 dummyLoc, randomColor1 old ] ]
-         ++ extraLets
-         ++ [ makeLet ["dPcts"] [eVar sD] ])
-        (eVar0 "stretchyPath")
-        (List.map eVar ["bounds","color","strokeColor","strokeWidth","dPcts"])
-  in
-  addShapeToModel old "path" pathExp
-
-addStickyPath old keysAndPoints =
-  Debug.crash "TODO: addStickyPath"
 
 -- copied from ExpressionBasedTransform
 eAsPoint e =
