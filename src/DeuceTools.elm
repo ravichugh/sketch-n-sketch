@@ -46,15 +46,7 @@ import ExpressionBasedTransform
 -- Selections
 --------------------------------------------------------------------------------
 
-type alias Selections =
-  ( List (LocId, (WS, Num, Loc, WidgetDecl))  -- number literals
-  , List (EId, (WS, EBaseVal))                -- other base value literals
-  , List EId                                  -- expressions (including literals)
-  , List PathedPatternId                      -- patterns
-  , List EId                                  -- equations
-  , List ExpTargetPosition                    -- expression target positions
-  , List PatTargetPosition                    -- pattern target positions
-  )
+type alias Selections = Model.DeuceSelections
 
 selectedNumsAndBaseVals
     : Exp
