@@ -1657,7 +1657,7 @@ maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr xVal yNumTr yVal =
 
 zoneSelectCrossDot : Model -> Bool -> (Int, ShapeKind, PointFeature)
                   -> NumTr -> Val -> NumTr -> Val -> List (Svg Msg)
-zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNumTr yVal =
+zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal yNumTr yVal =
   let ((xFloat, _), (yFloat, _)) = (xNumTr, yNumTr) in
   let (x, y) = (round xFloat, round yFloat) in
   let thisCrosshair = (id, pointFeature) in
@@ -1722,7 +1722,7 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNum
         _                  -> pointZoneStyles.fill.shown
     in
     let isVisible =
-      not (objectIsCurrentlyBeingManipulated model id)
+      (shapeKind == "point" || not (objectIsCurrentlyBeingManipulated model id)) -- Show proper point widgets during live sync.
          && (alwaysShowDot ||
              Set.member id model.selectedShapes ||
              Set.member id model.hoveredShapes ||
