@@ -667,17 +667,6 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
   in
   let drawCallWidget i_ maybeBounds callEId funcVal argVals retVal retWs model =
     let program = model.inputExp in
-    let (maybeRecName, maybeFuncBody, maybeFuncPat, maybeArgPats, maybeFuncExp) =
-      case funcVal.v_ of
-        VClosure maybeRecName argPats funcBody env ->
-          case parentByEId program funcBody.val.eid of
-            Just (Just funcExp) ->
-              case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
-                Just (_, funcPat) -> (maybeRecName, Just funcBody, Just funcPat, Just argPats, Just funcExp)
-                _                 -> (maybeRecName, Just funcBody, Nothing,      Just argPats, Just funcExp)
-            _ -> (maybeRecName, Just funcBody, Nothing, Just argPats, Nothing)
-        _ -> (Nothing, Nothing, Nothing, Nothing, Nothing)
-    in
     let isCurrentContext =
       case model.editingContext of
         Just (_, Just eid) -> eid == callEId
@@ -685,7 +674,20 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
     in
     if not <| isCurrentContext || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
       []
+    else if model.mouseMode /= MouseNothing && not isCurrentContext then
+      []
     else
+      let (maybeRecName, maybeFuncBody, maybeFuncPat, maybeArgPats, maybeFuncExp) =
+        case funcVal.v_ of
+          VClosure maybeRecName argPats funcBody env ->
+            case parentByEId program funcBody.val.eid of
+              Just (Just funcExp) ->
+                case LangTools.findLetAndPatMatchingExpLoose funcExp.val.eid program of
+                  Just (_, funcPat) -> (maybeRecName, Just funcBody, Just funcPat, Just argPats, Just funcExp)
+                  _                 -> (maybeRecName, Just funcBody, Nothing,      Just argPats, Just funcExp)
+              _ -> (maybeRecName, Just funcBody, Nothing, Just argPats, Nothing)
+          _ -> (Nothing, Nothing, Nothing, Nothing, Nothing)
+      in
       case maybeBounds of
         Nothing -> []
         Just (left, top, right, bot) ->
@@ -827,6 +829,8 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
     let idAsShape = -2 - i_ in
     let isSelected = Set.member idAsShape model.selectedShapes in
     if not <| isSelected || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
+      []
+    else if model.mouseMode /= MouseNothing then
       []
     else
       case maybeBounds of

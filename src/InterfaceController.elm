@@ -689,9 +689,11 @@ finishTrigger zoneKey old =
   --
   let old_ = old in
   refreshHighlights zoneKey
-    { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
+    { old_ | mouseMode = MouseNothing
+           , liveSyncInfo = refreshLiveInfo old_
            , history = modelCommit old.code [] old_.history
            , synthesisResultsDict = Dict.empty
+           , widgetBounds = ShapeWidgets.computeAndRejiggerWidgetBounds old_.widgets
            }
 
 --------------------------------------------------------------------------------
