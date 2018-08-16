@@ -1726,6 +1726,12 @@ String =
     in aux "" list
   in
   let length x = len (explode x) in
+  let strToFloat s =
+    case Regex.extract """(\d+)\.(\d+)""" s of
+       Just [intPart, floatPart] ->
+         strToInt intPart + strToInt floatPart / (10 ^ length floatPart)
+       Nothing -> strToInt s
+  in
   let join_ x =
     -- An example of using reversible foldl to join strings without separators
     -- Here no insertion of element is possible, but we can remove elements.
@@ -1818,6 +1824,10 @@ String =
   { toInt x =
       { apply x = strToInt x
       , unapply output = Just (toString output)
+      }.apply x
+    toFloat x =
+      { apply x = strToFloat x -- TODO: Recognize other types of float (e.g. NaN, infinity, 1e10, negatives...)
+        unapply output = Just (toString output)
       }.apply x
     join delimiter x =
       if delimiter == "" then join_ x
