@@ -23,7 +23,7 @@ import Sync
 import Draw exposing (pointZoneStyles, colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput, colorInputAndOutput)
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
-import DeuceWidgets
+import DeuceWidgets exposing (emptyDeuceState)
 
 import Syntax exposing (Syntax)
 
@@ -483,23 +483,41 @@ type SelectedItem
   | SelectedEIdOnly EId
 
 
+featuresShapesAndMaybeInterpretationForItem : SelectedItem -> (Set SelectableFeature, Set NodeId, Maybe (List (List EId)))
+featuresShapesAndMaybeInterpretationForItem item =
+  let (features, shapes, maybeInterpretations) =
+    case item of
+      SelectedShape nodeId              -> (Set.empty,                         Set.singleton nodeId, Nothing)
+      SelectedFeature selectableFeature -> (Set.singleton selectableFeature,   Set.empty,            Nothing)
+      SelectedPoint xFeature yFeature   -> (Set.fromList [xFeature, yFeature], Set.empty,            Nothing)
+      SelectedEIdOnly eid               -> (Set.empty,                         Set.empty,            Just [[eid]])
+  in
+  (features, shapes, maybeInterpretations)
+
+
+-- Trying to follow InterfaceController.deleteInOutput logic for what to show.
+interpretationsForSelectedItem : Exp -> LangSvg.RootedIndexedTree -> List Widget -> SelectedItem -> List (List EId)
+interpretationsForSelectedItem program slate widgets item =
+  let
+    (features, shapes, maybeInterpretations) = featuresShapesAndMaybeInterpretationForItem item
+
+    interpretations =
+      case maybeInterpretations of
+        Just interpretations -> interpretations
+        Nothing              -> ShapeWidgets.selectionsUniqueProximalEIdInterpretations program slate widgets features shapes Dict.empty
+  in
+  interpretations
+
+
 perhapsPatOrExpInOutput : Exp -> LangSvg.RootedIndexedTree -> List Widget -> Maybe (PId, Set NodeId, Set SelectableFeature, String) -> SelectedItem -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
 perhapsPatOrExpInOutput program slate widgets modelRenamingInOutput item left top hoverPadding shouldShow =
   let
-    (features, shapes, maybeInterpretations) =
-      case item of
-        SelectedShape nodeId              -> (Set.empty,                         Set.singleton nodeId, Nothing)
-        SelectedFeature selectableFeature -> (Set.singleton selectableFeature,   Set.empty,            Nothing)
-        SelectedPoint xFeature yFeature   -> (Set.fromList [xFeature, yFeature], Set.empty,            Nothing)
-        SelectedEIdOnly eid               -> (Set.empty,                         Set.empty,            Just [[eid]])
+    (features, shapes, _) = featuresShapesAndMaybeInterpretationForItem item
 
     showLabelWidget () =
       let
         -- Trying to follow InterfaceController.deleteInOutput logic for what to show.
-        interpretations =
-          case maybeInterpretations of
-            Just interpretations -> interpretations
-            Nothing              -> ShapeWidgets.selectionsUniqueProximalEIdInterpretations program slate widgets features shapes Dict.empty
+        interpretations = interpretationsForSelectedItem program slate widgets item
 
         singleEIdEffectiveInterpretations =
           interpretations
@@ -755,7 +773,6 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               _ -> ([], [])
           in
           let box =
-            let emptyDeuceState = DeuceWidgets.emptyDeuceState in
             flip Svg.rect perhapsTitleAttribute <|
               [ attr "fill" "none"
               , attr "stroke" "black"
@@ -874,7 +891,6 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
           in
           let deuceWidget = DeuceWidgets.DeuceExp (valExp listVal).val.eid in
           let edgeHoverEvents =
-            let emptyDeuceState = DeuceWidgets.emptyDeuceState in
             [ onMouseEnter (Msg "Hover List Widget" (\old -> { old | deuceState = { emptyDeuceState | hoveredWidgets = [deuceWidget] } }))
             , onMouseLeave (Msg "Leave List Widget" (\old -> { old | deuceState = emptyDeuceState }))
             ]
@@ -985,7 +1001,7 @@ buildDistances model slate widgets =
                 , attr "stroke-width" hairStrokeWidth
                 , attr "x1" (toString x1) , attr "y1" (toString y1)
                 , attr "x2" (toString x2) , attr "y2" (toString y2)
-                , onMouseDownAndStop (Msg "Toggle Selected Distance..." <| toggleSelectedLambda [selectableFeature] >> deselectEndPoints)
+                , onMouseDownAndStop (Msg "Toggle Selected Distance..." <| doToggleSelected [selectableFeature] >> deselectEndPoints)
                 ]
             in
             [line]
@@ -1115,16 +1131,6 @@ addHoveredShape id =
         Nothing ->
           { m | hoveredShapes = Set.singleton id }
 
-
-addHoveredCrosshair tuple =
-  Msg ("Add Hovered Crosshair " ++ toString tuple) <| \m ->
-    if isMouseDown m
-    then m
-    else { m | hoveredCrosshairs = Set.insert tuple m.hoveredCrosshairs }
-
-removeHoveredCrosshair tuple =
-  Msg ("Remove Hovered Crosshair " ++ toString tuple) <| \m ->
-    { m | hoveredCrosshairs = Set.remove tuple m.hoveredCrosshairs }
 
 cursorStyle s = attr "cursor" s
 
@@ -1668,10 +1674,10 @@ type alias NodeIdAndFeature      = (LangSvg.NodeId, ShapeWidgets.ShapeFeature)
 
 toggleSelected : List ShapeWidgets.SelectableFeature -> Msg
 toggleSelected selectableFeatures =
-  Msg "Toggle Selected..." <| toggleSelectedLambda selectableFeatures
+  Msg "Toggle Selected..." <| doToggleSelected selectableFeatures
 
-toggleSelectedLambda : List ShapeWidgets.SelectableFeature -> Model -> Model
-toggleSelectedLambda selectableFeatures =
+doToggleSelected : List ShapeWidgets.SelectableFeature -> Model -> Model
+doToggleSelected selectableFeatures =
   \model ->
     -- If only some of the features were selected, we want to select all of
     -- them, not toggle individually.
@@ -1764,10 +1770,13 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
     in
     let extraAttrs =
       if model.tool == Cursor then
-        [ onMouseDownAndStop <| Msg "Select Cross Dot..." <| \model ->
+        -- Okay so this is a flying mess.
+        -- Actual focus of the point ("hoveredCrosshairs") happens in InterfaceController.onClickPrimaryZone
+        -- Here we just handle selection of the X/Y zones.
+        [ onMouseDownAndStop <| Msg "Toggle Selection of Hovered Cross Dot..." <| \model ->
             if Set.member thisCrosshair model.hoveredCrosshairs
-              then toggleSelectedLambda [xSelectableFeature, ySelectableFeature] model
-              else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
+              then doToggleSelected [xSelectableFeature, ySelectableFeature] model
+              else model
         ]
       else
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
@@ -1841,7 +1850,15 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
   let perhapsFaded = if isFromOutsideProgram then [ attr "opacity" "0.4" ] else [] in
   -- using nested group for onMouseLeave handler
   List.singleton <| Svg.g
-    ([onMouseLeave (removeHoveredCrosshair thisCrosshair)] ++ perhapsFaded)
+    (
+      [ onMouseLeave <| Msg ("Remove Hovered Crosshair " ++ toString thisCrosshair) <| \model ->
+        { model | hoveredCrosshairs = Set.remove thisCrosshair model.hoveredCrosshairs
+                , deuceState = DeuceWidgets.emptyDeuceState }                
+      , onMouseEnter <| Msg "Hover Point" <| \model ->
+          let maybeHoveredEId = Maybe.andThen Utils.maybeUnwrap1 <| List.head <| interpretationsForSelectedItem model.inputExp model.slate model.widgets (SelectedPoint xSelectableFeature ySelectableFeature) in
+          { model |  deuceState = { emptyDeuceState | hoveredWidgets = Utils.maybeToList maybeHoveredEId |> List.map DeuceWidgets.DeuceExp } }
+      ] ++ perhapsFaded
+    )
     ([backDisc, xLine, yLine, frontDisc] ++ perhapsPointPatWidget ++ perhapsXPatWidget ++ perhapsYPatWidget ++ [xyDot])
 
 perhapsZoneSelectLine : Num -> Model -> LangSvg.NodeId -> ShapeWidgets.ShapeFeature -> (Num, Num) -> (Num, Num) -> List (Svg Msg)
