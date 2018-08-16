@@ -3525,11 +3525,10 @@ getTopLevelOptions: Exp -> List (String, String)
 getTopLevelOptions e = getOptions e
 
 -- Diffs
+type alias TupleDiffs a = List (Maybe a)
+type alias ListDiffs a = List (ListElemDiff a)
 
-type alias TupleDiffs a = List (Int, a)
-type alias ListDiffs a = List (Int, ListElemDiff a)
-
-type ListElemDiff a = ListElemUpdate a | ListElemInsert Int | ListElemDelete Int
+type ListElemDiff a = ListElemUpdate a | ListElemInsert Int | ListElemDelete Int | ListElemSkip Int
 
 type VDictElemDiff = VDictElemDelete | VDictElemInsert | VDictElemUpdate VDiffs
 
@@ -3600,11 +3599,12 @@ updated = {
 
    --: List (String, (Val, Maybe VDiffs)) -> UpdatedEnv
    env = \namesUpdatedVals ->
-     let (revEnv, revDiffs) = Utils.foldLeftWithIndex ([], []) namesUpdatedVals <|
-       \(revEnv, revDiffs) index (name, {val, changes}) ->
+     let (revEnv, revDiffs) =
+       Utils.foldLeft ([],     [])       namesUpdatedVals <|
+                     \(revEnv, revDiffs) (name, {val, changes}) ->
           case changes of
-           Nothing -> ((name, val)::revEnv, revDiffs)
-           Just d -> ((name, val)::revEnv, (index, d)::revDiffs)
+           Nothing -> ((name, val)::revEnv, Nothing :: revDiffs)
+           Just d -> ((name, val)::revEnv, Just d :: revDiffs)
      in
      UpdatedEnv (List.reverse revEnv) (List.reverse revDiffs)
   }

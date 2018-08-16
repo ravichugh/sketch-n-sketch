@@ -1335,6 +1335,7 @@ applyConcreteDiffs string diffs =
        aux tail
   in aux (List.reverse diffs) (string, [])
 
+-- combines two successive string diffs.
 composeStringDiffs: List StringDiffs -> List StringDiffs -> List StringDiffs
 composeStringDiffs oldStringDiffs newStringDiffs =
   let aux: Int ->     Int ->    Int ->         List StringDiffs -> List StringDiffs -> List StringDiffs -> List StringDiffs
@@ -2262,3 +2263,191 @@ affinity s1 s2 =
          Just (s2First, _) -> affinityChar s1Last s2First
          Nothing -> 25
      Nothing -> 25
+
+-- What modifications should we make to modified to get the original
+-- Obtained from the diffs themselves
+reverseStringDiffs: List StringDiffs -> List StringDiffs
+reverseStringDiffs diffs =
+  let aux offset diffs revAcc = case diffs of
+    [] -> List.reverse revAcc
+    StringUpdate start end replaced :: tailDiffs ->
+       StringUpdate (offset + start) (offset + start + replaced) (end - start) :: revAcc |>
+       aux (offset + replaced - (end - start)) tailDiffs
+  in aux 0 diffs []
+
+reverseListDiffs: (a -> a) -> ListDiffs a -> ListDiffs a
+reverseListDiffs subreverse diffs =
+  let aux i offset diffs revAcc = case diffs of
+    [] -> List.reverse revAcc
+    (j, d)::tailDiffs ->
+       if i < j then
+         aux j offset diffs revAcc
+       else -- i == j
+         case d of
+           ListElemInsert count ->
+             (i + offset, ListElemDelete count) :: revAcc |>
+             aux j (offset + count) tailDiffs
+           ListElemDelete count ->
+             (i + offset, ListElemInsert count) :: revAcc |>
+             aux j (offset - count) tailDiffs
+           ListElemUpdate d ->
+             (i + offset, ListElemUpdate (subreverse d))::revAcc |>
+             aux j offset tailDiffs
+  in aux 0 0 diffs []
+
+reverseRecordDiffs: (a -> a) -> Dict String a -> Dict String a
+reverseRecordDiffs subreverse diffs =
+  Dict.map (\k v -> subreverse v) diffs
+
+reverseDictDiffs: Dict (String, String) VDictElemDiff -> Dict (String, String) VDictElemDiff
+reverseDictDiffs diffs =
+  Dict.map (\k v -> case v of
+    VDictElemInsert -> VDictElemDelete
+    VDictElemDelete -> VDictElemInsert
+    VDictElemUpdate d -> VDictElemUpdate (reverseVDiffs d)
+  ) diffs
+
+reverseTupleDiffs: (a -> a) -> TupleDiffs a -> TupleDiffs a
+reverseTupleDiffs subreverse ed =
+  List.map (\(k, d) -> (k, subreverse d)) ed
+
+reverseEDiffs: EDiffs -> EDiffs
+reverseEDiffs diffs = case diffs of
+  EConstDiffs x -> diffs
+  EListDiffs ld -> EListDiffs  <| reverseListDiffs reverseEDiffs ld
+  EStringDiffs sd -> EStringDiffs <| reverseStringDiffs sd
+  EChildDiffs td -> EChildDiffs <| reverseTupleDiffs reverseEDiffs td
+
+-- What are the reverse differences from modified to original?
+reverseVDiffs: VDiffs -> VDiffs
+reverseVDiffs diffs = case diffs of
+     VConstDiffs ->
+        VConstDiffs
+     VStringDiffs diffs ->
+        VStringDiffs <| reverseStringDiffs diffs
+     VListDiffs ld ->
+        VListDiffs <| reverseListDiffs reverseVDiffs ld
+     VRecordDiffs rd ->
+        VRecordDiffs <| reverseRecordDiffs reverseVDiffs rd
+     VDictDiffs dd ->
+        VDictDiffs <| reverseDictDiffs reverseVDiffs dd
+     VClosureDiffs ed bd ->
+        VClosureDiffs ((reverseTupleDiffs reverseVDiffs) ed) (Maybe.map reverseEDiffs bd)
+
+-- Given two stringdiffs in order, combines them to represent the total diffs.
+-- Careful: the index of the second diffs are based on the output of the first diffs.
+combineStringDiffs: List StringDiffs -> List StringDiffs -> List StringDiffs
+combineStringDiffs diffs1 diffs2after1 = composeStringDiffs diffs1 diffs2after1
+
+
+combineListDiffs: (a -> a -> a) -> ListDiffs a -> ListDiffs a -> ListDiffs a
+combineListDiffs subcombine diffs1 diffs2after1 =
+  let aux diffs1 diffs2after1 revAcc = case (diffs1, diffs2after1) of
+     ([], []) -> List.reverse revAcc
+     (_, []) -> List.reverse <| Utils.reverseInsert diffs1 revAcc
+     ([], _) -> List.reverse <| Utils.reverseInsert diffs2after1 revAcc
+     (d1::t1, (d2::t2) ->
+       case (d1, d2) of
+         (ListElemSkip count, ListElemSkip count2) ->
+           if count < count2 then
+             ListElemSkip count :: revAcc |>
+             aux t1 (ListElemSkip (count2 - count1) :: t2)
+           else if count == count2 then
+             ListElemSkip count :: revAcc |>
+             aux t1 t2
+           else -- count > count2
+             ListElemSkip count2 :: revAcc |>
+             aux (ListElemSkip (count - count2) :: t1) t2
+         (ListElemSkip count, ListElemInsert count2) ->
+             ListElemInsert count2 :: revAcc |>
+             aux diffs1 t2
+         (ListElemSkip count, ListElemDelete count2) ->
+         (ListElemSkip count, ListElemUpdate count2) ->
+         (ListElemInsert count, ListElemSkip count2) ->
+         (ListElemInsert count, ListElemInsert count2) ->
+         (ListElemInsert count, ListElemDelete count2) ->
+         (ListElemInsert count, ListElemUpdate count2) ->
+         (ListElemDelete count, ListElemSkip count2) ->
+         (ListElemDelete count, ListElemInsert count2) ->
+         (ListElemDelete count, ListElemDelete count2) ->
+         (ListElemDelete count, ListElemUpdate count2) ->
+         (ListElemUpdate count, ListElemSkip count2) ->
+         (ListElemUpdate count, ListElemInsert count2) ->
+         (ListElemUpdate count, ListElemDelete count2) ->
+         (ListElemUpdate count, ListElemUpdate count2) ->
+
+         )
+       let i2 = i2offsetted + offsetCount in
+       if i < i1 && i < i2 then
+         aux (Math.min i1 i2) offsetCount diffs1 diffs2after1 revAcc
+       else -- i == i1 || i == i2
+         if i == i1 then
+           case d1 of
+             ListElemDelete count -
+               (i1, d1)::revAcc |>
+               aux (i + count) (offsetCount - count) t1 diffs2after1
+             ListElemInsert count ->
+               if i == i2 then
+                 case d2 of
+                   ListElemDelete count2 -> -- Insertion and deletion cancel each other.
+                     if count > count2 then -- More insertion than deletion
+                       aux ?? ?? ((i1, ListElemInsert (count1 - count2))::t1) t2 revAcc
+                     else if count == count2 then
+                       aux ?? ?? t1 t2 revAcc
+                     else
+                       aux ?? ?? t1 ((??, ListElemDelete (count2 - count1))
+                   ListElemInsert count2 ->
+                     (i2, d2)::revAcc |>
+                     aux i offsetCount diffs1 t2
+                   ListElemUpdate ud2 ->
+
+               else
+                 (i1, d1)::revAcc |>
+                 aux i (offsetCount + count) t1 diffs2after1
+             ListElemUpdate du1 ->
+
+         if i < i2 then -- i == i1
+           let deltaOffset = case d1 of
+             ListElemDelete count -> 0 - count
+             ListElemInsert count -> count
+             ListElemUpdate -> 0
+           in
+           (i1, d1)::revAcc |>
+           aux (i + 1) (offsetCount + deltaOffset) t1 diffs2after1
+         else if i < i1 then -- i == i2
+           (i2, d2)::revAcc |>
+           aux (i + 1)
+         else -- i == 1 && i == i2
+
+  in
+  aux 0 0 diffs1 diffs2after1 []
+
+combineVDiffs: VDiffs -> VDiffs -> VDiffs
+combineVDiffs diffs1 diffs2after1 =
+  case (diffs1, diffs2after1) of
+    (VConstDiffs, VConstDiffs) -> VConstDiffs
+    (VStringDiffs d1, VStringDiffs d2after1) -> VStringDiffs <| combineStringDiffs d1 d2after1
+    (VListDiffs d1, VListDiffs d2after1) -> VListDiffs <| combineListDiffs combineVDiffs d1 d2after1
+    (VRecordDiffs rd1, VRecordDiffs rd2after1) -> VRecordDiffs <| combineRecordDiffs combineVDiffs rd1 rd2after1
+    (VDictDiffs dd1, VDictDiffs dd2after1) -> VDictDiffs <| combineDictDiffs combineVDiffs dd1 dd2after1
+    (VClosureDiffs ed bd, VClosureDiffs ed2after1 bd2after1) ->
+      VClosureDiffs (combineTupleDiffs combineVDiffs ed ed2after1) <| case (bd, bd2after1) of
+        (Nothing, Nothing) -> Nothing
+        (Nothing, Just d) -> Just d
+        (Just d, Nothing) -> Just d
+        (Just bd1, Just bd2after1) -> Just <| combineEDiffs bd1 bd2after1
+
+differenceVDiffs: VDiffs -> VDiffs -> VDiffs
+differenceVDiffs diffsToA1FromO1 diffsToA2FromO1 = -- Returns the differences from A2 to A1
+  combineVDiffs (reverseVDiffs diffsToA2FromO1) diffsToA1FromO1
+
+-- Computes the ifferences between updatedVal and modifiedFirst, given that they are both modifications from original
+diffsOfDiffs: Val -> Val -> Maybe VDiffs -> Val -> Maybe VDiffs -> (Val, Maybe VDiffs)
+diffsOfDiffs original updatedVal updatedDiffs modifiedFirst modifiedFirstDiffs =
+  case updatedDiffs of
+    Nothing -> (original, Maybe.map reverseVDiffs modifiedFirstDiffs.changes)
+    Just modifs1 ->
+  case modifiedFirstDiffs of
+     Nothing -> (updatedVal, updatedDiffs)
+     Just modifs2 ->
+       (updatedVal, Just <| differenceVDiffs modifs1 modifs2)

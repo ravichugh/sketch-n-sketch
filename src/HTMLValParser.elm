@@ -31,7 +31,7 @@ htmlValParser = builtinVal "(Native)HTMLValParser.htmlValParser" <| VFun "parseH
      |> Result.map (\(s, sdiffs) ->
        let finalSDiffs = case sdiffs of
          [] -> []
-         _ -> [(0, VStringDiffs sdiffs)]
+         _ -> [Just (VStringDiffs sdiffs)]
        in
        ([replaceV_ newOut <| VBase (VString s)], finalSDiffs))
      |> Results.fromResult

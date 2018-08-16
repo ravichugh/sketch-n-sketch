@@ -463,9 +463,15 @@ contructorVDiffs vdiffs =
       Nothing ->
         Err <| Lang.ctorArgs ++ " not found in " ++ toString d
       Just (VRecordDiffs dArgs) ->
-        Dict.toList dArgs |> List.map (\(argKey, argValue) ->
-          nameToArg argKey |> Result.map (\i -> (i - 1, argValue))
-        ) |> Utils.projOk
+        let indexedDiffs = Dict.toList dArgs |> List.map (\(argKey, argValue) ->
+             nameToArg argKey |> Result.map (\i -> (i - 1, argValue))
+          ) |> Utils.projOk in
+        case indexedDiffs of
+          Err msg -> Err msg
+          Ok indicesDiffs ->
+            case List.maximum (List.map Tuple.first indicesDiffs) of
+              Nothing -> Ok []
+              Just x -> List.range 1 x |> List.map (\i -> Dict.get ("_" ++ toString i) dArgs) |> Ok
       _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
   _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
 
@@ -473,8 +479,8 @@ contructorVDiffs vdiffs =
 unparseConstructor: String -> Int -> TupleDiffs VDiffs -> List HTMLUnparserDiff -> Result String (String, Int, List StringDiffs)
 unparseConstructor tagName    offset tDiffs unparsers =
   --let _ = Debug.log ("unparseConstructor " ++ tagName ++ " " ++ toString offset ++ " " ++ toString tDiffs ++ " " ++ toString unparsers) () in
-  let aux: Int -> TupleDiffs VDiffs -> List HTMLUnparserDiff -> (String, Int, List StringDiffs) -> Result String (String, Int, List StringDiffs)
-      aux i tDiffs unparsers (strAcc, offset, listDiffs) =
+  let aux: TupleDiffs VDiffs -> List HTMLUnparserDiff -> (String, Int, List StringDiffs) -> Result String (String, Int, List StringDiffs)
+      aux  tDiffs               unparsers (strAcc, offset, listDiffs) =
     --let _ = Debug.log ("unparseConstructor.aux " ++ toString i ++ " " ++ toString tDiffs ++ " " ++ toString unparsers ++ " " ++ toString (strAcc, offset, listDiffs)) () in
     case tDiffs of
        [] ->
@@ -482,28 +488,26 @@ unparseConstructor tagName    offset tDiffs unparsers =
            [] -> Ok (strAcc, offset, listDiffs)
            UnparseSymbol s :: tail ->
              (strAcc ++ s, offset + String.length s, listDiffs) |>
-             aux i tDiffs tail
+             aux tDiffs tail
            UnparseArgument unparser::tail ->
              case unparser offset Nothing of
                Err msg -> Err msg
                Ok (strArg, newOffset, diffsArgs) ->
                   (strAcc ++ strArg, newOffset, listDiffs ++ diffsArgs) |>
-                  aux (i + 1) [] tail
-       (j, subd)::diffTail ->
+                  aux [] tail
+       subd::diffTail ->
          case unparsers of
            [] -> Err <| "Unexpected end in unparseConstructor " ++ toString offset ++ toString tDiffs
            UnparseSymbol s :: tail ->
               (strAcc ++ s, offset + String.length s, listDiffs) |>
-              aux i tDiffs tail
+              aux tDiffs tail
            UnparseArgument unparser::tail ->
-             if j >= i then
-               case unparser offset <| if j == i then Just subd else Nothing of
+               case unparser offset subd of
                  Err msg -> Err msg
                  Ok (strArg, newOffset, diffsArgs) ->
                    (strAcc ++ strArg, newOffset, listDiffs ++ diffsArgs) |>
-                   aux (i + 1) (if j == i then diffTail else tDiffs) tail
-             else Err <| "[internal error] HTMLParser j is < than i, we are missing something "
-  in aux 0 tDiffs unparsers ("", offset, [])
+                   aux diffTail tail
+  in aux tDiffs unparsers ("", offset, [])
 
 unparseList: (a -> a -> Unparser) -> (a -> String) -> List a -> List a -> Unparser
 unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
@@ -519,42 +523,39 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
   case mbdiffs of
     Nothing -> Ok <| default ("", offset, []) list1 list2
     Just (VListDiffs ds) ->
-      let aux: Int -> ListDiffs VDiffs -> List a -> List a -> (String, Int, List StringDiffs) -> Result String (String, Int, List StringDiffs)
-          aux i ds remaining1 remaining2 (strAcc, offset, listDiffs) =
+      let aux: ListDiffs VDiffs -> List a -> List a -> (String, Int, List StringDiffs) -> Result String (String, Int, List StringDiffs)
+          aux ds remaining1 remaining2 (strAcc, offset, listDiffs) =
         --let _ = Debug.log ("unparseList.aux " ++toString i++ " " ++ toString ds ++ " " ++ toString remaining1 ++ " " ++ toString remaining2 ++ " "  ++ " " ++ toString (strAcc, offset, listDiffs)) () in
         case ds of
         [] -> Ok <| default (strAcc, offset, listDiffs) remaining1 remaining2
-        (j, listElem)::dsTail ->
-          if i < j then
-            let count = j - i in
-            let (r1c, r1t) = Utils.split count remaining1 in
-            let (r2c, r2t) = Utils.split count remaining2 in
-            default (strAcc, offset, listDiffs) r1c r2c |>
-            aux j ds r1t r2t
-          else if i > j then Err "Unexpected mismatch in HTMLParser.unparseList"
-          else --if i == j then
-            case listElem of
-              ListElemInsert count ->
-                let (newElems, remaining22) = Utils.split count remaining2 in
-                let newStr = List.map defaultUnparser newElems |> String.join "" in
-                aux i dsTail remaining1 remaining22 (strAcc ++ newStr, offset, listDiffs ++ [StringUpdate offset offset <| String.length newStr])
+        listElem::dsTail ->
+           case listElem of
+            ListElemSkip count ->
+              let (r1c, r1t) = Utils.split count remaining1 in
+              let (r2c, r2t) = Utils.split count remaining2 in
+              default (strAcc, offset, listDiffs) r1c r2c |>
+              aux ds r1t r2t
+            ListElemInsert count ->
+              let (newElems, remaining22) = Utils.split count remaining2 in
+              let newStr = List.map defaultUnparser newElems |> String.join "" in
+              aux dsTail remaining1 remaining22 (strAcc ++ newStr, offset, listDiffs ++ [StringUpdate offset offset <| String.length newStr])
 
-              ListElemDelete count ->
-                let (oldElems, remaining12) = Utils.split count remaining1 in
-                let oldStr = List.map defaultUnparser oldElems |> String.join "" in
-                let lengthOldStr = String.length oldStr in
-                aux (i + count) dsTail remaining12 remaining2 (strAcc, offset + lengthOldStr, listDiffs ++ [StringUpdate offset (offset + lengthOldStr) 0])
+            ListElemDelete count ->
+              let (oldElems, remaining12) = Utils.split count remaining1 in
+              let oldStr = List.map defaultUnparser oldElems |> String.join "" in
+              let lengthOldStr = String.length oldStr in
+              aux dsTail remaining12 remaining2 (strAcc, offset + lengthOldStr, listDiffs ++ [StringUpdate offset (offset + lengthOldStr) 0])
 
-              ListElemUpdate vd ->
-                --let _ = Debug.log ("unparseList.ListElemUpdate " ++ toString vd) () in
-                case (remaining1, remaining2) of
-                  (a1::a1tail, a2::a2tail) ->
-                    --let _ = Debug.log ("unparseList.subUnparserDiff ") (a1, a2, offset, (Just vd)) in
-                    case subUnparserDiff a1 a2 offset (Just vd) of
-                      Err msg -> Err msg
-                      Ok (newStr, newOffset, newDiffs)  -> aux (i + 1) dsTail a1tail a2tail (strAcc ++ newStr, newOffset, listDiffs ++ newDiffs)
-                  _ -> Err <| "Expected non-empty lists, got " ++ toString (remaining1, remaining2)
-      in aux 0 ds list1 list2 ("", offset, [])
+            ListElemUpdate vd ->
+              --let _ = Debug.log ("unparseList.ListElemUpdate " ++ toString vd) () in
+              case (remaining1, remaining2) of
+                (a1::a1tail, a2::a2tail) ->
+                  --let _ = Debug.log ("unparseList.subUnparserDiff ") (a1, a2, offset, (Just vd)) in
+                  case subUnparserDiff a1 a2 offset (Just vd) of
+                    Err msg -> Err msg
+                    Ok (newStr, newOffset, newDiffs)  -> aux dsTail a1tail a2tail (strAcc ++ newStr, newOffset, listDiffs ++ newDiffs)
+                _ -> Err <| "Expected non-empty lists, got " ++ toString (remaining1, remaining2)
+      in aux ds list1 list2 ("", offset, [])
     Just ds -> Err <| "Expected VListDiffs, got " ++ toString ds
 
 unparseStr: String -> String -> Unparser

@@ -206,8 +206,10 @@ updateManyMbHeadTail  firstdiff otherdiffs builder =
   updateResults (builder firstdiff) (otherdiffs |> Lazy.map (\otherdiffs -> otherdiffs |> LazyList.filterMap identity |> LazyList.map builder))
 
 -- Constructor for combining multiple expressions evaluated in the same environment, when there are multiple values available.
-updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> PrevLets -> List PrevOutput -> LazyList (List Output, Results String (Maybe (TupleDiffs VDiffs))) -> UpdateStack
-updateOpMultiple  hint     env    es          eBuilder             prevLets     prevOutputs        outputs =
+updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> (List Val -> Val) -> Output ->
+                     PrevLets -> List PrevOutput -> LazyList (List Output, Results String (Maybe (TupleDiffs VDiffs))) -> UpdateStack
+updateOpMultiple  hint     env    es          eBuilder             vBuilder             oldOut
+                     prevLets    prevOutputs        outputs =
   {-let _ = Debug.log ("updateOpMultiple called with " ++ String.join "," (List.map (Syntax.unparser Syntax.Elm) es) ++
           "\nprevOutputs = " ++ (List.map valToString prevOutputs |> String.join ",") ++
           "\nupdates = \n<--" ++ (outputs |> LazyList.toList |> List.map (\(o, d) -> (List.map valToString o |> String.join ",") ++ " (diffs " ++ toString d++ ")" ) |> String.join "\n<-- ")
@@ -220,21 +222,38 @@ updateOpMultiple  hint     env    es          eBuilder             prevLets     
        Ok LazyList.Nil ->
          \continuation -> UpdateCriticalError "[internal error] Empty diffs in updateOpMultiple"
        Ok (LazyList.Cons Nothing _) ->
-         \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing) (UpdatedValTuple)
+         \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple es Nothing) (UpdatedValTuple outputsHead Nothing)
        Ok (LazyList.Cons (Just d) tail) ->
          \continuation -> updateManyMbHeadTail d tail <| \diff ->
-           updateContinueMultiple (hint ++ " #" ++ toString nth) env prevLets (Utils.zip3 es prevOutputs outputsHead) diff continuation
+           updateContinueMultiple (hint ++ " #" ++ toString nth) env prevLets
+             (Utils.zip3 es prevOutputs outputsHead) diff continuation
     in
-       UpdateResultAlternative "UpdateResultAlternative maybeOp"
-         (continue <| \newUpdatedEnv newUpdatedOpArgs ->
-           let newUpdatedExp = UpdatedExp (eBuilder newUpdatedOpArgs.val) (Maybe.map EChildDiffs newUpdatedOpArgs.changes) in
-           updateResult newUpdatedEnv newUpdatedExp)
-         (lazyTail |> Lazy.map (\ll ->
-           --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in
-           case ll of
-             LazyList.Nil -> Nothing
-             LazyList.Cons (newHead, newHeadDiffs) newLazyTail -> Just <| aux (nth + 1) newHead newHeadDiffs newLazyTail
-         ))
+    UpdateResultAlternative "UpdateResultAlternative maybeOp"
+        (continue <| \newUpdatedEnv newUpdatedOpArgs newUpdatedVals ->
+           -- The newUpdatedOpArgs might not produce the values we pushed back (outputsHead)
+           -- but we are given the values each one produced (newUpdatedVals) with the difference
+          let newUpdatedExp = UpdatedExp
+               (eBuilder newUpdatedOpArgs.val)
+               (Maybe.map EChildDiffs newUpdatedOpArgs.changes) in
+          let resNewUpdatedVal = case newUpdatedVals.changes of
+            Just _ -> let recomputedOut = vBuilder newUpdatedVals.val in
+               case defaultVDiffs recomputedOut of -- TODO: Don't need to recompute for some EOp because of the back-propagation.
+                  Err msg ->
+                   Err msg
+                  Ok outDiffs ->
+                   Ok <| UpdatedVal recomputedOut outDiffs
+            Nothing -> Ok <| UpdatedVal oldOut Nothing
+          in
+          case resNewUpdatedVal of
+            Err msg -> UpdateCriticalError msg
+            Ok newUpdatedVal ->
+              updateResult newUpdatedEnv newUpdatedExp newUpdatedVal)
+        (lazyTail |> Lazy.map (\ll ->
+          --let _ = Debug.log ("Starting to evaluate another alternative if it exists ") () in
+          case ll of
+            LazyList.Nil -> Nothing
+            LazyList.Cons (newHead, newHeadDiffs) newLazyTail -> Just <| aux (nth + 1) newHead newHeadDiffs newLazyTail
+        ))
   in
   case outputs of
     LazyList.Nil -> UpdateFails <| "[Internal error] No result for updating " ++ hint
