@@ -230,7 +230,7 @@ eval syntax env bt e =
                   VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_)
                   _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list, but " ++ valToString vRest
 
-  ERecord _ mi (Declarations _ _ _ (letexps, _) as declarations) _ ->
+  ERecord _ mi (Declarations _ _ _ letexpsGroups as declarations) _ ->
     let resInitDictWidgets  = case mi of
       Nothing -> Ok <| (Nothing, Dict.empty, [])
       Just (init, ws) -> case eval_ syntax env bt_ init of
@@ -244,7 +244,7 @@ eval syntax env bt e =
       Ok (v, d, ws) ->
     evalDeclarations syntax env bt_ declarations <| \newEnv widgets ->
        -- Find the value of each newly added ident and adds it to records.
-       let ids = letexps |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
+       let ids = letexpsGroups |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
        let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
          \i -> (i, lookupVar syntax newEnv (e::bt) i e.start |> Utils.fromOk "Record variable"))
              |> Set.toList |> Dict.fromList) d) in
@@ -586,13 +586,12 @@ evalOp syntax env e bt opWithInfo es =
           Ok (newVal, widgets)
 
 evalDeclarations: Syntax -> Env -> Backtrace -> Declarations -> (Env -> List Widget -> Result String a) -> Result String a
-evalDeclarations syntax env bt (Declarations  _ _ _ (exps, groupOrders)) continuation =
-  let aux: List Int -> List LetExp -> List Widget -> Env -> Result String a
-      aux groupOrder exps widgets env = case groupOrder of
+evalDeclarations syntax env bt (Declarations  _ _ _ letexpsGroups) continuation =
+  let aux: GroupsOf LetExp -> List Widget -> Env -> Result String a
+      aux letexpsGroups widgets env = case letexpsGroups of
      [] -> continuation env widgets
-     i :: groupTail ->
-       let (expHead, expTail) = Utils.split i exps in
-       let rec = isMutuallyRecursive expHead in
+     (rec, expHead) :: tail ->
+       let i = List.length expHead in
        case expHead |> List.map (\(LetExp _ _ p _ _ e1) ->
         eval_ syntax env bt e1 |> Result.map ((,) p)) |> Utils.projOk of
         Err msg -> Err msg
@@ -619,17 +618,17 @@ evalDeclarations syntax env bt (Declarations  _ _ _ (exps, groupOrders)) continu
                   Err msg -> Err msg
                   Ok newVals ->
                     let newEnv = List.map2 (,) recNames newVals ++ env in
-                    aux groupTail expTail (widgets ++ newWidgets) newEnv
+                    aux tail (widgets ++ newWidgets) newEnv
           else
             case Utils.foldLeft (Just env) (Utils.zip patterns values) <|
                                  \mbEnv (name, value) -> cons (name, value) mbEnv
             of
-             Just newEnv -> aux groupTail expTail (widgets ++ newWidgets) newEnv
+             Just newEnv -> aux tail (widgets ++ newWidgets) newEnv
              _         -> errorWithBacktrace syntax bt <| (bt |> Utils.head "bt.first" |> .start |> strPos) ++
                "match error in deconstructing the value of " ++ (pValuesWidgets |> List.map (\(name, (value, _)) ->
                  (Syntax.patternUnparser Syntax.Elm name) ++ " with " ++ valToString value
                ) |> String.join "\n")
-  in aux groupOrders exps [] env
+  in aux letexpsGroups [] env
 
 -- Returns Ok Nothing if no branch matches
 -- Returns Ok (Just results) if branch matches and no execution errors

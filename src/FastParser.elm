@@ -1257,7 +1257,7 @@ implicitMain =
             EVar space1 "main"
       in
         withCorrectInfo << exp_ <|
-          ELet newline2 Let (Declarations [0] ([], []) [] ([LetExp Nothing space1 name FunArgAsPats space1 binding], [0])) space1 body
+          ELet newline2 Let (Declarations [0] [] [] [(False, [LetExp Nothing space1 name FunArgAsPats space1 binding])]) space1 body
   in
     succeed builder
       |= getPos
@@ -1377,8 +1377,8 @@ freshenPreserving idsToPreserve initK e =
             let locId = getId k in
             (EConst ws n (locId, frozen, ident) wd, locId + 1)
 
-        ELet ws1 kind (Declarations po (tpes, got) ann (exps, goe)) wsIn body ->
-          let (newRevTpes, newK) = Utils.foldLeft ([], k) tpes <|
+        ELet ws1 kind (Declarations po tpes ann exps) wsIn body ->
+          let (newRevTpes, newK) = Utils.foldLeft ([], k) (elemsOf tpes) <|
             \(revAcc, k) (LetType sp1 spType mbSpAlias pat funPolicy spEq tp) ->
                let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
                (LetType sp1 spType mbSpAlias newPat funPolicy spEq tp :: revAcc, newK)
@@ -1388,13 +1388,16 @@ freshenPreserving idsToPreserve initK e =
                let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
                (LetAnnotation sp1 sp0 newPat funPolicy spEq e1::revAcc, newK)
           in
-          let (newRevExps, newK3) = Utils.foldLeft ([], newK2) exps <|
+          let (newRevExps, newK3) = Utils.foldLeft ([], newK2) (elemsOf exps) <|
             \(revAcc, k)  (LetExp sp1 sp0 p funPolicy spEq e1) ->
                 let (newP, newK) = freshenPatPreserving idsToPreserve (p, k) in
                 let newE1 = recordIdentifiers (newP, e1) in
                 (LetExp sp1 sp0 newP funPolicy spEq newE1 :: revAcc, newK)
           in
-          (ELet ws1 kind (Declarations po (List.reverse newRevTpes, got) (List.reverse newRevAnn) (List.reverse newRevExps, goe)) wsIn body, newK3)
+          (ELet ws1 kind (Declarations po
+            (List.reverse newRevTpes |> regroup tpes)
+            (List.reverse newRevAnn)
+            (List.reverse newRevExps |> regroup exps)) wsIn body, newK3)
 
         EFun ws1 pats body ws2 ->
           let (newPats, newK) = freshenPatsPreserving idsToPreserve k pats in
@@ -1468,10 +1471,10 @@ allIdsRaw : Exp -> List Int
 allIdsRaw exp =
   let pidsInPat pat   = flattenPatTree pat |> List.map (.val >> .pid) in
   let pidsInPats pats = pats |> List.concatMap pidsInPat in
-  let pidsInDecls (Declarations _ (types, _) anns (exps, _)) =
-    pidsInPats <| (types |> List.map (\(LetType _ _ _ p _ _ t) -> p)) ++
+  let pidsInDecls (Declarations _ types anns exps) =
+    pidsInPats <| (types |> elemsOf |> List.map (\(LetType _ _ _ p _ _ t) -> p)) ++
     (anns  |> List.map (\(LetAnnotation _ _ p _ _ t) -> p)) ++
-    (exps  |> List.map (\(LetExp _ _ p _ _ t) -> p))
+    (exps  |> elemsOf |> List.map (\(LetExp _ _ p _ _ t) -> p))
   in
   let flattened = flattenExpTree exp in
   let eids = flattened |> List.map (.val >> .eid) in

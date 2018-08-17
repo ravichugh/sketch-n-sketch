@@ -21,7 +21,7 @@ type alias DeuceState =
 type DeuceWidget
   = DeuceExp EId
   | DeucePat PathedPatternId
-  | DeuceLetBindingEquation EId
+  | DeuceLetBindingEquation (EId, BindingNumber)
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
 
@@ -35,7 +35,7 @@ isTargetPosition widget =
     DeuceExpTarget _          -> True
     DeucePatTarget _          -> True
 
-
+-- TODO: This is not totally correct becuase of DeuceLetBindingEquation which now has (EId, BindingNumber)
 isSubWidget : Exp -> DeuceWidget -> DeuceWidget -> Bool
 isSubWidget program widget superWidget =
   let isSubEId subEId superEId =
@@ -48,7 +48,7 @@ isSubWidget program widget superWidget =
     superLetEId
     |> findExpByEId program
     |> Maybe.andThen LangTools.expToMaybeLetBoundExp
-    |> Maybe.map (\superBoundExp -> List.member subEId (allEIds superBoundExp))
+    |> Maybe.map (\superBoundExp -> List.member subEId (List.concatMap allEIds superBoundExp))
     |> Maybe.withDefault False
   in
   let isSubPPId (subScopeId, subPath) (superScopeId, superPath) =
@@ -61,19 +61,19 @@ isSubWidget program widget superWidget =
     (_,                                 DeucePatTarget _)                    -> False
     (DeuceExp subEId,                   DeuceExp superEId)                   -> isSubEId subEId superEId
     (DeuceExp _,                        DeucePat _)                          -> False
-    (DeuceExp subEId,                   DeuceLetBindingEquation superLetEId) -> boundExpContains subEId superLetEId
+    (DeuceExp subEId,                   DeuceLetBindingEquation (superLetEId, bn)) -> boundExpContains subEId superLetEId
     (DeucePat subPPId,                  DeuceExp superEId)                   -> isSubEId (pathedPatIdToScopeEId subPPId) superEId
     (DeucePat subPPId,                  DeucePat superPPId)                  -> isSubPPId subPPId superPPId
-    (DeucePat subPPId,                  DeuceLetBindingEquation superLetEId) -> pathedPatIdToScopeEId subPPId == superLetEId || boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId
-    (DeuceLetBindingEquation subLetEId, DeuceExp superEId)                   -> isSubEId subLetEId superEId
+    (DeucePat subPPId,                  DeuceLetBindingEquation (superLetEId, bn)) -> pathedPatIdToScopeEId subPPId == superLetEId || boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId
+    (DeuceLetBindingEquation (subLetEId, bn), DeuceExp superEId)                   -> isSubEId subLetEId superEId
     (DeuceLetBindingEquation _,         DeucePat _)                          -> False
-    (DeuceLetBindingEquation subLetEId, DeuceLetBindingEquation superLetEId) -> subLetEId == superLetEId || boundExpContains subLetEId superLetEId
+    (DeuceLetBindingEquation (subLetEId, bn1), DeuceLetBindingEquation (superLetEId, bn2)) -> subLetEId == superLetEId || boundExpContains subLetEId superLetEId
     (DeuceExpTarget (_, subEId),        DeuceExp superEId)                   -> subEId /= superEId && isSubEId subEId superEId
     (DeuceExpTarget _,                  DeucePat _)                          -> False
-    (DeuceExpTarget (_, subEId),        DeuceLetBindingEquation superLetEId) -> boundExpContains subEId superLetEId
+    (DeuceExpTarget (_, subEId),        DeuceLetBindingEquation (superLetEId, bn)) -> boundExpContains subEId superLetEId
     (DeucePatTarget (_, subPPId),       DeuceExp superEId)                   -> isSubEId (pathedPatIdToScopeEId subPPId) superEId
     (DeucePatTarget (_, subPPId),       DeucePat superPPId)                  -> subPPId /= superPPId && isSubPPId subPPId superPPId
-    (DeucePatTarget (_, subPPId),       DeuceLetBindingEquation superLetEId) -> pathedPatIdToScopeEId subPPId == superLetEId || boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId
+    (DeucePatTarget (_, subPPId),       DeuceLetBindingEquation (superLetEId, bn)) -> pathedPatIdToScopeEId subPPId == superLetEId || boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId
 
 
 toDeuceWidget : Dict PId PathedPatternId -> CodeObject -> Maybe DeuceWidget
@@ -89,7 +89,7 @@ toDeuceWidget patMap codeObject =
       Nothing
     LBE eid bNum ->
       Just <|
-        DeuceLetBindingEquation eid.val
+        DeuceLetBindingEquation (eid.val, bNum)
     LXT beforeAfter ws exp bnum ->
       let _ = Debug.log "TODO: DeuceWidget.toDeuceWidget for LetExp targets" () in
       Nothing

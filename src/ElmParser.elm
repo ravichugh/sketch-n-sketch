@@ -1801,7 +1801,7 @@ record  =
           )
         |= oneOf[
           declarations 0,
-          succeed (Declarations [] ([], []) [] ([], []))]
+          succeed (Declarations [] [] [] [])]
         |= spaces
         |. symbol "}"
         |= getPos)
@@ -2002,8 +2002,9 @@ reorderDefinitions letExps =
             let (finalAnnotations, reorderingAnnotations) = List.unzip annWithIndex in
             let reorderingExp = expsGrouped |> List.concatMap takeIndices in
             let evaluationOrder = reorderingTypes ++ reorderingAnnotations ++ reorderingExp in
-            let finalTypes = extractGroupInfo (Tuple.first >> Tuple.first) typesGrouped in
-            let finalExps = extractGroupInfo (Tuple.first >> Tuple.first) expsGrouped in
+            let ff = Tuple.first >> Tuple.first in
+            let finalTypes = extractGroupInfo ff isTypeMutuallyRecursive typesGrouped in
+            let finalExps = extractGroupInfo ff isMutuallyRecursive expsGrouped in
             let printOrder = computePrintOrder evaluationOrder in
             Ok <| Declarations printOrder finalTypes finalAnnotations finalExps
 
@@ -2586,7 +2587,7 @@ implicitMain =
             EVar space1 "main"
       in
         withCorrectInfo << exp_ <|
-          ELet newline2 Let (Declarations [0] ([], []) [] ([LetExp Nothing space1 name FunArgAsPats space1 binding], [0])) space1 body
+          ELet newline2 Let (Declarations [0] [] [] [(False, [LetExp Nothing space1 name FunArgAsPats space1 binding])]) space1 body
   in
     succeed builder
       |= getPos
@@ -2734,8 +2735,8 @@ freshenPreserving idsToPreserve initK e =
              let locId = getId k in
              (EConst ws n (locId, frozen, ident) wd, locId + 1)
 
-         ELet ws1 kind (Declarations po (tpes, got) ann (exps, goe)) wsIn body ->
-           let (newRevTpes, newK) = Utils.foldLeft ([], k) tpes <|
+         ELet ws1 kind (Declarations po tpes ann exps) wsIn body ->
+           let (newRevTpes, newK) = Utils.foldLeft ([], k) (elemsOf tpes) <|
              \(revAcc, k) (LetType sp1 spType mbSpAlias pat funPolicy spEq tp) ->
                 let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
                 (LetType sp1 spType mbSpAlias newPat funPolicy spEq tp :: revAcc, newK)
@@ -2745,13 +2746,16 @@ freshenPreserving idsToPreserve initK e =
                 let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
                 (LetAnnotation sp1 sp0 newPat funPolicy spEq e1::revAcc, newK)
            in
-           let (newRevExps, newK3) = Utils.foldLeft ([], newK2) exps <|
+           let (newRevExps, newK3) = Utils.foldLeft ([], newK2) (elemsOf exps) <|
              \(revAcc, k)  (LetExp sp1 sp0 p funPolicy spEq e1) ->
                  let (newP, newK) = freshenPatPreserving idsToPreserve (p, k) in
                  let newE1 = recordIdentifiers (newP, e1) in
                  (LetExp sp1 sp0 newP funPolicy spEq newE1 :: revAcc, newK)
            in
-           (ELet ws1 kind (Declarations po (List.reverse newRevTpes, got) (List.reverse newRevAnn) (List.reverse newRevExps, goe)) wsIn body, newK3)
+           (ELet ws1 kind (Declarations po
+             (List.reverse newRevTpes |> regroup tpes)
+             (List.reverse newRevAnn)
+             (List.reverse newRevExps |> regroup exps)) wsIn body, newK3)
 
          EFun ws1 pats body ws2 ->
            let (newPats, newK) = freshenPatsPreserving idsToPreserve (pats, k) in
@@ -2832,8 +2836,8 @@ allIdsRaw exp =
         (\exp ->
           case exp.val.e__ of
             EConst ws n (locId, frozen, ident) wd -> [locId]
-            ELet _ kind (Declarations _ _ _ (defs, _)) _ e2     ->
-              defs |> List.concatMap (\(LetExp _ _ p _ _ e1) -> pidsInPat p)
+            ELet _ kind (Declarations _ _ _ decls) _ e2     ->
+              decls |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ e1) -> pidsInPat p)
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
             _                                     -> []

@@ -51,7 +51,7 @@ type alias Selections =
   , List (EId, (WS, EBaseVal))                -- other base value literals
   , List EId                                  -- expressions (including literals)
   , List PathedPatternId                      -- patterns
-  , List EId                                  -- equations
+  , List (EId, BindingNumber)                 -- binding
   , List ExpTargetPosition                    -- expression target positions
   , List PatTargetPosition                    -- pattern target positions
   )
@@ -105,7 +105,7 @@ selectedPathedPatIds deuceWidgets =
       DeucePat x -> [x]
       _ -> []
 
-selectedEquationEIds : List DeuceWidget -> List EId
+selectedEquationEIds : List DeuceWidget -> List (EId, BindingNumber)
 selectedEquationEIds deuceWidgets =
   flip List.concatMap deuceWidgets <| \deuceWidget ->
     case deuceWidget of
@@ -244,7 +244,7 @@ renameVariableTool model selections =
         ([], [], [], [pathedPatId], [], [], []) ->
           case
             LangTools.findPatByPathedPatternId pathedPatId model.inputExp
-              |> Maybe.andThen LangTools.patToMaybeIdent
+              |> Maybe.andThen LangTools.patToMaybeIdent -- Rename tool only allowed for PVar and PAs
           of
             Just ident ->
               let
@@ -393,8 +393,10 @@ swapDefinitionsTool model selections =
       Just (scopeExp, _) -> isLet scopeExp
       Nothing            -> False
   in
-  let letEIdToTopPId letEId =
-    LangTools.justFindExpByEId model.inputExp letEId |> LangTools.expToLetPat |> .val |> .pid
+  let letEIdToTopPId letEId bn =
+    LangTools.justFindExpByEId model.inputExp letEId |>
+    LangTools.expToLetPat |> flip Utils.nth bn |> Utils.fromOk "DeuceTools.swapDefinitionsTool" |>
+    .val |> .pid
   in
   let
     (func, predVal) =
@@ -403,7 +405,8 @@ swapDefinitionsTool model selections =
         (_, _, [], [ppid], [], [], [])             -> if ppidIsInLet ppid then (Nothing, Possible) else (Nothing, Impossible)
         (_, _, [], [], [letEId], [], [])           -> (Nothing, Possible)
         (_, _, [], [ppid1, ppid2], [], [], [])     -> (CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool") (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool"), Satisfied)
-        (_, _, [], [], [letEId1, letEId2], [], []) -> (CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp (letEIdToTopPId letEId1) (letEIdToTopPId letEId2), Satisfied)
+        (_, _, [], [], [(letEId1, bn1), (letEId2, bn2)], [], []) ->
+                                                      (CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp (letEIdToTopPId letEId1 bn1) (letEIdToTopPId letEId2 bn2), Satisfied)
         _                                          -> (Nothing, Impossible)
   in
     { name = "Swap Definitions"
@@ -445,7 +448,7 @@ inlineDefinitionTool model selections =
           , Just <| \() ->
               CodeMotion.inlineDefinitions
                 model.syntax
-                (letEIds |> List.map (\letEId -> ((letEId, 1), [])))
+                (letEIds |> List.map (\letEId -> (letEId, [])))
                 model.inputExp
           , Satisfied
           )
@@ -603,14 +606,14 @@ moveDefinitionTool model selections =
                 )
               _ ->
                 (toolName, Nothing, Impossible)
-        ([], [], [], [], [letEId], [(Before, eId)], []) ->
+        ([], [], [], [], [letEIdBinding], [(Before, eId)], []) ->
           ( toolName
           , Just <| \() ->
               -- Better result names if we hand the singular case directly to
               -- moveDefinitionsBeforeEId.
               CodeMotion.moveDefinitionsBeforeEId
                 model.syntax
-                [((letEId, 1), [])]
+                [(letEIdBinding, [])]
                 eId
                 model.inputExp
           , Satisfied
@@ -1206,10 +1209,13 @@ createFunctionTool model selections =
               )
             else
               (Nothing, Impossible)
-        ([], [], [], [], [letEId], [], []) ->
+        ([], [], [], [], [(letEId, bindingNum)], [], []) ->
           case
             LangTools.justFindExpByEId model.inputExp letEId
               |> LangTools.expToMaybeLetPat
+              |> Maybe.andThen (
+                flip Utils.nth bindingNum >>
+                Result.toMaybe)
               |> Maybe.map (.val >> .p__)
           of
             Just (PVar _ _ _) ->
@@ -1252,11 +1258,15 @@ createFunctionFromArgsTool model selections =
                 let ancestors = commonAncestors (\e -> List.member e.val.eid argEIds) model.inputExp in
                 let ancestorEIds = ancestors |> List.map (.val >> .eid) in
                 ancestors
-                |> List.filter isLet
-                |> List.filter (LangTools.expToLetPat >> LangTools.patToMaybePVarIdent >> (/=) (Just "main")) -- TODO: more precise exclusion of main def
+                |> List.concatMap (\e -> case e.val.e__ of
+                   ELet _ _ (Declarations _ _ _ letexps) _ _ ->
+                     elemsOf letexps |> List.filter (\(LetExp _ _ p _ _ _ ) ->
+                       p |> LangTools.patToMaybePVarIdent |> (/=) (Just "main")
+                     ) |> List.map ((,) e)
+                   _ -> [])
                 |> List.concatMap
-                    (\letExp ->
-                      LangTools.tryMatchExpPatToPaths (LangTools.expToLetPat letExp) (LangTools.expToLetBoundExp letExp)
+                    (\(letExp, LetExp _ _ p _ _ e1) ->
+                      LangTools.tryMatchExpPatToPaths p e1
                       |> List.filter (\(path, boundExp) -> not (isFunc boundExp))
                       |> List.filter (\(path, boundExp) -> List.member boundExp.val.eid ancestorEIds) -- Incidentally, this also filters out trivial abstractions (e.g. (let x 5) -> (let x (\n -> n))) b/c boundExp must be ancestor of an arg, not an arg itself.
                       |> List.map    (\(path, boundExp) -> ((letExp.val.eid, 1), path))
@@ -1324,10 +1334,14 @@ mergeTool model selections =
         ([], [], [], [], [_], [], []) ->
           (Nothing, Possible)
 
-        (_, _, [], [], letEId1::letEId2::restLetEIds, [], []) ->
+        (_, _, [], [], ((letEId1, bind1)::(letEId2, bind2)::restLetEIds) as list, [], []) ->
           let boundExpEIds =
-            letEId1::letEId2::restLetEIds
-            |> List.map (LangTools.justFindExpByEId model.inputExp >> LangTools.expToLetBoundExp >> .val >> .eid)
+            list |> List.map (\(eid, bind) ->
+               LangTools.justFindExpByEId model.inputExp eid |>
+               LangTools.expToLetBoundExp |>
+               flip Utils.nth bind |>
+               Utils.fromOk "DeuceTools: bind should have been a integer in range !" |>
+               .val |> .eid)
           in
           tryMerge boundExpEIds
 
@@ -1725,9 +1739,10 @@ makeSingleLineTool model selections =
           case selections of
             (_, _, [eid], [], [], [], []) ->
               Just (eid, True)
-            ([], [], [], [], [letEId], [], []) ->
+            ([], [], [], [], [(letEId, bindingNum)], [], []) ->
               findExpByEId model.inputExp letEId
-                |> Maybe.andThen LangTools.expToMaybeLetBoundExp
+                |> Maybe.andThen (\e -> findLetexpByBindingNumber e bindingNum)
+                |> Maybe.map bindingOfLetExp
                 |> Maybe.map (\letBoundExp -> (letBoundExp.val.eid, False))
             _ ->
               Nothing
@@ -1752,7 +1767,7 @@ makeSingleLineTool model selections =
                 Just <|
                   \() ->
                     let
-                      deLineDecls ((Declarations po (tps, gt) anns (lex, ge)) as decls) =
+                      deLineDecls ((Declarations po tps anns lex) as decls) =
                         -- Make sure the first definition does not have a comma.
                         case po of
                           [] -> decls
@@ -1762,14 +1777,14 @@ makeSingleLineTool model selections =
                             let commaIfNotFirst index = if index == noCommaIndex then Nothing else Just (ws "") in
                             let tps2 = List.indexedMap (\i (LetType spComma spAlias spP pat fs wsEq e) ->
                                  LetType (commaIfNotFirst i) (deLine spAlias) (Maybe.map deLine spP) (deLinePat pat) fs (deLine wsEq) e
-                               ) tps in
+                               ) (elemsOf tps) in
                             let anns2 = List.indexedMap (\i (LetAnnotation spComma spP pat fs wsEq e) ->
                                   LetAnnotation (commaIfNotFirst (i + annsOffset)) (deLine spP) (deLinePat pat) fs (deLine wsEq) e
                                ) anns in
                             let lex2 = List.indexedMap (\i (LetExp spComma spP pat fs wsEq e) ->
                                   LetExp (commaIfNotFirst (i + lexOffset)) (deLine spP) (deLinePat pat) fs (deLine wsEq) e
-                               ) lex in
-                            Declarations po (tps2, gt) anns2 (lex2, ge)
+                               ) (elemsOf lex) in
+                            Declarations po (regroup tps tps2) anns2 (regroup lex lex2)
                       deLine ws =
                         if String.contains "\n" ws.val then
                           space1

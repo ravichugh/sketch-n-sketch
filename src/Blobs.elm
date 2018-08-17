@@ -47,8 +47,8 @@ maybeSimpleProgram e =
 splitExp : Exp -> SplitProgram
 splitExp e =
   case e.val.e__ of
-    ELet ws1 Def (Declarations printOrder _ _ (exps, go) as decls) ws main ->
-      ((List.map (\(LetExp _ ws1 p1 _ ws2 e1) -> (ws1, p1, e1, ws2)) exps, Just decls), toMainExp main)
+    ELet ws1 Def (Declarations printOrder _ _ exps as decls) ws main ->
+      ((List.map (\(LetExp _ ws1 p1 _ ws2 e1) -> (ws1, p1, e1, ws2)) <| elemsOf exps, Just decls), toMainExp main)
     _ ->
       (([], Nothing), toMainExp e)
 
@@ -56,9 +56,10 @@ fuseExp : SplitProgram -> Exp
 fuseExp ((defs, mbDecls), mainExp) =
   case mbDecls of
     Nothing -> fromMainExp mainExp
-    Just (Declarations po tp ann (oldExps, goe)) ->
-      let newExps = List.map2 (\(newWs1, newP1, newE1, newS2) (LetExp sp1 ws1 p1 funStyle ws2 e1) ->  LetExp sp1 newWs1 newP1 funStyle newS2 newE1) defs oldExps in
-      withDummyExpInfo <| ELet space0 Def (Declarations po tp ann (newExps, goe)) space1 (fromMainExp mainExp)
+    Just (Declarations po tp ann oldExps) ->
+      let newExps = List.map2 (\(newWs1, newP1, newE1, newS2) (LetExp sp1 ws1 p1 funStyle ws2 e1) ->
+        LetExp sp1 newWs1 newP1 funStyle newS2 newE1) defs (elemsOf oldExps) in
+      withDummyExpInfo <| ELet space0 Def (Declarations po tp ann (newExps |> regroup oldExps)) space1 (fromMainExp mainExp)
 
 toMainExp : Exp -> MainExp
 toMainExp e =

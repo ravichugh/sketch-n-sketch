@@ -50,7 +50,7 @@ removeExtraPostfixes postfixes program =
     |> mapExpViaExp__
         (\e__ ->
           case e__ of
-            ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn body ->
+            ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse assign])]) wsIn body ->
               let (newPat, newBody) =
                 identifiersListInPat pat
                 |> List.foldl
@@ -67,7 +67,7 @@ removeExtraPostfixes postfixes program =
                     (pat, body)
               in
               if pat /= newPat then
-                ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat newPat fs wse assign], [1])) wsIn newBody
+                ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat newPat fs wse assign])]) wsIn newBody
               else
                 e__
 
@@ -154,7 +154,7 @@ removeUnusedLetPatsMatching : (Pat -> Bool) -> Exp -> Exp
 removeUnusedLetPatsMatching predicate exp =
   let remover e__ =
     case e__ of
-       ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn body ->
+       ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse assign])]) wsIn body ->
         let usedNames = freeIdentifiers body in
         let letRemoved =
           body.val.e__
@@ -179,9 +179,9 @@ removeUnusedLetPatsMatching predicate exp =
             in
             if innerPat1useless && innerPat2useless then letRemoved
             else if innerPat1useless then
-              ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat (replacePrecedingWhitespacePat wsBefore.val innerPat2) fs wse assign], [1])) wsIn body
+              ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat (replacePrecedingWhitespacePat wsBefore.val innerPat2) fs wse assign])]) wsIn body
             else if innerPat2useless then
-              ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat (replacePrecedingWhitespacePat wsBefore.val innerPat1) fs wse assign], [1])) wsIn body
+              ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat (replacePrecedingWhitespacePat wsBefore.val innerPat1) fs wse assign])]) wsIn body
             else e__
 
           -- List assignment, no tail.
@@ -207,7 +207,7 @@ removeUnusedLetPatsMatching predicate exp =
                   let (thePat, theAssign) = Utils.head_ usedPatsAssigns in
                   let newPat    = replacePrecedingWhitespacePat pws1.val thePat in
                   let newAssign = replacePrecedingWhitespace aws1.val theAssign in
-                  ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat newPat fs wse newAssign], [1])) wsIn body
+                  ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat newPat fs wse newAssign])]) wsIn body
 
                 _ ->
                   if List.length usedPatsAssigns == List.length pats then
@@ -216,7 +216,7 @@ removeUnusedLetPatsMatching predicate exp =
                     let (usedPats, usedAssigns) = List.unzip usedPatsAssigns in
                     let newPat    = replaceP__ pat    <| PList pws1 (usedPats    |> imitatePatListWhitespace pats)    pws2 Nothing pws3 in
                     let newAssign = replaceE__ assign <| EList aws1 (Utils.listValuesMake assigns (usedAssigns |> imitateExpListWhitespace (Utils.listValues assigns))) aws2 Nothing aws3 in
-                    ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat newPat fs wse newAssign], [1])) wsIn body
+                    ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat newPat fs wse newAssign])]) wsIn body
 
           _ ->
             e__
@@ -284,11 +284,11 @@ simplifyAssignments program =
   |> mapExp
       (\exp ->
         case exp.val.e__ of
-          ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse boundExp], [1])) wsIn body ->
+          ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse boundExp])]) wsIn body ->
             case simplifyPatBoundExp pat boundExp of
               Just (newPat, newBoundExp) ->
                 replaceE__ exp <|
-                ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat (ensureWhitespacePat newPat) fs wse (ensureWhitespaceExp newBoundExp)], [1])) wsIn body
+                ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat (ensureWhitespacePat newPat) fs wse (ensureWhitespaceExp newBoundExp)])]) wsIn body
 
               Nothing ->
                 body
@@ -330,13 +330,13 @@ inlineTrivialRenamings : Exp -> Exp
 inlineTrivialRenamings exp =
   let inlineReplaceIfTrivialRename targetIdent newExp e__ =
     case e__ of
-       ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn body ->
+       ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse assign])]) wsIn body ->
         case (pat.val.p__, assign.val.e__) of
           -- Simple assignment.
           (PVar _ _ _, EVar oldWs assignIdent) ->
             if assignIdent == targetIdent then
               let newExpAdjustedWs = replacePrecedingWhitespace oldWs.val newExp in
-              ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse newExpAdjustedWs], [1])) wsIn body
+              ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse newExpAdjustedWs])]) wsIn body
             else
               e__
 
@@ -361,7 +361,7 @@ inlineTrivialRenamings exp =
             let newAssignsListExp =
               withDummyExpInfo <| EList aws1 (Utils.listValuesMake assigns newAssigns) aws2 Nothing aws3
             in
-            ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse newAssignsListExp], [1])) wsIn body
+            ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse newAssignsListExp])]) wsIn body
 
           _ ->
             e__
@@ -371,7 +371,7 @@ inlineTrivialRenamings exp =
   in
   let inliner e__ =
     case e__ of
-       ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn body ->
+       ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse assign])]) wsIn body -> -- TODO: How to generalize to multiple declarations?
         let nameCounts = identifierCounts body in
         let letRemoved newBody =
           let oldPrecedingWs = precedingWhitespaceExp__ e__ in
@@ -392,7 +392,7 @@ inlineTrivialRenamings exp =
               body
               identsAndAssignsInliningCandidates
         in
-        ELet ws1 letKind (Declarations po ([], []) [] ([LetExp mbwsc wsPat pat fs wse assign], [1])) wsIn newBody
+        ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse assign])]) wsIn newBody
 
        _ ->
         e__

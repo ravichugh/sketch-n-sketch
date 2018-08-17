@@ -54,14 +54,15 @@ grossDependencies_ identToDepEId program =
     childExps exp
     |> List.map (expEffectiveExp >> .val >> .eid)
   in
-  let handleELet letExp identToDepEId =
-    let (pat, boundExp) = expToLetPatAndBoundExp letExp in
-    let newBindings =
-       case tryMatchExp pat boundExp of
-         Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, exp.val.eid))
-         _                -> identifiersListInPat pat |> List.map (\ident -> (ident, boundExp.val.eid)) -- Conservative dependency on entire bound expression.
-    in
-    newBindings ++ identToDepEId
+  let handleLetexp isRec letExps identToDepEId =
+    Utils.foldLeft identToDepEId letExps <|
+                 \identToDepEId (LetExp _ _ pat _ _ boundExp) ->
+       let newBindings =
+          case tryMatchExp pat boundExp of
+            Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, exp.val.eid))
+            _                -> identifiersListInPat pat |> List.map (\ident -> (ident, boundExp.val.eid)) -- Conservative dependency on entire bound expression.
+       in
+       newBindings ++ identToDepEId
   in
   let handleEFun funcExp identToDepEId =
     let newBindings =
@@ -114,7 +115,7 @@ grossDependencies_ identToDepEId program =
   program
   |> foldExpTopDownWithScope
       addThisExpDeps
-      handleELet
+      handleLetexp
       handleEFun
       handleCaseBranch
       Dict.empty
