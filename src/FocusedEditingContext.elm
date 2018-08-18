@@ -20,6 +20,7 @@ drawingContextExp editingContext program =
 
 
 -- Used to find what's in scope at the shape list site or end of focused function
+-- Doesn't handle recursive functions (Instead see Draw.contextExpAndEndOfDrawingContext)
 eidAtEndOfDrawingContext : Maybe (EId, a) -> Exp -> EId
 eidAtEndOfDrawingContext editingContext program =
   drawingContextExp editingContext program

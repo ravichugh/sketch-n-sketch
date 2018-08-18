@@ -689,21 +689,31 @@ findRecursiveBranch program funcExp =
       Nothing
 
 
+-- Bug not worth fixing right now:
+-- If the function is recursive, only ever returns the end of the recursive branch.
+contextExpAndEndOfDrawingContextExp : Maybe (EId, a) -> Exp -> (Exp, Exp)
+contextExpAndEndOfDrawingContextExp editingContext program =
+  let contextExp = FocusedEditingContext.drawingContextExp editingContext program in
+  let endOfDrawingContextExp =
+    let maybeFocusedExp = FocusedEditingContext.maybeFocusedExp editingContext program in
+    case maybeFocusedExp |> Maybe.map (findRecursiveBranch program) of
+      Just (Just recursiveBranchExp)  -> LangTools.lastSameLevelExp recursiveBranchExp
+      _                               -> LangTools.lastSameLevelExp contextExp
+  in
+  (contextExp, endOfDrawingContextExp)
+
+
+-- Bug not worth fixing right now:
+-- If the function is recursive, only ever adds to the recursive branch (even if the base case is focused).
 addToEndOfDrawingContext : Model -> Ident -> Exp -> Model
 addToEndOfDrawingContext old varSuggestedName exp =
   let originalProgram = old.inputExp in
-  let contextExp = FocusedEditingContext.drawingContextExp old.editingContext originalProgram in
-  let insertBeforeEId =
-    let maybeFocusedExp = FocusedEditingContext.maybeFocusedExp old.editingContext originalProgram in
-    case maybeFocusedExp |> Maybe.map (findRecursiveBranch originalProgram) of
-      Just (Just recursiveBranchExp)  -> recursiveBranchExp.val.eid
-      _                               -> (LangTools.lastSameLevelExp contextExp).val.eid
-  in
+  let (contextExp, endOfDrawingContextExp) = contextExpAndEndOfDrawingContextExp old.editingContext originalProgram in
   let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) in
   let newProgram =
     originalProgram
-    |> LangTools.newLetAfterComments insertBeforeEId (pVar varName) exp
-    |> perhapsPrepareRecursiveFunction insertBeforeEId
+    |> LangTools.newLetAfterComments endOfDrawingContextExp.val.eid (pVar varName) exp
+    |> perhapsPrepareRecursiveFunction endOfDrawingContextExp.val.eid
     |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
     |> List.head
     |> Maybe.withDefault originalProgram
@@ -721,32 +731,34 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
     addPoint old (x1Int, y1Int)
   else
     let plusOrMinus = if sign == Positive then Plus else Minus in
+    let offsetAmountExp =
+      case amountSnap of
+        NoSnap          -> eInt offsetAmount
+        SnapVal snapVal -> eHoleVal snapVal
+    in
     let offsetFromExisting baseVal =
       let offsetSuggestedName = Provenance.nameForVal originalProgram baseVal ++ "Offset" in
-      let offsetExp =
-        let offsetAmountExp =
-          case amountSnap of
-            NoSnap          -> eInt offsetAmount
-            SnapVal snapVal -> eHoleVal snapVal
-        in
-        eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp]
-      in
+      let offsetExp = eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp] in
       addToEndOfDrawingContext old offsetSuggestedName offsetExp
     in
     case (axis, pt1) of
       (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
       (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
       _                            ->
-        let contextExp = FocusedEditingContext.drawingContextExp old.editingContext originalProgram in
-        case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) of
+        let (contextExp, endOfDrawingContextExp) = contextExpAndEndOfDrawingContextExp old.editingContext originalProgram in
+        case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp endOfDrawingContextExp).val.eid) of
           [pointName, xName, yName, offsetXName, offsetYName] ->
             let
               (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
-              -- pt1 snaps ignored here, which is fine because we can't yet get an input pt1 with a snap on only one axis (an hence on only the non-offset axis not handled above with offsetFromExisting)
+              -- Put point at beginning of context...
               programWithPoint =
                 LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (identity (eTuple [eInt0 x1Int, eInt y1Int])) originalProgram |> FastParser.freshen -- eAsPoint
+              -- ...and offset at the end.
               programWithOffsetAndPoint =
-                LangTools.newLetAfterComments contextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) programWithPoint
+                LangTools.newLetAfterComments endOfDrawingContextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, offsetAmountExp]) programWithPoint
+                |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
+                |> List.head
+                |> Maybe.withDefault originalProgram
             in
             { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 

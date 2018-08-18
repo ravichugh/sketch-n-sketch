@@ -2883,6 +2883,13 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
 -- If any val holes cannot be resolved reverts to dumb loc lifting + inlining traces.
 --
 -- Currently _always_ returns a singleton list, even if program unchanged. Why? I don't know.
+--
+-- Note: maybeEnv should be the env visible at the holes; InterfaceControlluer.tryRun sets the maybeEnv on the model to be
+--       the env at the expEffectivExp either of the whole program or of the focused scope. So if you're adding
+--       definitions/holes at the end of the program/scope (e.g with Draw.addToEndOfDrawingContext), you're good.
+--
+--       Unfortunately, DrawAddShape.addShape does not necessarily add to the end of the program/scope, so there's bugs
+--       waiting to happen there.
 resolveValueAndLocHoles : Solver.SolutionsCache -> Sync.Options -> Maybe Env -> Exp -> List Exp
 resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfresh =
   let
