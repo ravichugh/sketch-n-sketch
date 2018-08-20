@@ -337,7 +337,7 @@ type HoverPadding
 patAsHTML : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> HoverPadding -> (Html Msg, Int)
 patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding =
   let pid = pat.val.pid in
-  let nameWidth nameStr = String.length nameStr * 10 in
+  let nameWidth nameStr = 10 + String.length nameStr * 10 in
   let maybeRenamingInOutput =
     modelRenamingInOutput
     |> Utils.filterMaybe (\(renamingPId, shapesAssociatedWithRename, featuresAssociatedWithRename, _) -> renamingPId == pid && shapesAssociatedWithRename == associatedShapes && featuresAssociatedWithRename == associatedFeatures)
