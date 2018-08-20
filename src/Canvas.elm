@@ -1771,12 +1771,14 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
     let extraAttrs =
       if model.tool == Cursor then
         -- Okay so this is a flying mess.
-        -- Actual focus of the point ("hoveredCrosshairs") happens in InterfaceController.onClickPrimaryZone
-        -- Here we just handle selection of the X/Y zones.
+        -- Actual focus of the point (adding to "hoveredCrosshairs") happens in
+        -- InterfaceController.onClickPrimaryZone EXCEPT for offset end points,
+        -- which are selectable, but not a zone.
+        -- Otherwiser, here we just handle selection of the X/Y zones.
         [ onMouseDownAndStop <| Msg "Toggle Selection of Hovered Cross Dot..." <| \model ->
             if Set.member thisCrosshair model.hoveredCrosshairs
               then doToggleSelected [xSelectableFeature, ySelectableFeature] model
-              else model
+              else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
         ]
       else
         [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
@@ -1853,7 +1855,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
     (
       [ onMouseLeave <| Msg ("Remove Hovered Crosshair " ++ toString thisCrosshair) <| \model ->
         { model | hoveredCrosshairs = Set.remove thisCrosshair model.hoveredCrosshairs
-                , deuceState = DeuceWidgets.emptyDeuceState }                
+                , deuceState = DeuceWidgets.emptyDeuceState }
       , onMouseEnter <| Msg "Hover Point" <| \model ->
           let maybeHoveredEId = Maybe.andThen Utils.maybeUnwrap1 <| List.head <| interpretationsForSelectedItem model.inputExp model.slate model.widgets (SelectedPoint xSelectableFeature ySelectableFeature) in
           { model |  deuceState = { emptyDeuceState | hoveredWidgets = Utils.maybeToList maybeHoveredEId |> List.map DeuceWidgets.DeuceExp } }

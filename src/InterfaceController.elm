@@ -1232,6 +1232,7 @@ upstateRun old =
     Ok newModel ->
       { newModel | runFailuresInARowCount = newFailuresInARowAfterSuccess }
 
+-- For auto-run (whenever that gets re-enabled)
 msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
   case tryRun newModel of
     Err (oldWithUpdatedHistory, err, Just annot) ->
