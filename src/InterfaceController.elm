@@ -828,67 +828,9 @@ tryRun old =
                       , shapeUpdatesViaZones = Dict.empty
                 }
               in
-              let taskProgressAnnotation =
-                case String.split "; The final program should look something like:\n" newCode |> List.map String.trimRight of
-                  [regularCode, commentedOutTargetCode] ->
-                    let normalize str =
-                      Regex.replace Regex.All (Regex.regex "[\\s\\(\\)\\[\\]]+") (\_ -> "") str
-                    in
-                    let targetCode =
-                      commentedOutTargetCode
-                      |> Utils.stringReplace "\n;" "\n"
-                      |> Utils.stringReplace ";\n" "\n"
-                      |> normalize
-                    in
-                    let givenLines = String.split "\n" regularCode in
-                    -- 1. For each line in code, try to find a match in targetCode.
-                    let singleLineGoodness =
-                      givenLines
-                      |> List.map normalize
-                      |> List.map (\givenLine -> String.contains givenLine targetCode)
-                    in
-                    -- 2. If line and its immediate neighbors are all good, compare the line and its neighbors together.
-                    -- First and last line are missing some context for this step, so insert explicit beginning/end of code markers to ensure an error if the last line is incomplete.
-                    let multiLineGoodness =
-                      let targetCodeWithBeginEndMarkers = "BOC" ++ targetCode ++ "EOC" in
-                      let lineTriples         = Utils.zip3 (["", "BOC"] ++ givenLines) (["BOC"] ++ givenLines ++ ["EOC"]) (givenLines ++ ["EOC", ""]) in
-                      let lineGoodnessTriples = Utils.zip3 ([True, True] ++ singleLineGoodness) ([True] ++ singleLineGoodness ++ [True]) (singleLineGoodness ++ [True, True]) in
-                      Utils.zip lineGoodnessTriples lineTriples
-                      |> List.drop 1
-                      |> Utils.dropLast 1
-                      |> List.map
-                          (\((priorLineGood, lineGood, nextLineGood), (priorLine, line, nextLine)) ->
-                            if priorLineGood && lineGood && nextLineGood then
-                              targetCodeWithBeginEndMarkers
-                              |> String.contains (normalize (priorLine ++ line ++ nextLine))
-                            else
-                              True
-                          )
-                    in
-                    let singleLineAnnotataions =
-                      singleLineGoodness
-                      |> Utils.zipi0
-                      |> List.filter (not << Tuple.second)
-                      |> List.map (\(row, _) -> { row = row, type_ = "error", text = "Does not match target code!" } )
-                    in
-                    let multiLineAnnotataions =
-                      multiLineGoodness
-                      |> Utils.zipi0
-                      |> List.filter (not << Tuple.second)
-                      |> List.map (\(row, _) -> { row = row, type_ = "error", text = "Missing code or ordering problem!" } )
-                    in
-                    { annotations = singleLineAnnotataions ++ multiLineAnnotataions
-                    , highlights  = []
-                    , tooltips    = []
-                    }
-
-                  _ ->
-                    -- Types.dummyAceTypeInfo
-                    aceTypeInfo
-              in
               resetDeuceState <|
               { new_ | liveSyncInfo = refreshLiveInfo new_
-                     , codeBoxInfo = updateCodeBoxInfo taskProgressAnnotation new_
+                     , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new_
                      }
             )
           )
@@ -2820,6 +2762,7 @@ handleNew template = (\old ->
          Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types2.dummyAceTypeInfo}
          Ok ff -> ff
   in
+  let aceTypeInfo = Types2.aceTypeInfo e in
   let so = Sync.syncOptionsOf old.syncOptions e in
   let outputMode =
     Utils.fromOk "SelectExample mkLive" <|
