@@ -6068,6 +6068,26 @@ blankDoc =
 
 """
 
+basicTypesTesting =
+ """
+n = 1
+
+b = True
+
+s = "Hi!"
+
+bad1 = 1 : Bool
+
+bad2 = (1 : Bool) : Int
+
+bad3 = (1 + 2) : Bool
+
+sum = 1 + 2
+
+main =
+  Html.p [] [] "..."
+"""
+
 welcome1 =
  """title = \"Sketch-n-Sketch Docs\"
 
@@ -9659,7 +9679,8 @@ welcomeCategory =
   ( "Welcome"
   , [ makeLeoExample blankSvgTemplate blankSvg
     , makeLeoExample blankHtmlTemplate blankDoc
-    , makeLeoExample initTemplate welcome1
+    -- , makeLeoExample initTemplate welcome1
+    , makeLeoExample initTemplate basicTypesTesting
 --    , makeLeoExample "Tutorial" blankDoc
     ]
   )

@@ -173,6 +173,17 @@ debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
+maybeTypecheck : Exp -> (Exp, Types2.AceTypeInfo)
+maybeTypecheck inputExp =
+  -- TODO add a flag to Model for type checking
+  if True then
+    let newInputExp = Types2.typecheck inputExp in
+    let ati = Types2.aceTypeInfo newInputExp in
+    (newInputExp, ati)
+
+  else
+    (inputExp, Types2.dummyAceTypeInfo)
+
 refreshLiveInfo m =
   case mkLive
          m.syntax
@@ -767,10 +778,9 @@ tryRun old =
     case ImpureGoodies.logTimedRun "parsing time" <| \() -> Syntax.parser old.syntax old.code of
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
-      Ok e ->
+      Ok parsedExp ->
+        let (e, aceTypeInfo) = maybeTypecheck parsedExp in
         let resultThunk () =
-          let aceTypeInfo = Types2.aceTypeInfo e in
-          -- let aceTypeInfo = Types.typecheck e in
 
           -- want final environment of top-level definitions when evaluating e,
           -- for the purposes of running Little code to generate icons.
@@ -835,9 +845,15 @@ tryRun old =
             )
           )
         in
+          let oldWithUpdatedHistoryAndTypes =
+            { oldWithUpdatedHistory
+                | codeBoxInfo =
+                    updateCodeBoxInfo aceTypeInfo oldWithUpdatedHistory
+            }
+          in
           case ImpureGoodies.crashToError resultThunk of
-            Err s         -> Err (oldWithUpdatedHistory, s, Nothing)
-            Ok (Err s)    -> Err (oldWithUpdatedHistory, s, Nothing)
+            Err s         -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
+            Ok (Err s)    -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
             Ok (Ok model) -> Ok model
 
 
@@ -1515,18 +1531,23 @@ refreshInputExp old =
   let
     parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
       Syntax.parser old.syntax old.code
-    (newInputExp, codeClean) =
+
+    (newInputExp, newCodeBoxInfo, codeClean) =
       case parseResult of
-        Ok exp ->
-          (exp, True)
+        Ok parsedExp ->
+          let (inputExp, aceTypeInfo) = maybeTypecheck parsedExp in
+          (inputExp, updateCodeBoxInfo aceTypeInfo old, True)
+
         Err _ ->
-          (old.inputExp, False)
+          (old.inputExp, old.codeBoxInfo, False)
   in
     { old
         | inputExp =
             newInputExp
         , codeClean =
             codeClean
+        , codeBoxInfo =
+            newCodeBoxInfo
     }
 
 --------------------------------------------------------------------------------
@@ -1874,6 +1895,7 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| doSelectSynth
 doSelectSynthesisResult: Exp -> Model -> Model
 doSelectSynthesisResult newExp old =
   -- TODO unparse gets called twice, here and in runWith ...
+  -- TODO decide whethert to typecheck newExp before or after SynthesisResult...
   let newCode = Syntax.unparser old.syntax newExp in
   let new =
     { old | code = newCode
@@ -2762,16 +2784,16 @@ handleNew template = (\old ->
          Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types2.dummyAceTypeInfo}
          Ok ff -> ff
   in
-  let aceTypeInfo = Types2.aceTypeInfo e in
-  let so = Sync.syncOptionsOf old.syncOptions e in
+  let (inputExp, aceTypeInfo) = maybeTypecheck e in
+  let so = Sync.syncOptionsOf old.syncOptions inputExp in
   let outputMode =
     Utils.fromOk "SelectExample mkLive" <|
-       mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime e (v,ws)
+       mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime inputExp (v,ws)
   in
   LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime v
   |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-    let code = Syntax.unparser old.syntax e in
-    { initModel | inputExp      = e
+    let code = Syntax.unparser old.syntax inputExp in
+    { initModel | inputExp      = inputExp
                 , inputVal      = v
                 , inputEnv      = env
                 , caption       = (case f of
@@ -2796,12 +2818,12 @@ handleNew template = (\old ->
                 , slate         = slate
                 , slateCount    = 1 + old.slateCount
                 , widgets       = ws
-                , codeBoxInfo   = updateCodeBoxInfo ati old
+                , codeBoxInfo   = updateCodeBoxInfo aceTypeInfo old
                 , filename      = Model.bufferFilename old
                 , syntax        = old.syntax
                 , needsSave     = True
                 , lastSaveState = Nothing
-                , scopeGraph    = DependenceGraph.compute e
+                , scopeGraph    = DependenceGraph.compute inputExp
 
                 , lastSelectedTemplate = Just (template, code)
 

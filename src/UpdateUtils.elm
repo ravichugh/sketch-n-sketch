@@ -91,10 +91,12 @@ deltaLineRow kept =
 
 -- Rows and cols are zero-based
 dummyExp: String -> Int -> Int -> Int -> Int -> Exp
-dummyExp msg row col row2 col2 = WithInfo (Exp_ (EBase space0 <| EString "\"" msg) 0) (Pos row col) (Pos row2 col2)
+dummyExp msg row col row2 col2 =
+  WithInfo (makeExp_ (EBase space0 <| EString "\"" msg) 0) (Pos row col) (Pos row2 col2)
 
 dummyExp1: String -> Int -> Int -> Int -> Int -> Exp
-dummyExp1 msg row col row2 col2 = WithInfo (Exp_ (EBase space0 <| EString "\"" msg) 0) (Pos (row - 1) (col - 1)) (Pos (row2 - 1) (col2 - 1))
+dummyExp1 msg row col row2 col2 =
+  WithInfo (makeExp_ (EBase space0 <| EString "\"" msg) 0) (Pos (row - 1) (col - 1)) (Pos (row2 - 1) (col2 - 1))
 
 displayDiffPositions: (a -> String) -> Pos -> List (DiffChunk (List a)) -> (String, List Exp)
 displayDiffPositions tos initialPosition difference =

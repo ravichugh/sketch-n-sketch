@@ -112,7 +112,10 @@ identifiersEquivalent t1 t2 =
 
 valIsType val tipe =
   let unsupported msg =
-    Debug.crash <| "typing values against " ++ msg ++ " is not supported"
+    -- TODO: rkc: What is this function used for?
+    -- Debug.crash <| "typing values against " ++ msg ++ " is not supported"
+    let _ = Debug.log ("typing values against " ++ msg ++ " is not supported") (strVal val) in
+    False
   in
   case (val.v_, tipe.val) of
     (VConst _ _, TNum _)             -> True

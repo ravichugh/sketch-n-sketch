@@ -217,8 +217,32 @@ type alias Operator =
 
 type alias EId  = Int
 type alias PId  = Int
-type alias Exp_ = { e__ : Exp__, eid : EId }
+type alias Exp_ = WithTypeInfo { e__ : Exp__, eid : EId }
 type alias Pat_ = { p__ : Pat__, pid : PId }
+
+type alias WithTypeInfo a =
+  { a | typ : Maybe Type
+      , typeError : Maybe TypeError
+  }
+
+-- because Exp_ is defined via WithTypeInfo, no constructor called Exp_
+makeExp_ e__ eid =
+  { e__ = e__
+  , eid = eid
+  , typ = Nothing
+  , typeError = Nothing
+  }
+
+setType : Maybe Type -> Exp -> Exp
+setType typ e =
+  let e_ = e.val in
+  { e | val = { e_ | typ = typ } }
+
+setTypeError : TypeError -> Exp -> Exp
+setTypeError error e =
+  let e_ = e.val in
+  { e | val = { e_ | typeError = Just error } }
+
 
 --------------------------------------------------------------------------------
 
@@ -309,6 +333,12 @@ type Type_
   | TForall WS (List TPat) Type WS
   | TParens WS Type WS
   | TWildcard WS
+
+dummyType =
+  withDummyRange (TWildcard space0)
+
+type TypeError
+  = ExpectedButGot Type (Maybe Type)
 
 type alias TPat = WithInfo TPat_
 type TPat_ = TPatVar WS Ident
@@ -1480,6 +1510,7 @@ singleArgExtractor msg exp f l = case l of
 multiArgExtractor: String -> Exp -> (List Exp -> Exp__) -> (List Exp -> Exp)
 multiArgExtractor msg exp f l = replaceE__ exp <| f l
 
+declExtractors: Declarations -> (List Exp, List Exp -> (Declarations, List Exp))
 declExtractors (Declarations printOrder tps annots (exps, go)) =
   let (revDefExps, partialRevRebuilder) = Utils.foldLeft
         ([],  \subexps -> ([], subexps)) exps <|
@@ -1825,7 +1856,7 @@ builtinVal: String -> Val_ -> Val
 builtinVal msg x = Val x (Provenance [] (withDummyExpInfo (EVar space0 "msg" )) []) (Parents [])
 
 exp_ : Exp__ -> Exp_
-exp_ = flip Exp_ (-1)
+exp_ e__ = makeExp_ e__ (-1)
 
 pat_ : Pat__ -> Pat_
 pat_ = flip Pat_ (-1)
@@ -1834,7 +1865,7 @@ withDummyRange x            = WithInfo x dummyPos dummyPos
 withDummyPatInfo p__        = WithInfo (pat_ p__) dummyPos dummyPos
 withDummyExpInfo e__        = WithInfo (exp_ e__) dummyPos dummyPos
 withDummyPatInfoPId pid p__ = WithInfo (Pat_ p__ pid) dummyPos dummyPos
-withDummyExpInfoEId eid e__ = WithInfo (Exp_ e__ eid) dummyPos dummyPos
+withDummyExpInfoEId eid e__ = withDummyRange (makeExp_ e__ eid)
 
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ e e__ = let e_ = e.val in { e | val = { e_ | e__ = e__ } }

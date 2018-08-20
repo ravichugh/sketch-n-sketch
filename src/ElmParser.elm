@@ -2776,7 +2776,7 @@ freshenPreserving idsToPreserve initK e =
        (replaceE__ exp newE__, newK)
     else
        let eid = getId newK in
-       (WithInfo (Exp_ newE__ eid) exp.start exp.end, eid + 1)
+       (WithInfo (makeExp_ newE__ eid) exp.start exp.end, eid + 1)
   in
   mapFoldExp assignIds initK e
 
@@ -2872,7 +2872,7 @@ substStrOf = Dict.map (always toString) << substOf
 -- Record the primary identifier in the EConsts_ Locs, where appropriate.
 recordIdentifiers : (Pat, Exp) -> Exp
 recordIdentifiers (p,e) =
- let ret e__ = WithInfo (Exp_ e__ e.val.eid) e.start e.end in
+ let ret e__ = WithInfo (makeExp_ e__ e.val.eid) e.start e.end in
  case (p.val.p__, e.val.e__) of
 
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd
