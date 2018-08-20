@@ -656,13 +656,15 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  FocusedEditingContext.evalAtContext old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), _) ->
+  FocusedEditingContext.evalAtContext old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), maybeEnv) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
           , lastRunCode = newCode
           , inputExp = newExp
           , inputVal = newVal
+          , maybeEnv = maybeEnv -- Need for val comparisons to work nicely
+          , contextInputVals = FocusedEditingContext.contextInputVals old.editingContext maybeEnv newExp
           , valueEditorString = Update.valToString newVal
           , slate = newSlate
           , widgets = newWidgets
