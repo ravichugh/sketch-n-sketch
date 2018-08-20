@@ -1003,6 +1003,14 @@ prelude =
 (def nVerticalPointsSepBy (\\(n [x1 y1] sep)
   (map (\\i [x1 (+ y1 (* sep i))]) (zeroTo n))))
 
+; Constant distance between points, as many as will fit between start and end point
+(typ pointsBetweenSepBy (-> Point Point Distance (List Point)))
+(def pointsBetweenSepBy (\\(pt1@[x1 y1] pt2 sep)
+  (let totalDistance (vec2DLength pt1 pt2)
+  (let [xStep yStep] (vec2DScalarMult (/ sep totalDistance) (vec2DMinus pt2 pt1))
+  (let stepCount (/ totalDistance sep)
+  (map (\\i [(+ x1 (* xStep i)) (+ y1 (* yStep i))]) (zeroTo stepCount)))))))
+
 (typ nStar (-> Color Color StrokeWidth Num Num Num Num Point SVG))
 ;; argument order -
 ;; fill color - interior color of star
