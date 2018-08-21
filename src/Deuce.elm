@@ -469,6 +469,20 @@ objectColor colorScheme =
       , b = 100
       }
 
+objectErrorColor : ColorScheme -> Color
+objectErrorColor colorScheme =
+  case colorScheme of
+    Light ->
+      { r = 255
+      , g = 0
+      , b = 0
+      }
+    Dark ->
+      { r = 255
+      , g = 0
+      , b = 0
+      }
+
 whitespaceColor : ColorScheme -> Color
 whitespaceColor colorScheme =
   case colorScheme of
@@ -667,13 +681,35 @@ codeObjectPolygon msgs codeInfo codeObject color =
           msgs.onMouseOut deuceWidget
         onClick =
           msgs.onClick deuceWidget
+
         selected =
           List.member deuceWidget codeInfo.selectedWidgets
-        selectedClass =
-          if selected then
-            " selected"
+
+        errorHere =
+          case (codeInfo.needsParse, codeObject) of
+            (False, E e) ->
+              case e.val.typeError of
+                Just _  -> True
+                Nothing -> False
+            _ ->
+              False
+
+        highlightError =
+          errorHere && codeInfo.selectedWidgets == []
+
+        errorColor =
+          objectErrorColor codeInfo.displayInfo.colorScheme
+
+        (selectedClass, finalColor)  =
+          if selected && errorHere then
+            (" selected", errorColor)
+          else if selected then
+            (" selected", color)
+          else if highlightError then
+            (" highlight-error", errorColor)
           else
-            ""
+            ("", color)
+
         class =
           "code-object-polygon" ++ selectedClass
       in
@@ -683,17 +719,17 @@ codeObjectPolygon msgs codeInfo codeObject color =
             , SE.onMouseOut onMouseOut
             , SE.onClick onClick
             ]
-            [ circleHandles codeInfo codeObject color 1 3
+            [ circleHandles codeInfo codeObject finalColor 1 3
             , Svg.polygon
                 [ SAttr.points <|
                     codeObjectHullPoints codeInfo codeObject
                 , SAttr.strokeWidth <|
                     strokeWidth codeInfo.displayInfo.colorScheme
                 , SAttr.stroke <|
-                    rgbaString color 1
+                    rgbaString finalColor 1
                 , SAttr.fill <|
                     rgbaString
-                      color
+                      finalColor
                       (polygonOpacity codeInfo.displayInfo.colorScheme)
                 ]
                 []

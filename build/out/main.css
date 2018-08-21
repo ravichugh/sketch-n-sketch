@@ -1244,6 +1244,11 @@ code {
   opacity: 0;
 }
 
+.code-object-polygon.highlight-error {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
 .code-object-polygon:hover,
 .code-object-polygon.selected {
   opacity: 1;
