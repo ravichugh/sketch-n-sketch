@@ -384,6 +384,8 @@ onClickPrimaryZone i k realZone old =
     else
       -- Following Pages/Keynote behavior here.
       let toggleThisShape () =
+        -- When you command-tab in and out of the browser, sometimes the cmd key is still
+        -- considered "down" in the model and this fails.
         if Set.member i old.selectedShapes then
           if old.keysDown == [Keys.keyShift]
           then Set.remove i old.selectedShapes
@@ -1184,7 +1186,12 @@ msgVisibilityChange visibility =
 
 --------------------------------------------------------------------------------
 
-msgRun = Msg "Run" <| \old -> upstateRun old
+-- Sometimes the command key gets "stuck" as down in the model when you cmd-tab in and out
+-- of the app. Apparently, msgVisibilityChange above doesn't always fix the issue.
+-- The below reset allows pressing "Run" to fix, as that's a common "fix" for other
+-- UI bugs as well. (Also possible to simply tab the command key, but you might not
+-- realize what the bug is.)
+msgRun = Msg "Run" <| upstateRun >> (\old -> { old | keysDown = [] })
 
 msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
   if old.preview /= Nothing then
