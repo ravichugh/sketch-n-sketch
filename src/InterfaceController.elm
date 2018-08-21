@@ -1768,6 +1768,7 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
   let synthesisResults =
     ValueBasedTransform.buildAbstraction
         old.inputExp
+        old.editingContext
         old.selectedFeatures
         old.selectedShapes
         old.selectedBlobs

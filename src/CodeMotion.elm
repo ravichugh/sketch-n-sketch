@@ -555,7 +555,7 @@ liftDependenciesBasedOnUniqueNames program =
             case pluck ((originalDefiningScope.val.eid, 1), path) program of
               Nothing -> Nothing
               Just ((pluckedPat, pluckedBoundExp, isRec), programWithoutPlucked) ->
-                let eidToWrap = deepestCommonAncestorOrSelfWithNewline program (expToMaybeIdent >> (==) (Just identToLift)) |> .val |> .eid in
+                let eidToWrap = deepestCommonAncestorOrSelfWithNewline program (always True) (expToMaybeIdent >> (==) (Just identToLift)) |> .val |> .eid in
                 let insertedLetEId = Parser.maxId program + 1 in
                 let newProgram =
                   programWithoutPlucked
@@ -2454,7 +2454,7 @@ introduceVarTransformation m expIds maybeTargetPos =
     Nothing ->
       Just <|
         \() ->
-          let expToWrap = deepestCommonAncestorOrSelfWithNewline m.inputExp (\e -> List.member e.val.eid expIds) in
+          let expToWrap = deepestCommonAncestorOrSelfWithNewline m.inputExp (always True) (\e -> List.member e.val.eid expIds) in
           introduceVarTransformation_ m expIds expToWrap.val.eid insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
@@ -2584,7 +2584,7 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
   case maybeTargetPosition of
     Nothing ->
       Just <| \() ->
-        let expToWrap = deepestCommonAncestorOrSelfWithNewline originalProgram (\e -> List.member e.val.eid eids) in
+        let expToWrap = deepestCommonAncestorOrSelfWithNewline originalProgram (always True) (\e -> List.member e.val.eid eids) in
         makeEqualTransformation_ originalProgram eids expToWrap.val.eid insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
@@ -2732,7 +2732,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
       else
         -- CASE 2: EId already bound, but some viewers are not in its scope. Try to move binding.
         let expToWrap =
-          deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
+          deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (always True) (\e -> Set.member e.val.eid allViewerEIds)
         in
         let maybeProgramAfterMove =
           let bindingLetBoundExp = expToLetBoundExp bindingLet in
@@ -2775,7 +2775,7 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in
   let expToWrap =
-    deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid allViewerEIds)
+    deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (always True) (\e -> Set.member e.val.eid allViewerEIds)
   in
   let maxId = Parser.maxId originalProgramUniqueNames in
   let (insertedVarEId, newBindingPId) = (maxId + 1, maxId + 2) in

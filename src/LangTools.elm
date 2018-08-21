@@ -667,7 +667,7 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
     newName =
       nonCollidingName suggestedName startingNumberForNonCollidingName (visibleIdentifiersAtEIds program (Set.fromList observerEIds))
     eidToWrap =
-      deepestCommonAncestorOrSelfWithNewline program (\exp -> List.member exp.val.eid observerEIds) |> .val |> .eid
+      deepestCommonAncestorOrSelfWithNewline program (always True) (\exp -> List.member exp.val.eid observerEIds) |> .val |> .eid
     newProgram =
       program
       |> mapExpNode
@@ -1216,11 +1216,12 @@ deepestCommonAncestorWithNewline program pred =
   |> Maybe.withDefault program
 
 -- Allow an expression matched by the predicate to be the deepest with newline.
-deepestCommonAncestorOrSelfWithNewline : Exp -> (Exp -> Bool) -> Exp
-deepestCommonAncestorOrSelfWithNewline program pred =
+deepestCommonAncestorOrSelfWithNewline : Exp -> (Exp -> Bool) -> (Exp -> Bool) -> Exp
+deepestCommonAncestorOrSelfWithNewline program expFilter pred =
   findAllWithAncestors pred program
   |> Utils.commonPrefix
   |> List.reverse
+  |> List.filter expFilter
   |> Utils.findFirst (precedingWhitespace >> String.contains "\n")
   |> Maybe.withDefault program
 

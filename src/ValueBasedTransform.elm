@@ -872,8 +872,8 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 
 -- Returns synthesis results
 -- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
-buildAbstraction : Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
-buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
+buildAbstraction : Exp -> Maybe (EId, a) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
+buildAbstraction program editingContext selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we abort on unparsable code
     Err s -> []
     Ok (_, widgets, slate, _) ->
@@ -921,6 +921,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
           buildAbstraction_
               program
               originalProgramUniqueNames
+              editingContext
               uniqueNameToOldName
               outputEId
               slurpedBindingsFilter
@@ -930,7 +931,7 @@ buildAbstraction program selectedFeatures selectedShapes selectedBlobs slideNumb
       )
 
 
-buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputEId slurpedBindingsFilter computeExpsGroupsToArgumentize postProcessBeforeProblemResolution =
+buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameToOldName outputEId slurpedBindingsFilter computeExpsGroupsToArgumentize postProcessBeforeProblemResolution =
   let
     -- If interpretation is (line color width x1 y1 x2 y2) in...
     --
@@ -955,6 +956,14 @@ buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputE
       outerSameValueExpByEId originalProgramUniqueNames outputEId
       |> expEffectiveExps
       |> List.map (.val >> .eid)
+
+    -- Insert new binding no deeper than the currently focused scope.
+    insertionLocationEIds =
+      FocusedEditingContext.eidAtEndOfDrawingContext editingContext program
+      |> findWithAncestorsByEId program
+      |> Maybe.withDefault []
+      |> List.map (.val >> .eid)
+      |> Set.fromList
   in
   possibleSimpleExpansions
   |> List.concatMap (\outputEId ->
@@ -1020,7 +1029,7 @@ buildAbstraction_ program originalProgramUniqueNames uniqueNameToOldName outputE
 
       -- Okay, now the fun part: building the function.
 
-      funcLocation = deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (.val >> .eid >> (==) returnExp.val.eid) -- Place function just before abstracted expression
+      funcLocation = deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid insertionLocationEIds) (.val >> .eid >> (==) returnExp.val.eid) -- Place function as close as possible in the focused scope or higher, as near as just before abstracted expression
       funcSuggestedName = expNameForEId program outputEId ++ "Func"
       funcName =
         nonCollidingName
@@ -1453,6 +1462,7 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
                         let
                           callEId =
                             programWithCallAndFuncFresh
+                            -- |> (\e -> let _ = Utils.log (Syntax.unparser Syntax.Elm e) in e)
                             |> findFirstNode (expToMaybeAppFunc >> Maybe.andThen expToMaybeIdent >> (==) (Just itemFuncUniqueName))
                             |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction programWithFuncButNoCallFresh callEId"
                             |> (.val >> .eid)
@@ -1464,6 +1474,7 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
                         let
                           funcExpFreshWithOriginalPats =
                             programWithFuncButNoCallFresh
+                            -- |> (\e -> let _ = Utils.log (Syntax.unparser Syntax.Elm e) in e)
                             |> allSimplyResolvableLetBindings
                             |> Utils.maybeFind itemFuncUniqueName
                             |> Utils.fromJust_ ("ValueBasedTransform.repeatUsingFunction funcExpFreshWithOriginalPats Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName)
@@ -1525,6 +1536,7 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
                 buildAbstraction_
                     program
                     originalProgramUniqueNames
+                    editingContext
                     uniqueNameToOldName
                     outputEId
                     slurpedBindingsFilter
@@ -1557,7 +1569,7 @@ deepestCommonAncestorOrSelfWithNewlineByLocSet exp locset =
       EConst ws n loc wd -> Set.member loc locset
       _                  -> False
   in
-  deepestCommonAncestorOrSelfWithNewline exp isLocsetNode
+  deepestCommonAncestorOrSelfWithNewline exp (always True) isLocsetNode
 
 
 -- Replace consts in targetExp with given variable names
