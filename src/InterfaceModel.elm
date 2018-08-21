@@ -102,9 +102,9 @@ type CodeEditorMode
 
 type alias Model =
   { code : Code
+  , lastParsedCode : Code
   , lastRunCode : Code
   , runFailuresInARowCount : Int
-  , codeClean : Bool
   , preview : Preview
   , previewdiffs : Maybe DiffPreview
   , previewdiffsDelay: Int
@@ -903,6 +903,9 @@ lambdaToolIcon tool =
 
 --------------------------------------------------------------------------------
 
+needsParse m =
+  m.code /= m.lastParsedCode
+
 needsRun m =
   m.code /= m.lastRunCode
 
@@ -933,7 +936,7 @@ deuceActive model =
     shiftDown =
       List.member Keys.keyShift model.keysDown
   in
-    model.codeClean &&
+    not (needsParse model) &&
     Utils.or
       [ Utils.and
           [ model.enableDeuceBoxSelection
@@ -1274,9 +1277,9 @@ initModel =
   let liveSyncInfo = unwrap (mkLive Syntax.Little Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = LangUnparser.unparse e in
     { code          = code
+    , lastParsedCode = code
     , lastRunCode   = code
     , runFailuresInARowCount = 0
-    , codeClean     = True
     , preview       = Nothing
     , previewdiffs  = Nothing
     , previewdiffsDelay = 1000 --ms

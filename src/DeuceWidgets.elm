@@ -14,6 +14,9 @@ import Dict exposing (Dict)
 type alias DeuceState =
   { selectedWidgets : List DeuceWidget   -- not Set b/c not comparable
   , hoveredWidgets : List DeuceWidget    -- not Set b/c not comparable
+      -- not used for styling anymore (see .code-object-polygon:hover),
+      -- but still tracking in case other UI elements depend on knowing
+      -- hovered widgets
   , hoveredMenuPath : List Int
   , renameVarTextBox : String
   }

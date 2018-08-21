@@ -635,6 +635,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
+          , lastParsedCode = newCode
           , lastRunCode = newCode
           , inputExp = newExp
           , inputVal = newVal
@@ -816,6 +817,7 @@ tryRun old =
                       , outputMode    = maybeUpdateOutputMode old newSlate
                       , htmlEditorString = Nothing
                       , code          = newCode
+                      , lastParsedCode = newCode
                       , lastRunCode   = newCode
                       , slideCount    = newSlideCount
                       , movieCount    = newMovieCount
@@ -1532,20 +1534,20 @@ refreshInputExp old =
     parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
       Syntax.parser old.syntax old.code
 
-    (newInputExp, newCodeBoxInfo, codeClean) =
+    (newInputExp, newCodeBoxInfo, newLastParsedCode) =
       case parseResult of
         Ok parsedExp ->
           let (inputExp, aceTypeInfo) = maybeTypecheck parsedExp in
-          (inputExp, updateCodeBoxInfo aceTypeInfo old, True)
+          (inputExp, updateCodeBoxInfo aceTypeInfo old, old.code)
 
         Err _ ->
-          (old.inputExp, old.codeBoxInfo, False)
+          (old.inputExp, old.codeBoxInfo, old.lastParsedCode)
   in
     { old
         | inputExp =
             newInputExp
-        , codeClean =
-            codeClean
+        , lastParsedCode =
+            newLastParsedCode
         , codeBoxInfo =
             newCodeBoxInfo
     }
@@ -1899,6 +1901,7 @@ doSelectSynthesisResult newExp old =
   let newCode = Syntax.unparser old.syntax newExp in
   let new =
     { old | code = newCode
+          , lastParsedCode = newCode
           , lastRunCode = newCode
           , history = modelCommit newCode [] old.history
           } |> clearSynthesisResults
@@ -2804,6 +2807,7 @@ handleNew template = (\old ->
                 , outputMode    = maybeUpdateOutputMode old slate
                 , htmlEditorString = Nothing
                 , code          = code
+                , lastParsedCode  = code
                 , lastRunCode   = code
                 , history       = History.begin { code = code, selectedDeuceWidgets = [] }
                 , liveSyncInfo  = outputMode

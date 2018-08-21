@@ -184,6 +184,7 @@ type alias CodeInfo =
   , selectedWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
+  , needsParse : Bool
   }
 
 --==============================================================================
@@ -851,6 +852,8 @@ overlay msgs model =
           patMap
       , maxLineLength =
           maxLineLength
+      , needsParse =
+          Model.needsParse model
       }
     leftShift =
       model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
@@ -888,6 +891,8 @@ diffOverlay model exps =
           Dict.empty
       , maxLineLength =
           maxLineLength
+      , needsParse =
+          Model.needsParse model
       }
     leftShift =
       model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
