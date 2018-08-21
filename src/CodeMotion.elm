@@ -1008,8 +1008,13 @@ tryResolvingProblemsAfterTransform_
     maybeNewScopeEId
     |> Maybe.map (\newScopeEId -> justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat)
   in
-  let uniqueNameToIntendedUses =
+  let uniqueNameToOriginalUses =
     flattenExpTree originalProgramUniqueNames
+    |> List.filterMap (\exp -> expToMaybeIdent exp |> Maybe.map (\ident -> (ident, exp.val.eid)))
+    |> Utils.pairsToDictOfLists
+  in
+  let uniqueNameToNewVarEIds =
+    flattenExpTree newProgramUniqueNames
     |> List.filterMap (\exp -> expToMaybeIdent exp |> Maybe.map (\ident -> (ident, exp.val.eid)))
     |> Utils.pairsToDictOfLists
   in
@@ -1018,9 +1023,17 @@ tryResolvingProblemsAfterTransform_
       -- Try revert back to original names one by one, as safe.
       -- If new program involves a new/updated pattern (maybeNewScopeEId), ensure we don't introduce duplicate names in that pattern.
       uniqueNameToOldNameDescribedPrioritized
-      |> List.foldl
+      |> Utils.foldl
+          (programWithUniqueNames, maybeNewPatUniqueNames, [])
           (\(nameDesc, uniqueName, oldName) (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved) ->
-            let intendedUses = Utils.getWithDefault uniqueName [] uniqueNameToIntendedUses in
+            let intendedUses =
+              Utils.firstOrLazySecond
+                  (Dict.get uniqueName uniqueNameToOriginalUses)
+                  (\() -> -- New variable: assume its intented usages are its unique name locations.
+                    Dict.get uniqueName uniqueNameToNewVarEIds
+                  )
+              |> Maybe.withDefault []
+            in
             -- let intendedUses = varsWithName uniqueName originalProgramUniqueNames |> List.map (.val >> .eid) in
             let usesInNewProgram = identifierUsesAfterDefiningPat uniqueName newProgramPartiallyOriginalNames |> List.map (.val >> .eid) in
             let identifiersInNewPat = maybeNewPatPartiallyOriginalNames |> Maybe.map identifiersListInPat |> Maybe.withDefault [] in
@@ -1050,7 +1063,6 @@ tryResolvingProblemsAfterTransform_
               else
                 (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved ++ [(nameDesc, oldName, uniqueName)])
           )
-          (programWithUniqueNames, maybeNewPatUniqueNames, [])
     in
     makeResult
         baseDescription
