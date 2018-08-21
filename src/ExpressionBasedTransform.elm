@@ -5,8 +5,8 @@ module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
   , abstractSelectedBlobs
   , replicateSelectedBlob
   -- , duplicateSelectedBlobs
-  , mergeSelectedBlobs
-  , deleteSelectedBlobs
+  -- , mergeSelectedBlobs
+  -- , deleteSelectedBlobs
   , anchorOfSelectedFeatures
   , groupSelectedBlobsAround
   )
@@ -1443,25 +1443,25 @@ stripBoundsExp e =
     _                     -> Nothing
 
 
---------------------------------------------------------------------------------
--- Delete Blobs
-
-deleteSelectedBlobs model =
-  let (defs,mainExp) = splitExp model.inputExp in
-  case mainExp of
-    Blobs blobs f ->
-      let blobs_ =
-        Utils.filteri1
-           (\(i,_) -> not (Dict.member i model.selectedBlobs))
-           blobs
-      in
-      let code_ = unparse (fuseExp (defs, Blobs blobs_ f)) in
-      -- upstate Run
-        { model | code = code_
-              , selectedBlobs = Dict.empty
-              }
-    _ ->
-      model
+-- --------------------------------------------------------------------------------
+-- -- Delete Blobs
+--
+-- deleteSelectedBlobs model =
+--   let (defs,mainExp) = splitExp model.inputExp in
+--   case mainExp of
+--     Blobs blobs f ->
+--       let blobs_ =
+--         Utils.filteri1
+--            (\(i,_) -> not (Dict.member i model.selectedBlobs))
+--            blobs
+--       in
+--       let code_ = unparse (fuseExp (defs, Blobs blobs_ f)) in
+--       -- upstate Run
+--         { model | code = code_
+--               , selectedBlobs = Dict.empty
+--               }
+--     _ ->
+--       model
 
 
 --------------------------------------------------------------------------------
@@ -1528,418 +1528,418 @@ shiftDownAndRight (left, top, right, bot) =
 -}
 
 
---------------------------------------------------------------------------------
--- Merge Blobs
-
-mergeSelectedBlobs model =
-  let (defs,mainExp) = splitExp model.inputExp in
-  case mainExp of
-    Blobs blobs f ->
-      let selectedVarBlobs = selectedBlobsToSelectedVarBlobs model blobs in
-      if List.length selectedVarBlobs /= Dict.size model.selectedBlobs then
-        model -- should display error caption for remaining selected blobs...
-      else
-        let (defs_, blobs_) = mergeSelectedVarBlobs model defs blobs selectedVarBlobs in
-        let code_ = unparse (fuseExp (defs_, Blobs blobs_ f)) in
-        -- upstate Run
-          { model | code = code_
-                  , selectedBlobs = Dict.empty
-                  }
-    _ ->
-      model
-
-mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
-
-  let (pluckedDefs, beforeDefs, afterDefs) =
-    let selectedNiceBlobs = List.map (\(i,e,x) -> (i, e, VarBlob x)) selectedVarBlobs in
-    pluckFromList (matchesAnySelectedVarBlob selectedNiceBlobs) defs in
-
-  let (pluckedBlobs, beforeBlobs, afterBlobs) =
-    let matches (j,_) = Dict.member j model.selectedBlobs in
-    let (plucked, before, after) =
-      pluckFromList matches (Utils.zip (List.range 1 (List.length blobs)) blobs) in
-    (List.map Tuple.second plucked, List.map Tuple.second before, List.map Tuple.second after) in
-
-  let ((ws1,p,e,ws2),es) =
-    case pluckedDefs of
-      def::defs_ -> (def, List.map (\(_,_,e,_) -> e) defs_)
-      []         -> Debug.crash "mergeSelectedVarBlobs: shouldn't get here" in
-
-  case mergeExpressions e es of
-    Nothing ->
-      -- let _ = Debug.log "mergeExpressions Nothing" () in
-      (defs, blobs)
-
-    Just (_, []) ->
-      let defs_ = beforeDefs ++ [(ws1,p,e,ws2)] ++ afterDefs in
-      let blobs_ = beforeBlobs ++ [Utils.head_ pluckedBlobs] ++ afterBlobs in
-      (defs_, blobs_)
-
-    Just (eMerged, multiMapping) ->
-
-      -- TODO treat bounds variables specially, as in abstract
-
-      let newDef =
-        let newFunc =
-          let params = listOfPVars (List.map Tuple.first multiMapping) in
-          withDummyExpInfo (EFun space1 params (clean eMerged) space0) in
-        (ws1, p, newFunc, ws2) in
-
-      let f =
-        case p.val.p__ of
-          PVar _ x _ -> x
-          _          -> Debug.crash "mergeSelected: not var" in
-
-      let newBlobs =
-        case Utils.maybeZipN (List.map Tuple.second multiMapping) of
-          Nothing -> Debug.crash "mergeSelected: no arg lists?"
-          Just numLists ->
-            -- let _ = Debug.log "numLists:" numLists in
-            List.map
-               (\nums ->
-                  let args = listOfAnnotatedNums1 nums in
-                  let e = withDummyExpInfo <| EApp (ws "\n  ") (eVar0 f) args SpaceApp space0 in
-                  callBlob e (f, args)
-               ) numLists in
-
-      let defs_ = beforeDefs ++ [newDef] ++ afterDefs in
-      let blobs_ = beforeBlobs ++ newBlobs ++ afterBlobs in
-      (defs_, blobs_)
-
--- Merge 2+ expressions
-mergeExpressions
-    : Exp -> List Exp
-   -> Maybe (Exp, List (Ident, List AnnotatedNum))
-mergeExpressions eFirst eRest =
-  let return e__ list =
-    Just (replaceE__ eFirst e__, list) in
-
-  case eFirst.val.e__ of
-
-    EConst ws1 n loc wd ->
-      let match eNext = case eNext.val.e__ of
-        EConst _ nNext (_,annNext,_) wdNext -> Just (nNext, annNext, wdNext)
-        _                                   -> Nothing
-      in
-      matchAllAndBind match eRest <| \restAnnotatedNums ->
-        let (locid,ann,x) = loc in
-        let allAnnotatedNums = (n,ann,wd) :: restAnnotatedNums in
-        case Utils.dedupBy annotatedNumToComparable allAnnotatedNums of
-          [_] -> return eFirst.val.e__ []
-          _   ->
-            let var = if x == "" then "k" ++ toString locid else x in
-            -- let _ = Debug.log "var for merge: " (var, n::nums) in
-            return (EVar ws1 var) [(var, allAnnotatedNums)]
-
-    EBase _ bv ->
-      let match eNext = case eNext.val.e__ of
-        EBase _ bv_ -> Just bv_
-        _           -> Nothing
-      in
-      matchAllAndBind match eRest <| \bvs ->
-        if List.all ((==) bv) bvs then return eFirst.val.e__ [] else Nothing
-
-    EVar _ x ->
-      let match eNext = case eNext.val.e__ of
-        EVar _ x_ -> Just x_
-        _         -> Nothing
-      in
-      matchAllAndBind match eRest <| \xs ->
-        if List.all ((==) x) xs then return eFirst.val.e__ [] else Nothing
-
-    EFun ws1 ps eBody ws2 ->
-      let match eNext = case eNext.val.e__ of
-        EFun _ ps_ eBody_ _ -> Just (ps_, eBody_)
-        _                   -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let (psList, eBodyList) = List.unzip stuff in
-        Utils.bindMaybe2
-          (\() (eBody_,list) -> return (EFun ws1 ps eBody_ ws2) list)
-          (mergePatternLists (ps::psList))
-          (mergeExpressions eBody eBodyList)
-
-    EApp ws1 eFunc eArgs appType ws2 ->
-      let match eNext = case eNext.val.e__ of
-        EApp _ eFunc_ eArgs_ appType_ _ -> Just ((eFunc_, eArgs_), appType_)
-        _                      -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let (eFuncArgList, eAppTypeList) = List.unzip stuff in
-        let (eFuncList, eArgsList) = List.unzip eFuncArgList in
-        Utils.bindMaybe3
-          (\(eFunc_,l1) (eArgs_,l2) appType_ ->
-            return (EApp ws1 eFunc_ eArgs_ appType_ ws2) (l1 ++ l2))
-          (mergeExpressions eFunc eFuncList)
-          (mergeExpressionLists (eArgs::eArgsList))
-          (Just appType)
-
-    ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 ->
-      let match eNext = case eNext.val.e__ of
-        ELet _ _ nextRec p1_ _ e1_ _ e2_ _ -> if rec == nextRec then Just ((p1_, e1_), e2_) else Nothing
-        _                                  -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let ((p1List, e1List), e2List) =
-          Tuple.mapFirst List.unzip (List.unzip stuff)
-        in
-        Utils.bindMaybe3
-          (\_ (e1_,l1) (e2_,l2) ->
-            return (ELet ws1 letKind rec p1 ws2 e1_ ws3 e2_ ws4) (l1 ++ l2))
-          (mergePatterns p1 p1List)
-          (mergeExpressions e1 e1List)
-          (mergeExpressions e2 e2List)
-
-    EList ws1 es ws2 me ws3 ->
-      let match eNext = case eNext.val.e__ of
-        EList _ es_ _ me_ _ -> Just (es_, me_)
-        _                   -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let (esList, meList) = List.unzip stuff in
-        Utils.bindMaybe2
-          (\(es_,l1) (me_,l2) -> return (EList ws1 (Utils.zip (List.map Tuple.first es) es_) ws2 me_ ws3) (l1 ++ l2))
-          (mergeExpressionLists (List.map Tuple.second es :: List.map (List.map Tuple.second) esList))
-          (mergeMaybeExpressions me meList)
-
-    EOp ws1 op es ws2 ->
-      let match eNext = case eNext.val.e__ of
-        EOp _ op_ es_ _ -> Just (op_, es_)
-        _               -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let (opList, esList) = List.unzip stuff in
-        if List.all ((==) op.val) (List.map .val opList) then
-          Utils.bindMaybe
-            (\(es_,l) -> return (EOp ws1 op es_ ws2) l)
-            (mergeExpressionLists (es::esList))
-        else
-          Nothing
-
-    EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
-      let match eNext = case eNext.val.e__ of
-        EIf _ e1_ _ e2_ _ e3_ _ -> Just ((e1_, e2_), e3_)
-        _                       -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let ((e1List, e2List), e3List) = Tuple.mapFirst List.unzip (List.unzip stuff) in
-        Utils.bindMaybe3
-          (\(e1_,l1) (e2_,l2) (e3_,l3) ->
-            return (EIf ws1 e1_ ws2 e2_ ws3 e3_ ws4) (l1 ++ l2 ++ l3))
-          (mergeExpressions e1 e1List)
-          (mergeExpressions e2 e2List)
-          (mergeExpressions e3 e3List)
-
-    EComment ws s e ->
-      let match eNext = case eNext.val.e__ of
-        EComment _ _ e_ -> Just e_
-        _               -> Nothing
-      in
-      matchAllAndBind match eRest <| \es ->
-        Utils.bindMaybe
-          (\(e_,l) -> return (EComment ws s e_) l)
-          (mergeExpressions e es)
-
-    ETyp ws1 pat tipe e ws2 ->
-      let match eNext = case eNext.val.e__ of
-        ETyp _ pat tipe e _ -> Just ((pat, tipe), e)
-        _                   -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let ((patList, typeList), eList) =
-          Tuple.mapFirst List.unzip (List.unzip stuff)
-        in
-        Utils.bindMaybe3
-          (\_ _ (e_,l) ->
-            return (ETyp ws1 pat tipe e_ ws2) l)
-          (mergePatterns pat patList)
-          (mergeTypes tipe typeList)
-          (mergeExpressions e eList)
-
-    EColonType ws1 e ws2 tipe ws3 ->
-      let match eNext = case eNext.val.e__ of
-        EColonType _ e _ tipe _ -> Just (e,tipe)
-        _                       -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let (eList, typeList) = List.unzip stuff in
-        Utils.bindMaybe2
-          (\(e_,l) _ ->
-            return (EColonType ws1 e_ ws2 tipe ws3) l)
-          (mergeExpressions e eList)
-          (mergeTypes tipe typeList)
-
-    ETypeAlias ws1 pat tipe e ws2 ->
-      let match eNext = case eNext.val.e__ of
-        ETypeAlias _ pat tipe e _ -> Just ((pat, tipe), e)
-        _                         -> Nothing
-      in
-      matchAllAndBind match eRest <| \stuff ->
-        let ((patList, typeList), eList) =
-          Tuple.mapFirst List.unzip (List.unzip stuff)
-        in
-        Utils.bindMaybe3
-          (\_ _ (e_,l) ->
-            return (ETypeAlias ws1 pat tipe e_ ws2) l)
-          (mergePatterns pat patList)
-          (mergeTypes tipe typeList)
-          (mergeExpressions e eList)
-
-    ECase _ _ _ _ ->
-      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
-      Nothing
-
-    ETypeCase _ _ _ _ ->
-      let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
-      Nothing
-
-    EOption _ _ _ _ _ ->
-      let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
-      Nothing
-
-    EParens ws1 e pStyle ws2 ->
-      let match eNext = case eNext.val.e__ of
-        EParens _ e_ _ _  -> Just e_
-        _               -> Nothing
-      in
-      matchAllAndBind match eRest <| \es ->
-        Utils.bindMaybe
-          (\(e_,l) -> return (EParens ws1 e_ pStyle ws2) l)
-          (mergeExpressions e es)
-
-    EHole ws mv ->
-      let match eNext = case eNext.val.e__ of
-        EHole _ mvNext -> Just mvNext
-        _              -> Nothing
-      in
-      matchAllAndBind match eRest <| \maybeVals ->
-        if List.all ((==) mv) maybeVals then return eFirst.val.e__ [] else Nothing
-
-matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
-matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
-
-mergeExpressionLists
-    : List (List Exp)
-   -> Maybe (List Exp, List (Ident, List AnnotatedNum))
-mergeExpressionLists lists =
-  case Utils.maybeZipN lists of
-    Nothing -> Nothing
-    Just listListExp ->
-      let foo listExp maybeAcc =
-        case (listExp, maybeAcc) of
-          (e::es, Just (acc1,acc2)) ->
-            case mergeExpressions e es of
-              Nothing     -> Nothing
-              Just (e_,l) -> Just (acc1 ++ [e_], acc2 ++ l)
-          _ ->
-            Nothing
-      in
-      List.foldl foo (Just ([],[])) listListExp
-
-mergeMaybeExpressions
-    : Maybe Exp -> List (Maybe Exp)
-   -> Maybe (Maybe Exp, List (Ident, List AnnotatedNum))
-mergeMaybeExpressions me mes =
-  case me of
-    Nothing ->
-      if List.all ((==) Nothing) mes
-        then Just (Nothing, [])
-        else Nothing
-    Just e  ->
-      Utils.bindMaybe
-        (Utils.mapMaybe (Tuple.mapFirst Just) << mergeExpressions e)
-        (Utils.projJusts mes)
-
-
-mergePatterns : Pat -> List Pat -> Maybe ()
-mergePatterns pFirst pRest =
-  case pFirst.val.p__ of
-    PWildcard _ ->
-      let match pNext = case pNext.val.p__ of
-        PWildcard _ -> Just ()
-        _           -> Nothing
-      in
-      matchAllAndCheckEqual match pRest ()
-    PVar _ x _ ->
-      let match pNext = case pNext.val.p__ of
-        PVar _ x_ _ -> Just x_
-        _           -> Nothing
-      in
-      matchAllAndCheckEqual match pRest x
-    PConst _ n ->
-      let match pNext = case pNext.val.p__ of
-        PConst _ n_ -> Just n_
-        _           -> Nothing
-      in
-      matchAllAndCheckEqual match pRest n
-    PBase _ bv ->
-      let match pNext = case pNext.val.p__ of
-        PBase _ bv_ -> Just bv_
-        _           -> Nothing
-      in
-      matchAllAndCheckEqual match pRest bv
-    PList _ ps _ mp _ ->
-      let match pNext = case pNext.val.p__ of
-        PList _ ps_ _ mp_ _ -> Just (ps_, mp_)
-        _                   -> Nothing
-      in
-      matchAllAndBind match pRest <| \stuff ->
-        let (psList, mpList) = List.unzip stuff in
-        Utils.bindMaybe2
-          (\_ () -> Just ())
-          (mergePatternLists (ps::psList))
-          (mergeMaybePatterns mp mpList)
-    PAs _ x _ p ->
-      let match pNext = case pNext.val.p__ of
-        PAs _ x_ _ p_ -> Just (x_, p_)
-        _             -> Nothing
-      in
-      matchAllAndBind match pRest <| \stuff ->
-        let (indentList, pList) = List.unzip stuff in
-        Utils.bindMaybe
-          (\() -> if List.all ((==) x) indentList then Just () else Nothing)
-          (mergePatterns p pList)
-    PParens _ p _ ->
-      let match pNext = case pNext.val.p__ of
-        PParens _ p_ _ -> Just p_
-        _             -> Nothing
-      in
-      matchAllAndBind match pRest <| \pList ->
-        Utils.bindMaybe
-          (\() -> Just ())
-          (mergePatterns p pList)
-
-mergeTypes : Type -> List Type -> Maybe ()
-mergeTypes tFirst tRest =
-  if List.all (Types.equal tFirst) tRest
-  then Just ()
-  else Nothing
-
-matchAllAndCheckEqual f xs x =
-  let g ys = if List.all ((==) x) ys then Just () else Nothing in
-  matchAllAndBind f xs g
-
-mergePatternLists : List (List Pat) -> Maybe ()
-mergePatternLists lists =
-  case Utils.maybeZipN lists of
-    Nothing -> Nothing
-    Just listListPat ->
-      let foo listPat maybeAcc =
-        case (listPat, maybeAcc) of
-          (p::ps, Just ()) -> mergePatterns p ps
-          _                -> Nothing
-      in
-      List.foldl foo (Just ()) listListPat
-
-mergeMaybePatterns : Maybe Pat -> List (Maybe Pat) -> Maybe ()
-mergeMaybePatterns mp mps =
-  case mp of
-    Nothing -> if List.all ((==) Nothing) mps then Just () else Nothing
-    Just p  -> Utils.bindMaybe (mergePatterns p) (Utils.projJusts mps)
-
-annotatedNumToComparable : AnnotatedNum -> (Num, Frozen, Float, Float)
-annotatedNumToComparable (n, frzn, wd) =
-  case wd.val of
-    IntSlider a _ b _ _ -> (n, frzn, toFloat a.val, toFloat b.val)
-    NumSlider a _ b _ _ -> (n, frzn, a.val, b.val)
-    NoWidgetDecl        -> (n, frzn, 1, -1)
+-- --------------------------------------------------------------------------------
+-- -- Merge Blobs
+--
+-- mergeSelectedBlobs model =
+--   let (defs,mainExp) = splitExp model.inputExp in
+--   case mainExp of
+--     Blobs blobs f ->
+--       let selectedVarBlobs = selectedBlobsToSelectedVarBlobs model blobs in
+--       if List.length selectedVarBlobs /= Dict.size model.selectedBlobs then
+--         model -- should display error caption for remaining selected blobs...
+--       else
+--         let (defs_, blobs_) = mergeSelectedVarBlobs model defs blobs selectedVarBlobs in
+--         let code_ = unparse (fuseExp (defs_, Blobs blobs_ f)) in
+--         -- upstate Run
+--           { model | code = code_
+--                   , selectedBlobs = Dict.empty
+--                   }
+--     _ ->
+--       model
+--
+-- mergeSelectedVarBlobs model defs blobs selectedVarBlobs =
+--
+--   let (pluckedDefs, beforeDefs, afterDefs) =
+--     let selectedNiceBlobs = List.map (\(i,e,x) -> (i, e, VarBlob x)) selectedVarBlobs in
+--     pluckFromList (matchesAnySelectedVarBlob selectedNiceBlobs) defs in
+--
+--   let (pluckedBlobs, beforeBlobs, afterBlobs) =
+--     let matches (j,_) = Dict.member j model.selectedBlobs in
+--     let (plucked, before, after) =
+--       pluckFromList matches (Utils.zip (List.range 1 (List.length blobs)) blobs) in
+--     (List.map Tuple.second plucked, List.map Tuple.second before, List.map Tuple.second after) in
+--
+--   let ((ws1,p,e,ws2),es) =
+--     case pluckedDefs of
+--       def::defs_ -> (def, List.map (\(_,_,e,_) -> e) defs_)
+--       []         -> Debug.crash "mergeSelectedVarBlobs: shouldn't get here" in
+--
+--   case mergeExpressions e es of
+--     Nothing ->
+--       -- let _ = Debug.log "mergeExpressions Nothing" () in
+--       (defs, blobs)
+--
+--     Just (_, []) ->
+--       let defs_ = beforeDefs ++ [(ws1,p,e,ws2)] ++ afterDefs in
+--       let blobs_ = beforeBlobs ++ [Utils.head_ pluckedBlobs] ++ afterBlobs in
+--       (defs_, blobs_)
+--
+--     Just (eMerged, multiMapping) ->
+--
+--       -- TODO treat bounds variables specially, as in abstract
+--
+--       let newDef =
+--         let newFunc =
+--           let params = listOfPVars (List.map Tuple.first multiMapping) in
+--           withDummyExpInfo (EFun space1 params (clean eMerged) space0) in
+--         (ws1, p, newFunc, ws2) in
+--
+--       let f =
+--         case p.val.p__ of
+--           PVar _ x _ -> x
+--           _          -> Debug.crash "mergeSelected: not var" in
+--
+--       let newBlobs =
+--         case Utils.maybeZipN (List.map Tuple.second multiMapping) of
+--           Nothing -> Debug.crash "mergeSelected: no arg lists?"
+--           Just numLists ->
+--             -- let _ = Debug.log "numLists:" numLists in
+--             List.map
+--                (\nums ->
+--                   let args = listOfAnnotatedNums1 nums in
+--                   let e = withDummyExpInfo <| EApp (ws "\n  ") (eVar0 f) args SpaceApp space0 in
+--                   callBlob e (f, args)
+--                ) numLists in
+--
+--       let defs_ = beforeDefs ++ [newDef] ++ afterDefs in
+--       let blobs_ = beforeBlobs ++ newBlobs ++ afterBlobs in
+--       (defs_, blobs_)
+--
+-- -- Merge 2+ expressions
+-- mergeExpressions
+--     : Exp -> List Exp
+--    -> Maybe (Exp, List (Ident, List AnnotatedNum))
+-- mergeExpressions eFirst eRest =
+--   let return e__ list =
+--     Just (replaceE__ eFirst e__, list) in
+--
+--   case eFirst.val.e__ of
+--
+--     EConst ws1 n loc wd ->
+--       let match eNext = case eNext.val.e__ of
+--         EConst _ nNext (_,annNext,_) wdNext -> Just (nNext, annNext, wdNext)
+--         _                                   -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \restAnnotatedNums ->
+--         let (locid,ann,x) = loc in
+--         let allAnnotatedNums = (n,ann,wd) :: restAnnotatedNums in
+--         case Utils.dedupBy annotatedNumToComparable allAnnotatedNums of
+--           [_] -> return eFirst.val.e__ []
+--           _   ->
+--             let var = if x == "" then "k" ++ toString locid else x in
+--             -- let _ = Debug.log "var for merge: " (var, n::nums) in
+--             return (EVar ws1 var) [(var, allAnnotatedNums)]
+--
+--     EBase _ bv ->
+--       let match eNext = case eNext.val.e__ of
+--         EBase _ bv_ -> Just bv_
+--         _           -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \bvs ->
+--         if List.all ((==) bv) bvs then return eFirst.val.e__ [] else Nothing
+--
+--     EVar _ x ->
+--       let match eNext = case eNext.val.e__ of
+--         EVar _ x_ -> Just x_
+--         _         -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \xs ->
+--         if List.all ((==) x) xs then return eFirst.val.e__ [] else Nothing
+--
+--     EFun ws1 ps eBody ws2 ->
+--       let match eNext = case eNext.val.e__ of
+--         EFun _ ps_ eBody_ _ -> Just (ps_, eBody_)
+--         _                   -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let (psList, eBodyList) = List.unzip stuff in
+--         Utils.bindMaybe2
+--           (\() (eBody_,list) -> return (EFun ws1 ps eBody_ ws2) list)
+--           (mergePatternLists (ps::psList))
+--           (mergeExpressions eBody eBodyList)
+--
+--     EApp ws1 eFunc eArgs appType ws2 ->
+--       let match eNext = case eNext.val.e__ of
+--         EApp _ eFunc_ eArgs_ appType_ _ -> Just ((eFunc_, eArgs_), appType_)
+--         _                      -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let (eFuncArgList, eAppTypeList) = List.unzip stuff in
+--         let (eFuncList, eArgsList) = List.unzip eFuncArgList in
+--         Utils.bindMaybe3
+--           (\(eFunc_,l1) (eArgs_,l2) appType_ ->
+--             return (EApp ws1 eFunc_ eArgs_ appType_ ws2) (l1 ++ l2))
+--           (mergeExpressions eFunc eFuncList)
+--           (mergeExpressionLists (eArgs::eArgsList))
+--           (Just appType)
+--
+--     ELet ws1 letKind rec p1 ws2 e1 ws3 e2 ws4 ->
+--       let match eNext = case eNext.val.e__ of
+--         ELet _ _ nextRec p1_ _ e1_ _ e2_ _ -> if rec == nextRec then Just ((p1_, e1_), e2_) else Nothing
+--         _                                  -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let ((p1List, e1List), e2List) =
+--           Tuple.mapFirst List.unzip (List.unzip stuff)
+--         in
+--         Utils.bindMaybe3
+--           (\_ (e1_,l1) (e2_,l2) ->
+--             return (ELet ws1 letKind rec p1 ws2 e1_ ws3 e2_ ws4) (l1 ++ l2))
+--           (mergePatterns p1 p1List)
+--           (mergeExpressions e1 e1List)
+--           (mergeExpressions e2 e2List)
+--
+--     EList ws1 es ws2 me ws3 ->
+--       let match eNext = case eNext.val.e__ of
+--         EList _ es_ _ me_ _ -> Just (es_, me_)
+--         _                   -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let (esList, meList) = List.unzip stuff in
+--         Utils.bindMaybe2
+--           (\(es_,l1) (me_,l2) -> return (EList ws1 (Utils.zip (List.map Tuple.first es) es_) ws2 me_ ws3) (l1 ++ l2))
+--           (mergeExpressionLists (List.map Tuple.second es :: List.map (List.map Tuple.second) esList))
+--           (mergeMaybeExpressions me meList)
+--
+--     EOp ws1 op es ws2 ->
+--       let match eNext = case eNext.val.e__ of
+--         EOp _ op_ es_ _ -> Just (op_, es_)
+--         _               -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let (opList, esList) = List.unzip stuff in
+--         if List.all ((==) op.val) (List.map .val opList) then
+--           Utils.bindMaybe
+--             (\(es_,l) -> return (EOp ws1 op es_ ws2) l)
+--             (mergeExpressionLists (es::esList))
+--         else
+--           Nothing
+--
+--     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
+--       let match eNext = case eNext.val.e__ of
+--         EIf _ e1_ _ e2_ _ e3_ _ -> Just ((e1_, e2_), e3_)
+--         _                       -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let ((e1List, e2List), e3List) = Tuple.mapFirst List.unzip (List.unzip stuff) in
+--         Utils.bindMaybe3
+--           (\(e1_,l1) (e2_,l2) (e3_,l3) ->
+--             return (EIf ws1 e1_ ws2 e2_ ws3 e3_ ws4) (l1 ++ l2 ++ l3))
+--           (mergeExpressions e1 e1List)
+--           (mergeExpressions e2 e2List)
+--           (mergeExpressions e3 e3List)
+--
+--     EComment ws s e ->
+--       let match eNext = case eNext.val.e__ of
+--         EComment _ _ e_ -> Just e_
+--         _               -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \es ->
+--         Utils.bindMaybe
+--           (\(e_,l) -> return (EComment ws s e_) l)
+--           (mergeExpressions e es)
+--
+--     ETyp ws1 pat tipe e ws2 ->
+--       let match eNext = case eNext.val.e__ of
+--         ETyp _ pat tipe e _ -> Just ((pat, tipe), e)
+--         _                   -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let ((patList, typeList), eList) =
+--           Tuple.mapFirst List.unzip (List.unzip stuff)
+--         in
+--         Utils.bindMaybe3
+--           (\_ _ (e_,l) ->
+--             return (ETyp ws1 pat tipe e_ ws2) l)
+--           (mergePatterns pat patList)
+--           (mergeTypes tipe typeList)
+--           (mergeExpressions e eList)
+--
+--     EColonType ws1 e ws2 tipe ws3 ->
+--       let match eNext = case eNext.val.e__ of
+--         EColonType _ e _ tipe _ -> Just (e,tipe)
+--         _                       -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let (eList, typeList) = List.unzip stuff in
+--         Utils.bindMaybe2
+--           (\(e_,l) _ ->
+--             return (EColonType ws1 e_ ws2 tipe ws3) l)
+--           (mergeExpressions e eList)
+--           (mergeTypes tipe typeList)
+--
+--     ETypeAlias ws1 pat tipe e ws2 ->
+--       let match eNext = case eNext.val.e__ of
+--         ETypeAlias _ pat tipe e _ -> Just ((pat, tipe), e)
+--         _                         -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \stuff ->
+--         let ((patList, typeList), eList) =
+--           Tuple.mapFirst List.unzip (List.unzip stuff)
+--         in
+--         Utils.bindMaybe3
+--           (\_ _ (e_,l) ->
+--             return (ETypeAlias ws1 pat tipe e_ ws2) l)
+--           (mergePatterns pat patList)
+--           (mergeTypes tipe typeList)
+--           (mergeExpressions e eList)
+--
+--     ECase _ _ _ _ ->
+--       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
+--       Nothing
+--
+--     ETypeCase _ _ _ _ ->
+--       let _ = Debug.log "mergeExpressions: TODO handle: " eFirst in
+--       Nothing
+--
+--     EOption _ _ _ _ _ ->
+--       let _ = Debug.log "mergeExpressions: options shouldn't appear nested: " () in
+--       Nothing
+--
+--     EParens ws1 e pStyle ws2 ->
+--       let match eNext = case eNext.val.e__ of
+--         EParens _ e_ _ _  -> Just e_
+--         _               -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \es ->
+--         Utils.bindMaybe
+--           (\(e_,l) -> return (EParens ws1 e_ pStyle ws2) l)
+--           (mergeExpressions e es)
+--
+--     EHole ws mv ->
+--       let match eNext = case eNext.val.e__ of
+--         EHole _ mvNext -> Just mvNext
+--         _              -> Nothing
+--       in
+--       matchAllAndBind match eRest <| \maybeVals ->
+--         if List.all ((==) mv) maybeVals then return eFirst.val.e__ [] else Nothing
+--
+-- matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
+-- matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
+--
+-- mergeExpressionLists
+--     : List (List Exp)
+--    -> Maybe (List Exp, List (Ident, List AnnotatedNum))
+-- mergeExpressionLists lists =
+--   case Utils.maybeZipN lists of
+--     Nothing -> Nothing
+--     Just listListExp ->
+--       let foo listExp maybeAcc =
+--         case (listExp, maybeAcc) of
+--           (e::es, Just (acc1,acc2)) ->
+--             case mergeExpressions e es of
+--               Nothing     -> Nothing
+--               Just (e_,l) -> Just (acc1 ++ [e_], acc2 ++ l)
+--           _ ->
+--             Nothing
+--       in
+--       List.foldl foo (Just ([],[])) listListExp
+--
+-- mergeMaybeExpressions
+--     : Maybe Exp -> List (Maybe Exp)
+--    -> Maybe (Maybe Exp, List (Ident, List AnnotatedNum))
+-- mergeMaybeExpressions me mes =
+--   case me of
+--     Nothing ->
+--       if List.all ((==) Nothing) mes
+--         then Just (Nothing, [])
+--         else Nothing
+--     Just e  ->
+--       Utils.bindMaybe
+--         (Utils.mapMaybe (Tuple.mapFirst Just) << mergeExpressions e)
+--         (Utils.projJusts mes)
+--
+--
+-- mergePatterns : Pat -> List Pat -> Maybe ()
+-- mergePatterns pFirst pRest =
+--   case pFirst.val.p__ of
+--     PWildcard _ ->
+--       let match pNext = case pNext.val.p__ of
+--         PWildcard _ -> Just ()
+--         _           -> Nothing
+--       in
+--       matchAllAndCheckEqual match pRest ()
+--     PVar _ x _ ->
+--       let match pNext = case pNext.val.p__ of
+--         PVar _ x_ _ -> Just x_
+--         _           -> Nothing
+--       in
+--       matchAllAndCheckEqual match pRest x
+--     PConst _ n ->
+--       let match pNext = case pNext.val.p__ of
+--         PConst _ n_ -> Just n_
+--         _           -> Nothing
+--       in
+--       matchAllAndCheckEqual match pRest n
+--     PBase _ bv ->
+--       let match pNext = case pNext.val.p__ of
+--         PBase _ bv_ -> Just bv_
+--         _           -> Nothing
+--       in
+--       matchAllAndCheckEqual match pRest bv
+--     PList _ ps _ mp _ ->
+--       let match pNext = case pNext.val.p__ of
+--         PList _ ps_ _ mp_ _ -> Just (ps_, mp_)
+--         _                   -> Nothing
+--       in
+--       matchAllAndBind match pRest <| \stuff ->
+--         let (psList, mpList) = List.unzip stuff in
+--         Utils.bindMaybe2
+--           (\_ () -> Just ())
+--           (mergePatternLists (ps::psList))
+--           (mergeMaybePatterns mp mpList)
+--     PAs _ x _ p ->
+--       let match pNext = case pNext.val.p__ of
+--         PAs _ x_ _ p_ -> Just (x_, p_)
+--         _             -> Nothing
+--       in
+--       matchAllAndBind match pRest <| \stuff ->
+--         let (indentList, pList) = List.unzip stuff in
+--         Utils.bindMaybe
+--           (\() -> if List.all ((==) x) indentList then Just () else Nothing)
+--           (mergePatterns p pList)
+--     PParens _ p _ ->
+--       let match pNext = case pNext.val.p__ of
+--         PParens _ p_ _ -> Just p_
+--         _             -> Nothing
+--       in
+--       matchAllAndBind match pRest <| \pList ->
+--         Utils.bindMaybe
+--           (\() -> Just ())
+--           (mergePatterns p pList)
+--
+-- mergeTypes : Type -> List Type -> Maybe ()
+-- mergeTypes tFirst tRest =
+--   if List.all (Types.equal tFirst) tRest
+--   then Just ()
+--   else Nothing
+--
+-- matchAllAndCheckEqual f xs x =
+--   let g ys = if List.all ((==) x) ys then Just () else Nothing in
+--   matchAllAndBind f xs g
+--
+-- mergePatternLists : List (List Pat) -> Maybe ()
+-- mergePatternLists lists =
+--   case Utils.maybeZipN lists of
+--     Nothing -> Nothing
+--     Just listListPat ->
+--       let foo listPat maybeAcc =
+--         case (listPat, maybeAcc) of
+--           (p::ps, Just ()) -> mergePatterns p ps
+--           _                -> Nothing
+--       in
+--       List.foldl foo (Just ()) listListPat
+--
+-- mergeMaybePatterns : Maybe Pat -> List (Maybe Pat) -> Maybe ()
+-- mergeMaybePatterns mp mps =
+--   case mp of
+--     Nothing -> if List.all ((==) Nothing) mps then Just () else Nothing
+--     Just p  -> Utils.bindMaybe (mergePatterns p) (Utils.projJusts mps)
+--
+-- annotatedNumToComparable : AnnotatedNum -> (Num, Frozen, Float, Float)
+-- annotatedNumToComparable (n, frzn, wd) =
+--   case wd.val of
+--     IntSlider a _ b _ _ -> (n, frzn, toFloat a.val, toFloat b.val)
+--     NumSlider a _ b _ _ -> (n, frzn, a.val, b.val)
+--     NoWidgetDecl        -> (n, frzn, 1, -1)

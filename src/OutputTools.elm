@@ -352,9 +352,9 @@ mergeTool selections =
   , shortcut =
       Nothing
   , kind =
-      Single
+      Multi
   , func =
-      Just Controller.msgMergeBlobs
+      Just Controller.msgMerge
   , reqs =
       [ atLeastOneShapeNoFeatures selections
       ]

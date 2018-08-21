@@ -23,7 +23,7 @@ port module InterfaceController exposing
   , msgAddArg, msgRemoveArg
   , msgShowTerminationConditionOptions
   , msgAddToOutput
-  , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
+  , msgGroupBlobs, msgDuplicate, msgMerge, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
   , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
@@ -2050,9 +2050,22 @@ doDuplicate old =
   |> Maybe.map (\newProgram -> { old | code = Syntax.unparser old.syntax newProgram } |> clearSelections |> upstateRun)
   |> Maybe.withDefault old
 
-msgMergeBlobs = Msg "Merge Blobs" <| \old ->
-  if Dict.size old.selectedBlobs <= 1 then old
-  else upstateRun <| ETransform.mergeSelectedBlobs old
+-- msgMergeBlobs = Msg "Merge Blobs" <| \old ->
+--   if Dict.size old.selectedBlobs <= 1 then old
+--   else upstateRun <| ETransform.mergeSelectedBlobs old
+
+-- Offers clone removal among expressions touched by the selected items.
+msgMerge = Msg "Merge" <| \old ->
+  let synthesisResults =
+    let eidSet =
+      Set.fromList <|
+        ShapeWidgets.selectionsEIdsTouched old.inputExp old.slate old.widgets old.selectedFeatures old.selectedShapes old.selectedBlobs (\e -> childExps e /= [])
+    in
+    let minCloneCount = max 2 (Set.size old.selectedShapes) in
+    ETransform.cloneEliminationSythesisResults (\e -> Set.member e.val.eid eidSet) minCloneCount 2 old.inputExp
+  in
+  { old | synthesisResultsDict = Dict.insert "Merge" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
+
 
 msgAbstractBlobs = Msg "Abstract Blobs" <| \old ->
   upstateRun <| ETransform.abstractSelectedBlobs old
