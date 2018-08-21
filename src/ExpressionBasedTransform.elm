@@ -295,6 +295,14 @@ inlineListSynthesisResults originalExp =
       )
 
 
+-- Detects clones of duplication at least minCloneCount amount expressions allowed by candidateExpFilter.
+-- Clones must be at least minCloneSize after subexps are replaced by argument variables.
+--
+-- Only returns clones resulting in argCount arguments. Call multiple times to get clones of differing arg counts.
+-- (See cloneEliminationSythesisResults below for an example)
+--
+-- If allowCurrying is True and the clone is a simple function call with the last parameter as an argument, will try removing that last arg.
+--
 -- Returns List of (Sorted List of (EId, Expression to Replace, Argument Expressions), Replacing Function, Common Scope, Suggested Function Name, Argument Names)
 --
 -- Suggested function name has *not* been checked for collisions.
@@ -303,6 +311,11 @@ inlineListSynthesisResults originalExp =
 detectClones : Exp -> (Exp -> Bool) -> Int -> Int -> Int -> Bool -> List (List (EId, Exp, List Exp), Exp, Exp, String, List String)
 detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount allowCurrying =
   let argVar = eVar "INSERT_ARGUMENT_HERE" in
+  let isArgVarPlaceholder exp =
+    case exp.val.e__ of
+      EVar _ ident -> ident == "INSERT_ARGUMENT_HERE"
+      _            -> False
+  in
   -- Sister function in LangTools.extraExpsDiff
   -- This version returns the various differing subtrees replaced by argVar:
   let merge expA expB =
@@ -397,15 +410,19 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       (_,                                    EParens ws1B e1B pStyleB ws2B)        -> mergeSingleArg expA e1B |> (\(e1Merged, e1HasArgVar) -> (replaceE__ expB (EParens ws1B e1Merged pStyleB ws2B), e1HasArgVar))
       _                                                                            -> retArgVar
   in
+  let goThroughMergedAndMakeParentArgIfAllChildrenAreArgs merged =
+    merged
+    |> mapExp -- folds bottom up, so this can bubble.
+        (\e ->
+          case childExps e of
+            []  -> e
+            [_] -> e
+            children -> if List.all (expEffectiveExp >> isArgVarPlaceholder) children then argVar else e
+        )
+  in
   let mergeFunc = if argCount == 1 then (\eA eB -> mergeSingleArg eA eB |> Tuple.first) else merge in
   let argVarCount exp =
-    flattenExpTree exp
-    |> Utils.count
-        (\exp ->
-          case exp.val.e__ of
-            EVar _ ident -> ident == "INSERT_ARGUMENT_HERE"
-            _            -> False
-        )
+    flattenExpTree exp |> Utils.count isArgVarPlaceholder
   in
   subExpsOfSizeAtLeast minCloneSize originalExp
   |> List.filter (\e -> not <| isComment e || isOption e) -- Comments and options should not be a base expression of a clone
@@ -427,7 +444,9 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
         (exp, [exp])::(mergeGroups ++ addedMergeGroups)
       )
       []
-  |> List.filter (\(merged, exps) -> List.length exps >= minCloneCount && argVarCount merged == argCount)
+  |> List.filter (\(merged, exps) -> List.length exps >= minCloneCount)
+  |> List.concatMap (\(merged, exps) -> [merged, goThroughMergedAndMakeParentArgIfAllChildrenAreArgs merged] |> Utils.dedup |> List.map (\newMerged -> (newMerged, exps))) -- Step to combine e.g. `[arg, arg]` into a single arg
+  |> List.filter (\(merged, exps) -> argVarCount merged == argCount)
   |> List.map (\(merged, exps) -> (merged, exps |> List.sortBy parsedThingToLocation))
   |> List.map (\(merged, sortedExps) -> (merged, sortedExps, sortedExps |> List.map (\exp -> extraExpsDiff merged exp)))
   |> List.filter (\(merged, sortedExps, parameterExpLists) -> List.all (\e -> isLiteral e || nodeCount e <= 3) (List.concat parameterExpLists)) -- Exps that will become calling arguments must have no free variables or be small.
