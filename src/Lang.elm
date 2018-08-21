@@ -2755,8 +2755,9 @@ hasChildElements codeObject =
             not <| List.isEmpty exps
           (EHole _ Nothing) ->
             False
-          (ERecord _ Nothing exps _) ->
-            not <| List.isEmpty exps
+          (ERecord _ Nothing (Declarations _ (lT, _) lA (lE, _)) _) ->
+            let nonEmpty = not << List.isEmpty in
+            nonEmpty lT || nonEmpty lA || nonEmpty lE
           _ ->
             True
       P _ p ->
