@@ -1242,6 +1242,7 @@ code {
 
 .code-object-polygon {
   opacity: 0;
+  pointer-events: none;
 }
 
 .code-object-polygon.translucent {
@@ -1252,5 +1253,5 @@ code {
 .code-object-polygon:hover,
 .code-object-polygon.opaque {
   opacity: 1;
-  cursor: pointer;
+  pointer-events: none;
 }

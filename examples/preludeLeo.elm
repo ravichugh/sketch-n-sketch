@@ -759,6 +759,9 @@ Update =
     sizeFreeze = sizeFreeze
     foldDiff = foldDiff
     applyLens = applyLens
+    lens l x = l.apply x
+    lens2 l x y = l.apply (x, y)
+    lens3 l x y z = l.apply (x, y, z)
       -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway
 
     softFreeze = softFreeze
@@ -1376,6 +1379,9 @@ Dict = {
   contains x d = case __DictGet__ x d of
     Just _ -> True
     _ -> False
+  update k f d = case f <| __DictGet__ k d of
+    Nothing -> __DictDelete__ k d
+    Just v -> __DictInsert__ k v d
 }
 
 
@@ -1695,6 +1701,7 @@ List =
     singleton = singleton
     repeat = repeat
     insertAt = insertAt
+    last = LensLess.List.last
   }
 
 
@@ -1719,6 +1726,12 @@ String =
     in aux "" list
   in
   let length x = len (explode x) in
+  let strToFloat s =
+    case Regex.extract """(\d+)\.(\d+)""" s of
+       Just [intPart, floatPart] ->
+         strToInt intPart + strToInt floatPart / (10 ^ length floatPart)
+       Nothing -> strToInt s
+  in
   let join_ x =
     -- An example of using reversible foldl to join strings without separators
     -- Here no insertion of element is possible, but we can remove elements.
@@ -1811,6 +1824,10 @@ String =
   { toInt x =
       { apply x = strToInt x
       , unapply output = Just (toString output)
+      }.apply x
+    toFloat x =
+      { apply x = strToFloat x -- TODO: Recognize other types of float (e.g. NaN, infinity, 1e10, negatives...)
+        unapply output = Just (toString output)
       }.apply x
     join delimiter x =
       if delimiter == "" then join_ x

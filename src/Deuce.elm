@@ -41,6 +41,8 @@ import Lang exposing
   , extractInfoFromCodeObject
   , isTarget
   , foldCode
+  , hasChildElements
+  , childCodeObjects
   , computePatMap
   , firstNestedExp
   )
@@ -184,6 +186,8 @@ type alias CodeInfo =
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
   , selectedWidgets : List DeuceWidget
+  -- TODO: For performance, we need to remove this and rely on CSS for hover again
+  , hoveredWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
   , needsParse : Bool
@@ -320,10 +324,47 @@ addFinalEndBleed (x, y) =
   else
     (x, y)
 
+crustSize : DisplayInfo -> Float
+crustSize di =
+  if di.lineHeight > di.characterWidth * 1.25 then
+    -- the expected case
+    (di.lineHeight - di.characterWidth) / 2.0
+  else
+    -- a backup in case the settings are weird
+    0.3 * di.lineHeight
+
+removeUpperCrust : DisplayInfo -> AbsolutePos -> AbsolutePos
+removeUpperCrust di (x, y) =
+  (x, y + crustSize di)
+
+removeLowerCrust : DisplayInfo -> AbsolutePos -> AbsolutePos
+removeLowerCrust di (x, y) =
+  (x, y - crustSize di)
+
+maybeDecrust :
+  DisplayInfo -> Bool -> List (DisplayInfo -> AbsolutePos -> AbsolutePos) -> Hull -> Hull
+maybeDecrust di shouldDecrust decrusters =
+  Utils.applyIf shouldDecrust <|
+    List.map2 (\dc pos -> dc di pos) decrusters
+
+magicDecrust :
+  DisplayInfo -> Bool -> List ((DisplayInfo -> AbsolutePos -> AbsolutePos), Int, Int) -> Hull
+magicDecrust di shouldDecrust posInfos =
+  let modifier =
+    (\(dc, col, row) ->
+      Utils.applyIf shouldDecrust
+        (dc di)
+        (c2a di (col, row))
+    )
+  in
+  List.map modifier posInfos
+
 -- NOTE: Use 0-indexing for columns and rows.
-hull : CodeInfo -> Bool -> Bool -> Int -> Int -> Int -> Int -> Hull
-hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
+hull : CodeInfo -> Bool -> Bool -> Bool -> Int -> Int -> Int -> Int -> Hull
+hull codeInfo useTrimmed shouldAddBleed shouldDecrust startCol startRow endCol endRow =
   let
+    di =
+      codeInfo.displayInfo
     lineHulls =
       if useTrimmed then
         codeInfo.trimmedLineHulls
@@ -331,23 +372,15 @@ hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
         codeInfo.untrimmedLineHulls
     relevantLines =
       Utils.slice (startRow + 1) endRow lineHulls
-    (modifier, finalEndModifier) =
-      if shouldAddBleed then
-        ( List.map addBleed
-        , addFinalEndBleed
-        )
-      else
-        ( identity
-        , identity
-        )
+    modifier = if shouldAddBleed then List.map addBleed else identity
   in
     modifier <|
       -- Multi-line
       if startRow /= endRow then
         -- Left of first line
-        ( List.map (c2a codeInfo.displayInfo)
-            [ (startCol, startRow)
-            , (startCol, startRow + 1)
+        ( magicDecrust di shouldDecrust
+            [ (removeUpperCrust, startCol, startRow)
+            , (always identity, startCol, startRow + 1)
             ]
         ) ++
 
@@ -358,16 +391,19 @@ hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
         ) ++
 
         -- Left of last line
-        ( List.take 2 <|
-            Maybe.withDefault [] <|
-              Utils.maybeGeti0 endRow lineHulls
+        ( maybeDecrust di shouldDecrust [always identity, removeLowerCrust] <|
+            List.take 2 <|
+              Maybe.withDefault [] <|
+                Utils.maybeGeti0 endRow lineHulls
         ) ++
 
         -- Right of last line
-        ( List.map (finalEndModifier << c2a codeInfo.displayInfo)
-            [ (endCol, endRow + 1)
-            , (endCol, endRow)
-            ]
+        (
+          magicDecrust di shouldDecrust
+            [ (removeLowerCrust, endCol, endRow + 1)
+            , (always identity, endCol, endRow)
+            ] |>
+              Utils.applyIf shouldAddBleed (List.map addFinalEndBleed)
         ) ++
 
         -- Right of middle lines
@@ -377,43 +413,50 @@ hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow =
         ) ++
 
         -- Right of first line
-        ( List.drop 2 <|
-            Maybe.withDefault [] <|
-              Utils.maybeGeti0 startRow lineHulls
+        ( maybeDecrust di shouldDecrust [always identity, removeUpperCrust] <|
+            List.drop 2 <|
+              Maybe.withDefault [] <|
+                Utils.maybeGeti0 startRow lineHulls
         )
       -- Zero-width
       else if startCol == endCol then
         let
           (x, yTop) =
-            c2a codeInfo.displayInfo (startCol, startRow)
+            c2a di (startCol, startRow)
           (_, yBottom) =
-            c2a codeInfo.displayInfo (startCol, startRow + 1)
+            c2a di (startCol, startRow + 1)
         in
           [ (x - zeroWidthPadding, yTop)
           , (x - zeroWidthPadding, yBottom)
           , (x + zeroWidthPadding, yBottom)
           , (x + zeroWidthPadding, yTop)
-          ]
+          ] |>
+            maybeDecrust di shouldDecrust
+              [ removeUpperCrust
+              , removeLowerCrust
+              , removeLowerCrust
+              , removeUpperCrust
+              ]
       -- Single-line, nonzero-width
       else
-        List.map (c2a codeInfo.displayInfo)
-          [ (startCol, startRow)
-          , (startCol, startRow + 1)
-          , (endCol, startRow + 1)
-          , (endCol, startRow)
+        magicDecrust di shouldDecrust
+          [ (removeUpperCrust, startCol, startRow)
+          , (removeLowerCrust, startCol, startRow + 1)
+          , (removeLowerCrust, endCol, startRow + 1)
+          , (removeUpperCrust, endCol, startRow)
           ]
 
-codeObjectHull : CodeInfo -> CodeObject -> Hull
-codeObjectHull codeInfo codeObject =
+codeObjectHull : Bool -> CodeInfo -> CodeObject -> Hull
+codeObjectHull shouldDecrust codeInfo codeObject =
   let
+    (startCol, startRow, endCol, endRow) =
+      startEnd codeInfo codeObject
     useTrimmed =
       (not << isTarget) codeObject
     shouldAddBleed =
       affectedByBleed codeObject
-    (startCol, startRow, endCol, endRow) =
-      startEnd codeInfo codeObject
   in
-    hull codeInfo useTrimmed shouldAddBleed startCol startRow endCol endRow
+    hull codeInfo useTrimmed shouldAddBleed shouldDecrust startCol startRow endCol endRow
 
 hullPoints : Hull -> String
 hullPoints =
@@ -423,9 +466,9 @@ hullPoints =
   in
     String.concat << List.map pairToString
 
-codeObjectHullPoints : CodeInfo -> CodeObject -> String
-codeObjectHullPoints codeInfo codeObject =
-  hullPoints <| codeObjectHull codeInfo codeObject
+codeObjectHullPoints : Bool -> CodeInfo -> CodeObject -> String
+codeObjectHullPoints shouldDecrust codeInfo codeObject =
+  hullPoints <| codeObjectHull shouldDecrust codeInfo codeObject
 
 --==============================================================================
 --= POLYGONS
@@ -498,141 +541,6 @@ whitespaceColor colorScheme =
       }
 
 --------------------------------------------------------------------------------
--- Handles
---------------------------------------------------------------------------------
--- The following functions are a couple different options for different handle
--- styles.
---------------------------------------------------------------------------------
-
-circleHandles
-  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg msg
-circleHandles codeInfo codeObject color opacity radius =
-  let
-    radiusString =
-      toString radius
-    accountForBleed mightBleed (x, y) =
-      if
-        x <= 0 &&
-        mightBleed &&
-        affectedByBleed codeObject
-      then
-        ( -SleekLayout.deuceOverlayBleed
-        , y
-        )
-      else
-        (x, y)
-    handle mightBleed col row =
-      let
-        (cx, cy) =
-          (col, row)
-            |> c2a codeInfo.displayInfo
-            |> accountForBleed mightBleed
-            |> Utils.mapBoth toString
-      in
-        Svg.circle
-          [ SAttr.cx cx
-          , SAttr.cy cy
-          , SAttr.r radiusString
-          ]
-          []
-    (startCol, startRow, endCol, endRow) =
-      startEnd codeInfo codeObject
-  in
-    Svg.g
-      [ SAttr.fill <|
-          rgbaString color opacity
-      , SAttr.strokeWidth <|
-          strokeWidth codeInfo.displayInfo.colorScheme
-      , SAttr.stroke <|
-          rgbaString color opacity
-      ]
-      [ handle True startCol startRow
-      , handle False endCol (endRow + 1)
-      ]
-
---oldCircleHandles
---  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
---oldCircleHandles codeInfo codeObject color opacity radius =
---  let
---    (startCol, startRow, endCol, endRow) =
---      startEnd codeInfo codeObject
---    (cx1, cy1) =
---      (startCol, startRow)
---        |> c2a codeInfo.displayInfo
---        |> \(x, y) -> (x, y - radius)
---        |> Utils.mapBoth toString
---    (cx2, cy2) =
---      (endCol, endRow + 1)
---        |> c2a codeInfo.displayInfo
---        |> \(x, y) -> (x, y + radius)
---        |> Utils.mapBoth toString
---    radiusString =
---      toString radius
---  in
---    Svg.g
---      [ SAttr.fill <| rgbaString color opacity
---      , SAttr.strokeWidth strokeWidth
---      , SAttr.stroke <| rgbaString color opacity
---      ]
---      [ Svg.circle
---          [ SAttr.cx cx1
---          , SAttr.cy cy1
---          , SAttr.r radiusString
---          ]
---          []
---      , Svg.circle
---          [ SAttr.cx cx2
---          , SAttr.cy cy2
---          , SAttr.r radiusString
---          ]
---          []
---      ]
---
---fancyHandles
---  : CodeInfo -> CodeObject -> Color -> Opacity -> Float -> Svg Msg
---fancyHandles codeInfo codeObject color opacity radius =
---  let
---    (startCol, startRow, endCol, endRow) =
---      startEnd codeInfo codeObject
---    (xTip1, yTip1) =
---      (startCol, startRow)
---        |> c2a codeInfo.displayInfo
---        |> Utils.mapBoth toString
---    (xTip2, yTip2) =
---      (endCol, endRow + 1)
---        |> c2a codeInfo.displayInfo
---        |> Utils.mapBoth toString
---    radiusString =
---      toString radius
---  in
---    Svg.g
---      [ SAttr.fill <| rgbaString color opacity
---      , SAttr.strokeWidth strokeWidth
---      , SAttr.stroke <| rgbaString color opacity
---      ]
---      [ Svg.path
---          [ SAttr.d <|
---              "M " ++ xTip1 ++ " " ++ yTip1 ++ "\n"
---                ++ "l 0 -" ++ radiusString ++ "\n"
---                ++ "a " ++ radiusString ++ " " ++ radiusString
---                  ++ ", 0, 1, 0, -" ++ radiusString
---                  ++ " " ++ radiusString ++ "\n"
---                ++ "Z"
---          ]
---          []
---      , Svg.path
---          [ SAttr.d <|
---              "M " ++ xTip2 ++ " " ++ yTip2 ++ "\n"
---                ++ "l 0 " ++ radiusString ++ "\n"
---                ++ "a " ++ radiusString ++ " " ++ radiusString
---                  ++ ", 0, 1, 0, " ++ radiusString
---                  ++ " -" ++ radiusString ++ "\n"
---                ++ "Z"
---          ]
---          []
---      ]
-
---------------------------------------------------------------------------------
 -- Polygons
 --------------------------------------------------------------------------------
 
@@ -641,31 +549,30 @@ circleHandles codeInfo codeObject color opacity radius =
 -- code object of the unwanted code object.
 blockerPolygon : CodeInfo -> CodeObject -> List (Svg msg)
 blockerPolygon codeInfo codeObject =
-  let
-    color =
-      { r = 255
-      , g = 0
-      , b = 0
-      }
-  in
-    [ Svg.g
+  [ Svg.polygon
       [ SAttr.opacity "0"
+      , SAttr.points <|
+          codeObjectHullPoints False codeInfo codeObject
       ]
-      [ Svg.polygon
-          [ SAttr.points <|
-              codeObjectHullPoints codeInfo codeObject
-          , SAttr.strokeWidth <|
-              strokeWidth codeInfo.displayInfo.colorScheme
-          , SAttr.stroke <|
-              rgbaString color 1
-          , SAttr.fill <|
-              rgbaString
-                color
-                (polygonOpacity codeInfo.displayInfo.colorScheme)
-          ]
-          []
+      []
+  ]
+
+-- This polygon is used to specify an invisible region around the passed
+-- CodeObject which can be hovered over or clicked to select the passed
+-- DeuceWidget. This allows for part of a child's polygon to be used to select
+-- its parent.
+hoverSelectPolygon : Messages msg -> Bool -> CodeInfo -> CodeObject -> DeuceWidget -> List (Svg msg)
+hoverSelectPolygon msgs shouldDecrust codeInfo codeObject deuceWidget =
+  [ Svg.polygon
+      [ SAttr.opacity "0"
+      , SE.onMouseOver <| msgs.onMouseOver deuceWidget
+      , SE.onMouseOut <| msgs.onMouseOut deuceWidget
+      , SE.onClick <| msgs.onClick deuceWidget
+      , SAttr.points <|
+          codeObjectHullPoints shouldDecrust codeInfo codeObject
       ]
-    ]
+      []
+  ]
 
 codeObjectPolygon
   : Messages msg -> CodeInfo -> CodeObject -> Color -> List (Svg msg)
@@ -675,15 +582,9 @@ codeObjectPolygon msgs codeInfo codeObject color =
       []
     Just deuceWidget ->
       let
-        onMouseOver =
-          msgs.onMouseOver deuceWidget
-        onMouseOut =
-          msgs.onMouseOut deuceWidget
-        onClick =
-          msgs.onClick deuceWidget
-
-        selected =
-          List.member deuceWidget codeInfo.selectedWidgets
+        -- TODO: need to stop relying on hoveredWidgets, use CSS instead
+        hoveredOrSelected =
+          List.member deuceWidget <| codeInfo.selectedWidgets ++ codeInfo.hoveredWidgets
 
         codeObjectHasTypeError =
           case (codeInfo.needsParse, codeObject) of
@@ -717,10 +618,10 @@ codeObjectPolygon msgs codeInfo codeObject color =
         infoColor =
           objectInfoColor codeInfo.displayInfo.colorScheme
 
-        (selectedClass, finalColor)  =
-          if selected && codeObjectHasTypeError then
+        (classModifier, finalColor)  =
+          if hoveredOrSelected && codeObjectHasTypeError then
             (" opaque", errorColor)
-          else if selected then
+          else if hoveredOrSelected then
             (" opaque", color)
           else if highlightError then
             (" translucent", errorColor)
@@ -730,36 +631,48 @@ codeObjectPolygon msgs codeInfo codeObject color =
             ("", color)
 
         class =
-          "code-object-polygon" ++ selectedClass
-      in
-        [ Svg.g
-            [ SAttr.class class
-            , SE.onMouseOver onMouseOver
-            , SE.onMouseOut onMouseOut
-            , SE.onClick onClick
-            ]
-            [ circleHandles codeInfo codeObject finalColor 1 3
-            , Svg.polygon
-                [ SAttr.points <|
-                    codeObjectHullPoints codeInfo codeObject
-                , SAttr.strokeWidth <|
-                    strokeWidth codeInfo.displayInfo.colorScheme
-                , SAttr.stroke <|
-                    rgbaString finalColor 1
-                , SAttr.fill <|
-                    rgbaString
-                      finalColor
-                      (polygonOpacity codeInfo.displayInfo.colorScheme)
-                ]
-                []
-            ]
-        ]
+          "code-object-polygon" ++ classModifier
 
+        getChildPolygons excludeTargets codeObject_ target =
+          List.concatMap
+            (\child ->
+              let childPolygon =
+                hoverSelectPolygon msgs False codeInfo child target
+              in
+              if hasChildElements child then
+                childPolygon
+              else if excludeTargets && isTarget child then
+                []
+              else
+                -- leaf nodes can have target children - these need to point
+                -- back to the leaf's parent, not to the leaf
+                childPolygon ++
+                  getChildPolygons False child target
+            )
+            (childCodeObjects codeObject_)
+      in
+        getChildPolygons True codeObject deuceWidget ++
+        hoverSelectPolygon msgs True codeInfo codeObject deuceWidget ++
+        [ Svg.polygon
+            [ SAttr.class class
+            , SAttr.points <|
+                codeObjectHullPoints False codeInfo codeObject
+            , SAttr.strokeWidth <|
+                strokeWidth codeInfo.displayInfo.colorScheme
+            , SAttr.stroke <|
+                rgbaString finalColor 1
+            , SAttr.fill <|
+                rgbaString
+                  finalColor
+                  (polygonOpacity codeInfo.displayInfo.colorScheme)
+            ]
+            []
+        ]
 
 diffpolygon: CodeInfo -> Exp -> Svg msg
 diffpolygon codeInfo exp =
   let color = diffColor codeInfo.displayInfo.colorScheme <| Maybe.withDefault "+" <| Lang.eStrUnapply exp in
-  let thehull = hullPoints <| hull codeInfo True False exp.start.col exp.start.line exp.end.col exp.end.line in
+  let thehull = hullPoints <| hull codeInfo True False False exp.start.col exp.start.line exp.end.col exp.end.line in
     Svg.polygon
         [ SAttr.points thehull
         , SAttr.strokeWidth <|
@@ -903,6 +816,8 @@ overlay msgs model =
           trimmedLineHulls
       , selectedWidgets =
           model.deuceState.selectedWidgets
+      , hoveredWidgets =
+          model.deuceState.hoveredWidgets
       , patMap =
           patMap
       , maxLineLength =
@@ -942,6 +857,8 @@ diffOverlay model exps =
           trimmedLineHulls
       , selectedWidgets =
           model.deuceState.selectedWidgets
+      , hoveredWidgets =
+          model.deuceState.hoveredWidgets
       , patMap =
           Dict.empty
       , maxLineLength =
