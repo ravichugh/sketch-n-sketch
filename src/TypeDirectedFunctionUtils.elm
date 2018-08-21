@@ -132,7 +132,7 @@ maybeFillInArgPrimitive argType =
       TNamed _ "Height"              -> Just <| eConstDummyLoc 100
       TNamed _ "HalfWidth"           -> Just <| eConstDummyLoc 81 -- Golden ratio
       TNamed _ "HalfHeight"          -> Just <| eConstDummyLoc 50
-      TNamed _ "Count"               -> Just <| withDummyExpInfo <| EConst space1 3 dummyLoc (rangeSlider IntSlider 1 10)
+      TNamed _ "Count"               -> Just <| withDummyExpInfo <| EConst space1 3 dummyLoc (rangeSlider IntSlider 0 10)
       TNamed _ "Radians"             -> Just <| withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider NumSlider -3.14 3.14)
       TNamed _ "Degrees"             -> Just <| withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider IntSlider -180 180)
       TNamed _ "Radius"              -> Just <| eConstDummyLoc 150
