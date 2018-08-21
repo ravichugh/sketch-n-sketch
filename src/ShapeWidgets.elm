@@ -1110,8 +1110,8 @@ selectionsProximalDistalEIdInterpretations program slate widgets selectedFeature
 --   in
 --   distalInterps
 
-selectionsUniqueProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> List (List EId)
-selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs =
+selectionsUniqueProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures selectedShapes selectedBlobs expFilter =
   let eidsToNotSelect =
     -- If any shapes selected, diff against all other shapes.
     let shapeProvenanceEIdsNotToSelect =
@@ -1150,12 +1150,13 @@ selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate)
     in
     Set.union shapeProvenanceEIdsNotToSelect featureProvenanceEIdsNotToSelect
   in
-  let expFilter exp =
+  let newExpFilter exp =
     -- Exclude expressions touched by shapes NOT selected
-    not <| Set.member exp.val.eid eidsToNotSelect
+    (not <| Set.member exp.val.eid eidsToNotSelect)
+    && expFilter exp
   in
   let (proximalInterps, _{- distalInterps -}) =
-    selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
+    selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs newExpFilter
   in
   proximalInterps
 

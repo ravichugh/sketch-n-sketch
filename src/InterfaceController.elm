@@ -1645,6 +1645,7 @@ hideWidgets old =
             old.selectedFeatures
             old.selectedShapes
             old.selectedBlobs
+            (always True)
         |> List.head
         |> Maybe.withDefault []
 
@@ -1905,6 +1906,7 @@ deleteInOutput old =
           old.selectedFeatures
           old.selectedShapes
           old.selectedBlobs
+          (always True)
 
     deleteResults =
       proximalInterpretations
@@ -2010,18 +2012,30 @@ doDuplicate old =
           old.selectedFeatures
           old.selectedShapes
           old.selectedBlobs
-          (always True)
+          (not << isVar << expEffectiveExp)
+      |> Set.fromList
+
+
+    uniqueSingleExpressionInterpretations =
+      ShapeWidgets.selectionsUniqueProximalEIdInterpretations
+          old.inputExp
+          old.slate
+          old.widgets
+          old.selectedFeatures
+          old.selectedShapes
+          old.selectedBlobs
+          (\e -> Set.member e.val.eid singleExpressionInterpretations)
+      |> List.filterMap Utils.maybeUnwrap1
 
   -- let _ = Utils.log <| LangUnparser.unparseWithIds old.inputExp in
 
     maybeNewProgram =
-      singleExpressionInterpretations
+      uniqueSingleExpressionInterpretations
       -- |> Debug.log "possible eids to duplicate"
       -- |> List.map (\eid -> let _ = Utils.log <| unparse <| LangTools.justFindExpByEId old.inputExp eid in eid)
       |> List.map (LangTools.outerSameValueExpByEId old.inputExp >> .val >> .eid)
       |> Utils.dedup
       |> List.map (LangTools.justFindExpByEId old.inputExp)
-      |> List.filter (not << isVar << expEffectiveExp)
       |> List.sortBy Info.parsedThingToLocation -- Choose earliest single expression in program.
       |> List.head -- No multiple synthesis options for now.
       |> Maybe.map

@@ -504,7 +504,7 @@ interpretationsForSelectedItem program slate widgets item =
     interpretations =
       case maybeInterpretations of
         Just interpretations -> interpretations
-        Nothing              -> ShapeWidgets.selectionsUniqueProximalEIdInterpretations program slate widgets features shapes Dict.empty
+        Nothing              -> ShapeWidgets.selectionsUniqueProximalEIdInterpretations program slate widgets features shapes Dict.empty (always True)
   in
   interpretations
 
