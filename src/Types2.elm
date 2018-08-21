@@ -52,9 +52,18 @@ aceTypeInfo exp =
               []
 
             _ ->
-              [ { row = e.start.line - 1
-                , type_ = "error"
-                , text = "Type error: " ++ unparse e ++ "\n"
+              [ { row =
+                    e.start.line - 1
+                , type_ =
+                    "error"
+                , text =
+                    String.concat
+                      [ "Type error ["
+                      , "eid: ", toString e.val.eid, "; "
+                      , "col: ", toString e.start.col
+                      , "]: ", "\n"
+                      , String.trim (unparse e), "\n"
+                      ]
                 }
               ]
 
@@ -112,6 +121,7 @@ typecheck e =
   let result = inferType [] {} e in
   result.newExp
 
+
 inferType
     : TypeEnv
    -> {}
@@ -148,19 +158,23 @@ inferType gamma stuff thisExp =
         result =
           checkType gamma stuff thisExp innerExp annotatedType
 
-        newInnerExp =
+        (newInnerExp, finishNewExp) =
           if result.okay then
-            result.newExp
+            (result.newExp, Basics.identity)
 
           else
-            result.newExp
-              -- call to checkType calls
-              -- setTypeError (ExpectedButGot annotatedType result.newExp.val.typ)
+            -- the call to checkType calls:
+            -- setTypeError (ExpectedButGot annotatedType result.newExp.val.typ)
+            --
+            -- here, adding extra breadcrumb about the solicitorExp.
+            --
+            (result.newExp, setExtraTypeInfo (ExpectedExpToHaveSomeType innerExp.val.eid))
 
         newExp =
           EColonType ws1 newInnerExp ws2 annotatedType ws3
             |> replaceE__ thisExp
             |> setType (Just annotatedType)
+            |> finishNewExp
       in
         { newExp = newExp }
 
@@ -185,6 +199,7 @@ inferType gamma stuff thisExp =
     _ ->
       { newExp = thisExp |> setType Nothing }
 
+
 inferTypes
     : TypeEnv
    -> {}
@@ -201,10 +216,14 @@ inferTypes gamma stuff exps =
   in
   { newExps = List.reverse newExps }
 
+
 checkType
     : TypeEnv
    -> {}
-   -> Exp -- the expression whose analysis calls ("solicits") checkType
+   -> Exp -- the expression whose analysis calls ("solicits") checkType.
+          -- the solicitorExp can be used to generate type error messages, but
+          -- this funciton rewrites only thisExp. the caller needs to add any
+          -- desired metadata to solictorExp.
    -> Exp
    -> Type
    -> { okay: Bool, newExp: Exp }
@@ -215,7 +234,9 @@ checkType gamma stuff solicitorExp thisExp expectedType =
       { okay = False
       , newExp =
           result.newExp
-            |> setTypeError (ExpectedButGot expectedType result.newExp.val.typ)
+            |> setTypeError (ExpectedButGot expectedType
+                                            (Just solicitorExp.val.eid)
+                                            result.newExp.val.typ)
       }
 
     Just inferredType ->
@@ -228,7 +249,9 @@ checkType gamma stuff solicitorExp thisExp expectedType =
         { okay = False
         , newExp =
             result.newExp
-              |> setTypeError (ExpectedButGot expectedType result.newExp.val.typ)
+              |> setTypeError (ExpectedButGot expectedType
+                                              (Just solicitorExp.val.eid)
+                                              result.newExp.val.typ)
         }
 
 
@@ -237,7 +260,7 @@ checkType gamma stuff solicitorExp thisExp expectedType =
 unparseTypeError : TypeError -> List String
 unparseTypeError typeError =
   case typeError of
-    ExpectedButGot expectedType maybeActualType ->
+    ExpectedButGot expectedType _ maybeActualType ->
       [ "Expected: " ++ unparseType expectedType
       , "Got: " ++ Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
       ]

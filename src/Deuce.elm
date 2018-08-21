@@ -36,6 +36,8 @@ import Lang exposing
   , PId
   , PathedPatternId
   , CodeObject(..)
+  , TypeError(..)
+  , ExtraTypeInfo(..)
   , extractInfoFromCodeObject
   , isTarget
   , foldCode
@@ -472,16 +474,14 @@ objectColor colorScheme =
 objectErrorColor : ColorScheme -> Color
 objectErrorColor colorScheme =
   case colorScheme of
-    Light ->
-      { r = 255
-      , g = 0
-      , b = 0
-      }
-    Dark ->
-      { r = 255
-      , g = 0
-      , b = 0
-      }
+    Light -> { r = 255 , g = 0 , b = 0 }
+    Dark  -> { r = 255 , g = 0 , b = 0 }
+
+objectInfoColor : ColorScheme -> Color
+objectInfoColor colorScheme =
+  case colorScheme of
+    Light -> { r = 144, g = 238, b = 144 }
+    Dark  -> { r = 144, g = 238, b = 144 }
 
 whitespaceColor : ColorScheme -> Color
 whitespaceColor colorScheme =
@@ -685,7 +685,7 @@ codeObjectPolygon msgs codeInfo codeObject color =
         selected =
           List.member deuceWidget codeInfo.selectedWidgets
 
-        errorHere =
+        codeObjectHasTypeError =
           case (codeInfo.needsParse, codeObject) of
             (False, E e) ->
               case e.val.typeError of
@@ -695,18 +695,37 @@ codeObjectPolygon msgs codeInfo codeObject color =
               False
 
         highlightError =
-          errorHere && codeInfo.selectedWidgets == []
+          codeObjectHasTypeError && codeInfo.selectedWidgets == []
+
+        highlightInfo =
+          case (codeInfo.needsParse, codeObject) of
+            (False, E e) ->
+              case e.val.extraTypeInfo of
+                Just (ExpectedExpToHaveSomeType eId) ->
+                  if codeInfo.selectedWidgets == [DeuceExp eId] then
+                    True
+                  else
+                    False
+                _ ->
+                  False
+            _ ->
+              False
 
         errorColor =
           objectErrorColor codeInfo.displayInfo.colorScheme
 
+        infoColor =
+          objectInfoColor codeInfo.displayInfo.colorScheme
+
         (selectedClass, finalColor)  =
-          if selected && errorHere then
-            (" selected", errorColor)
+          if selected && codeObjectHasTypeError then
+            (" opaque", errorColor)
           else if selected then
-            (" selected", color)
+            (" opaque", color)
           else if highlightError then
-            (" highlight-error", errorColor)
+            (" translucent", errorColor)
+          else if highlightInfo then
+            (" opaque", infoColor)
           else
             ("", color)
 

@@ -223,6 +223,7 @@ type alias Pat_ = { p__ : Pat__, pid : PId }
 type alias WithTypeInfo a =
   { a | typ : Maybe Type
       , typeError : Maybe TypeError
+      , extraTypeInfo : Maybe ExtraTypeInfo
   }
 
 -- because Exp_ is defined via WithTypeInfo, no constructor called Exp_
@@ -231,6 +232,7 @@ makeExp_ e__ eid =
   , eid = eid
   , typ = Nothing
   , typeError = Nothing
+  , extraTypeInfo = Nothing
   }
 
 setType : Maybe Type -> Exp -> Exp
@@ -242,6 +244,11 @@ setTypeError : TypeError -> Exp -> Exp
 setTypeError error e =
   let e_ = e.val in
   { e | val = { e_ | typeError = Just error } }
+
+setExtraTypeInfo : ExtraTypeInfo -> Exp -> Exp
+setExtraTypeInfo info e =
+  let e_ = e.val in
+  { e | val = { e_ | extraTypeInfo = Just info } }
 
 
 --------------------------------------------------------------------------------
@@ -338,7 +345,12 @@ dummyType =
   withDummyRange (TWildcard space0)
 
 type TypeError
-  = ExpectedButGot Type (Maybe Type)
+  = ExpectedButGot Type (Maybe EId) (Maybe Type)
+
+-- Information for an expression that is relevant to
+-- other expressions that have above TypeErrors
+type ExtraTypeInfo
+  = ExpectedExpToHaveSomeType EId  -- for solicitor of ExpectedButGot
 
 type alias TPat = WithInfo TPat_
 type TPat_ = TPatVar WS Ident

@@ -1244,13 +1244,13 @@ code {
   opacity: 0;
 }
 
-.code-object-polygon.highlight-error {
+.code-object-polygon.translucent {
   opacity: 0.5;
   cursor: pointer;
 }
 
 .code-object-polygon:hover,
-.code-object-polygon.selected {
+.code-object-polygon.opaque {
   opacity: 1;
   cursor: pointer;
 }
