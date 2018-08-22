@@ -995,6 +995,10 @@ prelude =
   (let [xSep ySep] [(/ (- x2 x1) (- n 1)) (/ (- y2 y1) (- n 1))]
   (map (\\i [(+ x1 (* xSep i)) (+ y1 (* ySep i))]) (zeroTo n)))))
 
+(typ nPointsSepBy (-> Count Point [Distance Distance] (List Point)))
+(def nPointsSepBy (\\(n [x1 y1] [xSep ySep])
+  (map (\\i [(+ x1 (* xSep i)) (+ y1 (* ySep i))]) (zeroTo n))))
+
 (typ nHorizontalPointsSepBy (-> Count Point Distance (List Point)))
 (def nHorizontalPointsSepBy (\\(n [x1 y1] sep)
   (map (\\i [(+ x1 (* sep i)) y1]) (zeroTo n))))
