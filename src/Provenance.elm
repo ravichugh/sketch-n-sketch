@@ -76,6 +76,7 @@ valToMaybePreviousSameVal val =
     EHole _ (HolePredicate _)                  -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Predicate hole shouldn't appear in provenance" in Nothing
     EHole _ (HoleNamed _)                      -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty named hole shouldn't appear in provenance" in Nothing
     EHole _ HoleEmpty                          -> let _ = Utils.log "valToMaybePreviousSameVal shouldn't happen: Empty hole shouldn't appear in provenance" in Nothing
+    EHole _ (HolePBE _ _)                      -> success ()
 
 
 -- Unwrap provenance a few steps through expressions that passed the value unchanged.
@@ -232,7 +233,7 @@ expNonControlFlowChildren exp =
     EColonType _ _ _ _ _                         -> childExps exp
     ETypeAlias _ _ _ _ _                         -> childExps exp
     EParens _ _ _ _                              -> childExps exp
-    EHole _ _                                    -> []
+    EHole _ _                                    -> childExps exp
 
 
 -- Attempt to consume as many parents as possible.

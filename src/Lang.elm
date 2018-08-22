@@ -176,6 +176,7 @@ type HoleContents
   | HoleVal Val
   | HoleLoc LocId
   | HolePredicate (Exp -> Bool) -- For matching code structure, see LangTools.matchExp below.
+  | HolePBE (List (WS, WS, WS, Exp)) WS -- Programming By Example hole, w/list of what the hole should evaluate each successive time it is encountered. WS before ","; WS before example number; WS before "=>"
 
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -670,6 +671,11 @@ mapFoldExp f initAcc e =
       let (newE, newAcc) = recurse initAcc e in
       wrapAndMap (EParens ws1 newE pStyle ws2) newAcc
 
+    EHole ws1 (HolePBE examples wsEnd) ->
+      let (newExampleExps, newAcc) = recurseAll initAcc (List.map (\(_, _, _, e) -> e) examples) in
+      let newExamples = List.map2 (\(wsBeforeComma, wsBeforeNumber, wsBeforeDoubleArrow, _) e -> (wsBeforeComma, wsBeforeNumber, wsBeforeDoubleArrow, e)) examples newExampleExps in
+      wrapAndMap (EHole ws1 (HolePBE newExamples wsEnd)) newAcc
+
     EHole _ _ -> f e initAcc
 
 
@@ -821,6 +827,11 @@ mapFoldExpTopDown f initAcc e =
     EParens ws1 e pStyle ws2 ->
       let (newE, newAcc2) = recurse newAcc e in
       ret (EParens ws1 newE pStyle ws2) newAcc2
+
+    EHole ws1 (HolePBE examples wsEnd) ->
+      let (newExampleExps, newAcc2) = recurseAll newAcc  (List.map (\(_, _, _, e) -> e) examples) in
+      let newExamples = List.map2 (\(wsBeforeComma, wsBeforeNumber, wsBeforeDoubleArrow, _) e -> (wsBeforeComma, wsBeforeNumber, wsBeforeDoubleArrow, e)) examples newExampleExps in
+      ret (EHole ws1 (HolePBE newExamples wsEnd)) newAcc2
 
     EHole _ _ -> (newE, newAcc)
 
@@ -992,6 +1003,12 @@ mapFoldExpTopDownWithScope f handleELet handleEFun handleCaseBranch initGlobalAc
     EParens ws1 e pStyle ws2 ->
       let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
       ret (EParens ws1 newE pStyle ws2) newGlobalAcc2
+
+
+    EHole ws1 (HolePBE examples wsEnd) ->
+      let (newExampleExps, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc (List.map (\(_, _, _, e) -> e) examples) in
+      let newExamples = List.map2 (\(wsBeforeComma, wsBeforeNumber, wsBeforeDoubleArrow, _) e -> (wsBeforeComma, wsBeforeNumber, wsBeforeDoubleArrow, e)) examples newExampleExps in
+      ret (EHole ws1 (HolePBE newExamples wsEnd)) newGlobalAcc2
 
     EHole _ _ -> (newE, newGlobalAcc)
 
@@ -1397,6 +1414,7 @@ childExps e =
     EColonType ws1 e ws2 tipe ws3    -> [e]
     ETypeAlias ws1 pat tipe e ws2    -> [e]
     EParens _ e _ _                  -> [e]
+    EHole _ (HolePBE examples _)     -> examples |> List.map (\(_, _, _, e) -> e)
     EHole _ _                        -> []
 
 
@@ -2144,6 +2162,7 @@ allWhitespaces_ exp =
     EColonType ws1 e ws2 tipe ws3           -> [ws1] ++ allWhitespaces_ e ++ [ws2] ++ allWhitespacesType_ tipe ++ [ws2]
     ETypeAlias ws1 pat tipe e ws2           -> [ws1] ++ allWhitespacesPat_ pat ++ allWhitespacesType_ tipe ++ allWhitespaces_ e ++ [ws2]
     EParens    ws1 e pStyle ws2             -> [ws1] ++ allWhitespaces_ e ++ [ws2]
+    EHole      ws (HolePBE examples wsEnd)  -> [ws] ++ List.concatMap (\(wsBeforeComma, wsBeforeNumber, wsBeforeDoubleArrow, exampleExp) -> wsBeforeComma :: wsBeforeNumber :: wsBeforeDoubleArrow :: allWhitespaces_ exampleExp) examples ++ [wsEnd]
     EHole      ws mv                        -> [ws]
 
 
@@ -3066,6 +3085,8 @@ childCodeObjects co =
             , E e1
             , ET After ws2 e1
             ]
+          EHole ws (HolePBE examples wsEnd) ->
+            [ ET Before ws e ] ++ List.map (\(_, _, _, e) -> E e) examples
           EHole ws _ ->
             [ ET Before ws e ]
       P e p ->

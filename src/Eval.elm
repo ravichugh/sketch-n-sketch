@@ -87,7 +87,7 @@ runUntilTheEnd = always False
 
 initEnvRes =
   let endingEId = (expEffectiveExp prelude).val.eid in -- Same as in LangTools.preludeIdentifiers
-  eval (Just endingEId) runUntilTheEnd Syntax.Little [] [] prelude
+  eval (Just endingEId) runUntilTheEnd Syntax.Little [] [] { pbeHolesSeen = [] } prelude
   |> Result.map (Tuple.second >> Utils.fromJust_  "Eval.initEnvRes")
 
 initEnv : Env
@@ -110,7 +110,7 @@ type EarlyAbort a = EarlyAbort a
 doEvalEarlyAbort : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Exp -> Result String ((Val, Widgets), Maybe Env)
 doEvalEarlyAbort maybeRetEnvEId abortPred syntax initEnv e =
   ImpureGoodies.tryCatch "EarlyAbort"
-    (\()               -> eval maybeRetEnvEId abortPred syntax initEnv [] e)
+    (\()               -> eval maybeRetEnvEId abortPred syntax initEnv [] { pbeHolesSeen = [] } e)
     (\(EarlyAbort ret) -> ret)
   |> Result.map (\((val, widgets), maybeEnv) -> ((val, postProcessWidgets e widgets), maybeEnv))
 
@@ -118,7 +118,7 @@ doEvalEarlyAbort maybeRetEnvEId abortPred syntax initEnv e =
 -- Do not use: you lose parent tagging.
 -- provenanceToMaybeVal : Provenance -> Maybe Val
 -- provenanceToMaybeVal (Provenance env e vs) =
---   eval env [] e
+--   eval env [] { pbeHolesSeen = [] } e
 --   |> Result.map (\((val, widgets), env) -> val)
 --   |> Result.toMaybe
 
@@ -130,15 +130,16 @@ doEvalEarlyAbort maybeRetEnvEId abortPred syntax initEnv e =
 
 -- -- Like eval, but ignore envOut
 -- eval_ : Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
--- eval_ syntax env bt e = Result.map Tuple.first <| eval Nothing runUntilTheEnd syntax env bt e
+-- eval_ syntax env bt e = Result.map Tuple.first <| eval Nothing runUntilTheEnd syntax env bt { pbeHolesSeen = [] } e
 
 
 simpleEvalToMaybeVal : Exp -> Maybe Val
-simpleEvalToMaybeVal e = eval Nothing runUntilTheEnd Syntax.Elm initEnv [] e |> Result.toMaybe |> Maybe.map (\((val, _), _) -> val)
+simpleEvalToMaybeVal e = eval Nothing runUntilTheEnd Syntax.Elm initEnv [] { pbeHolesSeen = [] } e |> Result.toMaybe |> Maybe.map (\((val, _), _) -> val)
 
+type alias PBEHolesSeenRefCell = { pbeHolesSeen : List (Exp, Env, Result String Val) }
 
-eval : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Backtrace -> Exp -> Result String ((Val, Widgets), Maybe Env)
-eval maybeRetEnvEId abortPred syntax env bt e =
+eval : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Backtrace -> PBEHolesSeenRefCell -> Exp -> Result String ((Val, Widgets), Maybe Env)
+eval maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell e =
 
   let makeProvenance basedOn = Provenance e basedOn in
 
@@ -246,10 +247,10 @@ eval maybeRetEnvEId abortPred syntax env bt e =
   EBase _ v     -> Ok <| ret [] <| VBase (eBaseToVBase v)
   EVar _ x      -> Result.map (\v -> retV [v] v) <| lookupVar syntax env (e::bt) x e.start
   EFun _ ps e _ -> Ok <| ret [] <| VClosure Nothing ps e env
-  EOp _ op es _ -> Result.map (\(res, deeperRetEnv) -> addParentToRet (res, retEnv deeperRetEnv)) <| evalOp maybeRetEnvEId abortPred syntax env e (e::bt) op es
+  EOp _ op es _ -> Result.map (\(res, deeperRetEnv) -> addParentToRet (res, retEnv deeperRetEnv)) <| evalOp maybeRetEnvEId abortPred syntax env e (e::bt) pbeHolesSeenRefCell op es
 
   EList _ es _ m _ ->
-    case Utils.projOk <| List.map (eval maybeRetEnvEId abortPred syntax env bt_) (List.map Tuple.second es) of
+    case Utils.projOk <| List.map (eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell) (List.map Tuple.second es) of
       Err s -> Err s
       Ok results ->
         let (vws, deeperRetEnvs) = List.unzip results in
@@ -270,7 +271,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
               _ -> Ok <| retBoth vs (VList vs, ws) deeperRetEnv
           (Nothing, _, _)   -> Ok <| retBoth vs (VList vs, ws) deeperRetEnv
           (Just rest, _, _) ->
-            case eval maybeRetEnvEId abortPred syntax env bt_ rest of
+            case eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell rest of
               Err s -> Err s
               Ok ((vRest, ws_), deeperRetEnv_) ->
                 case vRest.v_ of
@@ -280,29 +281,29 @@ eval maybeRetEnvEId abortPred syntax env bt e =
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
   -- But that would suggest that we *might* avoid doing so for EApp as well, which is more dubious. We'll see.
   EIf _ e1 _ e2 _ e3 _ ->
-    case eval maybeRetEnvEId abortPred syntax env bt_ e1 of
+    case eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 of
       Err s -> Err s
       Ok ((v1,ws1), deeperRetEnv1) ->
         case v1.v_ of
-          VBase (VBool True)  -> Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| attachEarlierRetEnv deeperRetEnv1 <| addProvenanceToRet [v] <| addWidgets ws1 result) <| eval maybeRetEnvEId abortPred syntax env bt_ e2 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
-          VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| attachEarlierRetEnv deeperRetEnv1 <| addProvenanceToRet [v] <| addWidgets ws1 result) <| eval maybeRetEnvEId abortPred syntax env bt_ e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          VBase (VBool True)  -> Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| attachEarlierRetEnv deeperRetEnv1 <| addProvenanceToRet [v] <| addWidgets ws1 result) <| eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e2 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| attachEarlierRetEnv deeperRetEnv1 <| addProvenanceToRet [v] <| addWidgets ws1 result) <| eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           _                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
   ECase _ e1 bs _ ->
-    case eval maybeRetEnvEId abortPred syntax env bt_ e1 of
+    case eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 of
       Err s -> Err s
       Ok ((v1,ws1), deeperRetEnv1) ->
-        case evalBranches maybeRetEnvEId abortPred syntax env bt_ v1 bs of
+        case evalBranches maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell v1 bs of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s                               -> Err s
           _                                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
 
   ETypeCase _ e1 tbranches _ ->
-    case eval maybeRetEnvEId abortPred syntax env bt_ e1 of
+    case eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 of
       Err s -> Err s
       Ok ((v1,ws1), deeperRetEnv1) ->
-        case evalTBranches maybeRetEnvEId abortPred syntax env bt_ v1 tbranches of
+        case evalTBranches maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell v1 tbranches of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
           Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s                               -> Err s
@@ -312,15 +313,15 @@ eval maybeRetEnvEId abortPred syntax env bt e =
     errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " application with no arguments"
 
   EApp _ e1 es _ _ ->
-    case eval maybeRetEnvEId abortPred syntax env bt_ e1 of
+    case eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 of
       Err s       -> Err s
       Ok ((v1,ws1), deeperRetEnv1) ->
         case v1.v_ of
           VClosure maybeRecName ps funcBody closureEnv ->
             let argValsAndFuncRes =
               case maybeRecName of
-                Nothing    -> apply maybeRetEnvEId abortPred syntax env bt bt_ e ps es funcBody closureEnv
-                Just fName -> apply maybeRetEnvEId abortPred syntax env bt bt_ e ps es funcBody ((fName, v1)::closureEnv)
+                Nothing    -> apply maybeRetEnvEId abortPred syntax env bt bt_ pbeHolesSeenRefCell e ps es funcBody closureEnv
+                Just fName -> apply maybeRetEnvEId abortPred syntax env bt bt_ pbeHolesSeenRefCell e ps es funcBody ((fName, v1)::closureEnv)
             in
             -- Do not record dependence on closure (which function to execute is essentially control flow).
             -- Dependence on function is implicit by being dependent on some value computed by an expression in the function.
@@ -351,14 +352,14 @@ eval maybeRetEnvEId abortPred syntax env bt e =
             errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " not a function"
 
   ELet _ _ False p _ e1 _ e2 _ ->
-    case eval maybeRetEnvEId abortPred syntax env bt_ e1 of
+    case eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 of
       Err s       -> Err s
       Ok ((v1,ws1), deeperRetEnv1) ->
         case cons (p, v1) (Just env) of
           Just env_ ->
             -- Don't add provenance: fine to say value is just from the let body.
             -- (We consider equations to be mobile).
-            eval maybeRetEnvEId abortPred syntax env_ bt_ e2
+            eval maybeRetEnvEId abortPred syntax env_ bt_ pbeHolesSeenRefCell e2
             |> Result.map (addWidgets ws1 >> attachEarlierRetEnv deeperRetEnv1 >> attachLaterRetEnv retEnvHere)
 
           Nothing   ->
@@ -366,7 +367,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
 
 
   ELet _ _ True p _ e1 _ e2 _ ->
-    case eval maybeRetEnvEId abortPred syntax env bt_ e1 of
+    case eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 of
       Err s       -> Err s
       Ok ((v1,ws1), deeperRetEnv1) ->
         case ((patEffectivePat p).val.p__, v1.v_) of
@@ -377,7 +378,7 @@ eval maybeRetEnvEId abortPred syntax env bt e =
               -- Don't add provenance: fine to say value is just from the let body.
               -- (We consider equations to be mobile).
               Just env_ ->
-                eval maybeRetEnvEId abortPred syntax env_ bt_ e2
+                eval maybeRetEnvEId abortPred syntax env_ bt_ pbeHolesSeenRefCell e2
                 |> Result.map (addWidgets ws1 >> attachEarlierRetEnv deeperRetEnv1 >> attachLaterRetEnv retEnvHere)
 
               _ ->
@@ -397,9 +398,9 @@ eval maybeRetEnvEId abortPred syntax env bt e =
     -- case t1.val of
     --   -- using (e : Point) as a "point widget annotation"
     --   TNamed _ a ->
-    --     if String.trim a /= "Point" then eval abortPred syntax env bt_ e1
+    --     if String.trim a /= "Point" then eval abortPred syntax env bt_ pbeHolesSeenRefCell e1
     --     else
-    --       eval abortPred syntax env bt_ e1 |> Result.map (\(((v,ws),env_) as result) ->
+    --       eval abortPred syntax env bt_ pbeHolesSeenRefCell e1 |> Result.map (\(((v,ws),env_) as result) ->
     --         case v.v_ of
     --           VList [v1, v2] ->
     --             case (v1.v_, v2.v_) of
@@ -413,13 +414,13 @@ eval maybeRetEnvEId abortPred syntax env bt e =
     --             result
     --         )
     --   _ ->
-    eval maybeRetEnvEId abortPred syntax env bt_ e1 |> Result.map (attachEarlierRetEnv retEnvHere)
+    eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 |> Result.map (attachEarlierRetEnv retEnvHere)
 
-  EComment _ _ e1       -> eval maybeRetEnvEId abortPred syntax env bt_ e1 |> Result.map (attachEarlierRetEnv retEnvHere)
-  EOption _ _ _ _ e1    -> eval maybeRetEnvEId abortPred syntax env bt_ e1 |> Result.map (attachEarlierRetEnv retEnvHere)
-  ETyp _ _ _ e1 _       -> eval maybeRetEnvEId abortPred syntax env bt_ e1 |> Result.map (attachEarlierRetEnv retEnvHere)
-  ETypeAlias _ _ _ e1 _ -> eval maybeRetEnvEId abortPred syntax env bt_ e1 |> Result.map (attachEarlierRetEnv retEnvHere)
-  EParens _ e1 _ _      -> eval maybeRetEnvEId abortPred syntax env bt_ e1 |> Result.map (attachEarlierRetEnv retEnvHere)
+  EComment _ _ e1       -> eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 |> Result.map (attachEarlierRetEnv retEnvHere)
+  EOption _ _ _ _ e1    -> eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 |> Result.map (attachEarlierRetEnv retEnvHere)
+  ETyp _ _ _ e1 _       -> eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 |> Result.map (attachEarlierRetEnv retEnvHere)
+  ETypeAlias _ _ _ e1 _ -> eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 |> Result.map (attachEarlierRetEnv retEnvHere)
+  EParens _ e1 _ _      -> eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 |> Result.map (attachEarlierRetEnv retEnvHere)
 
   EHole _ (HoleNamed "terminationCondition") ->
     let parentIf = List.head bt |> Maybe.withDefault (eHoleNamed " * Nothing * ") in
@@ -427,17 +428,37 @@ eval maybeRetEnvEId abortPred syntax env bt e =
     then Ok <| ret [] <| VBase (VBool True)
     else Ok <| ret [] <| VBase (VBool False)
 
-  EHole _ (HoleVal val)     -> Ok <| retV [val] val -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
-  EHole _ (HoleLoc locId)   -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " loc hole " ++ toString locId ++ "!"
-  EHole _ HoleEmpty         -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
-  EHole _ (HolePredicate _) -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
-  EHole _ (HoleNamed name)  -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole " ++ name ++ "!"
+  EHole _ (HoleVal val)        -> Ok <| retV [val] val -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
+  EHole _ (HoleLoc locId)      -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " loc hole " ++ toString locId ++ "!"
+  EHole _ HoleEmpty            -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
+  EHole _ (HolePredicate _)    -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
+  EHole _ (HoleNamed name)     -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole " ++ name ++ "!"
+  EHole _ (HolePBE examples _) ->
+    let seenCount = Utils.count (\(seenHoleExp,_,_) -> seenHoleExp == e) pbeHolesSeenRefCell.pbeHolesSeen in
+    case Utils.maybeGeti1 (seenCount + 1) examples of
+      Just (_,_,_,e1) ->
+        let
+          -- Wacky mess in case hole recurses. Unlikely.
+          pbeHoleSeenBeforeEval = (e, env, Err "example not evaluated yet")
+          _ = ImpureGoodies.mutateRecordField pbeHolesSeenRefCell "pbeHolesSeen" (pbeHolesSeenRefCell.pbeHolesSeen ++ [pbeHoleSeenBeforeEval])
+        in
+        let holesSeenIToReplace = List.length pbeHolesSeenRefCell.pbeHolesSeen in
+        let evaledResult = eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e1 in
+        -- Now we have the result of example, so replace the record.
+        let
+          pbeHoleSeenAfterEval = (e, env, evaledResult |> Result.map (\((v,_),_)-> v))
+          _ = ImpureGoodies.mutateRecordField pbeHolesSeenRefCell "pbeHolesSeen" (Utils.replacei holesSeenIToReplace pbeHoleSeenAfterEval pbeHolesSeenRefCell.pbeHolesSeen)
+        in
+        Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| addProvenanceToRet [v] result) <| evaledResult
+
+      Nothing ->
+        errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " encountered PBE hole too many times—no more examples to use for evaluation!"
 
 
-evalOp : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> Result String ((Val, Widgets), Maybe Env)
-evalOp maybeRetEnvEId abortPred syntax env e bt opWithInfo es =
+evalOp : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Exp -> Backtrace -> PBEHolesSeenRefCell -> Op -> List Exp -> Result String ((Val, Widgets), Maybe Env)
+evalOp maybeRetEnvEId abortPred syntax env e bt pbeHolesSeenRefCell opWithInfo es =
   let (op,opStart) = (opWithInfo.val, opWithInfo.start) in
-  let argsEvaledRes = List.map (eval maybeRetEnvEId abortPred syntax env bt) es |> Utils.projOk in
+  let argsEvaledRes = List.map (eval maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell) es |> Utils.projOk in
   case argsEvaledRes of
     Err s -> Err s
     Ok argsEvaled ->
@@ -458,7 +479,7 @@ evalOp maybeRetEnvEId abortPred syntax env e bt opWithInfo es =
       in
       let unaryMathOp op args =
         case args of
-          [VConst _ (n,t)] -> VConst Nothing (evalDelta syntax bt op [n], TrOp op [t]) |> addProvenanceOk
+          [VConst _ (n,t)] -> VConst Nothing (evalDelta syntax bt pbeHolesSeenRefCell op [n], TrOp op [t]) |> addProvenanceOk
           _                -> error ()
       in
       let binMathOp op args =
@@ -471,7 +492,7 @@ evalOp maybeRetEnvEId abortPred syntax env e bt opWithInfo es =
                 (Minus, Just axisAndOtherDim, Nothing) -> Just axisAndOtherDim
                 _                                      -> Nothing
             in
-            VConst maybeAxisAndOtherDim (evalDelta syntax bt op [i,j], TrOp op [it,jt]) |> addProvenanceOk
+            VConst maybeAxisAndOtherDim (evalDelta syntax bt pbeHolesSeenRefCell op [i,j], TrOp op [it,jt]) |> addProvenanceOk
           _  ->
             error ()
       in
@@ -587,11 +608,11 @@ evalOp maybeRetEnvEId abortPred syntax env e bt opWithInfo es =
 -- Returns Ok Nothing if no branch matches
 -- Returns Ok (Just results) if branch matches and no execution errors
 -- Returns Err s if execution error
-evalBranches maybeRetEnvEId abortPred syntax env bt v bs =
+evalBranches maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell v bs =
   List.foldl (\(Branch_ _ pat exp _) acc ->
     case (acc, cons (pat,v) (Just env)) of
       (Ok (Just done), _)     -> acc
-      (Ok Nothing, Just env_) -> eval maybeRetEnvEId abortPred syntax env_ bt exp |> Result.map Just
+      (Ok Nothing, Just env_) -> eval maybeRetEnvEId abortPred syntax env_ bt pbeHolesSeenRefCell exp |> Result.map Just
       (Err s, _)              -> acc
       _                       -> Ok Nothing
 
@@ -601,7 +622,7 @@ evalBranches maybeRetEnvEId abortPred syntax env bt v bs =
 -- Returns Ok Nothing if no branch matches
 -- Returns Ok (Just results) if branch matches and no execution errors
 -- Returns Err s if execution error
-evalTBranches maybeRetEnvEId abortPred syntax env bt val tbranches =
+evalTBranches maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell val tbranches =
   List.foldl (\(TBranch_ _ tipe exp _) acc ->
     case acc of
       Ok (Just done) ->
@@ -609,7 +630,7 @@ evalTBranches maybeRetEnvEId abortPred syntax env bt val tbranches =
 
       Ok Nothing ->
         if Types.valIsType val tipe then
-          eval maybeRetEnvEId abortPred syntax env bt exp |> Result.map Just
+          eval maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell exp |> Result.map Just
         else
           acc
 
@@ -618,7 +639,7 @@ evalTBranches maybeRetEnvEId abortPred syntax env bt val tbranches =
   ) (Ok Nothing) (List.map .val tbranches)
 
 
-evalDelta syntax bt op is =
+evalDelta syntax bt pbeHolesSeenRefCell op is =
   case Lang.maybeEvalMathOp op is of
     Just result -> result
     Nothing     -> crashWithBacktrace syntax bt <| "Little evaluator bug: Eval.evalDelta " ++ strOp op
@@ -632,7 +653,7 @@ recursionLimit = 100
 -- applications: cleaner provenance (one record for entire app).
 --
 -- Returns: Result String (argVals, (functionResult, widgets))
-apply maybeRetEnvEId abortPred syntax env bt bt_ e psLeft esLeft funcBody closureEnv =
+apply maybeRetEnvEId abortPred syntax env bt bt_ pbeHolesSeenRefCell e psLeft esLeft funcBody closureEnv =
   if Utils.count (.val >> .eid >> (==) e.val.eid) bt > recursionLimit then
     -- Testing for too much recursion here instead of in eval for two reasons:
     -- (1) Naive backtrace length is not linear with amount of memory needed: valToSameVals crashes somewhere, probably because deeply recursive functions that return the same value as a pass-through value cause the widget subsumer to follow the provenance back up the return stack
@@ -640,13 +661,13 @@ apply maybeRetEnvEId abortPred syntax env bt bt_ e psLeft esLeft funcBody closur
     errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " Too much recursion!!" -- Better than crashing the browser.
   else
 
-  let recurse = apply maybeRetEnvEId abortPred syntax env bt bt_ e in
+  let recurse = apply maybeRetEnvEId abortPred syntax env bt bt_ pbeHolesSeenRefCell e in
   case (psLeft, esLeft) of
     ([], []) ->
-      eval maybeRetEnvEId abortPred syntax closureEnv bt_ funcBody |> Result.map (\valAndWsAndRetEnv -> ([], valAndWsAndRetEnv))
+      eval maybeRetEnvEId abortPred syntax closureEnv bt_ pbeHolesSeenRefCell funcBody |> Result.map (\valAndWsAndRetEnv -> ([], valAndWsAndRetEnv))
 
     ([], esLeft) ->
-      eval maybeRetEnvEId abortPred syntax closureEnv bt_ funcBody
+      eval maybeRetEnvEId abortPred syntax closureEnv bt_ pbeHolesSeenRefCell funcBody
       |> Result.andThen
           (\((fRetVal1, fRetWs1), deeperRetEnv1) ->
             case fRetVal1.v_ of
@@ -668,7 +689,7 @@ apply maybeRetEnvEId abortPred syntax env bt bt_ e psLeft esLeft funcBody closur
       Ok ([], ((finalVal, []), Nothing))
 
     (p::psLeft, e::esLeft) ->
-      case eval maybeRetEnvEId abortPred syntax env bt_ e of
+      case eval maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell e of
         Err s -> Err s
         Ok ((argVal, argWs), deeperRetEnv1) ->
           case cons (p, argVal) (Just closureEnv) of

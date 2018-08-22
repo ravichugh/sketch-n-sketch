@@ -28,26 +28,27 @@ nodeCount exp =
     exps |> List.map nodeCount |> List.sum
   in
   case exp.val.e__ of
-    EConst _ _ _ _           -> 1
-    EBase _ _                -> 1
-    EVar _ x                 -> 1
-    EFun _ ps e _            -> 1 + patsNodeCount ps + nodeCount e
-    EOp _ op es _            -> 1 + expsNodeCount es
-    EList _ es _ (Just e) _  -> 1 + expsNodeCount (List.map Tuple.second es) + nodeCount e
-    EList _ es _ Nothing _   -> 1 + expsNodeCount (List.map Tuple.second es)
-    EIf _ e1 _ e2 _ e3 _     -> 1 + expsNodeCount [e1, e2, e3]
+    EConst _ _ _ _               -> 1
+    EBase _ _                    -> 1
+    EVar _ x                     -> 1
+    EFun _ ps e _                -> 1 + patsNodeCount ps + nodeCount e
+    EOp _ op es _                -> 1 + expsNodeCount es
+    EList _ es _ (Just e) _      -> 1 + expsNodeCount (List.map Tuple.second es) + nodeCount e
+    EList _ es _ Nothing _       -> 1 + expsNodeCount (List.map Tuple.second es)
+    EIf _ e1 _ e2 _ e3 _         -> 1 + expsNodeCount [e1, e2, e3]
     -- Cases have a set of parens around each branch. I suppose each should count as a node.
-    ECase _ e1 bs _          -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
-    ETypeCase _ e1 tbs _     -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
-    EApp _ e1 es _ _         -> 1 + nodeCount e1 + expsNodeCount es
-    ELet _ _ _ p _ e1 _ e2 _ -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
-    EComment _ _ e1          -> 0 + nodeCount e1 -- Comments don't count.
-    EOption _ _ _ _ e1       -> 1 + nodeCount e1
-    ETyp _ p t e1 _          -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
-    EColonType _ e1 _ t _    -> 1 + typeNodeCount t + nodeCount e1
-    ETypeAlias _ p t e1 _    -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
-    EParens _ e1 pStyle _    -> 1 + nodeCount e1
-    EHole _ _                -> 1
+    ECase _ e1 bs _              -> 1 + (List.length bs) + nodeCount e1 + patsNodeCount (branchPats bs) + expsNodeCount (branchExps bs)
+    ETypeCase _ e1 tbs _         -> 1 + (List.length tbs) + nodeCount e1 + typesNodeCount (tbranchTypes tbs) + expsNodeCount (tbranchExps tbs)
+    EApp _ e1 es _ _             -> 1 + nodeCount e1 + expsNodeCount es
+    ELet _ _ _ p _ e1 _ e2 _     -> 1 + patNodeCount p + nodeCount e1 + nodeCount e2
+    EComment _ _ e1              -> 0 + nodeCount e1 -- Comments don't count.
+    EOption _ _ _ _ e1           -> 1 + nodeCount e1
+    ETyp _ p t e1 _              -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EColonType _ e1 _ t _        -> 1 + typeNodeCount t + nodeCount e1
+    ETypeAlias _ p t e1 _        -> 1 + patNodeCount p + typeNodeCount t + nodeCount e1
+    EParens _ e1 pStyle _        -> 1 + nodeCount e1
+    EHole _ (HolePBE examples _) -> 1 + expsNodeCount (List.map (\(_,_,_,e) -> e) examples)
+    EHole _ _                    -> 1
 
 
 -- O(n); for clone detection
@@ -2597,13 +2598,14 @@ transformVarsUntilBound subst exp =
     ELet ws1 kind True p ws2 e1 ws3 e2 ws4 ->
       replaceE__ exp (ELet ws1 kind True p ws2 (recurseWithout (identifiersSetInPat p) e1) ws3 (recurseWithout (identifiersSetInPat p) e2) ws4)
 
-    EComment ws s e1                -> replaceE__ exp (EComment ws s (recurse e1))
-    EOption ws1 s1 ws2 s2 e1        -> replaceE__ exp (EOption ws1 s1 ws2 s2 (recurse e1))
-    ETyp ws1 pat tipe e ws2         -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
-    EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
-    ETypeAlias ws1 pat tipe e ws2   -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
-    EParens ws1 e pStyle ws2        -> replaceE__ exp (EParens ws1 (recurse e) pStyle ws2)
-    EHole _ _                       -> exp
+    EComment ws s e1                   -> replaceE__ exp (EComment ws s (recurse e1))
+    EOption ws1 s1 ws2 s2 e1           -> replaceE__ exp (EOption ws1 s1 ws2 s2 (recurse e1))
+    ETyp ws1 pat tipe e ws2            -> replaceE__ exp (ETyp ws1 pat tipe (recurse e) ws2)
+    EColonType ws1 e ws2 tipe ws3      -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
+    ETypeAlias ws1 pat tipe e ws2      -> replaceE__ exp (ETypeAlias ws1 pat tipe (recurse e) ws2)
+    EParens ws1 e pStyle ws2           -> replaceE__ exp (EParens ws1 (recurse e) pStyle ws2)
+    EHole ws1 (HolePBE examples wsEnd) -> replaceE__ exp (EHole ws1 (HolePBE (List.map (\(ws1,ws2,ws3,e) -> (ws1,ws2,ws3,recurse e)) examples) wsEnd))
+    EHole _ _                          -> exp
 
 
 -- Find EVars using the given name, until name is rebound.
@@ -2703,7 +2705,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     EColonType _ e _ tipe _   -> ret <| recurse e
     ETypeAlias _ pat tipe e _ -> ret <| recurse e
     EParens _ e _ _           -> ret <| recurse e
-    EHole _ _                 -> ret Set.empty
+    EHole _ _                 -> ret <| recurseAllChildren ()
 
 
 assignUniqueNames : Exp -> (Exp, Dict Ident Ident)
@@ -2906,6 +2908,13 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
     EParens ws1 e1 pStyle ws2 ->
       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
       ( replaceE__ exp (EParens ws1 newE1 pStyle ws2)
+      , usedNames_
+      , newNameToOldName
+      )
+
+    EHole ws1 (HolePBE examples wsEnd) ->
+      let (newEs, usedNames_, newNameToOldName) = recurseExps (List.map (\(_,_,_,e) -> e) examples) in
+      ( replaceE__ exp (EHole ws1 (HolePBE (List.map2 (\(ws1,ws2,ws3,_) e -> (ws1,ws2,ws3,e)) examples newEs) wsEnd))
       , usedNames_
       , newNameToOldName
       )
@@ -3241,7 +3250,7 @@ expPatEnvAt_ exp targetEId =
       EColonType _ e _ tipe _    -> recurse e
       ETypeAlias _ pat tipe e _  -> recurse e
       EParens _ e _ _            -> recurse e
-      EHole _ _                  -> Nothing
+      EHole _ _                  -> recurseAllChildren ()
 
 
 --------------------------------------------------------------------------------

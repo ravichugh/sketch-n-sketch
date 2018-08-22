@@ -1367,7 +1367,8 @@ hole : SpacePolicy -> Parser Exp
 hole sp =
   inContext "hole" <|
     oneOf
-      [ holeNamed sp
+      [ holePBE sp
+      , holeNamed sp
       , holeEmpty sp
       ]
 
@@ -1391,6 +1392,47 @@ holeNamed sp =
           |= trackInfo (symbol "??")
           |= holeIdentifier
       )
+
+
+holePBE : SpacePolicy -> Parser Exp
+holePBE sp  =
+  inContext "PBE Hole" <|
+    lazy <| \_ ->
+      let
+        example : Parser (WS, WS, Exp)
+        example =
+          (succeed (,,)
+            |= spaces
+            |. int
+            |= spaces
+            |. symbol "=>"
+            |= expression spaces
+          )
+
+        anotherWsCommaAndExample : Parser (WS, WS, WS, Exp)
+        anotherWsCommaAndExample =
+          delayedCommitMap (\wsBeforeComma (wsBeforeExampleNumber, wsBeforeDoubleArrow, exampleExp) -> (wsBeforeComma, wsBeforeExampleNumber, wsBeforeDoubleArrow, exampleExp))
+            spaces
+            (succeed identity
+              |. symbol ","
+              |= example
+            )
+      in
+      mapExp_ <|
+        paddedBefore
+          ( \wsBefore ((ex1WsBeforeExampleNumber, ex1BeforeDoubleArrow, ex1Exp), moreExamples, wsEnd) ->
+            EHole wsBefore <|
+              HolePBE ((space0, ex1WsBeforeExampleNumber, ex1BeforeDoubleArrow, ex1Exp) :: moreExamples) wsEnd
+          )
+          sp
+          ( trackInfo <|
+              succeed (,,)
+                |. symbol "??("
+                |= example
+                |= repeat zeroOrMore anotherWsCommaAndExample
+                |= spaces
+                |. symbol ")"
+          )
 
 
 --------------------------------------------------------------------------------

@@ -1644,10 +1644,11 @@ gatherConstraints exp =
       in
       aliasConstraints ++
       eidIs (expToTC e)
-    EParens _ e _ _       -> eidIs (expToTC e)
-    EHole _ (HoleVal val) -> val |> Types.valToMaybeType |> Maybe.map (typeToTC >> eidIs) |> Maybe.withDefault []
-    EHole _ (HoleLoc _)   -> eidIs TCNum
-    EHole _ _             -> []
+    EParens _ e _ _              -> eidIs (expToTC e)
+    EHole _ (HoleVal val)        -> val |> Types.valToMaybeType |> Maybe.map (typeToTC >> eidIs) |> Maybe.withDefault []
+    EHole _ (HoleLoc _)          -> eidIs TCNum
+    EHole _ (HolePBE examples _) -> List.concatMap (\(_,_,_,e) -> eidIs (expToTC e)) examples
+    EHole _ _                    -> []
 
 
 gatherPatsConstraints : Bool -> List Pat -> List Constraint

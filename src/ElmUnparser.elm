@@ -440,6 +440,25 @@ unparse e =
         ++ "??k"
         ++ toString locId
 
+    EHole wsBefore (HolePBE examples wsEnd) ->
+      wsBefore.val
+        ++ "??("
+        ++ (
+          examples
+          |> Utils.mapi1
+              (\(i, (wsBeforeComma, wsBeforeNumber, wsBeforeDoubleArrow, exampleExp)) ->
+                (if i == 1 then "" else wsBeforeComma.val ++ ",") ++
+                wsBeforeNumber.val ++
+                toString i ++
+                wsBeforeDoubleArrow.val ++
+                "=>" ++
+                unparse exampleExp
+              )
+          |> String.join ""
+        )
+        ++ wsEnd.val
+        ++ ")"
+
     EHole wsBefore holeType ->
       wsBefore.val
         ++ "??"
