@@ -1220,8 +1220,8 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
                       caption -- baseDescription
                       uniqueNameToOldName3
                       Nothing -- (Just letEIdWithNewVars) -- maybeNewScopeEId
-                      ("touched", "untouched") -- (touchedAdjective, untouchedAdjective)
-                      Set.empty -- namesUniqueTouched -- namesUniqueTouched
+                      ("new", "old") -- (touchedAdjective, untouchedAdjective)
+                      (Set.insert funcUniqueName (identifiersSetInPats argPats)) -- namesUniqueTouched -- namesUniqueTouched
                       [] -- varEIdsPreviouslyDeliberatelyRemoved
                       Dict.empty -- insertedVarEIdToBindingPId -- insertedVarEIdToBindingPId
                       originalProgramUniqueNames -- originalProgramUniqueNames
