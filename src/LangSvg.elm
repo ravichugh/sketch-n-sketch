@@ -7,6 +7,7 @@ module LangSvg exposing
   , maxColorNum, maxStrokeWidthNum
   , dummySvgNode
   , rootIsShapeOrText
+  , vListToIndexedTree
   , valToIndexedTree
   , svgValToIndexedTree
   , printSvg
@@ -153,6 +154,19 @@ svgValToIndexedTree v =
   thunk ()
   -- ImpureGoodies.logTimedRun "LangSvg.valToIndexedTree" thunk
 
+vListToIndexedTree : Val -> Result String RootedIndexedTree
+vListToIndexedTree vList =
+  let valNoProvenance v_ = { v_ = v_, provenance = dummyProvenance, parents = Parents [] } in
+  let newSvg =
+    valNoProvenance <|
+      VList [
+        valNoProvenance (VBase (VString "svg")),
+        valNoProvenance (VList []),
+        vList
+      ]
+  in
+  svgValToIndexedTree newSvg
+
 -- Fallback to displaying text if can't interpret as SVG or list of SVG.
 --
 valToIndexedTree : Val -> Result String RootedIndexedTree
@@ -161,18 +175,7 @@ valToIndexedTree v =
   case asSvg of
     Ok _  -> asSvg
     Err s ->
-      let asSvgList =
-        let valNoProvenance v_ = { v_ = v_, provenance = dummyProvenance, parents = Parents [] } in
-        let newSvg =
-          valNoProvenance <|
-            VList [
-              valNoProvenance (VBase (VString "svg")),
-              valNoProvenance (VList []),
-              v
-            ]
-        in
-        svgValToIndexedTree newSvg
-      in
+      let asSvgList = vListToIndexedTree v in
       case asSvgList of
         Ok _  -> asSvgList
         Err _ ->

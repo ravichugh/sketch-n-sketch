@@ -2043,7 +2043,23 @@ doDuplicate old =
           (\expToDuplicate ->
             let name = LangTools.expNameForExp old.inputExp expToDuplicate |> LangTools.removeTrailingDigits in
             -- Attempt 1: Try to add to output as a shape.
-            let newProgram = DrawAddShape.addShape old (always True) (Just name) expToDuplicate (Just <| Set.size old.selectedShapes + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing False old.inputExp in
+            let expectedShapeCountIncrease =
+              old.selectedShapes
+              |> Set.toList
+              |> List.map
+                  (\selectedNodeId ->
+                    case Utils.maybeGeti1 (-2 - selectedNodeId) old.widgets of
+                      Just (WList listVal) ->
+                        case LangSvg.vListToIndexedTree listVal of
+                          Ok (_, shapeDict) -> Dict.size shapeDict - 1
+                          Err _             -> 1
+
+                      _ ->
+                        1
+                  )
+              |> List.sum
+            in
+            let newProgram = DrawAddShape.addShape old (always True) (Just name) expToDuplicate (Just <| expectedShapeCountIncrease + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing False old.inputExp in
             if not <| LangUnparser.expsEquivalent newProgram old.inputExp then
               newProgram
             else
