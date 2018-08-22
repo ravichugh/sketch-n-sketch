@@ -959,11 +959,7 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
 
     -- Insert new binding no deeper than the currently focused scope.
     insertionLocationEIds =
-      FocusedEditingContext.eidAtEndOfDrawingContext editingContext program
-      |> findWithAncestorsByEId program
-      |> Maybe.withDefault []
-      |> List.map (.val >> .eid)
-      |> Set.fromList
+      FocusedEditingContext.insertionLocationEIdsForContext editingContext program
   in
   possibleSimpleExpansions
   |> List.concatMap (\outputEId ->

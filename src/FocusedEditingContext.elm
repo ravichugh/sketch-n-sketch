@@ -8,6 +8,7 @@ import WidgetsFromEnv
 import Utils
 
 import Dict
+import Set exposing (Set)
 
 
 -- Where to insert new shapes?
@@ -63,6 +64,23 @@ contextInputVals editingContext maybeEnv program =
           []
     _ ->
       []
+
+
+-- Locations for new binding should be no deeper than the currently focused scope.
+insertionLocationEIdsForContext : Maybe (EId, a) -> Exp -> Set EId
+insertionLocationEIdsForContext editingContext program =
+  eidAtEndOfDrawingContext editingContext program
+  |> findWithAncestorsByEId program
+  |> Maybe.withDefault []
+  |> List.map (.val >> .eid)
+  |> Set.fromList
+
+
+-- Locations for new binding should be no deeper than the currently focused scope.
+isValidInsertionLocationExpForContext : Maybe (EId, a) -> Exp -> (Exp -> Bool)
+isValidInsertionLocationExpForContext editingContext program =
+  let insertionLocationEIds = insertionLocationEIdsForContext editingContext program in
+  (\exp -> Set.member exp.val.eid insertionLocationEIds)
 
 
 maybeSynthesisContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Maybe (Env, Maybe Ident, Exp, List Val)

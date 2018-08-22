@@ -589,7 +589,7 @@ onMouseDrag lastPosition newPosition old =
                 else if axis == Y && sign == Positive then ((mx, my - numberOfSnapsPassed*pixelsPerSnap), NoSnap)
                 else                                       ((mx, my + numberOfSnapsPassed*pixelsPerSnap), NoSnap)
           in
-          { old | mouseMode = MouseDrawNew (Offset1D basePoint amountSnap (effectiveMX, effectiveMY)) }
+          { old | mouseMode = MouseDrawNew (Offset1D basePoint amountSnap (effectiveMX, effectiveMY) |> Debug.log "mouseMode") }
 
         _ -> old
 
@@ -891,7 +891,7 @@ upstate msg old =
   case msg of
     Msg caption updateModel ->
       -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
-      -- let _ = Debug.log "Msg" caption in
+      let _ = Debug.log "Msg" caption in
       -- let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
       let _ = debugLog "Msg" caption in
       updateModel old
@@ -2056,7 +2056,7 @@ doDuplicate old =
                     Nothing          -> expToDuplicate.val.eid
                     Just (letExp, _) -> letExp.val.eid
 
-                (_, newProgram) = LangTools.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid] old.inputExp
+                (_, newProgram) = LangTools.newVariableVisibleTo -1 name 1 expToDuplicate [expToDuplicate.val.eid, FocusedEditingContext.eidAtEndOfDrawingContext old.editingContext old.inputExp] old.inputExp
               in
               newProgram
           )
