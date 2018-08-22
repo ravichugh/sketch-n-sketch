@@ -131,10 +131,11 @@ renamePatByPId pid newName program =
 renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =
   case LangTools.findScopeExpAndPatByPathedPatternId (scopeId, path) program of
-    Just (scopeExp, pat) ->
+    Just ((scopeExp, branchNumber), pat) ->
       case LangTools.patToMaybeIdent pat of
         Just oldName ->
           let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in -- ScopeAreas are the outermost exp in which the variable might appear.
+          --let _ = Debug.log ("scopeAreas where to rename:" ++ (List.map (Syntax.unparser Syntax.Elm) scopeAreas |> String.join "\n;\n")) () in
           let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map (.val >> .eid) in
           let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
           let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in

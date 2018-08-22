@@ -390,8 +390,8 @@ swapDefinitionsTool : Model -> Selections -> DeuceTool
 swapDefinitionsTool model selections =
   let ppidIsInLet ppid =
     case LangTools.findScopeExpAndPatByPathedPatternId ppid model.inputExp of
-      Just (scopeExp, _) -> isLet scopeExp
-      Nothing            -> False
+       Just ((scopeExp, _), _) -> isLet scopeExp
+       Nothing            -> False
   in
   let letEIdToTopPId letEId bn =
     LangTools.justFindExpByEId model.inputExp letEId |>
@@ -1166,9 +1166,9 @@ createFunctionTool model selections =
         ([], [], [], [pathedPatId], [], [], []) ->
           case
             LangTools.findScopeExpAndPatByPathedPatternId pathedPatId model.inputExp
-              |> Maybe.map (\(e,p) -> (e.val.e__, p.val.p__))
+              |> Maybe.map (\((e, id), p) -> (e.val.e__, id, p.val.p__))
           of
-            Just (ELet _ _ _ _ _, PVar _ ident _) ->
+            Just (ELet _ _ _ _ _, id, PVar _ ident _) ->
               ( Just <| \() ->
                   CodeMotion.abstractPVar model.syntax pathedPatId [] model.inputExp
               , FullySatisfied
