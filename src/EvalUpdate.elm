@@ -603,9 +603,9 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
   let assignUniqueNamesToDeclarations_: Declarations -> Set.Set Ident -> Dict Ident Ident ->
        (Declarations, Set.Set Ident, Dict Ident Ident, Dict Ident Ident)
       assignUniqueNamesToDeclarations_ (Declarations po tpes anns exps) usedNames oldNameToNewName =
-    let (newRevLetexps, usedNames__, newNameToOldName__, oldNameToNewName__) =
+    let (newRevLetexpsGroups, usedNames__, newNameToOldName__, oldNameToNewName__) =
        foldLeftGroup ([], usedNames, Dict.empty, oldNameToNewName) exps <|
-         \(revAccGroup, usedNames, newNameToOldName, oldNameToNewName) letexps ->
+         \(revAccGroup, usedNames, newNameToOldName, oldNameToNewName) letexps isRec  ->
            let (newRevPats, usedNames__, oldNameToNewNameAdditions) =
              Utils.foldLeft ([], usedNames, Dict.empty) letexps <|
                 \(revPats, usedNames, oldNameToNewNameAdditions) (LetExp _ _ p _ _ _) ->
@@ -615,7 +615,7 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
            let newPats = List.reverse newRevPats in
            let oldNameToNewNameWithAdditions = Dict.union oldNameToNewNameAdditions oldNameToNewName in
            let oldNameToNewNameForBoundExps =
-             if isMutuallyRecursive letexps then
+             if isRec then
                 oldNameToNewNameWithAdditions
              else
                 oldNameToNewName
@@ -630,13 +630,13 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
                    (usedNames__, patTail, newLetExp::revLetExps, Dict.union newNameToOldName newNameToOldName_)
                  _ -> Debug.crash "Unexpected missing pattern in EvalUpdate.assignUniqueNames_"
            in
-           (List.reverse revNewLetExps :: revAccGroup,
+           ((isRec, List.reverse revNewLetExps) :: revAccGroup,
             usedNames___,
             Dict.union newNameToOldName newNameToOldName__,
             oldNameToNewNameWithAdditions
             )
     in
-    (Declarations po tpes anns (extractGroupInfo identity <| List.reverse newRevLetexps),
+    (Declarations po tpes anns <| List.reverse newRevLetexpsGroups,
      usedNames__,
      newNameToOldName__,
      oldNameToNewName__

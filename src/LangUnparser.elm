@@ -208,7 +208,7 @@ unparseDecls withIds (Declarations _ types anns exps) =
     let patu = if withIds then unparsePatWithIds else unparsePat in
     let typu = if withIds then unparseType else unparseType in
     let expu = if withIds then unparseWithIds else unparse_ in
-    (foldLeftGroup "" types <| (\acc group ->
+    (foldLeftGroup "" types <| (\acc group isRec ->
        acc ++ (group |> List.map (\(LetType _ wsBefore _ pat _ ws2 tipe) ->
         wsBefore.val ++ "(def" ++ (patu pat) ++ (typu tipe) ++ ws2.val ++ ")"
        ) |> String.join "")
@@ -216,8 +216,8 @@ unparseDecls withIds (Declarations _ types anns exps) =
     (Utils.foldLeft "" anns <| (\acc (LetAnnotation _ wsBefore pat _ ws2 tipe) ->
        acc ++ wsBefore.val ++ "(typ" ++ (patu pat) ++ (typu tipe) ++ ws2.val ++ ")"
     )) ++
-    (foldLeftGroup "" exps <| (\acc group ->
-       let tok = if isMutuallyRecursive group then "defrec" else "def" in -- TODO: This doesn't work for mutually recursive, only recursive.
+    (foldLeftGroup "" exps <| (\acc group isRec ->
+       let tok = if isRec then "defrec" else "def" in -- TODO: This doesn't work for mutually recursive, only recursive.
        acc ++ (group |> List.map (\(LetExp _ wsBefore pat _ ws2 e1) ->
          wsBefore.val ++ "(" ++ tok ++ patu pat ++ expu e1 ++ ws2.val ++ ")"
        ) |> String.join "")
@@ -249,15 +249,12 @@ unparse_ e = case e.val.e__ of
     ws1.val ++ "(" ++ strOp op.val ++ (String.concat (List.map unparse_ es)) ++ ws2.val ++ ")"
   EIf ws1 e1 _ e2 _ e3 ws2 ->
     ws1.val ++ "(if" ++ unparse_ e1 ++ unparse_ e2 ++ unparse_ e3 ++ ws2.val ++ ")"
-  ELet ws1 Let (Declarations _ ([], []) [] ([LetExp _ wsBefore p _ wse1 e1], _)) ws2 e2 ->
+  ELet ws1 Let (Declarations _ [] [] [(isRec, [LetExp _ wsBefore p _ wse1 e1])]) ws2 e2 ->
     case p.val.p__ of
       PVar _ "_IMPLICIT_MAIN" _ ->
         ""
       _ ->
-        let tok = case e1.val.e__ of
-          EFun _ _ _ _ -> "letrec"
-          _ -> "let"
-        in
+        let tok = if isRec then "letrec" else  "let" in
         ws1.val ++ "(" ++ tok ++ wsBefore.val ++ unparsePat p ++ unparse_ e1 ++ unparse_ e2 ++ ws2.val ++ ")"
   ELet ws1 Let _ _ _ ->
     "internal error, cannot unparse ELet/Let in LangUnparser if more than one exp declaration"
@@ -306,11 +303,8 @@ unparseWithIds e =
       ws1.val ++ "(" ++ eidTag ++ strOp op.val ++ (String.concat (List.map unparseWithIds es)) ++ ws2.val ++ ")"
     EIf ws1 e1 _ e2 _ e3 ws2 ->
       ws1.val ++ "(" ++ eidTag ++ "if" ++ unparseWithIds e1 ++ unparseWithIds e2 ++ unparseWithIds e3 ++ ws2.val ++ ")"
-    ELet ws1 Let (Declarations _ ([], []) [] ([LetExp _ wsBefore p _ wse1 e1], _)) ws2 e2 ->
-      let tok = case e1.val.e__ of
-        EFun _ _ _ _ -> "letrec"
-        _ -> "let"
-      in
+    ELet ws1 Let (Declarations _ [] [] [(isRec, [LetExp _ wsBefore p _ wse1 e1])]) ws2 e2 ->
+      let tok = if isRec then "letrec" else "let" in
       ws1.val ++ "(" ++ eidTag ++ tok ++ unparsePatWithIds p ++ unparseWithIds e1 ++ unparseWithIds e2 ++ ws2.val ++ ")"
     ELet ws1 Let _ _ _ ->
       eidTag ++ "internal error, cannot unparse ELet/Let in LangUnparser if more than one exp declaration"
@@ -339,7 +333,7 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
   let recurse e = unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations e in
   let recursePat e = unparsePatWithUniformWhitespace includeWidgetDecls e in
   let recurseDecls (Declarations _ types anns exps) =
-    (foldLeftGroup "" types <| (\acc group ->
+    (foldLeftGroup "" types <| (\acc group isRec ->
        acc ++ (group |> List.map (\(LetType _ _ _ pat _ _ tipe) ->
         " " ++ "(def" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
        ) |> String.join "")
@@ -347,8 +341,8 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
     (Utils.foldLeft "" anns <| (\acc (LetAnnotation _ _ pat _ _ tipe) ->
        acc ++ " " ++ "(typ" ++ (recursePat pat) ++ (unparseTypeWithUniformWhitespace tipe) ++ " " ++ ")"
     )) ++
-    (foldLeftGroup "" exps <| (\acc group ->
-       let tok = if isMutuallyRecursive group then "defrec" else "def" in -- TODO: This doesn't work for mutually recursive, only recursive.
+    (foldLeftGroup "" exps <| (\acc group isRec ->
+       let tok = if isRec then "defrec" else "def" in -- TODO: This doesn't work for mutually recursive, only recursive.
        acc ++ (group |> List.map (\(LetExp _ _ pat _ _ e1) ->
          " " ++ "(" ++ tok ++ recursePat pat ++ recurse e1 ++ " " ++ ")"
        ) |> String.join "")
@@ -383,11 +377,8 @@ unparseWithUniformWhitespace includeWidgetDecls includeConstAnnotations exp =
       " " ++ "(" ++ strOp op.val ++ (String.concat (List.map recurse es)) ++ " " ++ ")"
     EIf _ e1 _ e2 _ e3 _ ->
       " " ++ "(if" ++ recurse e1 ++ recurse e2 ++ recurse e3 ++ " " ++ ")"
-    ELet _ Let (Declarations _ ([], []) [] ([LetExp _ _ p _ _ e1], _)) _ e2 ->
-      let tok = case e1.val.e__ of
-        EFun _ _ _ _ -> "letrec"
-        _ -> "let"
-      in
+    ELet _ Let (Declarations _ [] [] [(isRec, [LetExp _ _ p _ _ e1])]) _ e2 ->
+      let tok = if isRec then "letrec" else "let" in
       " " ++ "(" ++ tok ++ recursePat p ++ recurse e1 ++ recurse e2 ++ " " ++ ")"
     ELet _ Let _ _ _ ->
       "[Internal error] do not support more than 1 definition in ELet/Let in LangUnparser"

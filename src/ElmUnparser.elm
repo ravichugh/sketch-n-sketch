@@ -131,8 +131,8 @@ tryUnparseTuple unparseTerm wsBefore keyValues wsBeforeEnd =
   else Nothing
 
 getKeyValuesFromDecls: Declarations -> Maybe (List (String, Exp))
-getKeyValuesFromDecls (Declarations po _ _ (letexps, _)) =
-  letexps
+getKeyValuesFromDecls (Declarations po _ _ letexpsGroups) =
+  letexpsGroups |> elemsOf
   |> List.map (\(LetExp os sp pat fs spe val) ->
        case pat.val.p__ of
          PVar _ key _ -> Just (key, val)
@@ -490,7 +490,7 @@ unparse e =
               else
                 let _ = Debug.log ("Could not find the implicit var name at the start of '" ++ res ++ "' reverting to default") () in
                 default ()
-            ERecord wsBefore Nothing (Declarations _ ([], []) [] (elems, _)) wsBeforeEnd ->
+            ERecord wsBefore Nothing (Declarations _ [] [] elems) wsBeforeEnd ->
               wsBeforeFun.val ++ "(" ++ String.repeat (List.length elems - 2) "," ++ ")"
             EOp wsBefore wsOp op args wsBeforeEnd ->
               {-if ElmLang.arity op == List.length args then
@@ -629,8 +629,8 @@ unparse e =
         ++ "of"
         ++ unparseBranches branches
 
-    ELet wsBefore letKind (Declarations _ _ _ (exps, _) as decls) wsIn body ->
-       if onlyImplicitMain exps || exps == [] && eVarUnapply body == Just "main" then ""
+    ELet wsBefore letKind (Declarations _ _ _ letexpsGroups as decls) wsIn body ->
+       if onlyImplicitMain letexpsGroups || letexpsGroups == [] && eVarUnapply body == Just "main" then ""
        else
       wsBefore.val ++ (case letKind of
         Let -> "let"
@@ -673,7 +673,7 @@ unparse e =
         ++ wsAfter.val
 
 onlyImplicitMain letExps = case letExps of
-  [LetExp _ _ name _ _ _] ->
+  [(_, [LetExp _ _ name _ _ _])] ->
      case name.val.p__ of
        PVar _ "_IMPLICIT_MAIN" _ -> True
        _ -> False

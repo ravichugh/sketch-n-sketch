@@ -1322,9 +1322,9 @@ redundantLetExp (LetExp _ _ p _ _ e2) = redundantBinding(p, e2)
 removeRedundantBindings =
   mapExp <| \e ->
     case e.val.e__ of
-      ELet sl def (Declarations po tps anns (letexps, ge)) spIn e2 ->
-        if tps == ([], []) && anns == [] &&
-          List.all redundantLetExp letexps then
+      ELet sl def (Declarations po tps anns letexpsGroups) spIn e2 ->
+        if tps == [] && anns == [] &&
+          List.all redundantLetExp (elemsOf letexpsGroups) then
           e2
         else e
       _                        -> e
@@ -1692,28 +1692,28 @@ mergeLetAnnotation ((LetAnnotation spc spPat pat fs spEq t) as input) eRest =
 
 mergeDeclarations: Declarations -> List Declarations
   -> Maybe (Declarations, List (Ident, List AnnotatedNum))
-mergeDeclarations (Declarations po (tps, gt) anns (letexps, ge)) dRest =
-  let match (Declarations po_ (tps_, gt_) anns_ (letexps_, ge_)) =
-    Just (((po_, anns_), (tps_, gt_)), (letexps_, ge_))
+mergeDeclarations (Declarations po tps anns letexpsGroups) dRest =
+  let match (Declarations po_ tps_ anns_ letexpsGroups_) =
+    if List.map (Tuple.second >> List.length) tps == List.map (Tuple.second >> List.length) tps_ &&
+       List.map (Tuple.second >> List.length) letexpsGroups == List.map (Tuple.second >> List.length) letexpsGroups_
+    then
+       Just ((po_, List.concatMap Tuple.second tps_), (anns_, List.concatMap Tuple.second letexpsGroups_))
+    else
+       Nothing
   in
   matchAllAndBind match dRest <| \declMatter ->
-    let (((poL, annsL), (tpsL, gtL)), (letexpsL, geL)) =
-      Tuple.mapFirst (
-         Tuple.mapFirst List.unzip <<
-         Tuple.mapSecond List.unzip <<
-         List.unzip) <|
+    let ((poL, tpsL), (annsL, letexpsL)) =
+      Tuple.mapFirst List.unzip <|
       Tuple.mapSecond List.unzip <|
       List.unzip declMatter
     in
-    if List.all ((==) po) poL &&
-       List.all ((==) gt) gtL &&
-       List.all ((==) ge) geL then
-       Maybe.map3 (\(newTps, l1) (newLetexps, l2) (newAnns, l3) ->
-         (Declarations po (newTps, gt) newAnns (newLetexps, ge), l1 ++ l2 ++ l3)
+    if List.all ((==) po) poL then
+       Maybe.map3 (\(newTps, l1) (newAnns, l2) (newLetexps, l3)  ->
+         (Declarations po (regroup tps newTps) newAnns (regroup letexpsGroups newLetexps), l1 ++ l2 ++ l3)
        )
-         (mergeList mergeLetType tps tpsL)
-         (mergeList mergeLetExp letexps letexpsL)
+         (mergeList mergeLetType (elemsOf tps) tpsL)
          (mergeList mergeLetAnnotation anns annsL)
+         (mergeList mergeLetExp (elemsOf letexpsGroups) letexpsL)
     else Nothing
 
 -- Merge 2+ expressions

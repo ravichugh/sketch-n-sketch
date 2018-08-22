@@ -133,7 +133,7 @@ renamePat (scopeId, path) newName program =
     Just (scopeExp, pat) ->
       case LangTools.patToMaybeIdent pat of
         Just oldName ->
-          let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in
+          let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in -- ScopeAreas are the outermost exp in which the variable might appear.
           let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map (.val >> .eid) in
           let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
           let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in
@@ -230,10 +230,12 @@ pluck ((scopeEId, scopeBranchI), path) program =
 
 pluck_ : Exp -> List Int -> Exp -> Maybe (PatBoundExpIsRec, Exp)
 pluck_ scopeExp path program =
-  let (maybePluckedAndNewPatAndBoundExp, (ws1, letKind, wsP, pat, fs, ws2, e1, ws3, e2)) =
+  let (maybePluckedAndNewPatAndBoundExp, (ws1, letKind, wsP, pat, fs, ws2, e1, ws3, e2), isRec) =
     case scopeExp.val.e__ of
-       ELet _ _ (Declarations _ ([], _) [] ([LetExp _ _ p _ _ boundExp], _)) _ _ -> (pluck__ p boundExp path, expToLetParts scopeExp)
-       _                                                                         -> Debug.crash <| "pluck_: bad Exp__ (note: case branches, and func args not supported) " ++ unparseWithIds scopeExp
+       ELet _ _ (Declarations _ tpes anns [(isRec, [LetExp _ _ p _ _ boundExp])]) _ _ ->
+         (pluck__ p boundExp path, expToLetParts scopeExp, isRec)
+       _                                                                              ->
+         Debug.crash <| "pluck_: bad Exp__ (note: case branches, and func args not supported) " ++ unparseWithIds scopeExp
   in
   case maybePluckedAndNewPatAndBoundExp of
     Nothing ->
@@ -242,7 +244,8 @@ pluck_ scopeExp path program =
     Just ((pluckedPat, pluckedBoundExp), newPat, newBoundExp) ->
       Just <|
         ( (pluckedPat, pluckedBoundExp, isBodyPossiblyRecursive pluckedBoundExp)
-        , replaceExpNodeE__ scopeExp (ELet ws1 letKind (Declarations [0] ([], []) [] ([LetExp Nothing wsP newPat fs ws2 newBoundExp], [1])) ws3 e2) program
+        , replaceExpNodeE__ scopeExp (
+            ELet ws1 letKind (Declarations [0] [] [] [(isRec, [LetExp Nothing wsP newPat fs ws2 newBoundExp])]) ws3 e2) program
         )
 
 
@@ -565,15 +568,22 @@ liftDependenciesBasedOnUniqueNames program =
   let bringIdentIntoScope identToLift =
     let maybeOriginalDefiningScope =
       program
-      |> findFirstNode (expToMaybeLetPat >> Maybe.map (identifiersListInPat >> List.member identToLift) >> Maybe.withDefault False)
+      |> mapFirstSuccessNode (\e ->
+        expToMaybeLetPat e |>
+        Maybe.andThen (\listPat ->
+          Utils.zipWithIndex listPat |>
+          Utils.mapFirstSuccess (\(p, i) ->
+            if identifiersListInPat p |> List.member identToLift then
+              Just (e, p, i)
+            else Nothing)))
     in
     case maybeOriginalDefiningScope of
       Nothing -> Nothing
-      Just originalDefiningScope ->
-        case pathForIdentInPat identToLift (expToLetPat originalDefiningScope) of
+      Just (originalDefiningScope, pat, letexpIndex) ->
+        case pathForIdentInPat identToLift pat of
           Nothing -> Nothing
           Just path ->
-            case pluck ((originalDefiningScope.val.eid, 1), path) program of
+            case pluck ((originalDefiningScope.val.eid, letexpIndex), path) program of
               Nothing -> Nothing
               Just ((pluckedPat, pluckedBoundExp, isRec), programWithoutPlucked) ->
                 let eidToWrap = deepestCommonAncestorWithNewline program (expToMaybeIdent >> (==) (Just identToLift)) |> .val |> .eid in
@@ -931,7 +941,7 @@ makeResult
 tryResolvingProblemsAfterTransform
     :  String
     -> Dict String Ident
-    -> Maybe EId
+    -> Maybe (EId, Int)
     -> (String, String)
     -> Set Ident
     -> List EId
@@ -965,7 +975,7 @@ tryResolvingProblemsAfterTransform
 tryResolvingProblemsAfterTransformNoTwiddling
     :  String
     -> Dict String Ident
-    -> Maybe EId
+    -> Maybe (EId, Int)
     -> (String, String)
     -> Set Ident
     -> List EId
@@ -999,7 +1009,7 @@ tryResolvingProblemsAfterTransformNoTwiddling
 tryResolvingProblemsAfterTransform_
     :  String
     -> Dict String Ident
-    -> Maybe EId
+    -> Maybe (EId, Int)
     -> (String, String)
     -> Set Ident
     -> List EId
@@ -1021,7 +1031,9 @@ tryResolvingProblemsAfterTransform_
     tryTwiddling =
   let maybeNewPatUniqueNames =
     maybeNewScopeEId
-    |> Maybe.map (\newScopeEId -> justFindExpByEId newProgramUniqueNames newScopeEId |> expToLetPat)
+    |> Maybe.map (\(newScopeEId, bindingNumber) ->
+        justFindExpByEId newProgramUniqueNames newScopeEId |>
+        expToLetPat |> flip Utils.nth bindingNumber |> Utils.fromOk "CodeMotion.maybeNewPatUniqueNames")
   in
   let uniqueNameToIntendedUses =
     flattenExpTree originalProgramUniqueNames
@@ -1030,10 +1042,10 @@ tryResolvingProblemsAfterTransform_
   in
   let resultForOriginalNamesPriority uniqueNameToOldNameDescribedPrioritized movedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled varEIdsDeliberatelyRemoved insertedVarEIdToBindingPId programWithUniqueNames =
     let (newProgramPartiallyOriginalNames, _, renamingsPreserved) =
-      -- Try revert back to original names one by one, as safe.
-      -- If new program involves a new/updated pattern (maybeNewScopeEId), ensure we don't introduce duplicate names in that pattern.
-      uniqueNameToOldNameDescribedPrioritized
-      |> List.foldl
+       -- Try revert back to original names one by one, as safe.
+       -- If new program involves a new/updated pattern (maybeNewScopeEId), ensure we don't introduce duplicate names in that pattern.
+       uniqueNameToOldNameDescribedPrioritized
+       |> List.foldl
           (\(nameDesc, uniqueName, oldName) (newProgramPartiallyOriginalNames, maybeNewPatPartiallyOriginalNames, renamingsPreserved) ->
             let intendedUses = Utils.getWithDefault uniqueName [] uniqueNameToIntendedUses in
             -- let intendedUses = varsWithName uniqueName originalProgramUniqueNames |> List.map (.val >> .eid) in
@@ -1209,7 +1221,7 @@ moveDefinitions_ syntax makeNewProgram sourcePathedPatIds program =
     programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
       ("Move " ++ movedThingsStr)
       uniqueNameToOldName
-      (Just newScopeEId) -- maybeNewScopeEId
+      (Just (newScopeEId, 1 {- Binding nnumber -})) -- maybeNewScopeEId
       ("moved", "unmoved")
       namesUniqueExplicitlyMoved -- namesUniqueTouched
       [] -- varEIdsPreviouslyDeliberatelyRemoved
@@ -1242,9 +1254,9 @@ moveDefinitionsPat syntax sourcePathedPatIds targetPathedPatId program =
 makeDuplicateResults_ syntax newScopeEId pluckedPatAndBoundExpAndIsRecs newProgram originalProgram =
   let (pluckedPats, pluckedBoundExps, isRecs) = Utils.unzip3 pluckedPatAndBoundExpAndIsRecs in
   let newScopeExp = justFindExpByEId newProgram newScopeEId in
-  let newScopePat      = newScopeExp |> expToLetPat in
-  let newScopeBoundExp = newScopeExp |> expToLetBoundExp in
-  let newScopeBody     = newScopeExp |> expToLetBody in
+  let newScopePats      = newScopeExp |> expToLetPat in
+  let newScopeBoundExps = newScopeExp |> expToLetBoundExp in
+  let newScopeBody      = newScopeExp |> expToLetBody in
   let isSafe =
     let identUsesSafe =
       0 == Set.size (Set.intersect (identifiersSetInPats pluckedPats) (freeIdentifiers newScopeBody))
@@ -1261,7 +1273,7 @@ makeDuplicateResults_ syntax newScopeEId pluckedPatAndBoundExpAndIsRecs newProgr
         |> Set.fromList
       in
       let newBoundExpFreeIdentBindingScopeIds =
-        freeVars newScopeBoundExp
+        List.concatMap freeVars newScopeBoundExps
         |> List.map
             (\var ->
               ( expToIdent var
@@ -1272,7 +1284,7 @@ makeDuplicateResults_ syntax newScopeEId pluckedPatAndBoundExpAndIsRecs newProgr
       Utils.isSubset oldBoundExpFreeIdentBindingScopeIds newBoundExpFreeIdentBindingScopeIds
     in
     let noDuplicateNamesInPat =
-      let namesDefinedAtNewScope = identifiersListInPat newScopePat in
+      let namesDefinedAtNewScope = List.concatMap identifiersListInPat newScopePats in
       namesDefinedAtNewScope == Utils.dedup namesDefinedAtNewScope
     in
     identUsesSafe && boundExpVarsSafe && noDuplicateNamesInPat
@@ -1323,8 +1335,8 @@ duplicateDefinitionsPat syntax sourcePathedPatIds targetPathedPatId originalProg
 
 
 -- You should only insert non-rec bindings.
-insertPat_ : (Pat, Exp) -> List Int -> Exp -> Exp
-insertPat_ (patToInsert, boundExp) targetPath exp =
+insertPat_ : (Pat, Exp) ->         List Int -> Exp -> Exp
+insertPat_ (patToInsert, boundExp) targetPath  exp =
   case exp.val.e__ of
     ELet ws1 letKind decls ws3 e2 ->
       let _ = Debug.log "TODO: CodeMotion.insertPat_ should take into account the new ELet's declarations" () in
@@ -1507,11 +1519,13 @@ addExpToExpByPath expToInsert path exp =
 
 -- Duplicate lets to new position, remove old lets, check for safety/resolve any dependency problems.
 -- Dup/remove workflow cleanly handles edge cases e.g. moving definition before itself.
-moveEquationsBeforeEId : Syntax -> List EId -> EId -> Exp -> List SynthesisResult
+moveEquationsBeforeEId : Syntax -> List (EId, Int) -> EId -> Exp -> List SynthesisResult
 moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
+  Debug.log "CodeMotion TODO: update moveEquationBeforeEId with new Let syntax" []
+  {-
   let letEIdsSorted =
     letEIds
-    |> List.sortBy (locationInProgram originalProgram)
+    |> List.sortBy (Tuple.first >> locationInProgram originalProgram)
   in
   let maxId = Parser.maxId originalProgram in
   let letEIdToReinsertedLetEId =
@@ -1574,7 +1588,7 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
   in
   let (movedPats, movedBoundExps) =
     letEIdsSorted
-    |> List.map (justFindExpByEId originalProgramUniqueNames >> expToLetPatAndBoundExp)
+    |> List.concatMap (justFindExpByEId originalProgramUniqueNames >> expToLetPatAndBoundExp)
     |> List.unzip
   in
   let namesUniqueExplicitlyMoved =
@@ -1596,7 +1610,7 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
       Dict.empty -- insertedVarEIdToBindingPId
       originalProgramUniqueNames
       programWithNewLetsOriginalEIds
-
+  -}
 
 ------------------------------------------------------------------------------
 
@@ -1616,7 +1630,7 @@ inlineDefinitions syntax selectedPathedPatIds originalProgram =
           case findPatByPathedPatternId (scopeId, []) programUniqueNames of
             Nothing  -> []
             Just pat ->
-              indentPathsInPat pat
+              identPathsInPat pat
               |> List.filter (\(ident, path) -> List.any (Utils.isPrefixOf path) paths)
               |> List.map    (\(ident, path) -> (scopeId, path))
         )
@@ -1761,6 +1775,7 @@ shouldBeParameterIsNamedUnfrozenConstant exp originalProgram =
       let bindings =
         justFindExpWithAncestorsByEId originalProgram exp.val.eid
         |> List.filterMap expToMaybeLetPatAndBoundExp
+        |> List.concatMap identity
         |> List.concatMap (\(pat, boundExp) -> tryMatchExpReturningList pat boundExp)
       in
       bindings
@@ -1877,8 +1892,9 @@ abstractExp syntax eidToAbstract originalProgram =
 
 -- TODO: relax addArg/removeArg/reorderArgs to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
 
-addArg_ : Syntax -> PathedPatternId -> (Exp -> Exp -> Maybe (Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
-addArg_ syntax pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
+-- Try to remove a declaration/binding and put it in the argument of the selected function
+addArg_ : Syntax -> PathedPatternId ->     (Exp -> Exp -> Maybe (Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
+addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
   let ((funcEId, _), path) = pathedPatId in
   case findLetAndIdentBindingExp funcEId originalProgram of
     Just (letExp, funcName) ->
@@ -2309,7 +2325,7 @@ tryReorderExps pathsToMove insertPath pathsToRemove exps =
 -- list and removing the empty list.
 reorderFunctionArgs : EId -> List (List Int) -> List Int -> Exp -> List SynthesisResult
 reorderFunctionArgs funcEId paths targetPath originalProgram =
-  case findLetAndIdentBindingExp funcEId originalProgram of
+  case findLetAndIdentBindingExp funcEId originalProgram of -- Return LetExp and a way to rebuild the Let in the original program.
     Just (letExp, funcName) ->
       case letExp.val.e__ of
         ELet ws1 letKind decls spEq letBody ->
@@ -2464,36 +2480,47 @@ reorderExpressionsTransformation originalProgram selections =
 
 
 ------------------------------------------------------------------------------
-
 -- May want to consolidate with makeEqualTransformation
 -- They're basically the same: makeEqualTransformation inserts a single variable for
 -- all extraction locations, while introduceVarTransformation inserts several variables
 -- for all extraction locations.
-introduceVarTransformation m expIds maybeTargetPos =
-  let insertNewLet insertedLetEId pat boundExp expToWrap program =
-    ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
-    , Just insertedLetEId
-    )
-  in
-  let addToExistingLet targetPath _ pat boundExp letExpToInsertInto _ =
-    ( insertPat_ (pat, boundExp) targetPath letExpToInsertInto
-    , Nothing
-    )
-  in
-  case maybeTargetPos of
+introduceVarTransformation:
+  Model -> List Int -> Maybe TargetPosition -> Maybe (() -> List SynthesisResult)
+introduceVarTransformation
+  m        expIds      maybeTargetPos =
+  let
+    insertNewLet: EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)
+    insertNewLet insertedLetEId pat boundExp bindingNumber expToWrap program =
+      ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
+      , Just insertedLetEId
+      )
+
+    addToExistingLet: List Int -> EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)
+    addToExistingLet targetPath _ pat boundExp bindingNumber letExpToInsertInto _ =
+      ( insertPat_ (pat, boundExp) targetPath letExpToInsertInto
+      , Nothing
+      )
+  in case maybeTargetPos of
     Nothing ->
       Just <|
         \() ->
           let expToWrap = deepestCommonAncestorWithNewline m.inputExp (\e -> List.member e.val.eid expIds) in
-          introduceVarTransformation_ m expIds expToWrap.val.eid insertNewLet
+          introduceVarTransformation_ m expIds (expToWrap.val.eid, 0 {- Binding number -}) insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
+    Just (LetExpTargetPosition (After, expTargetId, bindingNumber)) ->
+      Nothing -- TODO: Insert at the correct place (use bindingNumber)
+    Just (LetExpTargetPosition (Before, expTargetId, bindingNumber)) ->
+      Just <|
+        \() -> -- TODO: Insert at the correct place (use bindingNumber)
+          introduceVarTransformation_ m expIds (expTargetId, 0) insertNewLet
+
     Just (ExpTargetPosition (Before, expTargetId)) ->
       Just <|
         \() ->
-          introduceVarTransformation_ m expIds expTargetId insertNewLet
+          introduceVarTransformation_ m expIds (expTargetId, 0) insertNewLet
 
     Just (PatTargetPosition patTarget) ->
       case patTargetPositionToTargetPathedPatId patTarget of
@@ -2503,7 +2530,7 @@ introduceVarTransformation m expIds maybeTargetPos =
               if isLet scopeExp then
                 Just <|
                   \() ->
-                    introduceVarTransformation_ m expIds targetId
+                    introduceVarTransformation_ m expIds (targetId, 0)
                       (addToExistingLet targetPath)
               else
                 Nothing
@@ -2514,8 +2541,13 @@ introduceVarTransformation m expIds maybeTargetPos =
         _ ->
           Nothing
 
+
+
 -- Small bug: can't introduce var directly in front of expression being extracted.
-introduceVarTransformation_ m eidsToExtract addNewVarsAtThisId makeNewLet =
+introduceVarTransformation_:
+  Model -> List Int ->   (EId,                BindingNumber) -> (EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)) -> List SynthesisResult
+introduceVarTransformation_
+  m        eidsToExtract (addNewVarsAtThisId, addNewVarAtThisBindingNumber) makeNewLet =
   let toolName =
     "Introduce Variable" ++ (if List.length eidsToExtract == 1 then "" else "s")
   in
@@ -2567,18 +2599,18 @@ introduceVarTransformation_ m eidsToExtract addNewVarsAtThisId makeNewLet =
   -- Not using Lang.patBoundExpOf b/c we need to preserve PIds/EIds for the safety checks.
   let (newPat, newBoundExp) =
     case List.unzip newPatBoundExps of
-      ([singlePat], [singleBoundExp]) -> (singlePat, replacePrecedingWhitespace " " singleBoundExp)
-      (pats, boundExps)               ->
-        ( pList  (setPatListWhitespace "" " " pats)
-        , eTuple (setExpListWhitespace "" " " boundExps)
-        )
+       ([singlePat], [singleBoundExp]) -> (singlePat, replacePrecedingWhitespace " " singleBoundExp)
+       (pats, boundExps)               ->
+         ( pList  (setPatListWhitespace "" " " pats)
+         , eTuple (setExpListWhitespace "" " " boundExps)
+         )
   in
   let (newProgramUniqueNames, maybeInsertedLetEId) =
     programWithNewVarsUsed
     |> mapFoldExp
         (\e maybeInsertedLetEId ->
           if e.val.eid == addNewVarsAtThisId
-          then makeNewLet newId newPat newBoundExp e programWithNewVarsUsed
+          then makeNewLet newId newPat newBoundExp addNewVarAtThisBindingNumber e programWithNewVarsUsed
           else (e, maybeInsertedLetEId)
         )
         Nothing
@@ -2589,7 +2621,7 @@ introduceVarTransformation_ m eidsToExtract addNewVarsAtThisId makeNewLet =
   programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
       toolName -- baseDescription
       (Dict.union uniqueNameToOldNameAdditions uniqueNameToOldName) -- uniqueNameToOldName
-      (Just letEIdWithNewVars) -- maybeNewScopeEId
+      (Just (letEIdWithNewVars, addNewVarAtThisBindingNumber)) -- maybeNewScopeEId
       ("touched", "untouched") -- (touchedAdjective, untouchedAdjective)
       namesUniqueTouched -- namesUniqueTouched
       [] -- varEIdsPreviouslyDeliberatelyRemoved
@@ -2603,7 +2635,7 @@ introduceVarTransformation_ m eidsToExtract addNewVarsAtThisId makeNewLet =
 makeEqualTransformation originalProgram eids maybeTargetPosition =
   let insertNewLet insertedLetEId pat boundExp expToWrap program =
     ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
-    , Just insertedLetEId
+    , Just (insertedLetEId, 1)
     )
   in
   let addToExistingLet targetPath _ pat boundExp letExpToInsertInto _ =
@@ -2618,6 +2650,9 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
         makeEqualTransformation_ originalProgram eids expToWrap.val.eid insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
+      Nothing
+
+    Just (LetExpTargetPosition (beforeAfter, expTargetId, bindingNum)) ->
       Nothing
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
@@ -2743,8 +2778,9 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
           let bindingLetBoundExp = expToLetBoundExp bindingLet in
           let freeVarsAtNewLocation = freeVars expToWrap in
           -- Case 2.1: If target position is at the same level and boundExp free vars are the same at both locations (no recursive lifting needed), move the entire let. This will nicely preserve (def point @ [x y] [30 40])
-          if List.member bindingLet (topLevelExps expToWrap) && List.all (\var -> List.member var freeVarsAtNewLocation) (freeVars bindingLetBoundExp) then
-            moveEquationsBeforeEId Syntax.Elm [bindingLet.val.eid] expToWrap.val.eid originalProgram -- Syntax only used for generating description, which we throw away
+          if List.member bindingLet (topLevelExps expToWrap) && List.all (
+              \var -> List.member var freeVarsAtNewLocation) (List.concatMap freeVars bindingLetBoundExp) then
+            moveEquationsBeforeEId Syntax.Elm [(bindingLet.val.eid, 0)] expToWrap.val.eid originalProgram -- Syntax only used for generating description, which we throw away
             |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
             |> Maybe.map (\(SynthesisResult {exp}) -> exp)
           else

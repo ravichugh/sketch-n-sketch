@@ -262,7 +262,7 @@ traverse env exp acc =
   case exp.val.e__ of
 
     ELet _ _ (Declarations _ _ _ exps as decls) _ e2 ->
-      (foldLeftGroup (acc, env) exps <| \(acc, env) group ->
+      (foldLeftGroup (acc, env) exps <| \(acc, env) group isRec ->
         let ps = List.map (\(LetExp _ _ p  _ _ e1) -> p) group in
         let pes = List.map (\(LetExp _ _ p  _ _ e1) -> (p, e1)) group in
         let env1 = updateEnv newScopeId ps env in
@@ -409,7 +409,7 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
 
     (PRecord _ ps _, ERecord _ Nothing (Declarations _ _ _ exps) _) ->
       let recordKeyValues = foldLeftGroup [] exps <|
-        \acc group -> Utils.foldLeft acc group <|
+        \acc group isRec -> Utils.foldLeft acc group <|
         \acc (LetExp _ _ p _ _ e) ->
           case p.val.p__ of
             PVar _ indent _ -> (indent, e)::acc

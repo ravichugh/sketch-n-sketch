@@ -143,8 +143,9 @@ valToExpFull copyFrom sp_ indent v =
                 case recNames of
                   [] -> baseCase
                   [f] -> withDummyExpInfo <|
-                    ELet sp Let (Declarations [0] ([], []) [] (
-                      [LetExp Nothing space1 (withDummyPatInfo <| PVar space0 f noWidgetDecl) FunArgAsPats space1 baseCase], [])) space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f)
+                    ELet sp Let (Declarations [0] [] []
+                      [(True,
+                        [LetExp Nothing space1 (withDummyPatInfo <| PVar space0 f noWidgetDecl) FunArgAsPats space1 baseCase])]) space1 (withDummyExpInfo <| EVar (ws <| foldIndent " " indent) f)
                   _ -> Debug.crash "cannot convert back a VCLosure with multiple defs to an ELet. Need syntax support for that."
           in
           let bigbody = List.foldl (\(n, v) body ->
@@ -156,16 +157,16 @@ valToExpFull copyFrom sp_ indent v =
        case copyFrom of
         Just e ->
            case e.val.e__ of
-             ERecord csp0 Nothing (Declarations po tps anns (lxs, ge) as decls) cspEnd ->
-               case lxs |> List.map (\(LetExp _ _ p _ _ _) ->
+             ERecord csp0 Nothing (Declarations po tps anns lxs as decls) cspEnd ->
+               case lxs |> elemsOf |> List.map (\(LetExp _ _ p _ _ _) ->
                  pVarUnapply p) |> Utils.projJusts of
                  Just keyList ->
                     if Set.fromList keyList == Set.fromList (Dict.keys values) then
-                      lxs |> List.map (\(LetExp spc spe p fs se e1) ->
+                      lxs |> elemsOf |> List.map (\(LetExp spc spe p fs se e1) ->
                         pVarUnapply p |> Maybe.andThen (\key -> Dict.get key values) |> Maybe.map (\v ->
                            LetExp spc spe p fs se <| valToExpFull (Just e1) space1 (increaseIndent indent) v
                         )) |> Utils.projJusts |> Maybe.map (\newLxs ->
-                         ERecord csp0 Nothing (Declarations po tps anns (newLxs, ge)) cspEnd
+                         ERecord csp0 Nothing (Declarations po tps anns (regroup lxs newLxs)) cspEnd
                         )
                     else
                       Nothing

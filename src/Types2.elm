@@ -46,7 +46,7 @@ aceTypeInfo exp =
           case (e.start.line, e.val.e__) of
             (1, _) -> []
             (_, EVar _ "main") -> []
-            (_, ELet _ Let (Declarations [0] ([], []) [] ([LetExp _ _ p _ _ _], [0])) _ _) -> []
+            (_, ELet _ Let (Declarations [0] [] [] [(False, [LetExp _ _ p _ _ _])]) _ _) -> []
             _ ->
           --------------------------------------------------------------------------------------
           case (e.val.typ, e.val.typeError) of
