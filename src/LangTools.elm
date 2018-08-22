@@ -1521,7 +1521,7 @@ findScopeAreas (scopeEId, branchI) exp  =
            else
              (acc, newDeclsBefore, False)
       in
-      res
+      res ++ [body]
 
     Just (EFun _ pats body _) ->
       [body]
