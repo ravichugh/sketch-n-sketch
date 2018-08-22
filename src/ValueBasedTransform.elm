@@ -1468,18 +1468,24 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
                             |> (.val >> .eid)
                         in
                         CodeMotion.maybeDeleteEId callEId programWithCallAndFuncFresh
+
+                      maybeFuncExpFreshWithOriginalPats =
+                        case maybeProgramWithFuncButNoCallFresh of
+                          Just programWithFuncButNoCallFresh ->
+                            case programWithFuncButNoCallFresh |> allSimplyResolvableLetBindings |> Utils.maybeFind itemFuncUniqueName of
+                              Just funcExpFreshWithOriginalPats -> Just funcExpFreshWithOriginalPats
+                              Nothing ->
+                                let _ = Utils.log <| "ValueBasedTransform.repeatUsingFunction funcExpFreshWithOriginalPats Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName ++ " failed, this probably means CodeMotion.maybeDeleteEId removed it :(" in
+                                let _ = Utils.log <| "Before CodeMotion.maybeDeleteEId:\n" ++ Syntax.unparser Syntax.Elm programWithCallAndFuncFresh in
+                                let _ = Utils.log <| "After CodeMotion.maybeDeleteEId:\n" ++ Syntax.unparser Syntax.Elm programWithFuncButNoCallFresh in
+                                Nothing
+
+                          _ ->
+                            Nothing
                     in
-                    case (maybePointsExpAndRepeatingOverWhatDesc, maybeProgramWithFuncButNoCallFresh) of
-                      (Just (pointsExp, repeatingOverWhatDesc), Just programWithFuncButNoCallFresh) ->
+                    case (maybePointsExpAndRepeatingOverWhatDesc, maybeProgramWithFuncButNoCallFresh, maybeFuncExpFreshWithOriginalPats) of
+                      (Just (pointsExp, repeatingOverWhatDesc), Just programWithFuncButNoCallFresh, Just funcExpFreshWithOriginalPats) ->
                         let
-                          funcExpFreshWithOriginalPats =
-                            programWithFuncButNoCallFresh
-                            -- |> (\e -> let _ = Utils.log (Syntax.unparser Syntax.Elm e) in e)
-                            |> allSimplyResolvableLetBindings
-                            |> Utils.maybeFind itemFuncUniqueName
-                            |> Utils.fromJust_ ("ValueBasedTransform.repeatUsingFunction funcExpFreshWithOriginalPats Utils.maybeFind itemFuncUniqueName " ++ itemFuncUniqueName)
-
-
                           -- If abstracting x and y separately, need to rewrite the function pats from `newFunc x y` or `newFunc y x` to `newFunc [x, y]`
                           programWithFuncButNoCallFreshArgsRewritten =
                             let funcExpFreshWithNewPats =
