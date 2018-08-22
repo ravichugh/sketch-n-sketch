@@ -346,6 +346,7 @@ dummyType =
 
 type TypeError
   = ExpectedButGot Type (Maybe EId) (Maybe Type)
+  | VarNotFound Ident (List (Ident, Exp))
 
 -- Information for an expression that is relevant to
 -- other expressions that have above TypeErrors

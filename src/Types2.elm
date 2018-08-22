@@ -15,6 +15,8 @@ import Ace
 -- can't depend on Model, since ExamplesGenerated depends on Types2
 import Utils
 
+import EditDistance
+
 unparseMaybeType mt =
   case mt of
     Nothing -> "NO TYPE"
@@ -105,6 +107,103 @@ type TypeEnvElement
   -- | TypeAlias Pat Type
 
 
+lookupVar : TypeEnv -> Ident -> Maybe (Maybe Type)
+lookupVar gamma x =
+  case gamma of
+    HasType p mt :: gammaRest ->
+      Utils.firstOrLazySecond
+        (lookupVarInPat gamma x p mt)
+        (\_ -> lookupVar gammaRest x)
+
+    _ :: gammaRest ->
+      lookupVar gammaRest x
+
+    [] ->
+      Nothing
+
+
+lookupVarInPat : TypeEnv -> Ident -> Pat -> Maybe Type -> Maybe (Maybe Type)
+lookupVarInPat gamma x p mt =
+  case p.val.p__ of
+    PConst _ _ -> Nothing
+    PBase _ _ -> Nothing
+    PWildcard _ -> Nothing
+
+    PVar _ y _ ->
+      if x == y then
+        Just mt
+      else
+        Nothing
+
+{-
+  | PList WS (List Pat) WS (Maybe Pat) WS -- TODO store WS before commas, like EList
+  | PAs WS Pat WS Pat
+  | PParens WS Pat WS
+  | PRecord WS {- { -}  (List (Maybe WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}
+  | PColonType WS Pat WS Type
+-}
+
+    _ ->
+      Nothing
+
+
+varsOfGamma gamma =
+  case gamma of
+    HasType p mt :: gammaRest ->
+      varsOfPat p ++ varsOfGamma gammaRest
+
+    _ :: gammaRest ->
+      varsOfGamma gammaRest
+
+    [] ->
+      []
+
+
+varsOfPat pat =
+  Tuple.second <|
+    mapFoldPatTopDown
+        (\p acc ->
+          case p.val.p__ of
+            PVar _ y _ -> (p, y :: acc)
+            _          -> (p, acc)
+        )
+        []
+        pat
+
+
+varNotFoundSuggestions x gamma =
+  let
+    result =
+      List.concatMap maybeSuggestion (varsOfGamma gamma)
+
+    maybeSuggestion y =
+      let
+        xLength =
+          String.length x
+        xSorted =
+          List.sort (String.toList x)
+        ySorted =
+          List.sort (String.toList y)
+        distance =
+          EditDistance.levenshtein xSorted ySorted
+            -- lowerBound: abs (xLength - yLength)
+            -- upperBound: max xLength yLength
+        closeEnough =
+          if xLength <= 3 && distance <= xLength - 1 then
+            True
+          else if distance <= 3 then
+            True
+          else
+            False
+      in
+        if closeEnough then
+          [y]
+        else
+          []
+  in
+    result
+
+
 --------------------------------------------------------------------------------
 
 typeEquiv t1 t2 =
@@ -140,6 +239,15 @@ inferType gamma stuff thisExp =
 
     EBase _ (EString _ _) ->
       { newExp = thisExp |> setType (Just (withDummyInfo (TString space1))) }
+
+    EVar ws x ->
+      let
+        suggestions =
+          List.map
+            (\y -> (y, EVar ws y |> replaceE__ thisExp))
+            (varNotFoundSuggestions x gamma)
+      in
+      { newExp = thisExp |> setTypeError (VarNotFound x suggestions) }
 
     EParens ws1 innerExp parensStyle ws2 ->
       let
@@ -177,6 +285,19 @@ inferType gamma stuff thisExp =
             |> finishNewExp
       in
         { newExp = newExp }
+
+    EFun ws1 pats body ws2 ->
+      let
+        newGamma =
+          -- TODO: just putting vars in env for now
+          List.map (\pat -> HasType pat Nothing) pats ++ gamma
+        result =
+          inferType newGamma stuff body
+        newExp =
+          EFun ws1 pats result.newExp ws2
+            |> replaceE__ thisExp
+      in
+      { newExp = newExp }
 
     ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
       -- TODO: to get started, just processing individual equations,
@@ -257,24 +378,50 @@ checkType gamma stuff solicitorExp thisExp expectedType =
 
 --------------------------------------------------------------------------------
 
-unparseTypeError : TypeError -> List String
-unparseTypeError typeError =
+-- Currently shoving entire type error message and suggested fixes into Deuce.
+-- So every line is a Synthesis Result.
+
+deuceShow : Exp -> String -> SynthesisResult
+deuceShow inputExp s =
+  -- TODO: everything is a SynthesisResult, so pass in inputExp as dummy...
+  synthesisResult s inputExp
+
+
+deuceTool : String -> Exp -> SynthesisResult
+deuceTool =
+  synthesisResult
+
+
+showTypeError : Exp -> Exp -> TypeError -> List SynthesisResult
+showTypeError inputExp thisExp typeError =
   case typeError of
     ExpectedButGot expectedType _ maybeActualType ->
-      [ "Expected: " ++ unparseType expectedType
-      , "Got: " ++ Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
+      [ deuceShow inputExp <|
+          "Expected: " ++ unparseType expectedType
+      , deuceShow inputExp <|
+          "Got: " ++ Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
+      , deuceShow inputExp <|
+          "Will eventually insert hole [" ++ unparse thisExp ++ "] with expected type..."
       ]
+
+    VarNotFound x suggestions ->
+      let
+        message =
+          deuceShow inputExp <| "Cannot find variable `" ++ x ++ "`"
+      in
+        if List.length suggestions == 0 then
+          [ message ]
+        else
+          message
+            :: deuceShow inputExp "Maybe you want one of the following?"
+            :: List.map
+                 (\(y, ey) -> deuceTool y (replaceExpNode thisExp.val.eid ey inputExp))
+                 suggestions
 
 
 makeDeuceTool : Exp -> EId -> DeuceTransformation
 makeDeuceTool inputExp eId = \() ->
   let
-    show s =
-      synthesisResult s inputExp
-
-    tool =
-      synthesisResult
-
     exp =
       LangTools.justFindExpByEId inputExp eId
 
@@ -282,19 +429,18 @@ makeDeuceTool inputExp eId = \() ->
     --   [ show <| "Start: " ++ toString exp.start ++ " End: " ++ toString exp.end
     --   ]
 
-    typeInfo =
+    deuceTypeInfo =
       case (exp.val.typ, exp.val.typeError) of
-        (Nothing, Nothing) -> -- Debug.crash "noooope"
-          [ show <| "This expression wasn't processed by the typechecker (or there was a bug)..." ]
+        (Nothing, Nothing) ->
+          [ deuceShow inputExp <|
+              "This expression wasn't processed by the typechecker..."
+          ]
 
         (Just t, Nothing) ->
-          [ show <| "Type: " ++ unparseType t ]
+          [ deuceShow inputExp <| "Type: " ++ unparseType t ]
 
         (_, Just typeError) ->
-          List.concat <|
-            [ List.map show <| unparseTypeError typeError
-            , [show <| "Will eventually insert hole [" ++ unparse exp ++ "] with expected type..."]
-            ]
+          showTypeError inputExp exp typeError
 
     insertAnnotationTool =
       case exp.val.typ of
@@ -305,12 +451,12 @@ makeDeuceTool inputExp eId = \() ->
                     Parens
                     space0
           in
-          [ tool "Insert Annotation" (replaceExpNodeE__ByEId eId e__ inputExp) ]
+          [ deuceTool "Insert Annotation" (replaceExpNodeE__ByEId eId e__ inputExp) ]
 
         Nothing ->
           []
   in
     List.concat <|
-      [ typeInfo
+      [ deuceTypeInfo
       , insertAnnotationTool
       ]

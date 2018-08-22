@@ -6076,11 +6076,16 @@ b = True
 
 s = "Hi!"
 
+-- triple = (1, True, "Hi!")
+
 bad1 = 1 : Bool
 
 bad2 = (1 : Bool) : Int
 
 bad3 = (1 + 2) : Bool
+
+foo = \\provenance ->
+  provenacne
 
 sum = 1 + 2
 
