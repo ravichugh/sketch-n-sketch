@@ -964,6 +964,22 @@ expDescriptionParts_ program exp targetEId equivalentEIds =
                 )
             |> Maybe.withDefault childrenResult
 
+      -- Points
+      EList _ [(_, head1), (_, head2)] _ Nothing _ ->
+        case (recurse head1, recurse head2) of
+          (["num"], _) ->
+            if isSurelyNumeric Set.empty head2
+            then ["x"]
+            else searchChildren ()
+
+          ([], ["num"]) ->
+            if isSurelyNumeric Set.empty head1
+            then ["y"]
+            else searchChildren ()
+
+          _ ->
+            searchChildren ()
+
       -- If deeper expressions produce a default name, use the type annotation instead.
       -- Motivation: want to produce the name "point" instead of "pair" in ([10, 20] : Point).
       EColonType _ typedExp _ tipe _ ->
@@ -2427,60 +2443,6 @@ allSimplyResolvableLetPatBindings program =
 -- Not the smartest; there could be false negatives, but no false positives.
 numericLetBoundIdentifiers : Exp -> Set Ident
 numericLetBoundIdentifiers program =
-  let isSurelyNumeric numericIdents exp =
-    let recurse e = isSurelyNumeric numericIdents e in
-    case exp.val.e__ of
-      EConst _ _ _ _ -> True
-      EBase _ _      -> False
-      EVar _ ident   -> Set.member ident numericIdents
-      EFun _ _ _ _   -> False
-      EApp _ _ _ _ _ -> False -- Not smart here.
-      EOp _ op operands _ ->
-        case op.val of
-          Pi             -> True
-          DictEmpty      -> False
-          Cos            -> True
-          Sin            -> True
-          ArcCos         -> True
-          ArcSin         -> True
-          Abs            -> True
-          Floor          -> True
-          Ceil           -> True
-          Round          -> True
-          ToStr          -> False
-          Sqrt           -> True
-          Ln             -> True
-          Explode        -> False
-          DebugLog       -> List.any recurse operands
-          NoWidgets      -> List.any recurse operands
-          Plus           -> List.any recurse operands -- Can have string addition.
-          Minus          -> True
-          Mult           -> True
-          Div            -> True
-          Lt             -> False
-          Eq             -> False
-          Mod            -> True
-          Pow            -> True
-          ArcTan2        -> True
-          DictGet        -> False
-          DictRemove     -> False
-          DictInsert     -> False
-          OptNumToString -> False
-
-      EList _ _ _ _ _               -> False
-      EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
-      ECase _ _ branches _          -> List.all recurse (branchExps branches)
-      ETypeCase _ _ tbranches _     -> List.all recurse (tbranchExps tbranches)
-      EComment _ _ body             -> recurse body
-      EOption _ _ _ _ body          -> recurse body
-      ELet _ _ _ _ _  _ _ body _    -> recurse body
-      ETyp _ _ _ body _             -> recurse body
-      EColonType _ e _ _ _          -> recurse e
-      ETypeAlias _ _ _ body _       -> recurse body
-      EParens _ e _ _               -> recurse e
-      EHole _ (HoleVal val)         -> valIsNum val
-      EHole _ _                     -> False
-  in
   let expBindings = allSimplyResolvableLetBindings program in
   let findAllNumericIdents numericIdents =
     let moreNumericIdents =
@@ -2494,6 +2456,63 @@ numericLetBoundIdentifiers program =
     else findAllNumericIdents (Set.fromList moreNumericIdents)
   in
   findAllNumericIdents Set.empty
+
+
+-- numericIdents only useful if program run through assignUniqueNames
+isSurelyNumeric : Set Ident -> Exp -> Bool
+isSurelyNumeric numericIdents exp =
+  let recurse e = isSurelyNumeric numericIdents e in
+  case exp.val.e__ of
+    EConst _ _ _ _ -> True
+    EBase _ _      -> False
+    EVar _ ident   -> Set.member ident numericIdents
+    EFun _ _ _ _   -> False
+    EApp _ _ _ _ _ -> False -- Not smart here.
+    EOp _ op operands _ ->
+      case op.val of
+        Pi             -> True
+        DictEmpty      -> False
+        Cos            -> True
+        Sin            -> True
+        ArcCos         -> True
+        ArcSin         -> True
+        Abs            -> True
+        Floor          -> True
+        Ceil           -> True
+        Round          -> True
+        ToStr          -> False
+        Sqrt           -> True
+        Ln             -> True
+        Explode        -> False
+        DebugLog       -> List.any recurse operands
+        NoWidgets      -> List.any recurse operands
+        Plus           -> List.any recurse operands -- Can have string addition.
+        Minus          -> True
+        Mult           -> True
+        Div            -> True
+        Lt             -> False
+        Eq             -> False
+        Mod            -> True
+        Pow            -> True
+        ArcTan2        -> True
+        DictGet        -> False
+        DictRemove     -> False
+        DictInsert     -> False
+        OptNumToString -> False
+
+    EList _ _ _ _ _               -> False
+    EIf _ _ _ thenExp _ elseExp _ -> recurse thenExp && recurse elseExp
+    ECase _ _ branches _          -> List.all recurse (branchExps branches)
+    ETypeCase _ _ tbranches _     -> List.all recurse (tbranchExps tbranches)
+    EComment _ _ body             -> recurse body
+    EOption _ _ _ _ body          -> recurse body
+    ELet _ _ _ _ _  _ _ body _    -> recurse body
+    ETyp _ _ _ body _             -> recurse body
+    EColonType _ e _ _ _          -> recurse e
+    ETypeAlias _ _ _ body _       -> recurse body
+    EParens _ e _ _               -> recurse e
+    EHole _ (HoleVal val)         -> valIsNum val
+    EHole _ _                     -> False
 
 
 renameVarUntilBound : Ident -> Ident -> Exp -> Exp
