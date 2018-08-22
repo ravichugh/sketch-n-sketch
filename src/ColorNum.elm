@@ -192,7 +192,7 @@ randomHtmlColorName randomInt =
 convertStringToRgbAndHue (eid, string) =
   let colorName = String.toLower string in
   let values = Utils.maybeFind colorName htmlColorNames in
-  values |> Utils.mapMaybe (\((r,g,b), (h,_,_)) ->
+  values |> Maybe.map (\((r,g,b), (h,_,_)) ->
     let colorNum =
       if colorName == "black" then 360
       else if colorName == "white" then 499

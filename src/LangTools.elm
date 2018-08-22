@@ -1177,24 +1177,6 @@ expToMaybeLetBody exp =
     ELet _ _ _ _ body -> Just body
     _                 -> Nothing
 
-
-expToLetScopeAreas : BindingNumber -> Exp -> List Exp
-expToLetScopeAreas letexpIndex exp =
-  case exp.val.e__ of
-    ELet _ _ (Declarations _ _ _ letexpsGroups) _ body ->
-      -- First find the group where it is from.
-      -- Return all Exp in which the pattern can be bound.
-      case letexpByIndex letexpIndex letexpsGroups of
-        Just ((boundletexps, isRec, relativeIndex), remainingGroups)  ->
-         let
-          boundExps = groupBoundExps boundletexps
-          remainingDeclsExps = groupBoundExps (remainingGroups |> elemsOf)
-         in
-         if isRec then boundExps ++ remainingDeclsExps ++ [body] else remainingDeclsExps ++ [body]
-        Nothing -> Debug.crash <| "LangTools.expToLetScopeAreas could not process the " ++ toString letexpIndex ++ "+1-th LetExp of " ++ Syntax.unparser Syntax.Elm exp
-    _                                    -> Debug.crash <| "LangTools.expToLetScopeAreas exp is not an ELet: " ++ unparseWithIds exp
-
-
 expToFuncPats : Exp -> List Pat
 expToFuncPats exp =
   case exp.val.e__ of
@@ -1634,6 +1616,10 @@ findScopeAreasByIdent ident exp =
 --       )
 --   |> Utils.pairsToDictOfLists
 
+declarationsOf: Exp -> Maybe Declarations
+declarationsOf e = case e.val.e__ of
+  ELet _ _ decls _ _ -> Just decls
+  _ -> Nothing
 
 -- Find a pattern by pattern ID in the given Exp.
 -- If found, returns the Exp in which it was found and the patern itself.
@@ -1644,22 +1630,20 @@ findScopeAreasByIdent ident exp =
 -- TODO uses existing functions to relax that requirement
 findPatAndBoundExpByPId : PId -> Exp -> Maybe (Pat, Exp)
 findPatAndBoundExpByPId targetPId exp =
-  case findScopeExpAndPatByPId exp targetPId of
-    Just (scopeExp, mbBinding, pat) ->
-      case (expToMaybeLetPatAndBoundExp scopeExp, patToMaybeIdent pat) of
-        (Just letPatsBoundExps, Just ident) ->
-          case Utils.nth letPatsBoundExps (mbBinding |> Maybe.withDefault 0) of
-            Err msg -> Nothing
-            Ok (letPat, letBoundExp) ->
-              tryMatchExpReturningList letPat letBoundExp
-              |> Utils.maybeFind ident
-              |> Maybe.map (\boundExp -> (pat, boundExp))
-
-        _ ->
-          Nothing
-
-    Nothing ->
-      Nothing
+  flip Maybe.andThen (findScopeExpAndPatByPId exp targetPId) <|
+   \((scopeExp, bindingNum), pat) ->
+  flip Maybe.andThen (patToMaybeIdent pat) <|
+   \ident ->
+  flip Maybe.andThen (declarationsOf scopeExp) <|
+   \decls ->
+  flip Maybe.andThen (Utils.nth (getDeclarationsInOrder decls) bindingNum |> Result.toMaybe) <|
+   \decl ->
+     case decl of
+       DeclExp (LetExp _ _ letPat _ _ letBoundExp) ->
+         tryMatchExpReturningList letPat letBoundExp
+         |> Utils.maybeFind ident
+         |> Maybe.map (\boundExp -> (pat, boundExp))
+       _ -> Nothing
 
 
 -- Nothing means not found or can't match pattern.
@@ -1684,6 +1668,7 @@ findBoundExpByPathedPatternId ((scopeEId, subScopeIndex), targetPath) exp =
     Nothing ->
       Nothing
 
+-- Careful: The index provided is the one computed for run-time, it can differ from the one listed at display time.
 findDeclaration: (Int -> Declaration -> Bool) -> Declarations -> Maybe Declaration
 findDeclaration callback decls =
   getDeclarations decls
@@ -1691,6 +1676,7 @@ findDeclaration callback decls =
   |> Utils.mapFirstSuccess (\(def, index) ->
     if callback (index + 1) def then Just def else Nothing)
 
+-- Careful: The index provided is the one computed for run-time, it can differ from the one listed at display time.
 nthDeclaration: Int -> Declarations -> Maybe Declaration
 nthDeclaration i decls =
   findDeclaration (\index1 d -> index1 == i) decls

@@ -571,7 +571,7 @@ desugarBoundedShapes shape0 attrs0 =
   let mkNum n = aNum (n, dummyTrace) in
   case shape0 of
     "BOX" ->
-      Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+      Maybe.map (\(left, top, right, bot, restOfAttrs) ->
         let newAttrs =
            [ ("x", mkNum left)
            , ("y", mkNum top)
@@ -581,7 +581,7 @@ desugarBoundedShapes shape0 attrs0 =
         in ("rect", newAttrs ++ restOfAttrs)
       ) (getBoundsAttrs attrs0)
     "OVAL" ->
-      Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
+      Maybe.map (\(left, top, right, bot, restOfAttrs) ->
         let newAttrs =
            [ ("cx", mkNum (left + (right - left) / 2))
            , ("cy", mkNum (top + (bot - top) / 2))

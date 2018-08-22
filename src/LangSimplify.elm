@@ -482,7 +482,7 @@ changeRenamedVarsToOuter_ renamings exp =
 
     EApp ws1 e1 es appType ws2 -> EApp ws1 (recurse e1) (List.map recurse es) appType ws2
     EOp ws1 wso op es ws2      -> EOp ws1 wso op (List.map recurse es) ws2
-    EList ws1 es ws2 m ws3     -> EList ws1 (Utils.listValuesMap recurse es) ws2 (Utils.mapMaybe recurse m) ws3
+    EList ws1 es ws2 m ws3     -> EList ws1 (Utils.listValuesMap recurse es) ws2 (Maybe.map recurse m) ws3
     ERecord ws1 m es ws2       -> ERecord ws1 (Maybe.map (Tuple.mapFirst recurse) m) (Utils.recordValuesMap recurse es) ws2
     ESelect ws0 e ws1 ws2 i    -> ESelect ws0 (recurse e) ws1 ws2 i
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4

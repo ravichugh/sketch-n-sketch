@@ -51,7 +51,7 @@ type alias Selections =
   , List (EId, (WS, EBaseVal))                -- other base value literals
   , List EId                                  -- expressions (including literals)
   , List PathedPatternId                      -- patterns
-  , List (EId, BindingNumber)                 -- binding
+  , List (EId, BindingNumber)                 -- binding or declarations
   , List ExpTargetPosition                    -- expression target positions
   , List PatTargetPosition                    -- pattern target positions
   )

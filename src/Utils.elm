@@ -396,7 +396,7 @@ snocUnapply l = case l of
    |> Maybe.map (Tuple.mapFirst (\init -> head::init))
 
 snocMaybe : List a -> Maybe a -> List a
-snocMaybe xs mx = Maybe.withDefault xs (mapMaybe (snoc xs) mx)
+snocMaybe xs mx = Maybe.withDefault xs (Maybe.map (snoc xs) mx)
 
 split : Int -> List a -> (List a, List a)
 split n xs =
@@ -1032,7 +1032,6 @@ foldLeftWithIndex: b -> List a -> (b -> Int -> a -> b) -> b
 foldLeftWithIndex acc list fold =
   List.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
 
-
 strFoldLeft: b -> String -> (b -> Char -> b) -> b
 strFoldLeft acc list fold =
   String.foldl (Basics.flip fold) acc list
@@ -1041,8 +1040,6 @@ strFoldLeftWithIndex: b -> String -> (b -> Int -> Char -> b) -> b
 strFoldLeftWithIndex acc list fold =
   String.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
 
--- Use Maybe.map
-mapMaybe = Maybe.map
 
 filterMaybe : (a -> Bool) -> Maybe a -> Maybe a
 filterMaybe pred mx =

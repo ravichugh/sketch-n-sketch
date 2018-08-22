@@ -2511,9 +2511,9 @@ introduceVarTransformation
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
-    Just (LetExpTargetPosition (After, expTargetId, bindingNumber)) ->
+    Just (DeclarationTargetPosition (After, (expTargetId, bindingNumber))) ->
       Nothing -- TODO: Insert at the correct place (use bindingNumber)
-    Just (LetExpTargetPosition (Before, expTargetId, bindingNumber)) ->
+    Just (DeclarationTargetPosition (Before, (expTargetId, bindingNumber))) ->
       Just <|
         \() -> -- TODO: Insert at the correct place (use bindingNumber)
           introduceVarTransformation_ m expIds (expTargetId, 0) insertNewLet
@@ -2653,7 +2653,7 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
-    Just (LetExpTargetPosition (beforeAfter, expTargetId, bindingNum)) ->
+    Just (DeclarationTargetPosition (beforeAfter, (expTargetId, bindingNum))) ->
       Nothing
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
