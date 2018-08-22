@@ -2481,23 +2481,27 @@ reorderExpressionsTransformation originalProgram selections =
 
 
 ------------------------------------------------------------------------------
-
 -- May want to consolidate with makeEqualTransformation
 -- They're basically the same: makeEqualTransformation inserts a single variable for
 -- all extraction locations, while introduceVarTransformation inserts several variables
 -- for all extraction locations.
-introduceVarTransformation m expIds maybeTargetPos =
-  let insertNewLet insertedLetEId pat boundExp bindingNumber expToWrap program =
-    ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
-    , Just insertedLetEId
-    )
-  in
-  let addToExistingLet targetPath _ pat boundExp bindingNumber letExpToInsertInto _ =
-    ( insertPat_ (pat, boundExp) targetPath letExpToInsertInto
-    , Nothing
-    )
-  in
-  case maybeTargetPos of
+introduceVarTransformation:
+  Model -> List Int -> Maybe TargetPosition -> Maybe (() -> List SynthesisResult)
+introduceVarTransformation
+  m        expIds      maybeTargetPos =
+  let
+    insertNewLet: EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)
+    insertNewLet insertedLetEId pat boundExp bindingNumber expToWrap program =
+      ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
+      , Just insertedLetEId
+      )
+
+    addToExistingLet: List Int -> EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)
+    addToExistingLet targetPath _ pat boundExp bindingNumber letExpToInsertInto _ =
+      ( insertPat_ (pat, boundExp) targetPath letExpToInsertInto
+      , Nothing
+      )
+  in case maybeTargetPos of
     Nothing ->
       Just <|
         \() ->
@@ -2506,6 +2510,13 @@ introduceVarTransformation m expIds maybeTargetPos =
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
+
+    Just (LetExpTargetPosition (After, expTargetId, bindingNumber)) ->
+      Nothing -- TODO: Insert at the correct place (use bindingNumber)
+    Just (LetExpTargetPosition (Before, expTargetId, bindingNumber)) ->
+      Just <|
+        \() -> -- TODO: Insert at the correct place (use bindingNumber)
+          introduceVarTransformation_ m expIds (expTargetId, 0) insertNewLet
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
       Just <|
@@ -2531,8 +2542,13 @@ introduceVarTransformation m expIds maybeTargetPos =
         _ ->
           Nothing
 
+
+
 -- Small bug: can't introduce var directly in front of expression being extracted.
-introduceVarTransformation_ m eidsToExtract (addNewVarsAtThisId, addNewVarAtThisBindingNumber) makeNewLet =
+introduceVarTransformation_:
+  Model -> List Int ->   (EId,                BindingNumber) -> (EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)) -> List SynthesisResult
+introduceVarTransformation_
+  m        eidsToExtract (addNewVarsAtThisId, addNewVarAtThisBindingNumber) makeNewLet =
   let toolName =
     "Introduce Variable" ++ (if List.length eidsToExtract == 1 then "" else "s")
   in
@@ -2635,6 +2651,9 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
         makeEqualTransformation_ originalProgram eids expToWrap.val.eid insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
+      Nothing
+
+    Just (LetExpTargetPosition (beforeAfter, expTargetId, bindingNum)) ->
       Nothing
 
     Just (ExpTargetPosition (Before, expTargetId)) ->

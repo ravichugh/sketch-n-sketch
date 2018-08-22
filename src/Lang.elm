@@ -475,9 +475,12 @@ type alias PatTargetPosition = (BeforeAfter, PathedPatternId)
 
 type alias ExpTargetPosition = (BeforeAfter, EId)
 
+type alias LetExpTargetPosition = (BeforeAfter, EId, BindingNumber)
+
 type TargetPosition
   = ExpTargetPosition ExpTargetPosition
   | PatTargetPosition PatTargetPosition
+  | LetExpTargetPosition LetExpTargetPosition
 
 
 scopeIdToScopeEId : ScopeId -> EId
@@ -2473,6 +2476,10 @@ ensureWhitespaceExp exp =
 ensureWhitespacePat : Pat -> Pat
 ensureWhitespacePat pat =
   mapPrecedingWhitespacePat ensureWhitespace pat
+
+ensureNoWhitespacePat : Pat -> Pat
+ensureNoWhitespacePat pat =
+  mapPrecedingWhitespacePat (\_ -> "") pat
 
 ensureWhitespaceNNewlines : Int -> String -> String
 ensureWhitespaceNNewlines n s =

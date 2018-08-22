@@ -532,8 +532,8 @@ reflowLetWhitespace program letExp =
    -}
 
 -- Note: the isRec flag is ignored if the new let is placed at the top level.
-newLetFancyWhitespace : EId -> Bool -> Pat -> Exp -> Exp -> Exp -> Exp
-newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
+newLetFancyWhitespace : EId ->         Bool -> Pat -> Exp ->   Exp ->    Exp -> Exp
+newLetFancyWhitespace   insertedLetEId isRec   pat    boundExp expToWrap program =
   let isTopLevel = isTopLevelEId expToWrap.val.eid program in
   let letOrDef = if isTopLevel then Def else Let in
   -- At the top level, rec is implicit. We create the exp as it will actually be reparsed so
@@ -564,7 +564,8 @@ newLetFancyWhitespace insertedLetEId isRec pat boundExp expToWrap program =
     then expToWrap |> ensureWhitespaceNNewlinesExp newlineCountAfterLet |> replaceIndentation wrappedExpIndent
     else expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet wrappedExpIndent
   in
-  eLet__ space0 letOrDef isActuallyRec (ensureWhitespacePat pat) space1 (replaceIndentation "  " boundExp |> ensureWhitespaceExp) space1 expToWrapWithNewWs space0
+  eLet__ space0 letOrDef isActuallyRec (
+    (if isTopLevel then ensureNoWhitespacePat else ensureWhitespacePat) pat) space1 (replaceIndentation "  " boundExp |> ensureWhitespaceExp) space1 expToWrapWithNewWs space0
   |> withDummyExpInfoEId insertedLetEId
   |> replacePrecedingWhitespace (String.repeat newlineCountBeforeLet "\n")
   |> indent newLetIndentation
