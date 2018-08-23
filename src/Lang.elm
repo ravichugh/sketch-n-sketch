@@ -295,7 +295,6 @@ type ExpBuilder__ t1 t2
     -- EApp f xs     (f x1 ... xn) === ((... ((f x1) x2) ...) xn)
 
 type alias Exp__ = ExpBuilder__ Exp Exp
-type alias Indet = ExpBuilder__ Val Exp
 
 expEId : Exp -> EId
 expEId (Expr e) = e.val.eid
@@ -396,7 +395,6 @@ type Val_
          (List String) -- Name of arguments
          (List Val -> Result String (Val, Widgets)) -- Evaluation rule
          (Maybe (List Val -> Val -> Val -> VDiffs -> Results String (List Val, TupleDiffs VDiffs))) -- Maybe Update rule
-  -- TODO | VIndet Indet
 
 type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey
 
@@ -1093,31 +1091,6 @@ foldExpTopDownWithScope f handleLetExps handleEFun handleCaseBranch initGlobalAc
 replaceV_ : Val -> Val_ -> Val
 replaceV_ v v_ = { v | v_ = v_ }
 
-{- TODO
-getValsFromIndet : Indet -> Result String (List Val)
-getValsFromIndet i =
-  case i of
-    | EList _ es _ mRest _ ->
-      (++) <|
-        Utils.projOk <|
-          List.map
-            (\e -> case e of
-              | EHole _ ESnapHole
-            )
-            es <|
-              Maybe.withDefault [] <|
-                Maybe.map ? mRest
-    | ERecord
-    | EDict
-    | EApp
-    | EOp
-    | EIf
-    | ECase
-    | ESelect
-    | EHole _ EEmptyHole -> Ok []
-    | _ -> Err <| "Invalid cstor for Indet"
--}
-
 mapVal : (Val -> Val) -> Val -> Val
 mapVal f v = case v.v_ of
   VList vs         -> f { v | v_ = VList (List.map (mapVal f) vs) }
@@ -1127,7 +1100,6 @@ mapVal f v = case v.v_ of
   VBase _          -> f v
   VClosure _ _ _ _ -> f v
   VFun _ _ _ _     -> f v
-  -- TODO VIndet indet     -> f v -- TODO
 
 foldVal : (Val -> a -> a) -> Val -> a -> a
 foldVal f v a = case v.v_ of
