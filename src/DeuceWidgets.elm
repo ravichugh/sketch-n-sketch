@@ -22,9 +22,9 @@ type DeuceWidget
   = DeuceExp EId
   | DeucePat PathedPatternId
   | DeuceLetBindingEquation (EId, BindingNumber)
+  | DeuceDeclTarget DeclarationTargetPosition
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
-  | DeuceDeclTarget DeclarationTargetPosition
 
 
 isTargetPosition : DeuceWidget -> Bool

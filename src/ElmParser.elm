@@ -15,6 +15,7 @@ module ElmParser exposing
   , freshen
   , maxId
   , implicitVarName
+  , reorderDeclarations
   )
 
 import Char
@@ -1965,8 +1966,8 @@ computePrintOrder evaluationOrder =
                   Array.set n i array
   ) |> Array.toList
 
-reorderDefinitions: List Declaration -> Result String Declarations
-reorderDefinitions letExps =
+reorderDeclarations: List Declaration -> Result String Declarations
+reorderDeclarations letExps =
   -- We put types at the top
   -- We put expressions which are not EFuns at the top, keeping their order if it is possible
   -- Lastly, we keep all remaining functions in their given order.
@@ -2053,7 +2054,7 @@ declarations minStartCol =
   (headDeclaration minStartCol |> andThen (\headDecl ->
      let firstWS = precedingWhitespaceDeclarationWithInfo headDecl in
      tailDeclarations firstWS.end.col [headDecl]) |>
-    andThen (\definitions -> case reorderDefinitions definitions of
+    andThen (\definitions -> case reorderDeclarations definitions of
          Ok r -> succeed r
          Err msg -> fail msg)
   )

@@ -2295,11 +2295,11 @@ visibleIdentifiersAtPredicate_ : Set.Set Ident -> Exp -> (Exp -> Bool) -> Set.Se
 visibleIdentifiersAtPredicate_ idents exp pred =
   let ret deeperIdents =
     if (0 == Set.size deeperIdents) && pred exp then
-      -- If any child was a target EId, then deeperIdents is a superset of idents,
-      -- so no need to union.
-      idents
+       -- If any child was a target EId, then deeperIdents is a superset of idents,
+       -- so no need to union.
+       idents
     else
-      deeperIdents
+       deeperIdents
   in
   let recurse e =
     visibleIdentifiersAtPredicate_ idents e pred
@@ -2430,11 +2430,11 @@ allVarEIdsToBindingPIdList program =
 --}
 allVarEIdsToBindingPatList : Exp -> List (EId, Maybe Pat)
 allVarEIdsToBindingPatList program =
-  let  handleELet: IsRec -> List LetExp -> Dict String Pat -> Dict String Pat
-       handleELet  isRec    letExpGroup   identToPId =
-    Dict.union
+  let  handleELet: Exp -> IsRec -> List LetExp -> BindingNumber -> List (EId, Maybe Pat) -> Dict String Pat -> (List (EId, Maybe Pat), Dict String Pat)
+       handleELet  _      isRec    letExpGroup    _                globalAcc                identToPId =
+    (globalAcc, Dict.union
         (List.map patOfLetExp letExpGroup |> List.concatMap identPatsInPat |> Dict.fromList)
-        identToPId
+        identToPId)
 
        handleEFun: Exp -> Dict String Pat -> Dict String Pat
        handleEFun funcExp identToPId =

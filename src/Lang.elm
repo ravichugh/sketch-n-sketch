@@ -565,6 +565,7 @@ getDeclarationsInOrder: Declarations -> List Declaration
 getDeclarationsInOrder decls =
   getDeclarationsInOrderWithIndex decls |> List.unzip |> Tuple.first
 
+-- The index is the original on in the list Types ++ Annotations ++ LetExps.
 getDeclarationsInOrderWithIndex: Declarations -> List (Declaration, Int)
 getDeclarationsInOrderWithIndex (Declarations unparsingOrder _ _ _  as decls) =
   getDeclarations decls |> Utils.zipWithIndex |> Utils.reorder unparsingOrder
@@ -831,7 +832,7 @@ mapFoldPat f initAcc p =
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapFoldExpTopDown : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
 mapFoldExpTopDown f initAcc e =
-  mapFoldExpTopDownWithScope (\e a b -> f e a) (\i e b -> b) (\e b -> b) (\e br i b -> b) initAcc () e
+  mapFoldExpTopDownWithScope (\e a b -> f e a) (\e r g bn a b -> (a, b)) (\e b -> b) (\e br i b -> b) initAcc () e
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
@@ -885,15 +886,25 @@ mapFoldPatTopDown f initAcc p =
       let (newPChild, newAcc2) = recurse newAcc pChild in
       ret (PColonType ws1 newPChild ws2 tp) newAcc2
 
+startBindingNumLetType _ = 0
+
+startBindingNumLetAnnotation (Declarations printOrder tps annots letexpsGroups as decls) =
+  List.sum (List.map (Tuple.second >> List.length) tps)
+
+startBindingNumLetExp (Declarations printOrder tps annots letexpsGroups  as decls) =
+  startBindingNumLetAnnotation decls + List.length annots
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Includes user-defined scope information.
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapFoldExpTopDownWithScope
   :  (Exp -> a -> b -> (Exp, a))
-  -> (IsRec -> List LetExp -> b -> b) -- handleLetExp
-  -> (Exp -> b -> b)                  -- hanldeEFun
-  -> (Exp -> Branch -> Int -> b -> b) -- hanldeCaseBranch
+     -- handleLetExp. The binding number is the one of the first LetExp.
+  -> (Exp -> IsRec -> List LetExp -> BindingNumber -> a -> b -> (a, b))
+     -- hanldeEFun
+  -> (Exp -> b -> b)
+      -- hanldeCaseBranch
+  -> (Exp -> Branch -> BindingNumber -> b -> b)
   -> a -- Global accumulator
   -> b -- Scope, e.g. a new Exp
   -> Exp
@@ -916,21 +927,24 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
         ([], globalAcc)
   in
   let mapDeclarations: a -> b ->         Declarations -> (Declarations, a, b)
-      mapDeclarations  acc  scopeTempAcc (Declarations printOrder tps annots letexpsGroups) =
-    let (newRevGroups, newAcc, newAccScope) = Utils.foldLeft
-          ([],       acc,    scopeTempAcc) letexpsGroups <|
-         \(revGroups, accGlobal, accScope) (isRec, letexps) -> let
-              nextScope = handleLetExp isRec letexps accScope
+      mapDeclarations  globalAcc  scopeTempAcc (Declarations printOrder tps annots letexpsGroups as decls) =
+    let (_, newRevGroups, newGlobalAcc, newAccScope) = Utils.foldLeft
+          (startBindingNumLetExp decls,
+             [],       globalAcc,    scopeTempAcc) letexpsGroups <|
+         \(bindingNumberOfGroupHead,
+             revGroups, accGlobal, accScope) (isRec, letexps) -> let
+              (updatedAccGlobal, nextScope) = handleLetExp newE isRec letexps bindingNumberOfGroupHead accGlobal accScope
               bindingScope = if isRec then nextScope else accScope
               (finalAccGlobal, newLetExps) = Tuple.mapSecond List.reverse <|
-                Utils.foldLeft (accGlobal, []) letexps <|
+                Utils.foldLeft (updatedAccGlobal, []) letexps <|
                               \(accGlobal, revNewLetExps) (LetExp spc spp p fs spe e1) ->
                   let (newE1, newAccGlobal) = recurse accGlobal bindingScope e1 in
-                  (newAccGlobal, LetExp spc spp p fs spe e1 :: revNewLetExps)
+                  (newAccGlobal, LetExp spc spp p fs spe newE1 :: revNewLetExps)
              in
-             ((isRec, newLetExps) :: revGroups, finalAccGlobal, bindingScope)
+             (bindingNumberOfGroupHead + List.length letexps,
+               (isRec, newLetExps) :: revGroups, finalAccGlobal, bindingScope)
     in
-    (Declarations printOrder tps annots  (List.reverse newRevGroups), newAcc, newAccScope)
+    (Declarations printOrder tps annots  (List.reverse newRevGroups), newGlobalAcc, newAccScope)
   in
   case newE.val.e__ of
     EConst _ _ _ _ -> (newE, newGlobalAcc)
@@ -968,8 +982,8 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
       let (newDecls, newGlobalAcc3, _) = mapDeclarations newGlobalAcc2 initScopeTempAcc decls in
       ret (ERecord ws1 (Just (newMi, wsi)) newDecls ws2) newGlobalAcc3
 
-    ESelect ws0 e ws1 ws2 ident ->
-      let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
+    ESelect ws0 e1 ws1 ws2 ident ->
+      let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
       ret (ESelect ws0 newE ws1 ws2 ident) newGlobalAcc2
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
@@ -1002,9 +1016,9 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
       let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
       ret (EColonType ws1 newE1 ws2 tipe ws3) newGlobalAcc2
 
-    EParens ws1 e pStyle ws2 ->
-      let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e in
-      ret (EParens ws1 newE pStyle ws2) newGlobalAcc2
+    EParens ws1 e1 pStyle ws2 ->
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      ret (EParens ws1 newE1 pStyle ws2) newGlobalAcc2
 
     EHole _ _ -> (newE, newGlobalAcc)
 
@@ -1044,9 +1058,9 @@ mapExpViaExp__ f e =
 -- Folding function returns just newGlobalAcc instead of (newExp, newGlobalAcc)
 foldExpTopDownWithScope
   :  (Exp -> accT -> scopeAccT -> accT)
-  -> (IsRec -> List LetExp -> scopeAccT -> scopeAccT)
+  -> (Exp -> IsRec -> List LetExp -> BindingNumber -> accT -> scopeAccT -> (accT, scopeAccT))
   -> (Exp -> scopeAccT -> scopeAccT)
-  -> (Exp -> Branch -> Int -> scopeAccT -> scopeAccT)
+  -> (Exp -> Branch -> BindingNumber -> scopeAccT -> scopeAccT)
   -> accT
   -> scopeAccT
   -> Exp
@@ -2734,7 +2748,7 @@ pushRight spaces e =
 -- Zero-indexed declarations
 -- BindingNumber is a pattern's position in an expression
 -- For EFun it's the n+1-th pattern
--- For ELet it's the n+1-th declaration (including types and annotations !)
+-- For ELet it's the n+1-th declaration in the list LetType ++ LetAnnotations ++ LetExps
 -- For ECase it's the n+1-th branch.
 type alias BindingNumber = Int
 
@@ -3639,13 +3653,15 @@ extractGroupInfo f isRec groups =
 -- Which var idents in this exp refer to something outside this exp?
 -- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).
 freeIdentifiers : Exp -> Set.Set Ident
-freeIdentifiers exp =
+freeIdentifiers exp = freeIdentifiersList exp |> Set.fromList
+
+freeIdentifiersList : Exp -> List Ident
+freeIdentifiersList exp =
   --ImpureGoodies.getOrUpdateCache exp "freeIdentifiers" <| \() -> -- This is not working for now.
   freeVars exp
   |> List.map expToMaybeIdent
   |> Utils.projJusts
-  |> Utils.fromJust_ "LangTools.freeIdentifiers"
-  |> Set.fromList
+  |> Utils.fromJust_ "LangTools.freeIdentifiersList"
 
 getTopLevelOptions: Exp -> List (String, String)
 getTopLevelOptions e = getOptions e

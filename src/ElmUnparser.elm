@@ -822,6 +822,7 @@ multilineContentUnparse e = case e.val.e__ of
 ------------------------
 -- HTML Unparsing
 ------------------------
+dummyExp = withDummyExpInfo <| EApp space0 (eVar "x") [] SpaceApp space0
 
 unparseHtmlAttributes: Exp -> String
 unparseHtmlAttributes attrExp =
@@ -841,9 +842,13 @@ unparseHtmlAttributes attrExp =
                   if attrValueStr == "" && spIfNoValue.val == " " then
                     beforeSpace ++ attrNameStr
                   else
-                    beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
+                    beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++
+                       wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
+                         OpRight dummyExp attrValueToConsider (unparse attrValueToConsider)
                 _ ->
-                  beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++ unparse attrValueToConsider
+                  beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++
+                    wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
+                        OpRight dummyExp attrValueToConsider (unparse attrValueToConsider)
             _ -> " @[" ++ unparse attr ++"]"
         _ -> " @[" ++ unparse attr ++"]"
       ) |> String.join ""
@@ -959,6 +964,7 @@ getExpPrecedence exp =
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
         Nothing -> Just 10
         Just (associativity, precedence) -> Just precedence
+    EParens _ e ElmSyntax _ -> getExpPrecedence e
     _ -> Nothing
 
 getExpAssociativity: Exp -> Maybe BinaryOperatorParser.Associativity
@@ -998,11 +1004,11 @@ wrapWithParensIfLessPrecedence_ getPrecedence getAssociativity opDir outsideExp 
   if inPrecedence < precedence
   then wrapWithTightParens unparsedInsideExpr
   else if inPrecedence == precedence then
-    if associativity == inAssociativity && (
-            associativity == Just BinaryOperatorParser.Left && opDir == OpLeft
-         || associativity == Just BinaryOperatorParser.Right && opDir == OpRight) then
-         unparsedInsideExpr
-    else wrapWithTightParens unparsedInsideExpr -- Same associativity with conflicts, we put parentheses.
+     if associativity == inAssociativity && (
+             associativity == Just BinaryOperatorParser.Left && opDir == OpLeft
+          || associativity == Just BinaryOperatorParser.Right && opDir == OpRight) then
+          unparsedInsideExpr
+     else wrapWithTightParens unparsedInsideExpr -- Same associativity with conflicts, we put parentheses.
   else unparsedInsideExpr
 
 wrapWithParensIfLessPrecedence: OpDir -> Exp -> Exp -> String -> String

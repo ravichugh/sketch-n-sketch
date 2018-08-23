@@ -315,6 +315,7 @@ postMapExp f e =
   let newElem = rebuilder newChildren in
   (f newElem) |> Maybe.withDefault newElem
 
+-- Returns the assignments that were added in newEnv compared to origEnv, in the evaluation order.
 keepLets: Env -> Env -> Env
 keepLets origEnv newEnv = List.reverse <| List.take (List.length newEnv - List.length origEnv) newEnv
 
