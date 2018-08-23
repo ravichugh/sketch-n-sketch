@@ -1808,7 +1808,7 @@ msgRepeatByIndexedMerge = Msg "Repeat by Indexed Merge" <| \old ->
         ShapeWidgets.selectionsEIdsTouched old.inputExp old.slate old.widgets old.selectedFeatures old.selectedShapes old.selectedBlobs (\e -> childExps e /= [])
     in
     let minCloneCount = max 2 (Set.size old.selectedShapes) in
-    ETransform.repeatByIndexedMerge (\e -> Set.member e.val.eid eidSet) minCloneCount 2 old.inputExp
+    ETransform.repeatByIndexedMerge old (\e -> Set.member e.val.eid eidSet) minCloneCount 2 old.inputExp
   in
   { old | synthesisResultsDict = Dict.insert "Repeat by Indexed Merge" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 

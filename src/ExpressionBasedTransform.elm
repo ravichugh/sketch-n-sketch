@@ -22,6 +22,7 @@ import LangTools exposing (..)
 import LangSimplify
 import Types
 import InterfaceModel exposing (Model, ReplicateKind(..), resultExp)
+import Syntax
 import Utils
 import Keys
 
@@ -660,15 +661,20 @@ mapAbstractSynthesisResults originalExp =
 -- Performs three steps that previously you had to do separately: 1. map-merge 2. rename simple renamings to outer 3. inline list
 --
 -- Not amazing because it does whole-program transforms for the last two steps (LangSimplify.simplify |> inlineListSynthesisResults) which may impact other code.
-repeatByIndexedMerge : (Exp -> Bool) -> Int -> Int -> Exp -> List InterfaceModel.SynthesisResult
-repeatByIndexedMerge candidateExpFilter minCloneCount minCloneSizeToArgumentRatio originalExp =
+repeatByIndexedMerge : Model -> (Exp -> Bool) -> Int -> Int -> Exp -> List InterfaceModel.SynthesisResult
+repeatByIndexedMerge model candidateExpFilter minCloneCount minCloneSizeToArgumentRatio originalExp =
+  let (oldListItemsCount, oldShapeTree) = -- After DrawAddShape.addShape
+    case InterfaceModel.runAndResolveAtContext model originalExp of
+      Ok (val, _, (root, shapeTree), _, _) -> (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1, shapeTree)
+      _                                    -> (0, Dict.empty)
+  in
   detectClonesOfVariousSizes candidateExpFilter minCloneCount minCloneSizeToArgumentRatio (List.range 1 8) False originalExp
   |> List.concatMap
       (\(cloneEIdsAndExpsAndParameterExpLists, abstractedFunc, commonScope, funcSuggestedName, argNames) ->
         let (eidsToReplace, sortedExps, parameterExpLists) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
         let oldIndentation = indentationOf commonScope in
         let itemCount = List.length eidsToReplace in
-        let mapCall =
+        let mapCallOptionAndDescs =
           let abstractedFuncWithPBEHoles =
             let
               freeVarsInFunc = abstractedFunc |> expToFuncBody |> freeVars
@@ -687,39 +693,60 @@ repeatByIndexedMerge candidateExpFilter minCloneCount minCloneSizeToArgumentRati
             in
             abstractedFunc |> mapFuncBody (transformVarsUntilBound varSubst) |> mapFuncPats (always [pVar0 "i"])
           in
-          let rangeExp =
-             eCall "reverse" [
-              eCall "zeroTo" [withDummyExpInfo <| EConst space1 (toFloat itemCount ) (dummyLoc_ unann) (intSlider 0 (5*itemCount))]
+          let rangeExpOptions =
+            let zeroToN = eCall "zeroTo" [withDummyExpInfo <| EConst space1 (toFloat itemCount ) (dummyLoc_ unann) (intSlider 0 (5*itemCount))] in
+            [ zeroToN
+            , eCall "reverse" [zeroToN]
             ]
           in
           let newLineIndent extraIndent exp = replacePrecedingWhitespace ("\n" ++ extraIndent ++ oldIndentation) exp in
-          eApp
-              (eVar0 "map") -- or concatMap
-              [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) (eParens <| removePrecedingWhitespace abstractedFuncWithPBEHoles)) -- Put arguments on same line as map call.
-              , newLineIndent "    " rangeExp
-              ]
-          |> newLineIndent "  "
+          rangeExpOptions
+          |> List.map
+              (\rangeExp ->
+                eApp
+                    (eVar0 "map") -- or concatMap
+                    [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) (eParens <| removePrecedingWhitespace abstractedFuncWithPBEHoles)) -- Put arguments on same line as map call.
+                    , newLineIndent "    " rangeExp
+                    ]
+                |> newLineIndent "  "
+                |> (\mapCall -> (mapCall, Syntax.unparser Syntax.Elm rangeExp |> Utils.squish) )
+              )
         in
         let namesToAvoid = identifiersSet commonScope in
         let varNames = sortedExps |> Utils.mapi1 (\(i, _) -> nonCollidingName (funcSuggestedName ++ toString i) 2 namesToAvoid) in
         let eidToVarE__ = Utils.zip eidsToReplace (varNames |> List.map (\name -> EVar space1 name)) |> Dict.fromList in
         let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToVarE__ commonScope in
-        let wrapped =
-          newLetFancyWhitespace -1 False (pListOfPVars varNames) mapCall usagesReplaced originalExp
-          -- let letKind = if isTopLevel commonScope originalExp then Def else Let in
-          -- withDummyExpInfo <| ELet (ws <| "\n" ++ oldIndentation) letKind False (pListOfPVars varNames) space1 mapCall space1 usagesReplaced space0
-        in
-        let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
-        let clonesName =
-          if Utils.commonPrefixString varNames /= "" then
-            toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ Utils.commonPrefixString varNames ++ "s"
-          else
-            eidsToReplace |> List.map (expNameForEId originalExp) |> Utils.toSentence
-        in
-        newProgram
-        |> LangSimplify.simplify
-        |> inlineListSynthesisResults
-        |> List.map (InterfaceModel.mapResultDescription (always <| "Repeat " ++ clonesName ++ " by Indexed Merge producing " ++ toString (Utils.count isPBEHole <| flattenExpTree mapCall) ++ " holes"))
+        mapCallOptionAndDescs
+        |> List.concatMap
+            (\(mapCall, rangeDesc) ->
+              let wrapped =
+                newLetFancyWhitespace -1 False (pListOfPVars varNames) mapCall usagesReplaced originalExp
+                -- let letKind = if isTopLevel commonScope originalExp then Def else Let in
+                -- withDummyExpInfo <| ELet (ws <| "\n" ++ oldIndentation) letKind False (pListOfPVars varNames) space1 mapCall space1 usagesReplaced space0
+              in
+              let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
+              let clonesName =
+                if Utils.commonPrefixString varNames /= "" then
+                  toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ Utils.commonPrefixString varNames ++ "s"
+                else
+                  eidsToReplace |> List.map (expNameForEId originalExp) |> Utils.toSentence
+              in
+              newProgram
+              |> LangSimplify.simplify
+              |> inlineListSynthesisResults
+              |> List.filter
+                  (\result ->
+                    let newProgram = resultExp result in
+                    -- Filter similar to DrawAddShape.addShape
+                    case InterfaceModel.runAndResolveAtContext model newProgram of
+                      Ok (val, _, (root, shapeTree), _, _) ->
+                        Dict.size oldShapeTree <= Dict.size shapeTree && -- Removing shapes signifies a type error
+                        oldListItemsCount <= (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1) -- Removing items signifies a type error
+                      Err _ ->
+                        False
+                  )
+              |> List.map (InterfaceModel.mapResultDescription (always <| "Repeat " ++ clonesName ++ " by mapping over " ++ rangeDesc ++ " producing " ++ toString (Utils.count isPBEHole <| flattenExpTree mapCall) ++ " holes"))
+            )
       )
 
 
