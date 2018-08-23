@@ -2442,67 +2442,73 @@ msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
       old
 
 
-msgAddArg funcBody = Msg "Add Arg to Function in Output" <| \old ->
-  let maybeMaybeParent = parentByEId old.inputExp funcBody.val.eid in
-  case Maybe.map (Maybe.map (\parent -> (parent, parent.val.e__))) maybeMaybeParent of
-    Just (Just (funcExp, EFun _ argPats funcBody _)) ->
-      let targetPPId =
-        ( (funcExp.val.eid, 1)
-        , [ 1 + List.length argPats ] -- By default, insert argument at the end
-        )
-      in
-      let possibleArgEIds =
-        let domain = flattenExpTree funcBody |> List.map (.val >> .eid) |> Set.fromList in
-        let expFilter = .val >> .eid >> (flip Set.member) domain in
-        -- let singleEIdInterps =
-        --   ShapeWidgets.selectionsSingleEIdInterpretations
-        --       old.inputExp
-        --       old.slate
-        --       old.widgets
-        --       old.selectedFeatures
-        --       old.selectedShapes
-        --       old.selectedBlobs
-        --       expFilter
-        -- in
-        -- let distalInterps =
-        --   ShapeWidgets.selectionsDistalEIdInterpretations
-        --       old.inputExp
-        --       old.slate
-        --       old.widgets
-        --       old.selectedFeatures
-        --       old.selectedShapes
-        --       old.selectedBlobs
-        --       expFilter
-        --   |> List.concat
-        -- in
-        -- singleEIdInterps ++ distalInterps
-        -- |> Utils.dedup
-        ShapeWidgets.selectionsEIdsTouched
-            old.inputExp
-            old.slate
-            old.widgets
-            old.selectedFeatures
-            old.selectedShapes
-            old.selectedBlobs
-            expFilter
-      in
-      let results =
-        possibleArgEIds
-        |> List.concatMap
-            (\eid ->
-              let (line, col) = LangTools.locationInProgram old.inputExp eid in
-              CodeMotion.addArg old.syntax eid targetPPId old.inputExp
-              |> List.map (setResultSortKey [toFloat line, toFloat col])
+msgAddArg = Msg "Add Arg to Focused Function in Output" <| \old ->
+  case FocusedEditingContext.maybeFocusedExp old.editingContext old.inputExp of
+    Just focusedExp ->
+      case focusedExp.val.e__ of
+        EFun _ argPats funcBody _ ->
+          let funcExp = focusedExp in
+          let targetPPId =
+            ( (funcExp.val.eid, 1)
+            , [ 1 + List.length argPats ] -- By default, insert argument at the end
             )
-        |> List.sortBy (\(SynthesisResult result) -> (if result.isSafe then 0 else 1, result.sortKey))
-      in
-      case results of
-        []             -> old
-        [singleResult] -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp singleResult) }
-        _              -> { old | synthesisResultsDict = Dict.insert "Auto-Synthesis" results old.synthesisResultsDict } -- Commandere auto-synth results for now.
+          in
+          let possibleArgEIds =
+            let domain = flattenExpTree funcBody |> List.map (.val >> .eid) |> Set.fromList in
+            let expFilter = .val >> .eid >> (flip Set.member) domain in
+            -- let singleEIdInterps =
+            --   ShapeWidgets.selectionsSingleEIdInterpretations
+            --       old.inputExp
+            --       old.slate
+            --       old.widgets
+            --       old.selectedFeatures
+            --       old.selectedShapes
+            --       old.selectedBlobs
+            --       expFilter
+            -- in
+            -- let distalInterps =
+            --   ShapeWidgets.selectionsDistalEIdInterpretations
+            --       old.inputExp
+            --       old.slate
+            --       old.widgets
+            --       old.selectedFeatures
+            --       old.selectedShapes
+            --       old.selectedBlobs
+            --       expFilter
+            --   |> List.concat
+            -- in
+            -- singleEIdInterps ++ distalInterps
+            -- |> Utils.dedup
+            ShapeWidgets.selectionsEIdsTouched
+                old.inputExp
+                old.slate
+                old.widgets
+                old.selectedFeatures
+                old.selectedShapes
+                old.selectedBlobs
+                expFilter
+          in
+          let results =
+            possibleArgEIds
+            |> List.concatMap
+                (\eid ->
+                  let (line, col) = LangTools.locationInProgram old.inputExp eid in
+                  CodeMotion.addArg old.syntax eid targetPPId old.inputExp
+                  |> List.map (setResultSortKey [toFloat line, toFloat col])
+                )
+            |> List.sortBy (\(SynthesisResult result) -> (if result.isSafe then 0 else 1, result.sortKey))
+          in
+          case results of
+            []             -> old
+            [singleResult] -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp singleResult) }
+            _              -> { old | synthesisResultsDict = Dict.insert "Add Argument" results old.synthesisResultsDict }
+
+        _ ->
+          let _ = Utils.log "could not find func to add argument to, not focused on a function" in
+          old
 
     _ ->
-      let _ = Utils.log "could not find func to add argument to" in
+      let _ = Utils.log "could not find func to add argument to, not focused on a function" in
       old
 
 

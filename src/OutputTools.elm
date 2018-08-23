@@ -7,6 +7,7 @@ module OutputTools exposing
 import Set exposing (Set)
 import Dict exposing (Dict)
 
+import FocusedEditingContext
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
 import Lang
@@ -227,6 +228,38 @@ chooseTerminationConditionTool selections =
   , id =
       "terminationConditionOptions"
   }
+
+--------------------------------------------------------------------------------
+-- Add Argument
+--------------------------------------------------------------------------------
+
+perhapsAddArgumentTool : Model -> List (Selections a -> OutputTool)
+perhapsAddArgumentTool model =
+  case FocusedEditingContext.maybeFocusedExp model.editingContext model.inputExp of
+    Just focusedExp ->
+      if Lang.isFunc focusedExp then
+        [ \{ selectedFeatures } ->
+          let name = "Add Argument" in
+          { name =
+              name
+          , shortcut =
+              Nothing
+          , kind =
+              Multi
+          , func =
+              Just Controller.msgAddArg
+          , reqs =
+              [ atLeastOneFeature selectedFeatures
+              ]
+          , id =
+              "addArgument"
+          }
+        ]
+      else
+        []
+
+    Nothing ->
+      []
 
 --------------------------------------------------------------------------------
 -- Dig Hole
@@ -590,6 +623,7 @@ tools model =
       , addToOutputTool
       , chooseTerminationConditionTool
       ]
+    , perhapsAddArgumentTool model
     , [ digHoleTool
       , makeEqualTool
       , relateTool

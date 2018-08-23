@@ -739,23 +739,23 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
         Nothing -> []
         Just (left, top, right, bot) ->
           let boxTop = top + ShapeWidgets.heightForWCallFuncName in
-          let maybeAddArg =
-            -- TODO: ensure all selected items touch funcBody
-            case (isCurrentContext, maybeFuncBody, nothingSelectedInOutput model) of
-              (True, Just funcBody, False) ->
-                Just <|
-                  flip Svg.text_ [Svg.title [] [VirtualDom.text "Add argument"], VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
-                    [ attr "font-family" params.mainSection.uiWidgets.font
-                    , attr "font-size" params.mainSection.uiWidgets.fontSize
-                    , attr "text-anchor" "end"
-                    , attr "cursor" "pointer"
-                    , attr "x" (toString right)
-                    , attr "y" (toString (boxTop - 10))
-                    , onMouseDownAndStop (Controller.msgAddArg funcBody)
-                    ]
-              _ ->
-                Nothing
-          in
+          -- let maybeAddArg =
+          --   -- TODO: ensure all selected items touch funcBody
+          --   case (isCurrentContext, maybeFuncBody, nothingSelectedInOutput model) of
+          --     (True, Just funcBody, False) ->
+          --       Just <|
+          --         flip Svg.text_ [Svg.title [] [VirtualDom.text "Add argument"], VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
+          --           [ attr "font-family" params.mainSection.uiWidgets.font
+          --           , attr "font-size" params.mainSection.uiWidgets.fontSize
+          --           , attr "text-anchor" "end"
+          --           , attr "cursor" "pointer"
+          --           , attr "x" (toString right)
+          --           , attr "y" (toString (boxTop - 10))
+          --           , onMouseDownAndStop (Controller.msgAddArg funcBody)
+          --           ]
+          --     _ ->
+          --       Nothing
+          -- in
           let (perhapsSetContextEvent, perhapsTitleAttribute) =
             case (isCurrentContext, maybeFuncExp) of
               (True, _) ->
@@ -867,7 +867,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
           , maybeTerminationCondition
           , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput model.renamingInOutput False funcPat Set.empty Set.empty left (boxTop - if isCurrentContext then 20 else 0) NoHoverPadding)
           ] ++ (maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True (List.map (\argPat -> (argPat, Set.empty, Set.empty)) argPats) left boxTop NoHoverPadding) |> Maybe.withDefault [] |> List.map Just) ++
-          [ maybeAddArg
+          [ -- maybeAddArg
           ] |> Utils.filterJusts
   in
   let drawListWidget i_ maybeBounds listVal model =
