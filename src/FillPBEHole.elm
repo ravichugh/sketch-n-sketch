@@ -2,6 +2,7 @@ module FillPBEHole exposing (..)
 
 import Eval
 import Lang exposing (..)
+import LangTools
 import MathExp exposing (MathExp(..))
 import Solver
 import Syntax
@@ -253,6 +254,12 @@ pbeHoleFillings solutionsCache pbeHolesSeen =
                       EHole _ (HoleVal valInHole) -> Update.val_to_exp space1 valInHole
                       _                           -> e
                   )
+            )
+        |> List.filter
+            (\sketch ->
+              -- Remove sketches that have identical branches.
+              let leaves = LangTools.effectiveBranches sketch in
+              List.length leaves == List.length (Utils.dedup leaves)
             )
       in
       filteredAndFinalizedFilledSketches

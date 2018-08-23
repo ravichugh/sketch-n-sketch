@@ -1295,6 +1295,16 @@ newLetAfterComments eidToWrap pat boundExp program =
       )
 
 
+-- What are the disjoint expressions that could end up producing the result of this exp?
+effectiveBranches : Exp -> List Exp
+effectiveBranches exp =
+  case (expEffectiveExp exp).val.e__ of
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4     -> effectiveBranches e2 ++ effectiveBranches e3
+    ECase ws1 e branches ws2         -> branchExps branches |> List.concatMap effectiveBranches
+    ETypeCase ws1 e tbranches ws2    -> tbranchExps tbranches |> List.concatMap effectiveBranches
+    _                                -> [expEffectiveExp exp]
+
+
 expToMaybeNum : Exp -> Maybe Num
 expToMaybeNum exp =
   case exp.val.e__ of
