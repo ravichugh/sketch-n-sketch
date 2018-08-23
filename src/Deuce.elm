@@ -727,8 +727,7 @@ typePolygon msgs codeInfo t =
     codeObject =
       T t
     color =
-      -- typeColor codeInfo.displayInfo.colorScheme
-      objectColor codeInfo.displayInfo.colorScheme
+      typeColor codeInfo.displayInfo.colorScheme
   in
     codeObjectPolygon msgs codeInfo codeObject color
 

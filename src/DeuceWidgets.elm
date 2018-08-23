@@ -27,6 +27,7 @@ type DeuceWidget
   | DeuceLetBindingEquation (EId, BindingNumber)
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
+  | DeuceType -- TODO TId
 
 
 isTargetPosition : DeuceWidget -> Bool
@@ -37,6 +38,7 @@ isTargetPosition widget =
     DeuceLetBindingEquation _ -> False
     DeuceExpTarget _          -> True
     DeucePatTarget _          -> True
+    DeuceType                 -> False
 
 -- TODO: This is not totally correct becuase of DeuceLetBindingEquation which now has (EId, BindingNumber)
 isSubWidget : Exp -> DeuceWidget -> DeuceWidget -> Bool
@@ -77,6 +79,10 @@ isSubWidget program widget superWidget =
     (DeucePatTarget (_, subPPId),       DeuceExp superEId)                   -> isSubEId (pathedPatIdToScopeEId subPPId) superEId
     (DeucePatTarget (_, subPPId),       DeucePat superPPId)                  -> subPPId /= superPPId && isSubPPId subPPId superPPId
     (DeucePatTarget (_, subPPId),       DeuceLetBindingEquation (superLetEId, bn)) -> pathedPatIdToScopeEId subPPId == superLetEId || boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId
+    -- TODO
+    (DeuceType,                         DeuceType)                           -> True
+    (_,                                 DeuceType)                           -> False
+    (DeuceType,                         _)                                   -> False
 
 
 toDeuceWidget : Dict PId PathedPatternId -> CodeObject -> Maybe DeuceWidget
@@ -89,7 +95,8 @@ toDeuceWidget patMap codeObject =
       Maybe.map DeucePat <|
         Dict.get p.val.pid patMap
     T _ ->
-      Nothing
+      Just <|
+        DeuceType -- TODO tid
     LBE eid bNum ->
       Just <|
         DeuceLetBindingEquation (eid.val, bNum)
