@@ -36,6 +36,7 @@ import Lang exposing
   , PId
   , PathedPatternId
   , CodeObject(..)
+  , Type
   , TypeError(..)
   , ExtraTypeInfo(..)
   , extractInfoFromCodeObject
@@ -526,6 +527,12 @@ objectInfoColor colorScheme =
     Light -> { r = 144, g = 238, b = 144 }
     Dark  -> { r = 144, g = 238, b = 144 }
 
+typeColor : ColorScheme -> Color
+typeColor colorScheme =
+  case colorScheme of
+    Light -> { r = 255, g = 192, b = 203 }
+    Dark  -> { r = 255, g = 192, b = 203 }
+
 whitespaceColor : ColorScheme -> Color
 whitespaceColor colorScheme =
   case colorScheme of
@@ -713,6 +720,18 @@ patPolygon msgs codeInfo e p =
   in
     codeObjectPolygon msgs codeInfo codeObject color
 
+typePolygon
+  : Messages msg -> CodeInfo -> Type -> List (Svg msg)
+typePolygon msgs codeInfo t =
+  let
+    codeObject =
+      T t
+    color =
+      -- typeColor codeInfo.displayInfo.colorScheme
+      objectColor codeInfo.displayInfo.colorScheme
+  in
+    codeObjectPolygon msgs codeInfo codeObject color
+
 letBindingEquationPolygon
   : Messages msg -> CodeInfo -> (WithInfo EId) -> Int -> List (Svg msg)
 letBindingEquationPolygon msgs codeInfo eid n =
@@ -762,7 +781,7 @@ polygons msgs codeInfo ast =
               P e p ->
                 patPolygon msgs codeInfo e p ++ acc
               T t ->
-                acc
+                typePolygon msgs codeInfo t ++ acc
               LBE eid bn ->
                 letBindingEquationPolygon msgs codeInfo eid bn ++ acc
               ET ba ws et ->
