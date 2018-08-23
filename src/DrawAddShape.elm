@@ -117,8 +117,8 @@ addShape
 
     (oldListItemsCount, oldShapeTree) =
       case InterfaceModel.runAndResolveAtContext model originalProgram of
-        Ok (val, _, (root, shapeTree), _) -> (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1, shapeTree)
-        _                                 -> (0, Dict.empty)
+        Ok (val, _, (root, shapeTree), _, _) -> (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1, shapeTree)
+        _                                    -> (0, Dict.empty)
 
     -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
     --    If return val is not a list, make it a list.
@@ -165,7 +165,7 @@ addShape
           (\(listEId, newProgram) ->
             areCrashingProgramsOkay ||
             case InterfaceModel.runAndResolveAtContext model newProgram of
-              Ok (val, _, (root, shapeTree), _) ->
+              Ok (val, _, (root, shapeTree), _, _) ->
                 let
                   shapeCountOkay =
                     case maybeReallyNumberOfNewShapesExpected of

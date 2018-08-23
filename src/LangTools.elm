@@ -1485,6 +1485,19 @@ expToMaybeFuncPatsAndBody exp =
     _                  -> Nothing
 
 
+mapFuncPats : (List Pat -> List Pat) -> Exp -> Exp
+mapFuncPats f exp =
+  case exp.val.e__ of
+    EFun ws1 pats funcBody ws2 -> replaceE__ exp <| EFun ws1 (f pats) funcBody ws2
+    _                          -> let _ = Utils.log "Warning: called LangTools.mapFuncPats on a non-func exp" in exp
+
+
+mapFuncBody : (Exp -> Exp) -> Exp -> Exp
+mapFuncBody f exp =
+  case exp.val.e__ of
+    EFun ws1 pats funcBody ws2 -> replaceE__ exp <| EFun ws1 pats (f funcBody) ws2
+    _                          -> let _ = Utils.log "Warning: called LangTools.mapFuncBody on a non-func exp" in exp
+
 expToCaseScrutinee : Exp -> Exp
 expToCaseScrutinee exp =
   case exp.val.e__ of

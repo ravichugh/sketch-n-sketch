@@ -509,6 +509,10 @@ isLocHole e = case e.val.e__ of
   EHole _ (HoleLoc _) -> True
   _                   -> False
 
+isPBEHole e = case e.val.e__ of
+  EHole _ (HolePBE _ _) -> True
+  _                     -> False
+
 isPVar p = case p.val.p__ of
   PVar _ _ _ -> True
   _          -> False
@@ -1146,6 +1150,16 @@ replaceExpNodes eidToNewNode root =
         Nothing     -> exp
     )
     root
+
+mapExpNodesMatching : (Exp -> Bool) -> (Exp -> Exp) -> Exp -> Exp
+mapExpNodesMatching pred f root =
+  mapExp
+      (\exp ->
+        if pred exp
+        then f exp
+        else exp
+      )
+      root
 
 replaceExpNodesPreservingPrecedingWhitespace : (Dict EId Exp) -> Exp -> Exp
 replaceExpNodesPreservingPrecedingWhitespace eidToNewNode root =
@@ -1856,7 +1870,8 @@ eApp e es      = withDummyExpInfo <| EApp space1 e es SpaceApp space0
 eCall fName es = eApp (eVar0 fName) es
 eFun ps e      = withDummyExpInfo <| EFun space1 ps e space0
 
-eIf e1 e2 e3 = withDummyExpInfo <| EIf space1 e1 space1 e2 newline1 e3 space0
+eIf           e1 e2 e3 = withDummyExpInfo <| EIf space1 e1 space1 e2 newline1 e3 space0
+eIfSingleLine e1 e2 e3 = withDummyExpInfo <| EIf space1 e1 space1 e2 space1 e3 space0
 
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
@@ -1933,6 +1948,7 @@ eHoleVal v        = withDummyExpInfo <| EHole space1 (HoleVal v)
 eHoleLoc0 locId   = withDummyExpInfo <| EHole space0 (HoleLoc locId)
 eHoleLoc locId    = withDummyExpInfo <| EHole space1 (HoleLoc locId)
 eHolePred p       = withDummyExpInfo <| EHole space1 (HolePredicate p)
+eHolePBE es       = withDummyExpInfo <| EHole space1 (HolePBE (es |> Utils.mapi1 (\(i, e) -> (space0, if i == 1 then space0 else space1, space1, e))) space0)
 
 eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 (withDummyRange t) space0
 

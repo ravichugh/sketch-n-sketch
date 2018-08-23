@@ -93,6 +93,19 @@ atLeastOneSelection { selectedFeatures, selectedShapes, selectedBlobs } =
           Possible
     }
 
+
+atLeastTwoSelections : Selections a -> Predicate
+atLeastTwoSelections { selectedFeatures, selectedShapes, selectedBlobs } =
+  { description =
+      "Select at least two features, shapes, or blobs"
+  , value =
+      if Set.size selectedFeatures + Set.size selectedShapes + Dict.size selectedBlobs >= 2 then
+        Satisfied
+      else
+        Possible
+  }
+
+
 atLeastOneShapeNoFeatures : Selections a -> Predicate
 atLeastOneShapeNoFeatures { selectedFeatures, selectedShapes, selectedBlobs } =
   let
@@ -356,7 +369,7 @@ mergeTool selections =
   , func =
       Just Controller.msgMerge
   , reqs =
-      [ atLeastOneShapeNoFeatures selections
+      [ atLeastTwoSelections selections
       ]
   , id =
       "merge"
@@ -377,7 +390,7 @@ groupTool selections =
   , func =
       Just Controller.msgGroupBlobs
   , reqs =
-      [ atLeastOneSelection selections
+      [ atLeastTwoSelections selections
       ]
   , id =
       "group"
@@ -404,6 +417,52 @@ abstractTool selections =
       "abstract"
   }
 
+--------------------------------------------------------------------------------
+-- Fill PBE Holes Tools
+--------------------------------------------------------------------------------
+
+fillPBEHoleTools : Model -> List (Selections a -> OutputTool)
+fillPBEHoleTools model =
+  model.inputExp
+  |> Lang.flattenExpTree
+  |> List.filter Lang.isPBEHole
+  |> Utils.mapi1
+      (\(i, pbeHoleExp) ->
+        (\selections ->
+          let name =
+            -- Name is also used as synthesisResultsDict key, so include an index i to avoid collisions.
+            "Fill Hole " ++ toString i ++ " (" ++ LangTools.expNameForEId model.inputExp pbeHoleExp.val.eid ++ ")"
+          in
+          { name = name
+          , shortcut = Nothing
+          , kind = Multi
+          , func = Just (Controller.msgFillPBEHole pbeHoleExp.val.eid name)
+          , reqs = []
+          , id = "fillPBEHole" ++ toString i
+          }
+        )
+      )
+
+--------------------------------------------------------------------------------
+-- Repeat by Indexed Merge Tool
+--------------------------------------------------------------------------------
+
+repeatByIndexedMergeTool : Selections a -> OutputTool
+repeatByIndexedMergeTool selections =
+  { name =
+      "Repeat by Indexed Merge"
+  , shortcut =
+      Nothing
+  , kind =
+      Multi
+  , func =
+      Just Controller.msgRepeatByIndexedMerge
+  , reqs =
+      [ atLeastTwoSelections selections
+      ]
+  , id =
+      "merge"
+  }
 
 --------------------------------------------------------------------------------
 -- User/prelude-defined Repeat Functions
@@ -542,6 +601,8 @@ tools model =
       , groupTool
       , abstractTool
       ]
+    , fillPBEHoleTools model
+    , [ repeatByIndexedMergeTool ]
     , pointListBasedRepeatTools model
     , functionBasedRepeatTools model
     , [ repeatRightTool

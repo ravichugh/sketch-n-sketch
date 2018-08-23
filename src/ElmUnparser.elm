@@ -222,10 +222,14 @@ unparse e =
   -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
   let unparseArg e =
     case e.val.e__ of
-      EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
-      EOp _ _ (_::_) _     -> wrapWithTightParens (unparse e)
-      EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
-      _                    -> unparse e
+      EConst _ _ _ _  -> unparse e
+      EBase _ _       -> unparse e
+      EVar _ _        -> unparse e
+      EOp _ _ [] _    -> unparse e
+      EList _ _ _ _ _ -> unparse e
+      EParens _ _ _ _ -> unparse e
+      EHole _ _       -> unparse e
+      _               -> wrapWithTightParens (unparse e)
   in
   case e.val.e__ of
     EConst wsBefore num (_, frozen, _) wd ->

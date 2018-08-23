@@ -682,13 +682,13 @@ runAndResolve model exp =
     exp
 
 
-runAndResolveAtContext : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolveAtContext : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code, List Eval.PBEHoleSeen)
 runAndResolveAtContext model program =
   let thunk () =
     let editingContext = FocusedEditingContext.editingContextFromMarkers program in
     FocusedEditingContext.evalAtContext model.syntax editingContext program
-    |> Result.andThen (\((val, widgets), env) -> slateAndCode model (program, val)
-    |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
+    |> Result.andThen (\((val, widgets), env, pbeHolesSeen) -> slateAndCode model (program, val)
+    |> Result.map (\(slate, code) -> (val, widgets, slate, code, pbeHolesSeen)))
   in
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult
@@ -1067,6 +1067,7 @@ autoOutputToolsPopupPanelShown model =
     , not <| Set.isEmpty model.selectedShapes
     , not <| Dict.isEmpty model.selectedBlobs
     , Dict.member "Termination Condition Options" model.synthesisResultsDict
+    , containsNode isPBEHole model.inputExp
     ]
 
 --------------------------------------------------------------------------------

@@ -311,7 +311,7 @@ drawNewFunction fName model pt1 pt2 =
           |> Utils.perhapsLogError "drawNewFunction error"
           |> Result.toMaybe
           -- Handle single point or list of points
-          |> Maybe.andThen (\((val, _), _) -> (valToMaybePoint val |> Maybe.map List.singleton) |> Utils.orMaybe (vListToMaybeVals val |> Maybe.andThen (List.map valToMaybePoint >> Utils.projJusts)) )
+          |> Maybe.andThen (\((val, _), _, _) -> (valToMaybePoint val |> Maybe.map List.singleton) |> Utils.orMaybe (vListToMaybeVals val |> Maybe.andThen (List.map valToMaybePoint >> Utils.projJusts)) )
         in
         maybePoints
         |> Maybe.map (List.map (\(x,y) -> svgXYDot (x, y) pointZoneStyles.fill.shown True []))
@@ -1232,7 +1232,7 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
                     args ++ [eTuple [eConstDummyLoc xAnchor, eConstDummyLoc yAnchor]]
                   exp =
                     withDummyExpInfo (EApp space1 (eVar0 f) argsAndAnchor SpaceApp space0)
-                  ((val, _), _) =
+                  ((val, _), _, _) =
                     Eval.doEval syntax finalEnv exp
                       |> Utils.fromOkay "lambdaToolOptionsOf LambdaAnchor"
                 in

@@ -3,7 +3,7 @@
 module MathExp exposing (..)
 
 
-import Lang exposing (Exp, Num, Op_(..), Trace(..))
+import Lang exposing (Exp, Num, Op_(..), Trace(..), Ident, Exp__(..))
 import Utils
 
 import Dict exposing (Dict)
@@ -148,3 +148,46 @@ mathExpToExp numberToExp varIdToExp mathExp =
     MathNum n            -> numberToExp n
     MathVar varId        -> varIdToExp varId
     MathOp op childTerms -> Lang.eOp op (List.map (mathExpToExp numberToExp varIdToExp) childTerms) -- Unparser adds parens for us
+
+
+-- Returned Dict may have extra entries
+expToMaybeMathExp : Exp -> Maybe (MathExp, Dict Ident Int)
+expToMaybeMathExp exp =
+  let identToVarId =
+    exp
+    |> Lang.flattenExpTree
+    |> List.filterMap
+        (\e ->
+          case e.val.e__ of
+            EVar _ ident -> Just ident
+            _            -> Nothing
+        )
+    |> Utils.dedup
+    |> Utils.zipi1
+    |> List.map Utils.flip
+    |> Dict.fromList
+  in
+  expToMaybeMathExp_ identToVarId exp
+  |> Maybe.map (\mathExp -> (mathExp, identToVarId))
+
+
+expToMaybeMathExp_ : Dict Ident Int -> Exp -> Maybe MathExp
+expToMaybeMathExp_ identToVarId exp =
+  case (Lang.expEffectiveExp exp).val.e__ of
+    EConst _ n _ _ ->
+      Just (MathNum n)
+
+    EVar _ ident ->
+       Just (MathVar <| Utils.getWithDefault ident -1 identToVarId)
+
+    EOp _ op operandExps _ ->
+      if Lang.isMathOp_ op.val then
+        operandExps
+        |> List.map (expToMaybeMathExp_ identToVarId)
+        |> Utils.projJusts
+        |> Maybe.map (MathOp op.val)
+      else
+        Nothing
+
+    _ ->
+      Nothing

@@ -83,38 +83,38 @@ isValidInsertionLocationExpForContext editingContext program =
   (\exp -> Set.member exp.val.eid insertionLocationEIds)
 
 
-maybeSynthesisContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Maybe (Env, Maybe Ident, Exp, List Val)
-maybeSynthesisContext syntax editingContext program =
-  case editingContext of
-    Just (focusedEId, Just callEId) ->
-      let
-        contextExp         = LangTools.justFindExpByEId program focusedEId
-        callExp            = LangTools.justFindExpByEId program callEId
-        (funcExp, argExps) = LangTools.expToAppFuncAndArgs callExp
-        psuedoProgram      = program |> replaceExpNodeE__ByEId callEId (eTuple (funcExp::argExps)).val.e__
-      in
-      if isFunc contextExp then
-        Eval.doEvalEarlyAbort Nothing (.val >> .eid >> (==) callEId) syntax Eval.initEnv psuedoProgram
-        |> Result.toMaybe
-        |> Maybe.andThen
-            (\((val, widgets), maybeContextEnv) ->
-              case val.v_ of
-                VList (funcVal::argVals) ->
-                  case funcVal.v_ of
-                    VClosure maybeRecName funcPats funcBody closureEnv -> Just (closureEnv, maybeRecName, contextExp, argVals)
-                    _                                                  -> Nothing
-                _ ->
-                  Nothing
-            )
-      else
-        Nothing
+-- maybeSynthesisContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Maybe (Env, Maybe Ident, Exp, List Val)
+-- maybeSynthesisContext syntax editingContext program =
+--   case editingContext of
+--     Just (focusedEId, Just callEId) ->
+--       let
+--         contextExp         = LangTools.justFindExpByEId program focusedEId
+--         callExp            = LangTools.justFindExpByEId program callEId
+--         (funcExp, argExps) = LangTools.expToAppFuncAndArgs callExp
+--         psuedoProgram      = program |> replaceExpNodeE__ByEId callEId (eTuple (funcExp::argExps)).val.e__
+--       in
+--       if isFunc contextExp then
+--         Eval.doEvalEarlyAbort Nothing (.val >> .eid >> (==) callEId) syntax Eval.initEnv psuedoProgram
+--         |> Result.toMaybe
+--         |> Maybe.andThen
+--             (\((val, widgets), maybeContextEnv, _) ->
+--               case val.v_ of
+--                 VList (funcVal::argVals) ->
+--                   case funcVal.v_ of
+--                     VClosure maybeRecName funcPats funcBody closureEnv -> Just (closureEnv, maybeRecName, contextExp, argVals)
+--                     _                                                  -> Nothing
+--                 _ ->
+--                   Nothing
+--             )
+--       else
+--         Nothing
+--
+--     _ ->
+--       Nothing
 
-    _ ->
-      Nothing
 
 
-
-evalAtContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Maybe Env)
+evalAtContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Maybe Env, List Eval.PBEHoleSeen)
 evalAtContext syntax editingContext program =
   -- let returnEnvAtExp ret env =
   --   -- What env gets returned from the evaluator is wacky.
@@ -137,7 +137,7 @@ evalAtContext syntax editingContext program =
       in
       Eval.doEvalEarlyAbort (Just envEId) abortPred syntax Eval.initEnv program
       |> Result.map
-          (\((val, widgets), maybeContextEnv) ->
+          (\((val, widgets), maybeContextEnv, pbeHolesSeen) ->
             case maybeContextEnv of
               Just env ->
                 let
@@ -147,10 +147,10 @@ evalAtContext syntax editingContext program =
                         widgets
                         Eval.addSubsumingPriorWidgets
                 in
-                ((val, withWidgetsFromEnv), maybeContextEnv)
+                ((val, withWidgetsFromEnv), maybeContextEnv, pbeHolesSeen)
 
               Nothing ->
-                ((val, widgets), maybeContextEnv)
+                ((val, widgets), maybeContextEnv, pbeHolesSeen)
           )
 
     Nothing ->

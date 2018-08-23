@@ -1,4 +1,4 @@
-module Eval exposing (run, doEval, doEvalEarlyAbort, runUntilTheEnd, simpleEvalToMaybeVal, parseAndRun, parseAndRun_, evalDelta, initEnv, addSubsumingPriorWidgets)
+module Eval exposing (PBEHoleSeen, run, doEval, doEvalEarlyAbort, runUntilTheEnd, simpleEvalToMaybeVal, parseAndRun, parseAndRun_, evalDelta, initEnv, addSubsumingPriorWidgets)
 
 import Debug
 import Dict
@@ -97,22 +97,26 @@ run : Syntax -> Exp -> Result String (Val, Widgets)
 run syntax e =
   -- doEval syntax initEnv e |> Result.map Tuple.first
   ImpureGoodies.logTimedRun "Eval.run" (\() ->
-    doEval syntax initEnv e |> Result.map Tuple.first
+    doEval syntax initEnv e |> Result.map Utils.fst3
   )
 
-doEval : Syntax -> Env -> Exp -> Result String ((Val, Widgets), Maybe Env)
+doEval : Syntax -> Env -> Exp -> Result String ((Val, Widgets), Maybe Env, List PBEHoleSeen)
 doEval = doEvalEarlyAbort Nothing runUntilTheEnd
 
 
 type EarlyAbort a = EarlyAbort a
 
+type alias PBEHoleSeen         = (Exp, Env, Result String Val)
+type alias PBEHolesSeenRefCell = { pbeHolesSeen : List PBEHoleSeen }
+
 -- Return the value of some particular expression in the program the first time it is encountered.
-doEvalEarlyAbort : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Exp -> Result String ((Val, Widgets), Maybe Env)
+doEvalEarlyAbort : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Exp -> Result String ((Val, Widgets), Maybe Env, List PBEHoleSeen)
 doEvalEarlyAbort maybeRetEnvEId abortPred syntax initEnv e =
+  let pbeHolesSeenRefCell = { pbeHolesSeen = [] } in
   ImpureGoodies.tryCatch "EarlyAbort"
-    (\()               -> eval maybeRetEnvEId abortPred syntax initEnv [] { pbeHolesSeen = [] } e)
+    (\()               -> eval maybeRetEnvEId abortPred syntax initEnv [] pbeHolesSeenRefCell e)
     (\(EarlyAbort ret) -> ret)
-  |> Result.map (\((val, widgets), maybeEnv) -> ((val, postProcessWidgets e widgets), maybeEnv))
+  |> Result.map (\((val, widgets), maybeEnv) -> ((val, postProcessWidgets e widgets), maybeEnv, pbeHolesSeenRefCell.pbeHolesSeen))
 
 
 -- Do not use: you lose parent tagging.
@@ -136,7 +140,6 @@ doEvalEarlyAbort maybeRetEnvEId abortPred syntax initEnv e =
 simpleEvalToMaybeVal : Exp -> Maybe Val
 simpleEvalToMaybeVal e = eval Nothing runUntilTheEnd Syntax.Elm initEnv [] { pbeHolesSeen = [] } e |> Result.toMaybe |> Maybe.map (\((val, _), _) -> val)
 
-type alias PBEHolesSeenRefCell = { pbeHolesSeen : List (Exp, Env, Result String Val) }
 
 eval : Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Backtrace -> PBEHolesSeenRefCell -> Exp -> Result String ((Val, Widgets), Maybe Env)
 eval maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell e =
@@ -432,7 +435,7 @@ eval maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell e =
   EHole _ (HoleLoc locId)      -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " loc hole " ++ toString locId ++ "!"
   EHole _ HoleEmpty            -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
   EHole _ (HolePredicate _)    -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
-  EHole _ (HoleNamed name)     -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole " ++ name ++ "!"
+  EHole _ (HoleNamed name)     -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole " ++ name ++ "!" -- PBE sketch filling relys on this error format
   EHole _ (HolePBE examples _) ->
     let seenCount = Utils.count (\(seenHoleExp,_,_) -> seenHoleExp == e) pbeHolesSeenRefCell.pbeHolesSeen in
     case Utils.maybeGeti1 (seenCount + 1) examples of

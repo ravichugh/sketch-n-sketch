@@ -1,6 +1,7 @@
 module ExpressionBasedTransform exposing -- in contrast to ValueBasedTransform
   ( passiveSynthesisSearch
   , cloneEliminationSythesisResults
+  , repeatByIndexedMerge
   , groupSelectedBlobs
   , abstractSelectedBlobs
   , replicateSelectedBlob
@@ -473,6 +474,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
               argCount
         in
         let funcWithPlaceholders =
+          -- If you ever do more than pVars here, you will need to modify repeatByIndexedMerge
           let argList = List.map (\n -> (if n == 1 then pVar0 else pVar) ("INSERT_ARGUMENT" ++ toString n ++ "_HERE")) (List.range 1 argCount) in
           let fBody =
             mergedArgUsesEnumerated
@@ -558,21 +560,24 @@ noExtraneousFreeVarsInRemovedClones cloneExps commonScopeWhereAbstractionWillBeD
         freeVars cloneExp |> List.all (\var -> List.member var freeAtAbstraction)
       )
 
-cloneEliminationSythesisResults : (Exp -> Bool) -> Int -> Int -> Exp -> List InterfaceModel.SynthesisResult
-cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToArgumentRatio originalExp =
-  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 1) 1 False ++
-  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 2) 2 False ++
-  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 3) 3 False ++
-  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 4) 4 False ++
-  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 5) 5 False ++
-  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 6) 6 False ++
-  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 7) 7 False ++
-  detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * 8) 8 False
+-- Returns List of (Sorted List of (EId, Expression to Replace, Argument Expressions), Replacing Function, Common Scope, Suggested Function Name, Argument Names)
+detectClonesOfVariousSizes : (Exp -> Bool) -> Int -> Int -> List Int -> Bool -> Exp -> List (List (EId, Exp, List Exp), Exp, Exp, String, List String)
+detectClonesOfVariousSizes candidateExpFilter minCloneCount minCloneSizeToArgumentRatio sizes allowCurrying originalExp =
+  sizes
+  |> List.concatMap
+      (\size ->
+        detectClones originalExp candidateExpFilter minCloneCount (minCloneSizeToArgumentRatio * size) size allowCurrying
+      )
   |> List.filter
       (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _, _) ->
         let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
          noExtraneousFreeVarsInRemovedClones cloneExps commonScope
       )
+
+
+cloneEliminationSythesisResults : (Exp -> Bool) -> Int -> Int -> Exp -> List InterfaceModel.SynthesisResult
+cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToArgumentRatio originalExp =
+  detectClonesOfVariousSizes candidateExpFilter minCloneCount minCloneSizeToArgumentRatio (List.range 1 8) False originalExp
   |> List.map
       (\(cloneEIdsAndExpsAndParameterExpLists, abstractedFunc, commonScope, funcSuggestedName, argNames) ->
         let funcName = nonCollidingName funcSuggestedName 2 (identifiersSet commonScope) in
@@ -606,12 +611,7 @@ cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToA
 
 mapAbstractSynthesisResults : Exp -> List InterfaceModel.SynthesisResult
 mapAbstractSynthesisResults originalExp =
-  detectClones originalExp (always True) 3 3 1 True
-  |> List.filter
-      (\(cloneEIdsAndExpsAndParameterExpLists, _, commonScope, _, _) ->
-        let (_, cloneExps, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
-         noExtraneousFreeVarsInRemovedClones cloneExps commonScope
-      )
+  detectClonesOfVariousSizes (always True) 3 1 [1] True originalExp -- at least three clones, at least size 3*1 = 3, exactly 1 argument, allow currying
   |> List.map
       (\(cloneEIdsAndExpsAndParameterExpLists, abstractedFunc, commonScope, funcSuggestedName, argNames) ->
         let (eidsToReplace, sortedExps, parameterExpLists) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
@@ -650,6 +650,76 @@ mapAbstractSynthesisResults originalExp =
         InterfaceModel.synthesisResult
             ("Merge " ++ clonesName ++ " by mapping over " ++ String.join " " argNames)
             newProgram
+      )
+
+
+-- Repeat by Indexed Merge
+--
+-- Naively assumes the order of expressions in the program is the same as their order in the output.
+--
+-- Performs three steps that previously you had to do separately: 1. map-merge 2. rename simple renamings to outer 3. inline list
+--
+-- Not amazing because it does whole-program transforms for the last two steps (LangSimplify.simplify |> inlineListSynthesisResults) which may impact other code.
+repeatByIndexedMerge : (Exp -> Bool) -> Int -> Int -> Exp -> List InterfaceModel.SynthesisResult
+repeatByIndexedMerge candidateExpFilter minCloneCount minCloneSizeToArgumentRatio originalExp =
+  detectClonesOfVariousSizes candidateExpFilter minCloneCount minCloneSizeToArgumentRatio (List.range 1 8) False originalExp
+  |> List.concatMap
+      (\(cloneEIdsAndExpsAndParameterExpLists, abstractedFunc, commonScope, funcSuggestedName, argNames) ->
+        let (eidsToReplace, sortedExps, parameterExpLists) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
+        let oldIndentation = indentationOf commonScope in
+        let itemCount = List.length eidsToReplace in
+        let mapCall =
+          let abstractedFuncWithPBEHoles =
+            let
+              freeVarsInFunc = abstractedFunc |> expToFuncBody |> freeVars
+              parameterExpsTransposed = Utils.maybeZipN parameterExpLists |> Utils.fromJust_ "ExpressionBasedTransform.repeatByIndexedMerge parameterExpsTransposed = Utils.maybeZipN parameterExpLists failed"
+              varSubst =
+                Utils.zip (expToFuncPats abstractedFunc) parameterExpsTransposed
+                |> List.map
+                    (\(patVar, expressions) ->
+                      let
+                        targetIdent = patToMaybePVarIdent patVar |> Utils.fromJust_ "ExpressionBasedTransform.repeatByIndexedMerge expected func pats from clone detection to only be pVars"
+                        pbeHole = eHolePBE (List.map (replacePrecedingWhitespace " ") expressions)
+                      in
+                      (targetIdent, (always pbeHole))
+                    )
+                |> Dict.fromList
+            in
+            abstractedFunc |> mapFuncBody (transformVarsUntilBound varSubst) |> mapFuncPats (always [pVar0 "i"])
+          in
+          let rangeExp =
+             eCall "reverse" [
+              eCall "zeroTo" [withDummyExpInfo <| EConst space1 (toFloat itemCount ) (dummyLoc_ unann) (intSlider 0 (5*itemCount))]
+            ]
+          in
+          let newLineIndent extraIndent exp = replacePrecedingWhitespace ("\n" ++ extraIndent ++ oldIndentation) exp in
+          eApp
+              (eVar0 "map") -- or concatMap
+              [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) (eParens <| removePrecedingWhitespace abstractedFuncWithPBEHoles)) -- Put arguments on same line as map call.
+              , newLineIndent "    " rangeExp
+              ]
+          |> newLineIndent "  "
+        in
+        let namesToAvoid = identifiersSet commonScope in
+        let varNames = sortedExps |> Utils.mapi1 (\(i, _) -> nonCollidingName (funcSuggestedName ++ toString i) 2 namesToAvoid) in
+        let eidToVarE__ = Utils.zip eidsToReplace (varNames |> List.map (\name -> EVar space1 name)) |> Dict.fromList in
+        let usagesReplaced = applyESubstPreservingPrecedingWhitespace eidToVarE__ commonScope in
+        let wrapped =
+          newLetFancyWhitespace -1 False (pListOfPVars varNames) mapCall usagesReplaced originalExp
+          -- let letKind = if isTopLevel commonScope originalExp then Def else Let in
+          -- withDummyExpInfo <| ELet (ws <| "\n" ++ oldIndentation) letKind False (pListOfPVars varNames) space1 mapCall space1 usagesReplaced space0
+        in
+        let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
+        let clonesName =
+          if Utils.commonPrefixString varNames /= "" then
+            toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ Utils.commonPrefixString varNames ++ "s"
+          else
+            eidsToReplace |> List.map (expNameForEId originalExp) |> Utils.toSentence
+        in
+        newProgram
+        |> LangSimplify.simplify
+        |> inlineListSynthesisResults
+        |> List.map (InterfaceModel.mapResultDescription (always <| "Repeat " ++ clonesName ++ " by Indexed Merge producing " ++ toString (Utils.count isPBEHole <| flattenExpTree mapCall) ++ " holes"))
       )
 
 

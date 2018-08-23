@@ -1552,15 +1552,15 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
       -- Also remove results that screw up the SVG output (if original output was SVG).
       let shapeCountBefore =
         case InterfaceModel.runAndResolveAtContext model program of
-          Err _                        -> 0
-          Ok (_, _, (_, shapeTree), _) -> Dict.size shapeTree
+          Err _                           -> 0
+          Ok (_, _, (_, shapeTree), _, _) -> Dict.size shapeTree
       in
       abstractedCandidatePrograms
       |> List.filter
           (\synthesisResult ->
             case InterfaceModel.runAndResolveAtContext model (InterfaceModel.resultExp synthesisResult) of
-              Err s                                       -> False
-              Ok (_, widgets, (_, shapeTree) as slate, _) -> if shapeCountBefore > 1 then Dict.size shapeTree > 1 else True -- Top level 'svg' is an element
+              Err s                                          -> False
+              Ok (_, widgets, (_, shapeTree) as slate, _, _) -> if shapeCountBefore > 1 then Dict.size shapeTree > 1 else True -- Top level 'svg' is an element
           )
 
 

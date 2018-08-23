@@ -208,11 +208,11 @@ getUpdateStackOp env e oldVal out nextToUpdate =
     EApp sp0 e1 e2s appType sp1 ->
       case doEval Syntax.Elm env e1 of
       Err s       -> UpdateError s
-      Ok ((v1, _),_) ->
+      Ok ((v1, _),_,_) ->
         case List.map (doEval Syntax.Elm env) e2s |> Utils.projOk of
           Err s       -> UpdateError s
           Ok v2ls ->
-            let v2s = List.map (\((v2, _), _) -> v2) v2ls in
+            let v2s = List.map (\((v2, _), _, _) -> v2) v2ls in
             case v1.v_ of
               VClosure Nothing ps eBody env_ as vClosure ->
                 case conssWithInversion (ps, v2s) (Just (env_, \newEnv_ newPs newBody -> replaceV_ v1 <| VClosure Nothing newPs newBody newEnv_)) of
@@ -254,7 +254,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
 
     EIf sp0 cond sp1 thn sp2 els sp3 ->
       case doEval Syntax.Elm env cond of
-        Ok ((v, _), _) ->
+        Ok ((v, _), _, _) ->
           case v.v_ of
             VBase (VBool b) ->
               if b then
@@ -275,7 +275,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
           case Utils.projOk <| List.map (doEval Syntax.Elm env) opArgs of
             Err msg -> UpdateError msg
             Ok argsEvaled ->
-              let ((vs, wss), envs) = Tuple.mapFirst List.unzip <| List.unzip argsEvaled in
+              let ((vs, wss), envs, _) = Utils.mapFst3 List.unzip <| Utils.unzip3 argsEvaled in
               let args = List.map .v_ vs in
               let argList = replaceE__ e <| EList (ws "") (List.map ((,) space0) opArgs) (ws "") Nothing (ws "") in
               let handleRemainingResults lazyTail nextToUpdate =
@@ -305,7 +305,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                               Ok parsed ->
                                 case doEval Syntax.Elm [] parsed of
                                   Err msg -> UpdateError msg
-                                  Ok ((v, _), _) ->
+                                  Ok ((v, _), _, _) ->
                                     case (opArgs, vs) of
                                       ([opArg], [arg]) -> UpdateContinue env opArg arg (Raw v) <|
                                           HandlePreviousResult <| \(env, newOpArg) ->
@@ -336,7 +336,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                             Ok parsed ->
                               case doEval Syntax.Elm [] parsed of
                                 Err msg -> UpdateError msg
-                                Ok ((v, _), _) ->
+                                Ok ((v, _), _, _) ->
                                   case (opArgs, vs) of
                                     ([opArg], [arg]) -> UpdateContinue env opArg arg (Raw v) <|
                                         HandlePreviousResult <| \(env, newOpArg) ->
@@ -358,7 +358,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
     ECase sp1 input branches sp2 ->
       case doEval Syntax.Elm env input of
         Err msg -> UpdateError msg
-        Ok ((inputVal, _), _) ->
+        Ok ((inputVal, _), _, _) ->
           case branchWithInversion env inputVal branches of
             Nothing -> UpdateError <| "Match error: " ++ valToString inputVal ++ " on branches " ++ Syntax.unparser Syntax.Elm e
             Just ((branchEnv, branchExp), envValBranchBuilder) ->
@@ -372,7 +372,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
     ELet sp1 letKind False p sp2 e1 sp3 body sp4 ->
         case doEval Syntax.Elm env e1 of
           Err s       -> UpdateError s
-          Ok ((oldE1Val,_), _) ->
+          Ok ((oldE1Val,_), _, _) ->
             case consWithInversion (p, oldE1Val) (Just (env, (\newEnv -> newEnv))) of
                Just (envWithE1, consBuilder) ->
                  UpdateContinue envWithE1 body oldVal out <| HandlePreviousResult <| \(newEnvWithE1, newBody) ->
@@ -387,7 +387,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
     ELet sp1 letKind True p sp2 e1 sp3 body sp4 ->
         case doEval Syntax.Elm env e1 of
           Err s       -> UpdateError s
-          Ok ((oldE1Val,_), _) ->
+          Ok ((oldE1Val,_), _, _) ->
             case (p.val.p__, oldE1Val.v_) of
               (PVar _ fname _, VClosure Nothing x closureBody env_) ->
                 --let _   = Utils.assert "eval letrec" (env == env_) in

@@ -660,7 +660,7 @@ evalToSvg : Syntax -> Env -> Exp -> Result String (Svg.Svg a)
 evalToSvg syntax env exp =
   Eval.doEval syntax env exp
   |> Result.andThen
-      (\((val, _), _) ->
+      (\((val, _), _, _) ->
         resolveToRootedIndexedTree syntax 1 1 0 val
         |> Result.map buildSvgSimple
       )
@@ -961,7 +961,7 @@ fetchSlideVal syntax slideNumber val =
           -- Bind the slide number to the function's argument.
           let fenv_ = (argumentName, vIntFrozen slideNumber) :: fenv in
           Eval.doEval syntax fenv_ fexp
-          |> Result.map (\((returnVal, _), _) -> returnVal)
+          |> Result.map (\((returnVal, _), _, _) -> returnVal)
         _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok val -- Program returned a plain SVG array structure...we hope.
 
@@ -974,7 +974,7 @@ fetchMovieVal syntax movieNumber slideVal =
         PVar _ movieNumberArgumentName _ ->
           let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
           Eval.doEval syntax fenv_ fexp
-          |> Result.map (\((returnVal, _), _) -> returnVal)
+          |> Result.map (\((returnVal, _), _, _) -> returnVal)
         _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
 
@@ -999,7 +999,7 @@ fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
     Just [VBase (VString "Static"), VClosure _ _ _ _] ->
       let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal1" |> Utils.geti 2 in
       Eval.doEval syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber)])
-      |> Result.map (\((returnVal, _), _) -> returnVal)
+      |> Result.map (\((returnVal, _), _, _) -> returnVal)
 
     -- [
     --   "Dynamic"
@@ -1010,6 +1010,6 @@ fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
     Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ _ _ _, VBase (VBool _)] ->
       let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal2" |> Utils.geti 3 in
       Eval.doEval syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber), eConstDummyLoc movieTime])
-      |> Result.map (\((returnVal, _), _) -> returnVal)
+      |> Result.map (\((returnVal, _), _, _) -> returnVal)
 
     _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.

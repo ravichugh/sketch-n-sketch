@@ -13,7 +13,7 @@ port module InterfaceController exposing
   , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgHideWidgets
-  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction, msgRepeatUsingFunction, msgRepeatUsingPointList
+  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction, msgFillPBEHole, msgRepeatByIndexedMerge, msgRepeatUsingFunction, msgRepeatUsingPointList
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
@@ -89,6 +89,7 @@ import Blobs exposing (..)
 import Draw
 import DrawAddShape
 import ExpressionBasedTransform as ETransform
+import FillPBEHole
 import Sync
 import Eval
 import Update
@@ -658,7 +659,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  FocusedEditingContext.evalAtContext old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), maybeEnv) ->
+  FocusedEditingContext.evalAtContext old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), maybeEnv, _) ->
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
@@ -746,7 +747,7 @@ tryRun old =
           let editingContext = FocusedEditingContext.editingContextFromMarkers e in
 
           FocusedEditingContext.evalAtContext old.syntax editingContext e |>
-          Result.andThen (\((newVal,ws), maybeEnv) ->
+          Result.andThen (\((newVal,ws), maybeEnv, _) ->
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
               let newCode = Syntax.unparser old.syntax e in -- unnecessary, if parse/unparse were inverses
@@ -1780,6 +1781,38 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
   { old | synthesisResultsDict = Dict.insert "Build Abstraction" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 
+msgFillPBEHole pbeHoleEId synthesisResultsDictKey =  Msg synthesisResultsDictKey <| \old ->
+  let synthesisResults =
+    case runAndResolveAtContext old old.inputExp of
+      Ok (_, _, _, _, pbeHolesSeen) ->
+        let relevantPBEHolesSeen = pbeHolesSeen |> List.filter (\(holeExp, _, _) -> holeExp.val.eid == pbeHoleEId) in
+        FillPBEHole.pbeHoleFillings old.solutionsCache relevantPBEHolesSeen
+        |> List.map
+            (\filledHole ->
+              Model.synthesisResult
+                  (Syntax.unparser old.syntax filledHole)
+                  (replaceExpNodePreservingPrecedingWhitespace pbeHoleEId filledHole old.inputExp)
+            )
+
+      Err _ ->
+        []
+  in
+  { old | synthesisResultsDict = Dict.insert synthesisResultsDictKey (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
+
+
+-- Offers clone removal among expressions touched by the selected items.
+msgRepeatByIndexedMerge = Msg "Repeat by Indexed Merge" <| \old ->
+  let synthesisResults =
+    let eidSet =
+      Set.fromList <|
+        ShapeWidgets.selectionsEIdsTouched old.inputExp old.slate old.widgets old.selectedFeatures old.selectedShapes old.selectedBlobs (\e -> childExps e /= [])
+    in
+    let minCloneCount = max 2 (Set.size old.selectedShapes) in
+    ETransform.repeatByIndexedMerge (\e -> Set.member e.val.eid eidSet) minCloneCount 2 old.inputExp
+  in
+  { old | synthesisResultsDict = Dict.insert "Repeat by Indexed Merge" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
+
+
 msgRepeatUsingFunction repeatFuncName synthesisResultsDictKey =
   Msg synthesisResultsDictKey <| \old ->
     let synthesisResults =
@@ -2200,7 +2233,7 @@ msgPreviousSlide = Msg "Previous Slide" <| \old ->
     let previousSlideNumber = old.slideNumber - 1 in
     let result =
       FocusedEditingContext.evalAtContext old.syntax old.editingContext old.inputExp |>
-      Result.andThen (\((previousVal, _), _) ->
+      Result.andThen (\((previousVal, _), _, _) ->
         LangSvg.resolveToMovieCount old.syntax previousSlideNumber previousVal
         |> Result.map (\previousMovieCount ->
              upstate msgStartAnimation
@@ -2240,7 +2273,7 @@ doCallUpdate m =
   let updatedExp = Syntax.parser m.syntax m.valueEditorString
     |> Result.mapError (\e -> toString e)
     |> Result.andThen (Eval.doEval m.syntax [])
-    |> Result.map (\((v, _), _) -> Update.Raw v)
+    |> Result.map (\((v, _), _, _) -> Update.Raw v)
     |> Results.fromResult
     |> Results.andThen (\out -> Update.update Eval.initEnv m.inputExp m.inputVal out Results.LazyNil)
   in
