@@ -554,7 +554,8 @@ parseAndRun = valToString << Tuple.first << Utils.fromOk_ << run Syntax.Little <
 
 parseAndRun_ = strVal_ True << Tuple.first << Utils.fromOk_ << run Syntax.Little << Utils.fromOkay "parseAndRun_" << Parser.parse
 
-preludeIdentifiers = preludeEnv |> List.map Tuple.first |> Set.fromList
+preludeIdentifiersList = preludeEnv |> List.map Tuple.first
+preludeIdentifiers = preludeIdentifiersList |> Set.fromList
 
 identifiersSetPlusPrelude : Exp -> Set.Set Ident
 identifiersSetPlusPrelude exp =
@@ -782,6 +783,44 @@ visibleIdentifiersAtEIds program eids =
   let programIdents = visibleIdentifiersAtPredicateNoPrelude program (\exp -> Set.member exp.val.eid eids) in
   Set.union programIdents preludeIdentifiers
 
+
+visibleIdentifiersAtEIdBindingNum: Exp -> (EId, BindingNumber) -> List Ident
+visibleIdentifiersAtEIdBindingNum  program (eid, bn) =
+  visibleIdentifiersAtEIdBindingNumNoPrelude program (eid, bn) ++ preludeIdentifiersList
+
+visibleIdentifiersAtEIdBindingNumNoPrelude: Exp -> (EId, BindingNumber) -> List Ident
+visibleIdentifiersAtEIdBindingNumNoPrelude  program (eid, bn) =
+  let f: (Exp -> List Ident -> List Ident -> List Ident)
+       -> (Exp -> IsRec -> List LetExp -> BindingNumber -> List Ident -> List Ident -> (List Ident, List Ident))
+       -> (Exp -> List Ident -> List Ident)
+       -> (Exp -> Branch -> BindingNumber -> List Ident -> List Ident)
+       -> List Ident
+       -> List Ident
+       -> Exp
+       -> List Ident
+      f = foldExpTopDownWithScope
+  in
+  f (\exp globalIdents currentScope -> globalIdents)
+    (\exp isRec group bindingNumber globalIdents currentScope ->
+      let newIdents = group |> List.concatMap (patOfLetExp >> identifiersListInPat) in
+      let newScope = currentScope |> Utils.reverseInsert newIdents in
+      let newGlobalIdents: List Ident
+          newGlobalIdents =
+            if exp.val.eid == eid && bindingNumber == bn then
+               if isRec then newScope else currentScope
+            else globalIdents
+      in (newGlobalIdents, newScope)
+    )
+    (\fun currentScope -> case fun.val.e__ of
+       EFun _ pats _ _ -> currentScope |> Utils.reverseInsert (pats |> List.concatMap identifiersListInPat)
+       _ -> currentScope
+    )
+    (\cs branch index currentScope -> case branch.val of
+      Branch_ _ pat _ _ -> currentScope |> Utils.reverseInsert (pat |> identifiersListInPat)
+    )
+    []
+    []
+    program
 
 newVariableVisibleTo : EId -> Ident -> Int -> Exp -> List EId -> Exp -> (Ident, Exp)
 newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingName boundExp observerEIds program =

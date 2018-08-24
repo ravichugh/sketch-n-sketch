@@ -45,12 +45,15 @@ object SNS extends Module {
     examples()
     prelude()
     sourceRoot()
+    val startTime =  Calendar.getInstance().getTime().getTime
     println("elm_make started at " + currentDate)
     stderr(%%(ELM_MAKE,"Main.elm", "--output", outSNS)) match {
       case Left(msg) =>
         System.out.print("\033[H\033[2J") // Clears the console to display the error
         println(buildSummary(fixpoint(insertLinks)(msg)))
       case Right(ok) =>
+        val endTime =  Calendar.getInstance().getTime().getTime
+        println("it took " + (endTime - startTime )/ 1000 + "s")
         val output = read(outSNS)
         write.over(outSNS, output.replace("""var Elm = {};""",
         """var Elm = {};

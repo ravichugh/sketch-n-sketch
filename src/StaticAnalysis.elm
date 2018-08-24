@@ -54,7 +54,8 @@ grossDependencies_ identToDepEId program =
     childExps exp
     |> List.map (expEffectiveExp >> .val >> .eid)
   in
-  let handleLetexp isRec letExps identToDepEId =
+  let handleLetexp exp isRec letExps bindingNumber globalAcc identToDepEId =
+    (,) globalAcc <|
     Utils.foldLeft identToDepEId letExps <|
                  \identToDepEId (LetExp _ _ pat _ _ boundExp) ->
        let newBindings =

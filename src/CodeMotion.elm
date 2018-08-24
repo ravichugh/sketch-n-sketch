@@ -42,6 +42,7 @@ import Dict exposing (Dict)
 import Regex
 import Set exposing (Set)
 import EvalUpdate exposing (assignUniqueNames, visibleIdentifiersAtEIds, preludeIdentifiers, identifiersSetPlusPrelude)
+import Info exposing (replaceInfo)
 
 type alias PatBoundExpIsRec = (Pat, Exp, Bool)
 
@@ -130,10 +131,11 @@ renamePatByPId pid newName program =
 renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =
   case LangTools.findScopeExpAndPatByPathedPatternId (scopeId, path) program of
-    Just (scopeExp, pat) ->
+    Just ((scopeExp, branchNumber), pat) ->
       case LangTools.patToMaybeIdent pat of
         Just oldName ->
           let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in -- ScopeAreas are the outermost exp in which the variable might appear.
+          --let _ = Debug.log ("scopeAreas where to rename:" ++ (List.map (Syntax.unparser Syntax.Elm) scopeAreas |> String.join "\n;\n")) () in
           let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map (.val >> .eid) in
           let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
           let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map (.val >> .eid) in
@@ -2426,8 +2428,8 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
 reorderExpressionsTransformation originalProgram selections =
   case selections of
-    (_, _, [], _, _, _, _) -> Nothing
-    (_, _, expIds, [], [], [expTarget], []) ->
+    (_, _, [], _, _, _, _, _) -> Nothing
+    (_, _, expIds, [], [], [], [expTarget], []) ->
       let (beforeAfter, expTargetEId) = expTarget in
       let relevantEIds = expTargetEId::expIds in
       -- tryReorderExps can handle rearrangement of nested tuples, e.g. [a [b c]] to [a b [c]]
@@ -2500,27 +2502,27 @@ introduceVarTransformation
       ( insertPat_ (pat, boundExp) targetPath letExpToInsertInto
       , Nothing
       )
-  in case maybeTargetPos of
+  in case Debug.log "maybeTargetPos" maybeTargetPos of
     Nothing ->
-      Just <|
-        \() ->
+      Just <| \() ->
           let expToWrap = deepestCommonAncestorWithNewline m.inputExp (\e -> List.member e.val.eid expIds) in
-          introduceVarTransformation_ m expIds (expToWrap.val.eid, 0 {- Binding number -}) insertNewLet
+          introduceVarTransformation_ m expIds (expToWrap.val.eid, 0 {- Binding number -}) --insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
-    Just (LetExpTargetPosition (After, expTargetId, bindingNumber)) ->
-      Nothing -- TODO: Insert at the correct place (use bindingNumber)
-    Just (LetExpTargetPosition (Before, expTargetId, bindingNumber)) ->
-      Just <|
-        \() -> -- TODO: Insert at the correct place (use bindingNumber)
-          introduceVarTransformation_ m expIds (expTargetId, 0) insertNewLet
+    Just (DeclarationTargetPosition (After, (expTargetId, bindingNumber))) ->
+      Just <| \() ->
+        introduceVarTransformation_ m expIds (expTargetId, bindingNumber + 1 {- Binding number -})
+
+    Just (DeclarationTargetPosition (Before, (expTargetId, bindingNumber))) ->
+      Just <| \() ->
+          introduceVarTransformation_ m expIds (expTargetId, bindingNumber) --insertNewLet
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
       Just <|
         \() ->
-          introduceVarTransformation_ m expIds (expTargetId, 0) insertNewLet
+          introduceVarTransformation_ m expIds (expTargetId, 0) --insertNewLet
 
     Just (PatTargetPosition patTarget) ->
       case patTargetPositionToTargetPathedPatId patTarget of
@@ -2531,7 +2533,7 @@ introduceVarTransformation
                 Just <|
                   \() ->
                     introduceVarTransformation_ m expIds (targetId, 0)
-                      (addToExistingLet targetPath)
+                      --(addToExistingLet targetPath)
               else
                 Nothing
 
@@ -2541,9 +2543,149 @@ introduceVarTransformation
         _ ->
           Nothing
 
+-- It should insert the declarations before the declaration mentionned in the given index.
+-- It should recompute a dependency analysis as well, maybe we need to reorder the definitions.
+insertInDeclarations: BindingNumber -> List Declaration -> Declarations -> Result String Declarations
+insertInDeclarations bn newDecls decls =
+  let visualDeclarations = getDeclarationsInOrderWithIndex decls in
+  visualDeclarations |> List.concatMap (\(decl, bindingNumber) ->
+    if bindingNumber == bn then
+      newDecls ++ [decl]
+    else [decl]
+  ) |> (\intermediateDecls ->
+    let finalDecls = if visualDeclarations |> List.all (\(_, bindingNumber) -> bindingNumber /= bn) then
+      intermediateDecls ++ newDecls
+      else
+      intermediateDecls
+    in
+    Parser.reorderDeclarations finalDecls)
 
+insertLetExpsAt: (EId, BindingNumber) -> List LetExp -> Exp -> Result String Exp
+insertLetExpsAt (eid, bn) newLetExps exp =
+  let (newExp, mbError) = mapFoldExp
+        (\exp mbError -> if exp.val.eid /= eid then (exp, mbError) else
+       case exp.val.e__ of
+        ELet sp lk decls wsIn body ->
+           case insertInDeclarations bn (newLetExps |> List.map DeclExp) decls of
+             Ok newDecls ->
+               (replaceE__ exp <| ELet sp lk newDecls wsIn body, mbError)
+             Err msg -> (exp,  Just msg)
+        ERecord sp mbInit decls sp2 ->
+           case insertInDeclarations bn (newLetExps |> List.map DeclExp) decls of
+             Ok newDecls ->
+               (replaceE__ exp <| ERecord sp mbInit newDecls sp2, mbError)
+             Err msg -> (exp, Just msg)
+        x ->
+          case insertInDeclarations 0 (newLetExps |> List.map DeclExp) (Declarations [] [] [] []) of
+            Ok newDecls ->
+              (replaceInfo exp <| exp_ <| ELet (precedingWhitespaceWithInfoExp exp) Let newDecls space1 exp, mbError)
+            Err msg -> (exp, Just msg)
+       ) Nothing exp
+  in
+  case mbError of
+    Just s -> Err s
+    Nothing -> Ok newExp
+
+introduceVarTransformation_:
+  Model -> List Int ->   (EId, BindingNumber) -> List SynthesisResult
+introduceVarTransformation_
+  m        eidsToExtract insertionPosition =
+  let
+    isSafe = True -- TODO List.all (isDescendentOf expPosition) eIdsToExtract
+
+    identsAtInsertionPoint = EvalUpdate.visibleIdentifiersAtEIdBindingNum m.inputExp insertionPosition
+
+    folder: Exp -> List LetExp -> List Ident -> (Exp, List LetExp)
+    folder exp declarationsToInsert scopeIdents =
+      if not <| List.member exp.val.eid <| eidsToExtract then (exp, declarationsToInsert)
+      else let -- An expression to insert !
+      -- We convert it to either an EApp if there are some free variables, or just the expression itself.
+        identsDefinedSinceInsertionPoint =
+          Utils.commonPrefixPair identsAtInsertionPoint scopeIdents
+        _ = Debug.log "identsDefinedSinceInsertionPoint" identsDefinedSinceInsertionPoint
+        identsToAbstractOn = freeIdentifiersList exp |>
+          List.filter (not << flip List.member identsDefinedSinceInsertionPoint)
+        _ = Debug.log "identsToAbstractOn" identsToAbstractOn
+        newBaseVarname = if List.isEmpty identsToAbstractOn then "variable" else "custom"
+        newVarName =
+          nonCollidingName newBaseVarname 1 <| Set.fromList <|
+            (declarationsToInsert |> List.concatMap (\(LetExp _ _ p _ _ _ ) -> identifiersListInPat p)) ++
+            identsDefinedSinceInsertionPoint
+        newDeclarationsToInsert body =
+          LetExp Nothing (ws "\n") (pVar0 newVarName) FunArgAsPats (ws " ") body ::
+          declarationsToInsert
+      in if List.isEmpty identsToAbstractOn then -- Just a variable
+        (replaceInfo exp <| exp_ <| EVar (precedingWhitespaceWithInfoExp exp) newVarName,
+         newDeclarationsToInsert exp)
+      else -- A function call
+        (replaceInfo exp <| exp_ <| EApp (precedingWhitespaceWithInfoExp exp)
+          (replaceInfo exp <| exp_ <| EVar space0 newVarName)
+          (identsToAbstractOn |> List.map (replaceInfo exp << exp_ << EVar space1))
+          SpaceApp
+          space0
+        , newDeclarationsToInsert <| replaceInfo exp <| exp_ <|
+          EFun space0 (identsToAbstractOn |> List.map pVar) exp space0)
+
+    handleLetExp: Exp -> IsRec -> List LetExp -> BindingNumber -> List LetExp -> List Ident -> (List LetExp, List Ident) -- handleLetExp
+    handleLetExp e isRec group bindingNumber declarationsToInsert scopeIdents =
+      scopeIdents
+      |> Utils.reverseInsert
+          (group |> List.concatMap (patOfLetExp >> identifiersListInPat))
+      |> (,) declarationsToInsert
+
+    handleEFun: Exp -> List Ident -> List Ident                  -- hanldeEFun
+    handleEFun exp scopeIdents = case exp.val.e__ of
+      EFun _ pats _ _ ->
+        scopeIdents
+        |> Utils.reverseInsert
+          (pats |> List.concatMap identifiersListInPat)
+      _ ->
+       scopeIdents
+
+    handleCaseBranch: Exp -> Branch -> Int -> List Ident -> List Ident -- hanldeCaseBranch
+    handleCaseBranch exp branch nth scopeIdents = case branch.val of
+      Branch_ _ pat _ _ ->
+        scopeIdents
+        |> Utils.reverseInsert
+          (pat |> identifiersListInPat)
+
+    initGlobal: List LetExp
+    initGlobal = [] -- List of expressions to insert
+
+    initScope: List Ident
+    initScope = EvalUpdate.preludeEnv |> List.map Tuple.first
+
+  -- First pass: We collect all the definitions
+  -- and abstract over variables that are not present at the target position.
+    (expWithFunctions, definitionsToInline) =
+      mapFoldExpTopDownWithScope folder handleLetExp handleEFun handleCaseBranch initGlobal initScope m.inputExp
+
+    resNewExp = if definitionsToInline |> List.isEmpty then
+        Err "No definition to inline found"
+      else insertLetExpsAt insertionPosition definitionsToInline expWithFunctions
+
+    msg = let functions = definitionsToInline |> List.filter (\(LetExp _ _ p _ _ e) -> case e.val.e__ of
+        EFun _ _ _ _ -> True
+        _ -> False
+      ) |> List.length in
+      let variables = List.length definitionsToInline - functions in
+      ("Replace with " ++
+        (if functions == 0 then "" else
+        if functions  == 1 then " a function call" else
+        " " ++ toString functions ++ " function calls") ++
+        (if functions > 0 && variables > 0 then " and" else "") ++
+        (if variables == 0 then "" else
+         if variables  == 1 then " a variable" else
+         " " ++ toString variables ++ " variables"))
+  in
+  case resNewExp of
+    Ok newExp ->
+      [synthesisResult msg newExp |> setResultSafe isSafe]
+    Err msg ->
+      [synthesisResult msg m.inputExp]
 
 -- Small bug: can't introduce var directly in front of expression being extracted.
+{-
 introduceVarTransformation_:
   Model -> List Int ->   (EId,                BindingNumber) -> (EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)) -> List SynthesisResult
 introduceVarTransformation_
@@ -2628,7 +2770,7 @@ introduceVarTransformation_
       insertedVarEIdToBindingPId -- insertedVarEIdToBindingPId
       programUniqueNames -- originalProgramUniqueNames
       newProgramUniqueNames -- newProgramUniqueNames
-
+-}
 
 ------------------------------------------------------------------------------
 
@@ -2652,7 +2794,7 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
-    Just (LetExpTargetPosition (beforeAfter, expTargetId, bindingNum)) ->
+    Just (DeclarationTargetPosition (beforeAfter, (expTargetId, bindingNum))) ->
       Nothing
 
     Just (ExpTargetPosition (Before, expTargetId)) ->

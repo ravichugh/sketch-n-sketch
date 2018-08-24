@@ -710,7 +710,7 @@ expPolygon msgs codeInfo e =
         codeObjectPolygon msgs codeInfo codeObject color
 
 patPolygon
-  : Messages msg -> CodeInfo -> Exp -> Pat -> List (Svg msg)
+  : Messages msg -> CodeInfo -> (Exp, Int) -> Pat -> List (Svg msg)
 patPolygon msgs codeInfo e p =
   let
     codeObject =
@@ -736,33 +736,16 @@ letBindingEquationPolygon
 letBindingEquationPolygon msgs codeInfo eid n =
   let
     codeObject =
-      LBE eid n
+      D eid n
     color =
       objectColor codeInfo.displayInfo.colorScheme
   in
     codeObjectPolygon msgs codeInfo codeObject color
 
-expTargetPolygon
-  : Messages msg -> CodeInfo -> BeforeAfter -> WS -> Exp -> List (Svg msg)
-expTargetPolygon msgs codeInfo ba ws et =
-  let
-    codeObject =
-      ET ba ws et
-    color =
-      whitespaceColor codeInfo.displayInfo.colorScheme
-  in
-    codeObjectPolygon msgs codeInfo codeObject color
-
-patTargetPolygon
-  : Messages msg -> CodeInfo -> BeforeAfter -> WS -> Exp -> Pat -> List (Svg msg)
-patTargetPolygon msgs codeInfo ba ws e pt =
-  let
-    codeObject =
-      PT ba ws e pt
-    color =
-      whitespaceColor codeInfo.displayInfo.colorScheme
-  in
-    codeObjectPolygon msgs codeInfo codeObject color
+targetPolygon: Messages msg -> CodeInfo -> CodeObject -> List (Svg msg)
+targetPolygon msgs codeInfo codeObject = let
+    color = whitespaceColor codeInfo.displayInfo.colorScheme
+  in codeObjectPolygon msgs codeInfo codeObject color
 
 diffpolygons: CodeInfo -> List Exp -> List (Svg msg)
 diffpolygons codeInfo exps =
@@ -781,16 +764,15 @@ polygons msgs codeInfo ast =
                 patPolygon msgs codeInfo e p ++ acc
               T t ->
                 typePolygon msgs codeInfo t ++ acc
-              LBE eid bn ->
+              D eid bn ->
                 letBindingEquationPolygon msgs codeInfo eid bn ++ acc
               ET ba ws et ->
-                expTargetPolygon msgs codeInfo ba ws et ++ acc
+                targetPolygon msgs codeInfo codeObject ++ acc
               PT ba ws e pt ->
-                patTargetPolygon msgs codeInfo ba ws e pt ++ acc
+                targetPolygon msgs codeInfo codeObject ++ acc
+              DT _ _ _ _ ->
+                targetPolygon msgs codeInfo codeObject ++ acc
               TT _ _ _ ->
-                acc
-              LXT _ _ _ _ ->
-                --TODO: Create a polygon for let exp targets.
                 acc
           --else
           --  blockerPolygon codeInfo codeObject ++ acc

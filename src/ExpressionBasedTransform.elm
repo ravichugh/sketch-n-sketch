@@ -1931,7 +1931,7 @@ mergeMaybeExpressions me mes =
         else Nothing
     Just e  ->
       Utils.bindMaybe
-        (Utils.mapMaybe (Tuple.mapFirst Just) << mergeExpressions e)
+        (Maybe.map (Tuple.mapFirst Just) << mergeExpressions e)
         (Utils.projJusts mes)
 
 
