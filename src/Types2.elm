@@ -226,7 +226,7 @@ inferType
    -> {}
    -> Exp
    -> { newExp: Exp }
-        -- the inferred Maybe Type is in newExp.typ
+        -- the inferred Maybe Type is in newExp.val.typ
 
 inferType gamma stuff thisExp =
   let (childExps, rebuildExp) = childExpsExtractors thisExp in
@@ -317,6 +317,128 @@ inferType gamma stuff thisExp =
       in
         { newExp = newExp |> setType Nothing }
 
+    ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots letExps) ws2 ->
+      let
+        eRecordError s =
+          { newExp =
+              thisExp
+                |> setTypeError (OtherTypeError ["not supported in records: " ++ s])
+          }
+      in
+      case (maybeExpWs, letTypes, letAnnots, letExps) of
+        (Just _, _, _, _) ->
+          eRecordError "base expression"
+
+        (Nothing, _::_, _, _) ->
+          eRecordError "type definitions"
+
+        (Nothing, _, _::_, _) ->
+          eRecordError "type annotations"
+
+        (Nothing, [], [], letExps) ->
+          let
+            maybeListLetExp =
+              List.map (\(isRec, listLetExps) ->
+                         case (isRec, listLetExps) of
+                           (False, [letExp]) -> Just letExp
+                           _                 -> Nothing
+                       ) letExps
+            rebuildLetExps =
+              List.map (\newLetExp -> (False, [newLetExp]))
+          in
+          case Utils.projJusts maybeListLetExp of
+            Nothing ->
+              eRecordError "wasn't expecting these letExps..."
+
+            Just listLetExp ->
+              let
+                (listLetExpMinusCtor, finishLetExpsAndFieldTypes) =
+                  let
+                    default =
+                      ( listLetExp
+                      , \(newListLetExp, maybeFieldTypes) -> (newListLetExp, maybeFieldTypes)
+                      )
+                  in
+                  case listLetExp of
+                    [] ->
+                      default
+
+                    firstLetExp :: restListLetExp ->
+                      let (LetExp mbWs1 ws2 p funArgStyle ws3 e) = firstLetExp in
+                      case (p.val.p__, e.val.e__) of
+                        (PVar _ pname _, EBase _ (EString _ ename)) ->
+                          if String.startsWith "Tuple" ename then
+                            ( restListLetExp
+                            , \(newRestListLetExp, fieldMaybeTypes) ->
+                                ( firstLetExp
+                                    :: newRestListLetExp
+                                , Just (Lang.ctor (withDummyRange << TVar space0) TupleCtor ename)
+                                    :: fieldMaybeTypes
+                                )
+                            )
+
+                          else
+                            default
+
+                        _ ->
+                          default
+
+                (newListLetExp, maybeFieldTypes) =
+
+                  List.foldl
+                    (\(LetExp mbWs1 ws2 p funArgStyle ws3 e) (acc1,acc2) ->
+                      let
+                        result =
+                          inferType gamma stuff e
+                        newLetExp =
+                          LetExp mbWs1 ws2 p funArgStyle ws3 result.newExp
+                        maybeFieldType =
+                          case p.val.p__ of
+                            PVar _ fieldName _ ->
+                              result.newExp.val.typ
+                                |> Maybe.map (\t -> (Nothing, space1, fieldName, space1, t))
+                            _ ->
+                              Nothing -- TODO: report error around non-var field
+                      in
+                        ( newLetExp :: acc1 , maybeFieldType :: acc2 )
+                    )
+                    ([], [])
+                    listLetExpMinusCtor
+
+                  |> (\(list1, list2) -> (List.reverse list1, List.reverse list2))
+
+                  |> finishLetExpsAndFieldTypes
+
+                newLetExps =
+                  rebuildLetExps newListLetExp
+
+                newExp =
+                  case Utils.projJusts maybeFieldTypes of
+                    Just fieldTypes ->
+                      ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots newLetExps) ws2
+                        |> replaceE__ thisExp
+                        |> setType (Just (withDummyInfo (TRecord space0 Nothing fieldTypes space1)))
+
+                    Nothing ->
+                      let
+                        fieldError =
+                          (Nothing, space1, "XXX", space1, withDummyInfo (TVar space1 "XXX"))
+                        fieldTypesWithXXXs =
+                          List.map (Maybe.withDefault fieldError) maybeFieldTypes
+                        recordTypeWithXXXs =
+                          withDummyInfo (TRecord space0 Nothing fieldTypesWithXXXs space1)
+                        error =
+                          OtherTypeError
+                            [ "Some fields are okay, but others are not: "
+                            , unparseType recordTypeWithXXXs
+                            ]
+                      in
+                        ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots newLetExps) ws2
+                          |> replaceE__ thisExp
+                          |> setTypeError error
+              in
+                { newExp = newExp }
+
     _ ->
       { newExp = thisExp |> setType Nothing }
 
@@ -395,6 +517,9 @@ deuceTool =
 showTypeError : Exp -> Exp -> TypeError -> List SynthesisResult
 showTypeError inputExp thisExp typeError =
   case typeError of
+    OtherTypeError strings ->
+      List.map (deuceShow inputExp) strings
+
     ExpectedButGot expectedType _ maybeActualType ->
       [ deuceShow inputExp <|
           "Expected: " ++ unparseType expectedType

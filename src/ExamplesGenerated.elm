@@ -6076,7 +6076,17 @@ b = True
 
 s = "Hi!"
 
--- triple = (1, True, "Hi!")
+pair = (1, True)
+
+triple = (1, True, "Hi!")
+
+record0 = {}
+
+record1 = {n=1}
+
+record2 = {n=1, b=True}
+
+record3 = {n=1, b=True, s="Hi!"}
 
 bad1 = 1 : Bool
 
