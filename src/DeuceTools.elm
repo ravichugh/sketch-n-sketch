@@ -61,7 +61,7 @@ selectedNumsAndBaseVals program selectedWidgets =
          DeuceExp eid ->
            case findExpByEId program eid of
              Just ePlucked ->
-               case ePlucked.val.e__ of
+               case (unwrapExp ePlucked) of
                  EConst ws n loc wd -> ([(eid, (ws, n, loc, wd))], [])
                  EBase ws baseVal   -> ([], [(eid, (ws, baseVal))])
 
@@ -192,7 +192,7 @@ flipBooleanTool model selections =
         ([], [_], [eId], [], [], [], [], []) ->
           case findExpByEId model.inputExp eId of
             Just ePlucked ->
-              case ePlucked.val.e__ of
+              case (unwrapExp ePlucked) of
                 EBase ws (EBool bool) ->
                   let
                     flipped =
@@ -256,7 +256,7 @@ renameVariableTool model selections =
         ([], [], [eId], [], [], [], [], []) ->
           case findExpByEId model.inputExp eId of
             Just ePlucked ->
-              case ePlucked.val.e__ of
+              case (unwrapExp ePlucked) of
                 EVar _ ident ->
                   let
                      newName =
@@ -604,7 +604,7 @@ moveDefinitionTool model selections =
               ( findExpByEId
                   model.inputExp
                   (pathedPatIdToScopeEId targetPathedPatId)
-              ) |> Maybe.map (.val >> .e__)
+              ) |> Maybe.map unwrapExp
             of
               Just (ELet _ _ _ _ _) ->
                 ( Utils.perhapsPluralizeList toolName pathedPatIds
@@ -1178,7 +1178,7 @@ createFunctionTool model selections =
         ([], [], [], [pathedPatId], [], [], [], []) ->
           case
             LangTools.findScopeExpAndPatByPathedPatternId pathedPatId model.inputExp
-              |> Maybe.map (\((e, id), p) -> (e.val.e__, id, p.val.p__))
+              |> Maybe.map (\((e, id), p) -> (unwrapExp e, id, p.val.p__))
           of
             Just (ELet _ _ _ _ _, id, PVar _ ident _) ->
               ( Just <| \() ->
@@ -1265,12 +1265,12 @@ createFunctionFromArgsTool model selections =
         (_, _, eids, ppids, [], [], [], []) ->
           case ppids |> List.map (\ppid -> LangTools.findBoundExpByPathedPatternId ppid model.inputExp) |> Utils.projJusts of
             Just boundExps ->
-              let argEIds = Utils.dedup <| eids ++ List.map (.val >> .eid) boundExps in
+              let argEIds = Utils.dedup <| eids ++ List.map expEId boundExps in
               let enclosingPPIds =
-                let ancestors = commonAncestors (\e -> List.member e.val.eid argEIds) model.inputExp in
-                let ancestorEIds = ancestors |> List.map (.val >> .eid) in
+                let ancestors = commonAncestors (\e -> List.member (expEId e) argEIds) model.inputExp in
+                let ancestorEIds = ancestors |> List.map expEId in
                 ancestors
-                |> List.concatMap (\e -> case e.val.e__ of
+                |> List.concatMap (\e -> case unwrapExp e of
                    ELet _ _ (Declarations _ _ _ letexps) _ _ ->
                      elemsOf letexps |> List.filter (\(LetExp _ _ p _ _ _ ) ->
                        p |> LangTools.patToMaybePVarIdent |> (/=) (Just "main")
@@ -1280,8 +1280,8 @@ createFunctionFromArgsTool model selections =
                     (\(letExp, LetExp _ _ p _ _ e1) ->
                       LangTools.tryMatchExpPatToPaths p e1
                       |> List.filter (\(path, boundExp) -> not (isFunc boundExp))
-                      |> List.filter (\(path, boundExp) -> List.member boundExp.val.eid ancestorEIds) -- Incidentally, this also filters out trivial abstractions (e.g. (let x 5) -> (let x (\n -> n))) b/c boundExp must be ancestor of an arg, not an arg itself.
-                      |> List.map    (\(path, boundExp) -> ((letExp.val.eid, 1), path))
+                      |> List.filter (\(path, boundExp) -> List.member (expEId boundExp) ancestorEIds) -- Incidentally, this also filters out trivial abstractions (e.g. (let x 5) -> (let x (\n -> n))) b/c boundExp must be ancestor of an arg, not an arg itself.
+                      |> List.map    (\(path, boundExp) -> (((expEId letExp), 1), path))
                     )
               in
               case enclosingPPIds of
@@ -1321,7 +1321,7 @@ mergeTool model selections =
         mergeResults =
           let
             candidateExpFilter e =
-              List.member e.val.eid eids
+              List.member (expEId e) eids
             minCloneCount =
               List.length eids
           in
@@ -1353,7 +1353,7 @@ mergeTool model selections =
                LangTools.expToLetBoundExp |>
                flip Utils.nth bind |>
                Utils.fromOk "DeuceTools: bind should have been a integer in range !" |>
-               .val |> .eid)
+               expEId)
           in
           tryMerge boundExpEIds
 
@@ -1411,7 +1411,7 @@ addArgumentsTool model selections =
       (_, _, firstEId::restEIds, [], [], [], [], patTargets) ->
         let eids = firstEId::restEIds in
         let enclosingFuncs =
-          commonAncestors (\e -> List.member e.val.eid eids) model.inputExp
+          commonAncestors (\e -> List.member (expEId e) eids) model.inputExp
           |> List.filter isFunc
         in
         -- Is each target in an arg list? (Filtered to only zero or one target below in targetPPIdsToTry.)
@@ -1427,7 +1427,7 @@ addArgumentsTool model selections =
         in
         let targetPPIdsToTry =
           let funcExpToArgPPId funcExp =
-            ( (funcExp.val.eid, 1)
+            ( ((expEId funcExp), 1)
             , [ 1 + List.length (LangTools.expToFuncPats funcExp) ] -- By default, insert argument at the end
             )
           in
@@ -1467,7 +1467,7 @@ addArgumentsTool model selections =
         let argSourceScopeEIds = argSourcePathedPatIds |> List.map pathedPatIdToScopeEId in
         let areSourcesAllLets = argSourceScopeEIds |> List.all (findExpByEId model.inputExp >> Maybe.map isLet >> (==) (Just True)) in
         let enclosingFuncs =
-          commonAncestors (\e -> List.member e.val.eid argSourceScopeEIds) model.inputExp
+          commonAncestors (\e -> List.member (expEId e) argSourceScopeEIds) model.inputExp
           |> List.filter isFunc
         in
         -- Is each target in an arg list? (Filtered to only zero or one target below in targetPPIdsToTry.)
@@ -1483,7 +1483,7 @@ addArgumentsTool model selections =
         in
         let targetPPIdsToTry =
           let funcExpToArgPPId funcExp =
-            ( (funcExp.val.eid, 1)
+            ( ((expEId funcExp), 1)
             , [ 1 + List.length (LangTools.expToFuncPats funcExp) ] -- By default, insert argument at the end
             )
           in
@@ -1567,7 +1567,7 @@ removeArgumentsTool model selections =
                        in
                          case
                            scopeExp
-                             |> Maybe.map (.val >> .e__)
+                             |> Maybe.map unwrapExp
                          of
                            Just (EFun _ _ _ _) ->
                              True
@@ -1675,7 +1675,7 @@ reorderArgumentsTool model selections =
           let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
           let scopeIds          = List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds) in
           let targetScopeEId    = pathedPatIdToScopeEId targetPathedPatId in
-          case (Utils.allSame scopeIds, targetScopeEId |> findExpByEId model.inputExp |> Maybe.map (.val >> .e__)) of
+          case (Utils.allSame scopeIds, targetScopeEId |> findExpByEId model.inputExp |> Maybe.map unwrapExp) of
             (True, Just (EFun _ _ _ _)) ->
               ( Just <|
                   \() ->
@@ -1697,7 +1697,7 @@ reorderArgumentsTool model selections =
               let targetPathedPatId = patTargetPositionToTargetPathedPatId (beforeAfter, targetReferencePathedPatId) in
               let scopeIds = List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds) in
               let targetEId = pathedPatIdToScopeEId targetPathedPatId in
-              case (Utils.allSame scopeIds, targetEId |> findExpByEId model.inputExp |> Maybe.map (.val >> .e__)) of
+              case (Utils.allSame scopeIds, targetEId |> findExpByEId model.inputExp |> Maybe.map unwrapExp) of
                 (True, Just (EFun _ _ _ _)) ->
                   ( Just <|
                       \() ->
@@ -1755,7 +1755,7 @@ makeSingleLineTool model selections =
               findExpByEId model.inputExp letEId
                 |> Maybe.andThen (\e -> findLetexpByBindingNumber e bindingNum)
                 |> Maybe.map bindingOfLetExp
-                |> Maybe.map (\letBoundExp -> (letBoundExp.val.eid, False))
+                |> Maybe.map (\letBoundExp -> (expEId letBoundExp, False))
             _ ->
               Nothing
       in
@@ -1898,8 +1898,8 @@ makeSingleLineTool model selections =
                             EColonType (deLine ws1) e (deLine ws2) tipe space0
                           EParens ws1 e pStyle ws2 ->
                             EParens (deLine ws1) e pStyle (deLine ws2)
-                          EHole ws mv ->
-                            EHole (deLine ws) mv
+                          EHole ws h ->
+                            EHole (deLine ws) h
                       deLineExp e =
                         mapExp (mapNodeE__ deLineE__) e
                     in
@@ -1956,7 +1956,7 @@ makeMultiLineTool model selections =
             exp =
               LangTools.justFindExpByEId model.inputExp eid
           in
-            case exp.val.e__ of
+            case (unwrapExp exp) of
               EList ws1 es ws2 Nothing ws3 ->
                 if
                   Utils.listValues es |>
@@ -1989,7 +1989,7 @@ makeMultiLineTool model selections =
                                )
                           |> synthesisResult "Make Multi-line"
                           |> List.singleton
-              EApp ws1 e es appType ws2 ->
+              EApp ws1 (Expr e) es appType ws2 ->
                 if
                   es |>
                     List.all (precedingWhitespace >> String.contains "\n")
@@ -2007,7 +2007,7 @@ makeMultiLineTool model selections =
                                eid
                                ( EApp
                                    ws1
-                                   e
+                                   (Expr e)
                                    ( setExpListWhitespace
                                        " "
                                        ("\n" ++ indentation)
@@ -2059,7 +2059,7 @@ alignExpressionsTool model selections =
                 List.map (LangTools.justFindExpByEId model.inputExp)
             lineNums =
               exps |>
-                List.map (.start >> .line)
+                List.map (\(Expr e) -> e.start.line)
           in
             if lineNums /= Utils.dedup lineNums then
               Nothing
@@ -2069,18 +2069,19 @@ alignExpressionsTool model selections =
                   let
                     maxCol =
                       exps
-                        |> List.map (.start >> .col)
+                        |> List.map (\(Expr e) -> e.start.col)
                         |> List.maximum
                         |> Utils.fromJust_
                              "DeuceTools.alignExpressionsTool maxCol"
                   in
                     model.inputExp
                       |> mapExp
-                          ( \e ->
-                              if List.member e.val.eid eids then
+                          ( \(Expr e_) ->
+                              let e = Expr e_ in
+                              if List.member (expEId e) eids then
                                 let
                                   wsDelta =
-                                    maxCol - e.start.col
+                                    maxCol - e_.start.col
                                 in
                                   e |>
                                     pushRight (String.repeat wsDelta " ")

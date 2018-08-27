@@ -91,12 +91,10 @@ deltaLineRow kept =
 
 -- Rows and cols are zero-based
 dummyExp: String -> Int -> Int -> Int -> Int -> Exp
-dummyExp msg row col row2 col2 =
-  WithInfo (makeExp_ (EBase space0 <| EString "\"" msg) 0) (Pos row col) (Pos row2 col2)
+dummyExp msg row col row2 col2 = Expr <| WithInfo (makeExp_ (EBase space0 <| EString "\"" msg) 0) (Pos row col) (Pos row2 col2)
 
 dummyExp1: String -> Int -> Int -> Int -> Int -> Exp
-dummyExp1 msg row col row2 col2 =
-  WithInfo (makeExp_ (EBase space0 <| EString "\"" msg) 0) (Pos (row - 1) (col - 1)) (Pos (row2 - 1) (col2 - 1))
+dummyExp1 msg row col row2 col2 = Expr <| WithInfo (makeExp_ (EBase space0 <| EString "\"" msg) 0) (Pos (row - 1) (col - 1)) (Pos (row2 - 1) (col2 - 1))
 
 displayDiffPositions: (a -> String) -> Pos -> List (DiffChunk (List a)) -> (String, List Exp)
 displayDiffPositions tos initialPosition difference =
@@ -1088,7 +1086,7 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
                Debug.crash <| "Inconsistent diffs at index " ++ toString i ++ " in listDiffsToStrings2 " ++ toString renderingStyle ++ " " ++
                 toString structName ++ " _ " ++ toString indent ++ " " ++ toString lastEdit ++ " " ++ toString lastPos ++ " " ++
                 Syntax.unparser Syntax.Elm (eListWs  originals_ Nothing) ++ " " ++ Syntax.unparser Syntax.Elm (eListWs  modifieds_ Nothing)  ++ " " ++ toString diffs_
-            ) |> Tuple.second |> .end in
+            ) |> Tuple.second |> (\(Expr e) -> e.end) in
           aux j lastEdit newLastPos  (List.drop count original) (List.drop count modifieds) diffs (accStr, accList)
         else
           case change of
@@ -1128,7 +1126,7 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
 
             ListElemUpdate diff ->
               case (original, modifieds) of
-                ((spo, ho)::to, (spm, hm)::tm) ->
+                ((spo, Expr ho)::to, (spm, hm)::tm) ->
                   let (incAcc, ((newLastEdit, lastPos2), newHighlights)) =
                     case diff of
                        EConstDiffs EOnlyWhitespaceDiffs ->
@@ -1136,7 +1134,7 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
                         let newElemEnd = offsetPosition newLastEdit ho.end in
                         ("", ((newLastEdit, ho.end), []))
                        _ ->
-                        eDiffsToStringPositions renderingStyle indent lastEdit ho hm diff
+                        eDiffsToStringPositions renderingStyle indent lastEdit (Expr ho) hm diff
                   in
                   (accStr ++ incAcc, newHighlights++accList)  |>
                   aux (i + 1) newLastEdit lastPos2 to tm diffsTail
@@ -1234,8 +1232,8 @@ tupleDiffsToString2  renderingStyle indent    lastEdit    originalChildren modif
 -- which position was affected last
 -- the offset in #row/#column that happens before on the last affected row (hence if we are on a row afterward, column does not count)
 -- and a list of expressions to highlight in the code
-eDiffsToStringPositions: ParensStyle -> String ->  LastEdit -> Exp ->  Exp ->   EDiffs -> (String, ((LastEdit, Pos), List Exp))
-eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp ediff =
+eDiffsToStringPositions: ParensStyle -> String ->  LastEdit -> Exp ->          Exp ->         EDiffs -> (String, ((LastEdit, Pos), List Exp))
+eDiffsToStringPositions renderingStyle  indent     lastEdit    (Expr origExp) (Expr modifExp) ediff =
   let renderExp = case renderingStyle of
      --LongStringSyntax -> ElmUnparser.unparseAnyLongString
      HtmlSyntax -> ElmUnparser.unparseAnyHtml
@@ -1246,12 +1244,12 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
   case ediff of
       EConstDiffs ws ->
         if ws == EOnlyWhitespaceDiffs then
-          let newLastEdit_newEnd = offsetFromStrings lastEdit origExp.start (renderExp origExp) (renderExp modifExp) in
+          let newLastEdit_newEnd = offsetFromStrings lastEdit origExp.start (renderExp <| Expr origExp) (renderExp <| Expr modifExp) in
           ("", (newLastEdit_newEnd, []))
         else (
           let prefix = "\n" ++ indent ++ displayPos origExp.start {-++ "C" ++ toString origExp.start.col-} ++ ": " in
-          let beforeS = renderExp origExp in
-          let afterS = renderExp modifExp in
+          let beforeS = renderExp <| Expr origExp in
+          let afterS = renderExp <| Expr modifExp in
           let msg = "Was " ++ beforeS ++ ", now " ++ afterS in
           let newStart = offsetPosition lastEdit origExp.start  in
           let (newLastEdit, newEnd) = offsetFromStrings lastEdit origExp.start beforeS afterS in
@@ -1259,7 +1257,7 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
           (prefix ++ msg, ((newLastEdit, newEnd), [diffExp]))
          )
       EListDiffs diffs ->
-        case (origExp.val.e__, modifExp.val.e__) of
+        case (unwrapExp <| Expr origExp, unwrapExp <| Expr modifExp) of
           (EList _ originals _ _ _, EList _ modified _ _ _) ->
             --"\n" ++ indent ++ "Line " ++ toString origExp.start.line ++ " col " ++ toString origExp.start.col ++ " Change in a list:" ++
             let theStart =  origExp.start in
@@ -1267,10 +1265,10 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
               HtmlSyntax -> theStart
               _ -> { theStart | col = theStart.col + 1 } in
             listDiffsToString2 renderingStyle "list" renderExp indent lastEdit lastPos originals modified diffs
-          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects lists here, got " ++ renderExp origExp ++ ", " ++ renderExp modifExp,
+          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects lists here, got " ++ (renderExp <| Expr origExp) ++ ", " ++ (renderExp <| Expr modifExp),
             ((lastEdit, offsetPosition lastEdit origExp.end), []))
       EStringDiffs diffs ->
-        case (origExp.val.e__, modifExp.val.e__) of
+        case (unwrapExp <| Expr origExp, unwrapExp <| Expr modifExp) of
           (EBase _ (EString quoteChar original), EBase _ (EString _ modified)) ->
              let theStart =  origExp.start in
              let lastPos = case renderingStyle of
@@ -1279,17 +1277,17 @@ eDiffsToStringPositions renderingStyle  indent     lastEdit    origExp modifExp 
                _ -> { theStart | col = theStart.col + 1 }
              in
              stringDiffsToString2 renderingStyle indent lastEdit lastPos quoteChar original modified diffs
-          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects strings here, got " ++ renderExp origExp ++ ", " ++ renderExp modifExp,
+          _ -> ("[Internal error] eDiffsToString " ++ toString ediff ++ " expects strings here, got " ++ (renderExp <| Expr origExp) ++ ", " ++ (renderExp <| Expr modifExp),
             ((lastEdit, offsetPosition lastEdit origExp.end), []))
       EChildDiffs diffs ->
         -- If you want the trace of what was modified, just input here something
         let childIndent = "" in
-        let newRenderingStyle = case origExp.val.e__ of
+        let newRenderingStyle = case unwrapExp <| Expr origExp of
           EParens _ _ r _ -> r
           _ -> renderingStyle
         in
         --let _ = Debug.log ("current renderingStyle:" ++ toString renderingStyle ++ ", new renderingStyle : " ++ toString newRenderingStyle ++ ", currentExpression:" ++ toString origExp) () in
-        let (msg, (newLastEdit, newExps)) = tupleDiffsToString2 newRenderingStyle childIndent lastEdit (childExps origExp) (childExps modifExp) diffs in
+        let (msg, (newLastEdit, newExps)) = tupleDiffsToString2 newRenderingStyle childIndent lastEdit (childExps <| Expr origExp) (childExps <| Expr modifExp) diffs in
         let newLastPos = offsetPosition newLastEdit origExp.end in
         (msg, ((newLastEdit, newLastPos), newExps))
 
@@ -1762,7 +1760,7 @@ defaultRecordDiffs keyOf defaultElemModif elems1 elems2 =
 
 defaultEDiffs: Exp -> Exp -> Results String (Maybe EDiffs)
 defaultEDiffs e1 e2 =
-  case (e1.val.e__, e2.val.e__) of
+  case ((unwrapExp e1), (unwrapExp e2)) of
     (EConst _ n1 _ _, EConst _ n2 _ _) -> if n1 == n2 then ok1 Nothing else ok1 <| Just <| EConstDiffs EAnyDiffs
     (EBase _ (EString _ s1), EBase _ (EString _ s2)) ->
        defaultStringDiffs s1 s2 |> Results.map (Maybe.map EStringDiffs)
@@ -1985,13 +1983,13 @@ mergeExp o e1 ediff1 e2 ediff2 =
     (EConstDiffs _, _) ->
        (e2, ediff2)
     (EStringDiffs ss1, EStringDiffs ss2) ->
-      case (o.val.e__, eStrUnapply e1, eStrUnapply e2) of
+      case ((unwrapExp o), eStrUnapply e1, eStrUnapply e2) of
         (EBase sp0 (EString quote x), Just s1, Just s2) ->
           let (finalStr, finalDiffs) = mergeString x s1 ss1 s2 ss2 in
           (replaceE__ o <| EBase sp0 <| EString quote finalStr, EStringDiffs finalDiffs)
         _ -> (e2, ediff2)
     (EListDiffs ld1, EListDiffs ld2) ->
-      case (o.val.e__, eListUnapplyWS e1, eListUnapplyWS e2) of
+      case ((unwrapExp o), eListUnapplyWS e1, eListUnapplyWS e2) of
         (EList sp0 x sp1 Nothing sp2, Just l1, Just l2) ->
            let (finalelems, finaldiff) = mergeList (\(wso, eo) (ws1, e1) d1 (ws2, e2) d2 ->
              let (finale, finald) = mergeExp eo e1 d1 e2 d2 in

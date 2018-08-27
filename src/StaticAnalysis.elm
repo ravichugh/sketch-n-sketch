@@ -52,7 +52,7 @@ grossDependencies_ identToDepEId program =
   in
   let childrenValueExpEIds exp =
     childExps exp
-    |> List.map (expEffectiveExp >> .val >> .eid)
+    |> List.map (expEffectiveExp >> expEId)
   in
   let handleLetexp exp isRec letExps bindingNumber globalAcc identToDepEId =
     (,) globalAcc <|
@@ -60,8 +60,8 @@ grossDependencies_ identToDepEId program =
                  \identToDepEId (LetExp _ _ pat _ _ boundExp) ->
        let newBindings =
           case tryMatchExp pat boundExp of
-            Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, exp.val.eid))
-            _                -> identifiersListInPat pat |> List.map (\ident -> (ident, boundExp.val.eid)) -- Conservative dependency on entire bound expression.
+            Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, expEId exp))
+            _                -> identifiersListInPat pat |> List.map (\ident -> (ident, expEId boundExp)) -- Conservative dependency on entire bound expression.
        in
        newBindings ++ identToDepEId
   in
@@ -78,15 +78,15 @@ grossDependencies_ identToDepEId program =
     let pat = branchPat branch in
     let newBindings =
        case tryMatchExp pat scrutinee of
-         Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, exp.val.eid))
-         _                -> identifiersListInPat pat |> List.map (\ident -> (ident, scrutinee.val.eid)) -- Conservative dependency on entire scutinee.
+         Match identToExp -> identToExp |> List.map (\(ident, exp) -> (ident, (expEId exp)))
+         _                -> identifiersListInPat pat |> List.map (\ident -> (ident, (expEId scrutinee))) -- Conservative dependency on entire scutinee.
     in
     newBindings ++ identToDepEId
   in
   let addThisExpDeps exp programDependencies identToDepEId =
     -- Expressions are not dependent on themselves because that is trivial.
     let newDepEIds =
-       case exp.val.e__ of
+       case (unwrapExp exp) of
          EConst _ n loc wd -> []
          EBase _ bVal      -> []
          EVar _ ident      ->
@@ -95,7 +95,7 @@ grossDependencies_ identToDepEId program =
              Just eid -> [eid]
              Nothing  -> []
 
-         EFun _ pats body _                      -> [(expEffectiveExp body).val.eid] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
+         EFun _ pats body _                      -> [expEId <| expEffectiveExp body] -- The value of a function is how it transforms inputs into outputs, as determined by its body expression.
          EOp _ _ op argExps _                    -> childrenValueExpEIds exp
          EList _ heads _ maybeRest _             -> childrenValueExpEIds exp
          ERecord _ mb es _                       -> childrenValueExpEIds exp
@@ -103,14 +103,14 @@ grossDependencies_ identToDepEId program =
          EIf _ pred _ trueBranch _ falseBranch _ -> childrenValueExpEIds exp
          ECase _ scrutinee branches _            -> childrenValueExpEIds exp
          EApp _ funcExp argExps _ _              -> childrenValueExpEIds exp
-         ELet _ _ _ _ body                       -> [expEffectiveExp body |> .val |> .eid]
-         EColonType _ body _ _ _                 -> [expEffectiveExp body |> .val |> .eid]
-         EParens _ body _ _                      -> [expEffectiveExp body |> .val |> .eid]
+         ELet _ _ _ _ body                       -> [expEffectiveExp body |> expEId]
+         EColonType _ body _ _ _                 -> [expEffectiveExp body |> expEId]
+         EParens _ body _ _                      -> [expEffectiveExp body |> expEId]
          EHole _ _                               -> []
     in
     newDepEIds
     |> List.foldl
-        (addDependency exp.val.eid)
+        (addDependency (expEId exp))
         programDependencies
   in
   program

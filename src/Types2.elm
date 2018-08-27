@@ -43,26 +43,26 @@ aceTypeInfo exp =
       let
         addErrorAnnotation e =
           -- TODO for now, ignoring top-level prog and implicit main ---------------------------
-          case (e.start.line, e.val.e__) of
+          case ((unExpr e).start.line, (unExpr e).val.e__) of
             (1, _) -> []
             (_, EVar _ "main") -> []
             (_, ELet _ Let (Declarations [0] [] [] [(False, [LetExp _ _ p _ _ _])]) _ _) -> []
             _ ->
           --------------------------------------------------------------------------------------
-          case (e.val.typ, e.val.typeError) of
+          case ((unExpr e).val.typ, (unExpr e).val.typeError) of
             (Just _, Nothing) ->
               []
 
             _ ->
               [ { row =
-                    e.start.line - 1
+                    (unExpr e).start.line - 1
                 , type_ =
                     "error"
                 , text =
                     String.concat
                       [ "Type error ["
-                      , "eid: ", toString e.val.eid, "; "
-                      , "col: ", toString e.start.col
+                      , "eid: ", toString (unExpr e).val.eid, "; "
+                      , "col: ", toString (unExpr e).start.col
                       , "]: ", "\n"
                       , String.trim (unparse e), "\n"
                       ]
@@ -84,9 +84,9 @@ aceTypeInfo exp =
 
   , tooltips =
       let addTooltip e =
-        { row = e.start.line - 1
-        , col = e.start.col - 1
-        , text = "EId: " ++ toString e.val.eid
+        { row = (unExpr e).start.line - 1
+        , col = (unExpr e).start.col - 1
+        , text = "EId: " ++ toString (unExpr e).val.eid
         } 
       in
       -- Ace tooltips are token-based, so can't have them for expression
@@ -230,7 +230,7 @@ inferType
 
 inferType gamma stuff thisExp =
   let (childExps, rebuildExp) = childExpsExtractors thisExp in
-  case thisExp.val.e__ of
+  case (unExpr thisExp).val.e__ of
     EConst _ _ _ _ ->
       { newExp = thisExp |> setType (Just (withDummyInfo (TNum space1))) }
 
@@ -257,7 +257,7 @@ inferType gamma stuff thisExp =
         newExp =
           EParens ws1 result.newExp parensStyle ws2
             |> replaceE__ thisExp
-            |> setType result.newExp.val.typ
+            |> setType (unExpr result.newExp).val.typ
       in
         { newExp = newExp }
 
@@ -276,7 +276,7 @@ inferType gamma stuff thisExp =
             --
             -- here, adding extra breadcrumb about the solicitorExp.
             --
-            (result.newExp, setExtraTypeInfo (ExpectedExpToHaveSomeType innerExp.val.eid))
+            (result.newExp, setExtraTypeInfo (ExpectedExpToHaveSomeType (unExpr innerExp).val.eid))
 
         newExp =
           EColonType ws1 newInnerExp ws2 annotatedType ws3
@@ -365,7 +365,7 @@ inferType gamma stuff thisExp =
 
                     firstLetExp :: restListLetExp ->
                       let (LetExp mbWs1 ws2 p funArgStyle ws3 e) = firstLetExp in
-                      case (p.val.p__, e.val.e__) of
+                      case (p.val.p__, (unExpr e).val.e__) of
                         (PVar _ pname _, EBase _ (EString _ ename)) ->
                           if String.startsWith "Tuple" ename then
                             ( restListLetExp
@@ -395,7 +395,7 @@ inferType gamma stuff thisExp =
                         maybeFieldType =
                           case p.val.p__ of
                             PVar _ fieldName _ ->
-                              result.newExp.val.typ
+                              (unExpr result.newExp).val.typ
                                 |> Maybe.map (\t -> (Nothing, space1, fieldName, space1, t))
                             _ ->
                               Nothing -- TODO: report error around non-var field
@@ -472,14 +472,14 @@ checkType
    -> { okay: Bool, newExp: Exp }
 checkType gamma stuff solicitorExp thisExp expectedType =
   let result = inferType gamma stuff thisExp in
-  case result.newExp.val.typ of
+  case (unExpr result.newExp).val.typ of
     Nothing ->
       { okay = False
       , newExp =
           result.newExp
             |> setTypeError (ExpectedButGot expectedType
-                                            (Just solicitorExp.val.eid)
-                                            result.newExp.val.typ)
+                                            (Just (unExpr solicitorExp).val.eid)
+                                            (unExpr result.newExp).val.typ)
       }
 
     Just inferredType ->
@@ -493,8 +493,8 @@ checkType gamma stuff solicitorExp thisExp expectedType =
         , newExp =
             result.newExp
               |> setTypeError (ExpectedButGot expectedType
-                                              (Just solicitorExp.val.eid)
-                                              result.newExp.val.typ)
+                                              (Just (unExpr solicitorExp).val.eid)
+                                              (unExpr result.newExp).val.typ)
         }
 
 
@@ -540,7 +540,7 @@ showTypeError inputExp thisExp typeError =
           message
             :: deuceShow inputExp "Maybe you want one of the following?"
             :: List.map
-                 (\(y, ey) -> deuceTool y (replaceExpNode thisExp.val.eid ey inputExp))
+                 (\(y, ey) -> deuceTool y (replaceExpNode (unExpr thisExp).val.eid ey inputExp))
                  suggestions
 
 
@@ -555,7 +555,7 @@ makeDeuceTool inputExp eId = \() ->
     --   ]
 
     deuceTypeInfo =
-      case (exp.val.typ, exp.val.typeError) of
+      case ((unExpr exp).val.typ, (unExpr exp).val.typeError) of
         (Nothing, Nothing) ->
           [ deuceShow inputExp <|
               "This expression wasn't processed by the typechecker..."
@@ -568,7 +568,7 @@ makeDeuceTool inputExp eId = \() ->
           showTypeError inputExp exp typeError
 
     insertAnnotationTool =
-      case exp.val.typ of
+      case (unExpr exp).val.typ of
         Just typ ->
           let e__ =
             EParens space1

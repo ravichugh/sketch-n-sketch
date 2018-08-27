@@ -120,9 +120,10 @@ update callbacks forks updateStack =
       Err msg
 
 getUpdateStackOp : Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> UpdateStack
-getUpdateStackOp env e prevLets oldVal newVal diffs =
+getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
+   let e = Expr exp_ in
    let ret = replaceE__ e in
-   case e.val.e__ of
+   case unwrapExp e of
      EHole ws _ -> updateResultSameEnv env <| valToExp ws (IndentSpace "") newVal
 
      EConst ws num loc widget ->
@@ -218,29 +219,30 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                   if insertionIndex > 0 then
                                     if List.length elems > 1 then
                                       case List.drop (min insertionIndex (List.length elems - 1)) elems |> List.take 1 of
-                                        [(wsComma,elemToCopy)] ->
+                                        [(wsComma, Expr elemToCopy_)] ->
+                                           let elemToCopy = Expr elemToCopy_ in
                                            let psWs = ws <| Lang.precedingWhitespace elemToCopy in
-                                           let indentation = if elemToCopy.start.line == elemToCopy.end.line
+                                           let indentation = if elemToCopy_.start.line == elemToCopy_.end.line
                                                  then InlineSpace
-                                                 else IndentSpace (String.repeat (elemToCopy.start.col - 1) " ")
+                                                 else IndentSpace (String.repeat (elemToCopy_.start.col - 1) " ")
                                            in
                                            let policy = (wsComma, Lang.copyPrecedingWhitespace elemToCopy << valToExpFull (Just elemToCopy) psWs indentation) in
                                            (policy, policy, Nothing)
                                         _   -> Debug.crash <| "[internal error] There should be an element in this list's position"
                                     else -- Insertion index == 1 and List.length elems == 1
                                       case elems of
-                                        [(wsHead, head)] ->
-                                          let (wsComma, wsElem, indentation) = if e.start.line == e.end.line
+                                        [(wsHead, Expr head)] ->
+                                          let (wsComma, wsElem, indentation) = if exp_.start.line == exp_.end.line
                                             then (ws "", ws " ", InlineSpace)
-                                            else if e.end.col - 1 > head.start.col then -- If the ] is after the value, then let's put the commas after the values.
+                                            else if exp_.end.col - 1 > head.start.col then -- If the ] is after the value, then let's put the commas after the values.
                                                (ws "",
                                                 ws <| "\n" ++ String.repeat (head.start.col - 1) " ",
                                                 IndentSpace (String.repeat (head.start.col - 1) " ")
                                                )
                                             else
-                                               (ws <| "\n" ++ String.repeat (e.end.col - 2) " ",
-                                                ws (String.repeat (max (head.start.col - e.end.col - 1) 1) " "),
-                                                IndentSpace (String.repeat (e.end.col - 2) " "))
+                                               (ws <| "\n" ++ String.repeat (exp_.end.col - 2) " ",
+                                                ws (String.repeat (max (head.start.col - exp_.end.col - 1) 1) " "),
+                                                IndentSpace (String.repeat (exp_.end.col - 2) " "))
                                           in
                                           let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
                                           (policy, policy, Nothing)
@@ -253,36 +255,37 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                   else --if insertionIndex == 0 then -- Inserting the first element is always trickier
                                     case elems of
                                       [] ->
-                                        if e.start.line == e.end.line then
+                                        if exp_.start.line == exp_.end.line then
                                           ( (ws "", valToExpFull Nothing (ws "") InlineSpace)
                                           , (ws " ", valToExpFull Nothing (ws " ") InlineSpace)
                                           , Nothing
                                           )
                                         else -- By default, multi-line lists will use the syntax [ elem1\n, elem2\n ...]
-                                          let indentationSquareBracket = String.repeat (e.end.col - 2) " " in
+                                          let indentationSquareBracket = String.repeat (exp_.end.col - 2) " " in
                                           let indentation = indentationSquareBracket ++ "  " in
                                           ( (ws "", valToExpFull Nothing (ws " ") (IndentSpace indentation))
                                           , (ws <| "\n" ++ indentationSquareBracket, valToExpFull Nothing (ws " ") (IndentSpace indentation))
                                           , Nothing
                                           )
-                                      (_, head)::tail ->
+                                      (_, Expr head_)::tail ->
+                                        let head = Expr head_ in
                                         let (wsSecondBeforeComma, wsSecondBeforeValue, secondOrHead, indent) =
                                              case tail of
                                                [] ->
-                                                 if e.start.line == e.end.line then
+                                                 if exp_.start.line == exp_.end.line then
                                                    (ws "", " ", head, InlineSpace)
-                                                 else if e.end.col - 1 > head.start.col then -- The square bracket is after the element
-                                                   let indentation = String.repeat (head.start.col - 1) " " in
+                                                 else if exp_.end.col - 1 > head_.start.col then -- The square bracket is after the element
+                                                   let indentation = String.repeat (head_.start.col - 1) " " in
                                                    (ws "", "\n" ++ indentation, head, IndentSpace indentation)
                                                  else
-                                                   let indentation = String.repeat (e.end.col - 2) " " in
+                                                   let indentation = String.repeat (exp_.end.col - 2) " " in
                                                    (ws <| "\n" ++ indentation, " ", head, IndentSpace indentation)
-                                               (wsNext, elemNext)::tail2 ->
-                                                 let indentationSquareBracket = String.repeat (e.end.col - 2) " " in
+                                               (wsNext, Expr elemNext)::tail2 ->
+                                                 let indentationSquareBracket = String.repeat (exp_.end.col - 2) " " in
                                                  let indentation = if elemNext.start.line == elemNext.end.line then
                                                       InlineSpace
                                                       else IndentSpace (indentationSquareBracket  ++ "  ") in
-                                                 (wsNext, Lang.precedingWhitespace elemNext, elemNext, indentation)
+                                                 (wsNext, Lang.precedingWhitespace <| Expr elemNext, Expr elemNext, indentation)
                                         in
                                         ( (ws "", valToExpFull (Just head) (ws " ") indent)
                                         , (wsSecondBeforeComma, valToExpFull (Just secondOrHead) (ws wsSecondBeforeValue) indent)
@@ -423,11 +426,11 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                        \envRecord _ {-remainingPrevLets-} finishUpdateDeclarations ->
                       -- builds the updated env by pushing updated record diffs to envRecord or to mi, accordingly.
                       let resMiVal = case Maybe.map (\(init, ws) -> doEval Syntax.Elm env init) mi of
-                        Just (Err msg) -> Err <| "Line " ++ toString e.start.line ++ ", while evaluating {...|, got" ++ msg
+                        Just (Err msg) -> Err <| "Line " ++ toString exp_.start.line ++ ", while evaluating {...|, got" ++ msg
                         Nothing -> Ok Nothing
                         Just (Ok ((v, _), _)) -> case v.v_ of
                            VRecord dMi -> Ok (Just dMi)
-                           _ -> Err <| "Line " ++ toString e.start.line ++ ", while evaluating {...|, got not a record but " ++ valToString v
+                           _ -> Err <| "Line " ++ toString exp_.start.line ++ ", while evaluating {...|, got not a record but " ++ valToString v
                       in
                       case resMiVal of
                         Err msg -> UpdateCriticalError msg
@@ -484,20 +487,21 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                    updateResult newE1UpdatedEnv <| UpdatedExp finalExp finalChanges
              _ -> UpdateCriticalError ("Expected Record, got " ++ valToString initv)
 
-     EApp sp0 e1 e2s appType sp1 ->
+     EApp sp0 (Expr e1_) e2s appType sp1 ->
+       let e1 = Expr e1_ in
        let isFreezing e1 =
          --Debug.log ("Testing if " ++ unparse e1 ++ " is freezing:") <|
-         case e1.val.e__ of
+         case (unwrapExp e1) of
          EVar _ "freeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
-         ESelect _ e _ _ "freeze" -> case e.val.e__ of
+         ESelect _ e _ _ "freeze" -> case (unwrapExp e) of
            EVar _ "Update" -> True
            _ -> False
          _ -> False
        in
        let isFreezingExpression e1 =
-         case e1.val.e__ of
+         case (unwrapExp e1) of
            EVar _ "expressionFreeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
-           ESelect _ e _ _ "expressionFreeze" -> case e.val.e__ of
+           ESelect _ e _ _ "expressionFreeze" -> case (unwrapExp e) of
              EVar _ "Update" -> True
              _ -> False
            _ -> False
@@ -508,12 +512,12 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
              --if valEqual oldVal newVal then -- OK, that's the correct freeze semantics
              --  \continuation -> updateResultSameEnvExp env e
              --else
-         \continuation -> UpdateFails <| "Hit a freeze (line " ++ toString e.start.line ++ ")" --: You are trying to update " ++ unparse e ++ " (line " ++ toString e.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'"
+         \continuation -> UpdateFails <| "Hit a freeze (line " ++ toString exp_.start.line ++ ")" --: You are trying to update " ++ unparse e ++ " (line " ++ toString exp_.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'"
            --_ -> \continuation -> continuation()
          else \continuation -> continuation()
        in
        continueIfNotFrozen <| \_ ->
-       let maybeUpdateStack = case e1.val.e__ of
+       let maybeUpdateStack = case unwrapExp e1 of
          ESelect es0 eRecord es1 es2 "apply" -> -- Special case here. apply takes a record and a value and applies the field apply to the value.
              -- The user may provide the reverse function if "unapply" is given, or "update"
              case doEval Syntax.Elm env eRecord of
@@ -554,19 +558,19 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                     let xyApplication = ret <| EApp space0 x [y] SpaceApp space0 in
                                     let xyEnv = [("x", fieldUpdateClosure), ("y", customArgument)] in
                                     case (
-                                        --ImpureGoodies.logTimedRun (".update eval line " ++ toString e1.start.line) <| \_ ->
+                                        --ImpureGoodies.logTimedRun (".update eval line " ++ toString e1_.start.line) <| \_ ->
                                         doEval Syntax.Elm xyEnv xyApplication) of
                                       Err s -> UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.result valToUpdateReturn vResult |> (Utils.resultOrElseLazy (\_ ->
-                                          valToUpdateReturn vResult |> Result.map (Ok << Debug.log ("/!\\ The lens line " ++ toString e.start.line ++ " had this returned. Please wrap it in Ok")))) of
+                                          valToUpdateReturn vResult |> Result.map (Ok << Debug.log ("/!\\ The lens line " ++ toString exp_.start.line ++ " had this returned. Please wrap it in Ok")))) of
                                           Err msg ->
                                             UpdateCriticalError <|
                                                "The update closure should return either Ok (Inputs [list of values]), Ok (InputsWithDiffs [list of (values, Just diffs | Nothing)]) or Err msg. Got "
                                                ++ valToString vResult ++ ". (error was " ++ msg ++ ")"
                                           Ok d ->
                                             case d of
-                                              Err msg -> UpdateCriticalError <| "Line " ++ toString e.start.line ++ ": " ++ msg
+                                              Err msg -> UpdateCriticalError <| "Line " ++ toString exp_.start.line ++ ": " ++ msg
                                               Ok newInputs ->
                                             let diffListRes: Results String (Val, Maybe VDiffs)
                                                 diffListRes = case newInputs of
@@ -619,7 +623,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
          _ ->
             Nothing
        in
-       updateMaybeFirst ("after testing update/unapply, testing apply (line " ++ toString e.start.line ++ ")") maybeUpdateStack <| \_ ->
+       updateMaybeFirst ("after testing update/unapply, testing apply (line " ++ toString exp_.start.line ++ ")") maybeUpdateStack <| \_ ->
          if appType == InfixApp && eVarUnapply e1 == Just "++" then
            case e2s of
              [eLeft, eRight] -> -- We rewrite ++ to a call to "append" or "plus" depending on the arguments
@@ -675,9 +679,9 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                  if List.length es2ForLater > 0 then -- Rewriting of the expression so that it is two separate applications
                    let rewriting = ret <| EApp sp0 (ret <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
                    updateContinue "evaluating app with correct number of arguments" env rewriting [] oldVal newVal diffs <| (\newUpdatedEnv newRewriting ->
-                     case newRewriting.val.val.e__ of
+                     case unwrapExp newRewriting.val of
                        EApp _ innerApp newEsForLater _ _ ->
-                         case innerApp.val.e__ of
+                         case (unwrapExp innerApp) of
                            EApp _ newE1 newEsToEval _ _ ->
                              let newChanges = newRewriting.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs ne1ps) in
                              let newExp = ret <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
@@ -709,7 +713,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                        e1_updater  <| \newE1UpdatedEnv newUpdatedE1 ->
                        e2s_updater <| \newE2sUpdatedEnv newUpdatedE2s ->
                        if isFreezingExpression e1 && newUpdatedE2s.changes /= Nothing then
-                         UpdateFails <| "Hit an expressionFreeze on line " ++ toString (e1.start.line) ++ " (cannot modify expression, only variables' values)"
+                         UpdateFails <| "Hit an expressionFreeze on line " ++ toString (e1_.start.line) ++ " (cannot modify expression, only variables' values)"
                        else
                        let finalUpdatedEnv = UpdatedEnv.merge env newE1UpdatedEnv newE2sUpdatedEnv in
                        let finalExp = ret <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1 in
@@ -726,12 +730,12 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                (VClosure _ psOut outBody envOut_, VClosureDiffs modifEnv modifBody) ->
                                   continuation (UpdatedEnv envOut_ modifEnv) (UpdatedExp outBody modifBody)
                                _ ->
-                                  UpdateCriticalError <| strPos e1.start ++ "Expected a closure in output, got " ++ valToString newVal ++ " and diffs " ++ toString diffs
+                                  UpdateCriticalError <| strPos e1_.start ++ "Expected a closure in output, got " ++ valToString newVal ++ " and diffs " ++ toString diffs
                            else
                              updateContinue "VClosure3" insideEnv eBody [] oldVal newVal diffs continuation
                          in
                          withUpdatedInsideEnvAndBody <| propagateAppFunArguments consBuilder
-                       _  -> UpdateCriticalError <| "[internal error] " ++ strPos e1.start ++ " bad environment, internal error in update"
+                       _  -> UpdateCriticalError <| "[internal error] " ++ strPos e1_.start ++ " bad environment, internal error in update"
 
                VFun name argList evalDef maybeUpdateDef ->
                  case maybeUpdateDef of
@@ -748,9 +752,9 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                        let (es2ToEval, es2ForLater)  = Utils.split arity e2s in
                        let rewriting = ret <| EApp sp0 (ret <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
                        updateContinue "EApp VFun" env rewriting [] oldVal newVal diffs <| (\newUpdatedEnv newRewriting ->
-                         case newRewriting.val.val.e__ of
+                         case unwrapExp newRewriting.val of
                            EApp _ innerApp newEsForLater _ _ ->
-                             case innerApp.val.e__ of
+                             case (unwrapExp innerApp) of
                                EApp _ newE1 newEsToEval _ _ ->
                                  let finalChanges = newRewriting.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs arity) in
                                  let finalExp = ret <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
@@ -772,7 +776,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                          newVal
                          diffs
                          <| \newUpdatedEnv newUpdatedBody ->
-                           case newUpdatedBody.val.val.e__ of
+                           case unwrapExp newUpdatedBody.val of
                              EApp _ funreconverted newEs _ _ ->
                                if expEqual funreconverted funconverted then
                                  let finalExp = ret <| EApp sp0 e1 newEs SpaceApp sp1 in
@@ -796,7 +800,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                      ret <| EApp sp0 e1 (Utils.tail "vfun" funAndNewE2s) appType sp1
                                    ) [] (v1::v2s) llWithDiffResult
 
-               _ -> UpdateCriticalError <| strPos e1.start ++ " not a function"
+               _ -> UpdateCriticalError <| strPos e1_.start ++ " not a function"
      EIf sp0 cond sp1 thn sp2 els sp3 ->
        case doEval Syntax.Elm env cond of
          Ok ((v, _), _) ->
@@ -1017,7 +1021,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
                                      VDictDiffs dDiffs ->
                                        let potentialErrors =  Dict.foldl (\k v acc ->
                                             acc |> Result.andThen (\_ ->
-                                              if k == dictKey then Err <| "Cannot insert/update the key " ++ valToString key ++ " to dictionary because it is removed (line " ++ toString e.start.line ++ ")"
+                                              if k == dictKey then Err <| "Cannot insert/update the key " ++ valToString key ++ " to dictionary because it is removed (line " ++ toString exp_.start.line ++ ")"
                                               else Ok ())) (Ok ()) dDiffs
                                        in
                                        case potentialErrors of
@@ -1195,7 +1199,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
          case pStyle of
            HtmlSyntax -> -- Here we convert all newly inserted elements that are style to a string instead of a list of lists.
              continue <| replaceInsertions ne <| \inserted ->
-               case inserted.val.e__ of
+               case (unwrapExp inserted) of
                  EList sp0 [(spe1, e1), (spe2, e2)] sp1 Nothing sp2 ->
                    case (eStrUnapply e1, Eu.list (Eu.viewtuple2 Eu.string Eu.string) e2) of
                      (Just "style", Ok styles) ->
@@ -1216,7 +1220,7 @@ getUpdateStackOp env e prevLets oldVal newVal diffs =
              -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
              Ok (Just (v2,sp2)) -> UpdateCriticalError "Typecase not updatable at this point"--Ok <| retVBoth [v2] (v2, sp1 ++ sp2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
              UpdateCriticalError s              -> UpdateCriticalError s
-             _                  -> UpdateCriticalError "Typecase not updatable at this point" --errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
+             _                  -> UpdateCriticalError "Typecase not updatable at this point" --errorWithBacktrace syntax (e::bt) <| strPos e1_.start ++ " non-exhaustive typecase statement"
      --}
      {- _ ->
        let outStr = valToString newVal in
@@ -1260,7 +1264,7 @@ updateDeclarations env prevLets (Declarations po types anns letexpsGroups) doUpd
                      let finalChanges = UpdateUtils.combineEChildDiffs <| [(0, newUpdatedE1.changes), (1, newUpdatedBody.changes)] in
                      updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
             Nothing ->
-              UpdateCriticalError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
+              UpdateCriticalError <| strPos exp_.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
  -}
 
 updateLetExps: {-Give me -} Env -> {- Give me -} PrevLets -> {- Give me -} GroupsOf LetExp ->

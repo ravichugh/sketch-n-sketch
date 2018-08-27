@@ -1079,7 +1079,7 @@ codeObjectFromSelection allowSingleSelection model =
             notDef =
               case codeObject of
                 E e ->
-                  case e.val.e__ of
+                  case (unwrapExp e) of
                     (ELet _ Def _ _ _) ->
                       False
                     _ ->
@@ -1254,15 +1254,15 @@ loadTemplate name =
             ([a, b, content1], rebuilder1) -> case childExpsExtractors content1 of --content1 == [...]
               ([content2], rebuilder2) -> case childExpsExtractors content2 of --content2 == ["TEXT", """ ... """]
                 ([c, content3], rebuilder3) -> case childExpsExtractors content3 of  --content3 == """ ... """
-                  ([content4], rebuilder4) -> case content4.val.e__ of
+                  ([content4], rebuilder4) -> case (unwrapExp content4) of
                      EBase sp4 (EString q content) ->
                        let newContent4 = replaceE__ content4 <| EBase sp4 <| EString q <| (content |> String.split "ERROR_HERE" |> String.join (msg |> String.split "\"" |> String.join "\\\"")) in
                        { t | e = rebuilder1 [a, b, rebuilder2 [rebuilder3 [c, rebuilder4 [newContent4]]]] }
-                     _ -> let _ = Debug.log "Not a string" content4.val.e__ in  t
-                  _ -> let _ = Debug.log "Not a \"\"\"...\"\"\"" content3.val.e__ in  t
-                _ -> let _ = Debug.log "Not a ['TEXT'...]" content2.val.e__ in  t
-              _ ->  let _ = Debug.log "Not an [...]" content1.val.e__ in t
-            _ ->  let _ = Debug.log "Not an ['pre'...]" e.val.e__ in t
+                     _ -> let _ = Debug.log "Not a string" (unwrapExp content4) in  t
+                  _ -> let _ = Debug.log "Not a \"\"\"...\"\"\"" (unwrapExp content3) in  t
+                _ -> let _ = Debug.log "Not a ['TEXT'...]" (unwrapExp content2) in  t
+              _ ->  let _ = Debug.log "Not an [...]" (unwrapExp content1) in t
+            _ ->  let _ = Debug.log "Not an ['pre'...]" (unwrapExp e) in t
 
 initModel : Model
 initModel =

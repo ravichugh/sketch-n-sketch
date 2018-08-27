@@ -1024,11 +1024,11 @@ selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate)
         |> List.filter (\(nodeId, shape) -> not <| Utils.anyOverlap [Set.singleton nodeId, Set.fromList (LangSvg.descendantNodeIds shapeTree shape), effectiveSelectedNodeIds])
         |> List.map (\(nodeId, shape) -> shape.val)
         |> List.concatMap Provenance.flattenValBasedOnTree
-        |> List.map (valExp >> .val >> .eid)
+        |> List.map (valExp >> expEId)
         -- |> List.map valExp
-        -- |> List.filter (.val >> .eid >> FastParser.isProgramEId)
+        -- |> List.filter (expEId >> FastParser.isProgramEId)
         -- |> List.map (\e -> let _ = Utils.log (LangUnparser.unparse e) in e)
-        -- |> List.map (.val >> .eid)
+        -- |> List.map expEId
         |> Set.fromList
     in
     -- TODO: If any features selected, diff against all other analogous features on other shapes.
@@ -1042,7 +1042,7 @@ selectionsUniqueProximalEIdInterpretations program ((rootI, shapeTree) as slate)
   in
   let expFilter exp =
     -- Exclude expressions touched by shapes NOT selected
-    not <| Set.member exp.val.eid eidsToNotSelect
+    not <| Set.member (expEId exp) eidsToNotSelect
   in
   let (proximalInterps, _{- distalInterps -}) =
     selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
@@ -1093,7 +1093,7 @@ selectionsEIdsTouched program ((rootI, shapeTree) as slate) widgets selectedFeat
   |> List.concatMap Provenance.flattenValBasedOnTree
   |> List.map valExp
   |> List.filter expFilter
-  |> List.map (.val >> .eid)
+  |> List.map expEId
   |> Utils.dedup
 
 
@@ -1112,10 +1112,10 @@ selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets
     directSingleEIdInterpretations =
       -- Checking exp-by-exp avoids combinatorical explosion of building all interpretations and then filtering.
       possibleExps
-      |> List.filter (\exp -> valTrees |> List.all (Provenance.isPossibleSingleEIdInterpretation exp.val.eid))
-      |> List.map (.val >> .eid)
+      |> List.filter (\exp -> valTrees |> List.all (Provenance.isPossibleSingleEIdInterpretation (expEId exp)))
+      |> List.map expEId
 
-    valExpIsInProgram val = valExp val |> .val |> .eid |> Parser.isProgramEId
+    valExpIsInProgram val = valExp val |> expEId |> Parser.isProgramEId
 
     parentSingleEIdInterpretations =
       case valTrees of
@@ -1166,7 +1166,7 @@ selectionsSingleEIdInterpretations program ((rootI, shapeTree) as slate) widgets
                   Just coveringsStillNeeded -> List.any ((==) []) coveringsStillNeeded
               )
           -- |> List.map (\parentVal -> let _ = Utils.log <| (++) "Passing parent: " <| LangUnparser.unparse <| valExp parentVal in parentVal)
-          |> List.map (valExp >> .val >> .eid)
+          |> List.map (valExp >> expEId)
   in
   directSingleEIdInterpretations ++ parentSingleEIdInterpretations
 
@@ -1278,7 +1278,7 @@ selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) w
                        , parentByEId program (Utils.unwrapSingletonSet otherEIdSingleton) ) of
                     (Just (Just parent), Just (Just otherParent)) ->
                       if isPair parent && parent == otherParent
-                      then Just parent.val.eid
+                      then Just (expEId parent)
                       else Nothing
 
                     _ -> Nothing

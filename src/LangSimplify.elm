@@ -157,9 +157,9 @@ removeUnusedLetPatsMatching predicate exp =
        ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse assign])]) wsIn body ->
         let usedNames = freeIdentifiers body in
         let letRemoved =
-          body.val.e__
+          (unwrapExp body)
         in
-        case (pat.val.p__, assign.val.e__) of
+        case (pat.val.p__, (unwrapExp assign)) of
           -- Simple assignment.
           (PVar _ ident _, _) ->
             if Set.member ident usedNames || not (predicate pat) then
@@ -231,7 +231,7 @@ removeUnusedLetPatsMatching predicate exp =
 -- Flatten assignment of singleton [exp] to singleton [var] (also often produced by CodeMotion.pluck)
 simplifyPatBoundExp : Pat -> Exp -> Maybe (Pat, Exp)
 simplifyPatBoundExp pat boundExp =
-  case (pat.val.p__, boundExp.val.e__) of
+  case (pat.val.p__, (unwrapExp boundExp)) of
     (PVar ws1 "*RemoveMe*" wd, _) ->
       Nothing
 
@@ -283,7 +283,7 @@ simplifyAssignments program =
   program
   |> mapExp
       (\exp ->
-        case exp.val.e__ of
+        case unwrapExp exp of
           ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse boundExp])]) wsIn body ->
             case simplifyPatBoundExp pat boundExp of
               Just (newPat, newBoundExp) ->
@@ -303,7 +303,7 @@ simplifyAssignments program =
 -- Returns [(identifer, assignedExpression), ... ]
 simpleIdentsAndAssigns : Pat -> Exp -> List (Ident, Exp)
 simpleIdentsAndAssigns letPat letAssign =
-  case (letPat.val.p__, letAssign.val.e__) of
+  case (letPat.val.p__, (unwrapExp letAssign)) of
     -- Simple assignment.
     (PVar _ ident _, _) ->
       [(ident, letAssign)]
@@ -331,7 +331,7 @@ inlineTrivialRenamings exp =
   let inlineReplaceIfTrivialRename targetIdent newExp e__ =
     case e__ of
        ELet ws1 letKind (Declarations po tpes anns [(isRec, [LetExp mbwsc wsPat pat fs wse assign])]) wsIn body ->
-        case (pat.val.p__, assign.val.e__) of
+        case (pat.val.p__, unwrapExp assign) of
           -- Simple assignment.
           (PVar _ _ _, EVar oldWs assignIdent) ->
             if assignIdent == targetIdent then
@@ -345,7 +345,7 @@ inlineTrivialRenamings exp =
             let newAssigns =
               List.map
                   (\assignExp ->
-                    case assignExp.val.e__ of
+                    case (unwrapExp assignExp) of
                       EVar _ assignIdent ->
                         if assignIdent == targetIdent then
                           let oldPrecedingWs = precedingWhitespace assignExp in
@@ -375,7 +375,7 @@ inlineTrivialRenamings exp =
         let nameCounts = identifierCounts body in
         let letRemoved newBody =
           let oldPrecedingWs = precedingWhitespaceExp__ e__ in
-          (replacePrecedingWhitespace oldPrecedingWs newBody).val.e__
+          unwrapExp <| replacePrecedingWhitespace oldPrecedingWs newBody
         in
         let identsAndAssignsInliningCandidates =
           List.filter
@@ -427,7 +427,7 @@ changeRenamedVarsToOuter_ renamings exp =
   let _ = Debug.log "TODO: LangSimplify.changeRenamedVarsToOuter. The current implementation might incorrectly rename variables shadowed by complex patterns" ()
   in exp {-
   let recurse = changeRenamedVarsToOuter_ renamings in
-  let e__ = exp.val.e__ in
+  let e__ = (unwrapExp exp) in
   let removeIdentsFromRenaming identsToRemove renamings =
      Dict.filter
         (\oldName newName ->
@@ -462,7 +462,7 @@ changeRenamedVarsToOuter_ renamings exp =
       let simpleRenamings =
         List.filterMap
             (\(ident, assign) ->
-              case assign.val.e__ of
+              case (unwrapExp assign) of
                 EVar _ assignIdent -> Just (ident, assignIdent)
                 _                  -> Nothing
             )
@@ -501,5 +501,5 @@ changeRenamedVarsToOuter_ renamings exp =
       ECase ws1 (recurse e1) newBranches ws2
     EColonType ws1 e ws2 tipe ws3         -> EColonType ws1 (recurse e) ws2 tipe ws3
     EParens ws1 e pStyle ws2              -> EParens ws1 (recurse e) pStyle ws2
-    EHole ws mv                           -> e__
+    EHole ws h                            -> e__
     -}

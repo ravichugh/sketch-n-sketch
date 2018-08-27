@@ -644,7 +644,7 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
     )
   in
   let leafUnchanged = (exp, usedNames, Dict.empty) in
-  case exp.val.e__ of
+  case (unwrapExp exp) of
     EConst _ _ _ _  -> leafUnchanged
     EBase _ _       -> leafUnchanged
     EVar ws oldName ->
@@ -780,7 +780,7 @@ assignUniqueNames_ exp usedNames oldNameToNewName =
 -- For help finding unused names during synthesis.
 visibleIdentifiersAtEIds : Exp -> Set.Set EId -> Set.Set Ident
 visibleIdentifiersAtEIds program eids =
-  let programIdents = visibleIdentifiersAtPredicateNoPrelude program (\exp -> Set.member exp.val.eid eids) in
+  let programIdents = visibleIdentifiersAtPredicateNoPrelude program (\exp -> Set.member (expEId exp) eids) in
   Set.union programIdents preludeIdentifiers
 
 
@@ -806,12 +806,12 @@ visibleIdentifiersAtEIdBindingNumNoPrelude  program (eid, bn) =
       let newScope = currentScope |> Utils.reverseInsert newIdents in
       let newGlobalIdents: List Ident
           newGlobalIdents =
-            if exp.val.eid == eid && bindingNumber == bn then
+            if expEId exp == eid && bindingNumber == bn then
                if isRec then newScope else currentScope
             else globalIdents
       in (newGlobalIdents, newScope)
     )
-    (\fun currentScope -> case fun.val.e__ of
+    (\fun currentScope -> case unwrapExp fun of
        EFun _ pats _ _ -> currentScope |> Utils.reverseInsert (pats |> List.concatMap identifiersListInPat)
        _ -> currentScope
     )
@@ -828,7 +828,7 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
     newName =
       nonCollidingName suggestedName startingNumberForNonCollidingName (visibleIdentifiersAtEIds program (Set.fromList observerEIds))
     eidToWrap =
-      deepestCommonAncestorWithNewline program (\exp -> List.member exp.val.eid observerEIds) |> .val |> .eid
+      deepestCommonAncestorWithNewline program (\exp -> List.member (expEId exp) observerEIds) |> expEId
     newProgram =
       program
       |> mapExpNode
@@ -842,7 +842,7 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
 
 identifiersVisibleAtProgramEnd : Exp -> Set.Set Ident
 identifiersVisibleAtProgramEnd program =
-  let lastEId = (lastExp program).val.eid in
+  let lastEId = expEId <| lastExp program in
   visibleIdentifiersAtEIds program (Set.singleton lastEId)
 
 -- External API

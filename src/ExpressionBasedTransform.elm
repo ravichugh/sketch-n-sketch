@@ -72,7 +72,7 @@ rangeSynthesisResults originalExp =
     flattenExpTree originalExp
     |> List.filterMap
         (\exp ->
-          case exp.val.e__ of
+          case (unwrapExp exp) of
             EList ws1 es ws2 Nothing ws3 ->
               let maybeNums = Utils.listValues es |> List.map expToMaybeNum |> Utils.projJusts in
               case maybeNums of
@@ -95,11 +95,11 @@ rangeSynthesisResults originalExp =
                       else e
                     in
                     if List.head ascending == Just 0.0 then
-                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "zeroTo") [withDummyExpInfo <| EConst space1 (toFloat max + 1) insertedLoc (intSlider 0 (5*(max + 1)))])
+                      Just ((expEId exp), maybeReverse <| eApp (eVar0 "zeroTo") [withDummyExpInfo <| EConst space1 (toFloat max + 1) insertedLoc (intSlider 0 (5*(max + 1)))])
                     else if List.head ascending == Just 1.0 then
-                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "list1N") [withDummyExpInfo <| EConst space1 (toFloat max) insertedLoc (intSlider 0 (5*(max + 1)-1))])
+                      Just ((expEId exp), maybeReverse <| eApp (eVar0 "list1N") [withDummyExpInfo <| EConst space1 (toFloat max) insertedLoc (intSlider 0 (5*(max + 1)-1))])
                     else
-                      Just (exp.val.eid, maybeReverse <| eApp (eVar0 "range") [eConst (toFloat min) insertedLoc, eConst (toFloat max) insertedLoc])
+                      Just ((expEId exp), maybeReverse <| eApp (eVar0 "range") [eConst (toFloat min) insertedLoc, eConst (toFloat max) insertedLoc])
                   else
                     Nothing
 
@@ -125,7 +125,7 @@ inlineListSynthesisResults originalExp =
     flattenExpTree originalExp
     |> List.concatMap
         (\exp ->
-          case exp.val.e__ of
+          case (unwrapExp exp) of
             ELet letWs1 letKind decls spEq letBody ->
               let _ = Debug.log "TODO: ExpressionBasedTransformed.inlineListSynthesisResults should be implemented for the new ELet's declaratiosn" () in
               []
@@ -166,7 +166,7 @@ inlineListSynthesisResults originalExp =
                         case maybeSingleParentAndEffectiveUsages of
                           Just (parentExp, effectiveUsages) ->
                             -- Single, shared parent (or grandparent of singleton lists).
-                            case parentExp.val.e__ of
+                            case (unwrapExp parentExp) of
                               EList listWs1 heads listWs2 maybeTail listW3 ->
                                 let listName =
                                   let listBaseName =
@@ -260,13 +260,13 @@ inlineListSynthesisResults originalExp =
                                 |> List.map
                                     (\newListExp ->
                                       let prettyNewListExp =
-                                        case newListExp.val.e__ of
+                                        case (unwrapExp newListExp) of
                                           EList _ _ _ _ _ -> copyListWhitespace parentExp newListExp
                                           _               -> newListExp
                                       in
-                                      let newLetBody = replaceExpNodePreservingPrecedingWhitespace parentExp.val.eid prettyNewListExp letBody in
+                                      let newLetBody = replaceExpNodePreservingPrecedingWhitespace (expEId parentExp) prettyNewListExp letBody in
                                       let newLet = replaceE__ letExp (ELet letWs1 letKind False (pVar listName) letWs2 letAssign letWs3 newLetBody letWs4) in
-                                      ( replaceExpNode newLet.val.eid newLet originalExp
+                                      ( replaceExpNode (expEId newLet) newLet originalExp
                                       , "Inline " ++ (unparsePat >> Utils.squish) letPat ++ " into " ++ (unparse >> Utils.squish) newListExp
                                       )
                                     )
@@ -315,7 +315,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
   -- Sister function in LangTools.extraExpsDiff
   -- This version returns the various differing subtrees replaced by argVar:
   let merge expA expB =
-    case (expA.val.e__, expB.val.e__) of
+    case ((unwrapExp expA), (unwrapExp expB)) of
       (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then expA else argVar
       (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then expA else argVar
       (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then expA else argVar
@@ -376,7 +376,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
       else
         retArgVar
     in
-    case (expA.val.e__, expB.val.e__) of
+    case ((unwrapExp expA), (unwrapExp expB)) of
       (EConst ws1A nA locA wdA,              EConst ws1B nB locB wdB)              -> if nA == nB then retSame else retArgVar
       (EBase ws1A ebvA,                      EBase ws1B ebvB)                      -> if eBaseValsEqual ebvA ebvB then retSame else retArgVar
       (EVar ws1A identA,                     EVar ws1B identB)                     -> if identA == identB then retSame else retArgVar
@@ -410,7 +410,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
     flattenExpTree exp
     |> Utils.count
         (\exp ->
-          case exp.val.e__ of
+          case (unwrapExp exp) of
             EVar _ ident -> ident == "INSERT_ARGUMENT_HERE"
             _            -> False
         )
@@ -442,8 +442,8 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
   |> Utils.dedupBy (\(merged, sortedExps, parameterExpLists) -> LangUnparser.unparseWithUniformWhitespace False False merged)
   |> List.map
       (\(merged, sortedExps, parameterExpLists) ->
-        let eidsToReplace = sortedExps |> List.map (.val >> .eid) in
-        let commonScope = deepestCommonAncestorWithNewline originalExp (\exp -> List.member exp.val.eid eidsToReplace) in
+        let eidsToReplace = sortedExps |> List.map expEId in
+        let commonScope = deepestCommonAncestorWithNewline originalExp (\exp -> List.member (expEId exp) eidsToReplace) in
         let funcSuggestedName =
           let defaultName = if simpleExpName merged == "INSERT_ARGUMENT_HERE" then "thing" else simpleExpName merged in
           commonNameForEIdsWithDefault defaultName originalExp eidsToReplace
@@ -454,7 +454,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
           merged
           |> mapFoldExp
               (\e argN ->
-                case e.val.e__ of
+                case (unwrapExp e) of
                   EVar ws "INSERT_ARGUMENT_HERE" -> (replaceE__ e (EVar ws ("INSERT_ARGUMENT" ++ toString argN ++ "_HERE")), argN-1)
                   _                              -> (e, argN)
               )
@@ -483,11 +483,11 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
           if not allowCurrying || argCount >= 2 then
             explicitFunc
           else
-            case fBody.val.e__ of
+            case (unwrapExp fBody) of
               (EApp ws1 funcE args appType ws2) ->
                 case Utils.takeLast 1 args of
                   [lastArg] ->
-                    case lastArg.val.e__ of
+                    case (unwrapExp lastArg) of
                       EVar _ "INSERT_ARGUMENT1_HERE" ->
                         if List.length args >= 2 then
                           replaceE__ fBody (EApp ws1 funcE (List.take (List.length args - 1) args) appType ws2)
@@ -512,7 +512,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
               (\(argN, parametersForArg) (renamings, usedNames) ->
                 let argBaseName =
                   let defaultName = if argCount == 0 then "arg" else "arg" ++ toString argN in
-                  commonNameForEIdsWithDefault defaultName originalExp (List.map (.val >> .eid) parametersForArg)
+                  commonNameForEIdsWithDefault defaultName originalExp (List.map expEId parametersForArg)
                 in
                 let argName = nonCollidingName argBaseName 2 usedNames in
                 ( renamings ++ [("INSERT_ARGUMENT" ++ toString argN ++ "_HERE", argName)]
@@ -577,7 +577,7 @@ cloneEliminationSythesisResults candidateExpFilter minCloneCount minCloneSizeToA
         let wrapped =
           newLetFancyWhitespace -1 False (pVar funcName) abstractedFuncIndented usagesReplaced originalExp
         in
-        let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
+        let newProgram = replaceExpNode (expEId commonScope) wrapped originalExp in
         let clonesName =
           let (eidsToReplace, _, _) = Utils.unzip3 cloneEIdsAndExpsAndParameterExpLists in
           let name = commonNameForEIds originalExp eidsToReplace in
@@ -628,7 +628,7 @@ mapAbstractSynthesisResults originalExp =
           -- let letKind = if isTopLevel commonScope originalExp then Def else Let in
           -- withDummyExpInfo <| ELet (ws <| "\n" ++ oldIndentation) letKind False (pListOfPVars varNames) space1 mapCall space1 usagesReplaced space0
         in
-        let newProgram = replaceExpNode commonScope.val.eid wrapped originalExp in
+        let newProgram = replaceExpNode (expEId commonScope) wrapped originalExp in
         let clonesName =
           if Utils.commonPrefixString varNames /= "" then
             toString (List.length cloneEIdsAndExpsAndParameterExpLists) ++ " " ++ Utils.commonPrefixString varNames ++ "s"
@@ -1106,8 +1106,8 @@ eBaseOffset baseVar offsetNum =
     EVar space1 baseVar
   else
     ePlus (eVar baseVar) (eConst offsetNum (dummyLoc_ unann))
-      |>  replacePrecedingWhitespace " "
-      |> .val |> .e__
+      |> replacePrecedingWhitespace " "
+      |> unwrapExp
 
 
 eAsPoint e =
@@ -1321,7 +1321,7 @@ redundantLetExp (LetExp _ _ p _ _ e2) = redundantBinding(p, e2)
 
 removeRedundantBindings =
   mapExp <| \e ->
-    case e.val.e__ of
+    case unwrapExp e of
       ELet sl def (Declarations po tps anns letexpsGroups) spIn e2 ->
         if tps == [] && anns == [] &&
           List.all redundantLetExp (elemsOf letexpsGroups) then
@@ -1330,7 +1330,7 @@ removeRedundantBindings =
       _                        -> e
 
 redundantBinding (p, e) =
-  case (p.val.p__, e.val.e__) of
+  case (p.val.p__, (unwrapExp e)) of
     (PConst _ n, EConst _ n_ _ _) -> n == n_
     (PBase _ bv, EBase _ bv_)     -> bv == bv_
     (PVar _ x _, EVar _ x_)       -> x == x_
@@ -1450,9 +1450,9 @@ replicateSelectedBlob replicateKind model (defs, blobs, f) =
 
 
 stripPointExp e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     EList _ [(_,ex),(_,ey)] _ Nothing _ ->
-      case (ex.val.e__, ey.val.e__) of
+      case ((unwrapExp ex), (unwrapExp ey)) of
         (EConst _ nx _ _, EConst _ ny _ _) -> Just (nx, ny)
         _                                  -> Nothing
     EColonType _ e_ _ _ _ -> stripPointExp e_
@@ -1460,9 +1460,9 @@ stripPointExp e =
 
 
 stripBoundsExp e =
-  case e.val.e__ of
+  case (unwrapExp e) of
     EList _ es _ Nothing _ ->
-      case List.map (.val >> .e__) (Utils.listValues es) of
+      case List.map unwrapExp (Utils.listValues es) of
         [ EConst _ nLeft _ _
         , EConst _ nTop _ _
         , EConst _ nRight _ _
@@ -1724,10 +1724,10 @@ mergeExpressions eFirst eRest =
   let return e__ list =
     Just (replaceE__ eFirst e__, list) in
 
-  case eFirst.val.e__ of
+  case (unwrapExp eFirst) of
 
     EConst ws1 n loc wd ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EConst _ nNext (_,annNext,_) wdNext -> Just (nNext, annNext, wdNext)
         _                                   -> Nothing
       in
@@ -1735,30 +1735,30 @@ mergeExpressions eFirst eRest =
         let (locid,ann,x) = loc in
         let allAnnotatedNums = (n,ann,wd) :: restAnnotatedNums in
         case Utils.dedupBy annotatedNumToComparable allAnnotatedNums of
-          [_] -> return eFirst.val.e__ []
+          [_] -> return (unwrapExp eFirst) []
           _   ->
             let var = if x == "" then "k" ++ toString locid else x in
             -- let _ = Debug.log "var for merge: " (var, n::nums) in
             return (EVar ws1 var) [(var, allAnnotatedNums)]
 
     EBase _ bv ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EBase _ bv_ -> Just bv_
         _           -> Nothing
       in
       matchAllAndBind match eRest <| \bvs ->
-        if List.all ((==) bv) bvs then return eFirst.val.e__ [] else Nothing
+        if List.all ((==) bv) bvs then return (unwrapExp eFirst) [] else Nothing
 
     EVar _ x ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EVar _ x_ -> Just x_
         _         -> Nothing
       in
       matchAllAndBind match eRest <| \xs ->
-        if List.all ((==) x) xs then return eFirst.val.e__ [] else Nothing
+        if List.all ((==) x) xs then return (unwrapExp eFirst) [] else Nothing
 
     EFun ws1 ps eBody ws2 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EFun _ ps_ eBody_ _ -> Just (ps_, eBody_)
         _                   -> Nothing
       in
@@ -1770,7 +1770,7 @@ mergeExpressions eFirst eRest =
           (mergeExpressions eBody eBodyList)
 
     EApp ws1 eFunc eArgs appType ws2 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EApp _ eFunc_ eArgs_ appType_ _ -> Just ((eFunc_, eArgs_), appType_)
         _                      -> Nothing
       in
@@ -1785,7 +1785,7 @@ mergeExpressions eFirst eRest =
           (Just appType)
 
     ELet ws1 letKind decls wsEq e2 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
          ELet _ _ decls_ _ e2_ ->
             Just (decls_, e2_)
          _ ->
@@ -1801,7 +1801,7 @@ mergeExpressions eFirst eRest =
           (mergeExpressions e2 e2List)
 
     EList ws1 es ws2 me ws3 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EList _ es_ _ me_ _ -> Just (es_, me_)
         _                   -> Nothing
       in
@@ -1813,7 +1813,7 @@ mergeExpressions eFirst eRest =
           (mergeMaybeExpressions me meList)
 
     ERecord ws1 mi decls ws2 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         ERecord _ mi_ decls_ _ -> Just (Utils.recordInitValue mi_, decls)
         _                   -> Nothing
       in
@@ -1825,7 +1825,7 @@ mergeExpressions eFirst eRest =
           (mergeDeclarations decls declsList)
 
     ESelect ws0 eRec ws1 ws2 m ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         ESelect _ eRec_ _ _ m2 -> if m == m2 then Just eRec_ else Nothing
         _                      -> Nothing
       in
@@ -1837,7 +1837,7 @@ mergeExpressions eFirst eRest =
           (mergeExpressions eRec eRecList)
 
     EOp ws1 wso op es ws2 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EOp _ _ op_ es_ _ -> Just (op_, es_)
         _               -> Nothing
       in
@@ -1851,7 +1851,7 @@ mergeExpressions eFirst eRest =
           Nothing
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EIf _ e1_ _ e2_ _ e3_ _ -> Just ((e1_, e2_), e3_)
         _                       -> Nothing
       in
@@ -1865,7 +1865,7 @@ mergeExpressions eFirst eRest =
           (mergeExpressions e3 e3List)
 
     EColonType ws1 e ws2 tipe ws3 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EColonType _ e _ tipe _ -> Just (e,tipe)
         _                       -> Nothing
       in
@@ -1882,7 +1882,7 @@ mergeExpressions eFirst eRest =
       Nothing
 
     EParens ws1 e pStyle ws2 ->
-      let match eNext = case eNext.val.e__ of
+      let match eNext = case (unwrapExp eNext) of
         EParens _ e_ _ _  -> Just e_
         _               -> Nothing
       in
@@ -1891,13 +1891,13 @@ mergeExpressions eFirst eRest =
           (\(e_,l) -> return (EParens ws1 e_ pStyle ws2) l)
           (mergeExpressions e es)
 
-    EHole ws mv ->
-      let match eNext = case eNext.val.e__ of
-        EHole _ mvNext -> Just mvNext
-        _              -> Nothing
+    EHole ws h ->
+      let match eNext = case (unwrapExp eNext) of
+        EHole _ hNext -> Just hNext
+        _             -> Nothing
       in
       matchAllAndBind match eRest <| \maybeVals ->
-        if List.all ((==) mv) maybeVals then return eFirst.val.e__ [] else Nothing
+        if List.all ((==) h) maybeVals then return (unwrapExp eFirst) [] else Nothing
 
 matchAllAndBind : (a -> Maybe b) -> List a -> (List b -> Maybe c) -> Maybe c
 matchAllAndBind f xs g = Utils.bindMaybe g (Utils.projJusts (List.map f xs))
