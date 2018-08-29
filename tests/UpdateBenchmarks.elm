@@ -657,11 +657,12 @@ runBenchmark b = case b of
     let stddevEvalTime = stddev evalTimes in
     let latexRow newFormat =
       let displazyunoptopt dispSpeedup timeUnopt timeOpt timesUnoptAv timesOptAv std =
+            let nudge = if not dispSpeedup then "\\nudgeRight" else "" in
             if timeUnopt < 5 && timeOpt < 5 then
                String.pad 15 ' ' ("\\lessthanms{5}")
             else
               if newFormat then
-                String.pad 15 ' ' (s timesOptAv ++ "&\\plusminus{"++std ++ "}"++ (if dispSpeedup then "&" ++ (if ifspeedup == WithoutSpeedup then "" else speedup (floor timesUnoptAv) (ceiling timesOptAv)) else ""))
+                String.pad 15 ' ' (nudge ++ s timesOptAv ++ "&\\plusminus{"++std ++ "}"++ (if dispSpeedup then "&" ++ (if ifspeedup == WithoutSpeedup then "" else speedup (floor timesUnoptAv) (ceiling timesOptAv)) else ""))
               else
                 String.pad 15 ' ' (s timeUnopt ++ "/" ++ s timeOpt ++ (if dispSpeedup then "&" ++ (if ifspeedup == WithoutSpeedup then "" else speedup timeUnopt timeOpt)else ""))
       in
