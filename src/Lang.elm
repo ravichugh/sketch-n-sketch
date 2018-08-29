@@ -945,11 +945,13 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
       mapDeclarations  globalAcc  scopeTempAcc (Declarations printOrder tps annots letexpsGroups as decls) =
     let (_, newRevGroups, newGlobalAcc, newAccScope) = Utils.foldLeft
           (startBindingNumLetExp decls,
-             [],       globalAcc,    scopeTempAcc) letexpsGroups <|
+             [],        globalAcc, scopeTempAcc) letexpsGroups <|
          \(bindingNumberOfGroupHead,
              revGroups, accGlobal, accScope) (isRec, letexps) -> let
-              (updatedAccGlobal, nextScope) = handleLetExp newE isRec letexps bindingNumberOfGroupHead accGlobal accScope
-              bindingScope = if isRec then nextScope else accScope
+              (updatedAccGlobal, nextScope) =
+                handleLetExp newE isRec letexps bindingNumberOfGroupHead accGlobal accScope
+              bindingScope =
+                if isRec then nextScope else accScope
               (finalAccGlobal, newLetExps) = Tuple.mapSecond List.reverse <|
                 Utils.foldLeft (updatedAccGlobal, []) letexps <|
                               \(accGlobal, revNewLetExps) (LetExp spc spp p fs spe e1) ->
@@ -957,7 +959,7 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
                   (newAccGlobal, LetExp spc spp p fs spe newE1 :: revNewLetExps)
              in
              (bindingNumberOfGroupHead + List.length letexps,
-               (isRec, newLetExps) :: revGroups, finalAccGlobal, bindingScope)
+               (isRec, newLetExps) :: revGroups, finalAccGlobal, nextScope)
     in
     (Declarations printOrder tps annots  (List.reverse newRevGroups), newGlobalAcc, newAccScope)
   in
