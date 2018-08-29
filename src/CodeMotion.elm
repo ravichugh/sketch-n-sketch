@@ -2583,6 +2583,14 @@ insertLetExpsAt (eid, bn) newLetExps exp =
 
 type alias Warnings = List String
 
+isHtmlNode exp = case eListUnapply exp of
+  Just [tag, attrs, children] -> case eListUnapply attrs of
+    Just _ -> case eListUnapply children of
+      Just _ -> True
+      _ -> False
+    _ -> False
+  _ -> False
+
 introduceVarTransformation_:
   Model -> List Int ->   (EId, BindingNumber) -> List SynthesisResult
 introduceVarTransformation_
@@ -2616,7 +2624,7 @@ introduceVarTransformation_
            nonCollidingName newBaseVarname 1 <| Set.fromList <|
             (declarationsToInsert |> List.concatMap (\(LetExp _ _ p _ _ _ ) -> identifiersListInPat p)) ++
             identsAtInsertionPoint ++ scopeIdents
-        mbWrappedExp = if renderingStyle == HtmlSyntax || renderingStyle == LongStringSyntax then
+        mbWrappedExp = if (renderingStyle == HtmlSyntax && isHtmlNode exp) || renderingStyle == LongStringSyntax then
              withDummyExpInfo <| EParens space0 exp innerRenderingStyle space0
            else exp
         newDeclarationsToInsert body =
