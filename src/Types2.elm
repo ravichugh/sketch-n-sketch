@@ -10,11 +10,12 @@ import Info exposing (withDummyInfo)
 import Lang exposing (..)
 import LangTools
 import LangUtils
-import ElmUnparser exposing (unparse, unparseType)
+import ElmUnparser exposing (unparse, unparsePattern, unparseType)
 import Ace
 -- can't depend on Model, since ExamplesGenerated depends on Types2
 import Utils
 
+import Regex
 import EditDistance
 
 unparseMaybeType mt =
@@ -107,12 +108,22 @@ type TypeEnvElement
   -- | TypeAlias Pat Type
 
 
+addHasType : (Pat, Type) -> TypeEnv -> TypeEnv
+addHasType (p, t) gamma =
+  HasType p (Just t) :: gamma
+
+
+addTypeVar : Ident -> TypeEnv -> TypeEnv
+addTypeVar typeVar gamma =
+  TypeVar typeVar :: gamma
+
+
 lookupVar : TypeEnv -> Ident -> Maybe (Maybe Type)
 lookupVar gamma x =
   case gamma of
     HasType p mt :: gammaRest ->
       Utils.firstOrLazySecond
-        (lookupVarInPat gamma x p mt)
+        (lookupVarInPat x p mt)
         (\_ -> lookupVar gammaRest x)
 
     _ :: gammaRest ->
@@ -122,8 +133,8 @@ lookupVar gamma x =
       Nothing
 
 
-lookupVarInPat : TypeEnv -> Ident -> Pat -> Maybe Type -> Maybe (Maybe Type)
-lookupVarInPat gamma x p mt =
+lookupVarInPat : Ident -> Pat -> Maybe Type -> Maybe (Maybe Type)
+lookupVarInPat x p mt =
   case p.val.p__ of
     PConst _ _ -> Nothing
     PBase _ _ -> Nothing
@@ -204,6 +215,65 @@ varNotFoundSuggestions x gamma =
     result
 
 
+findUnboundTypeVars : TypeEnv -> Type -> Maybe (List Ident)
+findUnboundTypeVars gamma typ =
+  let
+    typeVarsInGamma =
+      List.foldl (\binding acc ->
+        case binding of
+          TypeVar a -> a :: acc
+          _         -> acc
+      ) [] gamma
+
+    freeTypeVarsInType =
+      freeVarsType typeVarsInGamma typ
+  in
+    case Utils.listDiff freeTypeVarsInType typeVarsInGamma of
+      [] ->
+        Nothing
+
+      unboundTypeVars ->
+        Just unboundTypeVars
+
+
+freeVarsType : List Ident -> Type -> List Ident
+freeVarsType typeVarsInGamma typ =
+  let
+    result =
+      helper typeVarsInGamma typ
+
+    helper boundTypeVars typ =
+      case typ.val of
+        TVar _ a ->
+          if a == "->" then
+            []
+          else if List.member a boundTypeVars then
+            []
+          else
+            [a]
+
+        TApp _ t0 typs _ ->
+          let
+            newBoundTypeVars =
+              case matchArrow typ of
+                Just (typeVars, _, _) ->
+                  typeVars ++ boundTypeVars
+
+                Nothing ->
+                  boundTypeVars
+          in
+            List.concat (List.map (helper newBoundTypeVars) (t0::typs))
+
+        TParens _ innerType _ ->
+          helper boundTypeVars innerType
+
+        _ ->
+          let _ = Debug.log "TODO: implement freeVars for" (unparseType typ) in
+          []
+  in
+    result
+
+
 --------------------------------------------------------------------------------
 
 typeEquiv t1 t2 =
@@ -211,6 +281,137 @@ typeEquiv t1 t2 =
   -- will need to do alpha-renaming too.
   -- TODO: this is temporary
   String.trim (unparseType t1) == String.trim (unparseType t2)
+
+
+--------------------------------------------------------------------------------
+
+type alias ArrowType = (List Ident, List Type, Type)
+
+
+stripAllOuterTParens : Type -> Type
+stripAllOuterTParens typ =
+  case typ.val of
+    TParens _ innerType _ ->
+      stripAllOuterTParens innerType
+
+    _ ->
+      typ
+
+
+-- This currently does not recurse into retType, so the argTypes list
+-- always has length one.
+--
+-- This strips TParens off the outer type and off the arg and ret types.
+--
+matchArrow : Type -> Maybe ArrowType
+matchArrow typ =
+  let
+    result =
+      case (stripAllOuterTParens typ).val of
+        TApp ws1 t0 typs InfixApp ->
+          let
+            typeVars =
+              matchTypeVars ws1
+          in
+          case (t0.val, typs) of
+            (TVar _ "->", [argType, retType]) ->
+              Just ( typeVars
+                   , [stripAllOuterTParens argType]
+                   , stripAllOuterTParens retType
+                   )
+            _ ->
+              Nothing
+        _ ->
+          Nothing
+
+    _ =
+      result
+        |> Maybe.map (\(typeVars, argTypes, retType) ->
+             (typeVars, List.map unparseType argTypes, unparseType retType)
+           )
+        |> if True
+           then Debug.log "matchArrowType"
+           else Basics.identity
+  in
+    result
+
+
+matchTypeVars : WS -> List Ident
+matchTypeVars ws =
+  let
+    regex =
+      -- Grouping all type var characters and spaces into a single
+      -- string, then splitting below. Would be better to split/group
+      -- words directly in the regex...
+      --
+      "^[ ]*{-[ ]*forall [ ]*([a-z ]+)[ ]*-}[ ]*$"
+    matches =
+      Regex.find Regex.All (Regex.regex regex) ws.val
+    result =
+      case matches of
+        [{submatches}] ->
+          case Utils.projJusts submatches of
+            Just [string] ->
+              string
+                |> Utils.squish
+                |> String.split " "
+            _ ->
+              []
+        _ ->
+          []
+
+    _ =
+      result
+        |> if False
+           then Debug.log "matchTypeVars"
+           else Basics.identity
+  in
+    result
+
+
+-- This is currently not taking prior whitespace into account.
+--
+rebuildArrow : ArrowType -> Type
+rebuildArrow (typeVars, argTypes, retType) =
+  withDummyInfo <|
+    TApp (rebuildTypeVars typeVars)
+         (withDummyInfo (TVar space1 "->"))
+         (argTypes ++ [retType])
+         InfixApp
+
+
+-- This is currently not taking prior whitespace into account.
+--
+rebuildTypeVars : List Ident -> WS
+rebuildTypeVars typeVars =
+  case typeVars of
+    [] ->
+      space0
+    _  ->
+      withDummyInfo <|
+        "{- forall " ++ String.join " " typeVars ++ " -} "
+
+
+--------------------------------------------------------------------------------
+
+copyTypeInfoFrom : Exp -> Exp -> Exp
+copyTypeInfoFrom fromExp toExp =
+  let
+    copyTypeFrom : Exp -> Exp -> Exp
+    copyTypeFrom fromExp toExp =
+      toExp |> setType (unExpr fromExp).val.typ
+
+    copyTypeErrorFrom : Exp -> Exp -> Exp
+    copyTypeErrorFrom fromExp toExp =
+      case (unExpr fromExp).val.typeError of
+        Just typeError ->
+          toExp |> setTypeError typeError
+        Nothing ->
+          toExp
+  in
+  toExp
+    |> copyTypeFrom fromExp
+    |> copyTypeErrorFrom fromExp
 
 
 --------------------------------------------------------------------------------
@@ -241,13 +442,18 @@ inferType gamma stuff thisExp =
       { newExp = thisExp |> setType (Just (withDummyInfo (TString space1))) }
 
     EVar ws x ->
-      let
-        suggestions =
-          List.map
-            (\y -> (y, EVar ws y |> replaceE__ thisExp))
-            (varNotFoundSuggestions x gamma)
-      in
-      { newExp = thisExp |> setTypeError (VarNotFound x suggestions) }
+      case lookupVar gamma x of
+        Just mt ->
+          { newExp = thisExp |> setType mt }
+
+        Nothing ->
+          let
+            suggestions =
+              List.map
+                (\y -> (y, EVar ws y |> replaceE__ thisExp))
+                (varNotFoundSuggestions x gamma)
+          in
+          { newExp = thisExp |> setTypeError (VarNotFound x suggestions) }
 
     EParens ws1 innerExp parensStyle ws2 ->
       let
@@ -262,30 +468,48 @@ inferType gamma stuff thisExp =
         { newExp = newExp }
 
     EColonType ws1 innerExp ws2 annotatedType ws3 ->
-      let
-        result =
-          checkType gamma stuff thisExp innerExp annotatedType
+      case findUnboundTypeVars gamma annotatedType of
+        Nothing ->
+          let
+            result =
+              checkType gamma stuff thisExp innerExp annotatedType
 
-        (newInnerExp, finishNewExp) =
-          if result.okay then
-            (result.newExp, Basics.identity)
+            (newInnerExp, finishNewExp) =
+              if result.okay then
+                (result.newExp, Basics.identity)
 
-          else
-            -- the call to checkType calls:
-            -- setTypeError (ExpectedButGot annotatedType result.newExp.val.typ)
-            --
-            -- here, adding extra breadcrumb about the solicitorExp.
-            --
-            (result.newExp, setExtraTypeInfo (ExpectedExpToHaveSomeType (unExpr innerExp).val.eid))
+              else
+                -- the call to checkType calls:
+                -- setTypeError (ExpectedButGot annotatedType result.newExp.val.typ)
+                --
+                -- here, adding extra breadcrumb about the solicitorExp.
+                --
+                (result.newExp, setExtraTypeInfo (ExpectedExpToHaveSomeType (unExpr innerExp).val.eid))
 
-        newExp =
-          EColonType ws1 newInnerExp ws2 annotatedType ws3
-            |> replaceE__ thisExp
-            |> setType (Just annotatedType)
-            |> finishNewExp
-      in
-        { newExp = newExp }
+            newExp =
+              EColonType ws1 newInnerExp ws2 annotatedType ws3
+                |> replaceE__ thisExp
+                |> setType (Just annotatedType)
+                |> finishNewExp
+          in
+            { newExp = newExp }
 
+        Just unboundTypeVars ->
+          -- TODO: Highlight occurrences of unbound variables with
+          -- type polygons.
+          --
+          let
+            newExp =
+              thisExp
+                |> setTypeError
+                     (OtherTypeError
+                        [ "ill-formed type annotation"
+                        , "unbound: " ++ String.join " " unboundTypeVars
+                        ])
+          in
+            { newExp = newExp }
+
+{-
     EFun ws1 pats body ws2 ->
       let
         newGamma =
@@ -298,6 +522,13 @@ inferType gamma stuff thisExp =
             |> replaceE__ thisExp
       in
       { newExp = newExp }
+-}
+    EFun ws1 pats body ws2 ->
+      { newExp =
+          thisExp
+            |> setTypeError
+                 (OtherTypeError ["trying to synthesize unannotated..."])
+      }
 
     ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
       -- TODO: to get started, just processing individual equations,
@@ -471,31 +702,157 @@ checkType
    -> Type
    -> { okay: Bool, newExp: Exp }
 checkType gamma stuff solicitorExp thisExp expectedType =
-  let result = inferType gamma stuff thisExp in
-  case (unExpr result.newExp).val.typ of
-    Nothing ->
-      { okay = False
-      , newExp =
-          result.newExp
-            |> setTypeError (ExpectedButGot expectedType
-                                            (Just (unExpr solicitorExp).val.eid)
-                                            (unExpr result.newExp).val.typ)
-      }
+  case ( (unExpr thisExp).val.e__
+       , expectedType.val
+       , matchArrow expectedType
+       ) of
 
-    Just inferredType ->
-      if typeEquiv inferredType expectedType then
-        { okay = True
-        , newExp = result.newExp
-        }
+    (_, TParens _ innerExpectedType _, _) ->
+      let
+        result =
+          checkType gamma stuff solicitorExp thisExp innerExpectedType
+        newExp =
+          thisExp
+            |> copyTypeInfoFrom result.newExp
+      in
+      { okay = result.okay, newExp = newExp }
 
-      else
+    (EParens ws1 innerExp parensStyle ws2, _, _) ->
+      let
+        result =
+          checkType gamma stuff solicitorExp innerExp expectedType
+        newExp =
+          EParens ws1 result.newExp parensStyle ws2
+            |> replaceE__ thisExp
+            |> copyTypeInfoFrom result.newExp
+      in
+      { okay = result.okay, newExp = newExp }
+
+    -- Not recursing into function body or retType because of the
+    -- EParens and TParens cases, above.
+    --
+    (EFun ws1 pats body ws2, _, Just (typeVars, argTypes, retType)) ->
+      if List.length pats < List.length argTypes then
         { okay = False
         , newExp =
-            result.newExp
-              |> setTypeError (ExpectedButGot expectedType
-                                              (Just (unExpr solicitorExp).val.eid)
-                                              (unExpr result.newExp).val.typ)
+            thisExp
+              |> setTypeError
+                   (OtherTypeError <|
+                      "TODO List.length pats < List.length argTypes"
+                        :: List.map unparsePattern pats
+                        ++ List.map unparseType argTypes)
         }
+
+      else if List.length pats > List.length argTypes then
+        let
+          -- Break up thisExp EFun into two nested EFuns, and check that.
+          --
+          result =
+            checkType gamma stuff solicitorExp rewrittenThisExp expectedType
+
+          (prefixPats, suffixPats) =
+            Utils.split (List.length argTypes) pats
+
+          rewrittenBody =
+            -- TODO: Probably need to do something better with ids/breadcrumbs...
+            Expr (withDummyInfo (exp_ (EFun space0 suffixPats body space0)))
+
+          rewrittenThisExp =
+            -- TODO: Probably need to do something better with ids/breadcrumbs...
+            Expr (withDummyInfo (exp_ (EFun space0 prefixPats rewrittenBody space0)))
+
+          newBody =
+            case (unExpr result.newExp).val.e__ of
+              EFun _ _ innerFunc _ ->
+                case (unExpr innerFunc).val.e__ of
+                  EFun _ _ newCheckedBody _ ->
+                    newCheckedBody
+                  _ ->
+                    Debug.crash "the structure of the rewritten EFun has changed..."
+              _ ->
+                Debug.crash "the structure of the rewritten EFun has changed..."
+
+          newExp =
+            -- Keeping the structure of the original EFun in tact, not
+            -- the rewrittenThisExp version. May need to track some
+            -- breadcrumbs for stuffing type info into selection polygons...
+            --
+            EFun ws1 pats newBody ws2
+              |> replaceE__ thisExp
+              |> copyTypeInfoFrom result.newExp
+        in
+        { okay = result.okay, newExp = newExp }
+
+      else {- List.length pats == List.length argTypes -}
+        let
+          patTypes =
+            Utils.zip pats argTypes
+          newGamma_ =
+            List.foldl addTypeVar gamma typeVars
+          newGamma =
+            List.foldl addHasType newGamma_ patTypes
+          result =
+            checkType newGamma stuff solicitorExp body retType
+        in
+          if result.okay then
+            { okay = True
+            , newExp =
+                EFun ws1 pats result.newExp ws2
+                  |> replaceE__ thisExp
+                  |> setType (Just expectedType)
+            }
+
+          else
+            let
+              maybeActualType =
+                (unExpr result.newExp).val.typ
+                  |> Maybe.map (\actualRetType ->
+                       rebuildArrow (typeVars, argTypes, actualRetType)
+                     )
+            in
+            { okay = False
+            , newExp =
+                EFun ws1 pats result.newExp ws2
+                  |> replaceE__ thisExp
+                  |> setTypeError (ExpectedButGot expectedType Nothing maybeActualType)
+            }
+
+    _ ->
+      let
+        result =
+          inferType gamma stuff thisExp
+        _ =
+          (unparse thisExp, unparseType expectedType, expectedType)
+            |> if False
+               then Debug.log "catch-all synthesis rule"
+               else Basics.identity
+      in
+        case (unExpr result.newExp).val.typ of
+          Nothing ->
+            { okay = False
+            , newExp =
+                result.newExp
+                -- Don't want to overwrite existing error...
+                --
+                -- |> setTypeError (ExpectedButGot expectedType
+                --                                 (Just (unExpr solicitorExp).val.eid)
+                --                                 (unExpr result.newExp).val.typ)
+            }
+
+          Just inferredType ->
+            if typeEquiv inferredType expectedType then
+              { okay = True
+              , newExp = result.newExp
+              }
+
+            else
+              { okay = False
+              , newExp =
+                  result.newExp
+                    |> setTypeError (ExpectedButGot expectedType
+                                                    (Just (unExpr solicitorExp).val.eid)
+                                                    (Just inferredType))
+              }
 
 
 --------------------------------------------------------------------------------
@@ -527,6 +884,8 @@ showTypeError inputExp thisExp typeError =
           "Got: " ++ Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
       , deuceShow inputExp <|
           "Will eventually insert hole [" ++ unparse thisExp ++ "] with expected type..."
+      , deuceShow inputExp <|
+          "Maybe an option to change expected type..."
       ]
 
     VarNotFound x suggestions ->

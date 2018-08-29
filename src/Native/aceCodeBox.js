@@ -182,7 +182,7 @@ function displayAnnotations(annotations) {
   editor.getSession().clearAnnotations();
   var annots = [];
   for (idx in annotations) {
-      console.log("annot: " + annotations[idx].row);
+      // console.log("annot: " + annotations[idx].row);
       annots.push(
           { row  : annotations[idx].row
           , text : annotations[idx].text

@@ -6097,6 +6097,24 @@ bad3 = (1 + 2) : Bool
 foo = \\provenance ->
   provenacne
 
+foo = (\\provenance -> provenacne) : Bool -> Bool
+
+bar = (\\n -> n) : Num -> Num
+
+baz = (\\n -> True) : Num -> Num
+
+id = (\\x -> x) : {- forall a -} a -> a
+
+fst = (\\x -> (\\y -> x)) : {- forall a b -} a -> (b -> a)
+fst = (\\x -> \\y -> x) : {- forall a b -} a -> (b -> a)
+fst = (\\x y -> x) : {- forall a b -} a -> (b -> a)
+
+fst = (\\x -> (\\y -> x)) : {- forall a b -} a -> b -> a
+fst = (\\x -> \\y -> x) : {- forall a b -} a -> b -> a
+fst = (\\x y -> x) : {- forall a b -} a -> b -> a
+
+snd = (\\x -> (\\y -> y)) : {- forall a b -} a -> (b -> b)
+
 sum = 1 + 2
 
 main =

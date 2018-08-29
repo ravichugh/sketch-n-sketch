@@ -346,16 +346,16 @@ type Type_
   = TNum WS
   | TBool WS
   | TString WS
-  | TNull WS
+  | TNull WS -- TODO: remove
   | TList WS Type WS
   | TDict WS Type Type WS
   | TRecord WS (Maybe (Ident, WS {- | -})) (List (Maybe WS, {- , -} WS, Ident, WS{-:-}, Type)) {- }-} WS
-  | TTuple WS (List Type) WS (Maybe Type) WS
-  | TArrow WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead.
-  | TUnion WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead
+  | TTuple WS (List Type) WS (Maybe Type) WS -- TODO: keep using only the encoding? if so, remove?
+  | TArrow WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
+  | TUnion WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
   | TApp WS Type (List Type) ApplicationType
   | TVar WS Ident
-  | TForall WS (List TPat) Type WS
+  | TForall WS (List TPat) Type WS -- TODO this is not being used; remove?
   | TParens WS Type WS
   | TWildcard WS
 
@@ -364,6 +364,7 @@ dummyType =
 
 type TypeError
   = ExpectedButGot Type (Maybe EId) (Maybe Type)
+      -- TODO if the solicitor (e.g. annotation) can be changed, offer option to change it
   | VarNotFound Ident (List (Ident, Exp))
   | OtherTypeError (List String)
 
