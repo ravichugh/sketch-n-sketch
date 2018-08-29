@@ -1391,11 +1391,11 @@ simpleType minStartCol =
     lazy <| \_ ->
       (oneOf
         [ nullType
-        , variableType
-        , dataType
         , numType
         , boolType
         , stringType
+        , variableType
+        , dataType
         , wildcardType
         , lazy <| \_ -> tupleType
         , lazy <| \_ -> recordType
