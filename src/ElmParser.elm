@@ -1415,7 +1415,10 @@ simpleTypeWithPossibleArguments minStartCol =
           TVar _ "Dict" -> case args of
             [tkey, tvalue] -> succeed <| \spApp -> TDict spApp tkey tvalue space0
             _ -> fail "Dict takes exactly two type arguments"
-          _ -> succeed <| \spApp -> TApp spApp f args SpaceApp
+          _ ->
+            case args of
+              [] -> succeed <| \spApp -> (first spApp).val
+              _  -> succeed <| \spApp -> TApp spApp f args SpaceApp
       ) <|
       (trackInfo (simpleType minStartCol) |> andThen (\wsToMainTypeI ->
          let appargSpace = spaceSameLineOrNextAfter (min minStartCol wsToMainTypeI.start.col) MinIndentSpace in
