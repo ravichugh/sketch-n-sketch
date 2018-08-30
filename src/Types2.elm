@@ -1,12 +1,13 @@
 module Types2 exposing
   ( typecheck
-  , makeDeuceTool
+  , makeDeuceExpTool
+  , makeDeucePatTool
   , AceTypeInfo
   , aceTypeInfo
   , dummyAceTypeInfo
   )
 
-import Info exposing (withDummyInfo)
+import Info exposing (WithInfo, withDummyInfo)
 import Lang exposing (..)
 import LangTools
 import LangUtils
@@ -146,6 +147,7 @@ lookupVarInPat x p mt =
       else
         Nothing
 
+    -- TODO
 {-
   | PList WS (List Pat) WS (Maybe Pat) WS -- TODO store WS before commas, like EList
   | PAs WS Pat WS Pat
@@ -418,13 +420,17 @@ copyTypeInfoFrom fromExp toExp =
 
 typecheck : Exp -> Exp
 typecheck e =
-  let result = inferType [] {} e in
+  let result = inferType [] { inputExp = e } e in
   result.newExp
 
+-- extra stuff for typechecker
+type alias Stuff =
+  { inputExp : Exp  -- root expression (model.inputExp)
+  }
 
 inferType
     : TypeEnv
-   -> {}
+   -> Stuff
    -> Exp
    -> { newExp: Exp }
         -- the inferred Maybe Type is in newExp.val.typ
@@ -448,12 +454,23 @@ inferType gamma stuff thisExp =
 
         Nothing ->
           let
+            message =
+              deuceShow stuff.inputExp <| "Cannot find variable `" ++ x ++ "`"
             suggestions =
               List.map
                 (\y -> (y, EVar ws y |> replaceE__ thisExp))
                 (varNotFoundSuggestions x gamma)
+            items =
+              if List.length suggestions == 0 then
+                [ message ]
+              else
+                message
+                  :: deuceShow stuff.inputExp "Maybe you want one of the following?"
+                  :: List.map
+                       (\(y, ey) -> deuceTool y (replaceExpNode (unExpr thisExp).val.eid ey stuff.inputExp))
+                       suggestions
           in
-          { newExp = thisExp |> setTypeError (VarNotFound x suggestions) }
+          { newExp = thisExp |> setTypeError (VarNotFound x items) }
 
     EParens ws1 innerExp parensStyle ws2 ->
       let
@@ -676,7 +693,7 @@ inferType gamma stuff thisExp =
 
 inferTypes
     : TypeEnv
-   -> {}
+   -> Stuff
    -> List Exp
    -> { newExps: List Exp }
 inferTypes gamma stuff exps =
@@ -693,7 +710,7 @@ inferTypes gamma stuff exps =
 
 checkType
     : TypeEnv
-   -> {}
+   -> Stuff
    -> Exp -- the expression whose analysis calls ("solicits") checkType.
           -- the solicitorExp can be used to generate type error messages, but
           -- this funciton rewrites only thisExp. the caller needs to add any
@@ -858,21 +875,21 @@ checkType gamma stuff solicitorExp thisExp expectedType =
 --------------------------------------------------------------------------------
 
 -- Currently shoving entire type error message and suggested fixes into Deuce.
--- So every line is a Synthesis Result.
+-- So every line is a DeuceTypeInfoItem === SynthesisResult.
 
-deuceShow : Exp -> String -> SynthesisResult
+deuceShow : Exp -> String -> DeuceTypeInfoItem
 deuceShow inputExp s =
   -- TODO: everything is a SynthesisResult, so pass in inputExp as dummy...
   synthesisResult s inputExp
 
 
-deuceTool : String -> Exp -> SynthesisResult
+deuceTool : String -> Exp -> DeuceTypeInfoItem
 deuceTool =
   synthesisResult
 
 
-showTypeError : Exp -> Exp -> TypeError -> List SynthesisResult
-showTypeError inputExp thisExp typeError =
+showTypeError : Exp -> TypeError -> List DeuceTypeInfoItem
+showTypeError inputExp typeError =
   case typeError of
     OtherTypeError strings ->
       List.map (deuceShow inputExp) strings
@@ -883,38 +900,40 @@ showTypeError inputExp thisExp typeError =
       , deuceShow inputExp <|
           "Got: " ++ Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
       , deuceShow inputExp <|
-          "Will eventually insert hole [" ++ unparse thisExp ++ "] with expected type..."
+          "Will eventually insert hole around this expression with expected type..."
       , deuceShow inputExp <|
           "Maybe an option to change expected type..."
       ]
 
-    VarNotFound x suggestions ->
-      let
-        message =
-          deuceShow inputExp <| "Cannot find variable `" ++ x ++ "`"
-      in
-        if List.length suggestions == 0 then
-          [ message ]
-        else
-          message
-            :: deuceShow inputExp "Maybe you want one of the following?"
-            :: List.map
-                 (\(y, ey) -> deuceTool y (replaceExpNode (unExpr thisExp).val.eid ey inputExp))
-                 suggestions
+    VarNotFound x items ->
+      items
 
 
-makeDeuceTool : Exp -> EId -> DeuceTransformation
-makeDeuceTool inputExp eId = \() ->
+makeDeuceExpTool : Exp -> Exp -> DeuceTransformation
+makeDeuceExpTool = makeDeuceToolForThing Expr unExpr
+
+
+makeDeucePatTool : Exp -> Pat -> DeuceTransformation
+makeDeucePatTool = makeDeuceToolForThing Basics.identity Basics.identity
+
+
+makeDeuceToolForThing
+   : (WithInfo (WithTypeInfo b) -> a)
+  -> (a -> WithInfo (WithTypeInfo b))
+  -> Exp
+  -> a -- thing is a Thing (Exp or Pat or Type)
+  -> DeuceTransformation
+makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
   let
-    exp =
-      LangTools.justFindExpByEId inputExp eId
+    -- exp =
+    --   LangTools.justFindExpByEId inputExp eId
 
     -- posInfo =
     --   [ show <| "Start: " ++ toString exp.start ++ " End: " ++ toString exp.end
     --   ]
 
     deuceTypeInfo =
-      case ((unExpr exp).val.typ, (unExpr exp).val.typeError) of
+      case ((unwrap thing).val.typ, (unwrap thing).val.typeError) of
         (Nothing, Nothing) ->
           [ deuceShow inputExp <|
               "This expression wasn't processed by the typechecker..."
@@ -924,8 +943,9 @@ makeDeuceTool inputExp eId = \() ->
           [ deuceShow inputExp <| "Type: " ++ unparseType t ]
 
         (_, Just typeError) ->
-          showTypeError inputExp exp typeError
+          showTypeError inputExp typeError
 
+{-
     insertAnnotationTool =
       case (unExpr exp).val.typ of
         Just typ ->
@@ -939,8 +959,9 @@ makeDeuceTool inputExp eId = \() ->
 
         Nothing ->
           []
+-}
   in
     List.concat <|
       [ deuceTypeInfo
-      , insertAnnotationTool
+      -- , insertAnnotationTool
       ]

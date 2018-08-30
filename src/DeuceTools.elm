@@ -2122,7 +2122,25 @@ typesTool model selections =
           (Nothing, Possible)
 
         (_, _, [eId], [], [], [], [], []) ->
-          (Just (Types2.makeDeuceTool model.inputExp eId), Satisfied)
+          let
+            exp = LangTools.justFindExpByEId model.inputExp eId
+          in
+          (Just (Types2.makeDeuceExpTool model.inputExp exp), Satisfied)
+
+        (_, _, _, [pathedPatId], [], [], [], []) ->
+          let
+            pat =
+              LangTools.findPatByPathedPatternId pathedPatId model.inputExp
+                -- TODO: why does this fail sometimes?
+                -- |> Utils.fromJust_ "typesTool findPat"
+                --
+                -- Once figured out, remove the case split below.
+          in
+            case pat of
+              Nothing ->
+                (Nothing, Impossible)
+              Just p  ->
+                (Just (Types2.makeDeucePatTool model.inputExp p), Satisfied)
 
         _ ->
           (Nothing, Impossible)

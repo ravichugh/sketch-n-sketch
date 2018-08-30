@@ -215,10 +215,14 @@ maybeEvalMathOp op_ operands =
 type alias Operator =
   (WS, Ident)
 
+-- type alias Thing == Exp or Pat (or Type, soon)
+--
+-- Ideally, these three types would have the same field name for IDs.
+
 type alias EId  = Int
 type alias PId  = Int
 type alias Exp_ = WithTypeInfo { e__ : Exp__, eid : EId }
-type alias Pat_ = { p__ : Pat__, pid : PId }
+type alias Pat_ = WithTypeInfo { p__ : Pat__, pid : PId }
 
 type alias WithTypeInfo a =
   { a | typ : Maybe Type
@@ -235,20 +239,51 @@ makeExp_ e__ eid =
   , extraTypeInfo = Nothing
   }
 
+makePat_ p__ pid =
+  { p__ = p__
+  , pid = pid
+  , typ = Nothing
+  , typeError = Nothing
+  , extraTypeInfo = Nothing
+  }
+
+setTypeForThing : Maybe Type -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setTypeForThing typ thing =
+  let thing_ = thing.val in
+  { thing | val = { thing_ | typ = typ } }
+
+setTypeErrorForThing : TypeError -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setTypeErrorForThing error thing =
+  let thing_ = thing.val in
+  { thing | val = { thing_ | typeError = Just error } }
+
+setExtraTypeInfoForThing : ExtraTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setExtraTypeInfoForThing info thing =
+  let thing_ = thing.val in
+  { thing | val = { thing_ | extraTypeInfo = Just info } }
+
 setType : Maybe Type -> Exp -> Exp
-setType typ (Expr e) =
-  let e_ = e.val in
-  Expr { e | val = { e_ | typ = typ } }
+setType typ =
+  unExpr >> setTypeForThing typ >> Expr
 
 setTypeError : TypeError -> Exp -> Exp
-setTypeError error (Expr e) =
-  let e_ = e.val in
-  Expr { e | val = { e_ | typeError = Just error } }
+setTypeError error =
+  unExpr >> setTypeErrorForThing error >> Expr
 
 setExtraTypeInfo : ExtraTypeInfo -> Exp -> Exp
-setExtraTypeInfo info (Expr e) =
-  let e_ = e.val in
-  Expr { e | val = { e_ | extraTypeInfo = Just info } }
+setExtraTypeInfo info =
+  unExpr >> setExtraTypeInfoForThing info >> Expr
+
+{-
+setTypePat : Maybe Type -> Pat -> Pat
+setTypePat = setTypeForThing
+
+setTypeErrorPat : TypeError -> Pat -> Pat
+setTypeErrorPat = setTypeErrorForThing
+
+setExtraTypeInfoPat : ExtraTypeInfo -> Pat -> Pat
+setExtraTypeInfoPat = setExtraTypeInfoForThing
+-}
 
 
 --------------------------------------------------------------------------------
@@ -362,10 +397,20 @@ type Type_
 dummyType =
   withDummyRange (TWildcard space0)
 
+-- Currently shoving entire type error message and suggested fixes into Deuce.
+-- So every line is a DeuceTypeInfoItem === SynthesisResult.
+--
+-- TODO: Any benefit of explicit TypeError datatype? Could just do
+--   type alias TypeError = SynthesisResult (for now)
+--
+-- TODO: Update Deuce UI with API for "Functional Types" info and errors.
+--
+type alias DeuceTypeInfoItem = SynthesisResult
+
 type TypeError
   = ExpectedButGot Type (Maybe EId) (Maybe Type)
       -- TODO if the solicitor (e.g. annotation) can be changed, offer option to change it
-  | VarNotFound Ident (List (Ident, Exp))
+  | VarNotFound Ident (List DeuceTypeInfoItem)
   | OtherTypeError (List String)
 
 -- Information for an expression that is relevant to
@@ -1961,13 +2006,13 @@ exp_ : Exp__ -> Exp_
 exp_ e__ = makeExp_ e__ (-1)
 
 pat_ : Pat__ -> Pat_
-pat_ = flip Pat_ (-1)
+pat_ p__ = makePat_ p__ (-1)
 
 withDummyRange x            = WithInfo x dummyPos dummyPos
 withDummyPatInfo p__        = WithInfo (pat_ p__) dummyPos dummyPos
 withDummyExp_Info e__       = WithInfo (exp_ e__) dummyPos dummyPos
 withDummyExpInfo e__        = Expr <| withDummyExp_Info e__
-withDummyPatInfoPId pid p__ = WithInfo (Pat_ p__ pid) dummyPos dummyPos
+withDummyPatInfoPId pid p__ = WithInfo (makePat_ p__ pid) dummyPos dummyPos
 withDummyExpInfoEId eid e__ = withDummyRange (makeExp_ e__ eid)
 
 replaceE__ : Exp -> Exp__ -> Exp
