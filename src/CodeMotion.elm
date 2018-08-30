@@ -2497,23 +2497,11 @@ introduceVarTransformation:
   Model -> List Int -> Maybe TargetPosition -> Maybe (() -> List SynthesisResult)
 introduceVarTransformation
   m        expIds      maybeTargetPos =
-  let
-    insertNewLet: EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)
-    insertNewLet insertedLetEId pat boundExp bindingNumber expToWrap program =
-      ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
-      , Just insertedLetEId
-      )
-
-    addToExistingLet: List Int -> EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)
-    addToExistingLet targetPath _ pat boundExp bindingNumber letExpToInsertInto _ =
-      ( insertPat_ (pat, boundExp) targetPath letExpToInsertInto
-      , Nothing
-      )
-  in case Debug.log "maybeTargetPos" maybeTargetPos of
+  case maybeTargetPos of
     Nothing ->
       Just <| \() ->
           let expToWrap = deepestCommonAncestorWithNewline m.inputExp (\e -> List.member (expEId e) expIds) in
-          introduceVarTransformation_ m expIds (expEId expToWrap, 0 {- Binding number -}) --insertNewLet
+          introduceVarTransformation_ m expIds (expEId expToWrap, 0 {- Binding number -})
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
@@ -2524,12 +2512,12 @@ introduceVarTransformation
 
     Just (DeclarationTargetPosition (Before, (expTargetId, bindingNumber))) ->
       Just <| \() ->
-          introduceVarTransformation_ m expIds (expTargetId, bindingNumber) --insertNewLet
+          introduceVarTransformation_ m expIds (expTargetId, bindingNumber)
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
       Just <|
         \() ->
-          introduceVarTransformation_ m expIds (expTargetId, 0) --insertNewLet
+          introduceVarTransformation_ m expIds (expTargetId, 0)
 
     Just (PatTargetPosition patTarget) ->
       case patTargetPositionToTargetPathedPatId patTarget of
@@ -2540,7 +2528,6 @@ introduceVarTransformation
                 Just <|
                   \() ->
                     introduceVarTransformation_ m expIds (targetId, 0)
-                      --(addToExistingLet targetPath)
               else
                 Nothing
 
@@ -2593,85 +2580,116 @@ insertLetExpsAt (eid, bn) newLetExps exp =
     Just s -> Err s
     Nothing -> Ok newExp
 
+type alias Warnings = List String
+
+isHtmlNode exp = case eListUnapply exp of
+  Just [tag, attrs, children] -> case eListUnapply attrs of
+    Just _ -> case eListUnapply children of
+      Just _ -> True
+      _ -> False
+    _ -> False
+  _ -> False
+
 introduceVarTransformation_:
   Model -> List Int ->   (EId, BindingNumber) -> List SynthesisResult
 introduceVarTransformation_
   m        eidsToExtract insertionPosition =
   let
-    isSafe = True -- TODO List.all (isDescendentOf expPosition) eIdsToExtract
-
     identsAtInsertionPoint = EvalUpdate.visibleIdentifiersAtEIdBindingNum m.inputExp insertionPosition
 
-    folder: Exp -> List LetExp -> List Ident -> (Exp, List LetExp)
-    folder exp declarationsToInsert scopeIdents =
-      if not <| List.member (expEId exp) <| eidsToExtract then (exp, declarationsToInsert)
+    folder: Exp -> (List LetExp, Warnings) -> (List Ident, ParensStyle) -> (Exp, (List LetExp, Warnings), (List Ident, ParensStyle))
+    folder exp ((declarationsToInsert, warnings) as globalAcc) ((scopeIdents, renderingStyle) as pathAcc) =
+      let innerRenderingStyle = case unwrapExp exp of
+        EParens _ _ ps _ -> if ps == Parens then renderingStyle else ps
+        _ -> renderingStyle
+      in
+      if not <| List.member (expEId exp) <| eidsToExtract then (exp, globalAcc, (scopeIdents, innerRenderingStyle))
       else let -- An expression to insert !
       -- We convert it to either an EApp if there are some free variables, or just the expression itself.
-        identsDefinedSinceInsertionPoint =
-          Utils.commonPrefixPair identsAtInsertionPoint scopeIdents
-        _ = Debug.log "identsDefinedSinceInsertionPoint" identsDefinedSinceInsertionPoint
+        res = Utils.removeCommonSuffix [identsAtInsertionPoint, scopeIdents]
+      in
+      case res of
+          [] -> (exp, globalAcc, (scopeIdents, innerRenderingStyle))
+          [head] -> (exp, globalAcc, (scopeIdents, innerRenderingStyle))
+          a :: b :: c :: d -> (exp, globalAcc, (scopeIdents, innerRenderingStyle))
+          [shouldBeEmpty, identsDefinedSinceInsertionPoint] ->
+      let
+        newWarnings = if shouldBeEmpty == [] then warnings else warnings ++ ["Insertion point not a parent"]
         identsToAbstractOn = freeIdentifiersList exp |>
-          List.filter (not << flip List.member identsDefinedSinceInsertionPoint)
-        _ = Debug.log "identsToAbstractOn" identsToAbstractOn
+           List.filter (flip List.member identsDefinedSinceInsertionPoint) |>
+           Utils.dedup
         newBaseVarname = if List.isEmpty identsToAbstractOn then "variable" else "custom"
         newVarName =
-          nonCollidingName newBaseVarname 1 <| Set.fromList <|
+           nonCollidingName newBaseVarname 1 <| Set.fromList <|
             (declarationsToInsert |> List.concatMap (\(LetExp _ _ p _ _ _ ) -> identifiersListInPat p)) ++
-            identsDefinedSinceInsertionPoint
+            identsAtInsertionPoint ++ scopeIdents
+        mbWrappedExp = if (renderingStyle == HtmlSyntax && isHtmlNode exp) || renderingStyle == LongStringSyntax then
+             withDummyExpInfo <| EParens space0 exp innerRenderingStyle space0
+           else exp
         newDeclarationsToInsert body =
-          LetExp Nothing (ws "\n") (pVar0 newVarName) FunArgAsPats (ws " ") body ::
-          declarationsToInsert
+           LetExp Nothing (ws "\n") (pVar0 newVarName) FunArgAsPats (ws " ") body ::
+           declarationsToInsert
       in if List.isEmpty identsToAbstractOn then -- Just a variable
         (replaceExpInfo exp <| exp_ <| EVar (precedingWhitespaceWithInfoExp exp) newVarName,
-         newDeclarationsToInsert exp)
+         (newDeclarationsToInsert mbWrappedExp, newWarnings),
+         (scopeIdents, innerRenderingStyle))
       else -- A function call
         (replaceExpInfo exp <| exp_ <| EApp (precedingWhitespaceWithInfoExp exp)
-          (replaceExpInfo exp <| exp_ <| EVar space0 newVarName)
-          (identsToAbstractOn |> List.map (replaceExpInfo exp << exp_ << EVar space1))
-          SpaceApp
-          space0
-        , newDeclarationsToInsert <| replaceExpInfo exp <| exp_ <|
-          EFun space0 (identsToAbstractOn |> List.map pVar) exp space0)
+           (replaceExpInfo exp <| exp_ <| EVar space0 newVarName)
+           (identsToAbstractOn |> List.map (replaceExpInfo exp << exp_ << EVar space1))
+           SpaceApp
+           space0
+        , (newDeclarationsToInsert <| replaceExpInfo exp <| exp_ <|
+           EFun space0 (identsToAbstractOn |> List.map pVar) mbWrappedExp space0, newWarnings)
+        , (scopeIdents, innerRenderingStyle))
 
-    handleLetExp: Exp -> IsRec -> List LetExp -> BindingNumber -> List LetExp -> List Ident -> (List LetExp, List Ident) -- handleLetExp
-    handleLetExp e isRec group bindingNumber declarationsToInsert scopeIdents =
+    handleLetExp: Exp -> IsRec -> List LetExp -> BindingNumber -> (List LetExp, Warnings) -> (List Ident, ParensStyle) -> ((List LetExp, Warnings), (List Ident, ParensStyle)) -- handleLetExp
+    handleLetExp e isRec group bindingNumber declarationsToInsert (scopeIdents, renderingStyle) =
       scopeIdents
       |> Utils.reverseInsert
           (group |> List.concatMap (patOfLetExp >> identifiersListInPat))
+      |> flip (,) renderingStyle
       |> (,) declarationsToInsert
 
-    handleEFun: Exp -> List Ident -> List Ident                  -- hanldeEFun
-    handleEFun exp scopeIdents = case unwrapExp exp of
+    handleEFun: Exp -> (List Ident, ParensStyle) -> (List Ident, ParensStyle)                  -- hanldeEFun
+    handleEFun exp (scopeIdents, renderingStyle) = case unwrapExp exp of
       EFun _ pats _ _ ->
         scopeIdents
         |> Utils.reverseInsert
           (pats |> List.concatMap identifiersListInPat)
+        |> flip (,) renderingStyle
       _ ->
-       scopeIdents
+       (scopeIdents, renderingStyle)
 
-    handleCaseBranch: Exp -> Branch -> Int -> List Ident -> List Ident -- hanldeCaseBranch
-    handleCaseBranch exp branch nth scopeIdents = case branch.val of
+    handleCaseBranch: Exp -> Branch -> Int -> (List Ident, ParensStyle) -> (List Ident, ParensStyle) -- hanldeCaseBranch
+    handleCaseBranch exp branch nth (scopeIdents, renderingStyle) = case branch.val of
       Branch_ _ pat _ _ ->
         scopeIdents
         |> Utils.reverseInsert
           (pat |> identifiersListInPat)
+        |> flip (,) renderingStyle
 
-    initGlobal: List LetExp
-    initGlobal = [] -- List of expressions to insert
+    initGlobal: (List LetExp, Warnings)
+    initGlobal = ([], []) -- List of expressions to insert
 
-    initScope: List Ident
-    initScope = EvalUpdate.preludeEnv |> List.map Tuple.first
+    initScope: (List Ident, ParensStyle)
+    initScope = (EvalUpdate.preludeEnv |> List.map Tuple.first, ElmSyntax)
 
   -- First pass: We collect all the definitions
   -- and abstract over variables that are not present at the target position.
-    (expWithFunctions, definitionsToInline) =
+    (expWithFunctions, (definitionsToInline, warnings)) =
       mapFoldExpTopDownWithScope folder handleLetExp handleEFun handleCaseBranch initGlobal initScope m.inputExp
 
     resNewExp = if definitionsToInline |> List.isEmpty then
         Err "No definition to inline found"
       else insertLetExpsAt insertionPosition definitionsToInline expWithFunctions
 
-    msg = let functions = definitionsToInline |> List.filter (\(LetExp _ _ p _ _ e) -> case unwrapExp e of
+    (msg, isSafe) =
+      if not <| List.isEmpty warnings then
+        (String.join ",\n" warnings, False)
+      else
+      flip (,) True <|
+      let functions = definitionsToInline |> List.filter (\(LetExp _ _ p _ _ e) -> case unwrapExp e of
         EFun _ _ _ _ -> True
         _ -> False
       ) |> List.length in

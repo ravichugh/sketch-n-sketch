@@ -694,7 +694,10 @@ type alias DeuceTool =
 -- still a better fit in a few places (mentioned above).
 
 -- ELet/EFun/ECase.
--- Int is the branch number for ECase, the declaration number for ELet, 1 for EFun
+-- Int is an index indicating
+-- * the branch number for ECase (1-based index),
+-- * the declaration number for ELet (0-based index),
+-- * the pattern number for EFun (1-based index)
 type alias ScopeId = (EId, Int)
 
 -- The List Int is how to walk the pattern to reach the pattern target's position
@@ -1063,7 +1066,8 @@ mapFoldPat f initAcc p =
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapFoldExpTopDown : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
 mapFoldExpTopDown f initAcc e =
-  mapFoldExpTopDownWithScope (\e a b -> f e a) (\e r g bn a b -> (a, b)) (\e b -> b) (\e br i b -> b) initAcc () e
+  mapFoldExpTopDownWithScope (\e a b ->
+    let (f1, f2) = f e a in (f1, f2, b)) (\e r g bn a b -> (a, b)) (\e b -> b) (\e br i b -> b) initAcc () e
 
 -- Nodes visited/replaced in top-down, left-to-right order.
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
@@ -1129,7 +1133,7 @@ startBindingNumLetExp (Declarations printOrder tps annots letexpsGroups  as decl
 -- Includes user-defined scope information.
 -- Careful, a poorly constructed mapping function can cause this to fail to terminate.
 mapFoldExpTopDownWithScope
-  :  (Exp -> a -> b -> (Exp, a))
+  :  (Exp -> a -> b -> (Exp, a, b))
      -- handleLetExp. The binding number is the one of the first LetExp.
   -> (Exp -> IsRec -> List LetExp -> BindingNumber -> a -> b -> (a, b))
      -- hanldeEFun
@@ -1141,7 +1145,7 @@ mapFoldExpTopDownWithScope
   -> Exp
   -> (Exp, a)
 mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobalAcc initScopeTempAcc e =
-  let (newE, newGlobalAcc) = f e initGlobalAcc initScopeTempAcc in
+  let (newE, newGlobalAcc, newScopeTempAcc) = f e initGlobalAcc initScopeTempAcc in
   let ret e__ globalAcc =
     (replaceE__ newE e__, globalAcc)
   in
@@ -1161,11 +1165,13 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
       mapDeclarations  globalAcc  scopeTempAcc (Declarations printOrder tps annots letexpsGroups as decls) =
     let (_, newRevGroups, newGlobalAcc, newAccScope) = Utils.foldLeft
           (startBindingNumLetExp decls,
-             [],       globalAcc,    scopeTempAcc) letexpsGroups <|
+             [],        globalAcc, scopeTempAcc) letexpsGroups <|
          \(bindingNumberOfGroupHead,
              revGroups, accGlobal, accScope) (isRec, letexps) -> let
-              (updatedAccGlobal, nextScope) = handleLetExp newE isRec letexps bindingNumberOfGroupHead accGlobal accScope
-              bindingScope = if isRec then nextScope else accScope
+              (updatedAccGlobal, nextScope) =
+                handleLetExp newE isRec letexps bindingNumberOfGroupHead accGlobal accScope
+              bindingScope =
+                if isRec then nextScope else accScope
               (finalAccGlobal, newLetExps) = Tuple.mapSecond List.reverse <|
                 Utils.foldLeft (updatedAccGlobal, []) letexps <|
                               \(accGlobal, revNewLetExps) (LetExp spc spp p fs spe e1) ->
@@ -1173,7 +1179,7 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
                   (newAccGlobal, LetExp spc spp p fs spe newE1 :: revNewLetExps)
              in
              (bindingNumberOfGroupHead + List.length letexps,
-               (isRec, newLetExps) :: revGroups, finalAccGlobal, bindingScope)
+               (isRec, newLetExps) :: revGroups, finalAccGlobal, nextScope)
     in
     (Declarations printOrder tps annots  (List.reverse newRevGroups), newGlobalAcc, newAccScope)
   in
@@ -1182,56 +1188,56 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
     EBase _ _      -> (newE, newGlobalAcc)
     EVar _ _       -> (newE, newGlobalAcc)
     EFun ws1 ps e1 ws2 ->
-      let newScopeTempAcc = handleEFun newE initScopeTempAcc in
-      let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
+      let newScopeTempAcc2 = handleEFun newE newScopeTempAcc in
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc2 e1 in
       ret (EFun ws1 ps newE1 ws2) newGlobalAcc2
 
     EApp ws1 e1 es apptype ws2 ->
-      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
-      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc es in
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
+      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 newScopeTempAcc es in
       ret (EApp ws1 newE1 newEs apptype ws2) newGlobalAcc3
 
     EOp ws1 wso op es ws2 ->
-      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc es in
+      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc newScopeTempAcc es in
       ret (EOp ws1 wso op newEs ws2) newGlobalAcc2
 
     EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc initScopeTempAcc (Utils.listValues es) in
+      let (newEs, newGlobalAcc2) = recurseAll newGlobalAcc newScopeTempAcc (Utils.listValues es) in
       ret (EList ws1 (Utils.listValuesMake es newEs) ws2 Nothing ws3) newGlobalAcc2
 
     EList ws1 es ws2 (Just e1) ws3 ->
-      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
-      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 initScopeTempAcc (Utils.listValues es) in
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
+      let (newEs, newGlobalAcc3) = recurseAll newGlobalAcc2 newScopeTempAcc (Utils.listValues es) in
       ret (EList ws1 (Utils.listValuesMake es newEs) ws2 (Just newE1) ws3) newGlobalAcc3
 
     ERecord ws1 Nothing decls ws2 ->
-      let (newDecls, newGlobalAcc2, _) = mapDeclarations newGlobalAcc initScopeTempAcc decls in
+      let (newDecls, newGlobalAcc2, _) = mapDeclarations newGlobalAcc newScopeTempAcc decls in
       ret (ERecord ws1 Nothing newDecls ws2) newGlobalAcc2
 
     ERecord ws1 (Just (mi, wsi)) decls ws2 ->
-      let (newMi, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc mi in
-      let (newDecls, newGlobalAcc3, _) = mapDeclarations newGlobalAcc2 initScopeTempAcc decls in
+      let (newMi, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc mi in
+      let (newDecls, newGlobalAcc3, _) = mapDeclarations newGlobalAcc2 newScopeTempAcc decls in
       ret (ERecord ws1 (Just (newMi, wsi)) newDecls ws2) newGlobalAcc3
 
     ESelect ws0 e1 ws1 ws2 ident ->
-      let (newE, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      let (newE, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
       ret (ESelect ws0 newE ws1 ws2 ident) newGlobalAcc2
 
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
-      case recurseAll newGlobalAcc initScopeTempAcc [e1, e2, e3] of
+      case recurseAll newGlobalAcc newScopeTempAcc [e1, e2, e3] of
         ([newE1, newE2, newE3], newGlobalAcc2) -> ret (EIf ws1 newE1 ws2 newE2 ws3 newE3 ws4) newGlobalAcc2
         _                                      -> Debug.crash "I'll buy you a beer if this line of code executes. - Brian"
 
     ECase ws1 e1 branches ws2 ->
       -- Note: ECase given to handleBranch has original scrutinee for now.
-      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
       let (newBranches, newGlobalAcc3) =
         branches
         |> Utils.foldli1
             (\(i, branch) (newBranches, globalAcc) ->
-              let newScopeTempAcc = handleCaseBranch newE branch i initScopeTempAcc in
+              let newScopeTempAcc2 = handleCaseBranch newE branch i newScopeTempAcc in
               let (Branch_ bws1 p ei bws2) = branch.val in
-              let (newEi, newGlobalAcc3) = recurse globalAcc newScopeTempAcc ei in
+              let (newEi, newGlobalAcc3) = recurse globalAcc newScopeTempAcc2 ei in
               (newBranches ++ [{ branch | val = Branch_ bws1 p newEi bws2 }], newGlobalAcc3)
             )
             ([], newGlobalAcc2)
@@ -1239,16 +1245,16 @@ mapFoldExpTopDownWithScope f handleLetExp handleEFun handleCaseBranch initGlobal
       ret (ECase ws1 newE1 newBranches ws2) newGlobalAcc3
 
     ELet ws1 lettype decls spIn body ->
-      let (newDecls, newGlobalAcc2, newScopeAcc) = mapDeclarations newGlobalAcc initScopeTempAcc decls in
+      let (newDecls, newGlobalAcc2, newScopeAcc) = mapDeclarations newGlobalAcc newScopeTempAcc decls in
       let (newBody, newGlobalAcc3) = recurse newGlobalAcc2 newScopeAcc body in
       ret (ELet ws1 lettype newDecls spIn newBody) newGlobalAcc3
 
     EColonType ws1 e1 ws2 tipe ws3 ->
-      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
       ret (EColonType ws1 newE1 ws2 tipe ws3) newGlobalAcc2
 
     EParens ws1 e1 pStyle ws2 ->
-      let (newE1, newGlobalAcc2) = recurse newGlobalAcc initScopeTempAcc e1 in
+      let (newE1, newGlobalAcc2) = recurse newGlobalAcc newScopeTempAcc e1 in
       ret (EParens ws1 newE1 pStyle ws2) newGlobalAcc2
 
     EHole _ _ -> (newE, newGlobalAcc)
@@ -1299,7 +1305,7 @@ foldExpTopDownWithScope
 foldExpTopDownWithScope f handleLetExps handleEFun handleCaseBranch initGlobalAcc initScopeTempAcc e =
   let (_, finalGlobalAcc) =
     mapFoldExpTopDownWithScope
-        (\e globalAcc scopeTempAcc -> (e, f e globalAcc scopeTempAcc))
+        (\e globalAcc scopeTempAcc -> (e, f e globalAcc scopeTempAcc, scopeTempAcc))
         handleLetExps handleEFun handleCaseBranch initGlobalAcc initScopeTempAcc e
   in
   finalGlobalAcc
@@ -3664,7 +3670,11 @@ taggedExpPats : Exp -> List (PId, PathedPatternId)
 taggedExpPats exp =
   case (unwrapExp exp) of
     EFun _ ps _ _ ->
-      tagPatList (rootPathedPatternId (expEId exp, 1)) ps
+      ps |>
+      List.indexedMap (\i p ->
+        tagSinglePat (rootPathedPatternId (expEId exp, i + 1)) p
+      ) |>
+      List.concatMap identity
     ECase _ _ branches _ ->
       tagBranchList (expEId exp) branches
     ELet _ _ defs _ _ ->

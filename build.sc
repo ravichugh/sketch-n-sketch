@@ -16,9 +16,9 @@ object SNS extends Module {
   def sourceRoot   = T.sources { src }
   def nativeRoot   = T.sources { src / "Native" }
   def examplesRoot = T.sources { pwd / 'examples }
-  def examplesTemplate = T.input { (pwd / 'src / "ExamplesTemplate.elm").toNIO.toFile.lastModified() }
+  def examplesTemplate = T.sources { pwd / 'src / "ExamplesTemplate.elm" }
   def leoExamplesRoot = T.sources { pwd / 'examples / 'fromLeo }
-  def preludeRoot = T.input { (pwd / 'examples / "preludeLeo.elm").toNIO.toFile.lastModified() }
+  def preludeRoot = T.sources { pwd / 'examples / "preludeLeo.elm" }
   val outDir = pwd / "build" /"out"
   val outSNS = outDir / "sns.js"
   
@@ -143,6 +143,7 @@ object SNS extends Module {
 
   def allTimestampsOfIncludedExampleFiles = T {
     examplesRoot()
+    examplesTemplate()
     read(pwd / 'src / "ExamplesTemplate.elm").split("\\r?\\n").toList.flatMap{
       case ActiveExampleFile(converter, filename) =>
         val filepath = pwd / 'examples / RelPath(filename+extension(converter))
