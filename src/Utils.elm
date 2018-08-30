@@ -1422,6 +1422,15 @@ stringSuggestions trueStrings wrongString =
             [] -> -- We are a bit puzzled here. No strings with the same start or same end. Just return the first 5 keys.
               List.take 5 trueStrings
 
+lastCharWRegex = Regex.regex "[\\w_]$"
+firstCharWRegex = Regex.regex "^[\\w_]"
+
+-- If these two strings were concatenated, would the junction be found by tokenizing? I.e. to avoid concatenating variable names.
+wouldNotRecognizeTokenSplit: String -> String -> Bool
+wouldNotRecognizeTokenSplit leftStr rightStr =
+  (Regex.contains lastCharWRegex leftStr) && (Regex.contains firstCharWRegex rightStr)
+
+
 lastLine: String -> String
 lastLine s = snocUnapply (String.lines s) |> Maybe.map Tuple.second |> Maybe.withDefault ""
 

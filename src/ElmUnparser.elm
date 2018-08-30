@@ -513,11 +513,18 @@ unparse e =
       in
       case appType of
         SpaceApp ->
-          wsBefore.val
-            ++ unparse function
+
+          (++) wsBefore.val <|
+               Utils.foldLeft (unparse function) arguments <|
+                 \currentRendering arg ->
+                   let argStr = unparseArg arg in
+                   let mbWrapArg = if Utils.wouldNotRecognizeTokenSplit currentRendering argStr then
+                     "(" ++ argStr ++ ")"
+                     else argStr
+                   in
+                   currentRendering ++ mbWrapArg
             -- NOTE: to help with converting Little to Elm
             -- ++ String.concat (List.map unparse arguments)
-            ++ String.concat (List.map unparseArg arguments)
         LeftApp lws ->
           case arguments of
             [arg] ->
