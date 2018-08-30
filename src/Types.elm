@@ -14,6 +14,7 @@ import Dict
 import Set
 import String
 import Record
+import Syntax
 
 typeToMaybeAliasIdent : Type -> Maybe Ident
 typeToMaybeAliasIdent tipe =
@@ -53,9 +54,9 @@ astsMatch t1 t2 =
      TTuple _ typeList2 _ maybeRestType2 _) ->
       let maybeRestTypesMatch =
         case (maybeRestType1, maybeRestType2) of
-          (Nothing, Nothing)               -> True
-          (Just restType1, Just restType2) -> astsMatch restType1 restType2
-          _                                -> False
+           (Nothing, Nothing)               -> True
+           (Just restType1, Just restType2) -> astsMatch restType1 restType2
+           _                                -> False
       in
       maybeRestTypesMatch && (Utils.listsEqualBy astsMatch typeList1 typeList2)
     (TArrow _ typeList1 _,
@@ -112,7 +113,7 @@ identifiersEquivalent t1 t2 =
 
 valIsType val tipe =
   let unsupported msg =
-    Debug.crash <| "typing values against " ++ msg ++ " is not supported"
+    Debug.crash <| "typing values against " ++ msg ++ " such as " ++ Syntax.typeUnparser Syntax.Elm tipe++ " is not supported"
   in
   case (val.v_, tipe.val) of
     (VConst _ _, TNum _)             -> True
@@ -145,7 +146,7 @@ valIsType val tipe =
     (VBase (VString _), TVar _ "String") -> True
     (_, TArrow _ _ _)        -> unsupported "arrow types"
     (_, TUnion _ typeList _) -> List.any (valIsType val) typeList
-    (_, TApp _ _ _ _)          -> unsupported "app types"
+    (_, TApp _ _ _ _)        -> unsupported "app types"
     (_, TVar _ _)            -> unsupported "type variables"
     (_, TWildcard _)         -> True
     _                        -> False
