@@ -579,6 +579,40 @@ patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
   in
     (referenceScopeId, targetPath)
 
+type alias AccAux a = a -> a
+
+bindLetExpsToLetAnnotation: Declarations -> (List (IsRec, List (LetExp, List LetAnnotation)), List (LetAnnotation, Int))
+bindLetExpsToLetAnnotation (Declarations printOrder types anns exps as decls) =
+  -- Although exps might have been reordered, if they have the same identifier,
+  -- they will be in the same order.
+  -- Annotations have the same order.
+  -- All annotations having the same name refer to all identifiers having this name.
+  -- We also return the list of annotations which do not annotate anything.
+  let annotationsWithPats = anns |>
+        List.concatMap (\(LetAnnotation _ _ p _ _ _ as letann) ->
+           identifiersListInPat p |> List.map (\id ->
+             (id, letann)
+           )
+        )
+      annotationsForId: Ident -> List LetAnnotation
+      annotationsForId id = List.filterMap (\(i, letann) -> if i == id then Just letann else Nothing) annotationsWithPats
+      uselessAnnotations = Utils.zipWithIndex anns |>
+        List.filter (\(LetAnnotation _ _ p _ _ _ as letann, i) ->
+            (identifiersListInPat p |> List.all (\id ->
+              exps |> List.all (\(_, group) -> List.all (\(LetExp _ _ p2 _ _ _) ->
+                not <| List.member id (identifiersListInPat p2)
+              ) group)
+            ))
+        )
+      result =
+        exps |> (List.map <| Tuple.mapSecond <| List.map <| \(LetExp _ _ p _ _ _ as letexp) ->
+          identifiersListInPat p |>
+          List.concatMap annotationsForId |>
+          (,) letexp
+        )
+  in
+  (result, uselessAnnotations)
+
 getDeclarationsInOrder: Declarations -> List Declaration
 getDeclarationsInOrder decls =
   getDeclarationsInOrderWithIndex decls |> List.unzip |> Tuple.first
