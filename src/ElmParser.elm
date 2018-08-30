@@ -1189,8 +1189,8 @@ simplePatternWithMaybeColonType =
 -- General Patterns
 --------------------------------------------------------------------------------
 
-pattern : Parser WS -> MinStartCol -> Parser Pat
-pattern spFirst minStartCol =
+patternGeneral : Bool -> Parser WS -> MinStartCol -> Parser Pat
+patternGeneral pColonTypeAllowed spFirst minStartCol =
   inContext "pattern" <|
     lazy <| \_ ->
       let operatorSpace = spaceSameLineOrNextAfter minStartCol MinIndentSpace in
@@ -1203,7 +1203,7 @@ pattern spFirst minStartCol =
         , minimumPrecedence =
             0
         , expression =
-            simplePatternWithMaybeColonType
+            if pColonTypeAllowed then simplePatternWithMaybeColonType else simplePattern
         , withZeroSpace =  \wsPat ->
             let finalPat = wsPat space0 in
             mapPrecedingWhitespacePatWS (\ws -> withInfo ws.val finalPat.start finalPat.start) finalPat
@@ -1231,7 +1231,8 @@ pattern spFirst minStartCol =
                   m -> Debug.crash <| "Internal error: Got pattern operator other than :: or as " ++ m
         }
 
-
+pattern spFirst minStartCol = patternGeneral True spFirst minStartCol
+patternLet spFirst minStartCol = patternGeneral False spFirst minStartCol
 
 --==============================================================================
 --= Types
@@ -1927,8 +1928,8 @@ letExpOrAnnotation minStartCol =
        final name parameters wsBeforeEq
      )
      (succeed (,,)
-     |= pattern nospace minStartCol
-     |= repeat zeroOrMore (pattern spaces minStartCol)
+     |= patternLet nospace minStartCol
+     |= repeat zeroOrMore (patternLet spaces minStartCol)
      |= spaces)
      (\(p1, ps, sps) ->
       oneOf [source <| symbol "=", source <| symbol ":"] |>
@@ -1951,7 +1952,7 @@ letExpOrAnnotation minStartCol =
                LetExp optCommaSpace wsBeforePat pat funArgStyle wsBeforeEq (Expr binding)
          )
        else
-         typ spaces minStartCol
+         typ spaces (p1.start.col + 1)
          |> map (\binding_ ->
            \pat parameters wsBeforeEq ->
               let mbBindingsFunArgStyles =
