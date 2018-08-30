@@ -478,7 +478,10 @@ type alias Backtrace = List Exp
 -- still a better fit in a few places (mentioned above).
 
 -- ELet/EFun/ECase.
--- Int is the branch number for ECase, the declaration number for ELet, 1 for EFun
+-- Int is an index indicating
+-- * the branch number for ECase (1-based index),
+-- * the declaration number for ELet (0-based index),
+-- * the pattern number for EFun (1-based index)
 type alias ScopeId = (EId, Int)
 
 -- The List Int is how to walk the pattern to reach the pattern target's position
@@ -3451,7 +3454,11 @@ taggedExpPats : Exp -> List (PId, PathedPatternId)
 taggedExpPats exp =
   case (unwrapExp exp) of
     EFun _ ps _ _ ->
-      tagPatList (rootPathedPatternId (expEId exp, 1)) ps
+      ps |>
+      List.indexedMap (\i p ->
+        tagSinglePat (rootPathedPatternId (expEId exp, i + 1)) p
+      ) |>
+      List.concatMap identity
     ECase _ _ branches _ ->
       tagBranchList (expEId exp) branches
     ELet _ _ defs _ _ ->
