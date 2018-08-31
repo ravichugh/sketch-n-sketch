@@ -576,25 +576,14 @@ codeObjectPolygon msgs codeInfo codeObject color =
             ""
         class =
           "code-object-polygon" ++ hoveredOrSelectedClass
-        getChildPolygons excludeTargets codeObject_ target =
+        childPolygons =
           List.concatMap
             (\child ->
-              let childPolygon =
-                hoverSelectPolygon msgs False codeInfo child target
-              in
-              if hasChildElements child then
-                childPolygon
-              else if excludeTargets && isTarget child then
-                []
-              else
-                -- leaf nodes can have target children - these need to point
-                -- back to the leaf's parent, not to the leaf
-                childPolygon ++
-                  getChildPolygons False child target
-            )
-            (childCodeObjects codeObject_)
+              hoverSelectPolygon msgs False codeInfo child deuceWidget
+            ) <|
+              childCodeObjects codeObject
       in
-        getChildPolygons True codeObject deuceWidget ++
+        childPolygons ++
         hoverSelectPolygon msgs True codeInfo codeObject deuceWidget ++
         [ Svg.polygon
             [ SAttr.class class
