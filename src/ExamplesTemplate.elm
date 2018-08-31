@@ -277,6 +277,7 @@ LEO_TO_ELM docs
 LEO_TO_ELM sync
 LEO_TO_ELM foldl_reversible_join
 LEO_TO_ELM references_in_text
+LEO_TO_ELM tutorialStudentGrades
 
 --------------------------------------------------------------------------------
 
@@ -300,7 +301,8 @@ docsCategory =
       (\i (caption, program) ->
         makeLeoExample (toString (2+i) ++ ": " ++ caption) program
       )
-      [ ("Conference Budget", fromleo_conference_budgetting)
+      [ ("ICFP tutorial", tutorialStudentGrades)
+      , ("Conference Budget", fromleo_conference_budgetting)
       , ("Model View Controller", fromleo_modelviewcontroller)
       , ("Scalable Recipe Editor", fromleo_recipe2)
       , ("Cloning Editor", fromleo_linkedtexteditor)
