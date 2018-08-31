@@ -1,9 +1,8 @@
 options = {production = False}
 
-main = htmlpass<|markdown<|
-<div class="outer">
-<div class="inner" contenteditable="true">
-# ICFP Tutorial - Student grades
+main = htmlpass <| markdown <|
+<div class="outer"><div class="inner" contenteditable="true">
+# Sketch-n-sketch Tutorial - Fair grades
 _This tutorial supposes that you have Sketch-n-sketch 0.7.1 configured correctly_  
   
 Finally, your teaching assistants corrected all the assignments,
@@ -57,8 +56,7 @@ Rudolph,83.2
 Rafael,86.6@(q3)
 
 @path3
-"""
-## Convert student data
+"""## Convert student data
 First, we convert this data to a list of structured records or datatypes.
 @replacepath(path3)<|"""studentsGrades = 
   List.map (\line -> case Regex.extract "^(.*),(.*)" line of
@@ -70,12 +68,15 @@ First, we convert this data to a list of structured records or datatypes.
 Our language can define arbitrary data constructors, provided they start with a capital name, hence the <code>Student</code> constructor.
 Note that we use <code>Update.freeze</code> to prevent any change to be propagated to the grade at this stage.
 
-## Define the cut-offs.
+## Define the cut-offs
+First, we need to define associations between letters and minimum grades.
+We have a first guess (e.g. from previous year, or a linear guess).
+
 @replacepath(path4)<|"""cutoffs = [
   CutOff "A+" 96.8,
   CutOff "A" 90,
   CutOff "A-" 86,
-  CutOff "B+" 80.4,
+  CutOff "B+" 82.9,
   CutOff "B" 76,
   CutOff "B-" 68.5,
   CutOff "C+" 61,
@@ -84,9 +85,7 @@ Note that we use <code>Update.freeze</code> to prevent any change to be propagat
   CutOff "D" 29.5,
   CutOff "E" 0]
 
-@path5"""
-
-## Display cut-offs and grades as SVG
+@path5"""## Display cut-offs and grades as SVG
 We display cut-offs as horizontal lines, and the grades as bars,
 to "see" where the cuts are. To make it meaningful, we sort students by grade.
 
@@ -108,7 +107,8 @@ barChart x y w h = let
     <| List.reverse sortedGrades
   separators = cutoffs |> List.concatMap
       (\(CutOff abc cutoff) -> let
-        y = (freeze y + freeze h * freeze 0.01! * (freeze 100! - cutoff))
+        y = (freeze y + freeze h * freeze 0.01! *
+              (freeze 100! - cutoff))
         in
         [line 'black' (keep 2) (keep x) y (keep <| x + w) y,
         <text x=20 y=y style=textstyle>@@abc</text>,
@@ -149,17 +149,14 @@ updateDecimal = Update.lens {
 
 @path7"""
 @replacepath("freeze 100! - cutoff")<|"freeze 100! - updateDecimal cutoff"
-
 A lens is a pair of two functions (here <code>apply</code> and <code>update</code>),
 such that the first contains the logic to compute forward, and the second the logic to back-propagate an updated value.
 In our case, this function takes the new output and round it to the nearest multiple of 0.1.
 Since a lens is a record, we can invoke it using a special constructor called <code>Update.lens</code>.
 Try to modify one cutoff to see: all cut-offs are rounded in the code.
-
 @displayproductionevalcode
 
 ## Table of results
-
 At this point, we hope that our cut-offs are well placed.
 We now want to know how many students there are in each category.
 
@@ -182,51 +179,137 @@ buckets = let
     addToBucket buckets (assignLetter avg) student
   ) initBucket sortedGrades
 
-@path8
-"""
-@replacepath(path2_1)<|"""<h2>Grade by category</h2>
-<table>
-  <tr><th>Grade</th><th>Students</th><th>Groupped</th><th>Threshold</th></tr>
-  @@(List.indexedMap (\i (CutOff name threshold, students) ->
+displayStudents =
+  List.map (\Student name grade ->@q3@@name:@@grade@q3) >> String.join ","
+
+displayBuckets = 
+  <table>
+  <tr><th>Grade</th><th>Students</th><th>Groupped</th><th>Cut-offs</th></tr>
+  @@(List.indexedMap (\i (CutOff name cutoff, students) ->
     <tr style="background:"+(if i % 2 == 0 then "#dedede" else "white")>
       <td>@@name</td>
-      <td>@@List.length(students)</td>
+      <td title=displayStudents(students)>@@List.length(students)</td>
       @@(if i % 3 == 0 then
         <td rowspan="3">@@(
           buckets |> List.drop i |> List.take 3 |>
           List.map (\(n, students) -> List.length students) |> List.sum)
         </td>
       else [])
-      <td>@@threshold</td>
+      <td>@@cutoff</td>
       </tr>
   ) buckets)
 </table>
 
-@path2_2
+@path8
 """
-
-@displayevalcode
-
-Note that you can again change the cutoffs from this table.
-
+@replacepath(path2_1)<|"""<h2>Grade by category</h2>
+@@displayBuckets
+"""
+You should see the following table appear below the graph in the output view:
+@displayproductionevalcodeLocalReplace("main = ")<|"""main = <span><h2>Grade by category</h2>
+  @@displayBuckets
+</span>
+notmain = """
+Note that you can again change the cutoffs from this table right where they are displayed!
+ 
 ## Unfair letter attribution.
-
-We want to know if there are unfair situations.
+We want to know if there are unfair letter attribution.
 A possibly unfair letter attribution arises if two student grades are very close to each other (e.g. 0.2),
 but they have been assigned different letters.
 To avoid being contested, it is better to make sure there is no possibly unfair letter attribution.
 We compute and display this information in the table.
 
-TODO
+@replacepath(path8)<|"""ifunfair i =
+  if i == 0 then "" else let
+  epsilon = 0.72{0-1.9}
+  (CutOff nameA cutoffA, studentsAbove) = nth buckets (i - 1)
+  (CutOff nameB cutoffB, studentsBelow) = nth buckets i
+  in case (List.last studentsAbove, List.head studentsBelow) of
+    (Just (Student enviee gradeA), Just (Student envier gradeB)) ->
+      if gradeA - gradeB < epsilon then
+      <span>@@envier (@@gradeB, @@nameB) might protest that @@enviee had almost
+      the same grade (@@gradeA) but was assigned @@nameA</span>
+      else <span></span>
+    _ -> <span></span>
 
-## Second lens: Change cut-offs by group count
+@path9
+"""
+@replacepath("<th>Cut-offs</th>")<|"""<th>Cut-offs</th><th>Status</th>"""
+@replacepath("<td>@cutoff</td>")<|"""<td>@@cutoff</td><td>@@ifunfair(i)</td>"""
+@displayproductionevalcodeLocalReplace("main = ")<|"""main = <span><h2>Grade by category</h2>
+  @@displayBuckets
+</span>
+notmain = """
 
-Now that we have this information, we would like to change the cut-offs not by modifying them,
-but by modifying _the number of students per letter_.
-We can do this by adding a lens again.
+It looks like we were right, if you did not change the original cut-offs, we have one unfair letter attribution.
+Of course, we can use the graph to change the cut-offs to avoid that, or change the cut-offs directly in the table.
+What if we had a way to just resolve the potential complaint using buttons, such as "Upgrade XXX" or "Downgrade XXX"?
 
-TODO
+## Button to modify cut-offs
 
+Adding buttons to upgrade or downgrade a student's means that these buttons will modify the cut-off.
+This behavior can be locally defined with the following trick:
+When we click a button, it modifies a property using JavaScript that is supposed to contain the cut-off, with a new cut-off.
+
+Let us focus on the function "ifunfair" for this task.
+@replacepath("was assigned @nameA</span>")<|"""
+was assigned @@nameA.
+<button onclick=@(q3)this.setAttribute('v', '@@(gradeB - 0.1)')@(q3)
+  v=toString(updateDecimal cutoffA)>Give @@nameA to @@envier</button>
+<button onclick=@(q3)this.setAttribute('v', '@@(gradeA + 0.1)')@(q3)
+  v=toString(updateDecimal cutoffA)>Give @@nameB to @@enviee</button>
+</span>
+"""
+@displayproductionevalcodeLocalReplace("main = ")<|"""main = <span><h2>Grade by category</h2>
+  @@displayBuckets
+</span>
+notmain = """
+You can now precisely resolve the dilemmas before they arrive, much faster than if you had to talk to students!
+What is the fastest way to resolve the problem here? To downgrade or to upgrade?
+
+## Second lens: Group size
+
+Sometimes we wish we could simply change the number of students in a group to change the cut-off.
+This is possible, we can add a lens applied to the displayed number of students.
+This lens takes care of modifying the cut-offs in the backward direction.
+Note that we never change the count itself!
+
+@replacepath(path9)<|"""updateGroupCount bucketNum cutoff numStudents =
+  Update.lens2 {
+    apply (cutoff, count) = count
+    update {input=(cutoff, prevCount), outputNew=newCount} =
+      if newCount > prevCount then let -- Lower the bar, we want more students
+        (CutOff _ cutoffBelow, stds2) = nth buckets (bucketNum  + 1)
+        (upgrading, staying) = List.split (newCount - prevCount) stds2
+        Student _ newCutoff = last upgrading
+        in Ok (Inputs [(newCutoff, prevCount)])
+
+      else let  -- Raise the bar, we want less students
+        (_, students) = nth buckets bucketNum
+        (staying, declassed) = List.split (
+          List.length students - (prevCount - newCount)) students
+        Student _ belowCutoff = hd declassed
+        in Ok (Inputs [(belowCutoff + 0.1, prevCount)])
+  } cutoff numStudents 
+"""
+
+We now focus on the main function.
+@replacepath("@List.length(students)")<|"""@@updateGroupCount(i)(cutoff)<|
+        List.length(students)"""
+
+Try now to change the number of students in one group to see the cut-offs change appropriately.
+For example, the you can decrease to 4 the number of students in B+ (downgrade Kellee) or increase to 6 the number of students in B+ (upgrade Loida).
+@displayproductionevalcodeLocalReplace("main = ")<|"""main = <span><h2>Grade by category</h2>
+  @@displayBuckets
+</span>
+notmain = """
+
+## Final code
+You can compare your code with the code used by this tutorial:
+@displaycode
+
+## Enhancements
+What else do you want to try?
 </div>
 <style>
 #outputCanvas {
@@ -277,16 +360,17 @@ div.outputwrapper {
 </style>
 </div>
 
-path1 = "-- To be continued #1"
-path2 = "To be continued #b2"
-path3 = "--To be continued #2"
-path4 = "--To be continued #3"
-path5 = "--To be continued #4"
-path6 = "--To be continued #5"
-path7 = "--To be continued #6"
-path8 = "--To be continued #7"
-path2_1 = "To be continued #b3"
-path2_2 = "To be continued #b4"
+path1 = "-- We will write code here #1"
+path2 = "Graphics coming soon..."
+path3 = "-- We will write code here #2"
+path4 = "-- We will write code here #3"
+path5 = "-- We will write code here #4"
+path6 = "-- We will write code here #5"
+path7 = "-- We will write code here #6"
+path8 = "-- We will write code here #7"
+path9 = "-- We will write code here #8"
+path2_1 = " Table coming soon..."
+path2_2 = ""
 
 newcode code = <newcode code=code></newcode>
 replacepath path code = <replacepath path=path code=code class="snippet"></replacepath>
@@ -294,9 +378,15 @@ displaycode = <displaycode class="snippet"></displaycode>
 displayevalcode = <displayevalcode></displayevalcode>
 displayproductionevalcode = <displayproductionevalcode></displayproductionevalcode>
 
-displayintermediateresult display evalnode =
+displayevalcodeLocalReplace regex replacement = <displayevalcode replace=regex by=replacement></displayevalcode>
+displayproductionevalcodeLocalReplace regex replacement = <displayproductionevalcode replace=regex by=replacement></displayproductionevalcode>
+
+displayintermediateresult display src =
   if display then
-    <div class="outputwrapper">@(evalnode ())</div>
+    case __evaluate__ (__CurrentEnv__) src of
+      Err msg -> <code class="error">@msg</code>
+      Ok evalNode ->
+        <div class="outputwrapper">@evalNode</div>
   else
     <div class="intermediateresult">options.production is off. <button onclick="this.setAttribute('v', 'True')" v=(toString options.production)>Turn it on</button> to display the intermediate result there.</div>
     
@@ -308,27 +398,28 @@ markdown =
     [<i>@(nth match.group 1)</i>]) >>
   Html.replace "(\r?\n|  )\r?\n" (\_ -> [<br>])
 
+localReplace src attrs = case attrs of
+  ["replace", regex]::["by", replacement]::attrs ->
+    localReplace (Regex.replace (escape regex) (\_ -> replacement) src) attrs
+  attrs -> (src, attrs)
+
+escape = Regex.replace """\(|\)""" (\m -> if m.match == "(" then """\(""" else """\)""")
+  
 htmlpass htmlnode = 
   let aux src htmlnode = case htmlnode of
     ["newcode", ["code", code]::attrs, []] ->
       (code, htmlnode)
     ["replacepath", ["path", path]::["code", code]::attrs, []] ->
-      let newSrc = Regex.replace path (\_ -> code) src in
+      let newSrc = Regex.replace (escape path) (\_ -> code) src in
       (newSrc, <span>Replace the code <code>@path</code> by<code @attrs>@code</code></span>)
     ["displaycode", attrs, []] ->
       (src, ["code", attrs, [["TEXT", src]]])
     ["displayproductionevalcode", attrs, []] ->
-      (src, displayintermediateresult options.production <| \_ ->
-        case __evaluate__ (__CurrentEnv__) (src + "\n\nmain") of 
-          Ok res -> res
-          Err msg -> <code class="error">@msg</code>
-        )
+      let (localSrc, localAttrs) = localReplace src attrs in
+      (src, displayintermediateresult options.production <| localSrc + "\n\nmain")
     ["displayevalcode", attrs, []] ->
-      (src, displayintermediateresult True <| \_ -> 
-        case __evaluate__ (__CurrentEnv__) (src + "\n\nmain") of 
-          Ok res -> res
-          Err msg -> <code class="error">@msg</code>
-        )
+      let (localSrc, localAttrs) = localReplace src attrs in
+      (src, displayintermediateresult True <| localSrc + "\n\nmain")
     [tag, attrs, children] ->
       let (newSrc, newRevChildren) =
         List.foldl (\child (tmpSrc, revChildren) ->
