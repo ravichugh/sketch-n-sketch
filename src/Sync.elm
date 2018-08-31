@@ -1189,11 +1189,13 @@ acePos p = { row = p.line, column = p.col }
 aceRange : WithInfo a -> Ace.Range
 aceRange x = { start = acePos x.start, end = acePos x.end }
 
-makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
+makeHighlight : SubstPlus -> String -> Loc -> Maybe Ace.Highlight
 makeHighlight subst color (locid,_,_) =
   case Dict.get locid subst of
-    Just n  -> { color = color, range = aceRange n }
-    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+    Just n  -> Just { color = color, range = aceRange n }
+    Nothing ->
+      let _ = Debug.log "WARNING:makeHighlight: locid not in subst" () in
+      Nothing
 
 
 -- Colors and Captions for Zone Locations, Before Direct Manipulation --
@@ -1201,16 +1203,16 @@ makeHighlight subst color (locid,_,_) =
 yellowAndGrayHighlights zoneKey info =
   let subst = info.initSubstPlus in
   let (_, yellowLocs, grayLocs) = lookupZoneKey zoneKey info in
-  List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
-  ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+  List.filterMap (makeHighlight subst yellow) (Set.toList yellowLocs)
+  ++ List.filterMap (makeHighlight subst gray) (Set.toList grayLocs)
 
 hoverInfo zoneKey info =
   let line1 =
     let (nodeId, shapeKind, realZone) = zoneKey in
     let displayId =
-      if nodeId < -2
-      then -nodeId - 2 -- Widget
-      else nodeId
+       if nodeId < -2
+       then -nodeId - 2 -- Widget
+       else nodeId
     in
     (shapeKind ++ toString displayId) ++ " " ++ ShapeWidgets.realZoneDesc realZone
   in
@@ -1218,26 +1220,26 @@ hoverInfo zoneKey info =
     let (triggerElements, _, _) = lookupZoneKey zoneKey info in
     if triggerElements == [] then Nothing
     else
-      let (dxElements, list2) =
-        List.partition (\(_,s,_,_,_) -> s == "dx") triggerElements
-      in
-      let (dyElements, list3) =
-        List.partition (\(_,s,_,_,_) -> s == "dy") list2
-      in
-      let (dxyElements, otherElements) =
-        List.partition (\(_,s,_,_,_) -> s == "dxy") list3
-      in
-      let strElements caption elements =
-        let foo (_,_,(k,_,x),_,_) =
-          let n = Utils.justGet_ ("hoverInfo: " ++ toString k) k info.initSubstPlus in
-          let locName = if x == "" then ("loc_" ++ toString k) else x in
-          locName ++ Utils.parens (String.left 4 (toString n.val))
-        in
-        case elements of
-          [] -> []
-          _  -> [Utils.bracks caption ++ " " ++ Utils.spaces (List.map foo elements)]
-      in
-      Just <| Utils.spaces <| List.concat <|
+       let (dxElements, list2) =
+         List.partition (\(_,s,_,_,_) -> s == "dx") triggerElements
+       in
+       let (dyElements, list3) =
+         List.partition (\(_,s,_,_,_) -> s == "dy") list2
+       in
+       let (dxyElements, otherElements) =
+         List.partition (\(_,s,_,_,_) -> s == "dxy") list3
+       in
+       let strElements caption elements =
+         let foo (_,_,(k,_,x),_,_) =
+            let n = Utils.justGet_ ("hoverInfo: " ++ toString k) k info.initSubstPlus in
+            let locName = if x == "" then ("loc_" ++ toString k) else x in
+            locName ++ Utils.parens (String.left 4 (toString n.val))
+         in
+         case elements of
+            [] -> []
+            _  -> [Utils.bracks caption ++ " " ++ Utils.spaces (List.map foo elements)]
+       in
+       Just <| Utils.spaces <| List.concat <|
         [ strElements "dx" dxElements
         , strElements "dy" dyElements
         , strElements "dxy" dxyElements
@@ -1256,39 +1258,39 @@ highlightChanges initSubstPlus locs changes =
     -- hi : List Highlight, stringOffsets : List (Pos, Int)
     --   where Pos is start pos of a highlight to offset by Int chars
     let f loc (acc1,acc2) =
-      let (locid,_,_) = loc in
-      let highlight c = makeHighlight initSubstPlus c loc in
-      case (Dict.get locid initSubstPlus, Dict.get locid changes) of
-        (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
-        (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
-        (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
-        (Just n, Just (Just n_)) ->
-          if n_ == n.val then
-            (highlight yellow :: acc1, acc2)
-          else
-            let (s, s_) = (strNum n.val, strNum n_) in
-            let x = (acePos n.start, String.length s_ - String.length s) in
-            (highlight green :: acc1, x :: acc2)
+       let (locid,_,_) = loc in
+       let highlightAdd c tail = makeHighlight initSubstPlus c loc |> Maybe.map (\h -> h :: tail) |> Maybe.withDefault tail in
+       case (Dict.get locid initSubstPlus, Dict.get locid changes) of
+         (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
+         (Just n, Nothing)        -> (highlightAdd yellow acc1, acc2)
+         (Just n, Just Nothing)   -> (highlightAdd red acc1, acc2)
+         (Just n, Just (Just n_)) ->
+           if n_ == n.val then
+             (highlightAdd yellow acc1, acc2)
+           else
+             let (s, s_) = (strNum n.val, strNum n_) in
+             let x = (acePos n.start, String.length s_ - String.length s) in
+             (highlightAdd green acc1, x :: acc2)
     in
     List.foldl f ([],[]) (Set.toList locs)
   in
 
   let hi_ =
     let g (startPos,extraChars) (old,new) =
-      let bump pos = { pos | column = pos.column + extraChars } in
-      let ret new_ = (old, new_) in
-      ret <|
-        if startPos.row    /= old.start.row         then new
-        else if startPos.column >  old.start.column then new
-        else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
-        else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
-        else
-          Debug.crash "highlightChanges"
+       let bump pos = { pos | column = pos.column + extraChars } in
+       let ret new_ = (old, new_) in
+       ret <|
+         if startPos.row    /= old.start.row         then new
+         else if startPos.column >  old.start.column then new
+         else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
+         else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
+         else
+           Debug.crash "highlightChanges"
     in
     -- hi has <= 4 elements, so not worrying about the redundant processing
     flip List.map hi <| \{color,range} ->
-      let (_,range_) = List.foldl g (range,range) stringOffsets in
-      { color = color, range = range_ }
+       let (_,range_) = List.foldl g (range,range) stringOffsets in
+       { color = color, range = range_ }
   in
 
   hi_

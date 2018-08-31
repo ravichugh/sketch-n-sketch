@@ -1806,10 +1806,6 @@ getOptions e = getOptionsFromString <| precedingWhitespace e
 ------------------------------------------------------------------------------
 -- Error Messages
 
-errorPrefix = "[Evaluation Error]" -- NOTE: same as errorPrefix in Native/codeBox.js
-crashWithMsg s  = Debug.crash <| errorPrefix ++ "\n\n" ++ s
-errorMsg s      = Err <| errorPrefix ++ "\n\n" ++ s
-
 strPos p =
   let (i,j) = (toString p.line, toString p.col) in
   "(Line:" ++ i ++ " Col:" ++ j ++ ")"

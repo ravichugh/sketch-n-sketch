@@ -7564,9 +7564,7 @@ This \\small{} \\LaTeX{} editor is \\textit{bidirectional} and supports \\small{
 \\section{Reference update\\label{sec:commands}}
 References are supported:
 Section \\ref{sec:introduction}.
-Change the previous number to 2. $\\frac{b^2-4ac}{2}$\"\"\"
-
-latexttoolong = \"\"\" or 2.1. See how it updates the source code.
+Change the previous number to 2 or 2.1 and see how it updates the source code.
 \\subsection{Others\\label{others}}
 Only frac, exponent and indices in math mode: $\\frac{b^2-4ac}{2}$.
 %TODO support more commands.\"\"\"
@@ -7906,7 +7904,7 @@ toHtmlWithoutRefs opts tree =
         aux newOpts newrevAcc remainder
       
       {tag=\"linecomment\", value} ->
-        let newrevAcc = [\"span\", [[\"styles\", [[\"background\",\"#888\"], [\"color\", \"#FFF\"]]]], [[\"TEXT\", \"(\" + value + \")\"]]]::revAcc in
+        let newrevAcc = [\"span\", [[\"style\", [[\"background\",\"#888\"], [\"color\", \"#FFF\"]]]], [[\"TEXT\", \"(\" + value + \")\"]]]::revAcc in
         aux opts newrevAcc rem
   in 
   aux opts [] tree

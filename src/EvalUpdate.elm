@@ -130,7 +130,7 @@ builtinEnv =
       case args of
         [left, right, x] ->
            let env = [("x", x), ("left", left), ("right", right)] in
-           Eval.doEval Syntax.Elm env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) |> Result.map Tuple.first
+           Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) |> Result.map Tuple.first
         _ -> Err <| ">> expects 3 arguments, got " ++ toString (List.length args)
       ) (Just (\args oldVal newVal d -> case args of
       [left, right, x] ->
@@ -150,7 +150,7 @@ builtinEnv =
     case args of
       [left, right, x] ->
          let env = [("x", x), ("left", left), ("right", right)] in
-         Eval.doEval Syntax.Elm env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) |> Result.map Tuple.first
+         Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) |> Result.map Tuple.first
       _ -> Err <| ">> expects 2 arguments, got " ++ toString (List.length args)
     ) (Just (\args oldVal newVal d -> case args of
     [left, right, x] ->
@@ -177,7 +177,7 @@ builtinEnv =
               Syntax.parser Syntax.Elm s
               |> Result.mapError (ParserUtils.showError)
               |> Result.andThen (\prog ->
-                  Eval.doEval Syntax.Elm (env ++ builtinEnv) prog
+                  Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm (env ++ builtinEnv) prog
                 )
               |> Result.map (Tuple.first >> Tuple.first)
               |> Vb.result Vb.identity (Vb.fromVal program)
@@ -244,7 +244,7 @@ builtinEnv =
                 let xyEnv = [("x", fun),("y", input)] in
                 let xyExp = (withDummyExpInfo <| EApp space0 (eVar "x") [eVar "y"] SpaceApp space0) in
                 let oldOut = case Utils.dictGetFirst ["oldOutput", "oldOut", "outputOld"] d of
-                  Nothing -> Eval.doEval Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
+                  Nothing -> Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
                   Just v -> Ok v
                 in
                 case oldOut of
@@ -494,23 +494,23 @@ twoArgsUpdate msg fun args a b c = case args of
     [left, right] -> fun left right a b c
     _ -> Err <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
 
-eval env e = Eval.doEval Syntax.Elm env e |> Result.map Tuple.first
+eval env e = Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm env e |> Result.map Tuple.first
 update updateStack = Update.update LazyList.Nil LazyList.Nil updateStack
 
-preludeEnvRes = Result.map Tuple.second <| (Eval.eval Syntax.Little builtinEnv [] Parser.prelude)
+preludeEnvRes = Result.map Tuple.second <| (Eval.eval [] (Eval.evalContext Eval.withParentsProvenanceWidgets Syntax.Elm builtinEnv [] Parser.prelude))
 preludeEnv = Utils.fromOk "Eval.preludeEnv" <| preludeEnvRes
 
 run : Syntax -> Exp -> Result String (Val, Widgets)
 run syntax e =
 -- doEval syntax initEnv e |> Result.map Tuple.first
   ImpureGoodies.logTimedRun "Eval.run" <| \() ->
-    Eval.doEval syntax preludeEnv e |> Result.map Tuple.first
+    Eval.doEval Eval.withParentsProvenanceWidgets syntax preludeEnv e |> Result.map Tuple.first
 
 runWithEnv : Syntax -> Exp -> Result String ((Val, Widgets), Env)
 runWithEnv syntax e =
 -- doEval syntax initEnv e |> Result.map Tuple.first
   ImpureGoodies.logTimedRun "Eval.run" <| \() ->
-    Eval.doEval syntax preludeEnv e
+    Eval.doEval Eval.withParentsProvenanceWidgets syntax preludeEnv e
 
 doUpdate : Exp -> Env -> Val -> Result String Val -> Results String (UpdatedEnv, UpdatedExp)
 doUpdate oldExp oldEnv oldVal newValResult =

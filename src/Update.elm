@@ -425,7 +425,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                       updateDeclarations env prevLetsDecls decls <|
                        \envRecord _ {-remainingPrevLets-} finishUpdateDeclarations ->
                       -- builds the updated env by pushing updated record diffs to envRecord or to mi, accordingly.
-                      let resMiVal = case Maybe.map (\(init, ws) -> doEval Syntax.Elm env init) mi of
+                      let resMiVal = case Maybe.map (\(init, ws) -> doEvalw env init) mi of
                         Just (Err msg) -> Err <| "Line " ++ toString exp_.start.line ++ ", while evaluating {...|, got" ++ msg
                         Nothing -> Ok Nothing
                         Just (Ok ((v, _), _)) -> case v.v_ of
@@ -473,7 +473,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
              _ -> UpdateCriticalError ("Expected Record as original value, got " ++ valToString oldVal)
          _ -> UpdateCriticalError ("Expected Record as value to update from, got " ++ valToString newVal)
      ESelect sp0 e1 sp1 sp2 ident ->
-       case doEval Syntax.Elm env e1 of
+       case doEvalw env e1 of
          Err msg -> UpdateCriticalError msg
          Ok ((initv, _), initVEnv) ->
            case initv.v_ of
@@ -520,7 +520,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
        let maybeUpdateStack = case unwrapExp e1 of
          ESelect es0 eRecord es1 es2 "apply" -> -- Special case here. apply takes a record and a value and applies the field apply to the value.
              -- The user may provide the reverse function if "unapply" is given, or "update"
-             case doEval Syntax.Elm env eRecord of
+             case doEvalw env eRecord of
                Err s -> Just <| (UpdateCriticalError s, False)
                Ok ((v1, _), _) ->
                  case v1.v_ of
@@ -534,7 +534,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                              Nothing -> Nothing
                              Just fieldUpdateClosure ->
                                 Just <|
-                                case doEval Syntax.Elm env argument of
+                                case doEvalw env argument of
                                   Err s -> UpdateCriticalError s
                                   Ok ((vArg, _), vArgEnv) ->
                                     let x = eVar "x" in
@@ -559,7 +559,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                     let xyEnv = [("x", fieldUpdateClosure), ("y", customArgument)] in
                                     case (
                                         --ImpureGoodies.logTimedRun (".update eval line " ++ toString e1_.start.line) <| \_ ->
-                                        doEval Syntax.Elm xyEnv xyApplication) of
+                                        doEvalw xyEnv xyApplication) of
                                       Err s -> UpdateCriticalError <| "while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.result valToUpdateReturn vResult |> (Utils.resultOrElseLazy (\_ ->
@@ -595,14 +595,14 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                            updateMaybeFirst2 "after testing update, testing unapply" (not isApplyFrozen) mbUpdateField <| \_ ->
                              case Dict.get "unapply" d of
                                Just fieldUnapplyClosure ->
-                                 case doEval Syntax.Elm env argument of
+                                 case doEvalw env argument of
                                    Err s -> Just <| UpdateCriticalError s
                                    Ok ((vArg, _), vArgEnv) ->
                                      let x = eVar "x" in
                                      let y = eVar "y" in
                                      let customArgument = newVal in
                                      let customExpr = ret <| EApp space0 x [y] SpaceApp space0 in
-                                     case doEval Syntax.Elm (("x", fieldUnapplyClosure)::("y", customArgument)::env) customExpr of
+                                     case doEvalw (("x", fieldUnapplyClosure)::("y", customArgument)::env) customExpr of
                                        Err s -> Just <| UpdateCriticalError <| "while evaluating the .unapply of a lens, " ++ s
                                        Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                          case interpreterMaybeToMaybe "the result of executing 'unapply'" vResult of
@@ -627,7 +627,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
          if appType == InfixApp && eVarUnapply e1 == Just "++" then
            case e2s of
              [eLeft, eRight] -> -- We rewrite ++ to a call to "append" or "plus" depending on the arguments
-               case (doEval Syntax.Elm env eLeft, doEval Syntax.Elm env eRight) of
+               case (doEvalw env eLeft, doEvalw env eRight) of
                  (Err s, _) -> UpdateCriticalError s
                  (_, Err s) -> UpdateCriticalError s
                  (Ok ((v1, _), _), Ok ((v2, _), ws2)) ->
@@ -668,7 +668,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                         rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
              _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". ")
          else
-         case doEval Syntax.Elm env e1 of
+         case doEvalw env e1 of
            Err s       -> UpdateCriticalError s
            Ok ((v1, _),v1Env) ->
              case v1.v_ of
@@ -690,7 +690,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ toString e
                    )
                  else
-                 case List.map2 (\p e2 -> doEval Syntax.Elm env e2) e1ps es2ToEval |> Utils.projOk of
+                 case List.map2 (\p e2 -> doEvalw env e2) e1ps es2ToEval |> Utils.projOk of
                    Err s       -> UpdateCriticalError s
                    Ok v2ls ->
                      let v2s = List.map (\((v2, _), _) -> v2) v2ls in
@@ -785,7 +785,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                else UpdateFails "Cannot modify the definition of a built-in function"
                              _ -> UpdateCriticalError <| "[internal error] expected EApp, got" ++ Syntax.unparser Syntax.Elm e
                      else -- Right arity
-                       case List.map (doEval Syntax.Elm env) e2s |> Utils.projOk of
+                       case List.map (doEvalw env) e2s |> Utils.projOk of
                          Err s       -> UpdateCriticalError s
                          Ok v2ls     ->
                            let v2s = List.map (\((v2, _), _) -> v2) v2ls in
@@ -802,7 +802,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
 
                _ -> UpdateCriticalError <| strPos e1_.start ++ " not a function"
      EIf sp0 cond sp1 thn sp2 els sp3 ->
-       case doEval Syntax.Elm env cond of
+       case doEvalw env cond of
          Ok ((v, _), _) ->
            case v.v_ of
              VBase (VBool b) ->
@@ -830,7 +830,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
              let finalExp = ret <| EOp sp1 spo op [newUpdatedArg.val] sp2 in
              updateResult newUpdatedEnv <| UpdatedExp finalExp (UpdateUtils.wrap 0 newUpdatedArg.changes)
          _ -> -- Here we need to compute the argument's values.
-           case Utils.projOk <| List.map (doEval Syntax.Elm env) opArgs of
+           case Utils.projOk <| List.map (doEvalw env) opArgs of
              Err msg -> UpdateCriticalError msg
              Ok argsEvaled ->
                let ((vs, wss), envs) = Tuple.mapFirst List.unzip <| List.unzip argsEvaled in
@@ -1087,7 +1087,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                             case Syntax.parser Syntax.Elm s of
                               Err msg -> UpdateFails <| "Could not parse new output value '"++s++"' for ToStrExceptStr expression " ++ ParserUtils.showError msg ++ "\nOriginal value was " ++ valToString original
                               Ok parsed ->
-                                case doEval Syntax.Elm [] parsed of
+                                case doEvalw [] parsed of
                                   Err msg -> UpdateFails msg
                                   Ok ((v, _), _) ->
                                     case (opArgs, vs) of
@@ -1117,7 +1117,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        case Syntax.parser Syntax.Elm s of
                          Err msg -> UpdateFails <| "Could not parse new output value '"++s++"' for ToStr expression. " ++ (ParserUtils.showError msg)
                          Ok parsed ->
-                           case doEval Syntax.Elm [] parsed of
+                           case doEvalw [] parsed of
                              Err msg -> UpdateFails msg
                              Ok ((v, _), _) ->
                                case (opArgs, vs) of
@@ -1150,7 +1150,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        updateOpMultiple "op" env opArgs (\newOpArgs -> ret <| EOp sp1 spo op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
 
      ECase sp1 input branches sp2 ->
-       case doEval Syntax.Elm env input of
+       case doEvalw env input of
          Err msg -> UpdateCriticalError msg
          Ok ((inputVal, _), inputValEnv) ->
            case branchWithInversion env inputVal branches of
@@ -1364,7 +1364,7 @@ updateLetExps env prevLets letExps continue =
 getFromPrevLetsOrEval: Vb.Vb -> PrevLets -> Pat -> Env -> Exp -> Result String (Val, PrevLets)
 getFromPrevLetsOrEval vb prevLets p env e1 =
   Utils.maybeWithLazyDefault (prevLetsFind (builtinVal "Update.prevLet") prevLets p |> Maybe.map Ok) <|
-    \() -> doEval Syntax.Elm env e1 |> Result.map (\((v, w), _) -> (v, []))
+    \() -> doEvalw env e1 |> Result.map (\((v, w), _) -> (v, []))
 
 
 opFlip: Env -> Exp -> WS -> WS -> String -> List Exp -> WS -> Val -> Val -> UpdateStack
@@ -1862,6 +1862,7 @@ vConst   = val << VConst Nothing
 vList    = val << VList
 -- vDict    = val << VDict
 
+doEvalw = Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm
 
 --------------------------------------------------------------------------------
 -- Updated value from changes through text-based value editor
@@ -1871,7 +1872,7 @@ buildUpdatedValueFromEditorString syntax valueEditorString =
   valueEditorString
     |> Syntax.parser syntax
     |> Result.mapError (\e -> ParserUtils.showError e)
-    |> Result.andThen (Eval.doEval syntax [])
+    |> Result.andThen (doEvalw [])
     |> Result.map (\((v, _), _) -> v)
 
 buildUpdatedValueFromHtmlString: String -> Result String Val

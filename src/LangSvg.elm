@@ -992,7 +992,7 @@ fetchSlideVal syntax slideNumber val =
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv_ = (argumentName, vIntFrozen slideNumber) :: fenv in
-          Eval.doEval syntax fenv_ fexp
+          Eval.doEval Eval.withParentsProvenanceWidgets syntax fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok val -- Program returned a plain SVG array structure...we hope.
@@ -1005,7 +1005,7 @@ fetchMovieVal syntax movieNumber slideVal =
       case pat.val.p__ of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
-          Eval.doEval syntax fenv_ fexp
+          Eval.doEval Eval.withParentsProvenanceWidgets  syntax fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
@@ -1030,7 +1030,7 @@ fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
     -- ]
     Just [VBase (VString "Static"), VClosure _ _ _ _] ->
       let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal1" |> Utils.geti 2 in
-      Eval.doEval syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber)])
+      Eval.doEval Eval.withParentsProvenanceWidgets syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber)])
       |> Result.map (\((returnVal, _), _) -> returnVal)
 
     -- [
@@ -1041,7 +1041,7 @@ fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
     -- ]
     Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ _ _ _, VBase (VBool _)] ->
       let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal2" |> Utils.geti 3 in
-      Eval.doEval syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber), eConstDummyLoc movieTime])
+      Eval.doEval Eval.withParentsProvenanceWidgets syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber), eConstDummyLoc movieTime])
       |> Result.map (\((returnVal, _), _) -> returnVal)
 
     _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.
