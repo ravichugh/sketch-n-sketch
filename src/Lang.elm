@@ -3441,6 +3441,7 @@ tagPatList (scopeId, path) =
 
 tagSinglePat : PathedPatternId -> Pat -> List (PId, PathedPatternId)
 tagSinglePat ppid pat =
+    let childPPID index = Tuple.mapSecond (\path -> path ++ [index]) ppid in
     (pat.val.pid, ppid) ::
       case pat.val.p__ of
         PConst _ _  ->
@@ -3451,20 +3452,18 @@ tagSinglePat ppid pat =
           []
         PWildcard _ ->
           []
-        PAs _ _ _ p1 ->
-          -- TODO Unsure if this is the right ppid (it is the same as the
-          --      parent).
-          tagSinglePat ppid p1
+        PAs _ p1 _ p2 ->
+          tagSinglePat (childPPID 1) p1 ++ tagSinglePat (childPPID 2) p2
         PList _ ps _ Nothing _  ->
           tagPatList ppid ps
         PList _ ps _ (Just pTail) _ ->
           tagPatList ppid (ps ++ [pTail])
         PParens _ p1 _ ->
-          tagSinglePat ppid p1
+          tagSinglePat (childPPID 1) p1
         PRecord ws1 listWsIdWsExpWs ws2 ->
           tagPatList ppid (Utils.recordValues listWsIdWsExpWs)
-        PColonType _ p1 _ tp ->
-          tagSinglePat ppid p1
+        PColonType _ p1 _ _ ->
+          tagSinglePat (childPPID 1) p1
 
 tagBranchList
   :  EId
