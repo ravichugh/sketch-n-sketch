@@ -3415,10 +3415,6 @@ hasPid pid codeObject =
     _ ->
       False
 
-hasPatWithPid : PId -> Exp -> Bool
-hasPatWithPid pid =
-  Utils.hasMatchingElement (hasPid pid) << childCodeObjects << E
-
 --------------------------------------------------------------------------------
 -- Getting PathedPatternIds from PIds
 --------------------------------------------------------------------------------
