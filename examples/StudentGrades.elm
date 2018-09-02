@@ -1,3 +1,5 @@
+type Student = Student String Num
+
 studentsGrades = [
   Student "Alice" 64.7,
   Student "Bob" 78.5,
@@ -33,6 +35,8 @@ studentsGrades = [
 
 gradeOf Student _ avg = avg
 
+type CutOff = CutOff String Num
+
 cutoffs = [
   CutOff "A+" 96.8,
   CutOff "A" 90,
@@ -55,8 +59,6 @@ updateDecimal x = {
 -- Step to freeze the grades but still allow changes in the names
 weightedAverages = List.map (\Student name grade -> Student name (freeze grade)) studentsGrades
 weightedAverages = sortBy (\(Student _ n1) (Student _ n2) -> n1 > n2) weightedAverages -- sort and shadow
-
-type CutOff = CutOff String Num
 
 assignLetter avg = let
   foo cutoffs = case cutoffs of

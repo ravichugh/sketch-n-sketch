@@ -2701,26 +2701,25 @@ iconify syntax env code =
         <| Syntax.parser syntax code
   in
   let valRes =
-    Result.map (Tuple.first << Tuple.first) <| Eval.doEval syntax env exp
+    Result.map (Tuple.first << Tuple.first) <| Eval.doEval Eval.withoutParentsProvenanceWidgets syntax env exp
   in
   case valRes of
     Err msg -> Debug.log msg (Svg.svg [] [])
-    Ok val ->
-  let
-    slate =
-      Utils.fromOkay "Error resolving index tree of icon"
-        <| LangSvg.resolveToRootedIndexedTree syntax 1 1 0 val
-    svgElements =
-      -- Not using Canvas.buildHtml because can't have circular dependency between InterfaceController and Canvas
-      -- Various widgets in Canvas defined their model update functions inline to avoid this, but now we're
-      -- invoking more complicated transforms from the output, so Canvas has to depend on InterfaceController.
-      --
-      -- So icons are limited to SVG for now, which is probably fine.
-      LangSvg.buildSvgSimple slate
-      -- Canvas.buildHtml ({ initModel | showGhosts = False }, False) slate
-    subPadding x =
-      x - 10
-  in
+    Ok val -> let
+      slate =
+        Utils.fromOkay "Error resolving index tree of icon"
+          <| LangSvg.resolveToRootedIndexedTree syntax 1 1 0 val
+      svgElements =
+        -- Not using Canvas.buildHtml because can't have circular dependency between InterfaceController and Canvas
+        -- Various widgets in Canvas defined their model update functions inline to avoid this, but now we're
+        -- invoking more complicated transforms from the output, so Canvas has to depend on InterfaceController.
+        --
+        -- So icons are limited to SVG for now, which is probably fine.
+        LangSvg.buildSvgSimple slate
+        -- Canvas.buildHtml ({ initModel | showGhosts = False }, False) slate
+      subPadding x =
+        x - 10
+    in
     Svg.svg
       [ Svg.Attributes.width <|
           (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
