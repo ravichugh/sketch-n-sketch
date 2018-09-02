@@ -2131,16 +2131,9 @@ typesTool model selections =
           let
             pat =
               LangTools.findPatByPathedPatternId pathedPatId model.inputExp
-                -- TODO: why does this fail sometimes?
-                -- |> Utils.fromJust_ "typesTool findPat"
-                --
-                -- Once figured out, remove the case split below.
+                |> Utils.fromJust_ "typesTool findPat"
           in
-            case pat of
-              Nothing ->
-                (Nothing, Impossible)
-              Just p  ->
-                (Just (Types2.makeDeucePatTool model.inputExp p), Satisfied)
+          (Just (Types2.makeDeucePatTool model.inputExp pat), Satisfied)
 
         _ ->
           (Nothing, Impossible)

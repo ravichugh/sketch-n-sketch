@@ -778,12 +778,12 @@ checkType gamma stuff solicitorExp thisExp expectedType =
             -- TODO: Probably need to do something better with ids/breadcrumbs...
             Expr (withDummyInfo (exp_ (EFun space0 prefixPats rewrittenBody space0)))
 
-          newBody =
+          (newPrefixPats, newSuffixPats, newBody) =
             case (unExpr result.newExp).val.e__ of
-              EFun _ _ innerFunc _ ->
+              EFun _ newPrefixPats innerFunc _ ->
                 case (unExpr innerFunc).val.e__ of
-                  EFun _ _ newCheckedBody _ ->
-                    newCheckedBody
+                  EFun _ newSuffixPats newCheckedBody _ ->
+                    (newPrefixPats, newSuffixPats, newCheckedBody)
                   _ ->
                     Debug.crash "the structure of the rewritten EFun has changed..."
               _ ->
@@ -794,7 +794,7 @@ checkType gamma stuff solicitorExp thisExp expectedType =
             -- the rewrittenThisExp version. May need to track some
             -- breadcrumbs for stuffing type info into selection polygons...
             --
-            EFun ws1 pats newBody ws2
+            EFun ws1 (newPrefixPats ++ newSuffixPats) newBody ws2
               |> replaceE__ thisExp
               |> copyTypeInfoFrom result.newExp
         in
@@ -808,13 +808,15 @@ checkType gamma stuff solicitorExp thisExp expectedType =
             List.foldl addTypeVar gamma typeVars
           newGamma =
             List.foldl addHasType newGamma_ patTypes
+          newPats =
+            List.map (\(p,t) -> p |> setPatType (Just t)) patTypes
           result =
             checkType newGamma stuff solicitorExp body retType
         in
           if result.okay then
             { okay = True
             , newExp =
-                EFun ws1 pats result.newExp ws2
+                EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
                   |> setType (Just expectedType)
             }
@@ -829,7 +831,7 @@ checkType gamma stuff solicitorExp thisExp expectedType =
             in
             { okay = False
             , newExp =
-                EFun ws1 pats result.newExp ws2
+                EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
                   |> setTypeError (ExpectedButGot expectedType Nothing maybeActualType)
             }

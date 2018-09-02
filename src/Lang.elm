@@ -274,16 +274,14 @@ setExtraTypeInfo : ExtraTypeInfo -> Exp -> Exp
 setExtraTypeInfo info =
   unExpr >> setExtraTypeInfoForThing info >> Expr
 
-{-
-setTypePat : Maybe Type -> Pat -> Pat
-setTypePat = setTypeForThing
+setPatType : Maybe Type -> Pat -> Pat
+setPatType = setTypeForThing
 
-setTypeErrorPat : TypeError -> Pat -> Pat
-setTypeErrorPat = setTypeErrorForThing
+setPatTypeError : TypeError -> Pat -> Pat
+setPatTypeError = setTypeErrorForThing
 
-setExtraTypeInfoPat : ExtraTypeInfo -> Pat -> Pat
-setExtraTypeInfoPat = setExtraTypeInfoForThing
--}
+setPatExtraTypeInfo : ExtraTypeInfo -> Pat -> Pat
+setPatExtraTypeInfo = setExtraTypeInfoForThing
 
 
 --------------------------------------------------------------------------------
