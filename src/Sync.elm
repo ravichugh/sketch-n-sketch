@@ -203,10 +203,13 @@ pickLocs subst options maybeCounts traces =
     traces
     |> List.map
         (\trace ->
+          -- This function takes a decent amount of time (~0.5secs) when the output becomes larger.
+          --
           -- Validate that loc can affect trace (i.e. not multiplied by 0 or something).
           let mathExp = MathExp.traceToMathExp trace in
           locsOfTrace options trace
-          |> Set.filter
+          |> Set.toList -- May be faster than filtering as a set. It's not obviously slower.
+          |> List.filter
               (\(locId, _, _) ->
                 let
                   derivativeWithRespectToLoc = MathExp.derivative locId mathExp
@@ -214,6 +217,7 @@ pickLocs subst options maybeCounts traces =
                 in
                 not <| isNaN concreteDerivative || isInfinite concreteDerivative || 0.0 == concreteDerivative
               )
+          |> Set.fromList
         )
   in
   let allLocs = List.foldl Set.union Set.empty possibleLocSets in
