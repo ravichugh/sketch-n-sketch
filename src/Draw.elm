@@ -5,7 +5,7 @@ module Draw exposing
   -- , drawNewLine
   -- , drawNewRect
   -- , drawNewEllipse
-  -- , drawNewPolygon
+  , drawNewPolygon
   -- , drawNewPath
   , drawNewFunction
   , svgXYDot
@@ -212,32 +212,32 @@ snapLine keysDown ((x1, _), (y1, _)) ((x2, _), (y2, _)) =
 --   in
 --   let clearDots = List.map (drawDot dotFillCursor) [(xb,yb),(xa,ya),pt2,pt1] in
 --   clearDots ++ [ ellipse ]
---
--- drawNewPolygon : PointWithSnap -> List PointWithSnap -> List (Svg.Svg Msg)
--- drawNewPolygon ptLast points =
---   let allRawPoints =
---     ptLast::points |> List.map (\((x, _), (y, _)) -> (x, y))
---   in
---   let (xInit,yInit) = Utils.last_ allRawPoints in
---   let redDot = drawDot dotFill (xInit,yInit) in
---   let clearDots = List.map (drawDot dotFillCursor) allRawPoints in
---   let maybeShape =
---     case allRawPoints of
---       [_] -> []
---       _ ->
---         -- don't need to reverse, but keeping it same as resulting shape
---         let polyPoints = List.reverse allRawPoints in
---         let sPoints =
---           Utils.spaces <|
---             List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
---                      polyPoints
---         in
---         [ svgPolygon [
---             defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
---           , LangSvg.attr "points" sPoints
---           ] ]
---    in
---    redDot :: clearDots ++ maybeShape
+
+drawNewPolygon : PointWithSnap -> List PointWithSnap -> List (Svg.Svg Msg)
+drawNewPolygon ptLast points =
+  let allRawPoints =
+    ptLast::points |> List.map (\((x, _), (y, _)) -> (x, y))
+  in
+  let (xInit,yInit) = Utils.last_ allRawPoints in
+  let redDot = drawDot dotFill (xInit,yInit) in
+  let clearDots = List.map (drawDot dotFillCursor) allRawPoints in
+  let maybeShape =
+    case allRawPoints of
+      [_] -> []
+      _ ->
+        -- don't need to reverse, but keeping it same as resulting shape
+        let polyPoints = List.reverse allRawPoints in
+        let sPoints =
+          Utils.spaces <|
+            List.map (\(x,y) -> String.join "," (List.map toString [x,y]))
+                     polyPoints
+        in
+        [ svgPolygon [
+            defaultStroke , defaultStrokeWidth , defaultFill , defaultOpacity
+          , LangSvg.attr "points" sPoints
+          ] ]
+   in
+   redDot :: clearDots ++ maybeShape
 
 strPt (x,y) = Utils.spaces [toString x, toString y]
 

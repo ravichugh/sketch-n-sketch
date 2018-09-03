@@ -634,7 +634,7 @@ onMouseUp old =
         -- (Lambda i,       TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLambda i old pt1 pt2
         (Function fName, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addFunction fName old pt1 pt2
 
-        -- (Poly _, _, _) -> old
+        (Poly, _, _) -> old
         -- (Path _, _, _) -> old
         --
         -- (Text, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addTextBox old pt1 pt2

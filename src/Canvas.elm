@@ -234,7 +234,7 @@ drawNewShape model =
       -- (Line,        MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewLine model pt1 pt2
       -- (Rect,        MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
       -- (Oval,        MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewEllipse model.keysDown pt1 pt2
-      -- (Poly,        MouseDrawNew (PolyPoints (ptLast::pts)))                     -> Draw.drawNewPolygon ptLast pts
+      (Poly,        MouseDrawNew (PolyPoints (ptLast::pts)))                     -> Draw.drawNewPolygon ptLast pts
       -- (Path,        MouseDrawNew (PathPoints (ptLast::pts)))                     -> Draw.drawNewPath ptLast pts
       (PointOrOffset, MouseDrawNew (Offset1D ((x1Int, _), (y1Int, _)) amountSnap (x2Int, y2Int))) -> drawNewPointAndOffset model (amountSnap /= NoSnap) (x1Int, y1Int) (x2Int, y2Int)
       -- (PointOrOffset, MouseDrawNew (TwoPoints ((x1Int, _), (y1Int, _)) ((x1Int, _), (y1Int, _))))      -> drawNewPointAndOffset model False pt1 pt2
