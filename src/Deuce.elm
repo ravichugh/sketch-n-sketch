@@ -601,6 +601,10 @@ codeObjectPolygon msgs codeInfo codeObject color =
               case (unExpr e).val.typeError of
                 Just _  -> True
                 Nothing -> False
+            (False, P _ p) ->
+              case p.val.typeError of
+                Just _  -> True
+                Nothing -> False
             _ ->
               False
 

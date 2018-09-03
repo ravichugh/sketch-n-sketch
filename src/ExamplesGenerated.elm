@@ -6070,15 +6070,18 @@ blankDoc =
 
 basicTypesTesting =
  """
-n = 1
-
-b = True
-
-s = "Hi!"
-
 pair = (1, True)
 
 triple = (1, True, "Hi!")
+
+n : Num
+n = 1
+
+b : Bool
+b = True
+
+(s) : String
+s = "Hi!"
 
 record0 = {}
 
@@ -6093,6 +6096,29 @@ bad1 = 1 : Bool
 bad2 = (1 : Bool) : Int
 
 bad3 = (1 + 2) : Bool
+
+fact : Num -> Num
+fact n =
+  -- if n <= 0 then 1 else n * fact (n-1)
+  n * fact (n-1)
+
+even : Num -> Bool
+even n =
+  -- if n == 0 then True
+  -- else if n == 1 then False
+  -- else
+    odd (n-1)
+
+odd : Num -> Bool
+odd n =
+  -- if n == 0 then False
+  -- else if n == 1 then True
+  -- else
+    even (n-1)
+
+(thisIsNotDefined, norThis, butThisOneIs) : (Num, Bool, String)
+
+butThisOneIs = "yay!"
 
 foo = \\provenance ->
   provenacne

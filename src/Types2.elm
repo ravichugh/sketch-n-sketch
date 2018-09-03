@@ -43,36 +43,65 @@ aceTypeInfo exp =
 
   , annotations =
       let
-        addErrorAnnotation e =
+        -- ept is "e" or "p" or "t"
+        processThing ept thing toId thingToString =
+          case (thing.val.typ, thing.val.typeError) of
+            (Just _, Nothing) ->
+              []
+            _ ->
+              addErrorAnnotation ept thing toId thingToString
+
+        addErrorAnnotation ept thing toId thingToString =
+          [ { row =
+                thing.start.line - 1
+            , type_ =
+                "error"
+            , text =
+                String.concat
+                  [ "Type error ["
+                  , ept, "id: ", toString (toId thing.val), "; "
+                  , "col: ", toString thing.start.col
+                  , "]: ", "\n"
+                  , String.trim (thingToString thing), "\n"
+                  ]
+            }
+          ]
+
+        processExp e =
           -- TODO for now, ignoring top-level prog and implicit main ---------------------------
           case ((unExpr e).start.line, (unExpr e).val.e__) of
             (1, _) -> []
             (_, EVar _ "main") -> []
-            (_, ELet _ Let (Declarations [0] [] [] [(False, [LetExp _ _ p _ _ _])]) _ _) -> []
+            -- (_, ELet _ Let (Declarations [0] [] [] [(False, [LetExp _ _ p _ _ _])]) _ _) -> []
             _ ->
           --------------------------------------------------------------------------------------
-          case ((unExpr e).val.typ, (unExpr e).val.typeError) of
-            (Just _, Nothing) ->
-              []
+          let
+            result =
+              annots1 ++ annots2
 
-            _ ->
-              [ { row =
-                    (unExpr e).start.line - 1
-                , type_ =
-                    "error"
-                , text =
-                    String.concat
-                      [ "Type error ["
-                      , "eid: ", toString (unExpr e).val.eid, "; "
-                      , "col: ", toString (unExpr e).start.col
-                      , "]: ", "\n"
-                      , String.trim (unparse e), "\n"
-                      ]
-                }
-              ]
+            annots1 =
+              processThing "e" (unExpr e) .eid (Expr >> unparse)
+
+            annots2 =
+              case (unExpr e).val.e__ of
+                EFun _ pats _ _->
+                  pats
+                    |> List.concatMap (\pat -> processThing "p" pat .pid unparsePattern)
+
+                ELet _ _ (Declarations _ _ letAnnots _) _ _ ->
+                  -- TODO: why aren't top-level pattern errors appearing in Ace annotations?
+                  letAnnots
+                    |> List.concatMap (\(LetAnnotation _ _ pat _ _ _) ->
+                         processThing "p" pat .pid unparsePattern
+                       )
+
+                _ ->
+                  []
+          in
+            result
 
         errorAnnotations =
-          foldExp (\e acc -> addErrorAnnotation e ++ acc) [] exp
+          foldExp (\e acc -> processExp e ++ acc) [] exp
 
         summaryAnnotation =
           case errorAnnotations of
@@ -109,9 +138,14 @@ type TypeEnvElement
   -- | TypeAlias Pat Type
 
 
+addHasMaybeType : (Pat, Maybe Type) -> TypeEnv -> TypeEnv
+addHasMaybeType (p, mt) gamma =
+  HasType p mt :: gamma
+
+
 addHasType : (Pat, Type) -> TypeEnv -> TypeEnv
 addHasType (p, t) gamma =
-  HasType p (Just t) :: gamma
+  addHasMaybeType (p, Just t) gamma
 
 
 addTypeVar : Ident -> TypeEnv -> TypeEnv
@@ -331,7 +365,7 @@ matchArrow typ =
         |> Maybe.map (\(typeVars, argTypes, retType) ->
              (typeVars, List.map unparseType argTypes, unparseType retType)
            )
-        |> if True
+        |> if False
            then Debug.log "matchArrowType"
            else Basics.identity
   in
@@ -436,7 +470,6 @@ inferType
         -- the inferred Maybe Type is in newExp.val.typ
 
 inferType gamma stuff thisExp =
-  let (childExps, rebuildExp) = childExpsExtractors thisExp in
   case (unExpr thisExp).val.e__ of
     EConst _ _ _ _ ->
       { newExp = thisExp |> setType (Just (withDummyInfo (TNum space1))) }
@@ -547,23 +580,230 @@ inferType gamma stuff thisExp =
                  (OtherTypeError ["trying to synthesize unannotated..."])
       }
 
-    ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
-      -- TODO: to get started, just processing individual equations,
-      --       and not adding them to environment for body
+    ELet ws1 letKind (Declarations po [] letAnnots letExps) ws2 body ->
       let
-        resultEquations =
-          inferTypes gamma stuff (Utils.dropLast 1 childExps)
+        -- Process LetAnnotations ----------------------------------------------
+
+        -- type alias AnnotationTable = List (Ident, Type)
+
+        -- (newLetAnnots, annotTable) : (List LetAnnotation, AnnotationTable)
+        (newLetAnnots, annotTable) =
+          letAnnots
+            |> List.foldl processLetAnnotation ([], [])
+            |> Tuple.mapFirst List.reverse
+            |> Tuple.mapFirst markUndefinedAnnotations
+
+        _ =
+          annotTable
+            |> List.map (Tuple.mapSecond unparseType)
+            |> if True
+               then Debug.log "annotTable"
+               else Basics.identity
+
+        processLetAnnotation
+            (LetAnnotation ws0 ws1 pat fas ws2 typ) (accLetAnnots, accTable) =
+          let
+            (newPat, newTable) =
+              processPat accTable pat typ
+            newLetAnnots =
+              LetAnnotation ws0 ws1 newPat fas ws2 typ :: accLetAnnots
+          in
+            (newLetAnnots, newTable)
+
+        -- Somewhat similar to lookupVarInPat.
+        --
+        processPat : List (Ident, Type) -> Pat -> Type -> (Pat, List (Ident, Type))
+        processPat accTable pat typ =
+          case (pat.val.p__, typ.val) of
+            (PVar _ x _, _) ->
+              let
+                errors =
+                  errors1 ++ errors2
+
+                errors1 =
+                  Utils.maybeFind x accTable
+                    |> Maybe.map (\_ ->
+                         [ "Can't have multiple annotations for same name."
+                         -- Report locations of other annotations, if desired...
+                         ]
+                       )
+                    |> Maybe.withDefault []
+
+                errors2 =
+                  findUnboundTypeVars gamma typ
+                    |> Maybe.map (\unboundTypeVars ->
+                         [ "ill-formed type annotation"
+                         , "unbound: " ++ String.join " " unboundTypeVars
+                         ]
+                       )
+                    |> Maybe.withDefault []
+
+              in
+                if List.length errors == 0 then
+                  ( pat |> setPatType (Just typ)
+                  , (x, typ) :: accTable
+                  )
+
+                else
+                  ( pat |> setPatTypeError (OtherTypeError errors)
+                  , accTable
+                  )
+
+            _ ->
+              ( pat |> setPatTypeError
+                  (OtherTypeError ["this kind of type annotation is currently unsupported"])
+              , accTable
+              )
+
+        markUndefinedAnnotations : List LetAnnotation -> List LetAnnotation
+        markUndefinedAnnotations =
+          let
+            varsDefinedInThisELet =
+              letExps
+                |> List.concatMap Tuple.second
+                |> List.concatMap (\(LetExp _ _ pat _ _ _) -> varsOfPat pat)
+
+            maybeMarkPat =
+              mapPat
+                (\p ->
+                   case p.val.p__ of
+                     PVar _ x _ ->
+                       if List.member x varsDefinedInThisELet then
+                         p
+                       else
+                         p |> setPatTypeError (OtherTypeError ["this name is not defined"])
+                     _ ->
+                       p
+                )
+          in
+            List.map (\(LetAnnotation ws0 ws1 pat fas ws2 typ) ->
+              LetAnnotation ws0 ws1 (maybeMarkPat pat) fas ws2 typ
+            )
+
+        -- Process LetExps -----------------------------------------------------
+
+        (newLetExps, newGamma) =
+          letExps
+            |> List.foldl processLetExp ([], gamma)
+            |> Tuple.mapFirst List.reverse
+
+        processLetExp (isRec, listLetExp) (accLetExpsRev, accGamma) =
+          let
+            listLetExpAndMaybeType : List (LetExp, Maybe Type)
+            listLetExpAndMaybeType =
+              listLetExp
+                |> List.map (\letExp ->
+                     let (LetExp ws0 ws1 pat fas ws2 expEquation) = letExp in
+                     case pat.val.p__ of
+                       PVar _ x _ ->
+                         (letExp, Utils.maybeFind x annotTable)
+
+                       -- To support other kinds of pats, will have to
+                       -- walk expEquation as much as possible to push down
+                       -- annotations. And any remaining annotations will
+                       -- have to be treated as EColonTypes.
+                       _ ->
+                         let
+                           newPat =
+                             pat |> setPatTypeError
+                               (OtherTypeError ["pattern not yet supported by type checker"])
+                         in
+                           (LetExp ws0 ws1 newPat fas ws2 expEquation, Nothing)
+                   )
+
+            gammaForEquations =
+              if isRec == False then
+                accGamma
+
+              else
+                let
+                  assumedRecPatTypes : List (Pat, Maybe Type)
+                  assumedRecPatTypes =
+                    listLetExpAndMaybeType
+                      |> List.map (\((LetExp _ _ pat _ _ _), maybeAnnotatedType) ->
+                           (pat, maybeAnnotatedType)
+                         )
+                in
+                  List.foldl addHasMaybeType accGamma assumedRecPatTypes
+
+            newListLetExp =
+              listLetExpAndMaybeType
+                |> List.map (\( (LetExp ws0 ws1 pat fas ws2 expEquation)
+                              , maybeAnnotatedType
+                              ) ->
+                     case maybeAnnotatedType of
+                       Nothing ->
+                         let
+                           result =
+                             inferType gammaForEquations stuff expEquation
+
+                           newPat =
+                             pat |> setPatType (unExpr result.newExp).val.typ
+                         in
+                         LetExp ws0 ws1 newPat fas ws2 result.newExp
+
+                       Just annotatedType ->
+                         let
+                           result =
+                             -- TODO: Better solicitor than thisExp...
+                             checkType gammaForEquations stuff thisExp expEquation annotatedType
+
+                           newPat =
+                             if result.okay then
+                               pat |> setPatType (Just annotatedType)
+                             else
+                               pat |> setPatTypeError (OtherTypeError ["type error"])
+
+                           -- TODO: add tool option to change annotation if result.okay == False
+                           newExpEquation =
+                             result.newExp
+                         in
+                         LetExp ws0 ws1 newPat fas ws2 newExpEquation
+                   )
+
+            newGamma =
+              let
+                maybePatTypes : Maybe (List (Pat, Type))
+                maybePatTypes =
+                  newListLetExp
+                    |> List.map (\(LetExp _ _ newPat _ _ _) ->
+                         newPat.val.typ |> Maybe.map ((,) newPat)
+                       )
+                    |> Utils.projJusts
+              in
+                -- Add bindings only if every LetExp type checked.
+                case maybePatTypes of
+                  Nothing ->
+                    accGamma
+
+                  Just patTypes ->
+                    List.foldl addHasType accGamma patTypes
+          in
+            ((isRec, newListLetExp) :: accLetExpsRev, accGamma)
+
+        -- Process Let-Body ----------------------------------------------------
 
         resultBody =
-          inferType gamma stuff body
+          inferType newGamma stuff body
 
-        newChildExps =
-          Utils.snoc resultEquations.newExps resultBody.newExp
+        newBody =
+          resultBody.newExp
+
+        -- Rebuild -------------------------------------------------------------
 
         newExp =
-          rebuildExp newChildExps
+          ELet ws1 letKind (Declarations po [] newLetAnnots newLetExps) ws2 newBody
+            |> replaceE__ thisExp
+            |> copyTypeInfoFrom newBody
       in
-        { newExp = newExp |> setType Nothing }
+        { newExp = newExp }
+
+    ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+      { newExp =
+          thisExp
+            |> setTypeError
+                 (OtherTypeError ["not yet supporting type definitions..."])
+      }
 
     ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots letExps) ws2 ->
       let
@@ -653,7 +893,7 @@ inferType gamma stuff thisExp =
                     ([], [])
                     listLetExpMinusCtor
 
-                  |> (\(list1, list2) -> (List.reverse list1, List.reverse list2))
+                  |> Utils.mapFirstSecond List.reverse List.reverse
 
                   |> finishLetExpsAndFieldTypes
 
