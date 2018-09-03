@@ -21,6 +21,7 @@ exampleVal2      = eHoleNamed "exampleVal2"
 var              = eVar "env var"
 num1             = eVar "num 1"
 num2             = eVar "num 2"
+num3             = eVar "num 3"
 valFromVarDomain = eHoleNamed "valFromVarDomain"
 -- Some constant leaves
 zero             = eConstFrozen 0
@@ -29,7 +30,7 @@ two              = eConstFrozen 2
 
 isSketchFilled : Exp -> Bool
 isSketchFilled sketchExp =
-  not <| containsNode (\e -> List.member e [exampleVal1, exampleVal2, var, num1, num2, valFromVarDomain]) sketchExp
+  not <| containsNode (\e -> List.member e [exampleVal1, exampleVal2, var, num1, num2, num3, valFromVarDomain]) sketchExp
 
 
 -- The sketches
@@ -93,7 +94,43 @@ pbeHoleFillings solutionsCache pbeHolesSeen =
                             case (MathExp.expToMaybeMathExp initialSketch, List.map valToMaybeNum exampleVals |> Utils.projJusts, List.map valToMaybeNum varVals |> Utils.projJusts) of
                               (Just (mathExp, identToVarId), Just exampleNums, Just varNums) ->
                                 -- Sketch is a mathExp and the example and and variable are all numbers
-                                if containsNode ((==) num1) initialSketch && containsNode ((==) num2) initialSketch then
+                                if containsNode ((==) num1) initialSketch && containsNode ((==) num2) initialSketch && containsNode ((==) num3) initialSketch then
+                                  -- Two unknowns
+                                  -- Try to solve based on two differing examples.
+                                  case Utils.zip exampleNums varNums |> Utils.dedup of
+                                    (exampleNum1, varNum1)::(exampleNum2, varNum2)::(exampleNum3, varNum3)::_ ->
+                                      let
+                                        envVarId  = Utils.justGet_ "PBE hole filling identToVarId shouldn't happen" "env var" identToVarId
+                                        num1VarId = Utils.justGet_ "PBE hole filling identToVarId shouldn't happen" "num 1" identToVarId
+                                        num2VarId = Utils.justGet_ "PBE hole filling identToVarId shouldn't happen" "num 2" identToVarId
+                                        num3VarId = Utils.justGet_ "PBE hole filling identToVarId shouldn't happen" "num 3" identToVarId
+                                        eqns =
+                                          [ (MathNum exampleNum1, mathExp |> MathExp.applySubst (Dict.singleton envVarId varNum1))
+                                          , (MathNum exampleNum2, mathExp |> MathExp.applySubst (Dict.singleton envVarId varNum2))
+                                          , (MathNum exampleNum3, mathExp |> MathExp.applySubst (Dict.singleton envVarId varNum3))
+                                          ]
+                                        targetVarIds = [num1VarId, num2VarId, num3VarId]
+                                      in
+                                      Solver.solve solutionsCache eqns targetVarIds
+                                      |> List.concatMap
+                                          (\solution -> -- List (MathExp, VarId)
+                                            case (Utils.maybeFind num1VarId (List.map Utils.flip solution), Utils.maybeFind num2VarId (List.map Utils.flip solution), Utils.maybeFind num3VarId (List.map Utils.flip solution)) of
+                                              (Just (MathNum num1Num), Just (MathNum num2Num), Just (MathNum num3Num)) ->
+                                                [
+                                                  initialSketch
+                                                  |> mapExpNodesMatching ((==) var)  (always (eVar ident))
+                                                  |> mapExpNodesMatching ((==) num1) (always (eConstDummyLoc num1Num))
+                                                  |> mapExpNodesMatching ((==) num2) (always (eConstDummyLoc num2Num))
+                                                  |> mapExpNodesMatching ((==) num3) (always (eConstDummyLoc num3Num))
+                                                ]
+                                              _ ->
+                                                []
+                                          )
+
+                                    _ ->
+                                      []
+
+                                else if containsNode ((==) num1) initialSketch && containsNode ((==) num2) initialSketch then
                                   -- Two unknowns
                                   -- Try to solve based on two differing examples.
                                   case Utils.zip exampleNums varNums |> Utils.dedup of
