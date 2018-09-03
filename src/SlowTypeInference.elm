@@ -1638,7 +1638,7 @@ gatherConstraints exp =
       eidIs (expToTC e)
     ETypeAlias _ pat tipe e _ ->
       let aliasConstraints =
-        case Types.matchTypeAlias pat tipe of
+        case Types.matchPatToType pat tipe of
           Just identToType -> identToType |> List.map (\(ident, tipe) -> TypeAlias ident (typeToTC tipe))
           Nothing          -> let _ = Debug.log "Could not match type alias" pat in [PIdIsEmpty pat.val.pid "Type alias malformed"]
       in

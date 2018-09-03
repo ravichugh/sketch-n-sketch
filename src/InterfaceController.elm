@@ -128,7 +128,7 @@ import Syntax exposing (Syntax)
 import ElmParser
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
-import SlowTypeInference
+import AlgorithmJish
 
 import ImpureGoodies
 
@@ -753,30 +753,30 @@ tryRun old =
               let newCode = Syntax.unparser old.syntax e in -- unnecessary, if parse/unparse were inverses
               let new = loadLambdaAndFunctionToolIcons e maybeEnv old in
               let new_ =
-                { new | inputExp             = e
-                      , inputVal             = newVal
-                      , maybeEnv             = maybeEnv
-                      , contextInputVals     = FocusedEditingContext.contextInputVals editingContext maybeEnv e
-                      , valueEditorString    = Update.valToString newVal
-                      , code                 = newCode
-                      , lastRunCode          = newCode
-                      , slideCount           = newSlideCount
-                      , movieCount           = newMovieCount
-                      , movieTime            = 0
-                      , movieDuration        = newMovieDuration
-                      , movieContinue        = newMovieContinue
-                      , runAnimation         = newMovieDuration > 0
-                      , slate                = newSlate
-                      , widgets              = ws
-                      , widgetBounds         = ShapeWidgets.computeAndRejiggerWidgetBounds ws
-                      , typeGraph            = SlowTypeInference.typecheck e
-                      , editingContext       = editingContext
-                      , history              = modelCommit newCode [] old.history
-                      , caption              = Nothing
-                      , syncOptions          = Sync.syncOptionsOf old.syncOptions e
-                      , errorBox             = Nothing
-                      , preview              = Nothing
-                      , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
+                { new | inputExp                = e
+                      , inputVal                = newVal
+                      , maybeEnv                = maybeEnv
+                      , contextInputVals        = FocusedEditingContext.contextInputVals editingContext maybeEnv e
+                      , valueEditorString       = Update.valToString newVal
+                      , code                    = newCode
+                      , lastRunCode             = newCode
+                      , slideCount              = newSlideCount
+                      , movieCount              = newMovieCount
+                      , movieTime               = 0
+                      , movieDuration           = newMovieDuration
+                      , movieContinue           = newMovieContinue
+                      , runAnimation            = newMovieDuration > 0
+                      , slate                   = newSlate
+                      , widgets                 = ws
+                      , widgetBounds            = ShapeWidgets.computeAndRejiggerWidgetBounds ws
+                      , idToTypeAndContextThunk = AlgorithmJish.inferTypes e
+                      , editingContext          = editingContext
+                      , history                 = modelCommit newCode [] old.history
+                      , caption                 = Nothing
+                      , syncOptions             = Sync.syncOptionsOf old.syncOptions e
+                      , errorBox                = Nothing
+                      , preview                 = Nothing
+                      , synthesisResultsDict    = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                 }
               in
               let taskProgressAnnotation =
@@ -892,7 +892,7 @@ upstate msg old =
   case msg of
     Msg caption updateModel ->
       -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
-      let _ = Debug.log "Msg" caption in
+      -- let _ = Debug.log "Msg" caption in
       -- let _ = if {-String.contains "Key" caption-} True then Debug.log caption (old.mouseMode, old.mouseState) else (old.mouseMode, old.mouseState) in
       let _ = debugLog "Msg" caption in
       updateModel old
@@ -1818,7 +1818,7 @@ msgRepeatUsingFunction repeatFuncName synthesisResultsDictKey =
     let synthesisResults =
       ValueBasedTransform.repeatUsingFunction
           old.inputExp
-          old.typeGraph
+          old.idToTypeAndContextThunk
           old.editingContext
           old.maybeEnv
           repeatFuncName
@@ -2669,7 +2669,7 @@ loadLambdaAndFunctionToolIcons program maybeFinalEnv old =
         Draw.getDrawableFunctions modelWithLambdaIconsLoaded
         |> Utils.foldl
             modelWithLambdaIconsLoaded
-            (\(funcName, _, _) model ->
+            (\(funcName, _) model ->
               if Dict.member funcName model.icons then
                 model
               else

@@ -40,27 +40,53 @@ maybeListElementsType tipe =
     _                      -> Nothing
 
 
+-- List with heads and tail of all the same type can be considered TList instead of TTuple
+simplifyTailedTuple : Type -> Type
+simplifyTailedTuple tipe =
+  let wrap t_ = WithInfo t_ tipe.start tipe.end in
+  case tipe.val of
+    TTuple ws1 ts ws2 (Just tTail) ws3 ->
+      case maybeListOrHomogenousTupleElementsType tipe of
+        Just t1 -> wrap (TList ws1 t1 ws3)
+        Nothing -> tipe
+
+    _ ->
+      tipe
+
+
 maybeListOrHomogenousTupleElementsType : Type -> Maybe Type
 maybeListOrHomogenousTupleElementsType tipe =
+  let figureItOut () =
+    case childTypes tipe of
+      []    -> Just (tForall ["a"] (tVar "a"))
+      t::ts ->
+        if List.all (equalUnderSameTypeVars t) ts && List.all (not << typeContains isTForall) (t::ts)
+        then Just t
+        else Nothing
+  in
   case tipe.val of
-    TList _ elementsType _       -> Just elementsType
-    TTuple _ heads _ maybeTail _ ->
-      case heads ++ Utils.maybeToList maybeTail |> Utils.dedupBy unparseTypeWithUniformWhitespace of -- WHAT DO THE WORDS "TYPE EQUALITY" MEAN!
-        []  -> Just (tForall ["a"] (tVar "a"))
-        [t] -> Just t
-        _   -> Nothing
+    TList _ elementsType _       -> figureItOut ()
+    TTuple _ heads _ maybeTail _ -> figureItOut ()
     TForall _ _ t _              -> maybeListOrHomogenousTupleElementsType t
     _                            -> Nothing
 
 
+-- A "Point" type is either:
+--   - A `[Num, Num]` pair tuple
+--   - A `Point` type alias
+--   - A `[Num, Num | a]` type, because type inference will type a literal [Num, Num] expression as a [Num, Num | a]
 isPointType : Type -> Bool
 isPointType tipe =
   (typeToMaybeAliasIdent tipe == Just "Point") ||
   case tipe.val of
     TForall _ _ t _ -> isPointType t
-    TTuple _ heads _ Nothing _ ->
+    TTuple _ heads _ maybeTail _ ->
       case heads |> List.map .val of
-        [TNum _, TNum _] -> True
+        [TNum _, TNum _] ->
+          case maybeTail |> Maybe.map .val of
+            Nothing         -> True
+            Just (TVar _ _) -> True
+            _               -> False
         _                -> False
     _ -> False
 
@@ -89,7 +115,10 @@ typeToMaybeAliasIdent tipe =
 
 typeToMaybeArgTypesAndReturnType : Type -> Maybe (List Type, Type)
 typeToMaybeArgTypesAndReturnType tipe =
-  case tipe.val of
+  case (prettify tipe).val of
+    TForall _ _ t1 _ ->
+      typeToMaybeArgTypesAndReturnType t1
+
     TArrow _ types _ ->
       case (Utils.dropLast 1 types, Utils.maybeLast types) of
         (argTypes, Just returnType) -> Just (argTypes, returnType)
@@ -111,8 +140,30 @@ inlineArrow tipe =
     _ -> tipe
 
 
+prettify : Type -> Type
+prettify = mapType (flattenUnion >> inlineArrow)
+
+
+-- Flattens immediately nested unions. Dumb flattening, no dedup.
+flattenUnion : Type -> Type
+flattenUnion tipe =
+  case tipe.val of
+    TUnion ws1 types ws2 ->
+      let newTypes =
+        types
+        |> List.concatMap
+            (\t ->
+              case (flattenUnion t).val of
+                TUnion _ tChildren _ -> tChildren
+                _                    -> [t]
+            )
+      in
+      { tipe | val = TUnion ws1 newTypes ws2 }
+
+    _ -> tipe
+
+
 -- Do the types match, modulo type variable renaming?
--- Requires ASTs to be ordered the same (e.g. Union [Num, String] is not equal to Union [String, Num])
 equal : Type -> Type -> Bool
 equal t1 t2 =
   let
@@ -123,9 +174,18 @@ equal t1 t2 =
   equal_ t1 t2 t2IdentToT1Ident
 
 
+equalUnderSameTypeVars : Type -> Type -> Bool
+equalUnderSameTypeVars t1 t2 =
+  let
+    identifiers      = freeIdentifiersList t1 ++ freeIdentifiersList t2 |> Utils.dedup
+    t2IdentToT1Ident = identifiers |> List.map (\ident -> (ident, ident)) |> Dict.fromList
+  in
+  equal_ t1 t2 t2IdentToT1Ident
+
+
 equal_ : Type -> Type -> Dict Ident Ident -> Bool
 equal_ t1 t2 t2IdentToT1Ident =
-  case (t1.val, t2.val) of
+  case ((flattenUnion (inlineArrow t1)).val, (flattenUnion (inlineArrow t2)).val) of
     (TNum _, TNum _)       -> True
     (TBool _, TBool _)     -> True
     (TString _, TString _) -> True
@@ -144,8 +204,12 @@ equal_ t1 t2 t2IdentToT1Ident =
       maybeRestTypesMatch && Utils.listsEqualBy (\t1 t2 -> equal_ t1 t2 t2IdentToT1Ident) typeList1 typeList2
     (TArrow _ typeList1 _,
      TArrow _ typeList2 _) -> Utils.listsEqualBy (\t1 t2 -> equal_ t1 t2 t2IdentToT1Ident) typeList1 typeList2
-    (TUnion _ typeList1 _,
-     TUnion _ typeList2 _) -> Utils.listsEqualBy (\t1 t2 -> equal_ t1 t2 t2IdentToT1Ident) typeList1 typeList2
+    (TUnion _ ((_::_) as typeList1) _,
+     TUnion _ ((_::_) as typeList2) _) ->
+       (typeList1 |> List.all (\t1 -> typeList2 |> List.any (\t2 -> equal_ t1 t2 t2IdentToT1Ident))) &&
+       (typeList2 |> List.all (\t2 -> typeList1 |> List.any (\t1 -> equal_ t1 t2 t2IdentToT1Ident)))
+    (TUnion _ ((_::_) as typeList1) _, _) -> typeList1 |> List.all (\t1 -> equal_ t1 t2 t2IdentToT1Ident)
+    (_, TUnion _ ((_::_) as typeList2) _) -> typeList2 |> List.all (\t2 -> equal_ t1 t2 t2IdentToT1Ident)
     (TNamed _ ident1,
      TNamed _ ident2)      -> ident1 == ident2
     (TVar _ ident1,
@@ -309,14 +373,14 @@ valToMaybeType val =
     _ -> Nothing
 
 
-matchTypeAlias : Pat -> Type -> Maybe (List (Ident, Type))
-matchTypeAlias pat tipe =
+matchPatToType : Pat -> Type -> Maybe (List (Ident, Type))
+matchPatToType pat tipe =
   case (pat.val.p__, tipe.val) of
     (PVar _ ident _, _) ->
       Just [(ident, tipe)]
     (PList _ pHeads _ Nothing _, TTuple _ tHeads _ Nothing _) ->
       Utils.maybeZip pHeads tHeads
-      |> Maybe.andThen (List.map (uncurry matchTypeAlias) >> Utils.projJusts)
+      |> Maybe.andThen (List.map (uncurry matchPatToType) >> Utils.projJusts)
       |> Maybe.map List.concat
     _ ->
       Nothing

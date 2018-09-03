@@ -5,13 +5,14 @@ module DrawAddShape exposing (addShape)
 --
 -- Used by Draw.addShapeToModel, InterfaceController.doDuplicate, InterfaceController.addToOutput, ValueBasedTransform.repeatUsingFunction
 
+import AlgorithmJish
 import CodeMotion
 import FastParser
 import FocusedEditingContext
 import InterfaceModel
 import Lang exposing (..)
 import LangTools
-import SlowTypeInference
+-- import SlowTypeInference
 import Solver
 import StaticAnalysis
 import Sync
@@ -20,6 +21,7 @@ import Types
 import Utils
 
 import Dict
+import Set
 
 
 -- Precondition: Incoming program should have non-dummy EIds on expressions, for the typechecker.
@@ -46,19 +48,27 @@ addShape
   originalProgram =
   let
     contextExp         = FocusedEditingContext.drawingContextExp model.editingContext originalProgram
-    typeGraph          = SlowTypeInference.typecheck originalProgram
-    inferredReturnType = SlowTypeInference.maybeTypes contextExp.val.eid typeGraph
+    -- typeGraph          = SlowTypeInference.typecheck originalProgram
+    -- inferredReturnType = SlowTypeInference.maybeTypes contextExp.val.eid typeGraph
     -- _ = inferredReturnType |> List.map (Syntax.typeUnparser Syntax.Elm) |> Debug.log "inferredReturnType"
     -- _ = Utils.log <| "addShape incoming program: " ++ Syntax.unparser Syntax.Elm originalProgram
+    idToTypeAndContextThunk = AlgorithmJish.inferTypes originalProgram
+    -- inferredReturnType = SlowTypeInference.maybeTypes contextExp.val.eid typeGraph
+    inferredReturnTypeAndContextThunk = Dict.get contextExp.val.eid idToTypeAndContextThunk
+    inferredReturnType                = inferredReturnTypeAndContextThunk |> Maybe.map Tuple.first
+    typeContextAtReturnType           = inferredReturnTypeAndContextThunk |> Maybe.map (Tuple.second >> (\thunk -> thunk ())) |> Maybe.withDefault AlgorithmJish.preludeTypeContext
 
 
     isPossibleTargetList exp =
       isList exp &&
       targetListFilter exp &&
       -- Optimization: exclude numeric lists/tuples
-      case SlowTypeInference.maybeTypes exp.val.eid typeGraph |> List.map Types.maybeListOrHomogenousTupleElementsType of
-        [Just t] -> not (Types.isNumType t)
-        _        -> True
+      -- case SlowTypeInference.maybeTypes exp.val.eid typeGraph |> List.map Types.maybeListOrHomogenousTupleElementsType of
+      --   [Just t] -> not (Types.isNumType t)
+      --   _        -> True
+      case Dict.get exp.val.eid idToTypeAndContextThunk |> Maybe.andThen (Tuple.first >> Types.maybeListOrHomogenousTupleElementsType) of
+        Just t -> not (Types.isNumType t)
+        _      -> True
 
     -- 1. Find all list literals.
     possibleTargetLists = flattenExpTree contextExp |> List.filter isPossibleTargetList
@@ -67,9 +77,12 @@ addShape
     -- 1.5 If the return value isn't a list, make some candidates where the return value is a wrapped in a singleton.
     maybeProgramWithListifiedReturnExpAndLists =
       let tryToListifyReturnValue =
+        -- case inferredReturnType of
+        --   [t] -> not (Types.isListNotTuple t)  -- Ahh, this may always evaluate to True in our context...SlowTypeInference has a habit of spitting out Tuples with tails
+        --   _   -> False
         case inferredReturnType of
-          [t] -> not (Types.isListNotTuple t)  -- Ahh, this may always evaluate to True in our context...SlowTypeInference has a habit of spitting out Tuples with tails
-          _   -> False
+          Just t -> not (Types.isListNotTuple t)
+          _      -> False
       in
       if tryToListifyReturnValue then
         let
@@ -96,13 +109,17 @@ addShape
 
     -- Should we try to inline the item to add?
     (maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected, incomingExpShouldBeInlined) =
+      Debug.log "(maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected, incomingExpShouldBeInlined)" <|
       if maybeNumberOfNewShapesExpectedIfListInlined /= Nothing || maybeNumberOfNewListItemsExpectedIfListInlined /= Nothing then
-        let incomingExpFreshened = FastParser.freshen newShapeExp in
-        case (inferredReturnType, SlowTypeInference.typecheck incomingExpFreshened |> SlowTypeInference.maybeTypes incomingExpFreshened.val.eid) of
-          ([retType], [incomingType]) ->
-            -- let _ = Utils.log (Syntax.typeUnparser Syntax.Elm retType) in
-            -- let _ = Utils.log (Syntax.typeUnparser Syntax.Elm incomingType) in
-            if Types.isListOrTuple retType && Types.isListOrTuple incomingType && Types.isSubtype retType incomingType then
+        case inferredReturnType of
+          Just retType ->
+            let incomingExpFreshened = FastParser.freshen newShapeExp in
+            let incomingType = AlgorithmJish.inferOne typeContextAtReturnType incomingExpFreshened in
+            -- let _ = Utils.log ("incomingExpFreshened: "    ++ Syntax.unparser Syntax.Elm incomingExpFreshened) in
+            -- let _ = Utils.log ("typeContextAtReturnType: " ++ toString (List.map (flip Utils.maybeFind typeContextAtReturnType >> Maybe.map (Syntax.typeUnparser Syntax.Elm)) (LangTools.freeIdentifiers incomingExpFreshened |> Set.toList))) in
+            -- let _ = Utils.log ("retType: "                 ++ Syntax.typeUnparser Syntax.Elm retType) in
+            -- let _ = Utils.log ("incomingType: "            ++ Syntax.typeUnparser Syntax.Elm incomingType) in
+            if Types.isListOrTuple retType && Types.isListOrTuple incomingType && AlgorithmJish.doesUnify retType incomingType then
               ( maybeNumberOfNewShapesExpectedIfListInlined
               , maybeNumberOfNewListItemsExpectedIfListInlined
               , True

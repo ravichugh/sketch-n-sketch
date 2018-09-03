@@ -505,10 +505,10 @@ functionBasedRepeatTools : Model -> List (Selections a -> OutputTool)
 functionBasedRepeatTools model =
   FindRepeatTools.getRepetitionFunctions -- Returns list of (fName, fExp, typeSig), fExp is an EFun
       model.inputExp
-      model.typeGraph
+      model.idToTypeAndContextThunk
       model.editingContext
   |> List.map
-      (\(funcName, _, _) ->
+      (\(funcName, _) ->
         (\selections ->
           let name = "Repeat With Function " ++ funcName in
           { name = name

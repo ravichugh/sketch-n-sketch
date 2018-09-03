@@ -28,7 +28,7 @@ import CodeMotion
 import Utils
 import LangSvg exposing (NodeId, ShapeKind, Attr)
 import ShapeWidgets exposing (FeatureEquation, SelectableFeature(..))
-import SlowTypeInference
+import AlgorithmJish
 import Provenance
 import Config
 import Syntax exposing (Syntax)
@@ -1229,8 +1229,8 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
   )
 
 
-repeatUsingFunction : Exp -> SlowTypeInference.TC2Graph -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
-repeatUsingFunction program typeGraph editingContext maybeEnv pointsFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
+repeatUsingFunction : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeatUsingFunction program idToTypeAndContextThunk editingContext maybeEnv pointsFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let maybeMakePointsExpAndRepeatingOverWhatDesc argExps shouldReverseXY =
     let
       ptArgExp =
@@ -1239,10 +1239,10 @@ repeatUsingFunction program typeGraph editingContext maybeEnv pointsFuncName sel
           [argExp1, argExp2] -> eTuple <| setExpListWhitespace "" " " (if not shouldReverseXY then [argExp1, argExp2] else [argExp2, argExp1])
           _                  -> Debug.crash <| "ValueBasedTransform.repeatUsingFunction: ptArgExp should only have one or two argExps but got " ++ toString argExps
 
-      (_, pointsFuncExp, pointsFuncType) =
-        FindRepeatTools.getRepetitionFunctions program typeGraph editingContext -- Returns list of (fName, fExp, typeSig), fExp is an EFun
-        |> Utils.findFirst (Utils.fst3 >> (==) pointsFuncName)
-        |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction FindRepeatTools.getRepetitionFunctions model |> Utils.findFirst (Utils.fst3 >> (==) pointsFuncName)"
+      pointsFuncType =
+        FindRepeatTools.getRepetitionFunctions program idToTypeAndContextThunk editingContext -- Returns list of (fName, typeSig)
+        |> Utils.maybeFind pointsFuncName
+        |> Utils.fromJust_ "ValueBasedTransform.repeatUsingFunction FindRepeatTools.getRepetitionFunctions model |> Utils.maybeFind pointsFuncName"
 
       (pointsFuncArgTypes, pointsFuncReturnType) =
         pointsFuncType

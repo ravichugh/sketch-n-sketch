@@ -1482,10 +1482,10 @@ type ButtonKind = Regular | Selected | Unselected
 buttonRegularColor = "#FFFFFF"
 buttonSelectedColor = "#DDDDDD"
 
-iconButton model iconName onClickHandler btnKind disabled =
-  iconButtonExtraAttrs model iconName [] onClickHandler btnKind disabled
+iconButton model iconName maybeTitle onClickHandler btnKind disabled =
+  iconButtonExtraAttrs model iconName maybeTitle [] onClickHandler btnKind disabled
 
-iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
+iconButtonExtraAttrs model iconName maybeTitle extraAttrs onClickHandler btnKind disabled =
   let
     color =
       case btnKind of
@@ -1514,7 +1514,7 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
     (commonAttrs ++
       [ handleEventAndStop "mousedown" Controller.msgNoop
       , E.onClick onClickHandler
-      , Attr.title iconName
+      , Attr.title (Maybe.withDefault iconName maybeTitle)
       ] ++
       extraAttrs)
     [ iconHtml, Html.text iconName ]
@@ -1552,7 +1552,7 @@ toolButton model tool =
       , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
       ]
       [ iconButton
-          model cap (Msg cap (\m -> { m | mouseMode = MouseNothing, tool = tool })) btnKind False
+          model cap Nothing (Msg cap (\m -> { m | mouseMode = MouseNothing, tool = tool })) btnKind False
       ]
 
 lambdaTools : Model -> List (Html Msg)
@@ -1566,7 +1566,7 @@ lambdaTools model =
           [ Attr.class "tool"
           , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
           ]
-          [ iconButton model iconName
+          [ iconButton model iconName Nothing
               (Msg iconName (\m -> { m | tool = Lambda i }))
               (if model.tool == Lambda i then Selected else Unselected)
               False
@@ -1579,12 +1579,12 @@ functionTools : Model -> List (Html Msg)
 functionTools model =
   Draw.getDrawableFunctions model
   |> List.map
-      (\(funcName, _, _) ->
+      (\(funcName, funcType) ->
         Html.div
           [ Attr.class "tool"
           , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
           ]
-          [ iconButton model funcName
+          [ iconButton model funcName (Just <| funcName ++ " : " ++ Syntax.typeUnparser Syntax.Elm funcType)
               (Msg (funcName ++ " Function Tool") (\m -> { m | tool = Function funcName }))
               (if model.tool == Function funcName then Selected else Unselected)
               False

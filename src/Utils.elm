@@ -622,6 +622,22 @@ count : (a -> Bool) -> List a -> Int
 count pred list =
   List.filter pred list |> List.length
 
+minimumByComparator : (a -> a -> Order) -> List a -> Maybe a
+minimumByComparator cmp list =
+  case list of
+    []    -> Nothing
+    x::xs ->
+      case minimumByComparator cmp xs of
+        Just laterMin ->
+          case cmp x laterMin of
+            LT -> Just x
+            EQ -> Just x
+            GT -> Just laterMin
+
+        Nothing ->
+          Just x
+
+
 delimit a b s = String.concat [a, s, b]
 
 parens = delimit "(" ")"
@@ -739,10 +755,8 @@ toSentence strings =
     ([y], Just z)  -> y ++ " and " ++ z
     ( ys, Just z)  -> String.join ", " ys ++ ", and " ++ z
 
-sum = List.foldl (+) 0
-
-avg : List Float -> Float
-avg ns = List.sum ns / toFloat (List.length ns)
+mean : List Float -> Float
+mean ns = List.sum ns / toFloat (List.length ns)
 
 lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
@@ -782,6 +796,12 @@ fromOk s mx = case mx of
   Err err -> Debug.crash <| "fromOk [" ++ s ++ "]: " ++ err
 
 fromOk_ = fromOk ""
+
+fromOkWithDefault : a -> Result err a -> a
+fromOkWithDefault default result = case result of
+  Ok x  -> x
+  Err _ -> default
+
 
 -- Useful with ImpureGoodies.crashToError on a thunk that also returns an error
 unwrapNestedResult : Result e (Result e a) -> Result e a

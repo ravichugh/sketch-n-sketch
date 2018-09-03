@@ -380,8 +380,9 @@ prelude =
 (def Attrs (List AttrPair))
 (def NodeKind String)
 ; TODO add recursive types properly
-(def SVGOrText (union SVG [String String]))
-(def SVG [NodeKind Attrs (List SVGOrText)])
+; (def SVGOrText (union SVG [String String]))
+; (def SVG [NodeKind Attrs (List SVGOrText)])
+(def SVG (forall a [NodeKind Attrs (List a)]))
 (def Blob (List SVG))
 
 ; === Attribute Lookup ===
@@ -503,7 +504,7 @@ prelude =
      [['cx' cx] ['cy' cy] ['r' r] ['fill' fill]]
      []]))
 
-(typ circleCenter (-> Ellipse Point))
+(typ circleCenter (-> Circle Point))
 (def circleCenter (\\circle
   [
     (lookupNumAttrWithDefault 0 circle 'cx')
@@ -911,6 +912,7 @@ prelude =
   [shapeKind (cons newAttr oldAttrs) children]))
 
 ;; Given a list of shapes, compose into a single SVG
+(typ svg (-> (List SVG) SVG))
 (def svg (\\shapes ['svg' [] shapes]))
 
 ;; argument order - x-maximum, y-maximum, shapes
@@ -1713,6 +1715,7 @@ prelude =
 ))))
 
 
+(typ draw (-> (List SVG) SVG))
 (def draw svg)
 
 (def showOne (\\(x y val)

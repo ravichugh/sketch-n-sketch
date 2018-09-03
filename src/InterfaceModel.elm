@@ -25,7 +25,7 @@ import File exposing (Filename, File, FileIndex)
 import Solver
 import ValUnparser
 import History exposing (History)
-import SlowTypeInference
+import AlgorithmJish
 import FocusedEditingContext
 
 import Dict exposing (Dict)
@@ -108,7 +108,7 @@ type alias Model =
   , slate : RootedIndexedTree                        -- Context sensitive
   , widgets : Widgets                                -- Context sensitive
   , widgetBounds : List (Maybe (Num, Num, Num, Num)) -- Context sensitive (same size as widgets list)
-  , typeGraph : SlowTypeInference.TC2Graph
+  , idToTypeAndContextThunk : AlgorithmJish.IdToTypeAndContextThunk
   , editingContext : Maybe (EId, Maybe EId) -- Context, example application if function
   , liveSyncInfo : Sync.LiveInfo
   , liveSyncDelay : Bool
@@ -1140,7 +1140,7 @@ initModel =
     , slate         = slate
     , widgets       = ws
     , widgetBounds  = ws |> List.map ShapeWidgets.maybeWidgetInitialBounds
-    , typeGraph     = Dict.empty
+    , idToTypeAndContextThunk = Dict.empty
     , editingContext = Nothing
     , liveSyncInfo  = liveSyncInfo
     , liveSyncDelay = False

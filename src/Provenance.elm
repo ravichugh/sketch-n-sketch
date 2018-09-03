@@ -122,6 +122,35 @@ dedupSameVals vals =
       )
 
 
+-- For bare hole resolution in program.
+-- Look for exp in program
+-- Trace back to non-var EId (unless free)
+valBasedOnTreeToProgramExp : Exp -> Val -> Maybe Exp
+valBasedOnTreeToProgramExp program val =
+  List.head (valBasedOnTreeToProgramExps program val)
+
+
+-- Possible hole resolutions in program.
+valBasedOnTreeToProgramExps : Exp -> Val -> List Exp
+valBasedOnTreeToProgramExps program val =
+  case (FastParser.isProgramEId (valEId val), (expEffectiveExp (valExp val)).val.e__, valBasedOn val) of
+    -- If, proximally, val is a variable, try to walk back to resolve it.
+    (True, EVar _ ident, [basedOnVal]) ->
+      if LangTools.resolveIdentifierToExp ident (valEId val) program == Nothing then -- Ident is free in program
+        val |> valToSameVals |> List.map valExp |> List.filter (.val >> .eid >> FastParser.isProgramEId)
+      else
+        valBasedOnTreeToProgramExps program basedOnVal -- Should be correct even though not on expEffectiveExp (all expEffectiveExp will have only one basedOn)
+
+    (True, _, _) ->
+      val |> valToSameVals |> List.map valExp |> List.filter (.val >> .eid >> FastParser.isProgramEId)
+
+    (False, _, _) ->
+      -- Step backwards in the provenance by one step, if prior step is the same value.
+      valToMaybePreviousSameVal val
+      |> Maybe.map (valBasedOnTreeToProgramExps program)
+      |> Maybe.withDefault []
+
+
 -- Given a list of vals, some of which may be x coordinates and y coordinates,
 -- consolidate any X/Y pairs that came from the same pair.
 -- May be multiple reasonable ways to do it: only do one way (unprincipled about which way).

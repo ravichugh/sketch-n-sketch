@@ -298,14 +298,16 @@ drawNewFunction fName model pt1 pt2 =
   in
   newFunctionCallExp fName model pt1 pt2
   |> Maybe.andThen
-    (\(callExp, funcExp, returnType) ->
+    (\(callExp, returnType) ->
       if Types.isPointType returnType || Types.isPointListType returnType then
         let maybePoints =
           let pseudoProgram =
             model.inputExp
             |> replaceExpNode
                 (LangTools.lastSameLevelExp model.inputExp).val.eid
-                (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
+                callExp
+                -- (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
+            -- |> (\program -> let _ = Utils.log <| Syntax.unparser Syntax.Elm program in program)
           in
           Eval.doEval Syntax.Elm Eval.initEnv pseudoProgram
           |> Utils.perhapsLogError "drawNewFunction error"
@@ -979,7 +981,7 @@ addLambdaAnchor old click2 click1 func =
 addFunction : Ident -> Model -> PointWithSnap -> PointWithSnap -> Model
 addFunction fName old pt1 pt2 =
   case newFunctionCallExp fName old pt1 pt2 of
-    Just (callExp, _, returnType) ->
+    Just (callExp, returnType) ->
       if TypeDirectedFunctionUtils.clearlyNotShapeOrListOfShapesType returnType then
         addToEndOfDrawingContext old fName callExp
       else
@@ -987,13 +989,14 @@ addFunction fName old pt1 pt2 =
     _ ->
       let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
 
--- Returns (funcCall, funcExp, returnType), funcExp is an EFun
-newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Exp, Type)
+-- Returns (funcCall, returnType)
+newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Type)
 newFunctionCallExp fName model pt1 pt2 =
-  case getDrawableFunctions model |> Utils.findFirst (Utils.fst3 >> (==) fName) of
-    Just (_, funcExp, funcType) ->
+  case getDrawableFunctions model |> Utils.maybeFind fName of
+    Just funcType ->
       case Types.typeToMaybeArgTypesAndReturnType funcType of
         Just (argTypes, returnType) ->
+          -- let _ = Utils.log fName in
           -- See if func can take 2 Points
           let (ptsUnused, argMaybeExpsTwoPoints) =
             argTypes
@@ -1004,6 +1007,7 @@ newFunctionCallExp fName model pt1 pt2 =
                     (pt::otherPts, True) -> (otherPts,     argMaybeExps ++ [Just (makePointExpFromPointWithSnap pt)])
                     _                    -> (ptsRemaining, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
                 )
+            -- |> Debug.log "(ptsUnused, argMaybeExpsTwoPoints)"
           in
           -- See if func can take 1 Point + some distance(s)
           let (ptUsed, widthUsed, heightUsed, argMaybeExpsPointWidthHeight) =
@@ -1028,14 +1032,15 @@ newFunctionCallExp fName model pt1 pt2 =
                     (_, _, _, _, _, _, False, True) -> (pointUsed, True,      True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals majorAxis pt2 pt1)])
                     _                               -> (pointUsed, widthUsed, heightUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
                 )
+            -- |> Debug.log "(ptUsed, widthUsed, heightUsed, argMaybeExpsPointWidthHeight)"
           in
           let perhapsPointAnnotation = if Types.isPointType returnType then identity else identity in -- eAsPoint
           Utils.orMaybe
               (Utils.projJusts argMaybeExpsTwoPoints        |> Utils.filterMaybe (always (ptsUnused == [])))
               (Utils.projJusts argMaybeExpsPointWidthHeight |> Utils.filterMaybe (always (ptUsed && (widthUsed || heightUsed))))
-          |> Maybe.map (\argExps -> (perhapsPointAnnotation (eCall fName argExps), funcExp, returnType))
+          |> Maybe.map (\argExps -> (perhapsPointAnnotation (eCall fName argExps), returnType))
 
-        Nothing -> Debug.crash <| "Draw.newFunctionCallExp bad function type: " ++ toString funcType
+        Nothing -> Debug.crash <| "Draw.newFunctionCallExp bad function type: " ++ Syntax.typeUnparser Syntax.Elm funcType
 
     Nothing -> let _ = Utils.log <| "Could not find function " ++ fName ++ " to draw!" in Nothing
 
@@ -1275,26 +1280,14 @@ lambdaToolOptionsOf syntax (defs, mainExp) finalEnv =
 -- Function Tool (generalized lambda tool)
 
 
--- Returns list of (fName, fExp, typeSig), fExp is an EFun
-preludeDrawableFunctions : List (Ident, Exp, Type)
-preludeDrawableFunctions =
-  TypeDirectedFunctionUtils.getFunctionsByPredicateOnType
-      isDrawableType
-      Dict.empty
-      FastParser.prelude
-      Nothing
-
-
--- Returns list of (fName, fExp, typeSig), fExp is an EFun
-getDrawableFunctions : Model -> List (Ident, Exp, Type)
+-- Returns list of (fName, typeSig), fExp is an EFun
+getDrawableFunctions : Model -> List (Ident, Type)
 getDrawableFunctions model =
   TypeDirectedFunctionUtils.getFunctionsByPredicateOnType
       isDrawableType
-      model.typeGraph
+      model.idToTypeAndContextThunk
       model.inputExp
-      model.editingContext ++
-  preludeDrawableFunctions
-  |> Utils.dedupBy Utils.fst3 -- Remove shadowed prelude functions.
+      model.editingContext
 
 
 -- Supported inputs:
@@ -1307,9 +1300,8 @@ getDrawableFunctions model =
 -- Dual is in newFunctionCallExp where the args are actually filled in.
 isDrawableType : Type -> Bool
 isDrawableType tipe =
-  case tipe.val of
-    TArrow _ argTypes _ ->
-      let inputTypes = Utils.dropLast 1 argTypes in
+  case Types.typeToMaybeArgTypesAndReturnType tipe of
+    Just (inputTypes, _) ->
       Utils.count Types.isPointType inputTypes >= 2 ||
       (
         Utils.count Types.isPointType inputTypes >= 1 &&
@@ -1320,5 +1312,6 @@ isDrawableType tipe =
         )
       )
 
-    _ -> False
+    _ ->
+      False
 

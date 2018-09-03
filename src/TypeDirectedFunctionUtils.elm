@@ -1,92 +1,37 @@
 module TypeDirectedFunctionUtils exposing (..)
 
+import AlgorithmJish
 import FocusedEditingContext
 import Lang exposing (..)
-import LangTools
-import SlowTypeInference
+import Syntax
 import Types
 import Utils
 
-import Dict
+import Dict exposing (Dict)
 
 --------------------------------------------------------------------------------
 
 -- Find all functions in given program (no prelude) whose type matches the given predicate.
 --
--- Returns list of (fName, fExp, typeSig), fExp is an EFun
---
--- To skip finding functions by inferred type, pass an empty dict for the typeGraph
-getFunctionsByPredicateOnType : (Type -> Bool) -> SlowTypeInference.TC2Graph -> Exp -> Maybe (EId, a) -> List (Ident, Exp, Type)
-getFunctionsByPredicateOnType hasDesiredType typeGraph program editingContext =
+-- Returns list of (fName, typeSig)
+getFunctionsByPredicateOnType : (Type -> Bool) -> AlgorithmJish.IdToTypeAndContextThunk -> Exp -> Maybe (EId, a) -> List (Ident, Type)
+getFunctionsByPredicateOnType hasDesiredType idToTypeAndContextThunk program editingContext =
   let viewerEId = FocusedEditingContext.eidAtEndOfDrawingContext editingContext program in
-  let boundExpsInScope =
-    LangTools.expEnvAt_ program viewerEId
-    |> Utils.fromJust_ "getFunctionsByPredicateOnType expEnvAt_"
-    |> Dict.toList
-    |> List.filterMap
-        (\(ident, expBinding) ->
-          case expBinding of
-            LangTools.Bound boundExp -> Just (expEffectiveExp boundExp)
-            LangTools.BoundUnknown   -> Nothing
-        )
-  in
-  let explicitlyAnnotatedFunctions =
-    findWithAncestorsByEId program viewerEId
-    |> Utils.fromJust_ "getFunctionsByPredicateOnType findWithAncestorsByEId"
-    |> List.filterMap
-        (\exp ->
-          case exp.val.e__ of
-            ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
-              if hasDesiredType tipe then
-                case LangTools.expToMaybeLetPatAndBoundExp (LangTools.firstNonComment body) of
-                  Just (letPat, boundExp) ->
-                    case (typePat.val.p__, letPat.val.p__) of
-                      (PVar _ typeIdent _, PVar _ letIdent _) ->
-                        if typeIdent == letIdent && List.member (expEffectiveExp boundExp) boundExpsInScope
-                        then Just (typeIdent, expEffectiveExp boundExp, tipe)
-                        else Nothing
-                      _ -> Nothing
-                  _ -> Nothing
-              else
-                Nothing
-            _ -> Nothing
-        )
-  in
-  if Dict.size typeGraph > 0 then
-    let
-      -- typeGraph = SlowTypeInference.typecheck program -- |> Debug.log "type graph"
-      -- _ = Utils.log <| Syntax.unparser Syntax.Elm (LangTools.justFindExpByEId program viewerEId)
-      -- _ = ImpureGoodies.logRaw (SlowTypeInference.graphVizString program typeGraph)
-      otherDrawableFunctions =
-        LangTools.expPatEnvAt_ program viewerEId
-        |> Utils.fromJust_ "getFunctionsByPredicateOnType expPatEnvAt_"
-        |> Dict.toList
-        |> List.filterMap
-            (\(ident, (pat, expBinding)) ->
-              let inferred = SlowTypeInference.maybeTypes pat.val.pid typeGraph in
-              -- let _ = inferred |> List.map (\tipe -> Debug.log ident (Syntax.typeUnparser Syntax.Elm tipe)) in
-              -- let _ = Debug.log ident (SlowTypeInference.constraintsOnSubgraph pat.val.pid typeGraph) in
-              case (inferred, expBinding) of
-                ([tipe], LangTools.Bound boundExp) ->
-                  if hasDesiredType tipe
-                  then Just (ident, expEffectiveExp boundExp, tipe)
-                  else Nothing
-                _ -> Nothing
-            )
+  case Dict.get viewerEId idToTypeAndContextThunk of
+    Just (_, typingContextThunk) ->
+      let typingContext = typingContextThunk () in
+      let typesInScope = typingContext |> Utils.removeShadowedKeys in
+      typingContext
+      -- |> List.map
+      --     (\(ident, tipe) ->
+      --       let _ = Debug.log ident (Syntax.typeUnparser Syntax.Elm tipe) in
+      --       (ident, tipe)
+      --     )
+      |> List.filter (\(ident, tipe) -> hasDesiredType tipe)
+      |> List.map (Tuple.mapSecond Types.prettify)
 
-      -- _ =
-      --   -- boundExpsInScope
-      --   flattenExpTree program
-      --   |> List.map
-      --       (\boundExp ->
-      --         case Dict.get boundExp.val.eid typeInfo.finalTypes of
-      --           Just (Just tipe) -> Utils.log <| "exp type: " ++ toString tipe ++ " for " ++ Syntax.unparser Syntax.Little boundExp
-      --           _                -> Utils.log <| "no type for " ++ Syntax.unparser Syntax.Little boundExp
-      --       )
-    in
-    explicitlyAnnotatedFunctions ++ otherDrawableFunctions |> Utils.dedupBy (\(ident, _, _) -> ident)
-  else
-    explicitlyAnnotatedFunctions
+    Nothing ->
+      []
 
 
 clearlyNotShapeOrListOfShapesType : Type -> Bool

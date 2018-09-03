@@ -1201,6 +1201,35 @@ replacePatNodePreservingPrecedingWhitespace pid newPat root =
       (\pat -> copyPrecedingWhitespacePat pat newPat)
       root
 
+isTForall : Type -> Bool
+isTForall tipe =
+  case tipe.val of
+    TForall _ _ _ _ -> True
+    _               -> False
+
+typeContains : (Type -> Bool) -> Type -> Bool
+typeContains predicate tipe =
+  predicate tipe
+  || List.any (typeContains predicate) (childTypes tipe)
+
+childTypes : Type -> List Type
+childTypes tipe =
+  case tipe.val of
+    TNum _             -> []
+    TBool _            -> []
+    TString _          -> []
+    TNull _            -> []
+    TNamed _ _         -> []
+    TVar _ _           -> []
+    TWildcard _        -> []
+    TList _ t1 _       -> [t1]
+    TDict _ t1 t2 _    -> [t1, t2]
+    TArrow _ ts _      -> ts
+    TUnion _ ts _      -> ts
+    TForall _ _ t1 _   -> [t1]
+    TTuple _ ts _ mt _ -> ts ++ Utils.maybeToList mt
+
+-- Bottom up.
 mapType : (Type -> Type) -> Type -> Type
 mapType f tipe =
   let recurse = mapType f in
@@ -1214,14 +1243,12 @@ mapType f tipe =
     TVar _ _     -> f tipe
     TWildcard _  -> f tipe
 
-    TList ws1 t1 ws2        -> f (wrap (TList ws1 (recurse t1) ws2))
-    TDict ws1 t1 t2 ws2     -> f (wrap (TDict ws1 (recurse t1) (recurse t2) ws2))
-    TArrow ws1 ts ws2       -> f (wrap (TArrow ws1 (List.map recurse ts) ws2))
-    TUnion ws1 ts ws2       -> f (wrap (TUnion ws1 (List.map recurse ts) ws2))
-    TForall ws1 vars t1 ws2 -> f (wrap (TForall ws1 vars (recurse t1) ws2))
-
-    TTuple ws1 ts ws2 mt ws3 ->
-      f (wrap (TTuple ws1 (List.map recurse ts) ws2 (Utils.mapMaybe recurse mt) ws3))
+    TList ws1 t1 ws2         -> f (wrap (TList ws1 (recurse t1) ws2))
+    TDict ws1 t1 t2 ws2      -> f (wrap (TDict ws1 (recurse t1) (recurse t2) ws2))
+    TArrow ws1 ts ws2        -> f (wrap (TArrow ws1 (List.map recurse ts) ws2))
+    TUnion ws1 ts ws2        -> f (wrap (TUnion ws1 (List.map recurse ts) ws2))
+    TForall ws1 vars t1 ws2  -> f (wrap (TForall ws1 vars (recurse t1) ws2))
+    TTuple ws1 ts ws2 mt ws3 -> f (wrap (TTuple ws1 (List.map recurse ts) ws2 (Maybe.map recurse mt) ws3))
 
 foldType : (Type -> a -> a) -> Type -> a -> a
 foldType f tipe acc =
@@ -1795,6 +1822,9 @@ replaceP__ p p__ = let p_ = p.val in { p | val = { p_ | p__ = p__ } }
 
 mapNodeP__ : (Pat__ -> Pat__ ) -> Pat -> Pat
 mapNodeP__ f p = replaceP__ p (f p.val.p__)
+
+replaceT_ : Type -> Type_ -> Type
+replaceT_ t t_ = { t | val = t_ }
 
 replaceB__ : Branch -> Branch_ -> Branch
 replaceB__ b b_ = { b | val = b_ }

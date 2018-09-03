@@ -3011,34 +3011,6 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
           False
 
 
-    -- Bare hole resolution in program.
-    -- Look for exp in program
-    -- Trace back to non-var EId (unless free)
-    valProvenanceToProgramExp : Exp -> Val -> Maybe Exp
-    valProvenanceToProgramExp program val =
-      List.head (valProvenanceToProgramExps program val)
-
-    -- Possible hole resolutions in program.
-    valProvenanceToProgramExps : Exp -> Val -> List Exp
-    valProvenanceToProgramExps program val =
-      case (Parser.isProgramEId (valEId val), (expEffectiveExp (valExp val)).val.e__, valBasedOn val) of
-        -- If, proximally, val is a variable, try to walk back to resolve it.
-        (True, EVar _ ident, [basedOnVal]) ->
-          if resolveIdentifierToExp ident (valEId val) program == Nothing then -- Ident is free in program
-            val |> Provenance.valToSameVals |> List.map valExp |> List.filter (.val >> .eid >> Parser.isProgramEId)
-          else
-            valProvenanceToProgramExps program basedOnVal -- Should be correct even though not on expEffectiveExp (all expEffectiveExp will have only one basedOn)
-
-        (True, _, _) ->
-          val |> Provenance.valToSameVals |> List.map valExp |> List.filter (.val >> .eid >> Parser.isProgramEId)
-
-        (False, _, _) ->
-          -- Step backwards in the provenance by one step, if prior step is the same value.
-          Provenance.valToMaybePreviousSameVal val
-          |> Maybe.map (valProvenanceToProgramExps program)
-          |> Maybe.withDefault []
-
-
     -- Slow, definitive matching for resolving val/loc holes to a program expression.
     -- Slow b/c does static variable lookups.
     expMatchesExpWithHoles : Exp -> EId -> Exp -> Exp -> Bool
@@ -3091,7 +3063,7 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
           (expWithHolesNum == existingExpNum && expWithHolesAnnot == frozen && existingExpAnnot == frozen)
 
         (EHole _ (HoleVal holeVal), _) ->
-          List.member existingExp.val.eid (valProvenanceToProgramExps program holeVal |> List.map (.val >> .eid))
+          List.member existingExp.val.eid (Provenance.valBasedOnTreeToProgramExps program holeVal |> List.map (.val >> .eid))
 
         (EHole _ (HoleLoc holeLocId), EConst _ _ (existingExpLocId, _, _) _) ->
           holeLocId == existingExpLocId
@@ -3211,7 +3183,7 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
               -- let _ = Utils.log <| "...is in program" in
               case (expEffectiveExp expWithHoles).val.e__ of
                 EHole _ (HoleVal holeVal) -> -- No need to look at parents for lone holes.
-                  case valProvenanceToProgramExp program holeVal of
+                  case Provenance.valBasedOnTreeToProgramExp program holeVal of
                     Just expInProgram ->
                       case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton (expEffectiveExp expWithHoles).val.eid) of
                         Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar newName |> setEId (1 + Parser.maxId newProgram))
