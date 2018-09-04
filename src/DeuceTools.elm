@@ -26,6 +26,7 @@ import Model exposing
   , CachedDeuceTool
   )
 
+import Info
 import Lang exposing (..)
 import LangTools
 import Syntax
@@ -132,6 +133,248 @@ oneOrMoreNumsOnly selections =
       List.length nums >= 1 && List.length nums == List.length exps
     _ ->
       False
+
+--------------------------------------------------------------------------------
+-- Create elements in place of holes
+--------------------------------------------------------------------------------
+
+doesChildNeedParens : Exp -> Bool
+doesChildNeedParens e =
+  case unwrapExp e of
+    EApp _ _ _ _ _ -> True
+    EOp _ _ _ _ _ -> True
+    EList _ _ _ _ _ -> True -- Some children do and some don't, so let's be conservative
+    EColonType _ _ _ _ _ -> True
+    ESelect _ _ _ _ _ -> True
+    _ -> False
+
+makeSimpleReplaceHoleTool : String -> String -> Bool         -> (WS -> Exp__) -> Model -> Selections -> DeuceTool
+makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__        model    selections =
+  let
+    (func, predVal) =
+      let
+        root = model.inputExp
+        impossible = (Nothing, Impossible)
+      in
+      case selections of
+        (_, _, [], [], [], [], [], []) ->
+          (Nothing, Possible)
+        (_, _, [holeEId], [], [], [], [], []) ->
+          let holeExp = LangTools.justFindExpByEId root holeEId in
+          case unwrapExp holeExp of
+            EHole wsb EEmptyHole ->
+              let
+                newExp =
+                  if
+                    mightNeedParens &&
+                    ( parentByEId root holeEId |>
+                      Utils.fromJust_ "Couldn't find hole EId" |>
+                      Maybe.map doesChildNeedParens |>
+                      Maybe.withDefault False
+                    )
+                  then
+                    withDummyExpInfo <| EParens wsb (withDummyExpInfo <| wsToExp__ space0) Parens space0
+                  else
+                    withDummyExpInfo <| wsToExp__ wsb
+                newProgram =
+                  replaceExpNode holeEId newExp root
+              in
+              (Just <| \() -> [synthesisResult ("Replace with " ++ replDesc) newProgram], FullySatisfied)
+            _ ->
+              impossible
+        _ ->
+          impossible
+  in
+    { name = "Create " ++ replDesc
+    , func = func
+    , reqs =
+        [ { description =
+              "Select a hole"
+          , value =
+              predVal
+          }
+        ]
+    , id = toolID
+    }
+
+-- TODO text box or slider (via the WidgetDecl) to specify the value
+createNumTool =
+  makeSimpleReplaceHoleTool
+    "createNumFromHole"
+    "a number"
+    False
+    (\wsb -> EConst wsb 0.0 dummyLoc noWidgetDecl)
+
+createTrueTool =
+  makeSimpleReplaceHoleTool
+    "createTrueFromHole"
+    "True"
+    False
+    (\wsb -> EBase wsb <| EBool True)
+
+createFalseTool =
+  makeSimpleReplaceHoleTool
+    "createFalseFromHole"
+    "False"
+    False
+    (\wsb -> EBase wsb <| EBool False)
+
+createEmptyStringTool =
+  makeSimpleReplaceHoleTool
+    "createEmptyStringFromHole"
+    "an empty string"
+    False
+    (\wsb -> EBase wsb <| EString defaultQuoteChar "")
+
+-- TODO createVarTool once we have autocomplete | EVar WS Ident
+
+createLambdaTool =
+  makeSimpleReplaceHoleTool
+    "createLambdaFromHole"
+    "an anonymous function"
+    True
+    (\wsb -> EFun wsb [pWildcard0] eEmptyHoleVal space0)
+
+createApplicationTool =
+  makeSimpleReplaceHoleTool
+    "createAppFromHole"
+    "an application"
+    True
+    (\wsb -> EApp wsb eEmptyHoleVal0 [eEmptyHoleVal] SpaceApp space0)
+
+{- TODO we need some sort of autocompleter for ops
+  | EOp WS WS Op (List t1) WS
+type Op_
+  -- nullary ops
+  = Pi
+  | DictEmpty
+  | CurrentEnv
+  -- unary ops
+  | DictFromList
+  | Cos | Sin | ArcCos | ArcSin
+  | Floor | Ceil | Round
+  | ToStr
+  | ToStrExceptStr -- Keeps strings, but use ToStr for everything else
+  | Sqrt
+  | Explode
+  | DebugLog
+  | NoWidgets
+  -- binary ops
+  | Plus | Minus | Mult | Div
+  | Lt | Eq
+  | Mod | Pow
+  | ArcTan2
+  | DictGet
+  | DictRemove
+  -- trinary ops
+  | DictInsert
+  | RegexExtractFirstIn
+--
+opFromIdentifier : Ident -> Maybe Op_
+opFromIdentifier identifier =
+  case identifier of
+    "pi" ->
+      Just Pi
+    "__DictEmpty__" ->
+      Just DictEmpty
+    "__CurrentEnv__" ->
+      Just CurrentEnv
+    "__DictFromList__" ->
+      Just DictFromList
+    "cos" ->
+      Just Cos
+    "sin" ->
+      Just Sin
+    "arccos" ->
+      Just ArcCos
+    "arcsin" ->
+      Just ArcSin
+    "floor" ->
+      Just Floor
+    "ceiling" ->
+      Just Ceil
+    "round" ->
+      Just Round
+    "toString" ->
+      Just ToStr
+    "sqrt" ->
+      Just Sqrt
+    "explode" ->
+      Just Explode
+    "+" ->
+      Just Plus
+    "-" ->
+      Just Minus
+    "*" ->
+      Just Mult
+    "/" ->
+      Just Div
+    "<" ->
+      Just Lt
+    "==" ->
+      Just Eq
+    "mod" ->
+      Just Mod
+    "^" ->
+      Just Pow
+    "arctan2" ->
+      Just ArcTan2
+    "__DictInsert__" ->
+      Just DictInsert
+    "__DictGet__" ->
+      Just DictGet
+    "__DictRemove__" ->
+      Just DictRemove
+    "debug" ->
+      Just DebugLog
+    "noWidgets" ->
+      Just NoWidgets
+    "extractFirstIn" ->
+      Just RegexExtractFirstIn
+    _ ->
+      Nothing
+-}
+
+createEmptyListTool =
+  makeSimpleReplaceHoleTool
+    "createEmptyListFromHole"
+    "empty list"
+    False
+    (\wsb -> EList wsb [] space0 Nothing space0)
+
+createCondTool =
+  makeSimpleReplaceHoleTool
+    "createCondFromHole"
+    "a conditional"
+    True
+    (\wsb -> EIf wsb eEmptyHoleVal space1 eEmptyHoleVal space1 eEmptyHoleVal space0)
+
+{- TODO current the harder cases
+  | ECase WS t1 (List Branch) WS
+  | ELet WS LetKind (Declarations_ t2) WS{-in or ;-} t2
+-}
+
+createTypeAscriptionTool =
+  makeSimpleReplaceHoleTool
+    "createTypeAscriptionFromHole"
+    "a type ascription"
+    True
+    -- TODO dummyType should be changed to hole type
+    (\wsb -> EColonType wsb eEmptyHoleVal0 space1 (dummyType space1) space0)
+
+createParenthesizedTool =
+  makeSimpleReplaceHoleTool
+    "createParenthesizedFromHole"
+    "parenthesis"
+    False
+    (\wsb -> EParens wsb eEmptyHoleVal0 Parens space0)
+
+createRecordTool =
+  makeSimpleReplaceHoleTool
+    "createRecordFromHole"
+    "record"
+    False
+    (\wsb -> ERecord wsb Nothing (Declarations [] [] [] []) space0)
 
 --------------------------------------------------------------------------------
 -- Make Equal
@@ -2177,6 +2420,18 @@ selectionsTuple program selectedWidgets =
 
 toolList =
   [ [ typesTool
+    ]
+  , [ createNumTool
+    , createTrueTool
+    , createFalseTool
+    , createEmptyStringTool
+    , createLambdaTool
+    , createApplicationTool
+    , createEmptyListTool
+    , createCondTool
+    , createTypeAscriptionTool
+    , createParenthesizedTool
+    , createRecordTool
     ]
 -- TODO: get Deuce tools to work with the ELet AST
 {-
