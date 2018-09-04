@@ -522,7 +522,7 @@ inferType gamma stuff thisExp =
         Nothing ->
           let
             result =
-              checkType gamma stuff thisExp innerExp annotatedType
+              checkType gamma stuff innerExp annotatedType
 
             (newInnerExp, finishNewExp) =
               if result.okay then
@@ -530,7 +530,7 @@ inferType gamma stuff thisExp =
 
               else
                 -- the call to checkType calls:
-                -- setTypeError (ExpectedButGot annotatedType result.newExp.val.typ)
+                -- setTypeError (ExpectedButGot annotatedType typ)
                 --
                 -- here, adding extra breadcrumb about the solicitorExp.
                 --
@@ -745,8 +745,7 @@ inferType gamma stuff thisExp =
                        Just annotatedType ->
                          let
                            result =
-                             -- TODO: Better solicitor than thisExp...
-                             checkType gammaForEquations stuff thisExp expEquation annotatedType
+                             checkType gammaForEquations stuff expEquation annotatedType
 
                            newPat =
                              if result.okay then
@@ -951,14 +950,10 @@ inferTypes gamma stuff exps =
 checkType
     : TypeEnv
    -> Stuff
-   -> Exp -- the expression whose analysis calls ("solicits") checkType.
-          -- the solicitorExp can be used to generate type error messages, but
-          -- this funciton rewrites only thisExp. the caller needs to add any
-          -- desired metadata to solictorExp.
    -> Exp
    -> Type
    -> { okay: Bool, newExp: Exp }
-checkType gamma stuff solicitorExp thisExp expectedType =
+checkType gamma stuff thisExp expectedType =
   case ( (unExpr thisExp).val.e__
        , expectedType.val
        , matchArrow expectedType
@@ -967,7 +962,7 @@ checkType gamma stuff solicitorExp thisExp expectedType =
     (_, TParens _ innerExpectedType _, _) ->
       let
         result =
-          checkType gamma stuff solicitorExp thisExp innerExpectedType
+          checkType gamma stuff thisExp innerExpectedType
         newExp =
           thisExp
             |> copyTypeInfoFrom result.newExp
@@ -977,7 +972,7 @@ checkType gamma stuff solicitorExp thisExp expectedType =
     (EParens ws1 innerExp parensStyle ws2, _, _) ->
       let
         result =
-          checkType gamma stuff solicitorExp innerExp expectedType
+          checkType gamma stuff innerExp expectedType
         newExp =
           EParens ws1 result.newExp parensStyle ws2
             |> replaceE__ thisExp
@@ -1005,7 +1000,7 @@ checkType gamma stuff solicitorExp thisExp expectedType =
           -- Break up thisExp EFun into two nested EFuns, and check that.
           --
           result =
-            checkType gamma stuff solicitorExp rewrittenThisExp expectedType
+            checkType gamma stuff rewrittenThisExp expectedType
 
           (prefixPats, suffixPats) =
             Utils.split (List.length argTypes) pats
@@ -1051,7 +1046,7 @@ checkType gamma stuff solicitorExp thisExp expectedType =
           newPats =
             List.map (\(p,t) -> p |> setPatType (Just t)) patTypes
           result =
-            checkType newGamma stuff solicitorExp body retType
+            checkType newGamma stuff body retType
         in
           if result.okay then
             { okay = True
@@ -1094,7 +1089,6 @@ checkType gamma stuff solicitorExp thisExp expectedType =
                 -- Don't want to overwrite existing error...
                 --
                 -- |> setTypeError (ExpectedButGot expectedType
-                --                                 (Just (unExpr solicitorExp).val.eid)
                 --                                 (unExpr result.newExp).val.typ)
             }
 
@@ -1108,9 +1102,7 @@ checkType gamma stuff solicitorExp thisExp expectedType =
               { okay = False
               , newExp =
                   result.newExp
-                    |> setTypeError (ExpectedButGot expectedType
-                                                    (Just (unExpr solicitorExp).val.eid)
-                                                    (Just inferredType))
+                    |> setTypeError (ExpectedButGot expectedType (Just inferredType))
               }
 
 
@@ -1136,7 +1128,7 @@ showTypeError inputExp typeError =
     OtherTypeError strings ->
       List.map (deuceShow inputExp) strings
 
-    ExpectedButGot expectedType _ maybeActualType ->
+    ExpectedButGot expectedType maybeActualType ->
       [ deuceShow inputExp <|
           "Expected: " ++ unparseType expectedType
       , deuceShow inputExp <|

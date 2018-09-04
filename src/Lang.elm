@@ -406,8 +406,7 @@ dummyType =
 type alias DeuceTypeInfoItem = SynthesisResult
 
 type TypeError
-  = ExpectedButGot Type (Maybe EId) (Maybe Type)
-      -- TODO if the solicitor (e.g. annotation) can be changed, offer option to change it
+  = ExpectedButGot Type (Maybe Type)
   | VarNotFound Ident (List DeuceTypeInfoItem)
   | OtherTypeError (List String)
 
