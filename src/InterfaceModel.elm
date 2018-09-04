@@ -975,7 +975,7 @@ isSubsetRange innerRange outerRange =
   in
     startGood && endGood
 
-matchingRange : TextSelectMode -> Code -> Ace.Range -> List (Ace.Range, a) -> Maybe a
+matchingRange : TextSelectMode -> Code -> Ace.Range -> List (Ace.Range, CodeObject) -> Maybe CodeObject
 matchingRange textSelectMode code selectedRange =
   let
     (fold, matcher) =
@@ -1029,12 +1029,13 @@ matchingRange textSelectMode code selectedRange =
   in
     fold
       ( \(range, val) previousVal ->
-          if
-            matcher selectedRange range
-          then
-            Just val
-          else
-            previousVal
+          case (matcher selectedRange range, previousVal) of
+            (False, _) -> previousVal
+            (True, Nothing) -> Just val
+            (True, Just prevCO) ->
+              if (not << isTarget) val || isTarget prevCO
+              then Just val
+              else previousVal
       )
       Nothing
 

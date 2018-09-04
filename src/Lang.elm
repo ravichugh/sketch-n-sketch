@@ -348,7 +348,7 @@ type ExpBuilder__ t1 t2
   | EColonType WS t2 WS Type WS -- type annotation
   | EParens WS t2 ParensStyle WS
   | EHole WS Hole
-  | ERecord WS {- { -} (Maybe (t1, WS) {- | -}) (Declarations_ t1) {- }-} WS
+  | ERecord WS {- { -} (Maybe (t1, WS) {- | -}) (Declarations_ t1) WS {- }-}
   | ESelect WS t1 WS {-.-} WS Ident
     -- EFun [] e     impossible
     -- EFun [p] e    (\p. e)
@@ -382,7 +382,7 @@ type Type_
   | TNull WS -- TODO: remove
   | TList WS Type WS
   | TDict WS Type Type WS
-  | TRecord WS (Maybe (Ident, WS {- | -})) (List (Maybe WS, {- , -} WS, Ident, WS{-:-}, Type)) {- }-} WS
+  | TRecord WS (Maybe (Ident, WS {- | -})) (List (Maybe WS, {- , -} WS, Ident, WS{-:-}, Type)) WS {- }-}
   | TTuple WS (List Type) WS (Maybe Type) WS -- TODO: keep using only the encoding? if so, remove?
   | TArrow WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
   | TUnion WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
@@ -2451,7 +2451,10 @@ minusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Minus [t1, t2])
 
 ------------------------------------------------------------------------------
 -- Whitespace helpers
+------------------------------------------------------------------------------
 
+zeroWidthWSAfter : WithInfo a -> WS
+zeroWidthWSAfter wi = withInfo "" wi.end wi.end
 
 precedingWhitespace : Exp -> String
 precedingWhitespace exp =
@@ -3243,8 +3246,8 @@ splitBeforeWhitespace e1Ws =
       , { e1Ws | start = breakpoint }
       )
 
-declarationsCodeObjects : Exp -> LetKind -> Declarations -> List CodeObject
-declarationsCodeObjects e letType declarations =
+declarationsCodeObjects : Exp -> Declarations -> List CodeObject
+declarationsCodeObjects e declarations =
   getDeclarationsInOrderWithIndex declarations |> List.concatMap (\(def, index) ->
     case def of
       DeclType (LetType mbSpColon sp1 mbSpAlias p1 funStyle spEq tp) ->
@@ -3288,316 +3291,205 @@ declarationsCodeObjects e letType declarations =
         , P (e, index) p1
         , PT After ws2 (e, index) p1
         , E <| Expr e1
-        ] ++  ( case letType of
-            Let ->
-              [ ]
-            Def ->
-              [ ET After (withInfo "" e1.end e1.end) <| Expr e1]
-          )
-        )
+        , ET After (zeroWidthWSAfter e1) <| Expr e1
+        ]
+  )
+
+type WSBeforeComma_ a
+  = ActualWS_ WS
+  | GetterWS_ (a -> WS)
 
 childCodeObjects : CodeObject -> List CodeObject
 childCodeObjects co =
+  let
+    insertPrecedingWhitespaceTargetBeforeEachChild =
+      List.concatMap (\child ->
+        let wsb = wsBefore child in
+        (case child of
+          E e   -> [ET Before wsb e]
+          P e p -> [PT Before wsb e p]
+          T t ->   [TT Before wsb t]
+          _ -> []
+        ) ++
+        [child]
+      )
+    genericListLike : (a -> CodeObject) -> (WS -> a -> CodeObject) -> List (WSBeforeComma_ a, a) -> (List CodeObject, Maybe a)
+    genericListLike toCodeObject toAfterTarget itemsWithMBWSBeforeCommas =
+      itemsWithMBWSBeforeCommas |>
+        List.foldl
+          (\(wsBeforeComma, cur) (accReversed, mbPrev) ->
+            ( [ toCodeObject cur ] ++
+              (case (mbPrev, wsBeforeComma) of
+                (Nothing, _) -> []
+                (Just prev, ActualWS_ ws) -> [ toAfterTarget ws prev ]
+                (Just prev, GetterWS_ prevToWS) -> [ toAfterTarget (prevToWS prev) prev ]
+              ) ++
+              accReversed
+              , Just cur
+            )
+          )
+          ([], Nothing) |>
+            Tuple.mapFirst List.reverse
+    genericListLikeWithLastTarget : (a -> CodeObject) -> (WS -> a -> CodeObject) -> List (WSBeforeComma_ a, a) -> WS -> List CodeObject
+    genericListLikeWithLastTarget toCodeObject toAfterTarget itemsWithMBWSBeforeCommas wsa =
+      let (valueCOs, mbLastValue) = genericListLike toCodeObject toAfterTarget itemsWithMBWSBeforeCommas in
+      valueCOs ++
+      case mbLastValue of
+        Nothing -> []
+        Just lastValue -> [ toAfterTarget wsa lastValue ]
+    genericList : (a -> CodeObject) -> (WS -> a -> CodeObject) -> List (WSBeforeComma_ a, a) -> WS -> Maybe a -> WS -> List CodeObject
+    genericList toCodeObject toAfterTarget headsWithMBWSBeforeCommas ws2 mbTail ws3 =
+      let (headsWithSucceedingWhitespace, lastHead) = genericListLike toCodeObject toAfterTarget headsWithMBWSBeforeCommas in
+      headsWithSucceedingWhitespace ++
+      case (mbTail, lastHead) of
+        (Nothing, Nothing) ->
+          []
+        (Just tail, Nothing) ->
+          [ toCodeObject tail ]
+        (Nothing, Just lastHead) ->
+          [ toAfterTarget ws3 lastHead ]
+        (Just tail, Just lastHead) ->
+          -- TODO it seems that in the current framework, it may be impossible
+          -- to have a target immediately after the closing brace in a list
+          -- that has a tail
+          [ toAfterTarget ws2 lastHead
+          , toCodeObject tail
+          ]
+    mbWSToWSBeforeComma mbWS =
+      case mbWS of
+        Nothing -> GetterWS_ zeroWidthWSAfter
+        Just ws -> ActualWS_ ws
+    genericRecord toCodeObject toAfterTarget recs =
+      genericListLikeWithLastTarget toCodeObject toAfterTarget <| List.map (\(mbWS, _, _, _, r) -> (mbWSToWSBeforeComma mbWS, r)) recs
+  in
   List.filter (not << isHiddenCodeObject) <|
     case co of
       E e ->
-        case (unwrapExp e) of
-          EConst ws1 _ _ _ ->
-            [ ET Before ws1 e ]
-          EBase ws1 _ ->
-            [ ET Before ws1 e ]
-          EVar ws1 _ ->
-            [ ET Before ws1 e ]
-          EFun ws1 ps e1 ws2 ->
-            [ ET Before ws1 e
-            ] ++
-            ( List.map (\(p, i) -> P (e, i) p) (Utils.zipWithIndex ps)
-            ) ++
-            ( case Utils.maybeLast ps of
-                Just pLast ->
-                  [ PT After (WithInfo "" pLast.end pLast.end) (e, List.length ps - 1) pLast
+        insertPrecedingWhitespaceTargetBeforeEachChild <|
+          case unwrapExp e of
+            EFun _ ps e1 _ ->
+              ( List.map (\(p, i) -> P (e, i) p) (Utils.zipWithIndex ps) ) ++
+              ( case Utils.maybeLast ps of
+                  Just pLast ->
+                    [ PT After (zeroWidthWSAfter pLast) (e, List.length ps - 1) pLast
+                    ]
+                  Nothing ->
+                    []
+              ) ++
+              [ E e1 ]
+            EApp _ e1 es _ _ ->
+              [ E e1 ] ++
+              ( List.map E es )
+            -- TODO only add targets after each operand if it's an infix operator
+            EOp _ _ _ es _ ->
+              es |>
+                List.concatMap (\(Expr operand) ->
+                  [ E <| Expr operand
+                  , ET After (zeroWidthWSAfter operand) <| Expr operand
+                  ]
+                )
+            EList _ es ws2 m ws3  ->
+              genericList E (ET After) (List.map (Tuple.mapFirst ActualWS_) es) ws2 m ws3
+            ERecord _ mbExpWs decls ws2 ->
+              ( case mbExpWs of
+                Just (eInit, wsAfterInit) ->
+                  [ E eInit
+                  , ET After wsAfterInit eInit
                   ]
                 Nothing ->
                   []
-            ) ++
-            [ E e1
-            , ET After ws2 e1
-            ]
-          EApp ws1 e1 es aoptype ws2 ->
-            [ ET Before ws1 e
-            , E e1
-            ] ++
-            ( List.map E es
-            ) ++
-            ( case Utils.maybeLast es of
-                Just lastE ->
-                  [ ET After ws2 lastE ]
-                Nothing ->
-                  []
-            )
-          EOp ws1 wso _ es ws2 ->
-            [ ET Before ws1 e
-            , ET Before wso e] ++
-            ( List.map E es
-            ) ++
-            ( case Utils.maybeLast es of
-                Just lastE ->
-                  [ ET After ws2 lastE ]
-                Nothing ->
-                  []
-            )
-          EList ws1 es ws2 m ws3  ->
-            let
-              lastHead =
-                case Utils.maybeLast es of
-                  Just (_,lastHead) ->
-                    [ lastHead ]
-                  Nothing ->
-                    []
-            in
-              [ ET Before ws1 e
-              ] ++
-              ( List.map (E << Tuple.second) es
               ) ++
-              ( case m of
-                  Just eTail ->
-                    ( List.map (ET After ws2) lastHead
-                    ) ++
-                    [ E eTail
-                    , ET After ws3 eTail
-                    ]
-                  Nothing ->
-                    ( List.map (ET After ws3) lastHead
-                    )
-              )
-          ERecord ws1 mbExpWs decls ws2 ->
-            [ ET Before ws1 e
-            ] ++
-            ( case mbExpWs of
-                Just (eInit, ws2) ->
-                  [ E eInit, ET After ws2 eInit]
-                Nothing ->
-                  []
-            ) ++ declarationsCodeObjects e Def decls ++ [ET After ws2 e]
-          ESelect ws0 e _ _ _ ->
+              declarationsCodeObjects e decls
+            ESelect _ e _ _ _ ->
               [ E e ]
-          EIf ws1 e1 _ e2 _ e3 ws2 ->
-              [ ET Before ws1 e
-              , E e1
-              , E e2
+            EIf _ (Expr e1) _ (Expr e2) _ e3 _ ->
+              [ E <| Expr e1
+              , ET After (zeroWidthWSAfter e1) <| Expr e1
+              , E <| Expr e2
+              , ET After (zeroWidthWSAfter e2) <| Expr e2
               , E e3
-              , ET After ws2 e3
               ]
-          ECase ws1 e1 branches _ ->
-            [ ET Before ws1 e
-            , E e1
-            ] ++
-            ( case List.head branches of
-                Just b ->
-                  case b.val of
-                    Branch_ branchWS1 _ _ _ ->
-                      [ ET After branchWS1 e1 ]
-                Nothing ->
-                  []
-            ) ++
-            ( List.concatMap
-                ( \(b, i) -> b.val |> \(Branch_ _ branchP branchE branchWS2) ->
-                    [ P (e, i) branchP
-                    , E branchE
-                    , ET After branchWS2 branchE
-                    ]
+            ECase _ (Expr e1) branches _ ->
+              [ E <| Expr e1
+              , ET After (zeroWidthWSAfter e1) <| Expr e1
+              ] ++
+              ( List.concatMap
+                ( \(b, i) -> b.val |> \(Branch_ _ branchP branchE branchBeforeArrow) ->
+                  let (Expr branchE_) = branchE in
+                  [ P (e, i) branchP
+                  , PT After branchBeforeArrow (e, i) branchP
+                  , E branchE
+                  , ET After (zeroWidthWSAfter branchE_) branchE
+                  ]
                 )
                 (Utils.zipWithIndex branches)
-            )
-          ELet ws1 letType decls ws3 (Expr e2) ->
-            [ ET Before ws1 e] ++
-            declarationsCodeObjects e letType decls ++ ( case letType of
-                Let ->
-                  [ E <| Expr e2
-                  , ET After (withInfo "" e2.end e2.end) <| Expr e2
-                  ]
-                Def ->
-                  [ E <| Expr e2 ]
-            )
-
-          EColonType _ e1 _ t1 _ ->
-            [E e1, T t1]
-
-          EParens ws1 e1 pStyle ws2 ->
-            [ ET Before ws1 e
-            , E e1
-            , ET After ws2 e1
-            ]
-          EHole ws _ ->
-            [ ET Before ws e ]
+              )
+            ELet ws1 letType decls ws3 e2 ->
+              declarationsCodeObjects e decls ++
+              [ E e2 ]
+            EColonType _ e1 wsm t1 _ ->
+              [ E e1
+              , ET After wsm e1
+              , T t1
+              ]
+            EParens _ e1 _ ws2 ->
+              [ E e1
+              , ET After ws2 e1
+              ]
+            _ -> []
       P e p ->
-        case p.val.p__ of
-          PVar ws1 _ _ ->
-            [ PT Before ws1 e p ]
-          PConst ws1 _ ->
-            [ PT Before ws1 e p ]
-          PBase ws1 _ ->
-            [ PT Before ws1 e p ]
-          PWildcard ws1 ->
-            [ ]
-          PList ws1 ps ws2 m ws3 ->
-            let
-              lastHead =
-                case Utils.maybeLast ps of
-                  Just lastHead ->
-                    [ lastHead ]
-                  Nothing ->
-                    []
-            in
-              [ PT Before ws1 e p
-              ] ++
-              ( List.map (P e) ps
-              ) ++
-              ( case m of
-                  Just pTail ->
-                    ( List.map (PT After ws2 e) lastHead
-                    ) ++
-                    [ P e pTail
-                    , PT After ws3 e pTail
-                    ]
-                  Nothing ->
-                    ( List.map (PT After ws3 e) lastHead
-                    )
-              )
-          PRecord ws1 ps ws2 ->
-            let
-              lastHead =
-                case Utils.maybeLast ps of
-                  Just lastHead ->
-                    [ Utils.recordValue lastHead ]
-                  Nothing ->
-                    []
-            in
-              [ PT Before ws1 e p
-              ] ++
-              List.map (P e) (Utils.recordValues ps)
-              ++
-              ( List.map (PT After ws2 e) lastHead
-              )
-          PAs ws1 p1 wsAs p2 ->
-            [ PT Before ws1 e p
-            , P e p1
-            , PT Before wsAs e p
-            , P e p2
-            ]
-          PParens ws1 p1 ws2 ->
-            [ PT Before ws1 e p1
-            , P e p1
-            , PT After ws2 e p1 ]
-          PColonType ws1 p1 ws2 tp ->
-            [ PT Before ws1 e p1
-            , P e p1
-            , PT After ws2 e p1 ]
+        insertPrecedingWhitespaceTargetBeforeEachChild <|
+          case p.val.p__ of
+            PList _ ps ws2 m ws3 ->
+              genericList (P e) (\ws -> PT After ws e) (List.map ((,) <| GetterWS_ zeroWidthWSAfter) ps) ws2 m ws3
+            PRecord _ ps ws2 ->
+              genericRecord (P e) (\ws -> PT After ws e) ps ws2
+            PAs _ p1 wsAs p2 ->
+              [ P e p1
+              -- TODO , PT After wsAs e p1
+              -- TODO ^ does nothing, as withZeroSpace seems to negate wsAs
+              , PT After (zeroWidthWSAfter p1) e p1
+              , P e p2
+              ]
+            PParens _ p1 ws2 ->
+              [ P e p1
+              , PT After ws2 e p1
+              ]
+            PColonType _ p1 ws2 tp ->
+              [ P e p1
+              , PT After ws2 e p1
+              , T tp
+              ]
+            _ -> []
       T t ->
-        case t.val of
-          TNum ws1 ->
-            [ TT Before ws1 t ]
-          TBool ws1 ->
-            [ TT Before ws1 t ]
-          TString ws1 ->
-            [ TT Before ws1 t ]
-          TNull ws1 ->
-            [ TT Before ws1 t ]
-          TList ws1 t1 ws2 ->
-            [ TT Before ws1 t
-            , T t1
-            , TT After ws2 t1
-            ]
-          TDict ws1 t1 t2 ws2 ->
-            [ TT Before ws1 t
-            , T t1
-            , T t2
-            , TT After ws2 t2
-            ]
-          TTuple ws1 ts ws2 m ws3 ->
-            let
-              lastHead =
-                case Utils.maybeLast ts of
-                  Just lastHead ->
-                    [ lastHead ]
-                  Nothing ->
-                    []
-            in
-              [ TT Before ws1 t
-              ] ++
-              ( List.map T ts
-              ) ++
-              ( case m of
-                  Just tTail ->
-                    ( List.map (TT After ws2) lastHead
-                    ) ++
-                    [ T tTail
-                    , TT After ws3 tTail
-                    ]
-                  Nothing ->
-                    ( List.map (TT After ws3) lastHead
-                    )
-              )
-          TRecord ws1 mb ts ws2 ->
-            let
-              lastHead =
-                case Utils.maybeLast ts of
-                  Just lastHead ->
-                    [ Utils.recordValue lastHead ]
-                  Nothing ->
-                    []
-            in
-            [ TT Before ws1 t
-            ]
-            ++ List.map T (Utils.recordValues ts)
-            ++
-            ( List.map (TT After ws2) lastHead )
-          TArrow ws1 ts ws2 ->
-            let
-              lastHead =
-                case Utils.maybeLast ts of
-                  Just lastHead ->
-                    [ lastHead ]
-                  Nothing ->
-                    []
-            in
-              [ TT Before ws1 t
-              ] ++
-              ( List.map T ts
-              ) ++
-              ( List.map (TT After ws2) lastHead
-              )
-          TUnion ws1 ts ws2 ->
-            let
-              lastHead =
-                case Utils.maybeLast ts of
-                  Just lastHead ->
-                    [ lastHead ]
-                  Nothing ->
-                    []
-            in
-              [ TT Before ws1 t
-              ] ++
-              ( List.map T ts
-              ) ++
-              ( List.map (TT After ws2) lastHead
-              )
-          TApp ws1 _ ts _ ->
-            [ TT Before ws1 t
-            ] ++
-            ( List.map T ts
-            )
-          TVar ws1 _ ->
-            [ TT Before ws1 t ]
-          TForall ws1 _ t1 ws2 ->
-            [ TT Before ws1 t
-            , T t1
-            , TT After ws2 t1
-            ]
-          TWildcard ws1 ->
-            [ TT Before ws1 t ]
-          TParens ws1 t1 ws2 ->
-            [ TT Before ws1 t ] ++ [T t1] ++ [TT After ws2 t]
+        insertPrecedingWhitespaceTargetBeforeEachChild <|
+          case t.val of
+            TList _ t1 _ ->
+              [ T t1 ]
+            TDict _ t1 t2 _ ->
+              [ T t1
+              , T t2
+              ]
+            TTuple _ ts ws2 mbTail ws3 ->
+              genericList T (TT After) (List.map ((,) <| GetterWS_ zeroWidthWSAfter) ts) ws2 mbTail ws3
+            TRecord _ _ ts ws2 ->
+              genericRecord T (TT After) ts ws2
+            TArrow _ ts ws2 ->
+              genericListLikeWithLastTarget T (TT After) (List.map ((,) <| GetterWS_ zeroWidthWSAfter) ts) ws2
+            TUnion _ ts ws2 ->
+              genericListLikeWithLastTarget T (TT After) (List.map ((,) <| GetterWS_ zeroWidthWSAfter) ts) ws2
+            TApp _ _ ts _ ->
+              List.map T ts
+            TForall _ _ t1 ws2 ->
+              [ T t1
+              , TT After ws2 t1
+              ]
+            TParens _ t1 ws2 ->
+              [ T t1
+              , TT After ws2 t
+              ]
+            _ ->
+              []
       D _ _ ->
         []
       DT _ _ _ _->
@@ -3628,10 +3520,6 @@ hasPid pid codeObject =
     _ ->
       False
 
-hasPatWithPid : PId -> Exp -> Bool
-hasPatWithPid pid =
-  Utils.hasMatchingElement (hasPid pid) << childCodeObjects << E
-
 --------------------------------------------------------------------------------
 -- Getting PathedPatternIds from PIds
 --------------------------------------------------------------------------------
@@ -3654,6 +3542,7 @@ tagPatList (scopeId, path) =
 
 tagSinglePat : PathedPatternId -> Pat -> List (PId, PathedPatternId)
 tagSinglePat ppid pat =
+    let childPPID index = Tuple.mapSecond (\path -> path ++ [index]) ppid in
     (pat.val.pid, ppid) ::
       case pat.val.p__ of
         PConst _ _  ->
@@ -3664,20 +3553,18 @@ tagSinglePat ppid pat =
           []
         PWildcard _ ->
           []
-        PAs _ _ _ p1 ->
-          -- TODO Unsure if this is the right ppid (it is the same as the
-          --      parent).
-          tagSinglePat ppid p1
+        PAs _ p1 _ p2 ->
+          tagSinglePat (childPPID 1) p1 ++ tagSinglePat (childPPID 2) p2
         PList _ ps _ Nothing _  ->
           tagPatList ppid ps
         PList _ ps _ (Just pTail) _ ->
           tagPatList ppid (ps ++ [pTail])
         PParens _ p1 _ ->
-          tagSinglePat ppid p1
+          tagSinglePat (childPPID 1) p1
         PRecord ws1 listWsIdWsExpWs ws2 ->
           tagPatList ppid (Utils.recordValues listWsIdWsExpWs)
-        PColonType _ p1 _ tp ->
-          tagSinglePat ppid p1
+        PColonType _ p1 _ _ ->
+          tagSinglePat (childPPID 1) p1
 
 tagBranchList
   :  EId
