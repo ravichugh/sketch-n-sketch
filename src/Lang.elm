@@ -215,10 +215,74 @@ maybeEvalMathOp op_ operands =
 type alias Operator =
   (WS, Ident)
 
+-- type alias Thing == Exp or Pat (or Type, soon)
+--
+-- Ideally, these three types would have the same field name for IDs.
+
 type alias EId  = Int
 type alias PId  = Int
-type alias Exp_ = { e__ : Exp__, eid : EId }
-type alias Pat_ = { p__ : Pat__, pid : PId }
+type alias Exp_ = WithTypeInfo { e__ : Exp__, eid : EId }
+type alias Pat_ = WithTypeInfo { p__ : Pat__, pid : PId }
+
+type alias WithTypeInfo a =
+  { a | typ : Maybe Type
+      , typeError : Maybe TypeError
+      , extraTypeInfo : Maybe ExtraTypeInfo
+  }
+
+-- because Exp_ is defined via WithTypeInfo, no constructor called Exp_
+makeExp_ e__ eid =
+  { e__ = e__
+  , eid = eid
+  , typ = Nothing
+  , typeError = Nothing
+  , extraTypeInfo = Nothing
+  }
+
+makePat_ p__ pid =
+  { p__ = p__
+  , pid = pid
+  , typ = Nothing
+  , typeError = Nothing
+  , extraTypeInfo = Nothing
+  }
+
+setTypeForThing : Maybe Type -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setTypeForThing typ thing =
+  let thing_ = thing.val in
+  { thing | val = { thing_ | typ = typ } }
+
+setTypeErrorForThing : TypeError -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setTypeErrorForThing error thing =
+  let thing_ = thing.val in
+  { thing | val = { thing_ | typeError = Just error } }
+
+setExtraTypeInfoForThing : ExtraTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setExtraTypeInfoForThing info thing =
+  let thing_ = thing.val in
+  { thing | val = { thing_ | extraTypeInfo = Just info } }
+
+setType : Maybe Type -> Exp -> Exp
+setType typ =
+  unExpr >> setTypeForThing typ >> Expr
+
+setTypeError : TypeError -> Exp -> Exp
+setTypeError error =
+  unExpr >> setTypeErrorForThing error >> Expr
+
+setExtraTypeInfo : ExtraTypeInfo -> Exp -> Exp
+setExtraTypeInfo info =
+  unExpr >> setExtraTypeInfoForThing info >> Expr
+
+setPatType : Maybe Type -> Pat -> Pat
+setPatType = setTypeForThing
+
+setPatTypeError : TypeError -> Pat -> Pat
+setPatTypeError = setTypeErrorForThing
+
+setPatExtraTypeInfo : ExtraTypeInfo -> Pat -> Pat
+setPatExtraTypeInfo = setExtraTypeInfoForThing
+
 
 --------------------------------------------------------------------------------
 
@@ -299,6 +363,9 @@ type alias Exp__ = ExpBuilder__ Exp Exp
 expEId : Exp -> EId
 expEId (Expr e) = e.val.eid
 
+unExpr : Exp -> WithInfo Exp_
+unExpr (Expr e) = e
+
 unwrapExp : Exp -> Exp__
 unwrapExp (Expr e) = e.val.e__
 
@@ -312,18 +379,41 @@ type Type_
   = TNum WS
   | TBool WS
   | TString WS
-  | TNull WS
+  | TNull WS -- TODO: remove
   | TList WS Type WS
   | TDict WS Type Type WS
   | TRecord WS (Maybe (Ident, WS {- | -})) (List (Maybe WS, {- , -} WS, Ident, WS{-:-}, Type)) WS {- }-}
-  | TTuple WS (List Type) WS (Maybe Type) WS
-  | TArrow WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead.
-  | TUnion WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead
+  | TTuple WS (List Type) WS (Maybe Type) WS -- TODO: keep using only the encoding? if so, remove?
+  | TArrow WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
+  | TUnion WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
   | TApp WS Type (List Type) ApplicationType
   | TVar WS Ident
-  | TForall WS (List TPat) Type WS
+  | TForall WS (List TPat) Type WS -- TODO this is not being used; remove?
   | TParens WS Type WS
   | TWildcard WS
+
+dummyType =
+  withDummyRange (TWildcard space0)
+
+-- Currently shoving entire type error message and suggested fixes into Deuce.
+-- So every line is a DeuceTypeInfoItem === SynthesisResult.
+--
+-- TODO: Any benefit of explicit TypeError datatype? Could just do
+--   type alias TypeError = SynthesisResult (for now)
+--
+-- TODO: Update Deuce UI with API for "Functional Types" info and errors.
+--
+type alias DeuceTypeInfoItem = SynthesisResult
+
+type TypeError
+  = ExpectedButGot Type (Maybe Type)
+  | VarNotFound Ident (List DeuceTypeInfoItem)
+  | OtherTypeError (List String)
+
+-- Information for an expression that is relevant to
+-- other expressions that have above TypeErrors
+type ExtraTypeInfo
+  = HighlightWhenSelected EId
 
 type alias TPat = WithInfo TPat_
 type TPat_ = TPatVar WS Ident
@@ -454,6 +544,129 @@ valEId val = valExp val |> expEId
 
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
+
+
+--------------------------------------------------------------------------------
+-- Synthesis Results (for DeuceTools and OutputTools)
+--------------------------------------------------------------------------------
+
+type SynthesisResult =
+  SynthesisResult { description : String
+                  , exp         : Exp
+                  , diffs       : List Exp -- These exps can be virtual, only the start and end position matter
+                  , isSafe      : Bool -- Is this transformation considered "safe"?
+                  , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
+                  , children    : Maybe (List SynthesisResult) -- Nothing means not calculated yet.
+                  }
+
+synthesisResult description exp =
+  SynthesisResult <|
+    { description = description
+    , exp         = exp
+    , diffs       = []
+    , isSafe      = True
+    , sortKey     = []
+    , children    = Nothing
+    }
+
+
+--------------------------------------------------------------------------------
+-- Predicates (for DeuceTools and OutputTools)
+--------------------------------------------------------------------------------
+
+type PredicateValue
+    -- Good to go, and can accept no more arguments
+  = FullySatisfied
+    -- Good to go, but can accept more arguments if necessary
+  | Satisfied
+    -- Not yet good to go, but with more arguments may be okay
+  | Possible
+    -- Not good to go, and no additional arguments will make a difference
+  | Impossible
+
+-- NOTE: Descriptions should be an *action* in sentence case with no period at
+--       the end, e.g.:
+--         * Select a boolean value
+--         * Select 4 integers
+type alias Predicate =
+  { description : String
+  , value : PredicateValue
+  }
+
+predicateFullySatisfied : Predicate -> Bool
+predicateFullySatisfied pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      False
+    Possible ->
+      False
+    Impossible ->
+      False
+
+predicateSatisfied : Predicate -> Bool
+predicateSatisfied pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      True
+    Possible ->
+      False
+    Impossible ->
+      False
+
+predicatePossible : Predicate -> Bool
+predicatePossible pred =
+  case pred.value of
+    FullySatisfied ->
+      True
+    Satisfied ->
+      True
+    Possible ->
+      True
+    Impossible ->
+      False
+
+predicateImpossible : Predicate -> Bool
+predicateImpossible pred =
+  case pred.value of
+    FullySatisfied ->
+      False
+    Satisfied ->
+      False
+    Possible ->
+      False
+    Impossible ->
+      True
+
+
+--------------------------------------------------------------------------------
+-- Deuce Selections and Tools
+--------------------------------------------------------------------------------
+
+type alias DeuceSelections =
+  ( List (LocId, (WS, Num, Loc, WidgetDecl))  -- number literals
+  , List (EId, (WS, EBaseVal))                -- other base value literals
+  , List EId                                  -- expressions (including literals)
+  , List PathedPatternId                      -- patterns
+  , List (EId, BindingNumber)                 -- binding or declarations
+  , List DeclarationTargetPosition            -- declaration target positions
+  , List ExpTargetPosition                    -- expression target positions
+  , List PatTargetPosition                    -- pattern target positions
+  )
+
+type alias DeuceTransformation =
+  () -> List SynthesisResult
+
+type alias DeuceTool =
+  { name : String
+  , func : Maybe DeuceTransformation
+  , reqs : List Predicate -- requirements to run the tool
+  , id : String -- unique, unchanging identifier
+  }
+
 
 ------------------------------------------------------------------------------
 
@@ -1823,17 +2036,17 @@ builtinVal: String -> Val_ -> Val
 builtinVal msg x = Val x (Provenance [] (withDummyExpInfo (EVar space0 "msg" )) []) (Parents [])
 
 exp_ : Exp__ -> Exp_
-exp_ = flip Exp_ (-1)
+exp_ e__ = makeExp_ e__ (-1)
 
 pat_ : Pat__ -> Pat_
-pat_ = flip Pat_ (-1)
+pat_ p__ = makePat_ p__ (-1)
 
 withDummyRange x            = WithInfo x dummyPos dummyPos
 withDummyPatInfo p__        = WithInfo (pat_ p__) dummyPos dummyPos
 withDummyExp_Info e__       = WithInfo (exp_ e__) dummyPos dummyPos
 withDummyExpInfo e__        = Expr <| withDummyExp_Info e__
-withDummyPatInfoPId pid p__ = WithInfo (Pat_ p__ pid) dummyPos dummyPos
-withDummyExpInfoEId eid e__ = WithInfo (Exp_ e__ eid) dummyPos dummyPos
+withDummyPatInfoPId pid p__ = WithInfo (makePat_ p__ pid) dummyPos dummyPos
+withDummyExpInfoEId eid e__ = withDummyRange (makeExp_ e__ eid)
 
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ (Expr e) e__ = let e_ = e.val in Expr { e | val = { e_ | e__ = e__ } }

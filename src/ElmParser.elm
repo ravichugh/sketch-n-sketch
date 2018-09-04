@@ -1392,11 +1392,11 @@ simpleType minStartCol =
     lazy <| \_ ->
       (oneOf
         [ nullType
-        , variableType
-        , dataType
         , numType
         , boolType
         , stringType
+        , variableType
+        , dataType
         , wildcardType
         , lazy <| \_ -> tupleType
         , lazy <| \_ -> recordType
@@ -1416,7 +1416,10 @@ simpleTypeWithPossibleArguments minStartCol =
           TVar _ "Dict" -> case args of
             [tkey, tvalue] -> succeed <| \spApp -> TDict spApp tkey tvalue space0
             _ -> fail "Dict takes exactly two type arguments"
-          _ -> succeed <| \spApp -> TApp spApp f args SpaceApp
+          _ ->
+            case args of
+              [] -> succeed <| \spApp -> (first spApp).val
+              _  -> succeed <| \spApp -> TApp spApp f args SpaceApp
       ) <|
       (trackInfo (simpleType minStartCol) |> andThen (\wsToMainTypeI ->
          let appargSpace = spaceSameLineOrNextAfter (min minStartCol wsToMainTypeI.start.col) MinIndentSpace in
@@ -2805,7 +2808,7 @@ freshenPreserving idsToPreserve initK e =
        (replaceE__ exp newE__, newK)
     else
        let eid = getId newK in
-       (Expr <| WithInfo (Exp_ newE__ eid) exp_.start exp_.end, eid + 1)
+       (Expr <| WithInfo (makeExp_ newE__ eid) exp_.start exp_.end, eid + 1)
   in
   mapFoldExp assignIds initK e
 
@@ -2902,7 +2905,7 @@ substStrOf = Dict.map (always toString) << substOf
 recordIdentifiers : (Pat, Exp) -> Exp
 recordIdentifiers (p, Expr e) =
  let exp = Expr e in
- let ret e__ = Expr <| WithInfo (Exp_ e__ <| expEId exp) e.start e.end in
+ let ret e__ = Expr <| WithInfo (makeExp_ e__ <| expEId exp) e.start e.end in
  case (p.val.p__, unwrapExp exp) of
 
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd

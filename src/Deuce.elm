@@ -29,6 +29,7 @@ import Lang exposing
   ( WS
   , BeforeAfter(..)
   , Exp(..)
+  , unExpr
   , ExpBuilder__(..)
   , Pat
   , LetKind(..)
@@ -36,6 +37,9 @@ import Lang exposing
   , PId
   , PathedPatternId
   , CodeObject(..)
+  , Type
+  , TypeError(..)
+  , ExtraTypeInfo(..)
   , extractInfoFromCodeObject
   , isTarget
   , foldCode
@@ -185,9 +189,11 @@ type alias CodeInfo =
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
   , selectedWidgets : List DeuceWidget
+  -- TODO: For performance, we need to remove this and rely on CSS for hover again
   , hoveredWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
+  , needsParse : Bool
   }
 
 --==============================================================================
@@ -511,6 +517,24 @@ objectColor colorScheme =
       , b = 100
       }
 
+objectErrorColor : ColorScheme -> Color
+objectErrorColor colorScheme =
+  case colorScheme of
+    Light -> { r = 255 , g = 0 , b = 0 }
+    Dark  -> { r = 255 , g = 0 , b = 0 }
+
+objectInfoColor : ColorScheme -> Color
+objectInfoColor colorScheme =
+  case colorScheme of
+    Light -> { r = 144, g = 238, b = 144 }
+    Dark  -> { r = 144, g = 238, b = 144 }
+
+typeColor : ColorScheme -> Color
+typeColor colorScheme =
+  case colorScheme of
+    Light -> { r = 255, g = 192, b = 203 }
+    Dark  -> { r = 255, g = 192, b = 203 }
+
 whitespaceColor : ColorScheme -> Color
 whitespaceColor colorScheme =
   case colorScheme of
@@ -567,21 +591,67 @@ codeObjectPolygon msgs codeInfo codeObject color =
       []
     Just deuceWidget ->
       let
+        -- TODO: need to stop relying on hoveredWidgets, use CSS instead
         hoveredOrSelected =
           List.member deuceWidget <| codeInfo.selectedWidgets ++ codeInfo.hoveredWidgets
-        hoveredOrSelectedClass =
-          if hoveredOrSelected then
-            " hovered-or-selected"
+
+        codeObjectHasTypeError =
+          case (codeInfo.needsParse, codeObject) of
+            (False, E e) ->
+              case (unExpr e).val.typeError of
+                Just _  -> True
+                Nothing -> False
+            (False, P _ p) ->
+              case p.val.typeError of
+                Just _  -> True
+                Nothing -> False
+            _ ->
+              False
+
+        highlightError =
+          codeObjectHasTypeError && codeInfo.selectedWidgets == []
+
+        highlightInfo =
+          case (codeInfo.needsParse, codeObject) of
+            (False, E e) ->
+              case (unExpr e).val.extraTypeInfo of
+                Just (HighlightWhenSelected eId) ->
+                  if codeInfo.selectedWidgets == [DeuceExp eId] then
+                    True
+                  else
+                    False
+                _ ->
+                  False
+            _ ->
+              False
+
+        errorColor =
+          objectErrorColor codeInfo.displayInfo.colorScheme
+
+        infoColor =
+          objectInfoColor codeInfo.displayInfo.colorScheme
+
+        (classModifier, finalColor)  =
+          if hoveredOrSelected && codeObjectHasTypeError then
+            (" opaque", errorColor)
+          else if hoveredOrSelected then
+            (" opaque", color)
+          else if highlightError then
+            (" translucent", errorColor)
+          else if highlightInfo then
+            (" opaque", infoColor)
           else
-            ""
+            ("", color)
+
         class =
-          "code-object-polygon" ++ hoveredOrSelectedClass
+          "code-object-polygon" ++ classModifier
+
         childPolygons =
-          List.concatMap
-            (\child ->
-              hoverSelectPolygon msgs False codeInfo child deuceWidget
-            ) <|
-              childCodeObjects codeObject
+          childCodeObjects codeObject
+            |> List.concatMap
+                 (\child ->
+                   hoverSelectPolygon msgs False codeInfo child deuceWidget
+                 )
       in
         childPolygons ++
         hoverSelectPolygon msgs True codeInfo codeObject deuceWidget ++
@@ -592,10 +662,10 @@ codeObjectPolygon msgs codeInfo codeObject color =
             , SAttr.strokeWidth <|
                 strokeWidth codeInfo.displayInfo.colorScheme
             , SAttr.stroke <|
-                rgbaString color 1
+                rgbaString finalColor 1
             , SAttr.fill <|
                 rgbaString
-                  color
+                  finalColor
                   (polygonOpacity codeInfo.displayInfo.colorScheme)
             ]
             []
@@ -645,6 +715,17 @@ patPolygon msgs codeInfo e p =
   in
     codeObjectPolygon msgs codeInfo codeObject color
 
+typePolygon
+  : Messages msg -> CodeInfo -> Type -> List (Svg msg)
+typePolygon msgs codeInfo t =
+  let
+    codeObject =
+      T t
+    color =
+      typeColor codeInfo.displayInfo.colorScheme
+  in
+    codeObjectPolygon msgs codeInfo codeObject color
+
 letBindingEquationPolygon
   : Messages msg -> CodeInfo -> (WithInfo EId) -> Int -> List (Svg msg)
 letBindingEquationPolygon msgs codeInfo eid n =
@@ -677,7 +758,7 @@ polygons msgs codeInfo ast =
               P e p ->
                 patPolygon msgs codeInfo e p ++ acc
               T t ->
-                acc
+                typePolygon msgs codeInfo t ++ acc
               D eid bn ->
                 letBindingEquationPolygon msgs codeInfo eid bn ++ acc
               ET ba ws et ->
@@ -736,6 +817,8 @@ overlay msgs model =
           patMap
       , maxLineLength =
           maxLineLength
+      , needsParse =
+          Model.needsParse model
       }
     leftShift =
       model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
@@ -775,6 +858,8 @@ diffOverlay model exps =
           Dict.empty
       , maxLineLength =
           maxLineLength
+      , needsParse =
+          Model.needsParse model
       }
     leftShift =
       model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed

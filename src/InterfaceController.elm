@@ -77,7 +77,7 @@ port module InterfaceController exposing
 
 import Updatable exposing (Updatable)
 import Lang exposing (..) --For access to what makes up the Vals
-import Types
+import Types2
 import Ace
 import ParserUtils exposing (showError)
 -- import FastParser exposing (freshen)
@@ -173,6 +173,17 @@ debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
+maybeTypecheck : Exp -> (Exp, Types2.AceTypeInfo)
+maybeTypecheck inputExp =
+  -- TODO add a flag to Model for type checking
+  if True then
+    let newInputExp = Types2.typecheck inputExp in
+    let ati = Types2.aceTypeInfo newInputExp in
+    (newInputExp, ati)
+
+  else
+    (inputExp, Types2.dummyAceTypeInfo)
+
 refreshLiveInfo m =
   case mkLive
          m.syntax
@@ -251,7 +262,7 @@ handleError oldModel result =
     Ok newModel -> newModel
     Err s       -> { oldModel | errorBox = Just s }
 
-updateCodeBoxInfo : Types.AceTypeInfo -> Model -> CodeBoxInfo
+updateCodeBoxInfo : Types2.AceTypeInfo -> Model -> CodeBoxInfo
 updateCodeBoxInfo ati m =
   let codeBoxInfo = m.codeBoxInfo in
   { codeBoxInfo | annotations = ati.annotations
@@ -624,6 +635,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
+          , lastParsedCode = newCode
           , lastRunCode = newCode
           , inputExp = newExp
           , inputVal = newVal
@@ -767,9 +779,9 @@ tryRun old =
     case ImpureGoodies.logTimedRun "parsing time" <| \() -> Syntax.parser old.syntax old.code of
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
-      Ok e ->
+      Ok parsedExp ->
+        let (e, aceTypeInfo) = maybeTypecheck parsedExp in
         let resultThunk () =
-          -- let aceTypeInfo = Types.typecheck e in
 
           -- want final environment of top-level definitions when evaluating e,
           -- for the purposes of running Little code to generate icons.
@@ -805,6 +817,7 @@ tryRun old =
                       , outputMode    = maybeUpdateOutputMode old newSlate
                       , htmlEditorString = Nothing
                       , code          = newCode
+                      , lastParsedCode = newCode
                       , lastRunCode   = newCode
                       , slideCount    = newSlideCount
                       , movieCount    = newMovieCount
@@ -827,73 +840,22 @@ tryRun old =
                       , shapeUpdatesViaZones = Dict.empty
                 }
               in
-              let taskProgressAnnotation =
-                case String.split "; The final program should look something like:\n" newCode |> List.map String.trimRight of
-                  [regularCode, commentedOutTargetCode] ->
-                    let normalize str =
-                      Regex.replace Regex.All (Regex.regex "[\\s\\(\\)\\[\\]]+") (\_ -> "") str
-                    in
-                    let targetCode =
-                      commentedOutTargetCode
-                      |> Utils.stringReplace "\n;" "\n"
-                      |> Utils.stringReplace ";\n" "\n"
-                      |> normalize
-                    in
-                    let givenLines = String.split "\n" regularCode in
-                    -- 1. For each line in code, try to find a match in targetCode.
-                    let singleLineGoodness =
-                      givenLines
-                      |> List.map normalize
-                      |> List.map (\givenLine -> String.contains givenLine targetCode)
-                    in
-                    -- 2. If line and its immediate neighbors are all good, compare the line and its neighbors together.
-                    -- First and last line are missing some context for this step, so insert explicit beginning/end of code markers to ensure an error if the last line is incomplete.
-                    let multiLineGoodness =
-                      let targetCodeWithBeginEndMarkers = "BOC" ++ targetCode ++ "EOC" in
-                      let lineTriples         = Utils.zip3 (["", "BOC"] ++ givenLines) (["BOC"] ++ givenLines ++ ["EOC"]) (givenLines ++ ["EOC", ""]) in
-                      let lineGoodnessTriples = Utils.zip3 ([True, True] ++ singleLineGoodness) ([True] ++ singleLineGoodness ++ [True]) (singleLineGoodness ++ [True, True]) in
-                      Utils.zip lineGoodnessTriples lineTriples
-                      |> List.drop 1
-                      |> Utils.dropLast 1
-                      |> List.map
-                          (\((priorLineGood, lineGood, nextLineGood), (priorLine, line, nextLine)) ->
-                            if priorLineGood && lineGood && nextLineGood then
-                              targetCodeWithBeginEndMarkers
-                              |> String.contains (normalize (priorLine ++ line ++ nextLine))
-                            else
-                              True
-                          )
-                    in
-                    let singleLineAnnotataions =
-                      singleLineGoodness
-                      |> Utils.zipi0
-                      |> List.filter (not << Tuple.second)
-                      |> List.map (\(row, _) -> { row = row, type_ = "error", text = "Does not match target code!" } )
-                    in
-                    let multiLineAnnotataions =
-                      multiLineGoodness
-                      |> Utils.zipi0
-                      |> List.filter (not << Tuple.second)
-                      |> List.map (\(row, _) -> { row = row, type_ = "error", text = "Missing code or ordering problem!" } )
-                    in
-                    { annotations = singleLineAnnotataions ++ multiLineAnnotataions
-                    , highlights  = []
-                    , tooltips    = []
-                    }
-
-                  _ ->
-                    Types.dummyAceTypeInfo
-              in
               resetDeuceState <|
               { new_ | liveSyncInfo = refreshLiveInfo new_
-                     , codeBoxInfo = updateCodeBoxInfo taskProgressAnnotation new_
+                     , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new_
                      }
             )
           )
         in
+          let oldWithUpdatedHistoryAndTypes =
+            { oldWithUpdatedHistory
+                | codeBoxInfo =
+                    updateCodeBoxInfo aceTypeInfo oldWithUpdatedHistory
+            }
+          in
           case ImpureGoodies.crashToError resultThunk of
-            Err s         -> Err (oldWithUpdatedHistory, s, Nothing)
-            Ok (Err s)    -> Err (oldWithUpdatedHistory, s, Nothing)
+            Err s         -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
+            Ok (Err s)    -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
             Ok (Ok model) -> Ok model
 
 
@@ -1571,18 +1533,23 @@ refreshInputExp old =
   let
     parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
       Syntax.parser old.syntax old.code
-    (newInputExp, codeClean) =
+
+    (newInputExp, newCodeBoxInfo, newLastParsedCode) =
       case parseResult of
-        Ok exp ->
-          (exp, True)
+        Ok parsedExp ->
+          let (inputExp, aceTypeInfo) = maybeTypecheck parsedExp in
+          (inputExp, updateCodeBoxInfo aceTypeInfo old, old.code)
+
         Err _ ->
-          (old.inputExp, False)
+          (old.inputExp, old.codeBoxInfo, old.lastParsedCode)
   in
     { old
         | inputExp =
             newInputExp
-        , codeClean =
-            codeClean
+        , lastParsedCode =
+            newLastParsedCode
+        , codeBoxInfo =
+            newCodeBoxInfo
     }
 
 --------------------------------------------------------------------------------
@@ -1930,9 +1897,11 @@ msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| doSelectSynth
 doSelectSynthesisResult: Exp -> Model -> Model
 doSelectSynthesisResult newExp old =
   -- TODO unparse gets called twice, here and in runWith ...
+  -- TODO decide whethert to typecheck newExp before or after SynthesisResult...
   let newCode = Syntax.unparser old.syntax newExp in
   let new =
     { old | code = newCode
+          , lastParsedCode = newCode
           , lastRunCode = newCode
           , history = modelCommit newCode [] old.history
           } |> clearSynthesisResults
@@ -1952,7 +1921,7 @@ doSelectSynthesisResult newExp old =
       } |> clearSelections
       in
       { newer | liveSyncInfo = refreshLiveInfo newer
-              , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
+              , codeBoxInfo = updateCodeBoxInfo Types2.dummyAceTypeInfo newer
               , outputMode  = Graphics -- switch out of ValueText
               }
   )
@@ -2814,18 +2783,19 @@ handleNew template = (\old ->
   let f = loadTemplate template () in
   let
     {e,v,ws,env,ati} = case f of
-         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types.AceTypeInfo [] [] []}
+         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types2.dummyAceTypeInfo}
          Ok ff -> ff
   in
-  let so = Sync.syncOptionsOf old.syncOptions e in
+  let (inputExp, aceTypeInfo) = maybeTypecheck e in
+  let so = Sync.syncOptionsOf old.syncOptions inputExp in
   let outputMode =
     Utils.fromOk "SelectExample mkLive" <|
-       mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime e (v,ws)
+       mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime inputExp (v,ws)
   in
   LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime v
   |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-    let code = Syntax.unparser old.syntax e in
-    { initModel | inputExp      = e
+    let code = Syntax.unparser old.syntax inputExp in
+    { initModel | inputExp      = inputExp
                 , inputVal      = v
                 , inputEnv      = env
                 , caption       = (case f of
@@ -2836,6 +2806,7 @@ handleNew template = (\old ->
                 , outputMode    = maybeUpdateOutputMode old slate
                 , htmlEditorString = Nothing
                 , code          = code
+                , lastParsedCode  = code
                 , lastRunCode   = code
                 , history       = History.begin { code = code, selectedDeuceWidgets = [] }
                 , liveSyncInfo  = outputMode
@@ -2850,12 +2821,12 @@ handleNew template = (\old ->
                 , slate         = slate
                 , slateCount    = 1 + old.slateCount
                 , widgets       = ws
-                , codeBoxInfo   = updateCodeBoxInfo ati old
+                , codeBoxInfo   = updateCodeBoxInfo aceTypeInfo old
                 , filename      = Model.bufferFilename old
                 , syntax        = old.syntax
                 , needsSave     = True
                 , lastSaveState = Nothing
-                , scopeGraph    = DependenceGraph.compute e
+                , scopeGraph    = DependenceGraph.compute inputExp
 
                 , lastSelectedTemplate = Just (template, code)
 

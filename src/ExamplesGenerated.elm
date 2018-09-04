@@ -25,7 +25,7 @@ module ExamplesGenerated exposing
 import Lang exposing (Exp, Val, Widget, Env)
 import FastParser
 import ElmParser
-import Types
+import Types2
 import Eval
 import Utils
 import PreludeGenerated as Prelude
@@ -39,7 +39,7 @@ type alias Example = {
    e: Exp,
    v: Val,
    ws: List Widget,
-   ati:  Types.AceTypeInfo,
+   ati: Types2.AceTypeInfo,
    env: Env}
 
 --------------------------------------------------------------------------------
@@ -60,8 +60,7 @@ makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
     parser s |> Result.mapError (\pmsg -> "Error parsing example " ++ name ++"\n" ++ ParserUtils.showError pmsg) |> Result.map (\e ->
-    -- let ati = Types.typecheck e in
-    let ati = Types.dummyAceTypeInfo in
+    let ati = Types2.aceTypeInfo e in
     -----------------------------------------------------
     -- if name == "*Prelude*" then
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
@@ -6069,6 +6068,90 @@ blankDoc =
 
 """
 
+basicTypesTesting =
+ """
+pair = (1, True)
+
+triple = (1, True, "Hi!")
+
+n : Num
+n = 1
+
+b : Bool
+b = True
+
+(s) : String
+s = "Hi!"
+
+n2 : Num
+n2 = if True then 1 else "a"
+
+n3 = if True then 1 else "a"
+
+record0 = {}
+
+record1 = {n=1}
+
+record2 = {n=1, b=True}
+
+record3 = {n=1, b=True, s="Hi!"}
+
+bad1 = 1 : Bool
+
+bad2 = (1 : Bool) : Int
+
+bad3 = (1 + 2) : Bool
+
+fact : Num -> Num
+fact n =
+  -- if n <= 0 then 1 else n * fact (n-1)
+  n * fact (n-1)
+
+even : Num -> Bool
+even n =
+  -- if n == 0 then True
+  -- else if n == 1 then False
+  -- else
+    odd (n-1)
+
+odd : Num -> Bool
+odd n =
+  -- if n == 0 then False
+  -- else if n == 1 then True
+  -- else
+    even (n-1)
+
+(thisIsNotDefined, norThis, butThisOneIs) : (Num, Bool, String)
+
+butThisOneIs = "yay!"
+
+foo = \\provenance ->
+  provenacne
+
+foo = (\\provenance -> provenacne) : Bool -> Bool
+
+bar = (\\n -> n) : Num -> Num
+
+baz = (\\n -> True) : Num -> Num
+
+id = (\\x -> x) : {- forall a -} a -> a
+
+fst = (\\x -> (\\y -> x)) : {- forall a b -} a -> (b -> a)
+fst = (\\x -> \\y -> x) : {- forall a b -} a -> (b -> a)
+fst = (\\x y -> x) : {- forall a b -} a -> (b -> a)
+
+fst = (\\x -> (\\y -> x)) : {- forall a b -} a -> b -> a
+fst = (\\x -> \\y -> x) : {- forall a b -} a -> b -> a
+fst = (\\x y -> x) : {- forall a b -} a -> b -> a
+
+snd = (\\x -> (\\y -> y)) : {- forall a b -} a -> (b -> b)
+
+sum = 1 + 2
+
+main =
+  Html.p [] [] "..."
+"""
+
 welcome1 =
  """title = \"Sketch-n-Sketch Docs\"
 
@@ -10095,7 +10178,8 @@ welcomeCategory =
   ( "Welcome"
   , [ makeLeoExample blankSvgTemplate blankSvg
     , makeLeoExample blankHtmlTemplate blankDoc
-    , makeLeoExample initTemplate welcome1
+    -- , makeLeoExample initTemplate welcome1
+    , makeLeoExample initTemplate basicTypesTesting
 --    , makeLeoExample "Tutorial" blankDoc
     ]
   )

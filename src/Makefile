@@ -64,7 +64,7 @@ loc:
     FastParser.elm LangUnparser.elm \
 		ElmParser.elm ElmUnparser.elm \
 		ValUnparser.elm \
-    Types.elm Eval.elm ShapeWidgets.elm \
+    Types2.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
     UpdateStack.elm UpdateRegex.elm Update.elm \
     InterfaceModel.elm \

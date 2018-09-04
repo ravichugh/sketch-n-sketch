@@ -14,6 +14,9 @@ import Dict exposing (Dict)
 type alias DeuceState =
   { selectedWidgets : List DeuceWidget   -- not Set b/c not comparable
   , hoveredWidgets : List DeuceWidget    -- not Set b/c not comparable
+      -- not used for styling anymore (see .code-object-polygon:hover),
+      -- but still tracking in case other UI elements depend on knowing
+      -- hovered widgets
   , hoveredMenuPath : List Int
   , renameVarTextBox : String
   }
@@ -25,6 +28,7 @@ type DeuceWidget
   | DeuceDeclTarget DeclarationTargetPosition
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
+  | DeuceType -- TODO TId
 
 
 isTargetPosition : DeuceWidget -> Bool
@@ -33,6 +37,7 @@ isTargetPosition widget =
     DeuceExp _                -> False
     DeucePat _                -> False
     DeuceLetBindingEquation _ -> False
+    DeuceType                 -> False
     DeuceExpTarget _          -> True
     DeucePatTarget _          -> True
     DeuceDeclTarget _         -> True
@@ -86,6 +91,10 @@ isSubWidget program widget superWidget =
     (_,                                 DeuceDeclTarget b2)                 -> False
     (DeuceDeclTarget (_, (subEId, bn)), DeuceExp superEId)                  -> subEId /= superEId && isSubEId subEId superEId
     (DeuceDeclTarget (_, (subEId, bn)), _)                                  -> False
+    -- TODO
+    (DeuceType,                         DeuceType)                           -> True
+    (_,                                 DeuceType)                           -> False
+    (DeuceType,                         _)                                   -> False
 
 toDeuceWidget : Dict PId PathedPatternId -> CodeObject -> Maybe DeuceWidget
 toDeuceWidget patMap codeObject =
@@ -97,7 +106,8 @@ toDeuceWidget patMap codeObject =
       Maybe.map DeucePat <|
         Dict.get p.val.pid patMap
     T _ ->
-      Nothing
+      Just <|
+        DeuceType -- TODO tid
     D eid bNum ->
       Just <|
         DeuceLetBindingEquation (eid.val, bNum)

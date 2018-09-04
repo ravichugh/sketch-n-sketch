@@ -1245,7 +1245,13 @@ code {
   pointer-events: none;
 }
 
-.code-object-polygon.hovered-or-selected {
+.code-object-polygon.translucent {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.code-object-polygon:hover,
+.code-object-polygon.opaque {
   opacity: 1;
   pointer-events: none;
 }

@@ -72,6 +72,14 @@ patName p =
     _ ->
       Nothing
 
+typeName : Type -> Maybe String
+typeName t =
+  case t.val of
+    TVar _ name ->
+      Just name
+    _ ->
+      Nothing
+
 expArgs : Exp -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
 expArgs e =
   case (unwrapExp e) of
@@ -84,6 +92,14 @@ patArgs : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
 patArgs p =
   case p.val.p__ of
     PRecord _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
+typeArgs : Type -> Maybe (List (Maybe WS, WS, Ident, WS, Type))
+typeArgs t =
+  case t.val of
+    TRecord _ _ entries _ ->
       Just entries
     _ ->
       Nothing
@@ -117,10 +133,10 @@ tryUnparseTuple unparseTerm wsBefore keyValues wsBeforeEnd =
                )
           |> Utils.mapHead (\(spc, spn, n, f, e) -> (Nothing, spn, n, f, e))
           |> List.map
-               ( \(wsBeforeComma, wsBeforeName, _, _, elBinding) ->
-                  ( wsBeforeComma |> Maybe.map (\x -> x.val ++ ",") |> Maybe.withDefault "") ++ wsBeforeName.val ++ unparseTerm elBinding
+               (\(wsBeforeComma, wsBeforeName, _, _, elBinding) ->
+                 (wsBeforeComma |> Maybe.map .val |> Maybe.withDefault "") ++ wsBeforeName.val ++ unparseTerm elBinding
                )
-          |> String.concat
+          |> String.join ","
     in
       Just <|
         wsBefore.val
@@ -194,7 +210,9 @@ tryUnparseDataConstructor unparseTerm name args wsBefore fields wsBeforeEnd =
         Nothing
 
 tryUnparseRecordSugars
-  :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
+  :  (t -> String)
+  -> (t -> Maybe String)
+  -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
   -> WS -> List (Maybe WS, WS, String, WS, t) -> WS
   -> (() -> String) -> String
 tryUnparseRecordSugars unparseTerm name args wsBefore decls wsBeforeEnd default =
@@ -316,13 +334,14 @@ unparseType tipe =
         Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
         Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
     TRecord wsBefore mb elems wsAfter ->
+      tryUnparseRecordSugars unparseType typeName typeArgs wsBefore elems wsAfter <| \_ ->
       wsBefore.val
         ++ "{"
         ++ (case mb of
           Just (ident, wsIdent) -> ident ++ wsIdent.val
           Nothing -> ""
-        ) ++ String.concat (List.map (\(mbWsComma, wsKey, key, wsEq, value) ->
-                (mbWsComma |> Maybe.map (\wsComma -> wsComma.val ++ ",") |> Maybe.withDefault "") ++ wsKey.val ++
+        ) ++ String.join "," (List.map (\(mbWsComma, wsKey, key, wsEq, value) ->
+                (mbWsComma |> Maybe.map .val |> Maybe.withDefault "") ++ wsKey.val ++
                 key ++ wsEq.val ++ ":" ++ unparseType value
              ) elems)
         ++ wsAfter.val

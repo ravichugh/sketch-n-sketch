@@ -1426,7 +1426,7 @@ freshenPreserving idsToPreserve initK e =
       (replaceE__ exp newE__, newK)
     else
       let eid = getId newK in
-      (Expr <| WithInfo (Exp_ newE__ eid) exp_.start exp_.end, eid + 1)
+      (Expr <| WithInfo (makeExp_ newE__ eid) exp_.start exp_.end, eid + 1)
   in
   mapFoldExp assignIds initK e
 
@@ -1528,7 +1528,7 @@ substStrOf = Dict.map (always toString) << substOf
 recordIdentifiers : (Pat, Exp) -> Exp
 recordIdentifiers (p, (Expr e)) =
  let exp = Expr e in
- let ret e__ = Expr <| WithInfo (Exp_ e__ <| expEId exp) e.start e.end in
+ let ret e__ = Expr <| WithInfo (makeExp_ e__ <| expEId exp) e.start e.end in
  case (p.val.p__, unwrapExp exp) of
 
   -- (PVar _ x _, EConst ws n (k, b, "") wd) -> ret <| EConst ws n (k, b, x) wd

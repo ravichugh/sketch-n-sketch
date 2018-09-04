@@ -102,9 +102,9 @@ type CodeEditorMode
 
 type alias Model =
   { code : Code
+  , lastParsedCode : Code
   , lastRunCode : Code
   , runFailuresInARowCount : Int
-  , codeClean : Bool
   , preview : Preview
   , previewdiffs : Maybe DiffPreview
   , previewdiffsDelay: Int
@@ -402,6 +402,8 @@ type ReplicateKind
   | LinearRepeat
   | RadialRepeat
 
+{- NOTE: moved to Lang
+
 type SynthesisResult =
   SynthesisResult { description : String
                   , exp         : Exp
@@ -420,6 +422,7 @@ synthesisResult description exp =
     , sortKey     = []
     , children    = Nothing
     }
+-}
 
 synthesisResultDiffs description exp diffs =
   SynthesisResult <|
@@ -624,6 +627,8 @@ configurationPanelShown model =
 
 importCodeFileInputId = "import-code-file-input"
 
+{- NOTE: moved to Lang
+
 --------------------------------------------------------------------------------
 -- Predicates
 --------------------------------------------------------------------------------
@@ -694,10 +699,23 @@ predicateImpossible pred =
       False
     Impossible ->
       True
+-}
 
 --------------------------------------------------------------------------------
 -- Deuce Tools
 --------------------------------------------------------------------------------
+
+{- NOTE: moved to Lang
+
+type alias DeuceSelections =
+  ( List (LocId, (WS, Num, Loc, WidgetDecl))  -- number literals
+  , List (EId, (WS, EBaseVal))                -- other base value literals
+  , List EId                                  -- expressions (including literals)
+  , List PathedPatternId                      -- patterns
+  , List EId                                  -- equations
+  , List ExpTargetPosition                    -- expression target positions
+  , List PatTargetPosition                    -- pattern target positions
+  )
 
 type alias DeuceTransformation =
   () -> List SynthesisResult
@@ -708,6 +726,8 @@ type alias DeuceTool =
   , reqs : List Predicate -- requirements to run the tool
   , id : String -- unique, unchanging identifier
   }
+
+-}
 
 type alias CachedDeuceTool =
   (DeuceTool, List SynthesisResult, Bool)
@@ -883,6 +903,9 @@ lambdaToolIcon tool =
 
 --------------------------------------------------------------------------------
 
+needsParse m =
+  m.code /= m.lastParsedCode
+
 needsRun m =
   m.code /= m.lastRunCode
 
@@ -913,7 +936,7 @@ deuceActive model =
     shiftDown =
       List.member Keys.keyShift model.keysDown
   in
-    model.codeClean &&
+    not (needsParse model) &&
     Utils.or
       [ Utils.and
           [ model.enableDeuceBoxSelection
@@ -1257,9 +1280,9 @@ initModel =
   let liveSyncInfo = unwrap (mkLive Syntax.Little Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = LangUnparser.unparse e in
     { code          = code
+    , lastParsedCode = code
     , lastRunCode   = code
     , runFailuresInARowCount = 0
-    , codeClean     = True
     , preview       = Nothing
     , previewdiffs  = Nothing
     , previewdiffsDelay = 1000 --ms
@@ -1376,8 +1399,8 @@ initModel =
     , deuceRightClickMenuMode = Nothing
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
-    , codeToolsMenuMode = CTDisabled -- default for Sketch-n-Sketch Docs
-    , outputToolsMenuMode = False -- default for Sketch-n-Sketch Docs
+    , codeToolsMenuMode = CTAll
+    , outputToolsMenuMode = True
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True

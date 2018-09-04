@@ -9,6 +9,7 @@ import Dict exposing (Dict)
 
 import InterfaceModel exposing (..)
 import InterfaceController as Controller
+import Lang exposing (Predicate, PredicateValue(..))
 import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (SelectableFeature)
 

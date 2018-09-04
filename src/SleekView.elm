@@ -38,7 +38,7 @@ import OutputCanvas
 import Draw
 import LangTools
 import Sync
-import Lang exposing (Exp)
+import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..))
 import LangSvg
 import Syntax
 import File
@@ -485,7 +485,7 @@ editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
         [ Html.text name
         ]
     disabled =
-      (List.any Model.predicateImpossible deuceTool.reqs) ||
+      (List.any Lang.predicateImpossible deuceTool.reqs) ||
       (not <| Model.noCodeWidgetsSelected model)
   in
     textButton
@@ -512,7 +512,7 @@ outputToolEntry model tool =
     (disabled, action) =
       case tool.func of
         Just msg ->
-          (not <| List.all Model.predicateSatisfied tool.reqs, msg)
+          (not <| List.all Lang.predicateSatisfied tool.reqs, msg)
 
         Nothing ->
           (True, Controller.msgNoop)
@@ -2324,7 +2324,7 @@ deuceRightClickMenuEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
         [ Html.text name
         ]
     disabled =
-      List.any Model.predicateImpossible deuceTool.reqs
+      List.any Lang.predicateImpossible deuceTool.reqs
   in
     if disabled then
       []
@@ -2528,7 +2528,7 @@ editCodePopupPanel model =
                       deuceTool.reqs
                   )
               ] ++
-              ( if List.all Model.predicateSatisfied deuceTool.reqs then
+              ( if List.all Lang.predicateSatisfied deuceTool.reqs then
                   [ Html.h2
                       []
                       [ Html.text "Code Updates" ]
@@ -2588,7 +2588,7 @@ autoOutputToolsPopupPanel model =
             activeTools =
               OutputTools.tools model
                 |> List.concatMap
-                     (List.filter <| List.all Model.predicateSatisfied << .reqs)
+                     (List.filter <| List.all Lang.predicateSatisfied << .reqs)
                 |> List.map (outputToolEntry model)
           in
             if List.isEmpty activeTools then

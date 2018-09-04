@@ -22,18 +22,15 @@ import ColorNum
 
 import InterfaceModel as Model exposing
   ( Model
-  , SynthesisResult(..)
-  , synthesisResult
   , oneSafeResult
   , setResultSafe
-  , DeuceTool
   , CachedDeuceTool
-  , PredicateValue(..)
   )
 
 import Lang exposing (..)
 import LangTools
 import Syntax
+import Types2
 
 import DeuceWidgets exposing
   ( DeuceWidget(..)
@@ -46,16 +43,7 @@ import ExpressionBasedTransform
 -- Selections
 --------------------------------------------------------------------------------
 
-type alias Selections =
-  ( List (LocId, (WS, Num, Loc, WidgetDecl))  -- number literals
-  , List (EId, (WS, EBaseVal))                -- other base value literals
-  , List EId                                  -- expressions (including literals)
-  , List PathedPatternId                      -- patterns
-  , List (EId, BindingNumber)                 -- binding or declarations
-  , List DeclarationTargetPosition            -- declaration target positions
-  , List ExpTargetPosition                    -- expression target positions
-  , List PatTargetPosition                    -- pattern target positions
-  )
+type alias Selections = Lang.DeuceSelections
 
 selectedNumsAndBaseVals
     : Exp
@@ -2120,6 +2108,43 @@ alignExpressionsTool model selections =
   , id = "alignExpressions"
   }
 
+
+--------------------------------------------------------------------------------
+-- Type System Tool
+--------------------------------------------------------------------------------
+
+typesTool : Model -> DeuceSelections -> DeuceTool
+typesTool model selections =
+  let
+    (func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], [], []) ->
+          (Nothing, Possible)
+
+        (_, _, [eId], [], [], [], [], []) ->
+          let
+            exp = LangTools.justFindExpByEId model.inputExp eId
+          in
+          (Just (Types2.makeDeuceExpTool model.inputExp exp), Satisfied)
+
+        (_, _, _, [pathedPatId], [], [], [], []) ->
+          let
+            pat =
+              LangTools.findPatByPathedPatternId pathedPatId model.inputExp
+                |> Utils.fromJust_ "typesTool findPat"
+          in
+          (Just (Types2.makeDeucePatTool model.inputExp pat), Satisfied)
+
+        _ ->
+          (Nothing, Impossible)
+  in
+    { name = "Type Information"
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "typeInfo"
+    }
+
+
 --==============================================================================
 --= EXPORTS
 --==============================================================================
@@ -2142,6 +2167,10 @@ selectionsTuple program selectedWidgets =
   )
 
 toolList =
+  [ [ typesTool
+    ]
+-- TODO: get Deuce tools to work with the ELet AST
+{-
   [ [ createFunctionTool
     , createFunctionFromArgsTool
     , mergeTool
@@ -2150,8 +2179,11 @@ toolList =
     , removeArgumentsTool
     , reorderArgumentsTool
     ]
+-}
   , [ renameVariableTool
     , introduceVariableTool
+    ]
+{-
     , swapNamesAndUsagesTool
     , swapUsagesTool
     ]
@@ -2178,6 +2210,7 @@ toolList =
     ]
   , [ flipBooleanTool
     ]
+-}
   ]
 
 deuceToolsOf : Model -> List (List DeuceTool)
