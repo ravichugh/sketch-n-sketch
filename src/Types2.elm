@@ -738,7 +738,11 @@ inferType gamma stuff thisExp =
                              inferType gammaForEquations stuff expEquation
 
                            newPat =
-                             pat |> setPatType (unExpr result.newExp).val.typ
+                             case (unExpr result.newExp).val.typ of
+                               Just inferredType ->
+                                 pat |> setPatType (Just inferredType)
+                               Nothing ->
+                                 pat |> setPatTypeError (OtherTypeError ["type error"])
                          in
                          LetExp ws0 ws1 newPat fas ws2 result.newExp
 
@@ -1171,6 +1175,8 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
         (Nothing, Nothing) ->
           [ deuceShow inputExp <|
               "This expression wasn't processed by the typechecker..."
+          , deuceShow inputExp <|
+              "Or there's a type error inside..."
           ]
 
         (Just t, Nothing) ->
