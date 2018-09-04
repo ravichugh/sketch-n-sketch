@@ -130,10 +130,11 @@ maybeEvalMathOp op_ operands =
 type alias Operator =
   (WS, Ident)
 
-type alias EId  = Int
-type alias PId  = Int
-type alias Exp_ = { e__ : Exp__, eid : EId }
-type alias Pat_ = { p__ : Pat__, pid : PId }
+type alias EId   = Int
+type alias PId   = Int
+type alias Exp_  = { e__ : Exp__, eid : EId }
+type alias Pat_  = { p__ : Pat__, pid : PId }
+type alias Type_ = { t__ : Type__, roles : Set Ident }
 
 --------------------------------------------------------------------------------
 -- The following expressions count as "top-level":
@@ -188,7 +189,7 @@ type HoleContents
 
 type ParensStyle = Parens | LongStringSyntax | ElmSyntax
 
-type Type_
+type Type__
   = TNum WS
   | TBool WS
   | TString WS
@@ -1203,7 +1204,7 @@ replacePatNodePreservingPrecedingWhitespace pid newPat root =
 
 isTForall : Type -> Bool
 isTForall tipe =
-  case tipe.val of
+  case tipe.val.t__ of
     TForall _ _ _ _ -> True
     _               -> False
 
@@ -1214,7 +1215,7 @@ typeContains predicate tipe =
 
 childTypes : Type -> List Type
 childTypes tipe =
-  case tipe.val of
+  case tipe.val.t__ of
     TNum _             -> []
     TBool _            -> []
     TString _          -> []
@@ -1233,8 +1234,8 @@ childTypes tipe =
 mapType : (Type -> Type) -> Type -> Type
 mapType f tipe =
   let recurse = mapType f in
-  let wrap t_ = WithInfo t_ tipe.start tipe.end in
-  case tipe.val of
+  let wrap t__ = replaceT__ tipe t__ in
+  case tipe.val.t__ of
     TNum _       -> f tipe
     TBool _      -> f tipe
     TString _    -> f tipe
@@ -1253,7 +1254,7 @@ mapType f tipe =
 foldType : (Type -> a -> a) -> Type -> a -> a
 foldType f tipe acc =
   let foldTypes f tipes acc = List.foldl (\t acc -> foldType f t acc) acc tipes in
-  case tipe.val of
+  case tipe.val.t__ of
     TNum _          -> acc |> f tipe
     TBool _         -> acc |> f tipe
     TString _       -> acc |> f tipe
@@ -1823,8 +1824,13 @@ replaceP__ p p__ = let p_ = p.val in { p | val = { p_ | p__ = p__ } }
 mapNodeP__ : (Pat__ -> Pat__ ) -> Pat -> Pat
 mapNodeP__ f p = replaceP__ p (f p.val.p__)
 
-replaceT_ : Type -> Type_ -> Type
-replaceT_ t t_ = { t | val = t_ }
+addRoles : Set Ident -> Type -> Type
+addRoles roles t =
+  let t_ = t.val in
+  { t | val = { t_ | roles = Set.union roles t_.roles } }
+
+replaceT__ : Type -> Type__ -> Type
+replaceT__ t t__ = let t_ = t.val in { t | val = { t_ | t__ = t__ } }
 
 replaceB__ : Branch -> Branch_ -> Branch
 replaceB__ b b_ = { b | val = b_ }
@@ -1980,7 +1986,13 @@ eHoleLoc locId    = withDummyExpInfo <| EHole space1 (HoleLoc locId)
 eHolePred p       = withDummyExpInfo <| EHole space1 (HolePredicate p)
 eHolePBE es       = withDummyExpInfo <| EHole space1 (HolePBE (es |> Utils.mapi1 (\(i, e) -> (space0, if i == 1 then space0 else space1, space1, e))) space0)
 
-eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 (withDummyRange t) space0
+eColonType e t    = withDummyExpInfo <| EColonType space1 e space1 t space0
+
+eColonTypeAlias e aliasName =
+  eColonType
+    (removePrecedingWhitespace e)
+    (withDummyRange { t__ = TNamed space1 aliasName, roles = Set.singleton aliasName })
+
 
 eComment a b   = withDummyExpInfo <| EComment space1 a b
 
@@ -2235,7 +2247,7 @@ allWhitespacesType_ tipe =
       One (ws, ident) -> [ws]
       Many ws1 inner ws2 -> [ws1] ++ List.map (\(ws, ident) -> ws) inner ++ [ws2]
   in
-    case tipe.val of
+    case tipe.val.t__ of
       TNum ws                             -> [ws]
       TBool ws                            -> [ws]
       TString ws                          -> [ws]
@@ -2723,7 +2735,7 @@ wsBefore codeObject =
         PParens ws _ _ ->
           ws
     T t ->
-      case t.val of
+      case t.val.t__ of
         TNum ws ->
           ws
         TBool ws ->
@@ -2838,8 +2850,8 @@ modifyWsBefore f codeObject =
         P e { p | val = { pVal | p__ = newP__ } }
     T t ->
       let
-        newVal =
-          case t.val of
+        newT__ =
+          case t.val.t__ of
             TNum ws ->
               TNum (f ws)
             TBool ws ->
@@ -2867,7 +2879,7 @@ modifyWsBefore f codeObject =
             TWildcard ws ->
               TWildcard (f ws)
       in
-        T { t | val = newVal }
+        T (replaceT__ t newT__)
     LBE eid ->
       LBE eid
     ET a ws b ->
@@ -3178,7 +3190,7 @@ childCodeObjects co =
             , P e p1
             , PT After ws2 e p1 ]
       T t ->
-        case t.val of
+        case t.val.t__ of
           TNum ws1 ->
             [ TT Before ws1 t ]
           TBool ws1 ->

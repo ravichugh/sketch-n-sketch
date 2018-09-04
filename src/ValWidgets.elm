@@ -34,7 +34,7 @@ valToMaybeWidget val =
       case (vs, List.map .v_ vs) of
         ([v1, v2], [VConst _ nt1, VConst _ nt2]) -> Just (WPoint nt1 v1 nt2 v2 val)
         (_::_, _)                                ->
-          case Types.valToMaybeType val |> Maybe.map .val of
+          case Types.valToMaybeType val |> Maybe.map (.val >> .t__) of
             Just (TList _ _ _) -> Just (WList val) -- Elements of list are of a homogeneous type.
             _                  -> Nothing          -- Elements of list are heterogenous. This excludes our pseudo-ADTs for SVG from generating widgets.
         _                                        -> Nothing

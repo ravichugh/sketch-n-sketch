@@ -470,16 +470,22 @@ pattern =
 --= TYPES
 --==============================================================================
 
+noRoles : Type__ -> Type_
+noRoles t__ = { t__ = t__, roles = Set.empty }
+
+parenedType ctor =
+  parenBlock (\wsStart things wsEnd -> noRoles (ctor wsStart things wsEnd))
+
 --------------------------------------------------------------------------------
 -- Base Types
 --------------------------------------------------------------------------------
 
-baseType : String -> (WS -> Type_) -> String -> Parser Type
-baseType context combiner token =
+baseType : String -> (WS -> Type__) -> String -> Parser Type
+baseType context ctor token =
   inContext context <|
     delayedCommitMap
       ( \ws _ ->
-          WithInfo (combiner ws) ws.start ws.end
+          WithInfo (noRoles (ctor ws)) ws.start ws.end
       )
       ( spaces )
       ( keyword token )
@@ -507,7 +513,7 @@ stringType =
 namedType : Parser Type
 namedType =
   inContext "named type" <|
-    paddedBefore TNamed spaces typeIdentifierString
+    paddedBefore (\ws name -> { t__ = TNamed ws name, roles = Set.singleton name }) spaces typeIdentifierString
 
 --------------------------------------------------------------------------------
 -- Variable Types
@@ -516,7 +522,7 @@ namedType =
 variableType : Parser Type
 variableType =
   inContext "variable type" <|
-    paddedBefore TVar spaces variableIdentifierString
+    paddedBefore (\ws name -> noRoles (TVar ws name)) spaces variableIdentifierString
 
 --------------------------------------------------------------------------------
 -- Function Type
@@ -526,7 +532,7 @@ functionType : Parser Type
 functionType =
   lazy <| \_ ->
     inContext "function type" <|
-      parenBlock TArrow <|
+      parenedType TArrow <|
         succeed identity
           |. keywordWithSpace "->"
           |= repeat oneOrMore typ
@@ -539,7 +545,7 @@ listType : Parser Type
 listType =
   inContext "list type" <|
     lazy <| \_ ->
-      parenBlock TList <|
+      parenedType TList <|
         succeed identity
           |. keywordWithSpace "List"
           |= typ
@@ -552,7 +558,7 @@ dictType : Parser Type
 dictType =
   inContext "dictionary type" <|
     lazy <| \_ ->
-      parenBlock
+      parenedType
         ( \wsStart (tKey, tVal) wsEnd ->
             TDict wsStart tKey tVal wsEnd
         )
@@ -578,11 +584,11 @@ tupleType =
           "tuple type multi cons literal"
       , listLiteralCombiner =
           ( \wsStart heads wsEnd ->
-              TTuple wsStart heads space0 Nothing wsEnd
+              noRoles (TTuple wsStart heads space0 Nothing wsEnd)
           )
       , multiConsCombiner =
           ( \wsStart heads wsBar tail wsEnd ->
-              TTuple wsStart heads wsBar (Just tail) wsEnd
+              noRoles (TTuple wsStart heads wsBar (Just tail) wsEnd)
           )
       , elem =
           typ
@@ -614,7 +620,7 @@ forallType =
   in
     inContext "forall type" <|
       lazy <| \_ ->
-        parenBlock
+        parenedType
           ( \wsStart (qs, t) wsEnd ->
               TForall wsStart qs t wsEnd
           )
@@ -632,7 +638,7 @@ unionType : Parser Type
 unionType =
   inContext "union type" <|
     lazy <| \_ ->
-      parenBlock TUnion <|
+      parenedType TUnion <|
         succeed identity
           |. keywordWithSpace "union"
           |= repeat oneOrMore typ
@@ -644,7 +650,7 @@ unionType =
 wildcardType : Parser Type
 wildcardType =
   inContext "wildcard type" <|
-    spaceSaverKeyword spaces "_" TWildcard
+    spaceSaverKeyword spaces "_" (TWildcard >> noRoles)
 
 --------------------------------------------------------------------------------
 -- General Types

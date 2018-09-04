@@ -1308,7 +1308,7 @@
 
 (def rawShape (\(kind attrs) [kind attrs []]))
 
-(typ rawRect (-> Color Color Num Num Num Num Num Num Rect))
+(typ rawRect (-> Color Color StrokeWidth Num Num Num Num Num Rect))
 (def rawRect (\(fill stroke strokeWidth x y w h rot)
   (let [cx cy] [(+ x (/ w 2!)) (+ y (/ h 2!))]
   (rotateAround rot cx cy
@@ -1316,27 +1316,27 @@
       ['x' x] ['y' y] ['width' w] ['height' h]
       ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))))
 
-(typ rawCircle (-> Color Color Num Num Num Num Circle))
+(typ rawCircle (-> Color Color StrokeWidth Num Num Degrees Circle))
 (def rawCircle (\(fill stroke strokeWidth cx cy r)
   (rawShape 'circle' [
     ['cx' cx] ['cy' cy] ['r' r]
     ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))
 
-(typ rawEllipse (-> Color Color Num Num Num Num Num Num Ellipse))
+(typ rawEllipse (-> Color Color StrokeWidth Num Num Num Num Degress Ellipse))
 (def rawEllipse (\(fill stroke strokeWidth cx cy rx ry rot)
   (rotateAround rot cx cy
     (rawShape 'ellipse' [
       ['cx' cx] ['cy' cy] ['rx' rx] ['ry' ry]
       ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ]))))
 
-(typ rawPolygon (-> Color Color Num Points Num SVG))
+(typ rawPolygon (-> Color Color StrokeWidth Points Degrees SVG))
 (def rawPolygon (\(fill stroke w pts rot)
   (let [cx cy] (middleOfPoints pts)
   (rotateAround rot cx cy
     (rawShape 'polygon'
       [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ])))))
 
-(typ rawPath (-> Color Color Num PathCmds Num SVG))
+(typ rawPath (-> Color Color StrokeWidth PathCmds Degress SVG))
 (def rawPath (\(fill stroke w d rot)
   (let [cx cy] (middleOfPoints (allPointsOfPathCmds d))
   (rotateAround rot cx cy

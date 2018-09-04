@@ -590,7 +590,7 @@ onMouseDrag lastPosition newPosition old =
                 else if axis == Y && sign == Positive then ((mx, my - numberOfSnapsPassed*pixelsPerSnap), NoSnap)
                 else                                       ((mx, my + numberOfSnapsPassed*pixelsPerSnap), NoSnap)
           in
-          { old | mouseMode = MouseDrawNew (Offset1D basePoint amountSnap (effectiveMX, effectiveMY) |> Debug.log "mouseMode") }
+          { old | mouseMode = MouseDrawNew (Offset1D basePoint amountSnap (effectiveMX, effectiveMY)) } -- |> Debug.log "mouseMode") }
 
         _ -> old
 

@@ -1210,11 +1210,7 @@ eBaseOffset baseVar offsetNum =
 eAsPoint e =
   let insertPointAnnotations = False in -- Config param
   if not insertPointAnnotations then e
-  else
-
-  let e_ =  replacePrecedingWhitespace "" e in
-  withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TNamed space1 "Point") space0
+  else eColonTypeAlias e "Point"
 
 
 pAsTight x p =

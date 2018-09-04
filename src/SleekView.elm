@@ -1584,7 +1584,7 @@ functionTools model =
           [ Attr.class "tool"
           , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
           ]
-          [ iconButton model funcName (Just <| funcName ++ " : " ++ Syntax.typeUnparser Syntax.Elm funcType)
+          [ iconButton model funcName (Just <| funcName ++ " : " ++ Syntax.typeWithRolesUnparser Syntax.Elm funcType)
               (Msg (funcName ++ " Function Tool") (\m -> { m | tool = Function funcName }))
               (if model.tool == Function funcName then Selected else Unselected)
               False

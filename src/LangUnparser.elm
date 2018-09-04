@@ -13,6 +13,7 @@ import Config
 import ImpureGoodies
 
 import String
+import Set
 import Dict
 import Debug
 import Regex
@@ -114,21 +115,28 @@ unparsePatWithUniformWhitespace includeWidgetDecls pat =
     PAs _ ident _ p -> " " ++ ident ++ " " ++ "@" ++ recurse p
     PParens _ p _ -> " (" ++ recurse p ++ " )"
 
-unparseType : Type -> String
-unparseType tipe =
-  case tipe.val of
+unparseType : Bool -> Type -> String
+unparseType shouldShowRoles tipe =
+  let recurse = unparseType shouldShowRoles in
+  let addRoles unparsed =
+    if shouldShowRoles && Set.size tipe.val.roles > 0
+    then "(" ++ unparsed ++ " : " ++ String.join ", " (Set.toList tipe.val.roles) ++ ")"
+    else unparsed
+  in
+  addRoles <|
+  case tipe.val.t__ of
     TNum ws                   -> ws.val ++ "Num"
     TBool ws                  -> ws.val ++ "Bool"
     TString ws                -> ws.val ++ "String"
     TNull ws                  -> ws.val ++ "Null"
-    TList ws1 tipe ws2        -> ws1.val ++ "(List" ++ (unparseType tipe) ++ ws2.val ++ ")"
-    TDict ws1 tipe1 tipe2 ws2 -> ws1.val ++ "(Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2.val ++ ")"
+    TList ws1 tipe ws2        -> ws1.val ++ "(List" ++ (recurse tipe) ++ ws2.val ++ ")"
+    TDict ws1 tipe1 tipe2 ws2 -> ws1.val ++ "(Dict" ++ (recurse tipe1) ++ (recurse tipe2) ++ ws2.val ++ ")"
     TTuple ws1 typeList ws2 maybeRestType ws3 ->
       case maybeRestType of
-        Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
-        Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
-    TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
+        Just restType -> ws1.val ++ "[" ++ (String.concat (List.map recurse typeList)) ++ ws2.val ++ "|" ++ (recurse restType) ++ ws3.val ++ "]"
+        Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map recurse typeList)) ++ ws3.val ++ "]"
+    TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map recurse typeList)) ++ ws2.val ++ ")"
+    TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map recurse typeList)) ++ ws2.val ++ ")"
     TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
     TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
     TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
@@ -143,12 +151,12 @@ unparseType tipe =
           One var             -> strVar var
           Many ws1_ vars ws2_ -> ws1_.val ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_.val)
       in
-      ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
+      ws1.val ++ Utils.parens ("forall" ++ sVars ++ recurse tipe1 ++ ws2.val)
 
 unparseTypeWithUniformWhitespace : Type -> String
 unparseTypeWithUniformWhitespace tipe =
   let recurse t = unparseTypeWithUniformWhitespace t in
-  case tipe.val of
+  case tipe.val.t__ of
     TNum _                -> " " ++ "Num"
     TBool _               -> " " ++ "Bool"
     TString _             -> " " ++ "String"
@@ -227,7 +235,7 @@ unparse_ e = case e.val.e__ of
   ETypeCase ws1 e1 tbranches ws2 ->
     let tbranchesStr =
       String.concat
-        <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparse_ exp ++ bws2.val ++ ")")
+        <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType False tipe ++ unparse_ exp ++ bws2.val ++ ")")
         <| List.map (.val) tbranches
     in
     ws1.val ++ "(typecase" ++ unparse_ e1 ++ tbranchesStr ++ ws2.val ++ ")"
@@ -236,11 +244,11 @@ unparse_ e = case e.val.e__ of
   EOption ws1 s1 ws2 s2 e1 ->
     ws1.val ++ "# " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparse_ e1
   ETyp ws1 pat tipe e ws2 ->
-    ws1.val ++ "(typ" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
+    ws1.val ++ "(typ" ++ (unparsePat pat) ++ (unparseType False tipe) ++ ws2.val ++ ")" ++ unparse_ e
   EColonType ws1 e ws2 tipe ws3 ->
-    ws1.val ++ "(" ++ (unparse_ e) ++ ws2.val ++ ":" ++ (unparseType tipe) ++ ws3.val ++ ")"
+    ws1.val ++ "(" ++ (unparse_ e) ++ ws2.val ++ ":" ++ (unparseType False tipe) ++ ws3.val ++ ")"
   ETypeAlias ws1 pat tipe e ws2 ->
-    ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparse_ e
+    ws1.val ++ "(def" ++ (unparsePat pat) ++ (unparseType False tipe) ++ ws2.val ++ ")" ++ unparse_ e
   EParens ws1 e pStyle ws2 ->
     unparse_ e
   EHole ws (HoleNamed name) ->
@@ -292,7 +300,7 @@ unparseWithIds e =
     ETypeCase ws1 e1 tbranches ws2 ->
       let tbranchesStr =
         String.concat
-          <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType tipe ++ unparseWithIds exp ++ bws2.val ++ ")")
+          <| List.map (\(TBranch_ bws1 tipe exp bws2) -> bws1.val ++ "(" ++ unparseType False tipe ++ unparseWithIds exp ++ bws2.val ++ ")")
           <| List.map (.val) tbranches
       in
       ws1.val ++ "(" ++ eidTag ++ "typecase" ++ unparseWithIds e1 ++ tbranchesStr ++ ws2.val ++ ")"
@@ -301,11 +309,11 @@ unparseWithIds e =
     EOption ws1 s1 ws2 s2 e1 ->
       ws1.val ++ "#" ++ eidTag ++ " " ++ s1.val ++ ":" ++ ws2.val ++ s2.val ++ "\n" ++ unparseWithIds e1
     ETyp ws1 pat tipe e ws2 ->
-      ws1.val ++ "(" ++ eidTag ++ "typ" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
+      ws1.val ++ "(" ++ eidTag ++ "typ" ++ (unparsePatWithIds pat) ++ (unparseType False tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
     EColonType ws1 e ws2 tipe ws3 ->
-      ws1.val ++ "(" ++ (unparseWithIds e) ++ ws2.val ++ ":" ++ eidTag ++ (unparseType tipe) ++ ws3.val ++ ")"
+      ws1.val ++ "(" ++ (unparseWithIds e) ++ ws2.val ++ ":" ++ eidTag ++ (unparseType False tipe) ++ ws3.val ++ ")"
     ETypeAlias ws1 pat tipe e ws2 ->
-      ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
+      ws1.val ++ "(" ++ eidTag ++ "def" ++ (unparsePatWithIds pat) ++ (unparseType False tipe) ++ ws2.val ++ ")" ++ unparseWithIds e
     EParens ws1 e pStyle ws2 ->
       ws1.val ++ "(" ++ eidTag ++ unparseWithIds e ++ ws2.val ++ ")"
     EHole ws (HoleNamed name) ->

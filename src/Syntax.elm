@@ -3,7 +3,7 @@ module Syntax exposing
   , parser
   , unparser
   , patternUnparser
-  , typeUnparser
+  , typeUnparser, typeWithRolesUnparser
   , convertSyntax
   , sourceExtension
   , iconExtension
@@ -11,6 +11,7 @@ module Syntax exposing
   , encode
   )
 
+import Set
 import Result
 import Parser
 import Json.Encode
@@ -57,10 +58,21 @@ typeUnparser : Syntax -> Lang.Type -> String
 typeUnparser syntax =
   case syntax of
     Little ->
-      LangUnparser.unparseType
+      LangUnparser.unparseType False
 
     Elm ->
-      ElmUnparser.unparseType
+      ElmUnparser.unparseType False
+
+
+typeWithRolesUnparser : Syntax -> Lang.Type -> String
+typeWithRolesUnparser syntax =
+  case syntax of
+    Little ->
+      LangUnparser.unparseType True
+
+    Elm ->
+      ElmUnparser.unparseType True
+
 
 convertSyntax : Syntax -> Syntax -> String -> Result Parser.Error String
 convertSyntax oldSyntax newSyntax code =

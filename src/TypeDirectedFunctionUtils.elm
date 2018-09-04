@@ -7,6 +7,7 @@ import Syntax
 import Types
 import Utils
 
+import Set exposing (Set)
 import Dict exposing (Dict)
 
 --------------------------------------------------------------------------------
@@ -24,7 +25,7 @@ getFunctionsByPredicateOnType hasDesiredType idToTypeAndContextThunk program edi
       typingContext
       -- |> List.map
       --     (\(ident, tipe) ->
-      --       let _ = Debug.log ident (Syntax.typeUnparser Syntax.Elm tipe) in
+      --       let _ = Debug.log ident (Syntax.typeWithRolesUnparser Syntax.Elm tipe) in
       --       (ident, tipe)
       --     )
       |> List.filter (\(ident, tipe) -> hasDesiredType tipe)
@@ -54,32 +55,47 @@ clearlyNotShapeOrListOfShapesExp exp =
     _                           -> False
 
 
+roleExps : List (Ident, Exp)
+roleExps =
+  [ ("Ratio"       , eConstDummyLoc 0.62) -- Golden Ratio
+  , ("Color"       , eConstDummyLoc 0)
+  , ("StrokeWidth" , eConstDummyLoc 5)
+  , ("Point"       , eTuple [eInt0 0, eInt 0])
+  , ("Vec2D"       , eTuple [eInt0 0, eInt 0])
+  , ("Width"       , eConstDummyLoc 162) -- Golden ratio
+  , ("Height"      , eConstDummyLoc 100)
+  , ("HalfWidth"   , eConstDummyLoc 81) -- Golden ratio
+  , ("HalfHeight"  , eConstDummyLoc 50)
+  , ("Count"       , withDummyExpInfo <| EConst space1 3 dummyLoc (rangeSlider IntSlider 0 10))
+  , ("Radians"     , withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider NumSlider -3.14 3.14))
+  , ("Degrees"     , withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider IntSlider -180 180))
+  , ("Radius"      , eConstDummyLoc 150)
+  , ("Distance"    , eConstDummyLoc 150)
+  ]
+
+
 maybeFillInArgPrimitive : Type -> Maybe Exp
 maybeFillInArgPrimitive argType =
   Maybe.map (if Types.isPointType argType then identity else identity) <| -- eAsPoint
-    case argType.val of
-      TNum _                         -> Just <| eConstDummyLoc 0
-      TBool _                        -> Just <| eFalse
-      TString _                      -> Just <| eStr "string"
-      TNull _                        -> Just <| eNull
-      TList _ _ _                    -> Just <| eTuple []
-      TDict _ _ _ _                  -> Just <| eOp DictEmpty []
-      TTuple _ headTypes _ Nothing _ -> List.map maybeFillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
-      TUnion _ (firstType::_) _      -> maybeFillInArgPrimitive firstType
-      TVar _ _                       -> Just <| eTuple []
-      TWildcard _                    -> Just <| eTuple []
-      TNamed _ "Ratio"               -> Just <| eConstDummyLoc 0.62 -- Golden Ratio
-      TNamed _ "Color"               -> Just <| eConstDummyLoc 0
-      TNamed _ "StrokeWidth"         -> Just <| eConstDummyLoc 5
-      TNamed _ "Point"               -> Just <| eTuple [eInt0 0, eInt 0]
-      TNamed _ "Vec2D"               -> Just <| eTuple [eInt0 0, eInt 0]
-      TNamed _ "Width"               -> Just <| eConstDummyLoc 162 -- Golden ratio
-      TNamed _ "Height"              -> Just <| eConstDummyLoc 100
-      TNamed _ "HalfWidth"           -> Just <| eConstDummyLoc 81 -- Golden ratio
-      TNamed _ "HalfHeight"          -> Just <| eConstDummyLoc 50
-      TNamed _ "Count"               -> Just <| withDummyExpInfo <| EConst space1 3 dummyLoc (rangeSlider IntSlider 0 10)
-      TNamed _ "Radians"             -> Just <| withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider NumSlider -3.14 3.14)
-      TNamed _ "Degrees"             -> Just <| withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider IntSlider -180 180)
-      TNamed _ "Radius"              -> Just <| eConstDummyLoc 150
-      TNamed _ "Distance"            -> Just <| eConstDummyLoc 150
-      _                              -> Nothing
+    let maybeFilledByRoles =
+      argType.val.roles
+      |> Set.toList
+      |> Utils.mapFirstSuccess (flip Utils.maybeFind roleExps)
+    in
+    case maybeFilledByRoles of
+      Just roleExp ->
+        Just roleExp
+      Nothing ->
+        case argType.val.t__ of
+          TNum _                         -> Just <| eConstDummyLoc 0
+          TBool _                        -> Just <| eFalse
+          TString _                      -> Just <| eStr "string"
+          TNull _                        -> Just <| eNull
+          TList _ _ _                    -> Just <| eTuple []
+          TDict _ _ _ _                  -> Just <| eOp DictEmpty []
+          TTuple _ headTypes _ Nothing _ -> List.map maybeFillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
+          TUnion _ (firstType::_) _      -> maybeFillInArgPrimitive firstType
+          TVar _ _                       -> Just <| eTuple []
+          TWildcard _                    -> Just <| eTuple []
+          TNamed _ aliasName             -> Utils.maybeFind aliasName roleExps
+          _                              -> Nothing

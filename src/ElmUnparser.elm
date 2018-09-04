@@ -10,6 +10,8 @@ import ElmLang
 import ElmParser
 import BinaryOperatorParser
 import Utils
+
+import Set
 import Regex
 
 
@@ -104,21 +106,28 @@ unparsePattern p =
         ++ name
 
 -- TODO
-unparseType : Type -> String
-unparseType tipe =
-  case tipe.val of
+unparseType : Bool -> Type -> String
+unparseType shouldShowRoles tipe =
+  let recurse = unparseType shouldShowRoles in
+  let addRoles unparsed =
+    if shouldShowRoles && Set.size tipe.val.roles > 0
+    then "(" ++ unparsed ++ " : " ++ String.join ", " (Set.toList tipe.val.roles) ++ ")"
+    else unparsed
+  in
+  addRoles <|
+  case tipe.val.t__ of
     TNum ws                   -> ws.val ++ "Num"
     TBool ws                  -> ws.val ++ "Bool"
     TString ws                -> ws.val ++ "String"
     TNull ws                  -> ws.val ++ "Null"
-    TList ws1 tipe ws2        -> ws1.val ++ "(List" ++ (unparseType tipe) ++ ws2.val ++ ")"
-    TDict ws1 tipe1 tipe2 ws2 -> ws1.val ++ "(Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2.val ++ ")"
+    TList ws1 tipe ws2        -> ws1.val ++ "(List" ++ (recurse tipe) ++ ws2.val ++ ")"
+    TDict ws1 tipe1 tipe2 ws2 -> ws1.val ++ "(Dict" ++ (recurse tipe1) ++ (recurse tipe2) ++ ws2.val ++ ")"
     TTuple ws1 typeList ws2 maybeRestType ws3 ->
       case maybeRestType of
-        Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
-        Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
-    TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
-    TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ ")"
+        Just restType -> ws1.val ++ "[" ++ (String.concat (List.map recurse typeList)) ++ ws2.val ++ "|" ++ (recurse restType) ++ ws3.val ++ "]"
+        Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map recurse typeList)) ++ ws3.val ++ "]"
+    TArrow ws1 typeList ws2 -> ws1.val ++ "(->" ++ (String.concat (List.map recurse typeList)) ++ ws2.val ++ ")"
+    TUnion ws1 typeList ws2 -> ws1.val ++ "(union" ++ (String.concat (List.map recurse typeList)) ++ ws2.val ++ ")"
     TNamed ws1 "Num"        -> ws1.val ++ "Bad_NUM"
     TNamed ws1 "Bool"       -> ws1.val ++ "Bad_BOOL"
     TNamed ws1 "String"     -> ws1.val ++ "Bad_STRING"
@@ -133,7 +142,7 @@ unparseType tipe =
           One var             -> strVar var
           Many ws1_ vars ws2_ -> ws1_.val ++ Utils.parens (String.concat (List.map strVar vars) ++ ws2_.val)
       in
-      ws1.val ++ Utils.parens ("forall" ++ sVars ++ unparseType tipe1 ++ ws2.val)
+      ws1.val ++ Utils.parens ("forall" ++ sVars ++ recurse tipe1 ++ ws2.val)
 
 unparseOp : Op -> String
 unparseOp op =
@@ -472,14 +481,14 @@ unparse e =
         ++ unparse term
         ++ wsBeforeColon.val
         ++ ":"
-        ++ unparseType typ
+        ++ unparseType False typ
         ++ wsAfter.val
 
     Lang.ETyp _ name typ rest wsBeforeColon ->
       unparsePattern name
         ++ wsBeforeColon.val
         ++ ":"
-        ++ unparseType typ
+        ++ unparseType False typ
         ++ unparse rest
 
     Lang.ETypeAlias wsBefore pat typ rest _ ->
@@ -487,7 +496,7 @@ unparse e =
         ++ "type alias"
         ++ unparsePattern pat
         ++ " ="
-        ++ unparseType typ
+        ++ unparseType False typ
         ++ unparse rest
 
     Lang.ETypeCase _ _ _ _ ->

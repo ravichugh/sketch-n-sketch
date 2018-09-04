@@ -707,16 +707,22 @@ pattern sp =
 --= Types
 --==============================================================================
 
+noRoles : Type__ -> Type_
+noRoles t__ = { t__ = t__, roles = Set.empty }
+
+parenedType ctor =
+  parenBlock (\wsStart things wsEnd -> noRoles (ctor wsStart things wsEnd))
+
 --------------------------------------------------------------------------------
 -- Base Types
 --------------------------------------------------------------------------------
 
-baseType : String -> (WS -> Type_) -> SpacePolicy -> String -> Parser Type
-baseType context combiner sp token =
+baseType : String -> (WS -> Type__) -> SpacePolicy -> String -> Parser Type
+baseType context ctor sp token =
   inContext context <|
     delayedCommitMap
       ( \ws _ ->
-          withInfo (combiner ws) ws.start ws.end
+          WithInfo (noRoles (ctor ws)) ws.start ws.end
       )
       ( sp )
       ( keyword token )
@@ -744,7 +750,7 @@ stringType sp =
 namedType : SpacePolicy -> Parser Type
 namedType sp =
   inContext "named type" <|
-    paddedBefore TNamed sp bigIdentifier
+    paddedBefore (\ws name -> { t__ = TNamed ws name, roles = Set.singleton name }) sp bigIdentifier
 
 --------------------------------------------------------------------------------
 -- Variable Types
@@ -753,7 +759,7 @@ namedType sp =
 variableType : SpacePolicy -> Parser Type
 variableType sp =
   inContext "variable type" <|
-    paddedBefore TVar sp smallIdentifier
+    paddedBefore (\ws name -> noRoles (TVar ws name)) sp smallIdentifier
 
 --------------------------------------------------------------------------------
 -- Function Type
@@ -763,7 +769,7 @@ functionType : SpacePolicy -> Parser Type
 functionType sp =
   lazy <| \_ ->
     inContext "function type" <|
-      parenBlock TArrow sp <|
+      parenedType TArrow sp <|
         succeed identity
           |. keywordWithSpace "->"
           |= repeat oneOrMore (typ sp)
@@ -776,7 +782,7 @@ listType : SpacePolicy -> Parser Type
 listType sp =
   inContext "list type" <|
     lazy <| \_ ->
-      parenBlock TList sp <|
+      parenedType TList sp <|
         succeed identity
           |. keywordWithSpace "List"
           |= typ sp
@@ -789,7 +795,7 @@ dictType : SpacePolicy -> Parser Type
 dictType sp =
   inContext "dictionary type" <|
     lazy <| \_ ->
-      parenBlock
+      parenedType
         ( \wsBefore (tKey, tVal) wsEnd ->
             TDict wsBefore tKey tVal wsEnd
         )
@@ -816,12 +822,12 @@ tupleType sp =
         , combiner =
             ( \wsBefore heads wsEnd ->
                 -- TTuple wsBefore heads space0 Nothing wsEnd
-                TTuple wsBefore (List.map Tuple.second heads) space0 Nothing wsEnd
+                noRoles (TTuple wsBefore (List.map Tuple.second heads) space0 Nothing wsEnd)
             )
         , combinerTail =
             ( \wsBefore heads wsMiddle tail wsEnd ->
                 -- TTuple wsBefore heads wsMiddle (Just tail) wsEnd
-                TTuple wsBefore (List.map Tuple.second heads) wsMiddle (Just tail) wsEnd
+                noRoles (TTuple wsBefore (List.map Tuple.second heads) wsMiddle (Just tail) wsEnd)
             )
         , beforeSpacePolicy =
             sp
@@ -855,7 +861,7 @@ forallType sp =
       lazy <| \_ ->
         parenBlock
           ( \wsBefore (qs, t) wsEnd ->
-              TForall wsBefore qs t wsEnd
+              noRoles (TForall wsBefore qs t wsEnd)
           )
           sp
           ( succeed (,)
@@ -872,7 +878,7 @@ unionType : SpacePolicy -> Parser Type
 unionType sp=
   inContext "union type" <|
     lazy <| \_ ->
-      parenBlock TUnion sp <|
+      parenedType TUnion sp <|
         succeed identity
           |. keywordWithSpace "union"
           |= repeat oneOrMore (typ spaces)
@@ -884,7 +890,7 @@ unionType sp=
 wildcardType : SpacePolicy -> Parser Type
 wildcardType sp =
   inContext "wildcard type" <|
-    spaceSaverKeyword sp "_" TWildcard
+    spaceSaverKeyword sp "_" (TWildcard >> noRoles)
 
 --------------------------------------------------------------------------------
 -- General Types

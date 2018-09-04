@@ -947,7 +947,7 @@ listForAll2 f l1 l2 = case l1 of
 
 typeEqual: Type -> Type -> Bool
 typeEqual ty1 ty2 = --let _ = Debug.log "typeEqual " (ty1, ty2) in
-  case (ty1.val, ty2.val) of
+  case (ty1.val.t__, ty2.val.t__) of
   (TNum sp1, TNum sp2) -> wsEqual sp1 sp2
   (TBool sp1, TBool sp2) -> wsEqual sp1 sp2
   (TString sp1, TString sp2) -> wsEqual sp1 sp2

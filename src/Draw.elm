@@ -910,11 +910,7 @@ addAbsolutePath old keysAndPoints =
   addShapeToModel old "path" pathExp
 
 -- copied from ExpressionBasedTransform
-eAsPoint e =
-  let e_ = replacePrecedingWhitespace "" e in
-  EColonType space1 e_ space1 (withDummyRange <| TNamed space1 "Point") space0
-  |> withDummyExpInfo
-  |> copyPrecedingWhitespace e
+eAsPoint e = eColonTypeAlias e "Point"
 
 
 {-
@@ -1022,9 +1018,9 @@ newFunctionCallExp fName model pt1 pt2 =
                 (False, False, False, [])
                 (\argType (pointUsed, widthUsed, heightUsed, argMaybeExps) ->
                   case ( pointUsed               , Types.isPointType argType
-                       , widthUsed               , Types.typeToMaybeAliasIdent argType |> flip List.member [Just "Width", Just "HalfWidth"]
-                       , heightUsed              , Types.typeToMaybeAliasIdent argType |> flip List.member [Just "Height", Just "HalfHeight"]
-                       , heightUsed || widthUsed , Types.typeToMaybeAliasIdent argType == Just "Radius"
+                       , widthUsed               , Types.typeToRoles argType |> Utils.anyOverlapListSet ["Width", "HalfWidth"]
+                       , heightUsed              , Types.typeToRoles argType |> Utils.anyOverlapListSet ["Height", "HalfHeight"]
+                       , heightUsed || widthUsed , Types.typeToRoles argType |> Set.member "Radius"
                        ) of
                     (False, True, _, _, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just x1y1Exp])
                     (_, _, False, True, _, _, _, _) -> (pointUsed, True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals X pt2 pt1)])
@@ -1306,9 +1302,9 @@ isDrawableType tipe =
       (
         Utils.count Types.isPointType inputTypes >= 1 &&
         (
-          Utils.count (Types.typeToMaybeAliasIdent >> flip List.member [Just "Width",  Just "HalfWidth"])  inputTypes >= 1 ||
-          Utils.count (Types.typeToMaybeAliasIdent >> flip List.member [Just "Height", Just "HalfHeight"]) inputTypes >= 1 ||
-          Utils.count (Types.typeToMaybeAliasIdent >> (==) (Just "Radius")) inputTypes >= 1
+          Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet ["Width",  "HalfWidth"])  inputTypes >= 1 ||
+          Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet ["Height", "HalfHeight"]) inputTypes >= 1 ||
+          Utils.count (Types.typeToRoles >> Set.member "Radius") inputTypes >= 1
         )
       )
 

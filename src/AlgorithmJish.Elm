@@ -2,7 +2,6 @@ module AlgorithmJish exposing (TypingContext, IdToTypeAndContextThunk, inferType
 
 import FastParser
 import ImpureGoodies
-import Info exposing (WithInfo)
 import Lang exposing (..)
 import Syntax
 import Types
@@ -13,7 +12,7 @@ import Set exposing (Set)
 
 
 unparse : Type -> String
-unparse t = Syntax.typeUnparser Syntax.Elm t
+unparse t = Syntax.typeWithRolesUnparser Syntax.Elm t
 
 unparseExp : Exp -> String
 unparseExp e = Syntax.unparser Syntax.Elm e
@@ -49,38 +48,39 @@ unparseExp e = Syntax.unparser Syntax.Elm e
 --  Γ'(τ) "quantifies all monotype variables [in τ] not bound in Γ"
 --
 
+withDummyRangeAndNoRoles t__ = withDummyRange { t__ = t__, roles = Set.empty }
 
-tBool   = withDummyRange (TBool space1)
-tNum    = withDummyRange (TNum space1)
-tString = withDummyRange (TString space1)
-tNull   = withDummyRange (TNull space1)
-tVar x  = withDummyRange (TVar space1 x)
+tBool   = withDummyRangeAndNoRoles (TBool space1)
+tNum    = withDummyRangeAndNoRoles (TNum space1)
+tString = withDummyRangeAndNoRoles (TString space1)
+tNull   = withDummyRangeAndNoRoles (TNull space1)
+tVar x  = withDummyRangeAndNoRoles (TVar space1 x)
 
-tTupleRest ts tRest = withDummyRange (TTuple space1 ts space0 tRest space0)
+tTupleRest ts tRest = withDummyRangeAndNoRoles (TTuple space1 ts space0 tRest space0)
 tTuple ts = tTupleRest ts Nothing
 
-tList t = withDummyRange (TList space1 t space0)
+tList t = withDummyRangeAndNoRoles (TList space1 t space0)
 
-tDict t1 t2 =  withDummyRange (TDict space1 t1 t2 space0)
+tDict t1 t2 =  withDummyRangeAndNoRoles (TDict space1 t1 t2 space0)
 
-tArrows ts = withDummyRange (TArrow space1 ts space0)
+tArrows ts = withDummyRangeAndNoRoles (TArrow space1 ts space0)
 tArrow t0 t1 = tArrows [t0, t1]
 
 tForall vars t =
   case vars of
     []    -> Debug.crash "AlgorithmJish tForall: no vars"
-    [a]   -> withDummyRange (TForall space1 (One (space1, a)) t space0)
+    [a]   -> withDummyRangeAndNoRoles (TForall space1 (One (space1, a)) t space0)
     a::bs -> let typeVars = (space0, a) :: List.map (\a -> (space1, a)) bs in
-             withDummyRange (TForall space1 (Many space1 typeVars space0) t space0)
+             withDummyRangeAndNoRoles (TForall space1 (Many space1 typeVars space0) t space0)
 
--- tUnion ts = withDummyRange (TUnion space1 ts space0)
+-- tUnion ts = withDummyRangeAndNoRoles (TUnion space1 ts space0)
 
 type alias TypingContext = List (Ident, Type)
 type alias IdToTypeAndContext = Dict Int (Type, TypingContext)
 type alias IdToTypeAndContextThunk = Dict Int (Type, (() -> TypingContext))
 
 type alias EquivalenceClass =
-  { representative : Type
+  { representative : Type -- Roles are maintained on this member, so be sure to mind their preservation.
   , members : Set Ident
   }
 
@@ -104,8 +104,8 @@ inst typesHeap t =
 inst_ : TypesHeap -> Dict Ident Type -> Type -> Type
 inst_ typesHeap subst t =
   let recurse = inst_ typesHeap subst in
-  let wrap t_ = WithInfo t_ t.start t.end in
-  case t.val of
+  let wrap t__ = replaceT__ t t__ in
+  case t.val.t__ of
     TForall _ _ t1 _ ->
       let
         boundIdents = tForallIdents t
@@ -119,16 +119,17 @@ inst_ typesHeap subst t =
               )
       in
       inst_ typesHeap newSubst t1
+      |> addRoles t.val.roles
 
     TVar _ ident ->
       case Dict.get ident subst of
-        Just newType -> newType
+        Just newType -> addRoles t.val.roles newType
         Nothing      -> t
 
     TList ws1 t1 ws2         -> wrap <| TList ws1 (recurse t1) ws2
     TDict ws1 t1 t2 ws2      -> wrap <| TDict ws1 (recurse t1) (recurse t2) ws2
     TArrow ws1 ts ws2        -> wrap <| TArrow ws1 (List.map recurse ts) ws2
-    TUnion ws1 ts ws2        -> newVar typesHeap -- wrap <| TUnion ws1 (List.map recurse ts) ws2
+    TUnion ws1 ts ws2        -> addRoles t.val.roles (newVar typesHeap) -- wrap <| TUnion ws1 (List.map recurse ts) ws2
     TTuple ws1 ts ws2 mt ws3 -> wrap <| TTuple ws1 (List.map recurse ts) ws2 (Maybe.map recurse mt) ws3
 
     TNum _      -> t
@@ -183,7 +184,7 @@ typeCompare ta tb =
     then order2Thunk ()
     else order1
   in
-  case (ta.val, tb.val) of
+  case (ta.val.t__, tb.val.t__) of
     (TVar _ ident1, TVar _ ident2)                 -> compare ident1 ident2
     (_, TVar _ _)                                  -> LT
     (TVar _ _, _)                                  -> GT
@@ -214,39 +215,73 @@ typeCompare ta tb =
     _                                              -> EQ -- or incomparable
 
 
-find : TypesHeap -> Type -> Type
+newVarEquivalenceClass : Type -> EquivalenceClass
+newVarEquivalenceClass tVar =
+  { representative = tVar
+  , members        = Set.singleton (tVarToIdent tVar)
+  }
+
+
+find : TypesHeap -> Type -> EquivalenceClass
 find typesHeap t =
-  case t.val of
+  case t.val.t__ of
     TForall _ _ _ _ ->
-      let _ = Utils.log <| "Should never try to find a polytype! " ++ unparse t in
-      newVar typesHeap
+      let _ = Utils.log <| "Internal error: Should never try to find or union a polytype! " ++ unparse t in
+      newVarEquivalenceClass (newVar typesHeap)
 
     TVar _ ident ->
-      case Dict.get ident typesHeap.equivalenceClasses of
-        Just { representative } -> representative
-        Nothing                 -> t
+      Dict.get ident typesHeap.equivalenceClasses
+      |> Maybe.withDefault (newVarEquivalenceClass t)
 
     _ ->
-      t
+      { representative = t
+      , members        = Set.empty
+      }
+
+
+findRepresentativesAndShareRoles : TypesHeap -> Type -> Type -> (Type, Type)
+findRepresentativesAndShareRoles typesHeap t0 t1 =
+  let
+    aClass = find typesHeap t0
+    bClass = find typesHeap t1
+
+    roles = Set.union aClass.representative.val.roles bClass.representative.val.roles
+
+    ta = addRoles roles aClass.representative
+    tb = addRoles roles bClass.representative
+
+    newAClass = { aClass | representative = ta }
+    newBClass = { bClass | representative = tb }
+
+    newEquivalenceClasses1 =
+      newAClass.members
+      |> Set.toList
+      |> Utils.foldl
+          typesHeap.equivalenceClasses
+          (\memberIdent newEquivalenceClasses -> Dict.insert memberIdent newAClass newEquivalenceClasses)
+
+    newEquivalenceClasses2 =
+      newBClass.members
+      |> Set.toList
+      |> Utils.foldl
+          newEquivalenceClasses1
+          (\memberIdent newEquivalenceClasses -> Dict.insert memberIdent newBClass newEquivalenceClasses)
+
+    _ = ImpureGoodies.mutateRecordField typesHeap "equivalenceClasses" newEquivalenceClasses2
+  in
+  (ta, tb)
 
 
 tVarToIdent : Type -> Ident
 tVarToIdent t =
-  case t.val of
+  case t.val.t__ of
     TVar _ ident -> ident
     _            -> Debug.crash <| "tVarToIdent was not given a TVar!! " ++ unparse t
 
 
-typeToMaybeVarIdent : Type -> Maybe Ident
-typeToMaybeVarIdent t =
-  case t.val of
-    TVar _ ident -> Just ident
-    _            -> Nothing
-
-
 tForallIdents : Type -> List Ident
 tForallIdents t =
-  case t.val of
+  case t.val.t__ of
     TForall _ (One (_, ident)) _ _    -> [ident]
     TForall _ (Many _ wsIdents _) _ _ -> List.map Tuple.second wsIdents
     _                                 -> Debug.crash <| "tForallIdents was not given a TForall!! " ++ unparse t
@@ -254,44 +289,24 @@ tForallIdents t =
 
 -- Mutably affect the union between the type variable and the other type.
 -- O(something)
-union : TypesHeap -> Ident -> Type -> ()
-union typesHeap ident t =
+union : TypesHeap -> Type -> Type -> ()
+union typesHeap t1 t2 =
   let
     class1 : EquivalenceClass
-    class1 =
-      case Dict.get ident typesHeap.equivalenceClasses of
-        Just equivalenceClass -> equivalenceClass
-        Nothing ->
-          { representative = tVar ident
-          , members        = Set.singleton ident
-          }
+    class1 = find typesHeap t1
 
     class2 : EquivalenceClass
-    class2 =
-      case t.val of
-        TForall _ _ _ _ ->
-          let _ = Utils.log <| "Internal error: Should never try to union a polytype! " ++ unparse t in
-          let t_ = newVar typesHeap in
-          { representative = t_
-          , members        = Set.singleton (tVarToIdent t_)
-          }
+    class2 = find typesHeap t2
 
-        TVar _ ident ->
-          case Dict.get ident typesHeap.equivalenceClasses of
-            Just equivalenceClass -> equivalenceClass
-            Nothing ->
-              { representative = tVar ident
-              , members        = Set.singleton ident
-              }
-
-        _ ->
-          { representative = t
-          , members        = Set.empty
-          }
+    newRepresentative =
+      Utils.minimumByComparator typeCompare [class1.representative, class2.representative]
+      |> Utils.fromJust_ "AlgorithmJish.union should never hit here"
+      |> addRoles class1.representative.val.roles
+      |> addRoles class2.representative.val.roles
 
     newClass =
-      { representative = Utils.minimumByComparator typeCompare [class1.representative, class2.representative] |> Utils.fromJust_ "AlgorithmJish.union should never hit here"
-      , members = Set.union class1.members class2.members
+      { representative = newRepresentative
+      , members        = Set.union class1.members class2.members
       }
 
     newEquivalenceClasses =
@@ -312,8 +327,7 @@ union typesHeap ident t =
 unify : TypesHeap -> Type -> Type -> ()
 unify typesHeap t0 t1 =
   let
-    ta = find typesHeap t0
-    tb = find typesHeap t1
+    (ta, tb) = findRepresentativesAndShareRoles typesHeap t0 t1
 
     doesOccurIn : Ident -> Type -> Bool
     doesOccurIn ident t =
@@ -329,12 +343,12 @@ unify typesHeap t0 t1 =
       in
       ()
   in
-  case (ta.val, tb.val) of
+  case (ta.val.t__, tb.val.t__) of
     (TForall _ _ ta_ _, _)                         -> fail "Internal error: should never be unifying a polytype"
     (_, TForall _ _ tb_ _)                         -> fail "Internal error: should never be unifying a polytype"
-    (TVar _ aIdent, TVar _ bIdent)                 -> if aIdent == bIdent then () else union typesHeap bIdent ta
-    (_, TVar _ ident)                              -> if doesOccurIn ident ta then fail "occurs check failed" else union typesHeap ident ta
-    (TVar _ ident, _)                              -> if doesOccurIn ident tb then fail "occurs check failed" else union typesHeap ident tb
+    (TVar _ aIdent, TVar _ bIdent)                 -> union typesHeap ta tb
+    (_, TVar _ ident)                              -> if doesOccurIn ident ta then fail "occurs check failed" else union typesHeap ta tb
+    (TVar _ ident, _)                              -> if doesOccurIn ident tb then fail "occurs check failed" else union typesHeap ta tb
     -- (TNamed _ name1, TNamed _ name2)               -> if name1 == name2 then () else fail "type alias names don't match (we're a little dumb right now)"
     -- (_, TNamed _ _)                                -> LT -- Hrm.
     -- (TNamed _ _, _)                                -> GT -- Hrm.
@@ -365,7 +379,7 @@ unify typesHeap t0 t1 =
     (TBool _, TBool _)                             -> ()
     (TString _, TString _)                         -> ()
     (TNull _, TNull _)                             -> ()
-    _                                              -> if ta.val == tb.val then () else fail "mismatched"
+    _                                              -> if ta.val.t__ == tb.val.t__ then () else fail "mismatched"
 
 
 resolveTypeAliases : Dict Ident Type -> Type -> Type
@@ -374,15 +388,16 @@ resolveTypeAliases typeAliasToType tipe =
   tipe
   |> mapType
       (\t ->
-        case t.val of
+        case t.val.t__ of
           TNamed _ ident ->
             case Dict.get ident typeAliasToType of
               Just replacement ->
                 recurse replacement -- Please don't make recursive type aliases or this will not terminate.
+                |> addRoles (Set.insert ident t.val.roles) -- TNamed role should have been inserted by parser but just in case...
 
               Nothing ->
                 let _ = Utils.log <| "resolveTypeAliases: Type alias not found! " ++ ident in
-                tForall ["a"] (tVar "a")
+                tForall ["a"] (tVar "a" |> addRoles (Set.insert ident t.val.roles))
 
           _ ->
             t
@@ -393,6 +408,11 @@ resolveTypeAliases typeAliasToType tipe =
 preludeTypeContext : TypingContext
 preludeTypeContext =
   topLevelTypeContextAnnotationsOnly Dict.empty [] FastParser.prelude
+  -- |> List.map
+  --     (\(ident, tipe) ->
+  --       let _ = Debug.log ident (Syntax.typeWithRolesUnparser Syntax.Elm tipe) in
+  --       (ident, tipe)
+  --     )
 
 
 topLevelTypeContextAnnotationsOnly : Dict Ident Type -> TypingContext -> Exp -> TypingContext
@@ -506,8 +526,8 @@ finalizeType equivalenceClasses dumbType =
 finalizeType_ : List Ident -> Dict Ident EquivalenceClass -> Type -> Type
 finalizeType_ referencesFollowed equivalenceClasses dumbType =
   let recurse = finalizeType equivalenceClasses in
-  let wrap t_ = WithInfo t_ dumbType.start dumbType.end in
-  case dumbType.val of
+  let wrap t__ = replaceT__ dumbType t__ in
+  case dumbType.val.t__ of
     TForall ws1 vars t1 ws2 ->
       -- Load these new variables into the context as variables to potentially shadowing any existing entries in the context.
       let moreEquivalenceClasses =
@@ -520,6 +540,7 @@ finalizeType_ referencesFollowed equivalenceClasses dumbType =
     TVar _ ident ->
       case Dict.get ident equivalenceClasses of
         Just { representative } ->
+          addRoles dumbType.val.roles <|
           if List.member ident referencesFollowed then
             -- Probably not quite the right handling of recursive types (which we shouldn't have unless there's a type error in the program) but this will keep us from freezing.
             representative
