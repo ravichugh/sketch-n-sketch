@@ -413,7 +413,7 @@ type TypeError
 -- Information for an expression that is relevant to
 -- other expressions that have above TypeErrors
 type ExtraTypeInfo
-  = ExpectedExpToHaveSomeType EId  -- for solicitor of ExpectedButGot
+  = HighlightWhenSelected EId
 
 type alias TPat = WithInfo TPat_
 type TPat_ = TPatVar WS Ident

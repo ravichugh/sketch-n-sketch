@@ -615,7 +615,7 @@ codeObjectPolygon msgs codeInfo codeObject color =
           case (codeInfo.needsParse, codeObject) of
             (False, E e) ->
               case (unExpr e).val.extraTypeInfo of
-                Just (ExpectedExpToHaveSomeType eId) ->
+                Just (HighlightWhenSelected eId) ->
                   if codeInfo.selectedWidgets == [DeuceExp eId] then
                     True
                   else

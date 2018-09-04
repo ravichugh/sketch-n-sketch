@@ -6083,6 +6083,11 @@ b = True
 (s) : String
 s = "Hi!"
 
+n2 : Num
+n2 = if True then 1 else "a"
+
+n3 = if True then 1 else "a"
+
 record0 = {}
 
 record1 = {n=1}

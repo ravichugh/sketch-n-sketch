@@ -534,7 +534,7 @@ inferType gamma stuff thisExp =
                 --
                 -- here, adding extra breadcrumb about the solicitorExp.
                 --
-                (result.newExp, setExtraTypeInfo (ExpectedExpToHaveSomeType (unExpr innerExp).val.eid))
+                (result.newExp, setExtraTypeInfo (HighlightWhenSelected (unExpr innerExp).val.eid))
 
             newExp =
               EColonType ws1 newInnerExp ws2 annotatedType ws3
@@ -579,6 +579,70 @@ inferType gamma stuff thisExp =
             |> setTypeError
                  (OtherTypeError ["trying to synthesize unannotated..."])
       }
+
+    EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3 ->
+      -- Not currently digging into nested EIfs
+      let
+        result1 =
+          checkType gamma stuff guardExp (withDummyInfo (TBool space1))
+
+        result2 =
+          inferType gamma stuff thenExp
+
+        result3 =
+          inferType gamma stuff elseExp
+
+        -- (newThenExp, newElseExp, maybeBranchType) : (Exp, Exp, Maybe Type)
+        (newThenExp, newElseExp, maybeBranchType) =
+          case ( result1.okay
+               , (unExpr result2.newExp).val.typ
+               , (unExpr result3.newExp).val.typ
+               ) of
+            (True, Just thenType, Just elseType) ->
+              if typeEquiv thenType elseType then
+                (result2.newExp, result3.newExp, Just thenType)
+
+              else
+                let
+                  addErrorAndInfo (eid1, type1) (eid2, type2) branchExp =
+                    branchExp
+                      |> setTypeError (OtherTypeError
+                           [ "This red branch has type"
+                           , unparseType type1
+                           , "but the other green branch has type"
+                           , unparseType type2
+                           ])
+                      |> setExtraTypeInfo (HighlightWhenSelected eid2)
+
+                  (thenExpId, elseExpId) =
+                     ((unExpr thenExp).val.eid, (unExpr elseExp).val.eid)
+
+                  errorThenExp =
+                    result2.newExp
+                      |> addErrorAndInfo (thenExpId, thenType) (elseExpId, elseType)
+
+                  errorElseExp =
+                    result3.newExp
+                      |> addErrorAndInfo (elseExpId, elseType) (thenExpId, thenType)
+                in
+                  (errorThenExp, errorElseExp, Nothing)
+
+            _ ->
+              (result2.newExp, result3.newExp, Nothing)
+
+        finishNewExp =
+          case maybeBranchType of
+            Just branchType ->
+              setType (Just branchType)
+            Nothing ->
+              Basics.identity
+
+        newExp =
+          EIf ws0 result1.newExp ws1 newThenExp ws2 newElseExp ws3
+            |> replaceE__ thisExp
+            |> finishNewExp
+      in
+        { newExp = newExp }
 
     ELet ws1 letKind (Declarations po [] letAnnots letExps) ws2 body ->
       let
@@ -1072,8 +1136,35 @@ checkType gamma stuff thisExp expectedType =
             , newExp =
                 EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
-                  |> setTypeError (ExpectedButGot expectedType Nothing maybeActualType)
+                  |> setTypeError (ExpectedButGot expectedType maybeActualType)
             }
+
+    (EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3, _, _) ->
+      let
+        result1 =
+          checkType gamma stuff guardExp (withDummyInfo (TBool space1))
+
+        result2 =
+          checkType gamma stuff thenExp expectedType
+
+        result3 =
+          checkType gamma stuff elseExp expectedType
+
+        okay =
+          result1.okay && result2.okay && result3.okay
+
+        finishNewExp =
+          if okay then
+            setType (Just expectedType)
+          else
+            Basics.identity
+
+        newExp =
+          EIf ws0 result1.newExp ws1 result2.newExp ws2 result3.newExp ws3
+            |> replaceE__ thisExp
+            |> finishNewExp
+      in
+        { okay = okay, newExp = newExp }
 
     _ ->
       let
