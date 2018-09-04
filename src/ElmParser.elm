@@ -1150,7 +1150,9 @@ dataConstructorPattern =
                    )
           )
           ( succeed (,)
-              |= repeat zeroOrMore (pattern spaces 0)
+              |= repeat zeroOrMore (succeed (\ws wsToPat -> wsToPat ws)
+                |= spaces
+                |= simplePattern)
               |= getPos
           )
 
