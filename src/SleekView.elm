@@ -1577,7 +1577,7 @@ lambdaTools model =
 
 functionTools : Model -> List (Html Msg)
 functionTools model =
-  Draw.getDrawableFunctions model
+  model.drawableFunctions
   |> List.map
       (\(funcName, funcType) ->
         Html.div

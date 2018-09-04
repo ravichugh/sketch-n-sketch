@@ -751,9 +751,8 @@ tryRun old =
             LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
               let newCode = Syntax.unparser old.syntax e in -- unnecessary, if parse/unparse were inverses
-              let new = loadLambdaAndFunctionToolIcons e maybeEnv old in
-              let new_ =
-                { new | inputExp                = e
+              let new =
+                { old | inputExp                = e
                       , inputVal                = newVal
                       , maybeEnv                = maybeEnv
                       , contextInputVals        = FocusedEditingContext.contextInputVals editingContext maybeEnv e
@@ -777,7 +776,7 @@ tryRun old =
                       , errorBox                = Nothing
                       , preview                 = Nothing
                       , synthesisResultsDict    = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
-                }
+                } |> loadDrawingToolsAndIcons
               in
               let taskProgressAnnotation =
                 case String.split "; The final program should look something like:\n" newCode |> List.map String.trimRight of
@@ -836,15 +835,15 @@ tryRun old =
                   _ ->
                     Types.dummyAceTypeInfo
               in
-              let new__ =
-                { new_ | liveSyncInfo = refreshLiveInfo new_
-                       , codeBoxInfo = updateCodeBoxInfo taskProgressAnnotation new_
-                       }
+              let new_ =
+                { new | liveSyncInfo = refreshLiveInfo new
+                      , codeBoxInfo = updateCodeBoxInfo taskProgressAnnotation new
+                      }
                 |> resetDeuceState
               in
-              case new__.editingContext of
-                Just (eid, _) -> { new__ | deuceState = { emptyDeuceState | hoveredWidgets = [DeuceExp eid] } }
-                Nothing       -> new__
+              case new_.editingContext of
+                Just (eid, _) -> { new_ | deuceState = { emptyDeuceState | hoveredWidgets = [DeuceExp eid] } }
+                Nothing       -> new_
             )
           )
         in
@@ -2648,39 +2647,55 @@ wrapIconWithSvg computeViewBox svgElements =
 
 
 
-loadLambdaAndFunctionToolIcons program maybeFinalEnv old =
-  case maybeFinalEnv of
-    Just finalEnv ->
-      let modelWithLambdaIconsLoaded =
-        let lambdaTools_ =
-          Draw.lambdaToolOptionsOf old.syntax (splitExp program) finalEnv ++ initModel.lambdaTools
-        in
-        lambdaTools_
-        |> Utils.foldl
-            { old | lambdaTools = lambdaTools_ }
-            (\tool model ->
-              let icon = lambdaToolIcon tool in
-              if Dict.member icon.filename.name model.icons
-                then model
-                else loadIconFromFile finalEnv icon model
-            )
-      in
-      let modelWithFunctionIconsLoaded =
-        Draw.getDrawableFunctions modelWithLambdaIconsLoaded
-        |> Utils.foldl
-            modelWithLambdaIconsLoaded
-            (\(funcName, _) model ->
-              if Dict.member funcName model.icons then
-                model
-              else
-                let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction funcName model ((10, NoSnap), (10, NoSnap)) ((40, NoSnap), (40, NoSnap))) in
-                { model | icons = Dict.insert funcName iconHtml model.icons }
-            )
-      in
-      modelWithFunctionIconsLoaded
+-- loadDrawingToolsAndIcons program maybeFinalEnv old =
+--   case maybeFinalEnv of
+--     Just finalEnv ->
+--       let modelWithLambdaIconsLoaded =
+--         let lambdaTools_ =
+--           Draw.lambdaToolOptionsOf old.syntax (splitExp program) finalEnv ++ initModel.lambdaTools
+--         in
+--         lambdaTools_
+--         |> Utils.foldl
+--             { old | lambdaTools = lambdaTools_ }
+--             (\tool model ->
+--               let icon = lambdaToolIcon tool in
+--               if Dict.member icon.filename.name model.icons
+--                 then model
+--                 else loadIconFromFile finalEnv icon model
+--             )
+--       in
+--       let drawableFunctions = Draw.getDrawableFunctions modelWithLambdaIconsLoaded in
+--       let modelWithFunctionIconsLoaded =
+--         drawableFunctions
+--         |> Utils.foldl
+--             modelWithLambdaIconsLoaded
+--             (\(funcName, _) model ->
+--               if Dict.member funcName model.icons then
+--                 model
+--               else
+--                 let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction funcName model ((10, NoSnap), (10, NoSnap)) ((40, NoSnap), (40, NoSnap))) in
+--                 { model | icons = Dict.insert funcName iconHtml model.icons }
+--             )
+--       in
+--       { modelWithFunctionIconsLoaded | drawableFunctions = drawableFunctions }
+--
+--
+--     Nothing ->
+--       { old | lambdaTools = [] }
 
-    Nothing ->
-      { old | lambdaTools = [] }
+loadDrawingToolsAndIcons old =
+  let drawableFunctions = Draw.getDrawableFunctions old in
+  let oldWithDrawableFunctions = { old | drawableFunctions = drawableFunctions } in
+  drawableFunctions
+  |> Utils.foldl
+      oldWithDrawableFunctions
+      (\(funcName, _) model ->
+        if Dict.member funcName model.icons then
+          model
+        else
+          let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction funcName model ((10, NoSnap), (10, NoSnap)) ((40, NoSnap), (40, NoSnap))) in
+          { model | icons = Dict.insert funcName iconHtml model.icons }
+      )
 
 
 updateFileIndex : FileIndex -> Model -> Model

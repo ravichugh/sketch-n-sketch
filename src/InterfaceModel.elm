@@ -149,6 +149,7 @@ type alias Model =
   , renamingInOutput : Maybe (PId, Set.Set NodeId, Set.Set SelectableFeature, String)
   , randomColor : Int
   , lambdaTools : List LambdaTool
+  , drawableFunctions : List (Ident, Type)
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
   , lastSaveState : Maybe Code
@@ -1199,6 +1200,7 @@ initModel =
     , renamingInOutput = Nothing
     , randomColor   = 100
     , lambdaTools   = [] -- [starLambdaTool]
+    , drawableFunctions = []
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = Nothing

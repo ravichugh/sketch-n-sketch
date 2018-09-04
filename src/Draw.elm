@@ -991,7 +991,7 @@ addFunction fName old pt1 pt2 =
 -- Returns (funcCall, returnType)
 newFunctionCallExp : Ident -> Model -> PointWithSnap -> PointWithSnap -> Maybe (Exp, Type)
 newFunctionCallExp fName model pt1 pt2 =
-  case getDrawableFunctions model |> Utils.maybeFind fName of
+  case model.drawableFunctions |> Utils.maybeFind fName of
     Just funcType ->
       case Types.typeToMaybeArgTypesAndReturnType funcType of
         Just (argTypes, returnType) ->
