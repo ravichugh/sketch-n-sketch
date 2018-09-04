@@ -87,15 +87,15 @@ maybeFillInArgPrimitive argType =
         Just roleExp
       Nothing ->
         case argType.val.t__ of
-          TNum _                         -> Just <| eConstDummyLoc 0
-          TBool _                        -> Just <| eFalse
-          TString _                      -> Just <| eStr "string"
-          TNull _                        -> Just <| eNull
-          TList _ _ _                    -> Just <| eTuple []
-          TDict _ _ _ _                  -> Just <| eOp DictEmpty []
-          TTuple _ headTypes _ Nothing _ -> List.map maybeFillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
-          TUnion _ (firstType::_) _      -> maybeFillInArgPrimitive firstType
-          TVar _ _                       -> Just <| eTuple []
-          TWildcard _                    -> Just <| eTuple []
-          TNamed _ aliasName             -> Utils.maybeFind aliasName roleExps
-          _                              -> Nothing
+          TNum _                    -> Just <| eConstDummyLoc 0
+          TBool _                   -> Just <| eFalse
+          TString _                 -> Just <| eStr "string"
+          TNull _                   -> Just <| eNull
+          TList _ _ _               -> Just <| eTuple []
+          TDict _ _ _ _             -> Just <| eOp DictEmpty []
+          TTuple _ headTypes _ _ _  -> List.map maybeFillInArgPrimitive headTypes |> Utils.projJusts |> Maybe.map eTuple
+          TUnion _ types _          -> Utils.mapFirstSuccess maybeFillInArgPrimitive types
+          TVar _ _                  -> Just <| eTuple []
+          TWildcard _               -> Just <| eTuple []
+          TNamed _ aliasName        -> Utils.maybeFind aliasName roleExps
+          _                         -> Nothing

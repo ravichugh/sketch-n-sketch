@@ -299,16 +299,16 @@ drawNewFunction fName model pt1 pt2 =
   newFunctionCallExp fName model pt1 pt2
   |> Maybe.andThen
     (\(callExp, returnType) ->
+      let pseudoProgram =
+        model.inputExp
+        |> replaceExpNode
+            (LangTools.lastSameLevelExp model.inputExp).val.eid
+            callExp
+            -- (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
+        -- |> (\program -> let _ = Utils.log <| Syntax.unparser Syntax.Elm program in program)
+      in
       if Types.isPointType returnType || Types.isPointListType returnType then
         let maybePoints =
-          let pseudoProgram =
-            model.inputExp
-            |> replaceExpNode
-                (LangTools.lastSameLevelExp model.inputExp).val.eid
-                callExp
-                -- (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
-            -- |> (\program -> let _ = Utils.log <| Syntax.unparser Syntax.Elm program in program)
-          in
           Eval.doEval Syntax.Elm Eval.initEnv pseudoProgram
           |> Utils.perhapsLogError "drawNewFunction error"
           |> Result.toMaybe
@@ -318,7 +318,10 @@ drawNewFunction fName model pt1 pt2 =
         maybePoints
         |> Maybe.map (List.map (\(x,y) -> svgXYDot (x, y) pointZoneStyles.fill.shown True []))
       else
-        LangSvg.evalToSvg Syntax.Elm Eval.initEnv callExp |> Result.toMaybe |> Maybe.map List.singleton
+        LangSvg.evalToSvg Syntax.Elm Eval.initEnv pseudoProgram
+        |> Utils.perhapsLogError "drawNewFunction error"
+        |> Result.toMaybe
+        |> Maybe.map List.singleton
     )
   |> Maybe.withDefault []
   |> (flip (++) inputPtDots)
