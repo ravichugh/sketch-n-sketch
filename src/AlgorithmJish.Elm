@@ -666,66 +666,64 @@ infer typesHeap context e =
       tArrows (argTypes ++ [returnType])
 
     ELet _ _ isRec p _ e1 _ e2 _ ->
-      -- Only going to do let-polymorphism for single var assignments. (Handling quantification with tuples + as-patterns is trickier than it's worth.)
+      let
+        -- I hope this is right for recursive lets!
+        (pType, pContext) = patToTypeAndContext PreferTuples typesHeap p
+
+        boundExpContext =
+          if isRec
+          then pContext ++ context
+          else context
+
+        t1 = infer typesHeap boundExpContext e1
+        _  = unify typesHeap pType t1
+      in
+      let handleRegular () =
+        let t2 = infer typesHeap (pContext ++ context) e2 in
+        t2
+      in
+      -- Only going to do let-polymorphism for single var assignments of arrow type. (Handling quantification with tuples + as-patterns is trickier than it's worth.)
+      --
+      -- Not doing polymorphism of non-arrows may facilitate better role propogation.
+      --
+      --      Γ ⊢ e1 : τ1    Γ, x : Γ'(τ1) ⊢ e2 : τ2
+      -- Let --------------------------------------
+      --           Γ ⊢ let x = e1 in e2 : τ2
+      --
+      --
+      --  Γ'(τ) = ∀ᾱ. τ
+      --  Γ'(τ) "quantifies all monotype variables [in τ] not bound in Γ"
+      --
+      let handlePolymorphic ident =
+        let
+          t1_ =
+            if isRec then
+              -- I'm not smart enough to figure out how not to need these steps.
+              -- How many times back and forth is sufficient?!
+              let t1_  = infer typesHeap boundExpContext e1 in
+              let _    = unify typesHeap pType t1_ in
+              let t1__ = infer typesHeap boundExpContext e1 in
+              let _    = unify typesHeap pType t1__ in
+              t1__
+            else
+              t1
+
+          quantifiedT1 = quantifyUnboundVars context (finalizeType typesHeap.equivalenceClasses t1_)
+
+          -- Re-log PId type
+          _ = recordType typesHeap p.val.pid quantifiedT1 context
+
+          t2 = infer typesHeap ((ident, quantifiedT1)::context) e2
+        in
+        -- No need to worry about a value restriction b/c no side effects.
+        t2
+      in
       case p.val.p__ of
         PVar _ ident _ ->
-          --
-          --      Γ ⊢ e1 : τ1    Γ, x : Γ'(τ1) ⊢ e2 : τ2
-          -- Let --------------------------------------
-          --           Γ ⊢ let x = e1 in e2 : τ2
-          --
-          --
-          --  Γ'(τ) = ∀ᾱ. τ
-          --  Γ'(τ) "quantifies all monotype variables [in τ] not bound in Γ"
-          --
-          let
-            -- I hope this is right for recursive lets!
-            boundVar = newVar typesHeap
-
-            boundExpContext =
-              if isRec then
-                (ident, boundVar)::context
-              else
-                context
-
-            t1   = infer typesHeap boundExpContext e1
-            t1_ =
-              if isRec then
-                -- I'm not smart enough to figure out how not to need these steps.
-                -- How many times back and forth is sufficient?!
-                let _    = unify typesHeap boundVar t1 in
-                let t1_  = infer typesHeap boundExpContext e1 in
-                let _    = unify typesHeap boundVar t1_ in
-                let t1__ = infer typesHeap boundExpContext e1 in
-                let _    = unify typesHeap boundVar t1__ in
-                t1__
-              else
-                t1
-
-            quantifiedT1 = quantifyUnboundVars context (finalizeType typesHeap.equivalenceClasses t1_)
-
-            -- Log PId type
-            _ = recordType typesHeap p.val.pid quantifiedT1 context
-
-            t2 = infer typesHeap ((ident, quantifiedT1)::context) e2
-          in
-          -- No need to worry about a value restriction b/c no side effects.
-          t2
-
-        _ ->
-          let
-            -- I hope this is right for recursive lets!
-            (pType, pContext) = patToTypeAndContext PreferTuples typesHeap p
-            boundExpContext =
-              if isRec
-              then pContext ++ context
-              else context
-
-            t1 = infer typesHeap boundExpContext e1
-            _  = unify typesHeap pType t1
-            t2 = infer typesHeap (pContext ++ context) e2
-          in
-          t2
+          case (find typesHeap t1).representative.val.t__ of
+            TArrow _ _ _ -> handlePolymorphic ident
+            _            -> handleRegular ()
+        _ -> handleRegular ()
 
     EConst _ _ _ _          -> tNum
     EBase _ (EBool _)       -> tBool
