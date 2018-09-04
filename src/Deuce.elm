@@ -647,11 +647,11 @@ codeObjectPolygon msgs codeInfo codeObject color =
           "code-object-polygon" ++ classModifier
 
         childPolygons =
-          List.concatMap
-            (\child ->
-              hoverSelectPolygon msgs False codeInfo child deuceWidget
-            ) <|
-              childCodeObjects codeObject
+          childCodeObjects codeObject
+            |> List.concatMap
+                 (\child ->
+                   hoverSelectPolygon msgs False codeInfo child deuceWidget
+                 )
       in
         childPolygons ++
         hoverSelectPolygon msgs True codeInfo codeObject deuceWidget ++
