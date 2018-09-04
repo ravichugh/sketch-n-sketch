@@ -551,17 +551,22 @@ infer typesHeap context e =
       in
       newVar typesHeap
 
+    recordType : TypesHeap -> Int -> Type -> TypingContext -> ()
+    recordType typesHeap id tipe context =
+      if id > 0 then
+        let newIdToType = Dict.insert id (tipe, context) typesHeap.idToTypeAndContext in
+        let _ = ImpureGoodies.mutateRecordField typesHeap "idToTypeAndContext" newIdToType in
+        ()
+      else
+        ()
+
     patToTypeAndContext : TupleTypingPreference -> TypesHeap -> Pat -> (Type, TypingContext)
     patToTypeAndContext tupleTypingPreference typesHeap p =
       let recurse = patToTypeAndContext tupleTypingPreference typesHeap in
       -- Log PId type
       (\(patType, contextFromPat) ->
-        if p.val.pid > 0 then
-          let newIdToType = Dict.insert p.val.pid (patType, context) typesHeap.idToTypeAndContext in
-          let _ = ImpureGoodies.mutateRecordField typesHeap "idToTypeAndContext" newIdToType in
-          (patType, contextFromPat)
-        else
-          (patType, contextFromPat)
+        let _ = recordType typesHeap p.val.pid patType context in
+        (patType, contextFromPat)
       ) <|
       case p.val.p__ of
         PVar _ ident _ ->
@@ -610,12 +615,8 @@ infer typesHeap context e =
   in
   -- Log inferred type
   (\inferred ->
-    if e.val.eid > 0 then
-      let newIdToType = Dict.insert e.val.eid (inferred, context) typesHeap.idToTypeAndContext in
-      let _ = ImpureGoodies.mutateRecordField typesHeap "idToTypeAndContext" newIdToType in
-      inferred
-    else
-      inferred
+    let _ = recordType typesHeap e.val.eid inferred context in
+    inferred
   ) <|
   case e.val.e__ of
     EVar _ x ->
@@ -702,6 +703,9 @@ infer typesHeap context e =
                 t1
 
             quantifiedT1 = quantifyUnboundVars context (finalizeType typesHeap.equivalenceClasses t1_)
+
+            -- Log PId type
+            _ = recordType typesHeap p.val.pid quantifiedT1 context
 
             t2 = infer typesHeap ((ident, quantifiedT1)::context) e2
           in

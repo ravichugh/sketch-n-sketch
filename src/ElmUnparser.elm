@@ -111,7 +111,7 @@ unparseType shouldShowRoles tipe =
   let recurse = unparseType shouldShowRoles in
   let addRoles unparsed =
     if shouldShowRoles && Set.size tipe.val.roles > 0
-    then "(" ++ unparsed ++ " : " ++ String.join ", " (Set.toList tipe.val.roles) ++ ")"
+    then " (" ++ Utils.squish unparsed ++ " : " ++ String.join ", " (Set.toList tipe.val.roles) ++ ")"
     else unparsed
   in
   addRoles <|

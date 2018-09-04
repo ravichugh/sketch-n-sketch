@@ -35,7 +35,6 @@ import OutputTools exposing (OutputTool)
 import SleekLayout exposing (px, half)
 import Canvas
 import Draw
-import LangTools
 import Sync
 import Lang exposing (Exp)
 import LangTools
@@ -2147,13 +2146,26 @@ deucePopupPanel model =
                 model.deuceToolsAndResults
                   |> List.concatMap (List.filter (Utils.fst3 >> DeuceTools.isActive))
                   |> Utils.mapi1 (deuceHoverMenu model)
+
+              maybeTypeString =
+                case model.deuceState.selectedWidgets of
+                  [DeuceExp eid]  -> Just <| (Dict.get eid model.idToTypeAndContextThunk |> Maybe.map (\(tipe, _) -> Syntax.typeWithRolesUnparser model.syntax tipe) |> Maybe.withDefault "Type not found!")
+                  [DeucePat ppid] -> Just <| (LangTools.pathedPatternIdToPId ppid model.inputExp |> Maybe.andThen (\pid -> Dict.get pid model.idToTypeAndContextThunk) |> Maybe.map (\(tipe, _) -> Syntax.typeWithRolesUnparser model.syntax tipe) |> Maybe.withDefault "Type not found!")
+                  _               -> Nothing
+
+              perhapsTypeMessage =
+                maybeTypeString
+                |> Maybe.map (\typeString -> disableableTextButton True typeString Controller.msgNoop)
+                |> Utils.maybeToList
+
             in
               if List.isEmpty activeTools then
                 noAvailableTools
               else
                 Html.div
                   []
-                  activeTools
+                  (perhapsTypeMessage ++ activeTools)
+
           ]
       }
 
