@@ -959,8 +959,8 @@ newFunctionCallExp fName model pt1 pt2 =
                 (False, False, False, [])
                 (\argType (pointUsed, widthUsed, heightUsed, argMaybeExps) ->
                   case ( pointUsed               , Types.isPointType argType
-                       , widthUsed               , Types.typeToRoles argType |> Utils.anyOverlapListSet ["Width", "HalfWidth"]
-                       , heightUsed              , Types.typeToRoles argType |> Utils.anyOverlapListSet ["Height", "HalfHeight"]
+                       , widthUsed               , Types.typeToRoles argType |> Utils.anyOverlapListSet ["Width", "HalfWidth", "HorizontalDistance"]
+                       , heightUsed              , Types.typeToRoles argType |> Utils.anyOverlapListSet ["Height", "HalfHeight", "VerticalDistance"]
                        , heightUsed || widthUsed , Types.typeToRoles argType |> Set.member "Radius"
                        ) of
                     (False, True, _, _, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just x1y1Exp])
@@ -1135,8 +1135,8 @@ isDrawableType tipe =
       (
         Utils.count Types.isPointType inputTypes >= 1 &&
         (
-          Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet ["Width",  "HalfWidth"])  inputTypes >= 1 ||
-          Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet ["Height", "HalfHeight"]) inputTypes >= 1 ||
+          Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet ["Width",  "HalfWidth", "HorizontalDistance"])  inputTypes >= 1 ||
+          Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet ["Height", "HalfHeight", "VerticalDistance"]) inputTypes >= 1 ||
           Utils.count (Types.typeToRoles >> Set.member "Radius") inputTypes >= 1
         )
       )

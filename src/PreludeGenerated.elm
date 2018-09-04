@@ -365,6 +365,8 @@ prelude =
 (def HalfHeight Num)
 (def Radius Num)
 (def Distance Num)
+(def HorizontalDistance Num)
+(def VerticalDistance Num)
 (def Count Num)
 (def Radians Num)
 (def Degrees Num)
@@ -997,15 +999,15 @@ prelude =
   (let [xSep ySep] [(/ (- x2 x1) (- n 1)) (/ (- y2 y1) (- n 1))]
   (map (\\i [(+ x1 (* xSep i)) (+ y1 (* ySep i))]) (zeroTo n)))))
 
-(typ nPointsSepBy (-> Count Point [Distance Distance] (List Point)))
+(typ nPointsSepBy (-> Count Point [HorizontalDistance VerticalDistance] (List Point)))
 (def nPointsSepBy (\\(n [x1 y1] [xSep ySep])
   (map (\\i [(+ x1 (* xSep i)) (+ y1 (* ySep i))]) (zeroTo n))))
 
-(typ nHorizontalPointsSepBy (-> Count Point Distance (List Point)))
+(typ nHorizontalPointsSepBy (-> Count Point HorizontalDistance (List Point)))
 (def nHorizontalPointsSepBy (\\(n [x1 y1] sep)
   (map (\\i [(+ x1 (* sep i)) y1]) (zeroTo n))))
 
-(typ nVerticalPointsSepBy (-> Count Point Distance (List Point)))
+(typ nVerticalPointsSepBy (-> Count Point VerticalDistance (List Point)))
 (def nVerticalPointsSepBy (\\(n [x1 y1] sep)
   (map (\\i [x1 (+ y1 (* sep i))]) (zeroTo n))))
 

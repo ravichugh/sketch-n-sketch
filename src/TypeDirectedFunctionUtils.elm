@@ -57,20 +57,22 @@ clearlyNotShapeOrListOfShapesExp exp =
 
 roleExps : List (Ident, Exp)
 roleExps =
-  [ ("Ratio"       , eConstDummyLoc 0.62) -- Golden Ratio
-  , ("Color"       , eConstDummyLoc 0)
-  , ("StrokeWidth" , eConstDummyLoc 5)
-  , ("Point"       , eTuple [eInt0 0, eInt 0])
-  , ("Vec2D"       , eTuple [eInt0 0, eInt 0])
-  , ("Width"       , eConstDummyLoc 162) -- Golden ratio
-  , ("Height"      , eConstDummyLoc 100)
-  , ("HalfWidth"   , eConstDummyLoc 81) -- Golden ratio
-  , ("HalfHeight"  , eConstDummyLoc 50)
-  , ("Count"       , withDummyExpInfo <| EConst space1 3 dummyLoc (rangeSlider IntSlider 0 10))
-  , ("Radians"     , withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider NumSlider -3.14 3.14))
-  , ("Degrees"     , withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider IntSlider -180 180))
-  , ("Radius"      , eConstDummyLoc 150)
-  , ("Distance"    , eConstDummyLoc 150)
+  [ ("Ratio"              , eConstDummyLoc 0.62) -- Golden Ratio
+  , ("Color"              , eConstDummyLoc 0)
+  , ("StrokeWidth"        , eConstDummyLoc 5)
+  , ("Point"              , eTuple [eInt0 0, eInt 0])
+  , ("Vec2D"              , eTuple [eInt0 0, eInt 0])
+  , ("Width"              , eConstDummyLoc 162) -- Golden ratio
+  , ("Height"             , eConstDummyLoc 100)
+  , ("HalfWidth"          , eConstDummyLoc 81) -- Golden ratio
+  , ("HalfHeight"         , eConstDummyLoc 50)
+  , ("HorizontalDistance" , eConstDummyLoc 81) -- Golden ratio
+  , ("VerticalDistance"   , eConstDummyLoc 50)
+  , ("Count"              , withDummyExpInfo <| EConst space1 3 dummyLoc (rangeSlider IntSlider 0 10))
+  , ("Radians"            , withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider NumSlider -3.14 3.14))
+  , ("Degrees"            , withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider IntSlider -180 180))
+  , ("Radius"             , eConstDummyLoc 150)
+  , ("Distance"           , eConstDummyLoc 150)
   ]
 
 
