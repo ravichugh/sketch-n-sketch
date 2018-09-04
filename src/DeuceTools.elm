@@ -2169,7 +2169,6 @@ selectionsTuple program selectedWidgets =
 toolList =
   [ [ typesTool
     ]
-  ]
 -- TODO: get Deuce tools to work with the ELet AST
 {-
   [ [ createFunctionTool
@@ -2180,8 +2179,11 @@ toolList =
     , removeArgumentsTool
     , reorderArgumentsTool
     ]
+-}
   , [ renameVariableTool
     , introduceVariableTool
+    ]
+{-
     , swapNamesAndUsagesTool
     , swapUsagesTool
     ]
@@ -2208,8 +2210,8 @@ toolList =
     ]
   , [ flipBooleanTool
     ]
-  ]
 -}
+  ]
 
 deuceToolsOf : Model -> List (List DeuceTool)
 deuceToolsOf model =
