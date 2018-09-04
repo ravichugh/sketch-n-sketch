@@ -2,9 +2,7 @@ module InterfaceModel exposing (..)
 
 import Updatable exposing (Updatable)
 import Lang exposing (..)
-import LangTools
 import Info exposing (..)
-import Types exposing (AceTypeInfo)
 import Eval
 import Sync exposing (ZoneKey)
 import Utils

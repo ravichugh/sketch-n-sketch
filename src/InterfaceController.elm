@@ -77,7 +77,6 @@ port module InterfaceController exposing
 
 import Updatable exposing (Updatable)
 import Lang exposing (..) --For access to what makes up the Vals
-import Types
 import Ace
 import ParserUtils exposing (showError)
 import FastParser exposing (freshen)
@@ -246,7 +245,6 @@ handleError oldModel result =
     Ok newModel -> newModel
     Err s       -> { oldModel | errorBox = Just s }
 
-updateCodeBoxInfo : Types.AceTypeInfo -> Model -> CodeBoxInfo
 updateCodeBoxInfo ati m =
   let codeBoxInfo = m.codeBoxInfo in
   { codeBoxInfo | annotations = ati.annotations
@@ -742,8 +740,6 @@ tryRun old =
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok e ->
         let resultThunk () =
-          -- let aceTypeInfo = Types.typecheck e in
-
           let editingContext = FocusedEditingContext.editingContextFromMarkers e in
 
           FocusedEditingContext.evalAtContext old.syntax editingContext e |>
@@ -833,7 +829,7 @@ tryRun old =
                     }
 
                   _ ->
-                    Types.dummyAceTypeInfo
+                    { annotations = [], highlights = [], tooltips = [] }
               in
               let new_ =
                 { new | liveSyncInfo = refreshLiveInfo new

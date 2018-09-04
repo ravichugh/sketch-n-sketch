@@ -14,7 +14,7 @@ makeExample name s =
     -- TODO tolerate parse errors, change Select Example
     let e = Utils.fromOkay ("Error parsing example " ++ name) (parseE s) in
     -- let ati = Types.typecheck e in
-    let ati = Types.dummyAceTypeInfo in
+    let ati = { annotations = [], highlights = [], tooltips = [] } in
     -----------------------------------------------------
     -- if name == "*Prelude*" then
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}

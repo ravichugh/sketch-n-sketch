@@ -4,11 +4,12 @@ import FastParser
 import ImpureGoodies
 import Lang exposing (..)
 import Syntax
-import Types
+import Types exposing (tBool, tNum, tString, tNull, tVar, tTupleRest, tTuple, tList, tDict, tArrows, tArrow, tForall)
 import Utils
 
 import Dict exposing (Dict)
 import Set exposing (Set)
+
 
 
 unparse : Type -> String
@@ -47,33 +48,6 @@ unparseExp e = Syntax.unparser Syntax.Elm e
 --  Γ'(τ) = ∀ᾱ. τ
 --  Γ'(τ) "quantifies all monotype variables [in τ] not bound in Γ"
 --
-
-withDummyRangeAndNoRoles t__ = withDummyRange { t__ = t__, roles = Set.empty }
-
-tBool   = withDummyRangeAndNoRoles (TBool space1)
-tNum    = withDummyRangeAndNoRoles (TNum space1)
-tString = withDummyRangeAndNoRoles (TString space1)
-tNull   = withDummyRangeAndNoRoles (TNull space1)
-tVar x  = withDummyRangeAndNoRoles (TVar space1 x)
-
-tTupleRest ts tRest = withDummyRangeAndNoRoles (TTuple space1 ts space0 tRest space0)
-tTuple ts = tTupleRest ts Nothing
-
-tList t = withDummyRangeAndNoRoles (TList space1 t space0)
-
-tDict t1 t2 =  withDummyRangeAndNoRoles (TDict space1 t1 t2 space0)
-
-tArrows ts = withDummyRangeAndNoRoles (TArrow space1 ts space0)
-tArrow t0 t1 = tArrows [t0, t1]
-
-tForall vars t =
-  case vars of
-    []    -> Debug.crash "AlgorithmJish tForall: no vars"
-    [a]   -> withDummyRangeAndNoRoles (TForall space1 (One (space1, a)) t space0)
-    a::bs -> let typeVars = (space0, a) :: List.map (\a -> (space1, a)) bs in
-             withDummyRangeAndNoRoles (TForall space1 (Many space1 typeVars space0) t space0)
-
--- tUnion ts = withDummyRangeAndNoRoles (TUnion space1 ts space0)
 
 type alias TypingContext = List (Ident, Type)
 type alias IdToTypeAndContext = Dict Int (Type, TypingContext)
