@@ -12,7 +12,6 @@ import FocusedEditingContext
 import InterfaceModel
 import Lang exposing (..)
 import LangTools
--- import SlowTypeInference
 import Solver
 import StaticAnalysis
 import Sync
@@ -48,12 +47,9 @@ addShape
   originalProgram =
   let
     contextExp         = FocusedEditingContext.drawingContextExp model.editingContext originalProgram
-    -- typeGraph          = SlowTypeInference.typecheck originalProgram
-    -- inferredReturnType = SlowTypeInference.maybeTypes contextExp.val.eid typeGraph
     -- _ = inferredReturnType |> List.map (Syntax.typeUnparser Syntax.Elm) |> Debug.log "inferredReturnType"
     -- _ = Utils.log <| "addShape incoming program: " ++ Syntax.unparser Syntax.Elm originalProgram
     idToTypeAndContextThunk = AlgorithmJish.inferTypes originalProgram
-    -- inferredReturnType = SlowTypeInference.maybeTypes contextExp.val.eid typeGraph
     inferredReturnTypeAndContextThunk = Dict.get contextExp.val.eid idToTypeAndContextThunk
     inferredReturnType                = inferredReturnTypeAndContextThunk |> Maybe.map Tuple.first
     typeContextAtReturnType           = inferredReturnTypeAndContextThunk |> Maybe.map (Tuple.second >> (\thunk -> thunk ())) |> Maybe.withDefault AlgorithmJish.preludeTypeContext
@@ -63,9 +59,6 @@ addShape
       isList exp &&
       targetListFilter exp &&
       -- Optimization: exclude numeric lists/tuples
-      -- case SlowTypeInference.maybeTypes exp.val.eid typeGraph |> List.map Types.maybeListOrHomogenousTupleElementsType of
-      --   [Just t] -> not (Types.isNumType t)
-      --   _        -> True
       case Dict.get exp.val.eid idToTypeAndContextThunk |> Maybe.andThen (Tuple.first >> Types.maybeListOrHomogenousTupleElementsType) of
         Just t -> not (Types.isNumType t)
         _      -> True
@@ -77,9 +70,6 @@ addShape
     -- 1.5 If the return value isn't a list, make some candidates where the return value is a wrapped in a singleton.
     maybeProgramWithListifiedReturnExpAndLists =
       let tryToListifyReturnValue =
-        -- case inferredReturnType of
-        --   [t] -> not (Types.isListNotTuple t)  -- Ahh, this may always evaluate to True in our context...SlowTypeInference has a habit of spitting out Tuples with tails
-        --   _   -> False
         case inferredReturnType of
           Just t -> not (Types.isListNotTuple t)
           _      -> False
@@ -105,7 +95,6 @@ addShape
         Nothing
 
     -- incomingExpFreshened = FastParser.freshen newShapeExp
-    -- _ = Debug.log "SlowTypeInference.typecheck incomingExpFreshened |> SlowTypeInference.maybeTypes incomingExpFreshened.val.eid" (SlowTypeInference.typecheck incomingExpFreshened |> SlowTypeInference.maybeTypes incomingExpFreshened.val.eid)
 
     -- Should we try to inline the item to add?
     (maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected, incomingExpShouldBeInlined) =
@@ -217,10 +206,7 @@ addShape
           (\(listEId, candidateProgram) ->
             let
               -- For Koch curve example, don't seem to need to prefer programs that don't produce a type error at the return location(s). So let's skip this check for simplicity and speed.
-              -- (Note if we did include this criteria, it's not accurate to say "we prefer programs that type check" because SlowTypeInference is too incomplete to e.g. resolve all type applications, so it would simply be preferring programs that don't produce a type error at the return site)
-              -- typeGraph = SlowTypeInference.typecheck candidateProgram
               sortKey =
-                -- ( if SlowTypeInference.typeIsOkaySoFar contextExp.val.eid typeGraph then 0 else 1
                 ( if listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId) then 0 else 1
                 , LangTools.nodeCount candidateProgram
                 )
