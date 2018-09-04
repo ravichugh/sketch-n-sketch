@@ -1526,12 +1526,12 @@ toolButton model tool =
         "Cursor"
       PointOrOffset ->
         "Point or Offset"
-      Line ->
-        "Line"
-      Rect ->
-        "Rect"
-      Oval ->
-        "Ellipse"
+      -- Line ->
+      --   "Line"
+      -- Rect ->
+      --   "Rect"
+      -- Oval ->
+      --   "Ellipse"
       Poly ->
         "Polygon"
       Path ->
@@ -1540,8 +1540,6 @@ toolButton model tool =
         "Text"
       HelperLine ->
         "(Rule)"
-      Lambda _ ->
-        "Lambda" -- Utils.uniLambda
       Function fName ->
         fName
 
@@ -1554,26 +1552,6 @@ toolButton model tool =
       [ iconButton
           model cap Nothing (Msg cap (\m -> { m | mouseMode = MouseNothing, tool = tool })) btnKind False
       ]
-
-lambdaTools : Model -> List (Html Msg)
-lambdaTools model =
-  let buttons =
-    Utils.mapi1 (\(i, lambdaTool) ->
-      let
-        iconName = Model.strLambdaTool lambdaTool
-      in
-        Html.div
-          [ Attr.class "tool"
-          , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
-          ]
-          [ iconButton model iconName Nothing
-              (Msg iconName (\m -> { m | tool = Lambda i }))
-              (if model.tool == Lambda i then Selected else Unselected)
-              False
-          ]
-      ) model.lambdaTools
-  in
-    buttons
 
 functionTools : Model -> List (Html Msg)
 functionTools model =
@@ -1620,7 +1598,6 @@ toolPanel model =
         , toolButton model Poly
         -- , toolButton model Path
         ] ++
-        lambdaTools model ++
         functionTools model
       )
 

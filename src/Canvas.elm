@@ -239,7 +239,6 @@ drawNewShape model =
       (PointOrOffset, MouseDrawNew (Offset1D ((x1Int, _), (y1Int, _)) amountSnap (x2Int, y2Int))) -> drawNewPointAndOffset model (amountSnap /= NoSnap) (x1Int, y1Int) (x2Int, y2Int)
       -- (PointOrOffset, MouseDrawNew (TwoPoints ((x1Int, _), (y1Int, _)) ((x1Int, _), (y1Int, _))))      -> drawNewPointAndOffset model False pt1 pt2
       -- (HelperLine,    MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewLine model pt1 pt2
-      -- (Lambda _,      MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
       (Function fName,    MouseDrawNew (TwoPoints pt1 pt2)) -> Draw.drawNewFunction fName model pt1 pt2
       -- (Text,          MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
       _                                                                            -> []

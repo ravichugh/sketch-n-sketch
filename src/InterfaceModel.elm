@@ -146,7 +146,6 @@ type alias Model =
   , hoveredSynthesisResultPathByIndices : List Int
   , renamingInOutput : Maybe (PId, Set.Set NodeId, Set.Set SelectableFeature, String)
   , randomColor : Int
-  , lambdaTools : List LambdaTool
   , drawableFunctions : List (Ident, Type)
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
@@ -332,20 +331,13 @@ type Tool
   = Cursor
   | PointOrOffset
   | Text
-  | Line
-  | Rect
-  | Oval
+  -- | Line
+  -- | Rect
+  -- | Oval
   | Poly
   | Path
   | HelperLine
-  | Lambda Int -- 1-based index of selected LambdaTool
-  | Function Ident -- Generalized lambda tool, hopefully will subsume Lambda tool
-
-type LambdaTool
-  = LambdaBounds Exp
-  | LambdaAnchor
-      Exp
-      (Maybe { width: Int, height: Int, xAnchor: Int, yAnchor: Int})
+  | Function Ident -- Most tools uses this now
 
 type Caption
   = Hovering ZoneKey
@@ -734,14 +726,6 @@ codeToShow model =
 
 --------------------------------------------------------------------------------
 
-strLambdaTool lambdaTool =
-  let strExp = String.trim << LangUnparser.unparse in
-  case lambdaTool of
-    LambdaBounds e   -> strExp e ++ " (bounds)"
-    LambdaAnchor e _ -> strExp e ++ " (anchor)"
-
---------------------------------------------------------------------------------
-
 prependDescription newPrefix synthesisResult =
   { synthesisResult | description = (newPrefix ++ synthesisResult.description) }
 
@@ -798,42 +782,6 @@ prettyFilename includeExtension model =
 --------------------------------------------------------------------------------
 
 iconNames = Dict.keys DefaultIconTheme.icons
-
---------------------------------------------------------------------------------
-
--- starLambdaTool = LambdaBounds (eVar "star")
-
--- starLambdaToolIcon = lambdaToolIcon starLambdaTool
-
-lambdaToolIcon tool =
-  { filename =
-      { name =
-          Utils.naturalToCamelCase (strLambdaTool tool)
-      , extension =
-          File.LittleIcon
-      }
-  , contents = case tool of
-      LambdaBounds func ->
-        "(svgViewBox 100 100 (" ++ LangUnparser.unparse func ++ " [10 10 90 90]))"
-      LambdaAnchor func Nothing ->
-        "(svgViewBox 100 100 (" ++ LangUnparser.unparse func ++ " [10 10]))"
-      LambdaAnchor func (Just viewBoxAndAnchor) ->
-        Utils.parens <|
-          Utils.spaces <|
-            [ "svgViewBox"
-            , toString viewBoxAndAnchor.width
-            , toString viewBoxAndAnchor.height
-            , Utils.parens <|
-                Utils.spaces <|
-                  [ LangUnparser.unparse func
-                  , Utils.bracks <|
-                      Utils.spaces
-                        [ toString viewBoxAndAnchor.xAnchor
-                        , toString viewBoxAndAnchor.yAnchor
-                        ]
-                  ]
-            ]
-  }
 
 --------------------------------------------------------------------------------
 
@@ -1197,7 +1145,6 @@ initModel =
     , hoveredSynthesisResultPathByIndices = []
     , renamingInOutput = Nothing
     , randomColor   = 100
-    , lambdaTools   = [] -- [starLambdaTool]
     , drawableFunctions = []
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False

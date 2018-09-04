@@ -629,7 +629,6 @@ onMouseUp old =
         -- (Oval Stretchy, TwoPoints pt1 pt2, False) -> upstateRun <| resetMouseMode <| Draw.addStretchyOval old pt1 pt2
         -- (Oval Stretchy, TwoPoints pt1 pt2, True)  -> upstateRun <| resetMouseMode <| Draw.addStretchyCircle old pt1 pt2
 
-        -- (Lambda i,       TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addLambda i old pt1 pt2
         (Function fName, TwoPoints pt1 pt2, _) -> upstateRun <| resetMouseMode <| Draw.addFunction fName old pt1 pt2
 
         (Poly, _, _) -> old
@@ -1951,29 +1950,6 @@ deleteInOutput old =
 msgSelectSynthesisResult newExp = Msg "Select Synthesis Result" <| \old ->
   let newCode = Syntax.unparser old.syntax newExp in
   { old | code = newCode } |> clearSelections |> upstateRun
-  -- let new =
-  --   { old | code = newCode
-  --         , lastRunCode = newCode
-  --         , synthesisResultsDict = Dict.empty
-  --         , history = modelCommit newCode [] old.history
-  --         }
-  -- in
-  -- runWithErrorHandling new newExp (\reparsed newVal newWidgets newSlate newCode ->
-  --   -- debugLog "new model" <|
-  --     let newer =
-  --     { new | inputExp             = reparsed -- newExp
-  --           , inputVal             = newVal
-  --           , valueEditorString    = Update.valToString newVal
-  --           , slate                = newSlate
-  --           , widgets              = newWidgets
-  --           , preview              = Nothing
-  --           , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old reparsed)
-  --     } |> clearSelections
-  --     in
-  --     { newer | liveSyncInfo = refreshLiveInfo newer
-  --             , codeBoxInfo = updateCodeBoxInfo Types.dummyAceTypeInfo newer
-  --             }
-  -- )
 
 clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
@@ -2597,8 +2573,7 @@ loadIconFromFile env icon old =
   in
     { old | icons = newIcons }
 
--- for basic icons, env will be Eval.initEnv.
--- for LambdaTool icons, env will be from result of running main program.
+-- for basic icons, env will be Eval.initEnv
 iconify : Syntax -> Env -> String -> Html.Html Msg
 iconify syntax env code =
   let
@@ -2641,43 +2616,6 @@ wrapIconWithSvg computeViewBox svgElements =
     ] ++ viewBoxAttrs)
     svgElements
 
-
-
--- loadDrawingToolsAndIcons program maybeFinalEnv old =
---   case maybeFinalEnv of
---     Just finalEnv ->
---       let modelWithLambdaIconsLoaded =
---         let lambdaTools_ =
---           Draw.lambdaToolOptionsOf old.syntax (splitExp program) finalEnv ++ initModel.lambdaTools
---         in
---         lambdaTools_
---         |> Utils.foldl
---             { old | lambdaTools = lambdaTools_ }
---             (\tool model ->
---               let icon = lambdaToolIcon tool in
---               if Dict.member icon.filename.name model.icons
---                 then model
---                 else loadIconFromFile finalEnv icon model
---             )
---       in
---       let drawableFunctions = Draw.getDrawableFunctions modelWithLambdaIconsLoaded in
---       let modelWithFunctionIconsLoaded =
---         drawableFunctions
---         |> Utils.foldl
---             modelWithLambdaIconsLoaded
---             (\(funcName, _) model ->
---               if Dict.member funcName model.icons then
---                 model
---               else
---                 let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction funcName model ((10, NoSnap), (10, NoSnap)) ((40, NoSnap), (40, NoSnap))) in
---                 { model | icons = Dict.insert funcName iconHtml model.icons }
---             )
---       in
---       { modelWithFunctionIconsLoaded | drawableFunctions = drawableFunctions }
---
---
---     Nothing ->
---       { old | lambdaTools = [] }
 
 loadDrawingToolsAndIcons old =
   let drawableFunctions = Draw.getDrawableFunctions old in
