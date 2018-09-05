@@ -57,8 +57,6 @@ We support a (almost) superset of Elm Syntax.
       |   (e)
       |   ()
 
-  Let  ::=  let | letrec
-  
   p  ::= constant
        | variable
        | p as variable
@@ -252,28 +250,36 @@ The semicolon is optional for a branch if 1) there is a newline 2) the column of
 ### Let-Bindings
 
 ```
-  L  ::=  let | letrec
   e  ::=  ...
-      |   L p = e1 in e2
-      |   L f p1 ... pn = e1 in e2   -- desugars to L f = \p1 ... pn -> e1 in e2
+      |   let p1 = e1, p2 = e2 in e2
+      |   let f p1 ... pn = e1 in e2   -- desugars to L f = \p1 ... pn -> e1 in e2
 ```
 
 ### Built-in functions
 ```
 __evaluate__ environment string
 ```
-Evaluates the program present in the string under the given environment, which is a list of (string, value)
-This function is reversible.
+Evaluates the program present in the string under the given environment, which is a list of (string, value).
+It returns either `Ok result` or `Err String` an error message.
+This function is reversible. You can even push back corrections to the line of the program included in the error message.
+For the environment, you can use the meta-variable `__CurrentEnv__` (without arguments) that returns the current environment.
+In the prelude, the function `evaluate` uses the empty environment and directly returns the result, or raises an error.
 
 ```
 { apply = f, update = g}.apply X
+Update.lens { apply = f, update = g } x
 ```
 On evaluation, it returns the result of computing `f x`.
-On evaluation update, given a new output value `v'`, it computes g { outputNew = v' } which should return either a
-`{ values = [x1, x2...]}`, `{ values = [x1, x2...], diffs = [Just diff1, Just diff2 ...]}`  or `{error = "error_message"}`. If the former, propagates the new value `x1` to the expression `X` with differences `diff1`, then on a second round the value `x2`  to the expression `X` with differences `diff2`.
+On evaluation update, given a new output value `v'`, it computes `g { input = x, outputOld = v, outputNew = v' }`` which should return either a
+`Ok (Inputs [x1, x2...])`, `Ok (InputsWithDiffs [(x1, Just diff1), (x2, Just diff2)])`  or `Err "error_message"`.
+If the former, propagates the new value `x1` to the expression `X` with differences `diff1`,
+then on a second round the value `x2`  to the expression `X` with differences `diff2`.
+Note that the second version is a wrapper around the first, but can be used to actually _build lenses_.
+`Update.lens2` helps to build 2-arguments lenses, and so-on.
+
 
 ```
-__updateApp__ {fun=FUNCTION,input=ARGUMENT[,oldOutput=OLD OUTPUT],output=NEWOUTPUT[,outputDiff=OUTPUT DIFF]}
+__updateApp__ {fun=FUNCTION,input=ARGUMENT,output=NEWOUTPUT[,oldOutput=OLD OUTPUT][,outputDiff=OUTPUT DIFF]}
 ```
 Takes a single record defining `fun` (a function), an `input` and an new `output`. For performance, we can also provide the old output `oldOutput` and the output difference `outputDiff`.
 This solves the evaluation problem `fun input <-- output`.
@@ -339,29 +345,43 @@ __jsEval__ string
 ```
 Evaluates arbitrary JavaScript using JavaScript's eval. Converts back the value to an interpretable value in our language, i.e. integers to integers, strings to strings, records to records, arrays to list.
 Can be useful to execute a program with user-defined values (e.g. `let username = __jsEval__ "document.getElementById('username')" in ...`).
-This function is not reversible -- use it mostly for non-visible control flow (settings, appearance, language...).
+This function is not reversible -- use it mostly for non-visible control flow (settings, appearance, language...)
+ or in the `apply` or `update` field of a lens`.
+
+#### Prevent evaluation update changes (freeze)
+
+All the freeze expressions behave like the identity function in the direction of evaluation.
+In the direction of update, they each have different ways to prevent changes to be back-propagated to the program.
 
 ```
 freeze exp
 Update.freeze exp
 ```
-For execution purposes, `freeze` is the identity function.
-For evaluation update, `freeze` prevents any changes to be pushed back to the expression (variables and structural).
+Prevents any changes to be pushed back to the expression (changes to the values of variables and structural changes).
 
 ```
 expressionFreeze exp
 Update.expressionFreeze exp
 ```
-For execution purposes, `expressionFreeze` is the identity function.
-For evaluation update, `expressionFreeze` lets changes to propagate back to `exp` but will prevent structural changes to happen.
-It lets only the value of variables to be updated.
+Prevents any structural changes to be made to the expression (but allows changes to the values of variables)
 
 ```
-sizeFreeze [list...]
-Update.sizeFreeze [list...]
+Update.sizeFreeze [expressionc computing a list...]
 ```
-For execution purposes, `sizeFreeze` is the identity function.
-For evaluation update, `sizeFreeze` will block any insertions and deletion to the list.
+Prevents any insertions and deletions to be made to the given list, but lets through changes to individual elements themselves.
+
+```
+Update.softFreeze exp
+```
+Does not prevent changes to the output of the computation, just ignore them.
+This is useful for value that should never be updated but should not prevent the update to succeed.
+
+```
+String.update.freezeRight [expressionc computing a string]
+String.update.freezeLeft [expressionc computing a string]
+```
+Blocks any changes to a string is not an insertion to the left (resp. right) of it.
+
 
 ### `transient` and `ignore` elements/attributes
 
@@ -392,20 +412,21 @@ Most HTML and SVG is valid in our language, except for comments (Elm would not a
 ```
   e ::= node
   
-  node  ::= <ident attributes>children</ident>
+  node  ::= <ident attributes>child*</ident>
           | <ident>                              -- if the indent is a void element (br, img, ...)
           | <ident attributes/>                  -- if the element is auto-closing (svg tags only)
-          | <@e attributes>children</@>
+          | <@e attributes>child*</@>
   
-  attributes ::= ident1=e1 ... identn=en
-               | attributes @e attributes
+  attributes ::= ident1=e1 ... identn=en         -- expressions must not contain spaces.
+               | attributes @e attributes        -- in this case, e should return a list of attributes, i.e. [["class", "d"]]
   
-  children ::= innerHTML text
-             | children @i children
-             | node
+  child ~=  @@                                   -- for the @ symbol
+          | @i                                   -- inserts a node, a list of nodes, a string or a number.
+          | innerHTML text
+          | node
   i ::= variable {.identifier}* { (e) | tuple | record | list}* [ '<|'   v | i ]
           -- i is parsed without in-between spaces.
-     |  e                                          -- If you use top-level parentheses @(e), nothing will be parsed after ')'
+     |  (e)                                      -- If you use top-level parentheses @(e), nothing will be parsed after ')'
 
 ```
 
@@ -416,7 +437,7 @@ Most HTML and SVG is valid in our language, except for comments (Elm would not a
 | `<h1 id=x>Hello</h1>`               | `["h1", [["id", x]], [["TEXT", "Hello"]]]` |
 | `<h1 id=x @attrs>Hello @world</h1>` | `["h1", [["id", x]] ++ attrs, [["TEXT", "Hello "]] ++ world]`   |
 | `<@(t)>Hi</@>`                      | `[t, [], [["TEXT", "Hi"]]]`  |
-| `let b t x = <b title=t>@x</b> in <div>@b("h")<|<span></span></div>` | `let b x = ["b",[],[x]] in ["div", [], [b ("h") <| ["span", [], []]]]`  |
+| <code>let b t x = &lt;b title=t&gt;@x &lt;/b&gt; in &lt;div&gt;@b("h")&lt;&vert;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;</code> | `let b x = ["b",[],[x]] in ["div", [], [b ("h") <| ["span", [], []]]]`  |
 
 
 Note that style attributes support both syntax for their values (array of key/values arrays, and strings).
