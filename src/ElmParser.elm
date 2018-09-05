@@ -1150,9 +1150,9 @@ dataConstructorPattern =
                    )
           )
           ( succeed (,)
-              |= repeat zeroOrMore (succeed (\ws wsToPat -> wsToPat ws)
-                |= spaces
-                |= simplePattern)
+              |= repeat zeroOrMore (delayedCommitMap (\ws wsToPat -> wsToPat ws)
+                spaces
+                simplePattern)
               |= getPos
           )
 
@@ -1225,7 +1225,7 @@ patternGeneral pColonTypeAllowed spFirst minStartCol =
                       (
                         pat_ <| PList wsBeforeEverything [left] wsBefore (Just right) space0
                       ) left.start right.end
-                  "as" ->
+                  "as" -> --TODO: Need to remove from binary operator, else (Just a as head :: tail) is parsed as (Just a) as (head :: tail)
                     withInfo
                       (
                         pat_ <| PAs wsBeforeEverything left wsBefore right
