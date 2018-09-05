@@ -19,6 +19,7 @@ module CodeMotion exposing
   , makeEIdVisibleToEIds, makeEIdVisibleToEIdsByInsertingNewBinding
   , liftLocsSoVisibleTo, copyLocsSoVisibleTo
   , resolveValueHoles
+  , moveDeclarations
   )
 
 import Lang exposing (..)
@@ -1860,27 +1861,23 @@ abstractExp : Syntax -> EId -> Exp -> List SynthesisResult
 abstractExp syntax eidToAbstract originalProgram =
   let expToAbstract = justFindExpByEId originalProgram eidToAbstract in
   let doAbstract shouldBeParameter =
-    let (argumentsForCallSite, abstractedFuncExp) =
-      abstract eidToAbstract shouldBeParameter originalProgram
-    in
-    let funcName =
-      let naiveName = expNameForEIdWithDefault "func" originalProgram eidToAbstract in
-      let namesToAvoid = visibleIdentifiersAtEIds originalProgram (Set.singleton eidToAbstract) in
-      nonCollidingName naiveName 2 namesToAvoid
-    in
-    let expToWrap =
-      deepestAncestorWithNewline originalProgram eidToAbstract
-    in
-    let expToWrapWithTargetReplaced =
-      expToWrap
-      |> replaceExpNodePreservingPrecedingWhitespace eidToAbstract (eApp (eVar0 funcName) (argumentsForCallSite |> setExpListWhitespace " " " "))
-    in
-    let wrapped =
-      newLetFancyWhitespace -1 False (pVar funcName) abstractedFuncExp expToWrapWithTargetReplaced originalProgram
-    in
-    let newProgram =
-      originalProgram
-      |> replaceExpNodePreservingPrecedingWhitespace (expEId expToWrap) wrapped
+    let
+       (argumentsForCallSite, abstractedFuncExp) =
+        abstract eidToAbstract shouldBeParameter originalProgram
+       funcName =
+        let naiveName = expNameForEIdWithDefault "func" originalProgram eidToAbstract in
+        let namesToAvoid = visibleIdentifiersAtEIds originalProgram (Set.singleton eidToAbstract) in
+        nonCollidingName naiveName 2 namesToAvoid
+       expToWrap =
+        deepestAncestorWithNewline originalProgram eidToAbstract
+       expToWrapWithTargetReplaced =
+        expToWrap
+        |> replaceExpNodePreservingPrecedingWhitespace eidToAbstract (eApp (eVar0 funcName) (argumentsForCallSite |> setExpListWhitespace " " " "))
+       wrapped =
+        newLetFancyWhitespace -1 False (pVar funcName) abstractedFuncExp expToWrapWithTargetReplaced originalProgram
+       newProgram =
+        originalProgram
+        |> replaceExpNodePreservingPrecedingWhitespace (expEId expToWrap) wrapped
     in
     newProgram
   in
@@ -2540,14 +2537,14 @@ introduceVarTransformation
 -- It should insert the declarations before the declaration mentionned in the given index.
 -- It should recompute a dependency analysis as well, maybe we need to reorder the definitions.
 insertInDeclarations: BindingNumber -> List Declaration -> Declarations -> Result String Declarations
-insertInDeclarations bn newDecls decls =
+insertInDeclarations bindingNum newDecls decls =
   let visualDeclarations = getDeclarationsInOrderWithIndex decls in
   visualDeclarations |> List.concatMap (\(decl, bindingNumber) ->
-    if bindingNumber == bn then
+    if bindingNumber == bindingNum then
       newDecls ++ [decl]
     else [decl]
   ) |> (\intermediateDecls ->
-    let finalDecls = if visualDeclarations |> List.all (\(_, bindingNumber) -> bindingNumber /= bn) then
+    let finalDecls = if visualDeclarations |> List.all (\(_, bindingNumber) -> bindingNumber /= bindingNum) then
       intermediateDecls ++ newDecls
       else
       intermediateDecls
@@ -2555,17 +2552,17 @@ insertInDeclarations bn newDecls decls =
     Parser.reorderDeclarations finalDecls)
 
 insertLetExpsAt: (EId, BindingNumber) -> List LetExp -> Exp -> Result String Exp
-insertLetExpsAt (eid, bn) newLetExps exp =
+insertLetExpsAt (eid, bindingNum) newLetExps exp =
   let (newExp, mbError) = mapFoldExp
         (\exp mbError -> if expEId exp /= eid then (exp, mbError) else
        case unwrapExp exp of
         ELet sp lk decls wsIn body ->
-           case insertInDeclarations bn (newLetExps |> List.map DeclExp) decls of
+           case insertInDeclarations bindingNum (newLetExps |> List.map DeclExp) decls of
              Ok newDecls ->
                (replaceE__ exp <| ELet sp lk newDecls wsIn body, mbError)
              Err msg -> (exp,  Just msg)
         ERecord sp mbInit decls sp2 ->
-           case insertInDeclarations bn (newLetExps |> List.map DeclExp) decls of
+           case insertInDeclarations bindingNum (newLetExps |> List.map DeclExp) decls of
              Ok newDecls ->
                (replaceE__ exp <| ERecord sp mbInit newDecls sp2, mbError)
              Err msg -> (exp, Just msg)
@@ -2708,6 +2705,199 @@ introduceVarTransformation_
       [synthesisResult msg newExp |> setResultSafe isSafe]
     Err msg ->
       [synthesisResult msg m.inputExp]
+
+moveDeclarations: List (EId, Int) -> (BeforeAfter, (EId, BindingNumber)) -> Exp -> List SynthesisResult
+moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) as insertionPosition) originalProgram =
+  let
+    identsAtInsertionPoint = EvalUpdate.visibleIdentifiersAtEIdBindingNum originalProgram insertionPosition
+
+    -- Removes the declarations and return them, unless they are in the same ELet
+    -- Returns the insertion place in case it changed.
+    folder: Exp -> (List (EId, Int), List Declaration, Warnings, (BeforeAfter, BindingNumber)) -> List Ident ->
+           (Exp,   (List (EId, Int), List Declaration, Warnings, (BeforeAfter, BindingNumber)), List Ident)
+    folder exp ((declsToMove, declarationsToInsert, warnings, (beforeAfter, insertionBindingNum) as insertionPoint) as globalAcc) (scopeIdents as pathAcc) =
+      let thisEId = expEId exp in
+      if not <| List.any (\(eid, i) -> eid == thisEId) declsToMove then (exp, globalAcc, scopeIdents)
+      else case unwrapExp exp of
+        ELet ws lk (Declarations po types anns exps as decls) spIn eBody ->
+          let (sameELet {- declarations to move inside the same ELet, this one. -},
+               otherDecls {- all remaining declarations -} ) =
+            declsToMove |> List.partition (\(eid, i) ->
+               eid == thisEId && thisEId  == insertionEId) in
+          -- For declarations in the same ELet, it's just a new reordering that is done later.
+          -- For the declarations in a different ELet, they are just removed and stored from now.
+          let
+            -- Declarations in their print order, zipped with their binding number.
+            declarationsInOrderWithIndex = getDeclarationsInOrderWithIndex decls
+
+            (localDeclsToInsertElsewhere {- Declarations of this ELet that needs to be removed -},
+             localDeclsRemaining         {- Declarations of this ELet that stay in place -}) =
+              declarationsInOrderWithIndex |>
+               List.partition (\((decl, bindingNum) as declIndex) ->
+                 List.any (\(eid, i) -> eid == thisEId && bindingNum == i) otherDecls)
+
+            -- Maps binding numbers before to after we remove the localDeclsToInsertElsewhere
+            mapBindingNumber i =
+              i - (List.filter (\(decl, j) -> j < i) localDeclsToInsertElsewhere |> List.length)
+
+            -- What remains to move among otherDecls (that is not in this ELet)
+            declsToMoveRemaining = otherDecls |>
+               List.partition (\(eid, i) ->
+                List.any (\(decl, bindingNum) ->
+                  eid == thisEId && bindingNum == i) declsToMove) |> Tuple.second
+
+            -- If some declarations needs to be moved inside this ELet (sameELet), let's do so.
+            --localDeclsRemainingReordered: List (Declaration, BindingNumber)
+            -- updatedBeforeAfter: beforeAfter
+            -- updatedBindingNum: BindingNum
+            (localDeclsRemainingReordered, (updatedInsertionBeforeAfter, updatedInsertionBindingNum)) =
+              if insertionEId /= thisEId then
+                (localDeclsRemaining, insertionPoint)
+              else let
+                  -- We need to move declarations within the same let,
+                  --so remove them as well before reinserting them again.
+                -- All binding nums in this ELet whose order is going to change.
+                bindingNumToMove = List.map Tuple.second sameELet
+
+                -- All binding numbers of declarations to remove (including those to remove temporarily)
+                removedUntilReinsertion = List.map Tuple.second localDeclsToInsertElsewhere ++ bindingNumToMove
+
+                -- Helper to check that a binding number has been removed.
+                isRemovedBindingNum k = List.any ((==) k) removedUntilReinsertion
+
+                -- Mapping for old binding number to binding number after (toReinsert ++ toRemove) has been removed.
+                mapBindingNumber i =
+                   i - (List.filter (\j -> j < i) removedUntilReinsertion |> List.length)
+
+                -- Declarations to insert afterwards, other declarations.
+                (toReinsert, remaining) =
+                   List.partition (\(decl, bindingNum) ->
+                    List.any ((==) bindingNum) bindingNumToMove
+                  ) localDeclsRemaining
+
+                -- The insertion point possibly changes, so we recompute it.
+                mbNewBeforeAfterInsertionBindingNum: Maybe (BeforeAfter, BindingNumber)
+                mbNewBeforeAfterInsertionBindingNum =
+                 if List.any (\bindingNum -> bindingNum == insertionBindingNum) removedUntilReinsertion then
+                   -- The insertion point was one of the removed declarations.
+                   -- We need to compute 1) the new insertion point in printing order
+                   -- 2) The new insertion point binding number.
+                   let mbNewBeforeAFterInsertionBindingNum = Tuple.first <|
+                     Utils.foldLeft (Nothing, (False, Nothing)) declarationsInOrderWithIndex <|
+                                \(mbNewBeforeAFterInsertionBindingNum, (beforeNext, lastNotRemoved)) (decl, bindingNum) ->
+                        case mbNewBeforeAFterInsertionBindingNum of
+                         Just x -> (mbNewBeforeAFterInsertionBindingNum, (beforeNext, lastNotRemoved))
+                         Nothing ->
+                          if bindingNum == insertionBindingNum then
+                            if beforeAfter == Before then
+                              case lastNotRemoved of
+                                Just n -> (Just (Before, n), (False, Nothing))
+                                Nothing -> (Nothing, (True, Nothing))
+                            else
+                              (Nothing, (True, Nothing))
+                          else if isRemovedBindingNum bindingNum then
+                            (Nothing, (False, lastNotRemoved))
+                          else if beforeNext then
+                            (Just (Before, bindingNum), (False, Nothing))
+                          else
+                            (Nothing, (False, Just bindingNum))
+                   in
+                   mbNewBeforeAFterInsertionBindingNum
+                 else
+                   Just (beforeAfter, insertionBindingNum)
+              in
+              case mbNewBeforeAfterInsertionBindingNum of
+                Just ((finalBefore, finalInsertionBindingNum) as finalInsertionPoint) ->
+                   let localDeclsWithInsertions = remaining |>
+                     List.concatMap (\((decl, bindingNum) as declIndex) ->
+                        if bindingNum == finalInsertionBindingNum then
+                         if finalBefore == Before then
+                           toReinsert ++ [declIndex]
+                         else
+                           declIndex :: toReinsert
+                        else [declIndex]
+                     )
+                   in (localDeclsWithInsertions, finalInsertionPoint)
+                Nothing -> -- All declarations have been removed at this point (toReinsert == all declarations), so we just no nothing.
+                  (toReinsert, insertionPoint)
+          in
+          -- TODO: We might loose we will loose the insertion point if reordering occurs.
+          case Parser.reorderDeclarations (List.map Tuple.first localDeclsRemainingReordered) of
+            Err msg -> -- We cannot reorder declarations.
+              (exp, (declsToMove, declarationsToInsert, warnings ++ [msg], insertionPoint), scopeIdents)
+            Ok ((Declarations newPo _ _ _ ) as newDecls) ->
+              let
+                updatedFinalBindingNumber =
+                  -- Given newPo: newBindingNum -> index in localDeclsRemainingReordered
+                  -- List.map Tuple.second localDeclsRemainingReordered: index -> old binding num
+                  -- updatedInsertionBindingNum: old binding num)
+                  -- find the new Binding num.
+                  Utils.zipWithIndex newPo |> Utils.mapFirstSuccess (
+                     \(newBindingNum, indexInLocalEtc) ->
+                     Utils.zipWithIndex localDeclsRemainingReordered |> Utils.mapFirstSuccess (
+                       \((_, oldBindingNum), indexInLocalEtc2) ->
+                         if indexInLocalEtc == indexInLocalEtc2 && oldBindingNum == updatedInsertionBindingNum then
+                           Just newBindingNum
+                         else Nothing
+                       )
+                     )
+                newExp = if List.isEmpty localDeclsRemainingReordered then eBody else replaceE__ exp <|
+                    ELet ws lk newDecls spIn eBody
+              in
+              (newExp,
+                (declsToMoveRemaining,
+                 declarationsToInsert ++ List.map Tuple.first localDeclsToInsertElsewhere,
+                 warnings,
+                 (updatedInsertionBeforeAfter, updatedFinalBindingNumber |> Maybe.withDefault 0)), scopeIdents)
+        _ ->  (exp, globalAcc, scopeIdents)
+
+    handleLetExp: Exp -> IsRec -> List LetExp -> BindingNumber ->
+       (List (EId, Int), List Declaration, Warnings, (BeforeAfter, BindingNumber )) -> List Ident ->
+      ((List (EId, Int), List Declaration, Warnings, (BeforeAfter, BindingNumber )), List Ident) -- handleLetExp
+    handleLetExp e isRec group bindingNumber declarationsToInsert scopeIdents =
+      scopeIdents
+      |> Utils.reverseInsert
+          (group |> List.concatMap (patOfLetExp >> identifiersListInPat))
+      |> (,) declarationsToInsert
+
+    handleEFun: Exp -> List Ident -> List Ident                  -- hanldeEFun
+    handleEFun exp scopeIdents = case unwrapExp exp of
+      EFun _ pats _ _ ->
+        scopeIdents
+        |> Utils.reverseInsert
+          (pats |> List.concatMap identifiersListInPat)
+      _ ->
+        scopeIdents
+
+    handleCaseBranch: Exp -> Branch -> Int -> List Ident -> List Ident -- hanldeCaseBranch
+    handleCaseBranch exp branch nth scopeIdents = case branch.val of
+      Branch_ _ pat _ _ ->
+        scopeIdents
+        |> Utils.reverseInsert
+          (pat |> identifiersListInPat)
+
+    -- consumes the declarations to move, and returns the List of declarations to insert
+    -- that were not in the same scope as the insertion point.
+    initGlobal: (List (EId, Int), List Declaration, Warnings, ( BeforeAfter, BindingNumber ))
+    initGlobal = (declsToMove, [], [], (beforeAfter, insertionBindingNum))
+
+    initScope: List Ident
+    initScope = EvalUpdate.preludeEnv |> List.map Tuple.first
+
+    (expRewritten, (declsToMoveRemaining, declarationsToInline, warnings, finalInsertionPoint)) =
+      mapFoldExpTopDownWithScope folder handleLetExp handleEFun handleCaseBranch initGlobal initScope originalProgram
+
+    (msg, isSafe) =
+          if not <| List.isEmpty warnings then
+            (String.join ",\n" warnings, False)
+          else if List.isEmpty declsToMoveRemaining then
+            ("move at the given place", True)
+          else ("[Internal error] Could not find declarations " ++ toString declsToMoveRemaining, False)
+  in
+  if List.isEmpty declarationsToInline then
+    [synthesisResult msg expRewritten |> setResultSafe isSafe]
+  else
+    [] -- For now, later we need to insert.
 
 -- Small bug: can't introduce var directly in front of expression being extracted.
 {-

@@ -1986,6 +1986,9 @@ computePrintOrder evaluationOrder =
                   Array.set n i array
   ) |> Array.toList
 
+-- Takes a list of declarations (e.g. type annotations, types declarations, expression declarations)
+-- and possibly returns a Declarations where declarations have been put in the correct order and the print order is stored
+-- along with a function that can compute the binding number of any original declaration.
 reorderDeclarations: List Declaration -> Result String Declarations
 reorderDeclarations letExps =
   -- We put types at the top

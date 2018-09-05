@@ -583,6 +583,7 @@ moveDefinitionTool model selections =
           (toolName, Nothing, Possible)
         ([], [], [], [], [], [], [], [_]) ->
           (toolName, Nothing, Possible)
+        {-
         ([], [], [], firstPatId::restPatIds, [], [], [(Before, eId)], []) ->
           let pathedPatIds = firstPatId::restPatIds in
           ( Utils.perhapsPluralizeList toolName pathedPatIds
@@ -627,6 +628,15 @@ moveDefinitionTool model selections =
                 model.syntax
                 [(letEIdBinding, [])]
                 eId
+                model.inputExp
+          , Satisfied
+          )-}
+        ([], [], [], [], letEIds, [declTarget], [], []) ->
+          ( Utils.perhapsPluralizeList toolName letEIds
+          , Just <| \() ->
+              CodeMotion.moveDeclarations
+                letEIds
+                declTarget
                 model.inputExp
           , Satisfied
           )
@@ -2190,12 +2200,13 @@ toolList =
   , [ makeEqualTool
     , copyExpressionTool
     ]
+    -}
   , [ moveDefinitionTool
-    , swapDefinitionsTool
-    , inlineDefinitionTool
-    , duplicateDefinitionTool
+    --, swapDefinitionsTool
+    --, inlineDefinitionTool
+    --, duplicateDefinitionTool
     ]
-  , [ reorderExpressionsTool
+ {- , [ reorderExpressionsTool
     , swapExpressionsTool
     ]
   , [ makeSingleLineTool
