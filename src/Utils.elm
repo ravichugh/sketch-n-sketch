@@ -1,5 +1,6 @@
 module Utils exposing (..)
 
+import Char
 import String
 import Debug
 import Set exposing (Set)
@@ -515,6 +516,7 @@ mapFirstSuccess f list =
         Just result -> Just result
         Nothing     -> mapFirstSuccess f xs
 
+-- See also maybeWithLazyDefault
 firstOrLazySecond : Maybe a -> (() -> Maybe a) -> Maybe a
 firstOrLazySecond maybe1 lazyMaybe2 =
   case maybe1 of
@@ -671,6 +673,17 @@ commonPrefixString strings =
 commonSuffixString : List String -> String
 commonSuffixString strings =
   strings |> List.map String.reverse |> commonPrefixString |> String.reverse
+
+removeNumericSuffix : String -> String
+removeNumericSuffix string =
+  string
+  |> String.foldr
+      (\char string ->
+        if string == "" && Char.isDigit char
+        then ""
+        else String.cons char string
+      )
+      ""
 
 -- Merge common prefix and common suffix; combine middle parts with toSentence.
 --
@@ -983,6 +996,11 @@ elseMaybe : Maybe a -> a -> a
 elseMaybe mx default = case mx of
   Just x  -> x
   Nothing -> default
+
+maybeWithLazyDefault : (() -> a) -> Maybe a -> a
+maybeWithLazyDefault defaultThunk mx = case mx of
+  Just x  -> x
+  Nothing -> defaultThunk ()
 
 -- Return Just [...] only if given list is all Justs
 projJusts : List (Maybe a) -> Maybe (List a)

@@ -47,6 +47,13 @@ tUnion ts = withDummyRangeAndNoRoles (TUnion space1 ts space0)
 
 -- Other Helpers ------------------------------------------------------------
 
+isForall : Type -> Bool
+isForall tipe =
+  case tipe.val.t__ of
+    TForall _ _ _ _ -> True
+    _               -> False
+
+
 isListNotTuple : Type -> Bool
 isListNotTuple tipe =
   case tipe.val.t__ of
@@ -86,13 +93,22 @@ simplifyTailedTuple tipe =
       tipe
 
 
+allListsOrHomogenousTuplesOfSameTipe : List Type -> Bool
+allListsOrHomogenousTuplesOfSameTipe tipes =
+  List.all isListOrTuple tipes &&
+  List.all (not << typeContains isForall) tipes &&
+  case List.concatMap childTypes tipes of
+    []    -> True
+    t::ts -> List.all (equalUnderSameTypeVars t) ts
+
+
 maybeListOrHomogenousTupleElementsType : Type -> Maybe Type
 maybeListOrHomogenousTupleElementsType tipe =
   let figureItOut () =
     case childTypes tipe of
       []    -> Just (tForall ["a"] (tVar "a"))
       t::ts ->
-        if List.all (equalUnderSameTypeVars t) ts && List.all (not << typeContains isTForall) (t::ts)
+        if List.all (equalUnderSameTypeVars t) ts && List.all (not << typeContains isForall) (t::ts)
         then Just t
         else Nothing
   in

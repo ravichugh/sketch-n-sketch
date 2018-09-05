@@ -965,63 +965,10 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
   |> List.concatMap (\outputEId ->
     let
       returnExp = justFindExpByEId originalProgramUniqueNames outputEId
-      allPatExpProgramBindings   = allSimplyResolvableLetPatBindings originalProgramUniqueNames
-      programBindingPatToVarEIds =
-        allVarEIdsToBindingPatList originalProgramUniqueNames -- List (EId, Maybe Pat) "Nothing" means free in program
-        -- Now filter out the free vars and flip
-        |> List.filterMap (\(varEId, maybeProgramPat) -> maybeProgramPat |> Maybe.map (\programPat -> (programPat, varEId)))
-        |> Utils.pairsToDictOfLists
 
-      -- Returns list of patExps to include (after expanding recursively).
-      expandFunction includedPatExps =
-        let
-          (includedPats, includedBoundExps) = List.unzip includedPatExps
-          includedExps = returnExp::includedBoundExps
-          includedEIds = List.concatMap allEIds includedExps
-          patExpsToConsume =
-            allPatExpProgramBindings
-            |> List.filterMap
-                (\(pat, boundExp) ->
-                  -- Pull a patBoundExp into function if (a) not a function and (b) only used within exps already in function.
-                  --
-                  -- We want to correctly consume the whole [x, y] pattern in the following...
-                  --
-                  -- pt = [3, 4]
-                  -- [x, y] = pt
-                  -- returnExp = sqrt(x^2 + y^2)
-                  --
-                  -- ...so have to look at every pattern with its children idents, not just ident patterns individually.
-                  let
-                    (_, identPats) = List.unzip (indentPatsInPat pat)
-                    usageEIds =
-                      identPats
-                      |> List.filterMap (\identPat -> Dict.get identPat programBindingPatToVarEIds)
-                      |> List.concat
-                    noIdentPatsAreBindingFunctions =
-                      identPats
-                      |> List.all
-                          (\identPat ->
-                            case Utils.maybeFind identPat allPatExpProgramBindings of
-                              Just boundExp -> not <| isFunc (expEffectiveExp boundExp)
-                              Nothing       -> False
-                          )
-                    allUsesAreInThisFunction = usageEIds |> List.all (\varEId -> List.member varEId includedEIds)
-                  in
-                  if usageEIds /= [] && noIdentPatsAreBindingFunctions && allUsesAreInThisFunction && slurpedBindingsFilter pat boundExp then
-                    Just (pat, boundExp)
-                  else
-                    Nothing
-                )
-
-          newIncludedPatExps = Utils.addAllAsSet patExpsToConsume includedPatExps
-        in
-        if newIncludedPatExps == includedPatExps then
-          -- Cannot expand further; remove pats that are children of an included pat.
-          includedPatExps |> List.filter (\(pat, exp) -> not <| List.any (\otherPat -> pat /= otherPat && List.member pat (flattenPatTree otherPat)) includedPats)
-        else
-          expandFunction newIncludedPatExps
-
-      includedPatExps = expandFunction []
+      -- Slurp in all the definitions used only in this function
+      (funcBodyAfterSlurpingBeforeArgumentization, programUniqueNamesBindingsRemoved) =
+        CodeMotion.gatherUniqueDependencies_ returnExp originalProgramUniqueNames slurpedBindingsFilter
 
       -- Okay, now the fun part: building the function.
 
@@ -1036,23 +983,6 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
       uniqueNamesToAvoid   = Set.union (identifiersSetPlusPrelude program) ([funcSuggestedName, funcName] ++ Dict.keys uniqueNameToOldName |> Set.fromList)
       funcUniqueName       = nonCollidingName funcSuggestedName 2 uniqueNamesToAvoid
       uniqueNameToOldName2 = Dict.insert funcUniqueName funcName uniqueNameToOldName
-
-      -- Just slurp in the lets and allow the problem resolver do its thing.
-
-      (funcBodyAfterSlurpingBeforeArgumentization, programUniqueNamesBindingsRemoved) =
-        includedPatExps
-        |> List.sortBy (\(_, boundExp) -> parsedThingToLocation boundExp)
-        |> Utils.foldr
-            (replacePrecedingWhitespace "\n  " (replaceIndentation "  " returnExp), originalProgramUniqueNames)
-            (\(pat, boundExp) (funcBodySoFar, programUniqueNamesSomeBindingsRemoved) ->
-              case CodeMotion.pluckByPId pat.val.pid programUniqueNamesSomeBindingsRemoved of
-                Just ((pat, boundExp, isRec), programUniqueNamesSomeBindingsRemoved) ->
-                  ( ELet newline1 Let isRec (replacePrecedingWhitespacePat " " pat) space1 (replaceIndentation "  " boundExp) space1 funcBodySoFar space0 |> withDummyExpInfo
-                  , programUniqueNamesSomeBindingsRemoved
-                  )
-                Nothing ->
-                  Debug.crash <| "buildAbstraction: pluck shouldn't fail, but did " ++ toString pat
-            )
 
       -- computeExpsGroupsToArgumentize should return a list of possible ways to turn pieces of the function into arguments
       -- computeExpsGroupsToArgumentize : Exp -> List (List Exp)

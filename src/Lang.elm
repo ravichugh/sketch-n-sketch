@@ -1202,12 +1202,6 @@ replacePatNodePreservingPrecedingWhitespace pid newPat root =
       (\pat -> copyPrecedingWhitespacePat pat newPat)
       root
 
-isTForall : Type -> Bool
-isTForall tipe =
-  case tipe.val.t__ of
-    TForall _ _ _ _ -> True
-    _               -> False
-
 typeContains : (Type -> Bool) -> Type -> Bool
 typeContains predicate tipe =
   predicate tipe

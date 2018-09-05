@@ -1973,8 +1973,7 @@ msgStopAutoSynthesisAndClear =
 
 msgGroup = Msg "Group" doGroup
 
--- Needs some annoying detail fixups to get this to go for, say, selected
--- points but it should otherwise just work.
+
 doGroup old =
   let
     valsToGroup =
@@ -2005,7 +2004,7 @@ doGroup old =
     (insertedLetEId, insertedBoundExpEId) = (maxId + 1, maxId + 2)
     (contextExp, endOfDrawingContextExp) = FocusedEditingContext.contextExpAndEndOfDrawingContextExp old.editingContext originalProgram
 
-    groupTuple = setEId insertedBoundExpEId <| eTuple <| List.map eHoleVal valsToGroup
+    groupTuple = setEId insertedBoundExpEId <| eTuple <| setExpListWhitespace "" " " <| List.map eHoleVal valsToGroup
 
     -- 1. We need a list.
 
@@ -2014,7 +2013,9 @@ doGroup old =
         valsToGroup
         |> List.map Types.valToMaybeType
         |> Utils.projJusts
-        |> Maybe.map (Utils.dedup >> List.length >> (==) 1)
+        |> Maybe.map Types.allListsOrHomogenousTuplesOfSameTipe
+        -- |> Maybe.andThen (List.map Types.maybeListOrHomogenousTupleElementsType >> Utils.projJusts)
+        -- |> Maybe.map (Utils.dedup >> List.length >> (==) 1)
         |> Maybe.withDefault False
       in
       [groupTuple] ++
@@ -2024,9 +2025,13 @@ doGroup old =
 
     synthesisResults =
       listsToTry
-      |> List.map
+      |> List.concatMap
           (\initialGroupListWithHoles ->
             let
+              -- DrawAddShape.addShape will do the variable insertion and hole filling, but
+              -- doing so there breaks the grouping of e.g. points when there's already something
+              -- in the output. Not worth the time now to try to fix.
+
               (groupInitialName, programWithList) =
                 originalProgram
                 |> LangTools.newVariableVisibleTo
@@ -2036,32 +2041,29 @@ doGroup old =
                     initialGroupListWithHoles
                     [endOfDrawingContextExp.val.eid]
 
-              _ = logProgram "programWithList" programWithList
+              -- _ = logProgram "programWithList" programWithList
 
               -- 2. We need these things to be in the list.
 
-              -- DrawAddShape resolves holes so we can probably skip this step.
+              -- DrawAddShape resolves holes so we could in theory skip this step,
+              -- but it crashes right now if we do and that's not worth resolving.
               programWithListHolesFilled =
                 programWithList
                 |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
                 |> List.head
                 |> Maybe.withDefault originalProgram
 
-              _ = logProgram "programWithListHolesFilled" programWithListHolesFilled
+              -- _ = logProgram "programWithListHolesFilled" programWithListHolesFilled
 
               -- 3. We need the list to appear in the output.
 
-              -- To make this work well with non-shapes, need to detect ...
-              -- ...really now that type inference is better, just need to make
-              -- type-direct choices in DrawAddShape instead of relying on crashing
-              -- and precise output expectations
               programWithListInOutput =
-                programWithListHolesFilled
+                programWithListHolesFilled -- originalProgram
                 |> DrawAddShape.addShape
                     old
                     (always True) -- targetListFilter
-                    Nothing -- maybeNewShapeName
-                    (eVar groupInitialName) -- newShapeExp
+                    Nothing -- (Just "group") -- maybeNewShapeName
+                    (eVar groupInitialName) -- initialGroupListWithHoles -- newShapeExp
                     Nothing -- (Just <| List.length valsToGroup) -- maybeNumberOfNewShapesExpected -- we're not smart enough to predict the number of shapes when flattening lists
                     Nothing -- maybeNumberOfNewShapesExpectedIfListInlined
                     Nothing -- maybeNumberOfNewListItemsExpected
@@ -2069,22 +2071,23 @@ doGroup old =
                     False -- areCrashingProgramsOkay
                 |> freshen
 
-              _ = logProgram "programWithListInOutput" programWithListInOutput
+              -- _ = logProgram "programWithListInOutput" programWithListInOutput
 
-
-              groupBoundExp = LangTools.justFindExpByEId programWithListInOutput initialGroupListWithHoles.val.eid
+              groupBoundExp = LangTools.justFindExpByEId programWithListInOutput insertedBoundExpEId
 
               -- 4. We need the originals to not appear in the output.
               -- Need to do this late in the pipeline here in case newVariableVisibleTo inserted variables into shape list where previously there was a more literal expression in the shape list.
+
+              -- Get the tuple that contains group items (e.g. just grab it, or perhaps dig into the concat args)
+              insertedTuple =
+                groupBoundExp
+                |> LangTools.expToMaybeAppArgs
+                |> Maybe.andThen Utils.maybeUnwrap1
+                |> Maybe.withDefault groupBoundExp
+
               programWithOriginalUsesRemoved =
                 let (oldShapeCount, oldListItemsCount) = DrawAddShape.maybeShapeCountAndListItemCountInContextOutput old programWithListInOutput |> Maybe.withDefault (0, 0) in
-                -- Get the tuple that contains group items (e.g. just grab it, or perhaps dig into the concat args)
-                let insertedTuple =
-                  groupBoundExp
-                  |> LangTools.expToMaybeAppArgs
-                  |> Maybe.andThen Utils.maybeUnwrap1
-                  |> Maybe.withDefault groupBoundExp
-                in
+                -- For each var EId in the inserted Tuple, try to find and remove a use of it that thus decreases the output size.
                 insertedTuple
                 |> childExps
                 |> List.map expEffectiveExp
@@ -2104,7 +2107,7 @@ doGroup old =
                             (\varEIdToRemove ->
                               case CodeMotion.maybeDeleteEId varEIdToRemove program of
                                 Just programWithVarEIdRemoved ->
-                                  let _ = logProgram "programWithVarEIdRemoved" programWithVarEIdRemoved in
+                                  -- let _ = logProgram "programWithVarEIdRemoved" programWithVarEIdRemoved in
                                   case DrawAddShape.maybeShapeCountAndListItemCountInContextOutput old programWithVarEIdRemoved of
                                     Just (newShapeCount, newListItemsCount) ->
                                       if newShapeCount < oldShapeCount || newListItemsCount < oldListItemsCount
@@ -2122,11 +2125,33 @@ doGroup old =
                       |> Maybe.withDefault program
                     )
 
-              -- 5. We need the unique dependencies to (possibly) be consolidated into the group definition.
-            in
-            synthesisResult
-                (groupBoundExp |> Syntax.unparser Syntax.Elm |> Utils.squish)
+              -- Can't reasonably name until holes filled.
+              newGroupName =
+                LangTools.nonCollidingName (LangTools.expNameForExp insertedTuple insertedTuple) 1 (LangTools.visibleIdentifiersAtEIds programWithOriginalUsesRemoved (Set.singleton endOfDrawingContextExp.val.eid))
+
+
+              programWithOriginalUsesRemovedGroupRenamed =
                 programWithOriginalUsesRemoved
+                |> mapExpNode insertedLetEId
+                    (\letExp ->
+                      let oldName = letExp |> LangTools.expToLetPat |> LangTools.patToMaybeIdent |> Maybe.withDefault "grumblecakes" in
+                      letExp
+                      |> LangTools.setPatName ((insertedLetEId, 1), []) newGroupName
+                      |> LangTools.renameVarUntilBound oldName newGroupName
+                    )
+
+              resultBaseDescription = groupBoundExp |> Syntax.unparser Syntax.Elm |> Utils.squish
+
+              -- 5. We want the unique dependencies to (possibly) be consolidated into the group definition.
+              groupWithDefinitionsGatheredResults =
+                CodeMotion.gatherUniqueDependencies
+                    (resultBaseDescription ++ " with dependencies gathered")
+                    insertedBoundExpEId
+                    programWithOriginalUsesRemovedGroupRenamed
+                    (\pat boundExp -> True) -- slurpedBindingsFilter
+            in
+            [synthesisResult resultBaseDescription programWithOriginalUsesRemovedGroupRenamed] ++
+            groupWithDefinitionsGatheredResults
           )
   in
   { old | synthesisResultsDict = Dict.insert "Group" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }

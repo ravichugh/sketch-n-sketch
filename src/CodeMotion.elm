@@ -3270,6 +3270,148 @@ resolveValueHolesByLocLifting solutionsCache syncOptions programWithHolesUnfresh
   |> List.singleton
 
 
+-- See gatherUniqueDependencies_ below, this version returns program with
+-- dependencies gathered and does not require program to be run through
+-- assignUniqueNames first.
+gatherUniqueDependencies : String -> EId -> Exp -> (Pat -> Exp -> Bool) -> List SynthesisResult
+gatherUniqueDependencies description targetEIdToGatherAround program slurpedBindingsFilter =
+  let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
+  case findExpByEId originalProgramUniqueNames targetEIdToGatherAround of
+    Just targetExp ->
+      let
+        (gatheredGroup, programUniqueNamesBindingsRemoved) =
+          gatherUniqueDependencies_ targetExp originalProgramUniqueNames slurpedBindingsFilter
+
+        gatheredGroupIndented =
+          let desiredIndentation =
+            findLetAndPatMatchingExpLoose targetEIdToGatherAround program
+            |> Maybe.map (\(letExp, _) -> indentationAt letExp.val.eid program ++ "  ")
+            |> Utils.maybeWithLazyDefault (\() -> indentationAt targetEIdToGatherAround program)
+          in
+          gatheredGroup |> unindent |> replacePrecedingWhitespace "\n" |> indent desiredIndentation
+
+        programWithGroupInserted =
+          programUniqueNamesBindingsRemoved
+          |> replaceExpNode targetEIdToGatherAround gatheredGroupIndented
+          |> LangSimplify.simplifyAssignments -- Remove remnants of plucking.
+      in
+      programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
+          description -- baseDescription
+          uniqueNameToOldName
+          Nothing -- (Just letEIdWithNewVars) -- maybeNewScopeEId
+          ("moved", "unmoved") -- (touchedAdjective, untouchedAdjective)
+          (identifiersSetPatsOnly gatheredGroupIndented) -- namesUniqueTouched
+          [] -- varEIdsPreviouslyDeliberatelyRemoved
+          Dict.empty -- insertedVarEIdToBindingPId
+          originalProgramUniqueNames -- originalProgramUniqueNames
+          programWithGroupInserted -- newProgramUniqueNames
+
+    Nothing ->
+      []
+
+-- Given an expression, look at its free variables and gather all its dependant lets not used
+-- elsewhere and matching slurpedBindingsFilter into a series of lets with the returnExp at the end.
+--
+-- e.g. Given (with [a,b,c] as the target returnExp):
+--
+-- a = 10
+-- b = 20
+-- c = 30
+-- d = 40
+--
+-- tuple = [a,b,c]
+-- other = b
+--
+-- Produce:
+--
+-- let a = 10 in
+-- let c = 30 in
+-- [a,b,c]
+--
+-- Precondition: input program has been run through assignUniqueNames
+--
+-- Returns: (the gathered let series, program with unique names but moved let bindings removed (returnExp not replaced yet))
+gatherUniqueDependencies_  : Exp -> Exp -> (Pat -> Exp -> Bool) -> (Exp, Exp)
+gatherUniqueDependencies_ returnExp originalProgramUniqueNames slurpedBindingsFilter =
+  let
+    allPatExpProgramBindings   = allSimplyResolvableLetPatBindings originalProgramUniqueNames
+    programBindingPatToVarEIds =
+      allVarEIdsToBindingPatList originalProgramUniqueNames -- List (EId, Maybe Pat) "Nothing" means free in program
+      -- Now filter out the free vars and flip
+      |> List.filterMap (\(varEId, maybeProgramPat) -> maybeProgramPat |> Maybe.map (\programPat -> (programPat, varEId)))
+      |> Utils.pairsToDictOfLists
+
+    -- Returns list of patExps to include (after expanding recursively).
+    expandFunction includedPatExps =
+      let
+        (includedPats, includedBoundExps) = List.unzip includedPatExps
+        includedExps = returnExp::includedBoundExps
+        includedEIds = List.concatMap allEIds includedExps
+        patExpsToConsume =
+          allPatExpProgramBindings
+          |> List.filterMap
+              (\(pat, boundExp) ->
+                -- Slurp up a patBoundExp if (a) not a function and (b) only used within exps already in group.
+                --
+                -- We want to correctly consume the whole [x, y] pattern in the following...
+                --
+                -- pt = [3, 4]
+                -- [x, y] = pt
+                -- returnExp = sqrt(x^2 + y^2)
+                --
+                -- ...so have to look at every pattern with its children idents, not just ident patterns individually.
+                let
+                  (_, identPats) = List.unzip (indentPatsInPat pat)
+                  usageEIds =
+                    identPats
+                    |> List.filterMap (\identPat -> Dict.get identPat programBindingPatToVarEIds)
+                    |> List.concat
+                  noIdentPatsAreBindingFunctions =
+                    identPats
+                    |> List.all
+                        (\identPat ->
+                          case Utils.maybeFind identPat allPatExpProgramBindings of
+                            Just boundExp -> not <| isFunc (expEffectiveExp boundExp)
+                            Nothing       -> False
+                        )
+                  allUsesAreInThisFunction = usageEIds |> List.all (\varEId -> List.member varEId includedEIds)
+                in
+                if usageEIds /= [] && noIdentPatsAreBindingFunctions && allUsesAreInThisFunction && slurpedBindingsFilter pat boundExp then
+                  Just (pat, boundExp)
+                else
+                  Nothing
+              )
+
+        newIncludedPatExps = Utils.addAllAsSet patExpsToConsume includedPatExps
+      in
+      if newIncludedPatExps == includedPatExps then
+        -- Cannot expand further; remove pats that are children of an included pat.
+        includedPatExps |> List.filter (\(pat, exp) -> not <| List.any (\otherPat -> pat /= otherPat && List.member pat (flattenPatTree otherPat)) includedPats)
+      else
+        expandFunction newIncludedPatExps
+
+    includedPatExps = expandFunction []
+
+    -- Just slurp in the lets and allow the problem resolver do its thing.
+
+    (gatheredGroupAfterSlurpingBeforeArgumentization, programUniqueNamesBindingsRemoved) =
+      includedPatExps
+      |> List.sortBy (\(_, boundExp) -> parsedThingToLocation boundExp)
+      |> Utils.foldr
+          (replacePrecedingWhitespace "\n  " (replaceIndentation "  " returnExp), originalProgramUniqueNames)
+          (\(pat, boundExp) (gatheredGroupSoFar, programUniqueNamesSomeBindingsRemoved) ->
+            case pluckByPId pat.val.pid programUniqueNamesSomeBindingsRemoved of
+              Just ((pat, boundExp, isRec), programUniqueNamesSomeBindingsRemoved) ->
+                ( ELet newline1 Let isRec (replacePrecedingWhitespacePat " " pat) space1 (replaceIndentation "  " boundExp) space1 gatheredGroupSoFar space0 |> withDummyExpInfo
+                , programUniqueNamesSomeBindingsRemoved
+                )
+              Nothing ->
+                Debug.crash <| "buildAbstraction: pluck shouldn't fail, but did " ++ toString pat
+          )
+  in
+  (gatheredGroupAfterSlurpingBeforeArgumentization, programUniqueNamesBindingsRemoved)
+
+
 -- Returns unmodified program if cannot delete.
 deleteEId : EId -> Exp -> Exp
 deleteEId eidToDelete program =
