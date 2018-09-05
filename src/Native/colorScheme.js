@@ -21,7 +21,7 @@ function setAceColorScheme(selectedColorSchemeName) {
   } else if (selectedColorSchemeName === "dark") {
     editor.setTheme("ace/theme/tomorrow_night");
   } else {
-    console.log(
+    console.error(
       "WARN (colorScheme.js): unknown color scheme name '" +
       selectedColorSchemeName +
       "'"

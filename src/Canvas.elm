@@ -1,26 +1,30 @@
-module Canvas exposing (build, buildSvg, iconify)
+module Canvas exposing (build)
 
 -- Sketch-n-Sketch Libraries ---------------------------------------------------
 
 import Config exposing (params)
 import Utils
 import Either exposing (Either(..))
-import HtmlUtils exposing (handleEventAndStop)
-import UserStudy
+import HtmlUtils exposing (..)
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
+import LangTools
+import Provenance
 import LangSvg exposing (NodeId, ShapeKind, attr)
 import ShapeWidgets exposing
-  ( ZoneName, RealZone(..)
-  , ShapeFeature, Feature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..)
-  , FeatureNum(..)
+  ( RealZone, RealZone(..)
+  , SelectableFeature(..), GenericFeature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..), ShapeFeature(..)
   )
-import SleekLayout
+import SleekLayout exposing (canvasPosition)
 import Sync
 import Draw
 import InterfaceModel exposing (..)
-import FastParser exposing (parseE)
+import InterfaceController as Controller
+
+import LangUnparser
 import Eval
+import Syntax exposing (Syntax)
 
 -- Elm Libraries ---------------------------------------------------------------
 
@@ -28,6 +32,7 @@ import String
 import Dict
 import Set
 import Color
+import Keys
 
 import VirtualDom
 import Json.Decode
@@ -63,73 +68,111 @@ svgPath      = flip Svg.path []
 
 msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.outputMode of
-    Live ->
+    Graphics ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
-      let info = old.liveSyncInfo in
-      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (Tuple.second old.mouseState) in
-      let trigger = Sync.prepareLiveTrigger info old.inputExp zoneKey in
-      let dragInfo = (trigger, (mx, my), False) in
-      { old | mouseMode = MouseDragZone zoneKey (Just dragInfo) }
+      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (mousePosition old) in
+      let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
+      { old | mouseMode = MouseDragZone zoneKey (mx, my) False trigger }
     _ ->
       old
 
 msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
   case (old.tool, old.mouseMode) of
-    (Cursor, MouseDragZone _ _) -> old
-    (Cursor, _) ->
-      { old | selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+    (Cursor, MouseDragZone _ _ _ _) -> old
+    (Cursor, MouseNothing) ->
+      let dragMode = MouseDragSelect (mousePosition old) old.selectedShapes old.selectedFeatures old.selectedBlobs in
+      if old.keysDown == [Keys.keyShift]
+      then { old | mouseMode = dragMode }
+      else { old | mouseMode = dragMode, selectedShapes = Set.empty, selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
 
-    (_ , MouseNothing) ->
-      { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
-            , selectedShapes = Set.empty, selectedBlobs = Dict.empty }
+    (_ , MouseNothing) -> startDrawing old
+    _                  -> old
 
-    _ -> old
+
+startDrawing : Model -> Model
+startDrawing old =
+  { old | mouseMode = MouseDrawNew NoPointsYet -- No points until drag begins, or (for paths/polys) mouse-up
+        , selectedShapes = Set.empty
+        , selectedBlobs = Dict.empty }
 
 
 --------------------------------------------------------------------------------
 
 
-build wCanvas hCanvas model =
-  let addZones = case (UserStudy.enabled, model.outputMode, model.preview) of
-    (True, _, _)       -> False
-    (_, Live, Nothing) -> model.tool == Cursor
-    _                  -> False
+build : SleekLayout.BoundingBox -> Model -> List (Html Msg)
+build dim model =
+  let addZones = case (model.outputMode, model.preview) of
+    (Graphics, Nothing) -> model.tool == Cursor
+    _                   -> False
   in
   let (widgets, slate) =
     case model.preview of
-      Just (_, Ok (val, widgets, slate)) -> (widgets, slate)
-      _                                  -> (model.widgets, model.slate)
+      Just (_, _, Ok (val, widgets, slate)) -> (widgets, slate)
+      _                                     -> (model.widgets, model.slate)
   in
-  let outputShapes = buildSvg (model, addZones) slate in
+  let outputElement = buildHtml (model, addZones) slate in
   let newShape = drawNewShape model in
-  let svgWidgets =
-    case (model.outputMode, model.showGhosts) of
-      (Live, True ) -> buildSvgWidgets wCanvas hCanvas widgets model
-      _             -> []
+  let widgetsAndDistances =
+    case (model.outputMode, model.showGhosts, model.preview) of
+      (Graphics, True, Nothing) -> buildDistances model slate widgets ++ buildSvgWidgets dim.width dim.height widgets model -- Draw distances below other widgets
+      _                         -> []
   in
-  Svg.svg
-     [ Attr.id "outputCanvas"
-     , onMouseDown msgMouseClickCanvas
-     , Attr.style
-         [ ("width", pixels wCanvas)
-         , ("height", pixels hCanvas)
-         ]
-     ]
-     ([outputShapes] ++ newShape ++ svgWidgets)
+  let selectBox = drawSelectBox model in
+  if LangSvg.isSvg model.inputVal then
+    [ Svg.svg
+        [ Attr.id "svgOutputCanvas"
+        , onMouseDown msgMouseClickCanvas
+        , Attr.style
+            [ ("width", pixels dim.width)
+            , ("height", pixels dim.height)
+            ]
+        ]
+        ([outputElement] ++ newShape ++ widgetsAndDistances ++ selectBox)
+    ]
+  else
+    let maybeWrappedCanvas =
+      case (model.preview, model.addDummyDivAroundCanvas) of
+
+        -- not inserting dummy div. instead, libraries can use state of
+        -- toggleGlobalBool () to play tricks to work around Elm re-render issue.
+        --
+        -- (Just _,  _)       -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        -- (Nothing, Just _)  -> Html.div [ Attr.id "outputCanvasDummyWrapper" ] [ outputElement ]
+        -- (Nothing, Nothing) -> outputElement
+
+        _ -> outputElement
+    in
+    [ maybeWrappedCanvas
+    , Svg.svg
+        [ Attr.id "svgWidgetsLayer"
+        , Attr.style
+            [ ("left", pixels dim.x)
+            , ("top", pixels dim.y)
+            , ("width", pixels dim.width)
+            , ("height", pixels dim.height)
+            ]
+        ]
+        (widgetsAndDistances ++ selectBox)
+    ]
 
 
 --------------------------------------------------------------------------------
--- Compiling to Svg
+-- Compiling to Svg/Html
 
-buildSvg : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
-buildSvg options (i,d) = buildSvg_ options d i
+buildHtml : (Model, Bool) -> LangSvg.RootedIndexedTree -> (Svg Msg)
+buildHtml (model, addZones) (i,d) = buildHtml_ (model, addZones) False d i
 
-buildSvg_ : (Model, Bool) -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
-buildSvg_ stuff d i =
-  let (model, addZones) = stuff in
-  case Utils.justGet_ ("buildSvg_ " ++ toString i) i d of
+buildHtml_ : (Model, Bool) -> Bool -> LangSvg.IndexedTree -> LangSvg.NodeId -> (Svg Msg)
+buildHtml_ (model, addZones) insideSvgNode d i =
+  case Utils.justGet_ ("buildHtml_ " ++ toString i) i d |> .interpreted of
    LangSvg.TextNode text -> VirtualDom.text text
-   LangSvg.SvgNode shape attrs js ->
+   -- LangSvg.SvgNode shape attrs childIndices ->
+   LangSvg.SvgNode shape originalAttrs childIndices ->
+    let attrs =
+      case Dict.get i model.shapeUpdatesViaZones of
+        Nothing -> originalAttrs
+        Just updatedAttrs -> updatedAttrs
+    in
     case (model.showGhosts, Utils.maybeRemoveFirst "HIDDEN" attrs) of
      (False, Just _) -> Svg.svg [] []
      _ ->
@@ -140,7 +183,7 @@ buildSvg_ stuff d i =
           (False, Just (_, l)) -> ([], l)
           (True, Nothing) ->
             (makeZones model shape i attrs, attrs)
-          (True, Just (aval, l)) -> case aval.av_ of
+          (True, Just (aval, l)) -> case aval.interpreted of
             _ ->
               (makeZones model shape i attrs, l)
             -- TODO breaking these for now; see ZoneOptions comment.
@@ -150,49 +193,53 @@ buildSvg_ stuff d i =
             LangSvg.AString "basic" ->
               let options' = { options | addRot = False, addColor = False } in
               (makeZones model options_ shape i attrs, l)
-            _ -> Debug.crash "buildSvg_"
+            _ -> Debug.crash "buildHtml_"
 -}
       in
-      let children = List.map (buildSvg_ stuff d) js in
-      -- let mainshape = (Svg.node shape) (LangSvg.compileAttrs attrs') children in
-      let mainshape =
-        let (rawKind, rawAttrs) = LangSvg.desugarShapeAttrs shape attrs_ in
-        (Svg.node rawKind) (LangSvg.compileAttrs rawAttrs) children in
-      if zones == []
-        then mainshape
-        else Svg.svg [] (mainshape :: zones)
+      let (rawKind, compiledAttrs) =
+        let canvasDim = SleekLayout.outputCanvas model in
+        attrs_
+          |> LangSvg.desugarShapeAttrs canvasDim.x canvasDim.y shape
+          |> Tuple.mapSecond LangSvg.compileAttrs
+      in
+{-
+      Not simply doing the following because want to treat 'text' node
+      differently when it's inside an 'svg' node.
 
--- for basic icons, env will be Eval.initEnv.
--- for LambdaTool icons, env will be from result of running main program.
---
-iconify env code =
-  let
-    exp =
-      Utils.fromOkay "Error parsing icon"
-        <| parseE code
-    ((val, _), _) =
-      Utils.fromOkay "Error evaluating icon"
-        <| Eval.doEval env exp
-    tree =
-      Utils.fromOkay "Error resolving index tree of icon"
-        <| LangSvg.resolveToIndexedTree 1 1 0 val
-    svgElements =
-      buildSvg ({ initModel | showGhosts = False }, False) tree
-    subPadding x =
-      x - 10
-  in
-    Svg.svg
-      [ SAttr.width <|
-          (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
-      , SAttr.height <|
-          (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
-      ]
-      [ svgElements ]
+      let node =
+        if List.member rawKind ["svg", "line", "rect", ...]
+          then Svg.node   -- adds http://www.w3.org/2000/svg namespace attribute
+          else Html.node
+-}
+      let (node, isSvgNode) =
+        if rawKind == "svg" then (Svg.node, True)
+        else if insideSvgNode then (Svg.node, True)
+        else (Html.node, False)
+      in
+      let
+        -- https://softwareengineering.stackexchange.com/questions/199166/why-does-a-contenteditable-div-not-behave-like-an-input-element
+        maybeContentEditableAttr =
+          if List.member shape ["th", "td", "p", "span", "pre", "li", "h1", "h2", "h3", "h4", "h5", "h6"]
+            then [Attr.contenteditable True]
+            else []
+      in
+      let valueIdAttrs =
+        [ Attr.attribute "data-value-id" (toString i)]
+      in
+      let allAttrs =
+         maybeContentEditableAttr ++ valueIdAttrs ++ compiledAttrs
+      in
+      let children = List.map (buildHtml_ (model, addZones) isSvgNode d) childIndices in
+      let mainshape = (node rawKind) allAttrs children in
+      if zones == [] then
+        mainshape
+      else
+        Svg.svg [Attr.attribute "ignore-except-first-child" "true"] (mainshape :: zones)
 
 --------------------------------------------------------------------------------
 
 dragZoneEvents id shapeKind realZone =
-  let zoneKey = (id, shapeKind, ShapeWidgets.unparseZone realZone) in
+  let zoneKey = (id, shapeKind, realZone) in
   [ onMouseDown (msgClickZone zoneKey)
   , onMouseOver (turnOnCaptionAndHighlights zoneKey)
   , onMouseOut turnOffCaptionAndHighlights
@@ -202,39 +249,36 @@ dragZoneEvents id shapeKind realZone =
 
 drawNewShape model =
   case (model.tool, model.mouseMode) of
-    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewLine model pt2 pt1
-    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewEllipse model.keysDown pt2 pt1
-    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))               -> Draw.drawNewPolygon ptLast pts
-    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))               -> Draw.drawNewPath ptLast pts
-    (PointOrOffset, MouseDrawNew (OffsetFromExisting pt2 ((x1,_),(y1,_)))) -> drawNewPointOrOffset pt2 (round x1, round y1)
-    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))            -> drawNewPointOrOffset pt2 pt1
-    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewLine model pt2 pt1
-    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
-    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                      -> Draw.drawNewRect model.keysDown pt2 pt1
-    _                                                                      -> []
+    (Line _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
+    (Rect _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Oval _,        MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewEllipse model.keysDown pt2 pt1
+    (Poly _,        MouseDrawNew (PolyPoints (ptLast::pts)))                     -> Draw.drawNewPolygon ptLast pts
+    (Path _,        MouseDrawNew (PathPoints (ptLast::pts)))                     -> Draw.drawNewPath ptLast pts
+    (PointOrOffset, MouseDrawNew (Offset1DFromExisting pt2 snap (x1Val, y1Val))) -> drawNewPointAndOffset model (snap /= NoSnap) pt2 (round (valToNum x1Val), round (valToNum y1Val))
+    (PointOrOffset, MouseDrawNew (TwoPoints (_, pt2) (_, pt1)))                  -> drawNewPointAndOffset model False pt2 pt1
+    (HelperLine,    MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewLine model pt2 pt1
+    (Lambda _,      MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Function _,    MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    (Text,          MouseDrawNew (TwoPoints pt2 pt1))                            -> Draw.drawNewRect model.keysDown pt2 pt1
+    _                                                                            -> []
 
 
-drawNewPointOrOffset (x2, y2) (x1, y1) =
+drawNewPointAndOffset model shouldHighlight (x2, y2) (x1, y1) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
-  let xyDot = svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
-  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint (toFloat x1, toFloat y1) axis sign amount Nothing False [] in
+  let xyDot = svgXYDot model (x1, y1) pointZoneStyles.fill.shown True [] in
+  let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp Nothing ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
   [xyDot] ++ arrowParts
 
 
 --------------------------------------------------------------------------------
 -- Widget Layer
 
-svgOffsetWidget1DArrowPartsAndEndPoint (baseX, baseY) axis sign amount maybeCaptionText isSelected extraStyles =
-  let effectiveAmount =
-    case sign of
-      Positive -> amount
-      Negative -> -amount
-  in
-  let (endX, endY) =
-    case axis of
-      X -> (baseX + effectiveAmount, baseY)
-      Y -> (baseX, baseY + effectiveAmount)
+dummyVal : Val
+dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
+
+svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) amountVal isSelected extraStyles =
+  let (effectiveAmount, ((endX, endXTr), (endY, endYTr))) =
+    offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
   in
   let lineStyle =
     if isSelected then
@@ -271,25 +315,84 @@ svgOffsetWidget1DArrowPartsAndEndPoint (baseX, baseY) axis sign amount maybeCapt
       ] ++ lineStyle ++ extraStyles
   in
   let caption =
-    let string =
-      case maybeCaptionText of
-        Just ident -> ident
-        Nothing    -> toString amount
-    in
-    let (x, y, textAnchor) =
+    let (x, y, left, top, textAnchor) =
       case axis of
-        X -> ((baseX + endX) / 2, baseY - 10, "middle")
-        Y -> (baseX + 10, (baseY + endY) / 2, "start")
+        X -> ((baseX + endX) / 2, baseY - 10,        (baseX + endX) / 2 - 25, baseY,                   "middle")
+        Y -> (baseX + 10,         (baseY + endY) / 2, baseX + 10,             (baseY + endY) / 2 + 10, "start")
     in
-    flip Svg.text_ [VirtualDom.text string] <|
-      [ attr "font-family" params.mainSection.uiWidgets.font
-      , attr "font-size" params.mainSection.uiWidgets.fontSize
-      , attr "text-anchor" textAnchor
-      , attr "x" (toString x)
-      , attr "y" (toString y)
-      ] ++ extraStyles
+    let maybeBold =
+      if isSelected
+      then [ attr "font-weight" "bold" ]
+      else []
+    in
+    case Provenance.valToMaybeLetPat program amountVal of
+      Just pat -> patInOutput modelRenamingInOutput False pat left top
+      Nothing ->
+        let string = toString amount in
+        flip Svg.text_ [VirtualDom.text string] <|
+          [ attr "font-family" params.mainSection.uiWidgets.font
+          , attr "font-size" params.mainSection.uiWidgets.fontSize
+          , attr "text-anchor" textAnchor
+          , attr "x" (toString x)
+          , attr "y" (toString y)
+          ] ++ maybeBold ++ extraStyles
   in
-  ([line, caption, endArrow], (endX, endY))
+  ([line, caption, endArrow], ((endX, endXTr), (endY, endYTr)))
+
+
+patAsHTML : Maybe (PId, String) -> Bool -> Pat -> Html Msg
+patAsHTML modelRenamingInOutput showRemover pat  =
+  let nameStr = LangTools.patToMaybeIdent pat |> Maybe.withDefault "" in
+  let pid = pat.val.pid in
+  let text =
+    Html.span
+        [ Attr.class "pat"
+        , Attr.title <| "Click to rename " ++ nameStr
+        , onMouseDownAndStop (Controller.msgActivateRenameInOutput pid)
+        ] <|
+        [ VirtualDom.text nameStr ] ++
+        if showRemover
+        then [ Html.span [Attr.class "remove-arg", Attr.title <| "Remove arg "  ++ nameStr, onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"] ]
+        else []
+      -- [ attr "font-family" params.mainSection.uiWidgets.font
+      -- , attr "font-size" params.mainSection.uiWidgets.fontSize
+      -- , attr "text-anchor" "start"
+  in
+  let maybeRenameBox =
+    modelRenamingInOutput
+    |> Utils.filterMaybe (\(renamingPId, _) -> renamingPId == pid)
+    |> Maybe.map
+        (\(renamingPId, renameStr) ->
+          flip Html.input [] <|
+            [ Attr.defaultValue renameStr
+            , Attr.id "rename-box"
+            , Attr.class "pat"
+            , onInput Controller.msgUpdateRenameInOutputTextBox
+            , onClickWithoutPropagation Controller.msgNoop
+            , onKeyDown <|
+                \keyCode ->
+                  if keyCode == enterKeyCode then -- Enter button
+                    Controller.msgDoRename renamingPId
+                  else
+                    Controller.msgNoop
+            ]
+        )
+  in
+  Maybe.withDefault text maybeRenameBox
+
+
+patInOutput : Maybe (PId, String) -> Bool -> Pat -> Float -> Float -> Svg Msg
+patInOutput modelRenamingInOutput showRemover pat left top =
+  patsInOutput modelRenamingInOutput showRemover [pat] left top
+
+
+patsInOutput : Maybe (PId, String) -> Bool -> List Pat -> Float -> Float -> Svg Msg
+patsInOutput modelRenamingInOutput showRemover pats left top =
+  let elements = pats |> List.map (patAsHTML modelRenamingInOutput showRemover) in
+  flip Svg.foreignObject [Html.div [Attr.class "pats", Attr.style [("width", toString (100 * List.length pats) ++ "px")]] elements] <|
+    [ attr "x" (toString (left - 2))
+    , attr "y" (toString (top - 10 - 17))
+    ]
 
 
 buildSvgWidgets : Int -> Int -> Widgets -> InterfaceModel.Model -> List (Svg Msg)
@@ -333,13 +436,11 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         ]
     in
     let box =
-      let nodeIdAndFeatureName =
-        (idAsShape, "slider")
-      in
+      let selectableFeature = ShapeFeature idAsShape (OFeat Quantity) in
       let color =
         case model.tool of
           Cursor ->
-            if Set.member nodeIdAndFeatureName model.selectedFeatures
+            if Set.member selectableFeature model.selectedFeatures
               then colorPointSelected
               else strOldInterfaceColor -- colorPointNotSelected
           _ -> strOldInterfaceColor
@@ -350,7 +451,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
         , attr "x" (toString (xL  + c*wWidget + pad))
         , attr "y" (toString (yBL - r*hWidget + pad))
         , attr "width" (toString wSlider) , attr "height" (toString hSlider)
-        , onMouseDown (toggleSelected [nodeIdAndFeatureName])
+        , onMouseDownAndStop (toggleSelected [selectableFeature])
         ]
     in
     let ball =
@@ -378,14 +479,14 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     in
     [region, box, text, ball]
   in
-  let drawPointWidget i_ widget (cx, cxTr) (cy, cyTr) =
+  let drawPointWidget i_ widget (cx, cxTr) xVal (cy, cyTr) yVal =
     let idAsShape = -2 - i_ in
-    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) (cy, cyTr)
-    ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] [attrNum "cx" cx, attrNum "cy" cy]
+    zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal
+    ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] (cx, cy)
   in
-  let drawOffsetWidget1D i_ baseX baseY axis sign (amount, amountTr) =
+  let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) amountVal endXVal endYVal =
     let idAsShape = -2 - i_ in
-    let isSelected = Set.member (idAsShape, "offset") model.selectedFeatures in
+    let isSelected = Set.member (ShapeFeature idAsShape (DFeat Offset)) model.selectedFeatures in
     let dragStyle =
       if model.tool == Cursor then
         [ attr "cursor" "pointer"
@@ -394,91 +495,15 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       else
         [ attr "cursor" "default" ]
     in
-    let maybeCaptionText = traceToMaybeIdent amountTr in
-    let (arrowParts, (endX, endY)) =
-      svgOffsetWidget1DArrowPartsAndEndPoint (baseX, baseY) axis sign amount maybeCaptionText isSelected dragStyle
+    let (arrowParts, (endXNumTr, endYNumTr)) =
+      let shouldHighlight =
+        isSelected || isShapeBeingDrawnSnappingToVal model amountVal
+      in
+      svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp model.renamingInOutput (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
     in
-    -- let effectiveAmount =
-    --   case sign of
-    --     Positive -> amount
-    --     Negative -> -amount
-    -- in
-    -- let (endX, endY) =
-    --   case axis of
-    --     X -> (baseX + effectiveAmount, baseY)
-    --     Y -> (baseX, baseY + effectiveAmount)
-    -- in
-    -- let lineStyle =
-    --   if Set.member (idAsShape, "offset") model.selectedFeatures then
-    --     [ attr "stroke" colorPointSelected
-    --     , attr "stroke-width" "5px"
-    --     ]
-    --   else
-    --     [ attr "stroke" "black"
-    --     , attr "stroke-width" "1px"
-    --     , attr "stroke-dasharray" "1,1"
-    --     ]
-    -- in
-    -- let dragStyle =
-    --   if model.tool == Cursor then
-    --     [ attr "cursor" "pointer"
-    --     , onMouseEnter (addHoveredShape idAsShape)
-    --     ] ++ dragZoneEvents idAsShape "offset" ZOffset1D
-    --   else
-    --     [ attr "cursor" "default" ]
-    -- in
-    -- let line =
-    --   flip Svg.line [] <|
-    --     [ attrNum "x1" baseX, attrNum "y1" baseY
-    --     , attrNum "x2" endX,  attrNum "y2" endY
-    --     ] ++ lineStyle ++ dragStyle
-    -- in
-    -- let endArrow =
-    --   let arrowOffset = 12 in
-    --   let (opX1, opY1, opX2, opY2) =
-    --     case (axis, Utils.sgn effectiveAmount) of
-    --       (X, 1)  -> ((-), (-), (-), (+))
-    --       (X, -1) -> ((+), (-), (+), (+))
-    --       (Y, 1)  -> ((-), (-), (+), (-))
-    --       _       -> ((-), (+), (+), (+))
-    --   in
-    --   flip Svg.polyline [] <|
-    --     [ attr "fill" "rgba(0,0,0,0.0)"
-    --     , attr "cursor" "pointer"
-    --     , attr "points" <| toString (opX1 endX arrowOffset) ++ "," ++ toString (opY1 endY arrowOffset) ++ " " ++
-    --                        toString endX                 ++ "," ++ toString endY ++ " " ++
-    --                        toString (opX2 endX arrowOffset) ++ "," ++ toString (opY2 endY arrowOffset) ++ " "
-    --     ] ++ lineStyle ++ dragStyle
-    -- in
-    -- let cap =
-    --   let string =
-    --     case traceToMaybeIdent amountTr of
-    --       Just ident -> ident
-    --       Nothing    -> toString amount
-    --   in
-    --   let (x, y, textAnchor) =
-    --     case axis of
-    --       X -> ((baseX + endX) / 2, baseY - 10, "middle")
-    --       Y -> (baseX + 10, (baseY + endY) / 2, "start")
-    --   in
-    --   flip Svg.text_ [VirtualDom.text string] <|
-    --     [ attr "font-family" params.mainSection.uiWidgets.font
-    --     , attr "font-size" params.mainSection.uiWidgets.fontSize
-    --     , attr "text-anchor" textAnchor
-    --     , attr "x" (toString x)
-    --     , attr "y" (toString y)
-    --     ] ++ dragStyle
-    -- in
     let endPt =
-      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) (endX, dummyTrace) (endY, dummyTrace)
+      zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal
     in
-    -- if amount /= 0 then
-    --   [ Svg.g
-    --       [onMouseLeave (removeHoveredShape idAsShape)]
-    --       <| [line, cap, endArrow] ++ endPt
-    --   ]
-    -- else
-    --   []
     if amount /= 0 then
       [ Svg.g
           [onMouseLeave (removeHoveredShape idAsShape)]
@@ -487,33 +512,175 @@ buildSvgWidgets wCanvas hCanvas widgets model =
     else
       []
   in
+  let drawCallWidget funcVal argVals retVal retWs model =
+    let program = model.inputExp in
+    let maybeBounds =
+      retVal::argVals
+      |> List.map ShapeWidgets.valToMaybeBounds
+      |> (++) (retWs |> List.map ShapeWidgets.maybeWidgetBounds)
+      |> Utils.filterJusts
+      |> ShapeWidgets.maybeEnclosureOfAllBounds
+    in
+    case maybeBounds of
+      Nothing -> []
+      Just (left, top, right, bot) ->
+        let padding = 25 in
+        let (maybeFuncBody, maybeFuncPat, maybeArgPats) =
+          case funcVal.v_ of
+            VClosure _ argPats funcBody env ->
+              case parentByEId program (expEId funcBody) of
+                Just (Just funcExp) ->
+                  case LangTools.findLetAndPatMatchingExpLoose (expEId funcExp) program of
+                    Just (_, funcPat) -> (Just funcBody, Just funcPat, Just argPats)
+                    _                 -> (Just funcBody, Nothing,      Just argPats)
+                _ -> (Just funcBody, Nothing, Just argPats)
+            _ -> (Nothing, Nothing, Nothing)
+        in
+        let maybeAddArg =
+          -- TODO: ensure all selected items touch funcBody
+          case (maybeFuncBody, nothingSelectedInOutput model) of
+            (Just funcBody, False) ->
+              Just <|
+                flip Svg.text_ [Svg.title [] [VirtualDom.text "Add argument"], VirtualDom.text "➕"] <| -- plus symbol (doesn't show up on black editor background)
+                  [ attr "font-family" params.mainSection.uiWidgets.font
+                  , attr "font-size" params.mainSection.uiWidgets.fontSize
+                  , attr "text-anchor" "end"
+                  , attr "cursor" "pointer"
+                  , attr "x" (toString (right + padding))
+                  , attr "y" (toString (top - padding - 10))
+                  , onMouseDownAndStop (Controller.msgAddArg funcBody)
+                  ]
+            _ ->
+              Nothing
+        in
+        let box =
+          flip Svg.rect [] <|
+            [ attr "fill" "none"
+            , attr "stroke" "black"
+            , attr "stroke-width" "5px"
+            , attr "stroke-dasharray" "20,10"
+            , attr "opacity" "0.3"
+            , attr "rx" (toString padding)
+            , attr "ry" (toString padding)
+            , attr "x" (toString (left - padding))
+            , attr "y" (toString (top - padding))
+            , attr "width" (toString (right - left + padding*2))
+            , attr "height" (toString (bot - top + padding*2))
+            ]
+        in
+        [ Just box
+        , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput  model.renamingInOutput False funcPat (left - padding) (top - padding - 20))
+        , maybeArgPats |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True  argPats (left - padding) (top - padding))
+        , maybeAddArg
+        ] |> Utils.filterJusts
+  in
 
   let draw (i_, widget) =
     case widget of
 
-      WNumSlider _ _ _ _ _ True -> []
-      WIntSlider _ _ _ _ _ True -> []
+      WNumSlider _ _ _ _ _ _ True -> []
+      WIntSlider _ _ _ _ _ _ True -> []
 
-      WNumSlider minVal maxVal cap curVal (k,_,_) False ->
+      WNumSlider minVal maxVal cap curVal val (k,_,_) False ->
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WIntSlider a b cap c (k,_,_) False ->
+      WIntSlider a b cap c val (k,_,_) False ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         drawNumWidget i_ widget k cap minVal maxVal curVal
 
-      WPoint xNumTr yNumTr ->
-        if splash_i_2017_demo
-          then []
-          else drawPointWidget i_ widget xNumTr yNumTr
+      WPoint xNumTr xVal yNumTr yVal ->
+        drawPointWidget i_ widget xNumTr xVal yNumTr yVal
 
-      WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign amountNumTr ->
-        if splash_i_2017_demo
-          then []
-          else drawOffsetWidget1D i_ baseX baseY axis sign amountNumTr
+      WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal ->
+        drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
+
+      WCall funcVal argVals retVal retWs ->
+        -- Suppress for Leo/Docs
+        -- drawCallWidget funcVal argVals retVal retWs model
+        []
   in
 
   List.concat <| Utils.mapi1 draw widgets
 
+
+buildDistances : Model -> LangSvg.RootedIndexedTree -> Widgets -> List (Svg Msg)
+buildDistances model slate widgets =
+  let selectedPoints = ShapeWidgets.featuresToSelectablePoints (Set.toList model.selectedFeatures) in
+  let pointsAtEndOfSelectedDistances =
+    model.selectedFeatures
+    |> Set.toList
+    |> List.concatMap
+        (\selectedFeature ->
+          case selectedFeature of
+            DistanceBetweenFeatures selectablePointPair -> Set.toList selectablePointPair
+            _                                           -> []
+        )
+  in
+  let candidateEndpoints = selectedPoints ++ pointsAtEndOfSelectedDistances |> Utils.dedup in
+  Utils.cartProd candidateEndpoints candidateEndpoints
+  |> List.map (\(selectedPt1, selectedPt2) -> Set.fromList [selectedPt1, selectedPt2])
+  |> List.filter (Set.size >> (==) 2)
+  |> Utils.dedup -- Cartesian product produces both {a,b} and {b,a}, which are equivalent
+  |> List.sortBy (\pointPairSet -> if Set.member (DistanceBetweenFeatures pointPairSet) model.selectedFeatures then 1 else 0) -- Draw selected distances on top of non-selected distances
+  |> List.concatMap
+      (\pointPairSet ->
+        let (selectablePoint1, selectablePoint2) = ShapeWidgets.extractSelectablePoints pointPairSet in
+        -- ...evaluates to concrete values...could speed up by evaluating earlier (here is n^2)...
+        case ( ShapeWidgets.selectablePointToMaybeXY selectablePoint1 slate widgets
+             , ShapeWidgets.selectablePointToMaybeXY selectablePoint2 slate widgets ) of
+          (Just (x1, y1), Just (x2, y2)) ->
+            let selectableFeature = DistanceBetweenFeatures (Set.fromList [selectablePoint1, selectablePoint2]) in
+            let isSelected = Set.member selectableFeature model.selectedFeatures in
+            let color = if isSelected then colorPointSelected else colorLineNotSelected in
+            let deselectEndPoints model =
+              if isSelected then
+                model
+              else
+                let featuresToDeselect = List.concatMap (ShapeWidgets.selectablePointToSelectableFeatures >> Utils.pairToList) [selectablePoint1, selectablePoint2] in
+                { model | selectedFeatures = model.selectedFeatures |> Set.filter (\selectedFeature -> not <| List.member selectedFeature featuresToDeselect) }
+            in
+            let line =
+              svgLine [
+                  attr "stroke" color
+                , attr "stroke-width" hairStrokeWidth
+                , attr "x1" (toString x1) , attr "y1" (toString y1)
+                , attr "x2" (toString x2) , attr "y2" (toString y2)
+                , onMouseDownAndStop (Msg "Toggle Selected Distance..." <| toggleSelectedLambda [selectableFeature] >> deselectEndPoints)
+                ]
+            in
+            [line]
+          _ ->
+            []
+      )
+
+
+--------------------------------------------------------------------------------
+-- Select Box
+
+drawSelectBox : Model -> List (Svg Msg)
+drawSelectBox model =
+  case model.mouseMode of
+    MouseDragSelect initialPosition _ _ _ ->
+      let pos1 = canvasPosition model initialPosition in
+      let pos2 = canvasPosition model (mousePosition model) in
+      let top   = min pos1.y pos2.y in
+      let left  = min pos1.x pos2.x in
+      let bot   = max pos1.y pos2.y in
+      let right = max pos1.x pos2.x in
+      List.singleton <|
+      flip Svg.rect [] <|
+        [ attr "fill" "none"
+        , attr "stroke" "black"
+        , attr "stroke-width" "2px"
+        , attr "stroke-dasharray" "5,5"
+        , attr "x" (toString left)
+        , attr "y" (toString top)
+        , attr "width" (toString <| right - left)
+        , attr "height" (toString <| bot - top)
+        ]
+
+    _ ->
+      []
 
 --------------------------------------------------------------------------------
 -- Defining Zones
@@ -532,12 +699,16 @@ removeHoveredShape id =
 
 addHoveredShape id =
   Msg ("Add Hovered Shape " ++ toString id) <| \m ->
-    { m | hoveredShapes = Set.singleton id }
+    if isMouseDown m
+    then m
+    else { m | hoveredShapes = Set.singleton id }
     -- { m | hoveredShapes = Set.insert id m.hoveredShapes }
 
 addHoveredCrosshair tuple =
   Msg ("Add Hovered Crosshair " ++ toString tuple) <| \m ->
-    { m | hoveredCrosshairs = Set.insert tuple m.hoveredCrosshairs }
+    if isMouseDown m
+    then m
+    else { m | hoveredCrosshairs = Set.insert tuple m.hoveredCrosshairs }
 
 removeHoveredCrosshair tuple =
   Msg ("Remove Hovered Crosshair " ++ toString tuple) <| \m ->
@@ -612,8 +783,8 @@ draggableZone svgFunc addStroke model id shape realZone attrs =
 objectZoneIsCurrentlyBeingManipulated : Model -> NodeId -> (RealZone -> Bool) -> Bool
 objectZoneIsCurrentlyBeingManipulated model nodeId zonePred =
   case model.mouseMode of
-    MouseDragZone (id, _, zone) _ -> nodeId == id && zonePred (ShapeWidgets.parseZone zone)
-    _                             -> False
+    MouseDragZone (id, _, zone) _ _ _ -> nodeId == id && zonePred zone
+    _                                 -> False
 
 objectIsCurrentlyBeingManipulated model nodeId =
   objectZoneIsCurrentlyBeingManipulated model nodeId (always True)
@@ -647,7 +818,7 @@ eightCardinalZones model id shape transform (left, top, right, bot) =
   let (width, height) = (right - left, bot - top) in
   let ifEnoughSpace len xs = if len < minLengthForMiddleZones then [] else xs in
   let mkPoint realZone cx cy =
-    zonePoint model False id shape realZone transform [attrNum "cx" cx, attrNum "cy" cy]
+    zonePoint model False id shape realZone transform (cx, cy)
   in
     mkPoint (ZPoint TopLeft) left top ++
     mkPoint (ZPoint TopRight) right top ++
@@ -676,7 +847,11 @@ pointZoneStylesFillSelected model nodeId =
     then pointZoneStyles.fill.selectedShape
     else pointZoneStyles.fill.selectedBlob
 
-zonePoint model alwaysShow id shapeKind realZone transform attrs =
+zonePoint model alwaysShow id shapeKind realZone transform (x_,y_) =
+  let
+    x = x_ - model.outputCanvasInfo.scrollLeft
+    y = y_ - model.outputCanvasInfo.scrollTop
+  in
   let maybeStyles =
     let maybeStyles_ () =
       if objectZoneIsCurrentlyBeingManipulated model id ((==) realZone) then
@@ -690,10 +865,10 @@ zonePoint model alwaysShow id shapeKind realZone transform attrs =
       else
         Nothing
     in
-    case ShapeWidgets.zoneToCrosshair shapeKind realZone of
+    case ShapeWidgets.zoneToMaybePointFeature realZone of
       Nothing -> maybeStyles_ ()
-      Just (xFeature, yFeature) ->
-        if Set.member (id, xFeature, yFeature) model.hoveredCrosshairs
+      Just pointFeature ->
+        if Set.member (id, pointFeature) model.hoveredCrosshairs
         then Nothing
         else maybeStyles_ ()
   in
@@ -701,26 +876,26 @@ zonePoint model alwaysShow id shapeKind realZone transform attrs =
     Nothing -> []
     Just fill ->
       List.singleton <| svgCircle <|
-        [ attr "r" pointZoneStyles.radius
+        [ attrNum "cx" x, attrNum "cy" y
+        , attr "r" pointZoneStyles.radius
         , attr "fill" fill
         , attr "stroke" pointZoneStyles.stroke
         , attr "stroke-width" pointZoneStyles.strokeWidth
         , cursorOfZone realZone "pointer"
         ] ++
         dragZoneEvents id shapeKind realZone ++
-        transform ++
-        attrs
+        transform
 
 zonePoints model id shape transform pts =
   List.concat <| flip Utils.mapi1 pts <| \(i, (x,y)) ->
     zonePoint model False id shape (ZPoint (Point i)) transform
-      [ attrNumTr "cx" x, attrNumTr "cy" y ]
+      (Tuple.first x, Tuple.first y)
 
 -- TODO rename this once original zonePoints is removed
 zonePoints2 model id shape transform pts =
   List.concat <| flip Utils.mapi1 pts <| \(i, (x,y)) ->
     zonePoint model False id shape (ZPoint (Point i)) transform
-      [ attrNum "cx" x, attrNum "cy" y ]
+      (x, y)
 
 zoneLine model id shape realZone (x1,y1) (x2,y2) attrs =
   draggableZone Svg.line True model id shape realZone <|
@@ -744,7 +919,7 @@ rotZoneDelta = 20
 maybeTransformCmds : List LangSvg.Attr -> Maybe (List LangSvg.TransformCmd)
 maybeTransformCmds l =
   case Utils.maybeFind "transform" l of
-    Just aval -> case aval.av_ of
+    Just aval -> case aval.interpreted of
       LangSvg.ATransform cmds -> Just cmds
       _                       -> Nothing
     _                         -> Nothing
@@ -792,9 +967,9 @@ zoneRotate_ model id shape cx cy r cmds =
     let (strokeColor, maybeEventHandler) =
       case (cmds, model.tool) of
         ([LangSvg.Rot (_,trace) _ _], Cursor) ->
-          let nodeIdAndFeatureName = (id, ShapeWidgets.shapeRotation) in
-          let handler = [onMouseDown (toggleSelected [nodeIdAndFeatureName])] in
-          if Set.member nodeIdAndFeatureName model.selectedFeatures
+          let selectableFeature = ShapeFeature id (OFeat Rotation) in
+          let handler = [onMouseDownAndStop (toggleSelected [selectableFeature])] in
+          if Set.member selectableFeature model.selectedFeatures
             then (colorPointSelected, handler)
             else (colorPointNotSelected, handler)
         _ ->
@@ -809,17 +984,12 @@ zoneRotate_ model id shape cx cy r cmds =
   in
   [circle, line, ball]
 
-halfwayBetween (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
-distance (x1,y1) (x2,y2)       = sqrt ((x2-x1)^2 + (y2-y1)^2)
-
-projPt (x,y)                   = (Tuple.first x, Tuple.first y)
-halfwayBetween_ pt1 pt2        = halfwayBetween (projPt pt1) (projPt pt2)
-distance_ pt1 pt2              = distance (projPt pt1) (projPt pt2)
 
 -- TODO redo callsite
 zoneRotatePolyOrPath model id kind pts nodeAttrs =
-  let (xMin, xMax, yMin, yMax) =
-    Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> []
+    Just (xMin, xMax, yMin, yMax) ->
   let (w, h) = (xMax - xMin, yMax - yMin) in
   let (xMiddle, yMiddle) = (xMin + 0.5 * w, yMin + 0.5 * h) in
   let r = ((max w h) / 2) + rotZoneDelta in
@@ -844,11 +1014,11 @@ zonesFillAndStroke model id shape x y l =
   zonesFill model id shape x y l ++
   zonesStroke model id shape x (y - hZoneColor - 5) l
 
-zoneFillColor   = zoneColor (ZOther FillColor) ShapeWidgets.shapeFill
-zoneStrokeColor = zoneColor (ZOther StrokeColor) ShapeWidgets.shapeStroke
+zoneFillColor   = zoneColor (ZOther FillColor) (OFeat FillColor)
+zoneStrokeColor = zoneColor (ZOther StrokeColor) (OFeat StrokeColor)
 
-zoneFillOpacity   = zoneOpacity (ZOther FillOpacity) ShapeWidgets.shapeFillOpacity
-zoneStrokeOpacity = zoneOpacity (ZOther StrokeOpacity) ShapeWidgets.shapeStrokeOpacity
+zoneFillOpacity   = zoneOpacity (ZOther FillOpacity) (OFeat FillOpacity)
+zoneStrokeOpacity = zoneOpacity (ZOther StrokeOpacity) (OFeat StrokeOpacity)
 
 
 -- Stuff for Color Zones -------------------------------------------------------
@@ -859,7 +1029,7 @@ hZoneColor = 20
 maybeColorNumAttr : String -> List LangSvg.Attr -> (Maybe NumTr, Maybe NumTr)
 maybeColorNumAttr k l =
   case Utils.maybeFind k l of
-    Just aval -> case aval.av_ of
+    Just aval -> case aval.interpreted of
       LangSvg.AColorNum (nt, maybeOpacity) -> (Just nt, maybeOpacity)
       _                                    -> (Nothing, Nothing)
     _                                      -> (Nothing, Nothing)
@@ -867,8 +1037,9 @@ maybeColorNumAttr k l =
 zoneColor realZone shapeFeature model id shape x y maybeColor =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
+  let selectableFeature = ShapeFeature id shapeFeature in
   let featureSelected =
-    Set.member (id, shapeFeature)
+    Set.member selectableFeature
                model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
@@ -882,7 +1053,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wGradient, hZoneColor, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
-  let nodeIdAndFeatureName = (id, shapeFeature) in
+  let selectableFeature = ShapeFeature id shapeFeature in
   let ball =
     let cx = x + (n / LangSvg.maxColorNum) * wGradient in
     let cy = y - yOff + (h/2) in
@@ -897,7 +1068,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member nodeIdAndFeatureName model.selectedFeatures
+          if Set.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "none" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -920,7 +1091,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
         ]) (List.map toFloat (List.range 0 w))
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [nodeIdAndFeatureName])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature])]
       (gradient () ++ [box])
   , ball
   ]
@@ -935,9 +1106,8 @@ wOpacityBox = ShapeWidgets.wOpacitySlider
 zoneOpacity realZone shapeFeature model id shape x y maybeOpacity =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
-  let featureSelected =
-    Set.member (id, shapeFeature)
-               model.selectedFeatures in
+  let selectableFeature = ShapeFeature id shapeFeature in
+  let featureSelected = Set.member selectableFeature model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeOpacity ) of
@@ -951,7 +1121,7 @@ zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wOpacityBox, 20, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
-  let nodeIdAndFeatureName = (id, shapeFeature) in
+  let selectableFeature = ShapeFeature id shapeFeature in
   let ball =
     let cx = x + n * wOpacityBox in
     let cy = y - yOff + (h/2) in
@@ -966,7 +1136,7 @@ zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member nodeIdAndFeatureName model.selectedFeatures
+          if Set.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "white" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -975,7 +1145,7 @@ zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
       ]
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [nodeIdAndFeatureName])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature])]
       ([box])
   , ball
   ]
@@ -988,7 +1158,7 @@ wStrokeWidthBox = ShapeWidgets.wStrokeWidthSlider
 maybeStrokeWidthNumAttr : List LangSvg.Attr -> Maybe NumTr
 maybeStrokeWidthNumAttr l =
   case Utils.maybeFind "stroke-width" l of
-    Just aval -> case aval.av_ of
+    Just aval -> case aval.interpreted of
       LangSvg.ANum n -> Just n
       _              -> Nothing
     _                -> Nothing
@@ -996,9 +1166,8 @@ maybeStrokeWidthNumAttr l =
 zoneStrokeWidth model id shape x y maybeStrokeWidth =
   let pred z = isPrimaryZone z || isRotateZone z in
   let shapeSelected = Set.member id model.selectedShapes in
-  let featureSelected =
-    Set.member (id, ShapeWidgets.shapeStrokeWidth)
-               model.selectedFeatures in
+  let selectableFeature = ShapeFeature id (OFeat StrokeWidth) in
+  let featureSelected = Set.member selectableFeature model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeStrokeWidth ) of
@@ -1009,11 +1178,11 @@ zoneStrokeWidth_ model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
       (wStrokeWidthBox, LangSvg.maxStrokeWidthNum, 20, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
-  let nodeIdAndFeatureName = (id, ShapeWidgets.shapeStrokeWidth) in
+  let selectableFeature = ShapeFeature id (OFeat StrokeWidth) in
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member nodeIdAndFeatureName model.selectedFeatures
+          if Set.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "white" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -1045,7 +1214,7 @@ zoneStrokeWidth_ model id shape x y (n, trace) =
        ]
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [nodeIdAndFeatureName])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature])]
       [box, triangle]
   , ball
   ]
@@ -1062,7 +1231,8 @@ zoneDelete_ id shape x y transform =
       (20, 20, "silver", "2") in
   let evt =
     let foo old =
-      { old | slate = Tuple.mapSecond (Dict.insert id LangSvg.dummySvgNode) old.slate }
+      old
+      -- { old | slate = Tuple.mapSnd (Dict.insert id LangSvg.dummySvgNode) old.slate }
     in
     onMouseDown (Msg "Delete..." foo) in
   let lines =
@@ -1092,7 +1262,7 @@ zoneDelete_ id shape x y transform =
 
 -- http://www.colorpicker.com/
 
-colorPointSelected      = "#38F552" -- "rgba(0,128,0,1.0)"
+colorPointSelected      = "#38F552" -- bright green
 colorPointNotSelected   = "#F5B038" -- "orange"
 colorLineSelected       = "#B4FADB" -- "blue"
 colorLineNotSelected    = "#FAB4D3" -- "red"
@@ -1105,22 +1275,28 @@ type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
 type alias NodeIdAndFeature      = (LangSvg.NodeId, ShapeWidgets.ShapeFeature)
 
 
-toggleSelected nodeIdAndFeatures =
-  Msg "Toggle Selected..." <| toggleSelectedLambda nodeIdAndFeatures
+toggleSelected : List ShapeWidgets.SelectableFeature -> Msg
+toggleSelected selectableFeatures =
+  Msg "Toggle Selected..." <| toggleSelectedLambda selectableFeatures
 
-toggleSelectedLambda nodeIdAndFeatures =
+toggleSelectedLambda : List ShapeWidgets.SelectableFeature -> Model -> Model
+toggleSelectedLambda selectableFeatures =
   \model ->
     -- If only some of the features were selected, we want to select all of
     -- them, not toggle individually.
-    let deselect = List.all (flip Set.member model.selectedFeatures) nodeIdAndFeatures in
-    let updateSet nodeIdAndFeature acc =
+    let deselect = List.all (flip Set.member model.selectedFeatures) selectableFeatures in
+    let updateSet selectableFeature acc =
       if deselect
-        then Set.remove nodeIdAndFeature acc
-        else Set.insert nodeIdAndFeature acc
+        then Set.remove selectableFeature acc
+        else Set.insert selectableFeature acc
     in
-    { model | selectedFeatures = List.foldl updateSet model.selectedFeatures nodeIdAndFeatures }
+    { model | selectedFeatures = List.foldl updateSet model.selectedFeatures selectableFeatures }
 
-svgXYDot (x, y) fill isVisible extraAttrs =
+svgXYDot model (x_, y_) fill isVisible extraAttrs =
+  let
+    x = toFloat x_ - model.outputCanvasInfo.scrollLeft
+    y = toFloat y_ - model.outputCanvasInfo.scrollTop
+  in
   svgCircle <|
     [ attr "cx" (toString x) , attr "cy" (toString y)
     , attr "fill" fill
@@ -1133,29 +1309,26 @@ svgXYDot (x, y) fill isVisible extraAttrs =
     ] ++ extraAttrs
 
 
-maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr yNumTr =
+maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr xVal yNumTr yVal =
   if sideLength < minLengthForMiddleZones then []
-  else zoneSelectCrossDot model False thisCrosshair xNumTr yNumTr
+  else zoneSelectCrossDot model False thisCrosshair xNumTr xVal yNumTr yVal
 
 zoneSelectCrossDot : Model -> Bool -> (Int, ShapeKind, PointFeature)
-                  -> NumTr -> NumTr -> List (Svg Msg)
-zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr yNumTr =
+                  -> NumTr -> Val -> NumTr -> Val -> List (Svg Msg)
+zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr xVal yNumTr yVal =
   let ((xFloat, _), (yFloat, _)) = (xNumTr, yNumTr) in
   let (x, y) = (round xFloat, round yFloat) in
-  let xFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (XFeat pointFeature) in
-  let yFeatureName = ShapeWidgets.unparseFeatureNum (Just kind) (YFeat pointFeature) in
-  let thisCrosshair = (id, xFeatureName, yFeatureName) in
-
+  let thisCrosshair = (id, pointFeature) in
   let len = 20 in
-  let color nodeIdAndFeatureNames =
-    if List.all (flip Set.member model.selectedFeatures) nodeIdAndFeatureNames
+  let color selectableFeatures =
+    if List.all (flip Set.member model.selectedFeatures) selectableFeatures
     then colorPointSelected
     else colorPointNotSelected
   in
   let
-    xFeature = (id, xFeatureName)
-    yFeature = (id, yFeatureName)
-    (xColor, yColor) = (color [xFeature], color [yFeature])
+    xSelectableFeature = ShapeFeature id (XFeat pointFeature)
+    ySelectableFeature = ShapeFeature id (YFeat pointFeature)
+    (xColor, yColor) = (color [xSelectableFeature], color [ySelectableFeature])
   in
   let (backDisc, frontDisc) =
     let r =
@@ -1192,74 +1365,75 @@ zoneSelectCrossDot model alwaysShowDot (id, kind, pointFeature) xNumTr yNumTr =
          && (alwaysShowDot ||
              Set.member id model.selectedShapes ||
              Set.member id model.hoveredShapes ||
-             Set.member thisCrosshair model.hoveredCrosshairs)
+             Set.member thisCrosshair model.hoveredCrosshairs ||
+             model.tool /= Cursor)
     in
     let extraAttrs =
       if model.tool == Cursor then
-        [ onMouseDown <| Msg "Select Cross Dot..." <| \model ->
+        [ onMouseDownAndStop <| Msg "Select Cross Dot..." <| \model ->
             if Set.member thisCrosshair model.hoveredCrosshairs
-              then toggleSelectedLambda [xFeature, yFeature] model
+              then toggleSelectedLambda [xSelectableFeature, ySelectableFeature] model
               else { model | hoveredCrosshairs = Set.insert thisCrosshair model.hoveredCrosshairs }
         ]
       else if model.tool == PointOrOffset then
         [ onMouseDown <| Msg "Begin Offset From Point..." <| \model ->
-            { model | mouseMode = MouseDrawNew (OffsetFromExisting (x, y) (xNumTr, yNumTr)) }
+            { model | mouseMode = MouseDrawNew (Offset1DFromExisting (x, y) NoSnap (xVal, yVal)) }
         ]
       else
-        []
+        [ onMouseDownAndStop <| Msg "Mouse Down On Point..." <| \model ->
+            let newModel = if model.mouseMode == MouseNothing then startDrawing model else model in
+            { newModel | mouseState = (Just False, { x = x, y = y }, Just (PointWithProvenance xVal yVal)) } ]
     in
-    svgXYDot (x, y) dotFill isVisible extraAttrs
+    svgXYDot model (x, y) dotFill isVisible extraAttrs
   in
   let yLine =
     svgLine <|
       [ attr "stroke" yColor
       , attr "stroke-width" <|
           if (Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor) ||
-             Set.member yFeature model.selectedFeatures
+             Set.member ySelectableFeature model.selectedFeatures
           then hairStrokeWidth
           else "0"
       , attr "x1" (toString (x-len)) , attr "y1" (toString y)
       , attr "x2" (toString (x+len)) , attr "y2" (toString y)
       ] ++ if model.tool /= Cursor then [] else
-        [ onMouseDown (toggleSelected [yFeature]) ]
+        [ onMouseDownAndStop (toggleSelected [ySelectableFeature]) ]
   in
   let xLine =
     svgLine <|
       [ attr "stroke" xColor
       , attr "stroke-width" <|
           if (Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor) ||
-             Set.member xFeature model.selectedFeatures
+             Set.member xSelectableFeature model.selectedFeatures
           then hairStrokeWidth
           else "0"
       , attr "y1" (toString (y-len)) , attr "x1" (toString x)
       , attr "y2" (toString (y+len)) , attr "x2" (toString x)
       ] ++ if model.tool /= Cursor then [] else
-        [ onMouseDown (toggleSelected [xFeature]) ]
+        [ onMouseDownAndStop (toggleSelected [xSelectableFeature]) ]
   in
   -- using nested group for onMouseLeave handler
   List.singleton <| Svg.g
     [onMouseLeave (removeHoveredCrosshair thisCrosshair)]
     [backDisc, xLine, yLine, frontDisc, xyDot]
 
-maybeZoneSelectLine sideLength model nodeId kind featureNum pt1 pt2 =
+maybeZoneSelectLine sideLength model nodeId shapeFeature pt1 pt2 =
   if sideLength < minLengthForMiddleZones then []
-  else zoneSelectLine model nodeId kind featureNum pt1 pt2
+  else zoneSelectLine model nodeId shapeFeature pt1 pt2
 
-zoneSelectLine model nodeId kind featureNum pt1 pt2 =
-  let nodeIdAndFeatureName =
-    ( nodeId
-    , ShapeWidgets.unparseFeatureNum (Just kind) featureNum ) in
+zoneSelectLine model nodeId shapeFeature pt1 pt2 =
+  let selectableFeature = ShapeFeature nodeId shapeFeature in
   case model.mouseMode of
-    MouseDragZone _ _ -> []
+    MouseDragZone _ _ _ _ -> []
     _ ->
      if Set.member nodeId model.hoveredShapes ||
-        Set.member nodeIdAndFeatureName model.selectedFeatures
-     then zoneSelectLine_ model nodeIdAndFeatureName pt1 pt2
+        Set.member selectableFeature model.selectedFeatures
+     then zoneSelectLine_ model selectableFeature pt1 pt2
      else []
 
-zoneSelectLine_ model nodeIdAndFeatureName (x1,y1) (x2,y2) =
+zoneSelectLine_ model selectableFeature (x1,y1) (x2,y2) =
   let color =
-    if Set.member nodeIdAndFeatureName model.selectedFeatures
+    if Set.member selectableFeature model.selectedFeatures
     then colorLineSelected
     else colorLineNotSelected
   in
@@ -1269,7 +1443,7 @@ zoneSelectLine_ model nodeIdAndFeatureName (x1,y1) (x2,y2) =
       , attr "stroke-width" hairStrokeWidth
       , attr "x1" (toString x1) , attr "y1" (toString y1)
       , attr "x2" (toString x2) , attr "y2" (toString y2)
-      , onMouseDown (toggleSelected [nodeIdAndFeatureName])
+      , onMouseDownAndStop (toggleSelected [selectableFeature])
       ]
   in
   [line]
@@ -1278,11 +1452,11 @@ boxySelectZones model id kind boxyNums =
 
   let drawPoint maybeThreshold feature x y =
     case maybeThreshold of
-      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) (y, dummyTrace)
-      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) (y, dummyTrace) in
+      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal
+      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal in
 
   let drawLine threshold feature pt1 pt2 =
-    maybeZoneSelectLine threshold model id kind feature pt1 pt2 in
+    maybeZoneSelectLine threshold model id feature pt1 pt2 in
 
   let {left, top, right, bot, cx, cy, width, height} = boxyNums in
 
@@ -1312,7 +1486,7 @@ boxySelectZones model id kind boxyNums =
 
       _ -> [] in
 
-  let features = Utils.find "boxySelectZones" ShapeWidgets.simpleKindFeatures kind in
+  let features = Utils.find "boxySelectZones" ShapeWidgets.simpleKindGenericFeatures kind in
   List.concatMap distanceZone features ++ List.concatMap pointZone features
     -- draw distance zones below point zones
 
@@ -1320,7 +1494,7 @@ boxySelectZones model id kind boxyNums =
 --------------------------------------------------------------------------------
 
 -- TODO significantly refactor point selection zones, by using
--- ShapeWidgets.featuresOfShape, BoxyFeatureEquations, eval FeatureEquation, etc.
+-- ShapeWidgets.genericFeaturesOfShape, BoxyFeatureEquations, eval FeatureEquation, etc.
 
 makeZones : Model -> String -> LangSvg.NodeId -> List LangSvg.Attr -> List (Svg Msg)
 makeZones model shape id l =
@@ -1351,9 +1525,9 @@ makeZonesLine model id l =
   in
   let zonesSelect =
     List.concat
-       [ maybeZoneSelectCrossDot (distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) (cy, dummyTrace)
-       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) (y1, dummyTrace)
-       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) (y2, dummyTrace)]
+       [ maybeZoneSelectCrossDot (Utils.distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) dummyVal (cy, dummyTrace) dummyVal
+       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) dummyVal (y1, dummyTrace) dummyVal
+       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) dummyVal (y2, dummyTrace) dummyVal]
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
@@ -1362,8 +1536,8 @@ makeZonesLine model id l =
       zonePoints2 model id "line" transform [pt1, pt2]
   in
   let extraWidgets =
-    let c = halfwayBetween pt1 pt2 in
-    let r = (distance pt1 pt2 / 2) - rotZoneDelta in
+    let c = Utils.midpoint pt1 pt2 in
+    let r = (Utils.distance pt1 pt2 / 2) - rotZoneDelta in
     zoneRotate model id "line" (cx, cy) r (maybeTransformCmds l) ++
     zonesStroke model id "line" x2 y2 l
   in
@@ -1449,7 +1623,7 @@ makeZonesPoly model shape id l =
   let pts = LangSvg.getPolyPoints l in
   let zPts = zonePoints model id shape transform pts in
   let zLines =
-    let pairs = Utils.adjacentPairs (shape == "polygon") pts in
+    let pairs = Utils.overlappingAdjacentPairs_ (shape == "polygon") pts in
     let f (i,(pti,ptj)) = zoneLine model id shape (ZPolyEdge i) pti ptj transform in
     Utils.mapi1 f pairs in
   let zInterior =
@@ -1480,25 +1654,28 @@ makeZonesPoly model shape id l =
     let midptCrossDot ((i1, ((xi1, xTr1), (yi1, yTr1))), (i2, ((xi2, xTr2), (yi2, yTr2)))) =
       let (midX, midXTr) = ((xi1+xi2)/2, TrOp Plus [xTr1, xTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
       let (midY, midYTr) = ((yi1+yi2)/2, TrOp Plus [yTr1, yTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
-      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) (midY, midYTr)
+      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) dummyVal (midY, midYTr) dummyVal
     in
     let ptCrossDot (i, (xNumTrI, yNumTrI)) =
-      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI yNumTrI
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI dummyVal yNumTrI dummyVal
     in
     let midptCrossDots =
       let ptsI = Utils.mapi1 identity pts in
-      let ptsIPairs = Utils.selfZipCircConsecPairs ptsI in
+      let ptsIPairs = Utils.circOverlappingAdjacentPairs ptsI in
       List.concatMap midptCrossDot ptsIPairs
     in
     let crossDots = List.concat <| Utils.mapi1 ptCrossDot pts in
     midptCrossDots ++ crossDots
   in
+  let secondaryWidgets = zRot ++ zFillAndStroke in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> secondaryWidgets
+    Just (x1,x2,y1,y2) -> 
   let primaryWidgets =
-    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++ zLines ++ zSelect ++ zPts
   in
-  primaryWidgets :: zRot ++ zFillAndStroke
+  primaryWidgets :: secondaryWidgets
 
 firstEqLast xs = Utils.head_ xs == Utils.head_ (List.reverse xs)
 
@@ -1506,7 +1683,7 @@ makeZonesPath : Model -> String -> Int -> List LangSvg.Attr -> List (Svg Msg)
 makeZonesPath model shape id nodeAttrs =
   let _ = Utils.assert "makeZonesPoly" (shape == "path") in
   let transform = maybeTransformAttr nodeAttrs in
-  let cmds = Tuple.first <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
+  let cmds = Maybe.withDefault [] <| Maybe.map Tuple.first <| LangSvg.toPath <| Utils.find_ nodeAttrs "d" in
   let add (mi,pt) acc = case mi of Nothing -> acc
                                    _       -> (mi,pt) :: acc in
   let listOfMaybeIndexWithPt =
@@ -1521,17 +1698,14 @@ makeZonesPath model shape id nodeAttrs =
   let pts = List.map Tuple.second listOfMaybeIndexWithPt in
   let dots = zonePoints model id shape transform pts in
   let zRot = zoneRotatePolyOrPath model id "path" pts nodeAttrs in
-  let zFillAndStroke =
-    case pts of
-      (((x0,_),(y0,_))::_) ->
-        zonesFillAndStroke model id shape x0 y0 nodeAttrs
-      _ ->
-        Debug.crash "makeZonesPath"
-  in
+  case pts of
+    [] -> []
+    ((x0,_),(y0,_))::_ ->
+  let zFillAndStroke = zonesFillAndStroke model id shape x0 y0 nodeAttrs in
   let zSelect =
     let ptCrossDot (maybeIndex, (xNumTr, yNumTr)) =
-      let i = Utils.fromJust maybeIndex in
-      zoneSelectCrossDot model False (id, shape, Point i) xNumTr yNumTr
+      let i = Utils.fromJust_ "makeZonesPath" maybeIndex in
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyVal yNumTr dummyVal
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots
@@ -1543,14 +1717,17 @@ makeZonesPath model shape id nodeAttrs =
       ] ++ transform
   in
   -- TODO add "Edge" zones
+  let secondaryWidgets = zRot ++ zFillAndStroke in
+  case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
+    Nothing -> secondaryWidgets
+    Just (x1,x2,y1,y2) -> 
   let primaryWidgets =
-    let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++
       zSelect ++
       dots
   in
-  primaryWidgets :: zRot ++ zFillAndStroke
+  primaryWidgets :: secondaryWidgets
 
 
 --------------------------------------------------------------------------------

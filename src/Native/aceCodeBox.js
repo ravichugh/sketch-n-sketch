@@ -17,7 +17,7 @@ function initialize() {
   editor.$blockScrolling = Infinity;
   editor.setTheme("ace/theme/tomorrow_night");
   editor.setFontSize(fontSize);
-  editor.getSession().setMode("ace/mode/little");
+  editor.getSession().setMode("ace/mode/elm");
   editor.setOption("dragEnabled", true); // true by default anyway
   editor.setOption("highlightActiveLine", false);
   editor.setShowPrintMargin(false);
@@ -121,7 +121,7 @@ function setDummyTooltips() {
   var typeTooltip = new TokenTooltip(editor, getTooltipText);
   clearTooltips();
   addTooltip(0, 0, "Don't click on me, it hurts.");
-  addTooltip(0, 1, "Click on me to rewrite.");
+  addTooltip(2, 0, "Click on me to rewrite.");
 }
 
 
@@ -138,7 +138,7 @@ function display(info) {
   // editor.selection.clearSelection(); // TODO selections
   displayMarkers(info.codeBoxInfo.highlights);
   displayAnnotations(info.codeBoxInfo.annotations);
-  displayTooltips();
+  displayTooltips(info.codeBoxInfo.tooltips);
 }
 
 function displayCode(code) {
@@ -182,7 +182,7 @@ function displayAnnotations(annotations) {
   editor.getSession().clearAnnotations();
   var annots = [];
   for (idx in annotations) {
-      console.log("annot: " + annotations[idx].row);
+      // console.log("annot: " + annotations[idx].row);
       annots.push(
           { row  : annotations[idx].row
           , text : annotations[idx].text
@@ -192,14 +192,36 @@ function displayAnnotations(annotations) {
   editor.getSession().setAnnotations(annots);
 }
 
-function displayTooltips() {
-  // TODO
+function displayTooltips(tooltips) {
+
   // setDummyTooltips();
+
+  var typeTooltip = new TokenTooltip(editor, getTooltipText);
+  clearTooltips();
+
+  for (idx in tooltips) {
+    var tooltip = tooltips[idx];
+    addTooltip(tooltip.row, tooltip.col, tooltip.text);
+  }
 }
 
 
 //////////////////////////////////////////////////////////////////////
 // Update AceCodeBoxInfo to Send to Elm
+
+function reconstructTooltips() {
+  var tooltips = [];
+  for (i in tooltipTable) { // tooltipTable defined in aceTooltips.js
+    for (j in tooltipTable[i]) {
+      tooltips.push({ row:parseInt(i)
+                    , col:parseInt(j)
+                    , text:tooltipTable[i][j].ann
+                    });
+    }
+  }
+  // console.log(tooltips);
+  return tooltips;
+}
 
 function getEditorState() {
   var codeBoxInfo =
@@ -207,7 +229,7 @@ function getEditorState() {
     , selections : editor.selection.getAllRanges()
     , highlights : [] // TODO
     , annotations : editor.getSession().getAnnotations().map(function (annot) { return { row: annot.row, text: annot.text, type_ : annot.type } })
-    , tooltips : [] // TODO
+    , tooltips : reconstructTooltips()
     , fontSize : fontSize
     , lineHeight : editor.renderer.layerConfig.lineHeight
     , characterWidth : editor.renderer.layerConfig.characterWidth
@@ -264,7 +286,11 @@ app.ports.aceCodeBoxCmd.subscribe(function(aceCmd) {
   } else {
     console.log("[aceCodeBox.js] unexpected message: " + message);
   }
+});
 
+app.ports.aceCodeBoxScroll.subscribe(function(pos) {
+  editor.scrollToLine(pos.line + 1, true, true, function () {});
+  editor.gotoLine(pos.line + 1, pos.col + 1, true);
 });
 
 app.ports.setReadOnly.subscribe(function(flag) {

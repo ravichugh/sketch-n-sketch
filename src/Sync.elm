@@ -5,18 +5,22 @@ module Sync exposing
   , LiveInfo, Triggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
   , yellowAndGrayHighlights, hoverInfo
+  , updateAttrs
   )
 
 import Lang exposing (..)
+import ValUnparser exposing (..)
+import Pos exposing (..)
+import Info exposing (..)
 import LangSvg exposing
   ( NodeId, ShapeKind, Attr, RootedIndexedTree, IndexedTree
   , AVal, AVal_(..), TransformCmd(..), PathCmd(..)
   )
 import ShapeWidgets exposing
-  ( ZoneName, RealZone(..), PointFeature(..), OtherFeature(..)
+  ( RealZone, RealZone(..), PointFeature(..), OtherFeature(..)
   )
-import Solver exposing (Equation)
-import FastParser exposing (isPreludeLoc, substPlusOf)
+import Solver
+import ElmParser as Parser
 import Ace
 import Config exposing (params)
 import Utils
@@ -91,7 +95,7 @@ locsOfTrace opts =
   let foo t = case t of
     TrLoc l ->
       let (_,b,_) = l in
-      if      isPreludeLoc l         then Set.empty
+      if      Parser.isPreludeLoc l         then Set.empty
       -- else if b == frozen                   then Set.empty
       else if b == frozen && notUnfreezeAll then Set.empty
       else if b == unann && frozenByDefault then Set.empty
@@ -130,7 +134,7 @@ getLocationCounts options (slate, widgets) =
       -- because literal bounds will be unambiguously controlled by
       -- corner zones (and because bounding boxes are used often for
       -- stretchy shapes and groups), increase the bias against them
-      case (kind, attrName, attrVal.av_) of
+      case (kind, attrName, attrVal.interpreted) of
         ("BOX", "LEFT",  ANum (_, TrLoc _)) -> 2
         ("BOX", "RIGHT", ANum (_, TrLoc _)) -> 2
         ("BOX", "TOP",   ANum (_, TrLoc _)) -> 2
@@ -151,10 +155,11 @@ getLocationCounts options (slate, widgets) =
   in
   let addTriggerWidget widget acc =
     case widget of
-      WIntSlider _ _ _ _ loc _  -> updateCount loc acc
-      WNumSlider _ _ _ _ loc _  -> updateCount loc acc
-      WPoint (_, t1) (_, t2)    -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
-      WOffset1D _ _ _ _ (_, tr) -> Set.foldl updateCount acc (locsOfTrace options tr)
+      WIntSlider _ _ _ _ _ loc _      -> updateCount loc acc
+      WNumSlider _ _ _ _ _ loc _      -> updateCount loc acc
+      WPoint (_, t1) _ (_, t2) _      -> Set.foldl updateCount acc (locsOfTraces options [t1, t2])
+      WOffset1D _ _ _ _ (_, tr) _ _ _ -> Set.foldl updateCount acc (locsOfTrace options tr)
+      WCall _ _ _ _                   -> acc
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -167,7 +172,7 @@ tracesOfAVals avals = List.foldl (\av acc -> tracesOfAVal av ++ acc) [] avals
 
 tracesOfAVal : AVal -> List Trace
 tracesOfAVal aval =
-  case aval.av_ of
+  case aval.interpreted of
     ANum (_,t) -> [t]
 
     AColorNum ((_,t), Nothing)     -> [t]
@@ -286,7 +291,8 @@ type alias AttrName = String
   --   e.g. fillOpacity
 
 type alias UpdateFunction
-    = (Int, Int)   -- initial click (mx0, my0)
+    = Solver.SolutionsCache
+   -> (Int, Int)   -- initial click (mx0, my0)
    -> (Int, Int)   -- change in mouse position (dx, dy)
    -> Maybe Num
 
@@ -295,7 +301,7 @@ type alias Trigger = List TriggerElement
 
 -- keeping these separate (rather than an Either key, which isn't comparable)
 --
-type alias Triggers = Dict (NodeId, ZoneName) (Trigger, Set Loc, Set Loc)
+type alias Triggers = Dict (NodeId, RealZone) (Trigger, Set Loc, Set Loc)
 
 type alias LiveInfo =
   { triggers : Triggers
@@ -313,7 +319,7 @@ prepareLiveUpdates options e (slate, widgets) =
 prepareLiveUpdates_ : Options -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates_ options e (slate, widgets) =
 
-  let initSubstPlus = substPlusOf e in
+  let initSubstPlus = Parser.substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
   let maybeCounts =
     if options.feelingLucky == heuristicsFair then
@@ -385,7 +391,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
     let idAsShape = -2 - i in
     case widget of
 
-      WNumSlider minVal maxVal _ curVal loc _ ->
+      WNumSlider minVal maxVal _ curVal _ loc _ ->
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
             |> clamp minVal maxVal
@@ -395,12 +401,12 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", "dx", loc_, TrLoc loc
-            , \_ (dx,_) -> solveOne subst loc_ (updateX dx) (TrLoc loc)
+            , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst loc_ (updateX dx) (TrLoc loc)
             ))
         )
         accResult
 
-      WIntSlider a b _ c loc _ ->
+      WIntSlider a b _ c _ loc _ ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
@@ -413,33 +419,36 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", "dx", loc_, TrLoc loc
-            , \_ (dx,_) -> solveOne subst loc_ (updateX dx) (TrLoc loc)
+            , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst loc_ (updateX dx) (TrLoc loc)
             ))
         )
         accResult
 
-      WPoint (x, xTrace) (y, yTrace) ->
+      WPoint (x, xTrace) xProvenance (y, yTrace) yProvenance ->
         addTrigger options idAsShape (ZPoint LonePoint) [xTrace, yTrace]
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->
               ( "", "dx", xLoc, xTrace
-              , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+              , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
               )) ++
             mapMaybeToList yMaybeLoc (\yLoc ->
               ( "", "dy", yLoc, yTrace
-              , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+              , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
               ))
         )
         accResult
 
-      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) ->
+      WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) amountProvenance endXProvenance endYProvenance ->
         addTrigger options idAsShape ZOffset1D [amountTrace]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", if axis == X then "dx" else "dy", loc_, amountTrace
-            , \_ (dx,dy) -> solveOne subst loc_ ((if sign == Positive then (+) else (-)) amount (if axis == X then toFloat dx else toFloat dy)) amountTrace
+            , \solutionsCache _ (dx,dy) -> solveOne solutionsCache subst loc_ ((if sign == Positive then (+) else (-)) amount (if axis == X then toFloat dx else toFloat dy)) amountTrace
             ))
         )
+        accResult
+
+      WCall _ _ _ _ ->
         accResult
   in
   Utils.foldli1 processWidget (Dict.empty, initMaybeCounts) widgets
@@ -448,7 +457,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
 -- Helpers --
 
 addTrigger options id realZone traces makeTrigger (dict, maybeCounts) =
-  let key = (id, ShapeWidgets.unparseZone realZone) in
+  let key = (id, realZone) in
   let (assignedMaybeLocs, allLocs, maybeCounts_) =
     pickLocs options maybeCounts traces in
   let trigger = makeTrigger assignedMaybeLocs in
@@ -463,9 +472,10 @@ addTrigger options id realZone traces makeTrigger (dict, maybeCounts) =
   (dict_, maybeCounts_)
 
 
-solveOne subst (k,_,_) n_ t =
+solveOne : Solver.SolutionsCache -> Subst -> Loc -> Num -> Trace -> Maybe Num
+solveOne solutionsCache subst (k,_,_) n_ t =
   let subst_ = Dict.remove k subst in
-  let maybeSolution = Solver.solve subst_ (n_,t) in
+  let maybeSolution = Solver.solveTrace solutionsCache subst_ t n_ in
   maybeSolution
 
 
@@ -481,7 +491,7 @@ computeRectTriggers
      : (Options, Subst)
     -> MaybeCounts
     -> (NodeId, ShapeKind, List Attr)
-    -> (Dict (NodeId, ZoneName) (Trigger, Set Loc, Set Loc), MaybeCounts)
+    -> (Dict (NodeId, RealZone) (Trigger, Set Loc, Set Loc), MaybeCounts)
 
 computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
   let finishTrigger = addTrigger options id in
@@ -494,33 +504,33 @@ computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
   let leftEdge xMaybeLoc wMaybeLoc =
     mapMaybeToList xMaybeLoc (\xLoc ->
       ( "x", "dx", xLoc, xTrace
-      , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
       )) ++
     mapMaybeToList wMaybeLoc (\wLoc ->
       ( "width", "dx", wLoc, wTrace
-      , \_ (dx,_) -> solveOne subst wLoc (w - toFloat dx) wTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst wLoc (w - toFloat dx) wTrace
       )) in
 
   let rightEdge wMaybeLoc =
     mapMaybeToList wMaybeLoc (\wLoc ->
       ( "width", "dx", wLoc, wTrace
-      , \_ (dx,_) -> solveOne subst wLoc (w + toFloat dx) wTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst wLoc (w + toFloat dx) wTrace
       )) in
 
   let topEdge yMaybeLoc hMaybeLoc =
     mapMaybeToList yMaybeLoc (\yLoc ->
       ( "y", "dy", yLoc, yTrace
-      , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
       )) ++
     mapMaybeToList hMaybeLoc (\hLoc ->
       ( "height", "dy", hLoc, hTrace
-      , \_ (_,dy) -> solveOne subst hLoc (h - toFloat dy) hTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst hLoc (h - toFloat dy) hTrace
       )) in
 
   let botEdge hMaybeLoc =
     mapMaybeToList hMaybeLoc (\hLoc ->
       ( "height", "dy", hLoc, hTrace
-      , \_ (_,dy) -> solveOne subst hLoc (h + toFloat dy) hTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst hLoc (h + toFloat dy) hTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -529,11 +539,11 @@ computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
        let (xMaybeLoc, yMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
        mapMaybeToList xMaybeLoc (\xLoc ->
          ( "x", "dx", xLoc, xTrace
-         , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+         , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
          )) ++
        mapMaybeToList yMaybeLoc (\yLoc ->
          ( "y", "dy", yLoc, yTrace
-         , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+         , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
          ))
      )
 
@@ -595,11 +605,11 @@ computeLineTriggers (options, subst) maybeCounts (id, _, attrs) =
     in
     mapMaybeToList xMaybeLoc (\xLoc ->
       ( "x" ++ toString i, "dx", xLoc, xTrace
-      , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
       )) ++
     mapMaybeToList yMaybeLoc (\yLoc ->
       ( "y" ++ toString i, "dy", yLoc, yTrace
-      , \_ (_, dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+      , \solutionsCache _ (_, dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -636,25 +646,25 @@ computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
   let leftEdge rxMaybeLoc =
     mapMaybeToList rxMaybeLoc (\rxLoc ->
       ( "rx", "dx", rxLoc, rxTrace
-      , \_ (dx,_) -> solveOne subst rxLoc (rx - toFloat dx) rxTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rxLoc (rx - toFloat dx) rxTrace
       )) in
 
   let rightEdge rxMaybeLoc =
     mapMaybeToList rxMaybeLoc (\rxLoc ->
       ( "rx", "dx", rxLoc, rxTrace
-      , \_ (dx,_) -> solveOne subst rxLoc (rx + toFloat dx) rxTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rxLoc (rx + toFloat dx) rxTrace
       )) in
 
   let topEdge ryMaybeLoc =
     mapMaybeToList ryMaybeLoc (\ryLoc ->
       ( "ry", "dy", ryLoc, ryTrace
-      , \_ (_,dy) -> solveOne subst ryLoc (ry - toFloat dy) ryTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst ryLoc (ry - toFloat dy) ryTrace
       )) in
 
   let botEdge ryMaybeLoc =
     mapMaybeToList ryMaybeLoc (\ryLoc ->
       ( "ry", "dy", ryLoc, ryTrace
-      , \_ (_,dy) -> solveOne subst ryLoc (ry + toFloat dy) ryTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst ryLoc (ry + toFloat dy) ryTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -663,11 +673,11 @@ computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
        let (cxMaybeLoc, cyMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
        mapMaybeToList cxMaybeLoc (\cxLoc ->
          ( "cx", "dx", cxLoc, cxTrace
-         , \_ (dx,_) -> solveOne subst cxLoc (cx + toFloat dx) cxTrace
+         , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst cxLoc (cx + toFloat dx) cxTrace
          )) ++
        mapMaybeToList cyMaybeLoc (\cyLoc ->
          ( "cy", "dy", cyLoc, cyTrace
-         , \_ (_,dy) -> solveOne subst cyLoc (cy + toFloat dy) cyTrace
+         , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst cyLoc (cy + toFloat dy) cyTrace
          ))
      )
 
@@ -730,33 +740,33 @@ computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
   let leftEdge rMaybeLoc =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dx", rLoc, rTrace
-      , \_ (dx,_) -> solveOne subst rLoc (r - toFloat dx) rTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rLoc (r - toFloat dx) rTrace
       )) in
 
   let rightEdge rMaybeLoc =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dx", rLoc, rTrace
-      , \_ (dx,_) -> solveOne subst rLoc (r + toFloat dx) rTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rLoc (r + toFloat dx) rTrace
       )) in
 
   let topEdge rMaybeLoc =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dy", rLoc, rTrace
-      , \_ (_,dy) -> solveOne subst rLoc (r - toFloat dy) rTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst rLoc (r - toFloat dy) rTrace
       )) in
 
   let botEdge rMaybeLoc =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dy", rLoc, rTrace
-      , \_ (_,dy) -> solveOne subst rLoc (r + toFloat dy) rTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst rLoc (r + toFloat dy) rTrace
       )) in
 
   let corner rMaybeLoc fx fy =
     mapMaybeToList rMaybeLoc (\rLoc ->
       ( "r", "dxy", rLoc, rTrace
-      , \_ (dx,dy) ->
+      , \solutionsCache _ (dx,dy) ->
           let d = max (fx dx) (fy dy) in
-          solveOne subst rLoc (r + toFloat d) rTrace
+          solveOne solutionsCache subst rLoc (r + toFloat d) rTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -765,12 +775,12 @@ computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
        let (cxMaybeLoc, cyMaybeLoc) = Utils.unwrap2 assignedMaybeLocs in
        mapMaybeToList cxMaybeLoc (\cxLoc ->
          ( "cx", "dx", cxLoc, cxTrace
-         , \_ (dx,_) -> solveOne subst cxLoc (cx + toFloat dx) cxTrace
+         , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst cxLoc (cx + toFloat dx) cxTrace
          )
        ) ++
        mapMaybeToList cyMaybeLoc (\cyLoc ->
          ( "cy", "dy", cyLoc, cyTrace
-         , \_ (_,dy) -> solveOne subst cyLoc (cy + toFloat dy) cyTrace
+         , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst cyLoc (cy + toFloat dy) cyTrace
          )
        )
      )
@@ -829,25 +839,25 @@ computeBoxOrOvalTriggers (options, subst) maybeCounts (id, _, attrs) =
   let leftEdge leftMaybeLoc =
     mapMaybeToList leftMaybeLoc (\leftLoc ->
       ( "LEFT", "dx", leftLoc, leftTrace
-      , \_ (dx,_) -> solveOne subst leftLoc (left + toFloat dx) leftTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst leftLoc (left + toFloat dx) leftTrace
       )) in
 
   let rightEdge rightMaybeLoc =
     mapMaybeToList rightMaybeLoc (\rightLoc ->
       ( "RIGHT", "dx", rightLoc, rightTrace
-      , \_ (dx,_) -> solveOne subst rightLoc (right + toFloat dx) rightTrace
+      , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst rightLoc (right + toFloat dx) rightTrace
       )) in
 
   let topEdge topMaybeLoc =
     mapMaybeToList topMaybeLoc (\topLoc ->
       ( "TOP", "dy", topLoc, topTrace
-      , \_ (_,dy) -> solveOne subst topLoc (top + toFloat dy) topTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst topLoc (top + toFloat dy) topTrace
       )) in
 
   let botEdge botMaybeLoc =
     mapMaybeToList botMaybeLoc (\botLoc ->
       ( "BOT", "dy", botLoc, botTrace
-      , \_ (_,dy) -> solveOne subst botLoc (bot + toFloat dy) botTrace
+      , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst botLoc (bot + toFloat dy) botTrace
       )) in
 
   (Dict.empty, maybeCounts)
@@ -905,13 +915,13 @@ computeBoxOrOvalTriggers (options, subst) maybeCounts (id, _, attrs) =
 pointX_ subst i xMaybeLoc x xTrace =
   mapMaybeToList xMaybeLoc (\xLoc ->
     ( "X" ++ toString i, "dx", xLoc, xTrace
-    , \_ (dx,_) -> solveOne subst xLoc (x + toFloat dx) xTrace
+    , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst xLoc (x + toFloat dx) xTrace
     ))
 
 pointY_ subst i yMaybeLoc y yTrace =
   mapMaybeToList yMaybeLoc (\yLoc ->
     ( "Y" ++ toString i, "dy", yLoc, yTrace
-    , \_ (_,dy) -> solveOne subst yLoc (y + toFloat dy) yTrace
+    , \solutionsCache _ (_,dy) -> solveOne solutionsCache subst yLoc (y + toFloat dy) yTrace
     ))
 
 addPointZones_ finishTrigger pointX pointY indexedPoints result =
@@ -976,10 +986,10 @@ computePolyTriggers (options, subst) maybeCounts (id, kind, attrs) =
 
   let indexedPoints = Utils.mapi1 identity (LangSvg.getPolyPoints attrs) in
   let edges =
-    if kind == "polygon" then Utils.selfZipCircConsecPairs indexedPoints
+    if kind == "polygon" then Utils.circOverlappingAdjacentPairs indexedPoints
     else {- if kind == "polyline" -}
       let n = List.length indexedPoints in
-      Utils.selfZipCircConsecPairs (List.take (n-1) indexedPoints)
+      Utils.circOverlappingAdjacentPairs (List.take (n-1) indexedPoints)
   in
 
   (Dict.empty, maybeCounts)
@@ -1011,69 +1021,69 @@ computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
   let finishTrigger = addTrigger options id in
 
   let maybeAddColorTrigger realZone fillOrStroke (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
+    case Utils.maybeFind fillOrStroke attrs |> Maybe.map .interpreted of
 
       Just (AColorNum ((color, colorTrace), _)) ->
         finishTrigger realZone [colorTrace] (\assignedMaybeLocs ->
           let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
           mapMaybeToList maybeLoc (\colorLoc ->
             ( fillOrStroke, "dx", colorLoc, colorTrace
-            , \_ (dx,_) ->
+            , \solutionsCache _ (dx,_) ->
                 let color_ = colorNumPlus color dx in
-                solveOne subst colorLoc color_ colorTrace
+                solveOne solutionsCache subst colorLoc color_ colorTrace
             ))
         ) (dict, maybeCounts)
 
       _ -> (dict, maybeCounts) in
 
   let maybeAddOpacityTrigger realZone fillOrStroke (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind fillOrStroke attrs) of
+    case Utils.maybeFind fillOrStroke attrs |> Maybe.map .interpreted of
 
       Just (AColorNum (_, (Just (opacity, opacityTrace)))) ->
         finishTrigger realZone [opacityTrace] (\assignedMaybeLocs ->
           let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
           mapMaybeToList maybeLoc (\opacityLoc ->
             ( fillOrStroke ++ "Opacity", "dx", opacityLoc, opacityTrace
-            , \_ (dx,_) ->
+            , \solutionsCache _ (dx,_) ->
                 let opacity_ = opacityNumPlus opacity dx in
-                solveOne subst opacityLoc opacity_ opacityTrace
+                solveOne solutionsCache subst opacityLoc opacity_ opacityTrace
             ))
         ) (dict, maybeCounts)
 
       _ -> (dict, maybeCounts) in
 
   let maybeAddStrokeWidthTrigger realZone (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind "stroke-width" attrs) of
+    case Utils.maybeFind "stroke-width" attrs |> Maybe.map .interpreted of
 
       Just (ANum (width, widthTrace)) ->
         finishTrigger realZone [widthTrace] (\assignedMaybeLocs ->
           let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
           mapMaybeToList maybeLoc (\widthLoc ->
             ( "stroke-width", "dx", widthLoc, widthTrace
-            , \_ (dx,_) ->
+            , \solutionsCache _ (dx,_) ->
                 let width_ = strokeWidthNumPlus width dx in
-                solveOne subst widthLoc width_  widthTrace
+                solveOne solutionsCache subst widthLoc width_  widthTrace
             ))
         ) (dict, maybeCounts)
 
       _ -> (dict, maybeCounts) in
 
   let maybeAddRotationTrigger realZone (dict, maybeCounts) =
-    case Utils.mapMaybe .av_ (Utils.maybeFind "transform" attrs) of
+    case Utils.maybeFind "transform" attrs |> Maybe.map .interpreted of
 
       Just (ATransform [Rot (rot, rotTrace) (cx, _) (cy ,_)]) ->
         finishTrigger realZone [rotTrace] (\assignedMaybeLocs ->
           let (maybeLoc) = Utils.unwrap1 assignedMaybeLocs in
           mapMaybeToList maybeLoc (\rotLoc ->
             ( "transformRot", "dxy", rotLoc, rotTrace
-            , \(mx0,my0) (dx,dy) ->
+            , \solutionsCache (mx0,my0) (dx,dy) ->
                 let (mx1, my1) = (mx0 + dx, my0 + dy) in
                 let
                   radToDeg = Utils.radiansToDegrees
                   a0 = radToDeg <| atan2 (cy - toFloat my0) (toFloat mx0 - cx)
                   a1 = radToDeg <| atan2 (cy - toFloat my1) (toFloat mx1 - cx)
                 in
-                solveOne subst rotLoc (rot + (a0 - a1)) rotTrace
+                solveOne solutionsCache subst rotLoc (rot + (a0 - a1)) rotTrace
             ))
         ) (dict, maybeCounts)
 
@@ -1109,12 +1119,10 @@ opacityNumPlus n dx =
 ------------------------------------------------------------------------------
 -- Preparing Live Triggers
 
-type alias MouseTrigger2 a = (Int, Int) -> (Int, Int) -> a
-
-type alias LiveTrigger = MouseTrigger2 (Exp, List Ace.Highlight)
+type alias LiveTrigger = Solver.SolutionsCache -> (Int, Int) -> (Int, Int) -> (Exp, List Ace.Highlight)
 
 -- ShapeKind in zone key is used for display in caption, but not for keying the triggers dictionary.
-type alias ZoneKey = (NodeId, ShapeKind, ZoneName) -- node id for a widget is -2 - (widget number starting from 1)
+type alias ZoneKey = (NodeId, ShapeKind, RealZone) -- node id for a widget is -2 - (widget number starting from 1)
 
 lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set Loc, Set Loc)
 lookupZoneKey zoneKey info =
@@ -1128,7 +1136,7 @@ lookupZoneKey zoneKey info =
   |> Maybe.withDefault default
 
 prepareLiveTrigger : LiveInfo -> Exp -> ZoneKey -> LiveTrigger
-prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
+prepareLiveTrigger info exp zoneKey solutionsCache (mx0,my0) (dx,dy) =
 
   let (trigger, yellowLocs, _) = lookupZoneKey zoneKey info in
   let initSubst = Dict.map (always .val) info.initSubstPlus in
@@ -1136,7 +1144,7 @@ prepareLiveTrigger info exp zoneKey (mx0,my0) (dx,dy) =
   let updates =
      List.foldl (\triggerElement acc ->
        let (_, _, (k,_,_), _, updateFunction) = triggerElement in
-       case (Dict.get k acc, updateFunction (mx0,my0) (dx,dy)) of
+       case (Dict.get k acc, updateFunction solutionsCache (mx0,my0) (dx,dy)) of
 
          (Nothing, maybeSolution) -> Dict.insert k maybeSolution acc
 
@@ -1181,11 +1189,13 @@ acePos p = { row = p.line, column = p.col }
 aceRange : WithInfo a -> Ace.Range
 aceRange x = { start = acePos x.start, end = acePos x.end }
 
-makeHighlight : SubstPlus -> String -> Loc -> Ace.Highlight
+makeHighlight : SubstPlus -> String -> Loc -> Maybe Ace.Highlight
 makeHighlight subst color (locid,_,_) =
   case Dict.get locid subst of
-    Just n  -> { color = color, range = aceRange n }
-    Nothing -> Debug.crash "makeHighlight: locid not in subst"
+    Just n  -> Just { color = color, range = aceRange n }
+    Nothing ->
+      let _ = Debug.log "WARNING:makeHighlight: locid not in subst" () in
+      Nothing
 
 
 -- Colors and Captions for Zone Locations, Before Direct Manipulation --
@@ -1193,43 +1203,43 @@ makeHighlight subst color (locid,_,_) =
 yellowAndGrayHighlights zoneKey info =
   let subst = info.initSubstPlus in
   let (_, yellowLocs, grayLocs) = lookupZoneKey zoneKey info in
-  List.map (makeHighlight subst yellow) (Set.toList yellowLocs)
-  ++ List.map (makeHighlight subst gray) (Set.toList grayLocs)
+  List.filterMap (makeHighlight subst yellow) (Set.toList yellowLocs)
+  ++ List.filterMap (makeHighlight subst gray) (Set.toList grayLocs)
 
 hoverInfo zoneKey info =
   let line1 =
-    let (nodeId, shapeKind, zoneName) = zoneKey in
+    let (nodeId, shapeKind, realZone) = zoneKey in
     let displayId =
-      if nodeId < -2
-      then -nodeId - 2 -- Widget
-      else nodeId
+       if nodeId < -2
+       then -nodeId - 2 -- Widget
+       else nodeId
     in
-    (shapeKind ++ toString displayId) ++ " " ++ zoneName
+    (shapeKind ++ toString displayId) ++ " " ++ ShapeWidgets.realZoneDesc realZone
   in
   let maybeLine2 =
     let (triggerElements, _, _) = lookupZoneKey zoneKey info in
     if triggerElements == [] then Nothing
     else
-      let (dxElements, list2) =
-        List.partition (\(_,s,_,_,_) -> s == "dx") triggerElements
-      in
-      let (dyElements, list3) =
-        List.partition (\(_,s,_,_,_) -> s == "dy") list2
-      in
-      let (dxyElements, otherElements) =
-        List.partition (\(_,s,_,_,_) -> s == "dxy") list3
-      in
-      let strElements caption elements =
-        let foo (_,_,(k,_,x),_,_) =
-          let n = Utils.justGet_ ("hoverInfo: " ++ toString k) k info.initSubstPlus in
-          let locName = if x == "" then ("loc_" ++ toString k) else x in
-          locName ++ Utils.parens (String.left 4 (toString n.val))
-        in
-        case elements of
-          [] -> []
-          _  -> [Utils.bracks caption ++ " " ++ Utils.spaces (List.map foo elements)]
-      in
-      Just <| Utils.spaces <| List.concat <|
+       let (dxElements, list2) =
+         List.partition (\(_,s,_,_,_) -> s == "dx") triggerElements
+       in
+       let (dyElements, list3) =
+         List.partition (\(_,s,_,_,_) -> s == "dy") list2
+       in
+       let (dxyElements, otherElements) =
+         List.partition (\(_,s,_,_,_) -> s == "dxy") list3
+       in
+       let strElements caption elements =
+         let foo (_,_,(k,_,x),_,_) =
+            let n = Utils.justGet_ ("hoverInfo: " ++ toString k) k info.initSubstPlus in
+            let locName = if x == "" then ("loc_" ++ toString k) else x in
+            locName ++ Utils.parens (String.left 4 (toString n.val))
+         in
+         case elements of
+            [] -> []
+            _  -> [Utils.bracks caption ++ " " ++ Utils.spaces (List.map foo elements)]
+       in
+       Just <| Utils.spaces <| List.concat <|
         [ strElements "dx" dxElements
         , strElements "dy" dyElements
         , strElements "dxy" dxyElements
@@ -1248,39 +1258,225 @@ highlightChanges initSubstPlus locs changes =
     -- hi : List Highlight, stringOffsets : List (Pos, Int)
     --   where Pos is start pos of a highlight to offset by Int chars
     let f loc (acc1,acc2) =
-      let (locid,_,_) = loc in
-      let highlight c = makeHighlight initSubstPlus c loc in
-      case (Dict.get locid initSubstPlus, Dict.get locid changes) of
-        (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
-        (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
-        (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
-        (Just n, Just (Just n_)) ->
-          if n_ == n.val then
-            (highlight yellow :: acc1, acc2)
-          else
-            let (s, s_) = (strNum n.val, strNum n_) in
-            let x = (acePos n.start, String.length s_ - String.length s) in
-            (highlight green :: acc1, x :: acc2)
+       let (locid,_,_) = loc in
+       let highlightAdd c tail = makeHighlight initSubstPlus c loc |> Maybe.map (\h -> h :: tail) |> Maybe.withDefault tail in
+       case (Dict.get locid initSubstPlus, Dict.get locid changes) of
+         (Nothing, _)             -> Debug.crash "Controller.highlightChanges"
+         (Just n, Nothing)        -> (highlightAdd yellow acc1, acc2)
+         (Just n, Just Nothing)   -> (highlightAdd red acc1, acc2)
+         (Just n, Just (Just n_)) ->
+           if n_ == n.val then
+             (highlightAdd yellow acc1, acc2)
+           else
+             let (s, s_) = (strNum n.val, strNum n_) in
+             let x = (acePos n.start, String.length s_ - String.length s) in
+             (highlightAdd green acc1, x :: acc2)
     in
     List.foldl f ([],[]) (Set.toList locs)
   in
 
   let hi_ =
     let g (startPos,extraChars) (old,new) =
-      let bump pos = { pos | column = pos.column + extraChars } in
-      let ret new_ = (old, new_) in
-      ret <|
-        if startPos.row    /= old.start.row         then new
-        else if startPos.column >  old.start.column then new
-        else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
-        else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
-        else
-          Debug.crash "highlightChanges"
+       let bump pos = { pos | column = pos.column + extraChars } in
+       let ret new_ = (old, new_) in
+       ret <|
+         if startPos.row    /= old.start.row         then new
+         else if startPos.column >  old.start.column then new
+         else if startPos.column == old.start.column then { start = new.start, end = bump new.end }
+         else if startPos.column <  old.start.column then { start = bump new.start, end = bump new.end }
+         else
+           Debug.crash "highlightChanges"
     in
     -- hi has <= 4 elements, so not worrying about the redundant processing
     flip List.map hi <| \{color,range} ->
-      let (_,range_) = List.foldl g (range,range) stringOffsets in
-      { color = color, range = range_ }
+       let (_,range_) = List.foldl g (range,range) stringOffsets in
+       { color = color, range = range_ }
   in
 
   hi_
+
+
+------------------------------------------------------------------------------
+-- Updating Shape Attributes in Ad-Hoc Mode
+
+-- Can certainly be streamlined with "Computing Triggers" above, if desired.
+
+findNumishAttrs attrs attrNames =
+  List.map (\k -> Tuple.first (LangSvg.findNumishAttr k attrs)) attrNames
+
+updateNum n =
+  LangSvg.aNum (n, dummyTrace)
+
+updateAttrs attrs zoneKey dx dy =
+  let
+    (_, shapeKind, realZone) =
+      zoneKey
+  in
+  case shapeKind of
+    "line" ->
+      let
+        (x1,y1,x2,y2) =
+          Utils.unwrap4 <| findNumishAttrs attrs ["x1","y1","x2","y2"]
+        point1 =
+          [ ("x1", updateNum <| x1 + dx), ("y1", updateNum <| y1 + dy) ]
+        point2 =
+          [ ("x2", updateNum <| x2 + dx), ("y2", updateNum <| y2 + dy) ]
+      in
+      case realZone of
+        ZPoint (Point 1) -> point1
+        ZPoint (Point 2) -> point2
+        ZLineEdge        -> point1 ++ point2
+        _                -> []
+
+    "rect" ->
+      let
+        (x,y,w,h) =
+          Utils.unwrap4 <| findNumishAttrs attrs ["x","y","width","height"]
+        interior =
+          [ ("x", updateNum <| x + dx), ("y", updateNum <| y + dy) ]
+        leftEdge =
+          [ ("x", updateNum <| x + dx), ("width", updateNum <| w - dx) ]
+        rightEdge =
+          [ ("width", updateNum <| w + dx) ]
+        topEdge =
+          [ ("y", updateNum <| y + dy), ("height", updateNum <| h - dy) ]
+        botEdge =
+          [ ("height", updateNum <| h + dy) ]
+      in
+      case realZone of
+        ZInterior        -> interior
+        ZPoint TopEdge   -> topEdge
+        ZPoint RightEdge -> rightEdge
+        ZPoint BotEdge   -> botEdge
+        ZPoint LeftEdge  -> leftEdge
+        ZPoint TopLeft   -> topEdge ++ leftEdge
+        ZPoint TopRight  -> topEdge ++ rightEdge
+        ZPoint BotLeft   -> botEdge ++ leftEdge
+        ZPoint BotRight  -> botEdge ++ rightEdge
+        _                -> []
+
+    "ellipse" ->
+      let
+        (cx,cy,rx,ry) =
+          Utils.unwrap4 <| findNumishAttrs attrs ["cx","cy","rx","ry"]
+        interior =
+          [ ("cx", updateNum <| cx + dx), ("cy", updateNum <| cy + dy) ]
+        leftEdge =
+          [ ("rx", updateNum <| rx - dx) ]
+        rightEdge =
+          [ ("rx", updateNum <| rx + dx) ]
+        topEdge =
+          [ ("ry", updateNum <| ry - dy) ]
+        botEdge =
+          [ ("ry", updateNum <| ry + dy) ]
+      in
+      case realZone of
+        ZInterior        -> interior
+        ZPoint TopEdge   -> topEdge
+        ZPoint RightEdge -> rightEdge
+        ZPoint BotEdge   -> botEdge
+        ZPoint LeftEdge  -> leftEdge
+        ZPoint TopLeft   -> topEdge ++ leftEdge
+        ZPoint TopRight  -> topEdge ++ rightEdge
+        ZPoint BotLeft   -> botEdge ++ leftEdge
+        ZPoint BotRight  -> botEdge ++ rightEdge
+        _                -> []
+
+    "circle" ->
+      let
+        (cx,cy,r) =
+          Utils.unwrap3 <| findNumishAttrs attrs ["cx","cy","r"]
+        interior =
+          [ ("cx", updateNum <| cx + dx), ("cy", updateNum <| cy + dy) ]
+        leftEdge =
+          [ ("r", updateNum <| r - dx) ]
+        rightEdge =
+          [ ("r", updateNum <| r + dx) ]
+        topEdge =
+          [ ("r", updateNum <| r - dy) ]
+        botEdge =
+          [ ("r", updateNum <| r + dy) ]
+        co =
+          (*) 1
+        contra =
+          (*) -1
+        corner fx fy =
+          let d = max (fx dx) (fy dy) in
+          [ ("r", updateNum <| r + d) ]
+      in
+      case realZone of
+        ZInterior        -> interior
+        ZPoint TopEdge   -> topEdge
+        ZPoint RightEdge -> rightEdge
+        ZPoint BotEdge   -> botEdge
+        ZPoint LeftEdge  -> leftEdge
+        ZPoint TopLeft   -> corner contra contra
+        ZPoint TopRight  -> corner co contra
+        ZPoint BotLeft   -> corner contra co
+        ZPoint BotRight  -> corner co co
+        _                -> []
+
+    "BOX" ->
+      updateBoxOrOvalAttrs attrs realZone dx dy
+    "OVAL" ->
+      updateBoxOrOvalAttrs attrs realZone dx dy
+
+    "polygon" ->
+      updatePoly attrs realZone dx dy
+    "polyline" ->
+      updatePoly attrs realZone dx dy
+
+    "path" ->
+       [] -- TODO
+
+    _ ->
+      []
+
+updateBoxOrOvalAttrs attrs realZone dx dy =
+  let
+    (left, top, right, bot) =
+      Utils.unwrap4 <| findNumishAttrs attrs ["LEFT", "TOP", "RIGHT", "BOT"]
+    leftEdge =
+      [ ("LEFT", updateNum <| left + dx) ]
+    rightEdge =
+      [ ("RIGHT", updateNum <| right + dx) ]
+    topEdge =
+      [ ("TOP", updateNum <| top + dy) ]
+    botEdge =
+      [ ("BOT", updateNum <| bot + dy) ]
+  in
+  case realZone of
+    ZInterior        -> leftEdge ++ topEdge ++ rightEdge ++ botEdge
+    ZPoint TopEdge   -> topEdge
+    ZPoint RightEdge -> rightEdge
+    ZPoint BotEdge   -> botEdge
+    ZPoint LeftEdge  -> leftEdge
+    ZPoint TopLeft   -> topEdge ++ leftEdge
+    ZPoint TopRight  -> topEdge ++ rightEdge
+    ZPoint BotLeft   -> botEdge ++ leftEdge
+    ZPoint BotRight  -> botEdge ++ rightEdge
+    _                -> []
+
+updatePoint dx dy idx points =
+  let ((xi,_),(yi,_)) = Utils.geti idx points in
+  let newPoints = Utils.replacei idx ((xi + dx, dummyTrace), (yi + dy, dummyTrace)) points in
+  newPoints
+
+updatePoly attrs realZone dx dy =
+  let points = LangSvg.getPolyPoints attrs in
+  let newPoints =
+    case realZone of
+      ZPoint (Point idx) ->
+        points
+          |> updatePoint dx dy idx
+      ZPolyEdge idx ->
+        points
+          |> updatePoint dx dy idx
+          |> updatePoint dx dy (if idx < List.length points then idx + 1 else 1)
+      ZInterior ->
+        points
+          |> List.map (\((x,_),(y,_)) -> ((x + dx, dummyTrace), (y + dy, dummyTrace)))
+      _ ->
+        []
+  in
+  [ ("points", LangSvg.aPoints newPoints) ]

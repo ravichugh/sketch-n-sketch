@@ -10,6 +10,10 @@
   --disabled-text-color: #CCCCCC;
   --alert-warning-text-color: #880000;
 
+  --pop-color: rgb(51, 170, 0, 1);
+  --pop-color-darker: rgb(51, 136, 0, 1);
+  --pop-color-clear: rgb(51, 170, 0, 0);
+
   --main-border-color: #888888;
   --subtle-border-color: #AAAAAA;
 

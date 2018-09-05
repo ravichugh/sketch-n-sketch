@@ -15,6 +15,9 @@ icons =
     , ("lambda", lambda)
     ]
 
+-- TODO switch these to Elm syntax
+-- TODO maybe build them into ExamplesTemplate from standalone examples/ files
+
 cursor = """
 ; To customize, Save As: __ui__cursor.little
 
@@ -36,9 +39,10 @@ cursor = """
 pointOrOffset = """
 ; To customize, Save As: __ui__pointOrOffset.little
 
-(def [x1 y1] [8 42])
-(def x2 59)
-(def arrowHeadOffset 12)
+(def canvasSize 38)
+(def arrowHeadOffset 9)
+(def [x1 y1] [6 (- (- canvasSize arrowHeadOffset) 2)])
+(def x2 (- canvasSize 1))
 (def x11 (- x2 arrowHeadOffset))
 
 (def line1
@@ -57,16 +61,16 @@ pointOrOffset = """
     [ (addAttr (line color width x1 y1 x2 y2) ["stroke-dasharray" "1,1"]) ])))
 
 (def circle1
-  (let [cx cy r] [30 13 6]
+  (let [cx cy r] [19 8 5]
   (let fill 'white'
     [ (rawCircle fill 360 2 cx cy r) ])))
 
 (def circle2
-  (let [cx cy r] [x1 y1 6]
+  (let [cx cy r] [x1 y1 5]
   (let fill 'white'
     [ (rawCircle fill 360 2 cx cy r) ])))
 
-(svgViewBox 60 60 (concat [
+(svgViewBox canvasSize canvasSize (concat [
   circle1
   circle2
   line1

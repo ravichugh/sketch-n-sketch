@@ -2,7 +2,7 @@
  * General                                                                    *
  ******************************************************************************/
 
-* {
+ *:not(.outputCanvas *) {
   margin: 0;
   padding: 0;
   -webkit-box-sizing: border-box;
@@ -10,6 +10,7 @@
   -ms-box-sizing: border-box;
   -o-box-sizing: border-box;
   box-sizing: border-box;
+  caret-color: lightblue; /* for contenteditable nodes */
 }
 
 body {
@@ -25,7 +26,7 @@ body {
   user-select: none;
 }
 
-a {
+a:not(.outputCanvas a) {
   color: inherit;
   text-decoration: none;
 }
@@ -67,7 +68,7 @@ code {
 .ui-button {
   color: var(--text-color);
   background-color: rgba(0, 0, 0, 0.1);
-  padding: 10px;
+  padding: 4px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.3);
   border-radius: 3px;
   cursor: pointer;
@@ -240,7 +241,7 @@ code {
   /* transition: background-color 0.1s; */
 }
 
-.main:not(.user-study-enabled) .main-bar .menu:nth-child(2) .menu-heading {
+.main .main-bar .menu:nth-child(2) .menu-heading {
   font-weight: bold;
 }
 
@@ -317,6 +318,7 @@ code {
 }
 
 /* TODO User Study Info (temporary) */
+/* re-using this now for Previous/Next Example buttons */
 
 .user-study-info {
   position: absolute;
@@ -396,61 +398,6 @@ code {
 }
 
 /******************************************************************************
- * Prose Panel                                                                *
- ******************************************************************************/
-
-.prose-panel {
-  /* width: DYNAMIC */
-  /* height: DYNAMIC */
-
-  background-color: var(--panel-bg-color);
-  padding: 15px;
-  overflow-y: scroll;
-
-  position: absolute;
-  /* top: DYNAMIC */
-  /* left: DYNAMIC */
-}
-
-/* Prose Panel Content */
-
-.prose-panel * {
-  margin-bottom: 0.5rem;
-}
-
-.prose-panel *:last-child {
-  margin-bottom: 0;
-}
-
-.prose-panel *:empty {
-  display: none;
-}
-
-.prose-panel h3 {
-  font-size: 1.2em;
-}
-
-.prose-panel li h3 {
-  font-size: 1.1em;
-  font-style: italic;
-}
-
-.prose-panel li {
-  margin-left: 1.5em;
-}
-
-.prose-panel a {
-  color: lightblue;
-  text-decoration: underline;
-}
-
-.prose-panel code {
-  background-color: var(--prose-code-bg-color);
-  padding: 2px 4px;
-  border-radius: 5px;
-}
-
-/******************************************************************************
  * Code Panel                                                                 *
  ******************************************************************************/
 
@@ -466,7 +413,7 @@ code {
   /* top: DYNAMIC */
   /* left: DYNAMIC */
 
-  transition: height 0.5s;
+  /* transition: height 0.5s; */
 
   -webkit-user-select: text;
   -moz-user-select: text;
@@ -541,24 +488,34 @@ code {
   padding: 0 15px;
 }
 
-.action-bar .run {
+.action-bar .run,
+.action-bar .emoji {
   display: inline-block;
 
   white-space: nowrap;
   height: 25px;
   line-height: 25px;
-  padding: 0 15px;
-  cursor: pointer;
 
   position: relative;
-  top: 5px; /* (height of bar - height of button) / 2 */
 
   float: right;
   margin-right: 10px;
+}
 
-  background-color: #33AA00;
+.action-bar .emoji {
+  font-size: 28px;
+  top: 7px;
+}
+
+.action-bar .run {
+  top: 5px; /* (height of bar - height of button) / 2 */
+  padding: 0 15px;
+
+  cursor: pointer;
+
+  background-color: var(--pop-color);
   color: #FFFFFF;
-  border-bottom: 2px solid #338800;
+  border-bottom: 2px solid var(--pop-color-darker);
   border-radius: 5px;
 
   /* transition: background-color 0.1s; */
@@ -578,12 +535,79 @@ code {
 #editor {
   position: absolute;
   /* top =
-   *   height of status bar + height of action bar + border of code panel
+   *   height of status bar + height of action bar
+   *     + border of code panel + border action bar
    */
-  top: 71px;
+  top: 72px;
   right: 0;
-  bottom: 0;
+  /* bottom =
+   *   mode bar height + mode bar border-top height
+   */
+  bottom: 45px;
   left: 0;
+}
+
+/* Mode Bar */
+
+.mode-bar {
+  display: flex;
+
+  width: 100%;
+  height: 44px;
+
+  border-top: 1px solid var(--subtle-border-color);
+
+  position: absolute;
+  bottom: 0;
+}
+
+.mode-bar > * {
+  margin-left: 3px;
+}
+
+.mode-icon-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+}
+
+.mode-indicator {
+  align-self: center;
+
+  width: 5px;
+  height: 5px;
+  background-color: var(--pop-color-clear);
+  transition: background-color 0.2s;
+
+  border: 1px solid var(--subtle-border-color);
+  border-radius: 5px;
+}
+
+.mode-icon-wrapper.active .mode-indicator {
+  background-color: var(--pop-color);
+}
+
+.mode-icon {
+  width: 34px;
+  height: 34px;
+
+  border: 1px solid var(--subtle-border-color);
+  box-sizing: border-box;
+}
+
+/* TODO temporary until icons added */
+.mode-icon .text-button {
+  display: block;
+  font-size: 0.5em;
+  width: 100%;
+  height: 100%;
+  word-wrap: break-word;
+  text-align: center;
+}
+
+.mode-separator {
+  background-color: var(--subtle-border-color);
+  width: 1px;
 }
 
 /******************************************************************************
@@ -600,37 +624,13 @@ code {
   /* width: DYNAMIC */
   /* height: DYNAMIC */
   /* line-height: DYNAMIC */
-  transition: height 0.5s, line-height 0.5s;
+  /* transition: height 0.5s, line-height 0.5s; */
 
   cursor: col-resize;
 
   position: absolute;
   /* top: DYNAMIC */
   /* left: DYNAMIC */
-}
-
-.prose-resizer {
-  cursor: row-resize;
-
-  position: absolute;
-  /* top: DYNAMIC */
-  /* left: DYNAMIC */
-}
-
-.prose-resizer .sideways {
-  display: inline-block;
-
-  -webkit-transform: rotate(90deg);
-  -moz-transform: rotate(90deg);
-  -ms-transform: rotate(90deg);
-  -o-transform: rotate(90deg);
-  transform: rotate(90deg);
-
-  -webkit-transform-origin: 50% 25%;
-  -moz-transform-origin: 50% 25%;
-  -ms-transform-origin: 50% 25%;
-  -o-transform-origin: 50% 25%;
-  transform-origin: 50% 25%;
 }
 
 /******************************************************************************
@@ -669,7 +669,25 @@ code {
 }
 
 #outputCanvas {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
   cursor: default;
+  overflow: auto;
+  position: relative;
+  font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+
+#svgWidgetsLayer {
+  /* left : DYNAMIC */
+  /* top : DYNAMIC */
+  /* width : DYNAMIC */
+  /* height : DYNAMIC */
+  position: fixed;
+  pointer-events: none;
+}
+
+#svgWidgetsLayer * {
+  pointer-events: auto;
 }
 
 .output-panel-warning {
@@ -685,6 +703,23 @@ code {
 }
 
 .needs-run .output-panel-warning {
+  border-width: 5px;
+}
+
+.code-panel-warning {
+  pointer-events: none; /* pass mouse events through to code panel */
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  bottom: 0px;
+  left: 0px;
+
+  border: 0px solid rgba(136, 0, 0, 0.7);
+  transition: border-width 0.5s;
+  z-index: 6;
+}
+
+.needs-value-backprop .code-panel-warning {
   border-width: 5px;
 }
 
@@ -721,6 +756,13 @@ code {
   color: var(--active-text-color);
 }
 
+.tool-mode-indicator .larger-text {
+  font-size: 2.0em;
+  line-height: normal;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
 /******************************************************************************
  * Synthesis Panel                                                            *
  ******************************************************************************/
@@ -734,7 +776,7 @@ code {
   /* bottom: DYNAMIC */
 
   /* height: DYNAMIC */
-  transition: height 0.5s;
+  /* transition: height 0.5s; */
 }
 
 .synthesis-panel {
@@ -870,7 +912,12 @@ code {
   font-family: "Inconsolata", monospace;
   font-size: 1.2em;
   padding: 20px;
-  text-align: right;
+}
+
+.dialog-box input[type="text"] {
+  font-family: "Inconsolata", monospace;
+  font-size: 1em;
+  padding: 5px;
 }
 
 .dialog-box .save-as-button {
@@ -888,7 +935,7 @@ code {
 }
 
 .dialog-box .file-delete-button .ui-button {
-  color: #FF3300;
+  color: var(--alert-warning-text-color);
 }
 
 /* Help Dialog */
@@ -907,7 +954,7 @@ code {
  ******************************************************************************/
 
 .synthesis-results .hover-menu .text-button {
-  width: 300px;
+  width: 450px;
   height: auto;
   padding: 7px;
   line-height: 1.4em;
@@ -996,11 +1043,34 @@ code {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
+/* Deuce rename box */
 .rename-input {
   width: 100%;
   margin-top: 0.4em; /* 1em - synthesis-results.line-height */
   font-size: 16px;
   padding: 5px;
+}
+
+/* Rename in output box */
+#rename-box {
+  font-family: Tahoma, sans-serif;
+  font-size: 11pt;
+}
+
+.pats {
+}
+
+.pat {
+  display: inline-block;
+  margin-right: 10px;
+  width: 90px;
+  cursor: text;
+}
+
+.remove-arg {
+  margin-left: 5px;
+  font-size: 9pt;
+  cursor: pointer;
 }
 
 /******************************************************************************
@@ -1144,4 +1214,44 @@ code {
 .requirements-list .impossible:after {
   content: " (Invalid Selections)";
   font-style: italic;
+}
+
+/******************************************************************************
+ * Auto Output Tools Popup Panel                                              *
+ ******************************************************************************/
+
+.auto-output-tools {
+  min-width: 150px;
+}
+
+.auto-output-tools .text-button {
+  display: flex;
+}
+
+[contenteditable]:focus {
+  outline: 0px solid transparent;
+}
+
+.synthesisResult .hover-menu-content{
+  /*white-space: pre;*/
+}
+
+/******************************************************************************
+ * Deuce SVG Styling                                                          *
+ ******************************************************************************/
+
+.code-object-polygon {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.code-object-polygon.translucent {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.code-object-polygon:hover,
+.code-object-polygon.opaque {
+  opacity: 1;
+  pointer-events: none;
 }

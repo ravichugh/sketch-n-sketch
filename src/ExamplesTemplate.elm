@@ -1,27 +1,74 @@
-module ExamplesGenerated exposing (list, templateCategories)
+module ExamplesGenerated exposing
+  ( list, templateCategories
+  , blankSvgTemplate, blankHtmlTemplate, initTemplate
+  , badPreludeTemplate
+  , fromleo_markdown
+  , fromleo_markdown_optimized
+  , fromleo_markdown_optimized_lensless
+  , fromleo_recipe2
+  , fromleo_conference_budgetting
+  , fromleo_modelviewcontroller
+  , fromleo_latexeditor
+  , repl
+  , tableOfStatesA
+  , tableOfStatesB
+  , tableOfStatesC
+  , fromleo_linkedtexteditor
+  , fromleo_translatabledoc
+  , fromleo_dixit
+  , christmas_song_3_after_translation
+  , mapMaybeLens
+  , listAppendLens
+  , Example
+  )
 
-import Lang
-import FastParser exposing (parseE)
-import Types
+import Lang exposing (Exp, Val, Widget, Env)
+import FastParser
+import ElmParser
+import Types2
 import Eval
 import Utils
 import PreludeGenerated as Prelude
-import LangSvg
 import DefaultIconTheme
+import Syntax
+import EvalUpdate
+import Parser
+import ParserUtils
 
-makeExample name s =
+type alias Example = {
+   e: Exp,
+   v: Val,
+   ws: List Widget,
+   ati: Types2.AceTypeInfo,
+   env: Env}
+
+--------------------------------------------------------------------------------
+
+initTemplate = "Get Started"
+blankSvgTemplate = "Blank Svg Document"
+blankHtmlTemplate = "Blank Html Document"
+badPreludeTemplate = "Bad Prelude"
+
+--------------------------------------------------------------------------------
+
+makeExample = makeExample_ FastParser.parseE Syntax.Little
+
+makeLeoExample = makeExample_ ElmParser.parse Syntax.Elm
+
+makeExample_: (String -> Result Parser.Error Exp) -> Syntax.Syntax -> String -> String -> (String, (String, () -> Result String Example))
+makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
-    let e = Utils.fromOkay ("Error parsing example " ++ name) (parseE s) in
-    -- let ati = Types.typecheck e in
-    let ati = Types.dummyAceTypeInfo in
+    parser s |> Result.mapError (\pmsg -> "Error parsing example " ++ name ++"\n" ++ ParserUtils.showError pmsg) |> Result.map (\e ->
+    let ati = Types2.aceTypeInfo e in
     -----------------------------------------------------
     -- if name == "*Prelude*" then
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run e in
-    {e=e, v=v, ws=ws, ati=ati}
+    let ((v,ws), env) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.runWithEnv syntax e in
+    {e=e, v=v, ws=ws, ati=ati,env=env}
+    )
   in
   (name, (s, thunk))
 
@@ -151,6 +198,7 @@ LITTLE_TO_ELM target_deuce
 LITTLE_TO_ELM battery_deuce
 LITTLE_TO_ELM coffee_deuce
 LITTLE_TO_ELM mondrian_arch_deuce
+LEO_TO_ELM cat
 
 --------------------------------------------------------------------------------
 -- Deuce User Study Files
@@ -196,11 +244,85 @@ LITTLE_TO_ELM task_lambda
 
 --------------------------------------------------------------------------------
 
-generalCategory =
-  ( "General"
-  , [ makeExample "BLANK" blank
-    , makeExample "*Prelude*" Prelude.src
+LEO_TO_ELM badPrelude
+LEO_TO_ELM blankSvg
+LEO_TO_ELM blankDoc
+LEO_TO_ELM welcome1
+LEO_TO_ELM tableOfStatesA
+LEO_TO_ELM tableOfStatesB
+LEO_TO_ELM tableOfStatesC
+LEO_TO_ELM simpleBudget
+LEO_TO_ELM mapMaybeLens
+LEO_TO_ELM mapListLens_1
+LEO_TO_ELM mapListLens_2
+LEO_TO_ELM listAppendLens
+LEO_TO_ELM fromleo/markdown
+LEO_TO_ELM fromleo/markdown_optimized
+LEO_TO_ELM fromleo/markdown_optimized_lensless
+LEO_TO_ELM fromleo/conference_budgetting
+LEO_TO_ELM fromleo/recipe
+LEO_TO_ELM fromleo/recipe2
+LEO_TO_ELM fromleo/modelviewcontroller
+LEO_TO_ELM fromleo/linkedtexteditor
+LEO_TO_ELM fromleo/translatabledoc
+LEO_TO_ELM fromleo/latexeditor
+LEO_TO_ELM fromleo/dixit
+LEO_TO_ELM christmas_song_3_after_translation
+LEO_TO_ELM fromleo/pizzas_doodle
+LEO_TO_ELM fromleo/universal_number
+LEO_TO_ELM repl
+LEO_TO_ELM slides
+LEO_TO_ELM docs
+LEO_TO_ELM sync
+LEO_TO_ELM foldl_reversible_join
+LEO_TO_ELM references_in_text
+LEO_TO_ELM tutorialStudentGrades
+
+--------------------------------------------------------------------------------
+
+welcomeCategory =
+  ( "Welcome"
+  , [ makeLeoExample blankSvgTemplate blankSvg
+    , makeLeoExample blankHtmlTemplate blankDoc
+    , makeLeoExample initTemplate welcome1
+--    , makeLeoExample "Tutorial" blankDoc
     ]
+  )
+
+docsCategory =
+  ( "Examples (OOPSLA 2018 Submission)"
+  , [ makeLeoExample "1a: Table of States" tableOfStatesA
+    , makeLeoExample "1b: Table of States" tableOfStatesC
+    , makeLeoExample "1c: Table of States" tableOfStatesB
+    ] ++
+    (
+    List.indexedMap
+      (\i (caption, program) ->
+        makeLeoExample (toString (2+i) ++ ": " ++ caption) program
+      )
+      [ ("ICFP tutorial", tutorialStudentGrades)
+      , ("Conference Budget", fromleo_conference_budgetting)
+      , ("Model View Controller", fromleo_modelviewcontroller)
+      , ("Scalable Recipe Editor", fromleo_recipe2)
+      , ("Cloning Editor", fromleo_linkedtexteditor)
+      , ("Translation Editor", fromleo_translatabledoc)
+      , ("Markdown Editor", fromleo_markdown)
+      , ("Dixit Scoresheet", fromleo_dixit)
+      , ("Doodle", fromleo_pizzas_doodle)
+      , ("Universal numbers", fromleo_universal_number)
+      , ("LaTeX Editor", fromleo_latexeditor)
+      , ("REPL with SVG", repl)
+      , ("Slides", slides)
+      , ("Docs", docs)
+      -- TODO maybe Conference?
+      , ("Html regex replace: references", references_in_text)
+      , ("String join, concatMap", foldl_reversible_join)
+      , ("Lens: Maybe Map", mapMaybeLens)
+      , ("Lens: List Map 1", mapListLens_1)
+      , ("Lens: List Map 2", mapListLens_2)
+      , ("Lens: List Append", listAppendLens)
+      ]
+    )
   )
 
 defaultIconCategory =
@@ -342,6 +464,7 @@ otherCategory =
     , makeExample "Balance Scale" balanceScale
     , makeExample "Pencil Tip" pencilTip
     , makeExample "Calendar Icon" calendarIcon
+    , makeLeoExample "SVG Cat" cat
     ]
   )
 
@@ -383,14 +506,23 @@ deuceUserStudyCategory =
     ]
   )
 
+internalCategory =
+ ( "(Internal Things...)"
+ , [ makeLeoExample "Standard Prelude" Prelude.preludeLeo
+   , makeLeoExample badPreludeTemplate badPrelude
+   ]
+ )
+
 templateCategories =
-  [ generalCategory
+  [ welcomeCategory
+  , docsCategory
   , deuceCategory
   , defaultIconCategory
   , logoCategory
   , flagCategory
   , otherCategory
   , deuceUserStudyCategory
+  , internalCategory
   ]
 
 list =

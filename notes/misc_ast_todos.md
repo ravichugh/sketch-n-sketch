@@ -3,7 +3,7 @@
 - [ ] Redefine Token = (WS, String) 
 - [ ] Use Token more in the AST to preserve whitespace before tokens
 - [ ] Use row polymorphism to avoid nested records (e.g. start, pos, eid)
-- [ ] Merge trace types (Trace, LocEquation, etc.)
+- [ ] Merge trace types (Trace, MathExp, etc.)
 - [ ] Maybe separate Nums, Ints, and Floats
 - [ ] Add WidgetDecls and Widgets for other base types
 - [ ] Hooks for extra info on values (points, base plus offset, etc.)

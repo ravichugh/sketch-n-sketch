@@ -4,13 +4,13 @@ import Helpers.Matchers exposing (..)
 
 import String
 
-import LangParser2
+import FastParser
 import LangUnparser
 
 testParseUnparseMatch littleStr =
-  case LangParser2.parseE littleStr of
-    Err (s, _) ->
-      "can't parse: " ++ s ++ "\n" ++ littleStr
+  case FastParser.parseE littleStr of
+    Err s ->
+      "can't parse: " ++ toString s ++ "\n" ++ littleStr
     Ok parsed ->
       let unparsed =
         LangUnparser.unparse parsed

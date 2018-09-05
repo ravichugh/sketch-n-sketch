@@ -18,7 +18,9 @@
         "elm-lang/svg": "2.0.0 <= v < 3.0.0",
         "elm-lang/virtual-dom": "2.0.0 <= v < 3.0.0",
         "elm-lang/window": "1.0.0 <= v < 2.0.0",
-        "elm-tools/parser": "2.0.1 <= v < 3.0.0"
+        "erwald/elm-edit-distance": "1.1.1 <= v < 2.0.0",
+        "MikaelMayer/parser": "1.1.0 <= v < 2.0.0"
     },
+    "_comment": "Add this dependency back when corrected (remove MikaelMayer's one): elm-tools/parser: 2.0.1 <= v < 3.0.0",
     "elm-version": "0.18.0 <= v < 0.19.0"
 }

@@ -1,15 +1,20 @@
+-- TODO rename to LangHtml
 module LangSvg exposing
   ( attr
   , NodeId, ShapeKind
   , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
-  , Attr, IndexedTree, RootedIndexedTree, IndexedTreeNode(..)
+  , Attr, IndexedTree, RootedIndexedTree, IndexedTreeNode, IndexedTreeNode_(..)
   , NodeInfo, foldSlateNodeInfo
   , maxColorNum, maxStrokeWidthNum
-  , emptyTree, dummySvgNode
+  , dummySvgNode
+  , isSvg
   , valToIndexedTree
-  , printSvg
-  , compileAttr, compileAttrs, desugarShapeAttrs -- TODO remove in favor of compileSvg
+  , printHTML
+  , compileAttr, compileAttrs
+  , desugarShapeAttrs
+  , buildSvgSimple
   , strAVal
+  , strPoints
   , aNum, aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPath
   , valsToPath2
@@ -17,14 +22,15 @@ module LangSvg exposing
   , getPolyPoints, getPolyPoint, getPtCount
   , pathIndexPoints, getPathPoint
   , maybeFindBounds, maybeFindBlobId
-  , justGetSvgNode
-  , resolveToIndexedTree, resolveToMovieCount, fetchEverything
+  , maybeGetSvgNode, justGetSvgNode
+  , descendantNodeIds
+  , resolveToRootedIndexedTree, resolveToMovieCount, fetchEverything
   )
 
 import Html
-import Html.Attributes as HA
+import Html.Attributes
 import Svg
-import Svg.Attributes as A
+import Svg.Attributes
 import VirtualDom
 
 -- in Svg.elm:
@@ -44,10 +50,14 @@ import Regex
 import ColorNum
 
 import Lang exposing (..)
+import LangUtils exposing (valToString)
+import ValUnparser exposing (..)
 import Eval
 import Utils
 import Either exposing (Either(..))
 import ImpureGoodies
+import Syntax exposing (Syntax)
+import HTMLParser
 
 ------------------------------------------------------------------------------
 
@@ -61,7 +71,12 @@ expectedButGotStr x s   = "expected " ++ x ++ ", but got: " ++ s
 ------------------------------------------------------------------------------
 -- SVG Attribute Values
 
-type alias AVal = { av_ : AVal_, vtrace : VTrace }
+type alias WithVal a =
+  { interpreted : a
+  , val : Val
+  }
+
+type alias AVal = WithVal AVal_
 
 type AVal_
   = ANum NumTr
@@ -72,6 +87,7 @@ type AVal_
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
   | ABounds (NumTr, NumTr, NumTr, NumTr)
+  | AStyle (List (String, AVal))
 
 type alias Point = (NumTr, NumTr)
 type alias Rgba  = (NumTr, NumTr, NumTr, NumTr)
@@ -95,12 +111,53 @@ type alias Cmd = String -- single uppercase/lowercase letter
 
 type alias IdPoint = (Maybe Int, Point)
 
+replaceAv_ : AVal -> AVal_ -> AVal
+replaceAv_ av av_ = { interpreted = av_, val = av.val }
+
 
 -- Max Attribute Values for Shape Widget Sliders --
 
 maxColorNum = 500
 maxStrokeWidthNum = 20
 
+
+{- TODO rename to either
+
+Option 1:
+
+------------------------------------------------------------------------------
+-- IndexedValue: Indexed Representation of HTML Value
+
+type alias Tag = String
+type alias ValueId = Int
+type alias ElementAttr = (String, AVal)
+
+type alias IndexedValue = (ValueId, Dict ValueId IndexedSubValue)
+
+type alias IndexedSubValue = WithVal IndexedSubValue_
+
+type IndexedSubValue_
+  = Text String
+  | Element Tag (List ElementAttr) (List ValueId)
+
+or Option 2:
+
+------------------------------------------------------------------------------
+-- IndexedHtmlValue
+
+type alias Tag = String
+type alias NodeId = Int
+type alias ElementAttr = (String, AVal)
+
+type alias IndexedHtmlValue = (NodeId, Dict NodeId Node)
+
+type alias Node = WithVal Node_
+
+type Node_
+  = Text String
+  | Element Tag (List ElementAttr) (List NodeId)
+
+-}
 
 ------------------------------------------------------------------------------
 -- RootedIndexedTree (a.k.a. "Slate"): tree representation of SVG Canvas Value
@@ -111,14 +168,12 @@ type alias Attr = (String, AVal)
 
 type alias RootedIndexedTree = (NodeId, IndexedTree)
 type alias IndexedTree = Dict NodeId IndexedTreeNode
-type IndexedTreeNode
+
+type alias IndexedTreeNode = WithVal IndexedTreeNode_
+
+type IndexedTreeNode_
   = TextNode String
   | SvgNode ShapeKind (List Attr) (List NodeId)
-
-emptyTree : RootedIndexedTree
-emptyTree =
-  Utils.fromOk "LangSvg.emptyTree" <|
-  valToIndexedTree <| vList [vBase (VString "svg"), vList [], vList []]
 
 
 ------------------------------------------------------------------------------
@@ -136,13 +191,15 @@ valToIndexedTree v =
   thunk ()
   -- ImpureGoodies.logTimedRun "LangSvg.valToIndexedTree" thunk
 
+valToIndexedTree_ : Val -> RootedIndexedTree -> Result String RootedIndexedTree
 valToIndexedTree_ v (nextId, d) =
   let thunk () =
     case v.v_ of
       VList vs -> case List.map .v_ vs of
 
         [VBase (VString "TEXT"), VBase (VString s)] ->
-          Ok (1 + nextId, Dict.insert nextId (TextNode s) d)
+          let node = { interpreted = TextNode s, val = v } in
+          Ok (1 + nextId, Dict.insert nextId node d)
 
         [VBase (VString kind), VList vs1, VList vs2] ->
           let processChild vi acc =
@@ -160,17 +217,30 @@ valToIndexedTree_ v (nextId, d) =
               List.map valToAttr vs1
               |> Utils.projOk
               |> Result.map (\attrs ->
-                let node = SvgNode kind attrs (List.reverse children) in
+                let node =
+                  { interpreted = SvgNode kind attrs (List.reverse children)
+                  , val = v
+                  }
+                in
                 (1 + nextId_, Dict.insert nextId_ node d_)
               )
             )
 
-        _ -> expectedButGot "an SVG node" (strVal v)
+        _ -> expectedButGot "an SVG node" (valToString v)
 
-      _ -> expectedButGot "an SVG node" (strVal v)
+      _ -> expectedButGot "an SVG node" (valToString v)
   in
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult
+
+isSvg v =
+  case v.v_ of
+    VList vs ->
+      case List.map .v_ vs of
+        [VBase (VString "svg"), VList _, VList _] -> True
+        _                                         -> False
+    _ ->
+      False
 
 
 ------------------------------------------------------------------------------
@@ -186,9 +256,13 @@ valToAttr v = case v.v_ of
 
           ("fill"  , VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
           ("stroke", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
+          ("color", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
+          ("background-color", VList [v1,v2,v3,v4]) -> valsToRgba [v1,v2,v3,v4] |> Result.map ARgba
 
           ("fill",   VConst _ it) -> Ok <| AColorNum (it, Nothing)
           ("stroke", VConst _ it) -> Ok <| AColorNum (it, Nothing)
+          ("color", VConst _ it) -> Ok <| AColorNum (it, Nothing)
+          ("background-color", VConst _ it) -> Ok <| AColorNum (it, Nothing)
 
           ("fill",   VList [v1,v2]) ->
             case (v1.v_, v2.v_) of
@@ -199,20 +273,34 @@ valToAttr v = case v.v_ of
               (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
               _                            -> Err <| "bad stroke: " ++ strVal v2
 
+          ("color", VList [v1,v2]) ->
+            case (v1.v_, v2.v_) of
+              (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
+              _                            -> Err <| "bad color: " ++ strVal v2
+
+          ("background-color", VList [v1,v2]) ->
+            case (v1.v_, v2.v_) of
+              (VConst _ it1, VConst _ it2) -> Ok  <| AColorNum (it1, Just it2)
+              _                            -> Err <| "bad background-color: " ++ strVal v2
+
           ("d", VList vs)         -> valsToPath2 vs |> Result.map APath2
 
           ("transform", VList vs) -> valsToTransform vs |> Result.map ATransform
 
           ("BOUNDS", VList vs)    -> valToBounds vs |> Result.map ABounds
 
+          ("style", VList vs)     -> valToStyle vs |> Result.map AStyle
+
           (_, VConst _ it)        -> Ok <| ANum it
           (_, VBase (VString s))  -> Ok <| AString s
 
           _                       -> Err <| "bad SVG attribute value for " ++ k ++ ": " ++ strVal v2
       in
-      avRes |> Result.map (\av -> (k, AVal av v2.vtrace))
+      avRes |> Result.map (\av -> (k, { interpreted = av, val = v2 }))
+
     _ ->
       Err <| "malformed attribute pair: " ++ strVal v
+
   _ ->
     Err <| "malformed attribute list, bad element: " ++ strVal v
 
@@ -237,7 +325,7 @@ strPoint (x_,y_) =
 valsToRgba : List Val -> Result String Rgba
 valsToRgba vs = case List.map .v_ vs of
   [VConst _ r, VConst _  g, VConst _ b, VConst _ a] -> Ok (r,g,b,a)
-  _                                                 -> expectedButGot "rgba" (strVal (vList vs))
+  _                                                 -> expectedButGot "rgba" <| "[" ++ String.join ", " (List.map strVal vs) ++ "]"
 
 strRgba : Rgba -> String
 strRgba (r_,g_,b_,a_) =
@@ -382,47 +470,82 @@ strTransformCmd cmd = case cmd of
 
 valToBounds vs = case List.map .v_ vs of
   [VConst _ a, VConst _ b, VConst _ c, VConst _ d] -> Ok (a,b,c,d)
-  _                                                -> expectedButGot "bounds" (strVal (vList vs))
+  _                                                -> expectedButGot "bounds" <| "[" ++ String.join ", " (List.map strVal vs) ++ "]"
 
 strBounds (left,top,right,bot) =
   Utils.spaces (List.map (toString << Tuple.first) [left,top,right,bot])
 
 
+-- CSS Styles --
+
+valToCssAttr : Val -> Result String Attr
+valToCssAttr = valToAttr
+
+valToStyle vs =
+  List.foldr (\v acc ->
+    acc |> Result.andThen (\styles ->
+    valToCssAttr v |> Result.andThen (\attr ->
+      Ok (attr :: styles)
+    ))
+  ) (Ok []) vs
+
+strStyle styles =
+  styles
+    |> List.map (\(k,v) -> k ++ ":" ++ strAVal v)
+    |> String.join ";"
+
+
 ------------------------------------------------------------------------------
 -- Compiling to SVG (Text Format)
 
-printSvg : Bool -> RootedIndexedTree -> String
-printSvg showGhosts (rootId, tree) =
-  let s = printNode showGhosts 0 tree rootId in
-  Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
+printHTML : Bool -> RootedIndexedTree -> String
+printHTML showGhosts (rootId, tree) =
+  let s = printNode HTMLParser.HTML showGhosts 0 tree rootId in
+  --Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
+  s
 
-printNode showGhosts k slate i =
-  case Utils.justGet i slate of
+printNode: HTMLParser.NameSpace -> Bool -> Int ->  IndexedTree -> NodeId -> String
+printNode namespace showGhosts indent slate i =
+  case Utils.justGet i slate |> .interpreted of
+    -- TODO escape strings in TextNode and TextListNode
     TextNode s -> s
     SvgNode kind_ l1_ l2 ->
-      let (kind,l1) = desugarShapeAttrs kind_ l1_ in
+      let (kind,l1) = desugarShapeAttrs 0 0 kind_ l1_ in
       case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
         (False, Just _) -> ""
         _ ->
+          let ending = (case namespace of
+             HTMLParser.HTML -> if HTMLParser.isVoidElement kind then "" else
+               Utils.delimit "</" ">" kind
+             _ -> Utils.delimit "</" ">" kind)
+          in
+          let newKind = if HTMLParser.isForeignElement kind then HTMLParser.Foreign else namespace in
           if l2 == [] then
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++
-            Utils.delimit "</" ">" kind
+            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ ending
           else
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
             Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ "\n" ++
-            printNodes showGhosts (k+1) slate l2 ++ "\n" ++
-            tab k ++ Utils.delimit "</" ">" kind
+            printNodes newKind showGhosts (indent+1) slate l2 ++ "\n" ++
+            tab indent ++ ending
 
-printNodes showGhosts k slate =
-  Utils.lines << List.map ((++) (tab k) << printNode showGhosts k slate)
+printNodes namespace showGhosts indent slate =
+  Utils.lines << List.map ((++) (tab indent) << printNode namespace showGhosts indent slate)
 
 printAttrs l = case l of
   [] -> ""
   _  -> " " ++ Utils.spaces (List.map printAttr l)
 
 printAttr (k,v) =
-  k ++ "=" ++ Utils.delimit "'" "'" (strAVal v)
+  k ++ "=" ++ Utils.delimit "'" "'" (Regex.replace Regex.All (Regex.regex "\\\\|'|\n|\r|\t") (\m ->
+    case m.match of
+      "\\" -> "\\\\"
+      "'" -> "\\'"
+      "\n" -> "\\n"
+      "\r" -> "\\r"
+      "\t" -> "\\t"
+      e -> e
+  ) (strAVal v))
 
 addAttrs kind attrs =
   if kind == "svg"
@@ -436,49 +559,90 @@ specialAttrs = ["HIDDEN", "ZONES"]
 removeSpecialAttrs =
   List.filter (\(s,_) -> not (List.member s specialAttrs))
 
-desugarShapeAttrs shape0 attrs0 =
-  let mkNum n = aNum (n, dummyTrace) in
+desugarShapeAttrs : Int -> Int -> ShapeKind -> List Attr -> (ShapeKind, List Attr)
+desugarShapeAttrs xCanvas yCanvas shape0 attrs0 =
   Maybe.withDefault (shape0, attrs0) <|
-    case shape0 of
-      "BOX" ->
-        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
-          let newAttrs =
-             [ ("x", mkNum left)
-             , ("y", mkNum top)
-             , ("width", mkNum (right - left))
-             , ("height", mkNum (bot - top))
-             ]
-          in ("rect", newAttrs ++ restOfAttrs)
-        ) (getBoundsAttrs attrs0)
-      "OVAL" ->
-        Utils.mapMaybe (\(left, top, right, bot, restOfAttrs) ->
-          let newAttrs =
-             [ ("cx", mkNum (left + (right - left) / 2))
-             , ("cy", mkNum (top + (bot - top) / 2))
-             , ("rx", mkNum ((right - left) / 2))
-             , ("ry", mkNum ((bot - top) / 2))
-             ]
-          in ("ellipse", newAttrs ++ restOfAttrs)
-        ) (getBoundsAttrs attrs0)
-      _ ->
-        Nothing
+    Utils.plusMaybe
+      (desugarFixedPosition xCanvas yCanvas shape0 attrs0)
+      (desugarBoundedShapes shape0 attrs0)
+
+desugarBoundedShapes : ShapeKind -> List Attr -> Maybe (ShapeKind, List Attr)
+desugarBoundedShapes shape0 attrs0 =
+  let mkNum n = aNum (n, dummyTrace) in
+  case shape0 of
+    "BOX" ->
+      Maybe.map (\(left, top, right, bot, restOfAttrs) ->
+        let newAttrs =
+           [ ("x", mkNum left)
+           , ("y", mkNum top)
+           , ("width", mkNum (right - left))
+           , ("height", mkNum (bot - top))
+           ]
+        in ("rect", newAttrs ++ restOfAttrs)
+      ) (getBoundsAttrs attrs0)
+    "OVAL" ->
+      Maybe.map (\(left, top, right, bot, restOfAttrs) ->
+        let newAttrs =
+           [ ("cx", mkNum (left + (right - left) / 2))
+           , ("cy", mkNum (top + (bot - top) / 2))
+           , ("rx", mkNum ((right - left) / 2))
+           , ("ry", mkNum ((bot - top) / 2))
+           ]
+        in ("ellipse", newAttrs ++ restOfAttrs)
+      ) (getBoundsAttrs attrs0)
+    _ ->
+      Nothing
 
 getBoundsAttrs attrs0 =
   Utils.maybeRemoveFirst "LEFT"  attrs0 |> Maybe.andThen (\(vL,attrs1) ->
   Utils.maybeRemoveFirst "RIGHT" attrs1 |> Maybe.andThen (\(vR,attrs2) ->
   Utils.maybeRemoveFirst "TOP"   attrs2 |> Maybe.andThen (\(vT,attrs3) ->
   Utils.maybeRemoveFirst "BOT"   attrs3 |> Maybe.andThen (\(vB,attrs4) ->
-    case (vL.av_, vT.av_, vR.av_, vB.av_) of
+    case (vL.interpreted, vT.interpreted, vR.interpreted, vB.interpreted) of
       (ANum (left,_), ANum (top,_), ANum (right,_), ANum (bot,_)) ->
         Just (left, top, right, bot, attrs4)
       _ -> Nothing
   ))))
 
+desugarFixedPosition : Int -> Int -> ShapeKind -> List Attr -> Maybe (ShapeKind, List Attr)
+desugarFixedPosition xCanvas yCanvas shape0 attrs0 =
+  Utils.maybeRemoveFirst "style" attrs0 |> Maybe.andThen (\(vStyle,attrs1) ->
+    case vStyle.interpreted of
+      AStyle styles0 ->
+        -- implicitly assuming ("position", AString "fixed") is in styles0
+        Utils.maybeRemoveFirst "FIXED_LEFT" styles0 |> Maybe.andThen (\(vLeft,styles1) ->
+        Utils.maybeRemoveFirst "FIXED_TOP"  styles1 |> Maybe.andThen (\(vTop,styles2) ->
+          case (vLeft.interpreted, vTop.interpreted) of
+            (ANum ntLeft, ANum ntTop) ->
+              let
+                newLeft =
+                  plusNumTr ntLeft (toFloat xCanvas, TrLoc (dummyLoc_ frozen))
+                newTop =
+                  plusNumTr ntTop  (toFloat yCanvas, TrLoc (dummyLoc_ frozen))
+                newStyle =
+                  replaceAv_ vStyle <|
+                    AStyle <|
+                      -- TODO "px" should be added by strAVal translation, not here
+                      -- ("left", replaceAv_ vLeft <| ANum newLeft)
+                      --   :: ("top", replaceAv_ vTop <| ANum newTop)
+                      ("left", replaceAv_ vLeft <| AString (toString (Tuple.first newLeft) ++ "px"))
+                        :: ("top", replaceAv_ vTop <| AString (toString (Tuple.first newTop) ++ "px"))
+                        :: styles2
+              in
+              Just (shape0, ("style", newStyle) :: attrs1)
+            _ ->
+              Nothing
+        ))
+
+      _ -> Nothing
+  )
+
+
 strAVal : AVal -> String
-strAVal a = case a.av_ of
+strAVal a = case a.interpreted of
   AString s -> s
   ANum it   -> toString (Tuple.first it)
-  APoints l -> Utils.spaces (List.map strPoint l)
+  APoints l -> strPoints l
   ARgba tup -> strRgba tup
   APath2 p  -> strAPathCmds (Tuple.first p)
   ATransform l -> Utils.spaces (List.map strTransformCmd l)
@@ -489,6 +653,11 @@ strAVal a = case a.av_ of
   AColorNum (n, Just (opacity, _)) ->
     let (r,g,b) = Utils.numToColor maxColorNum (Tuple.first n) in
     strRgba_ [toFloat r, toFloat g, toFloat b, opacity]
+  AStyle styles -> strStyle styles
+
+strPoints : List Point -> String
+strPoints l =
+  Utils.spaces (List.map strPoint l)
 
 
 ------------------------------------------------------------------------------
@@ -498,49 +667,80 @@ compileAttrs : List Attr -> List (Svg.Attribute a)
 compileAttrs = List.map (uncurry compileAttr)
 
 compileAttr : String -> AVal -> Svg.Attribute a
-compileAttr k v = (attr k) (strAVal v)
+compileAttr k v =
+  let _ =
+    if List.any Char.isUpper (String.toList k) then
+      Debug.log "WARN: uppercase letter in attribute name may not be handled correctly by DOM listener" k
+    else
+      k
+  in
+  (attr k) (strAVal v)
 
-  -- TODO move rest of View.buildSvg here
+
+buildSvgSimple : RootedIndexedTree -> Svg.Svg a
+buildSvgSimple (rootI, tree) =
+  buildSvgSimple_ tree rootI
+
+buildSvgSimple_ : IndexedTree -> NodeId -> Svg.Svg a
+buildSvgSimple_ tree i  =
+  case Utils.justGet_ ("LangSvg.buildSvgSimple_ " ++ toString i) i tree |> .interpreted of
+    TextNode text -> VirtualDom.text text
+    SvgNode shape attrs childIndices ->
+      case Utils.maybeRemoveFirst "HIDDEN" attrs of
+        Just _ -> Svg.svg [] []
+        _ ->
+          let attrs_ =
+            case Utils.maybeRemoveFirst "ZONES" attrs of
+              Nothing        -> attrs
+              Just (_, rest) -> rest
+          in
+          let children = List.map (buildSvgSimple_ tree) childIndices in
+          let (rawKind, rawAttrs) = desugarShapeAttrs 0 0 shape attrs_ in
+          Svg.node rawKind (compileAttrs rawAttrs) children
 
 
 ------------------------------------------------------------------------------
 -- Misc AVal Helpers
 
-toNum a = case a.av_ of
+toNum a = case a.interpreted of
   ANum nt -> nt
+  AString st -> case String.toFloat st of
+    Ok nt -> (nt, dummyTrace)
+    Err msg -> expectedButGotCrash ("a number (got parse error " ++ msg ++ ")") (strAVal a)
   _       -> expectedButGotCrash "a number" (strAVal a)
 
-toColorNum a = case a.av_ of
+toColorNum a = case a.interpreted of
   AColorNum nt -> nt
   _            -> expectedButGotCrash "a color number" (strAVal a)
 
-toNumIsh a = case a.av_ of
+toNumIsh a = case a.interpreted of
   ANum nt           -> nt
+  AString st -> case String.toFloat st of
+    Ok nt -> (nt, dummyTrace)
+    Err msg -> expectedButGotCrash ("a number (got parse error " ++ msg ++ ")") (strAVal a)
   AColorNum (nt, _) -> nt
   _       -> expectedButGotCrash "a number or color number" (strAVal a)
 
-toPoints a = case a.av_ of
+toPoints a = case a.interpreted of
   APoints pts -> pts
   _           -> expectedButGotCrash "a list of points" (strAVal a)
 
-toPath : AVal -> (List PathCmd, PathCounts)
-toPath a = case a.av_ of
-  APath2 p -> p
+toPath : AVal -> Maybe (List PathCmd, PathCounts)
+toPath a = case a.interpreted of
+  APath2 p -> Just p
+  AString c -> Nothing
   _        -> expectedButGotCrash "path commands" (strAVal a)
 
-toTransformRot a = case a.av_ of
+toTransformRot a = case a.interpreted of
   ATransform [Rot n1 n2 n3] -> (n1,n2,n3)
   _                         -> expectedButGotCrash "a rotation transform" (strAVal a)
 
-
--- these are for when the VTrace doesn't matter
-aVal          = flip AVal [-1]
+-- Avoid using these going foward: no way to determine provenance.
+aVal av_      = { interpreted = av_, val = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] } }
 aNum          = aVal << ANum
 aString       = aVal << AString
 aTransform    = aVal << ATransform
-aColorNum     = aVal << AColorNum
 aPoints       = aVal << APoints
-aPath2        = aVal << APath2
 
 
 ------------------------------------------------------------------------------
@@ -581,7 +781,8 @@ pathIndexPoints nodeAttrs =
   let cmds =
     Utils.find ("pathPoints nodeAttrs looking for \"d\" in " ++ (toString nodeAttrs)) nodeAttrs "d"
     |> toPath
-    |> Tuple.first
+    |> Maybe.map Tuple.first
+    |> Maybe.withDefault []
   in
   let pts =
     cmds
@@ -607,7 +808,7 @@ maybeFindBlobId l =
   case Utils.maybeFind "BLOB" l of
     Nothing -> Nothing
     Just av ->
-      case av.av_ of
+      case av.interpreted of
         AString sBlobId -> Just (Utils.parseInt sBlobId)
         _               -> Nothing
 
@@ -617,7 +818,7 @@ maybeFindBounds l =
     Nothing -> Nothing
     Just av ->
       let roundBounds = True in
-      case (av.av_, roundBounds) of
+      case (av.interpreted, roundBounds) of
         (ABounds bounds, False) -> Just bounds
         (ABounds (a,b,c,d), True) ->
           let f = Tuple.mapFirst (toFloat << round) in
@@ -626,23 +827,45 @@ maybeFindBounds l =
           Nothing
 
 
-justGetSvgNode : String -> NodeId -> RootedIndexedTree -> (ShapeKind, List Attr)
-justGetSvgNode cap nodeId (_, indexedTree) =
-  case Utils.justGet_ cap nodeId indexedTree of
-    SvgNode kind attrs _ -> (kind, attrs)
-    TextNode _           -> Debug.crash (cap ++ ": TextNode ?")
+maybeGetSvgNode : NodeId -> RootedIndexedTree -> Maybe (ShapeKind, List Attr, List NodeId)
+maybeGetSvgNode nodeId (_, indexedTree) =
+  case Dict.get nodeId indexedTree |> Maybe.map .interpreted of
+    Just (SvgNode kind attrs childIds) -> Just (kind, attrs, childIds)
+    _                                  -> Nothing
 
+
+justGetSvgNode : String -> NodeId -> RootedIndexedTree -> (ShapeKind, List Attr, List NodeId)
+justGetSvgNode cap nodeId slate =
+  maybeGetSvgNode nodeId slate
+  |> Utils.fromJust_ ("justGetSvgNode: " ++ cap)
+
+
+childNodeIds : IndexedTreeNode -> List NodeId
+childNodeIds node =
+  case node.interpreted of
+    SvgNode kind attrs childIds -> childIds
+    TextNode _                  -> []
+
+descendantNodeIds : IndexedTree -> IndexedTreeNode -> List NodeId
+descendantNodeIds indexedTree node =
+  let childIds = childNodeIds node in
+  let deeperIds =
+    childIds
+    |> List.filterMap (\nodeId -> Dict.get nodeId indexedTree)
+    |> List.concatMap (descendantNodeIds indexedTree)
+  in
+  childIds ++ deeperIds
 
 dummySvgNode =
   let zero = aNum (0, dummyTrace) in
   SvgNode "circle" (List.map (\k -> (k, zero)) ["cx","cy","r"]) []
 
 
-dummySvgVal =
-  let zero = vConst (0, dummyTrace) in
-  let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
-  let children = vList [] in
-  vList [vStr "circle", attrs, children]
+-- dummySvgVal =
+--   let zero = vConst (0, dummyTrace) in
+--   let attrs = vList <| List.map (\k -> vList [vStr k, zero]) ["cx","cy","r"] in
+--   let children = vList [] in
+--   vList [vStr "circle", attrs, children]
 
 
 ------------------------------------------------------------------------------
@@ -654,7 +877,7 @@ foldSlate (rootId, dict) acc f =
  -- foldNode : NodeId -> a -> a
     foldNode i acc =
       let node = Utils.justGet_ "foldSlate" i dict in
-      case node of
+      case node.interpreted of
         TextNode _       -> f i node acc
         SvgNode _ _ kids -> f i node (List.foldl foldNode acc kids)
   in
@@ -668,7 +891,7 @@ type alias NodeInfo =
 foldSlateNodeInfo : RootedIndexedTree -> a -> (NodeInfo -> a -> a) -> a
 foldSlateNodeInfo slate acc f =
   foldSlate slate acc <| \i node ->
-    case node of
+    case node.interpreted of
       TextNode s           -> f (Left (i, s))
       SvgNode kind attrs _ -> f (Right (i, kind, attrs))
 
@@ -676,50 +899,72 @@ foldSlateNodeInfo slate acc f =
 ------------------------------------------------------------------------------
 -- Little Animations
 
--- TODO use options for better error messages
+-- [
+--   slideCount
+--   (slideNumber -> [ ; Slide Val
+--     slideMovieCount
+--     (slideMovieNumber -> [ ; Movie Val
+--       "Static"
+--       (slideNumber -> movieNumber -> SVG array structure) ; Frame Val
+--     ])
+--   ])
+-- ]
+-- or
+-- [
+--   slideCount
+--   (slideNumber -> [ ; Slide Val
+--     slideMovieCount
+--     (slideMovieNumber -> [ ; Movie Val
+--       "Dynamic"
+--       movieDuration
+--       (slideNumber -> movieNumber -> movieTime -> SVG array structure) ; Frame Val
+--       continueBool
+--     ])
+--   ])
+-- ]
 
 -- TODO use this to reduce clutter
 type alias AnimationKey = (Int, Int, Float)
 
--- HACK: see LocEqn.traceToLocEquation...
--- TODO: streamline Trace, LocEquation, etc.
-vNumFrozen n = val (VConst Nothing (n, TrLoc (-999, frozen, toString n)))
+-- HACK: see LocEqn.traceToMathExp...
+-- TODO: streamline Trace, MathExp, etc.
+vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance [] (eConstDummyLoc0 n) [], parents = Parents [] }
 vIntFrozen i = vNumFrozen (toFloat i)
 
-resolveToMovieCount : Int -> Val -> Result String Int
-resolveToMovieCount slideNumber val =
-  fetchSlideVal slideNumber val
+resolveToMovieCount : Syntax -> Int -> Val -> Result String Int
+resolveToMovieCount syntax slideNumber val =
+  fetchSlideVal syntax slideNumber val
   |> Result.map fetchMovieCount
 
-resolveToMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
-resolveToMovieFrameVal slideNumber movieNumber movieTime val =
-  fetchEverything_ slideNumber movieNumber movieTime val
+resolveToMovieFrameVal : Syntax -> Int -> Int -> Float -> Val -> Result String Val
+resolveToMovieFrameVal syntax slideNumber movieNumber movieTime val =
+  fetchEverything_ syntax slideNumber movieNumber movieTime val
   |> Result.map (\(_, _, _, _, movieFrameVal) -> movieFrameVal)
 
-resolveToIndexedTree : Int -> Int -> Float -> Val -> Result String RootedIndexedTree
-resolveToIndexedTree slideNumber movieNumber movieTime val =
-  fetchEverything slideNumber movieNumber movieTime val
+resolveToRootedIndexedTree : Syntax -> Int -> Int -> Float -> Val -> Result String RootedIndexedTree
+resolveToRootedIndexedTree syntax slideNumber movieNumber movieTime val =
+  fetchEverything syntax slideNumber movieNumber movieTime val
   |> Result.map (\(_, _, _, _, indexedTree) -> indexedTree)
 
-fetchEverything_ : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
-fetchEverything_ slideNumber movieNumber movieTime val =
+fetchEverything_ : Syntax -> Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
+fetchEverything_ syntax slideNumber movieNumber movieTime val =
   let slideCount = fetchSlideCount val in
-  fetchSlideVal slideNumber val |>
+  fetchSlideVal syntax slideNumber val |>
   Result.andThen (\slideVal ->
     let movieCount = fetchMovieCount slideVal in
-    fetchMovieVal movieNumber slideVal |>
+    fetchMovieVal syntax movieNumber slideVal |>
     Result.andThen (\movieVal ->
       let (movieDuration, continue) = fetchMovieDurationAndContinueBool movieVal in
-      fetchMovieFrameVal slideNumber movieNumber movieTime movieVal
+      fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal
       |> Result.map (\movieFrameVal ->
         (slideCount, movieCount, movieDuration, continue, movieFrameVal)
       )
     )
   )
 
-fetchEverything : Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
-fetchEverything slideNumber movieNumber movieTime val =
-  fetchEverything_ slideNumber movieNumber movieTime val |>
+fetchEverything : Syntax -> Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
+fetchEverything syntax slideNumber movieNumber movieTime val =
+  fetchEverything_ syntax slideNumber movieNumber movieTime val |>
   Result.andThen (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
     valToIndexedTree movieVal
     |> Result.map (\indexedTree -> (slideCount, movieCount, movieDuration, continue, indexedTree))
@@ -737,30 +982,30 @@ fetchMovieCount slideVal =
     Just [VConst _ (movieCount, _), _] -> round movieCount
     _ -> 1 -- Program returned a plain SVG array structure...we hope.
 
-fetchSlideVal : Int -> Val -> Result String Val
-fetchSlideVal slideNumber val =
+fetchSlideVal : Syntax -> Int -> Val -> Result String Val
+fetchSlideVal syntax slideNumber val =
   case unwrapVList val of
-    Just [VConst _ (slideCount, _), VClosure _ pat fexp fenv] ->
+    Just [VConst _ (slideCount, _), VClosure _ [pat] fexp fenv] ->
       -- Program returned the slide count and a
       -- function from slideNumber -> SVG array structure.
       case pat.val.p__ of -- Find that function's argument name
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv_ = (argumentName, vIntFrozen slideNumber) :: fenv in
-          Eval.doEval fenv_ fexp
+          Eval.doEval Eval.withParentsProvenanceWidgets syntax fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok val -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieVal : Int -> Val -> Result String Val
-fetchMovieVal movieNumber slideVal =
+fetchMovieVal : Syntax -> Int -> Val -> Result String Val
+fetchMovieVal syntax movieNumber slideVal =
   case unwrapVList slideVal of
-    Just [VConst _ (movieCount, _), VClosure _ pat fexp fenv] ->
+    Just [VConst _ (movieCount, _), VClosure _ [pat] fexp fenv] ->
       case pat.val.p__ of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
-          Eval.doEval fenv_ fexp
+          Eval.doEval Eval.withParentsProvenanceWidgets  syntax fenv_ fexp
           |> Result.map (\((returnVal, _), _) -> returnVal)
         _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
@@ -776,45 +1021,27 @@ fetchMovieDurationAndContinueBool movieVal =
       (0.0, False) -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieFrameVal : Int -> Int -> Float -> Val -> Result String Val
-fetchMovieFrameVal slideNumber movieNumber movieTime movieVal =
+fetchMovieFrameVal : Syntax -> Int -> Int -> Float -> Val -> Result String Val
+fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
   case unwrapVList movieVal of
-    Just [VBase (VString "Static"), VClosure _ pat fexp fenv] ->
-      case pat.val.p__ of -- Find the function's argument names
-        PVar _ slideNumberArgumentName _ ->
-          let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
-          case Eval.doEval fenv_ fexp |> Result.map (\((innerVal, _), _) -> innerVal.v_) of
-            Ok (VClosure _ patInner fexpInner fenvInner) ->
-              case patInner.val.p__ of
-                PVar _ movieNumberArgumentName _ ->
-                  let fenvInner_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner in
-                  Eval.doEval fenvInner_ fexpInner
-                  |> Result.map (\((returnVal, _), _) -> returnVal)
-                _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString patInner.val.p__))
-            Ok v_ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString v_))
-            Err s -> Err s
-        _ -> Err ("expected static movie frame function to take two arguments, got " ++ (toString pat.val.p__))
-    Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ pat fexp fenv, VBase (VBool _)] ->
-      case pat.val.p__ of -- Find the function's argument names
-        PVar _ slideNumberArgumentName _ ->
-          let fenv_ = (slideNumberArgumentName, vIntFrozen slideNumber) :: fenv in
-          case Eval.doEval fenv_ fexp |> Result.map (\((innerVal1, _), _) -> innerVal1.v_) of
-            Ok (VClosure _ patInner1 fexpInner1 fenvInner1) ->
-              case patInner1.val.p__ of
-                PVar _ movieNumberArgumentName _ ->
-                  let fenvInner1_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenvInner1 in
-                  case Eval.doEval fenvInner1_ fexpInner1 |> Result.map (\((innerVal2, _), _) -> innerVal2.v_) of
-                    Ok (VClosure _ patInner2 fexpInner2 fenvInner2) ->
-                      case patInner2.val.p__ of
-                        PVar _ movieSecondsArgumentName _ ->
-                          let fenvInner2_ = (movieSecondsArgumentName, vNumFrozen movieTime) :: fenvInner2 in
-                          Eval.doEval fenvInner2_ fexpInner2
-                          |> Result.map (\((returnVal, _), _) -> returnVal)
-                        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner2.val.p__))
-                    Ok innerV2_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV2_))
-                    Err s -> Err s
-                _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString patInner1.val.p__))
-            Ok innerV1_ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString innerV1_))
-            Err s -> Err s
-        _ -> Err ("expected dynamic movie frame function to take four arguments, got " ++ (toString pat.val.p__))
+    -- [
+    --   "Static"
+    --   (slideNumber -> movieNumber -> SVG array structure) ; Frame Val
+    -- ]
+    Just [VBase (VString "Static"), VClosure _ _ _ _] ->
+      let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal1" |> Utils.geti 2 in
+      Eval.doEval Eval.withParentsProvenanceWidgets syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber)])
+      |> Result.map (\((returnVal, _), _) -> returnVal)
+
+    -- [
+    --   "Dynamic"
+    --   movieDuration
+    --   (slideNumber -> movieNumber -> movieTime -> SVG array structure) ; Frame Val
+    --   continueBool
+    -- ]
+    Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ _ _ _, VBase (VBool _)] ->
+      let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal2" |> Utils.geti 3 in
+      Eval.doEval Eval.withParentsProvenanceWidgets syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber), eConstDummyLoc movieTime])
+      |> Result.map (\((returnVal, _), _) -> returnVal)
+
     _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.

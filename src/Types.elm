@@ -1,8 +1,11 @@
 module Types exposing (..)
 
 import Lang exposing (..)
-import FastParser as Parser
-import LangUnparser exposing (unparsePat, unparseType)
+import ValUnparser exposing (..)
+import Pos exposing (..)
+import Info exposing (..)
+import ElmParser as Parser
+import LangUnparser exposing (unparse, unparsePat, unparseType)
 import Utils
 import Ace
 import Config
@@ -10,6 +13,28 @@ import Config
 import Dict
 import Set
 import String
+import Record
+import Syntax
+
+typeToMaybeAliasIdent : Type -> Maybe Ident
+typeToMaybeAliasIdent tipe =
+  case tipe.val of
+    TApp _ tp _ _ -> case tp.val of
+      TVar _ aliasName -> Just aliasName
+      _ -> Nothing
+    _                  -> Nothing
+
+
+typeToMaybeArgTypesAndReturnType : Type -> Maybe (List Type, Type)
+typeToMaybeArgTypesAndReturnType tipe =
+  case tipe.val of
+    TArrow _ types _ ->
+      case (Utils.dropLast 1 types, Utils.maybeLast types) of
+        (argTypes, Just returnType) -> Just (argTypes, returnType)
+        _                           -> Nothing
+
+    _ -> Nothing
+
 
 equal : Type -> Type -> Bool
 equal t1 t2 =
@@ -29,22 +54,21 @@ astsMatch t1 t2 =
      TTuple _ typeList2 _ maybeRestType2 _) ->
       let maybeRestTypesMatch =
         case (maybeRestType1, maybeRestType2) of
-          (Nothing, Nothing)               -> True
-          (Just restType1, Just restType2) -> astsMatch restType1 restType2
-          _                                -> False
+           (Nothing, Nothing)               -> True
+           (Just restType1, Just restType2) -> astsMatch restType1 restType2
+           _                                -> False
       in
       maybeRestTypesMatch && (Utils.listsEqualBy astsMatch typeList1 typeList2)
     (TArrow _ typeList1 _,
      TArrow _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
     (TUnion _ typeList1 _,
      TUnion _ typeList2 _) -> Utils.listsEqualBy astsMatch typeList1 typeList2
-    (TNamed _ ident1,
-     TNamed _ ident2)      -> ident1 == ident2
+    (TApp _ ident1 typeList1 _, TApp _ ident2 typeList2 _) ->
+       ident1 == ident2 && Utils.listsEqualBy astsMatch typeList1 typeList2
     (TVar _ _, TVar _ _)   -> True
     (TWildcard _,
      TWildcard _)          -> True
-    (TForall _ (One _) t1 _, TForall _ (One _) t2 _) -> astsMatch t1 t2
-    (TForall _ (Many _ typeVars1 _) t1 _, TForall _ (Many _ typeVars2 _) t2 _) ->
+    (TForall _ typeVars1 t1 _, TForall _ typeVars2 t2 _) ->
       List.length typeVars1 == List.length typeVars2 && astsMatch t1 t2
     _                      -> False
 
@@ -57,7 +81,7 @@ astsMatch t1 t2 =
 --      but not to (-> (List y) (List y))
 --
 identifiersEquivalent t1 t2 =
-  let flatIdents t =
+ let flatIdents t =
     case t.val of
       TNum _    -> []
       TBool _   -> []
@@ -66,26 +90,30 @@ identifiersEquivalent t1 t2 =
       TList _ listType _          -> flatIdents listType
       TDict _ keyType valueType _ -> (flatIdents keyType) ++ (flatIdents valueType)
       TTuple _ typeList _ maybeRestType _ ->
-        let restTypeIdents =
+       let restTypeIdents =
           case maybeRestType of
             Just restType -> flatIdents restType
             Nothing       -> []
         in
         (List.concatMap flatIdents typeList) ++ restTypeIdents
-
+      TRecord _ mb typeList _ ->
+        (case mb of
+          Just (ident, _) -> [ident]
+          Nothing -> []) ++ List.concatMap flatIdents (Utils.recordValues typeList)
       TArrow _ typeList _ -> List.concatMap flatIdents typeList
       TUnion _ typeList _ -> List.concatMap flatIdents typeList
-      TNamed _ _          -> []
+      TApp _ _ typeList _  -> List.concatMap flatIdents typeList
       TVar _ ident        -> [ident]
       TWildcard _         -> []
       TForall _ _ _ _     -> Debug.crash "identifiersEquiv TForall TODO"
+      TParens _ p _ -> flatIdents p
   in
   Utils.oneToOneMappingExists (flatIdents t1) (flatIdents t2)
 
 
 valIsType val tipe =
   let unsupported msg =
-    Debug.crash <| "typing values against " ++ msg ++ " is not supported"
+    Debug.crash <| "typing values against " ++ msg ++ " such as " ++ Syntax.typeUnparser Syntax.Elm tipe++ " is not supported"
   in
   case (val.v_, tipe.val) of
     (VConst _ _, TNum _)             -> True
@@ -110,9 +138,15 @@ valIsType val tipe =
           List.all
               (\v -> valIsType v restType)
               (List.drop (List.length typeList) vlist)
+    (VList list, TApp _ a [listType] _) -> case a.val of
+      TVar _ "List" -> List.all (\v -> valIsType v listType) list
+      _ -> False
+    (VConst _ _, TVar _ "Num")           -> True
+    (VBase (VBool _), TVar _ "Bool")     -> True
+    (VBase (VString _), TVar _ "String") -> True
     (_, TArrow _ _ _)        -> unsupported "arrow types"
     (_, TUnion _ typeList _) -> List.any (valIsType val) typeList
-    (_, TNamed _ _)          -> unsupported "type aliases"
+    (_, TApp _ _ _ _)        -> unsupported "app types"
     (_, TVar _ _)            -> unsupported "type variables"
     (_, TWildcard _)         -> True
     _                        -> False
@@ -176,6 +210,8 @@ tVar x  = withDummyRange (TVar space1 x)
 tTupleRest ts tRest = withDummyRange (TTuple space1 ts space0 tRest space0)
 tTuple ts = tTupleRest ts Nothing
 
+tRecord ts = withDummyRange (TRecord space1 Nothing ts space0)
+
 tList t = withDummyRange (TList space1 t space0)
 
 tUnion ts = withDummyRange (TUnion space1 ts space0)
@@ -186,12 +222,12 @@ tPolyArrow vars arrowType  = tForall vars (tArrow arrowType)
 tForall vars t =
   case vars of
     []    -> Debug.crash "tForall: no vars"
-    [a]   -> withDummyRange (TForall space1 (One (space1, a)) t space0)
-    a::bs -> let typeVars = (space0, a) :: List.map (\a -> (space1, a)) bs in
-             withDummyRange (TForall space1 (Many space1 typeVars space0) t space0)
+    [a]   -> withDummyRange (TForall space1 [withDummyRange <| TPatVar space1 a] t space0)
+    a::bs -> let typeVars = (withDummyRange <| TPatVar space0 a) :: List.map (\a -> withDummyRange <| TPatVar space1 a) bs in
+             withDummyRange (TForall space1 typeVars t space0)
 
 eInfoOf : Exp -> EInfo
-eInfoOf e = { val = e.val.eid, start = e.start, end = e.end }
+eInfoOf (Expr e) = { val = expEId <| Expr e, start = e.start, end = e.end }
 
 strEInfo : EInfo -> String
 strEInfo eInfo = Utils.spaces [toString eInfo.val, strPos eInfo.start ]
@@ -235,8 +271,9 @@ opTypeTable =
     , (Lt         , " (-> Num Num Bool)")
     , (Mod        , " (-> Num Num Num)")
     , (Pow        , " (-> Num Num Num)")
-
+    , (CurrentEnv , " TODO")
     , (DictEmpty  , " TODO") -- " (forall (k v) (Dict k v))")
+    , (DictFromList, " TODO") -- " (forall (k v) (-> List [k, v] -> Dict k v))
     , (DictGet    , " TODO") -- " (forall (k v) (-> k (Dict k v) (union v Null)))"
     , (DictRemove , " TODO") -- " (forall (k v) (-> k (Dict k v) (Dict k v)))"
     , (DictInsert , " TODO") -- " (forall (k v) (-> k v (Dict k v) (Dict k v)))"
@@ -247,8 +284,9 @@ parseT : String -> Type
 parseT s =
   -- TODO figure out why this is parsing as a TNamed
   if s == " Num " then tNum else
+  if s == " TODO" then tString else
   case Parser.parseT s of
-    Err _ -> Debug.crash <| "bad primitive op type: " ++ s
+    Err _ -> tList (tVar "s") --Debug.crash <| "bad primitive op type: " ++ s
     Ok t  -> t
 
 opType : Op -> Type
@@ -286,16 +324,18 @@ addBindingsOne (p, t) acc =
 
   case (p.val.p__, t.val) of
 
-    (PList _ _ _ _ _, TNamed _ a) ->
-      case expandTypeAlias acc a of
-        Nothing -> fail "Type alias not defined"
+    (PList _ _ _ _ _, TApp _ a _ _) ->
+      -- TODO:
+      fail "App type not defined"
+      {-case expandTypeAlias acc a of
+        Nothing -> fail "App type not defined"
         Just ta -> addBindingsOne (p, ta) acc
-
+      -}
     (PConst _ _, _)     -> Ok acc
     (PBase _ _, _)      -> Ok acc
-    (PVar _ "_" _, _)   -> Ok acc
+    (PWildcard _, _)    -> Ok acc
     (PVar _ x _, _)     -> Ok (HasType x t :: acc)
-    (PAs _ x _ xPat, _) -> addBindingsOne (xPat, t) (HasType x t :: acc)
+    (PAs _ p1 _ p2, _) -> addBindingsOne (p1, t) acc |> Result.andThen (addBindingsOne (p2, t))
 
     (PList _ ps _ mpRest _, TTuple _ ts _ mtRest _) ->
       let maybeRestBinding =
@@ -366,8 +406,12 @@ lookupPat : TypeEnv -> Pat -> Maybe Type
 lookupPat typeEnv p =
   case p.val.p__ of
 
+    PWildcard _  -> Nothing
     PVar _ x _  -> lookupVar typeEnv x
-    PAs _ x _ _ -> lookupVar typeEnv x
+    PAs _ p1 _ p2 -> case lookupPat typeEnv p1 of
+      Nothing -> lookupPat typeEnv p2
+      x -> x
+    PParens _ p _ -> lookupPat typeEnv p
 
     PConst _ _            -> Just tNum
     PBase _ (EBool _)     -> Just tBool
@@ -383,6 +427,11 @@ lookupPat typeEnv p =
               Just (tTupleRest ts (Just tRest))
             )
       )
+
+    PRecord _ ps _ ->
+      Utils.projJusts (List.map (lookupPat typeEnv) (Utils.recordValues ps)) |> Utils.bindMaybe (Utils.recordValuesMake ps >> tRecord >> Just)
+    PColonType _ _ _ _ ->
+      Debug.crash "TODO: Implement me in types.elm"
 
 lookupTypAnnotation : TypeEnv -> Pat -> Maybe Type
 lookupTypAnnotation typeEnv p =
@@ -429,8 +478,8 @@ lookupTypeAlias typeEnv x =
     Just _  -> True
     Nothing -> False
 
-narrowUnionType : Pat -> List Type -> Type -> TypeEnv -> Result TypeError (List Type, TypeEnv)
-narrowUnionType p tAfterPreviousCases tThisCase typeEnv =
+narrowUnionType : List Type -> Type -> List Type
+narrowUnionType tAfterPreviousCases tThisCase =
   let tThisCase_ =
     case (tThisCase.val, tAfterPreviousCases) of
       (TWildcard _, [t1]) -> t1
@@ -438,9 +487,10 @@ narrowUnionType p tAfterPreviousCases tThisCase typeEnv =
       _                   -> tThisCase
   in
   let tAfterThisCase = subtractType tAfterPreviousCases tThisCase_ in
-  case addBindingsOne (p, tThisCase_) typeEnv of
-    Err err     -> Err err
-    Ok typeEnv_ -> Ok (tAfterThisCase, typeEnv_)
+  tAfterThisCase
+  -- case addBindingsOne (p, tThisCase_) typeEnv of
+  --   Err err     -> Err err
+  --   Ok typeEnv_ -> Ok (tAfterThisCase, typeEnv_)
 
 subtractType : List Type -> Type -> List Type
 subtractType union1 tipe2 =
@@ -497,10 +547,8 @@ stripPolymorphicArrow : Type -> Maybe (List Ident, ArrowType)
 stripPolymorphicArrow t =
   case t.val of
     -- requiring all type variables in one TForall
-    TForall _ (One typeVar) t0 _ ->
-      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just ([Tuple.second typeVar], arrow))
-    TForall _ (Many _ typeVars _) t0 _ ->
-      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (List.map Tuple.second typeVars, arrow))
+    TForall _ typeVars t0 _ ->
+      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (List.map (tpVarUnapply >> Utils.fromJust_ "Types") typeVars, arrow))
     _ ->
       stripArrow t |> Utils.bindMaybe (\arrow -> Just ([], arrow))
 
@@ -548,11 +596,12 @@ newArrowTemplate typeInfo n =
 
 isWellFormed : TypeEnv -> Type -> Bool
 isWellFormed typeEnv tipe =
+  False
+  {- TODO: Fix this
   let (prenexVars, tipe_) =
     case tipe.val of
-      TForall _ (Many _ vars _) t _ -> (List.map Tuple.second vars, t)
-      TForall _ (One var) t _       -> ([Tuple.second var], t)
-      _                             -> ([], tipe)
+       TForall _ vars t _ -> (List.map (tpVarUnapply >> Utils.fromJust_ "Types") vars, t)
+       _                             -> ([], tipe)
   in
   let typeEnv_ = List.map TypeVar (List.reverse prenexVars) ++ typeEnv in
   let noNestedForalls =
@@ -565,7 +614,7 @@ isWellFormed typeEnv tipe =
   let allVarsBound =
     foldType (\t acc ->
        case t.val of
-         TNamed _ x -> acc && lookupTypeAlias typeEnv_ x
+         TApp _ x _ _ -> acc && lookupTypeAlias typeEnv_ x
          TVar _ x   -> if isConstraintVar x
                          then False
                          else acc && List.member (TypeVar x) typeEnv_
@@ -573,13 +622,13 @@ isWellFormed typeEnv tipe =
      ) tipe_ True
   in
   noNestedForalls && allVarsBound
-
+   -}
 
 -- Type Conversion ------------------------------------------ G |- e < T; C --
 
 checkType : TypeInfo -> TypeEnv -> Exp -> Type -> AndTypeInfo Bool
-checkType typeInfo typeEnv e goalType =
-  case e.val.e__ of
+checkType typeInfo typeEnv (Expr e) goalType =
+  case unwrapExp <| Expr e of
 
     EFun _ pats eBody _ -> -- [TC-Fun]
       case stripPolymorphicArrow goalType of
@@ -589,7 +638,7 @@ checkType typeInfo typeEnv e goalType =
             Err err -> { result = False, typeInfo = addTypeErrorAt e.start err typeInfo }
             Ok typeEnv_ -> checkType typeInfo typeEnv_ eBody returnType
 
-    EIf _ e1 e2 e3 _ -> -- [TC-If]
+    EIf _ e1 _ e2 _ e3 _ -> -- [TC-If]
       let result1 = checkType typeInfo typeEnv e1 tBool in
       let result2 = checkType result1.typeInfo typeEnv e2 goalType in
       let result3 = checkType result2.typeInfo typeEnv e3 goalType in
@@ -622,29 +671,26 @@ checkType typeInfo typeEnv e goalType =
               { result = False
               , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
 
-    ETypeCase _ p tbranches _ -> -- [TC-Typecase]
-      case lookupPat typeEnv p of
+    {-ETypeCase _ e0 tbranches _ -> -- [TC-Typecase]
+      let result1 = synthesizeType typeInfo typeEnv e0 in
+      case result1.result of
         Nothing ->
-          let err = "no type for the pattern: " ++ unparsePat p in
-          { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
+          let err = "checkType: no type for typecase scrutinee " ++ unparse e0 in
+          { result = False, typeInfo = addTypeErrorAt e0.start err typeInfo }
 
-        Just tp ->
-          case tp.val of
+        Just t1 ->
+          -- Typecase scrutinee must be a union type?
+          case t1.val of
             TUnion _ union _ ->
               let (unionResidual, result_branches) =
                  List.foldl (\te (acc1, acc2) ->
                    let (TBranch_ _ ti ei _) = te.val in
-                   case narrowUnionType p acc1 ti typeEnv of
-                     Err err ->
-                       let acc2_ = { result = False
-                                   , typeInfo = addTypeErrorAt p.start err acc2.typeInfo } in
-                       (acc1, acc2_)
-                     Ok (acc1_, typeEnvi) ->
-                       let resulti = checkType acc2.typeInfo typeEnvi ei goalType in
-                       let acc2_ = { result = resulti.result && acc2.result
-                                   , typeInfo = resulti.typeInfo } in
-                       (acc1_, acc2_)
-                 ) (union, { result = True, typeInfo = typeInfo }) tbranches
+                   let acc1_ = narrowUnionType acc1 ti in
+                   let resulti = checkType acc2.typeInfo typeEnv ei goalType in -- may not be necessary
+                   let acc2_ = { result = resulti.result && acc2.result
+                               , typeInfo = resulti.typeInfo } in
+                   (acc1_, acc2_)
+                 ) (union, { result = True, typeInfo = result1.typeInfo }) tbranches
               in
               -- TODO could check unionResidual for exhaustiveness
               case result_branches.result of
@@ -655,24 +701,22 @@ checkType typeInfo typeEnv e goalType =
                   , typeInfo = addTypeErrorAt e.start err result_branches.typeInfo }
 
             _ ->
-              let err = "pattern is not a union type: " ++ unparseType tp in
-              { result = False, typeInfo = addTypeErrorAt p.start err typeInfo }
+              let err = "typecase scrutinee is not a union type: " ++ unparseType t1 in
+              { result = False, typeInfo = addTypeErrorAt e0.start err typeInfo }
 
     -- TODO [TC-Let]
 
-    EComment _ _ e1 -> checkType typeInfo typeEnv e1 goalType
-
     -- TODO push goal down other sequencing forms
-
+    -}
     _ -> -- [TC-Sub]
-      let result1 = synthesizeType typeInfo typeEnv e in
+      let result1 = synthesizeType typeInfo typeEnv <| Expr e in
       let typeInfo1 = result1.typeInfo in
       case result1.result of
         Nothing ->
           let err =
             Utils.spaces <|
               [ "checkType"
-              , (toString e.val.eid)
+              , (toString (expEId <| Expr e))
               , String.trim (unparseType goalType)
               , "failed to synthesize a type"
               ]
@@ -685,7 +729,7 @@ checkType typeInfo typeEnv e goalType =
               let err_ =
                 Utils.spaces <|
                   [ "checkType"
-                  , (toString e.val.eid)
+                  , (toString (expEId <| Expr e))
                   , err
                   ]
               in
@@ -715,23 +759,24 @@ propagateResult result =
   }
 -}
 
--- Nothing means type error or N/A (EComment, EOption, ETyp, etc.)
+-- Nothing means type error or N/A (ETyp, etc.)
 --
 synthesizeType : TypeInfo -> TypeEnv -> Exp -> AndTypeInfo (Maybe Type)
-synthesizeType typeInfo typeEnv e =
+synthesizeType typeInfo typeEnv (Expr e_) =
+  let e = Expr e_ in
   let finish =
-    { withType  = finishSynthesizeWithType e.val.eid e.start
-    , withError = finishSynthesizeWithError e.start
+    { withType  = finishSynthesizeWithType (expEId e) e_.start
+    , withError = finishSynthesizeWithError e_.start
     }
     in
 
-  case e.val.e__ of
+  case (unwrapExp e) of
 
     EColonType _ e1 _ t1 _ -> -- [TS-AnnotatedExp]
       if not (isWellFormed typeEnv t1) then
         let err =
           Utils.spaces <|
-            [ (toString e.val.eid)
+            [ (toString (expEId e))
             , strPos t1.start
             , "Type annotation not well-formed:"
             , String.trim (unparseType t1)
@@ -759,7 +804,7 @@ synthesizeType typeInfo typeEnv e =
         Nothing ->
           let err =
             Utils.spaces <|
-              [ (toString e.val.eid)
+              [ (toString (expEId e))
               , "var not found: "
               , x
               ]
@@ -770,10 +815,10 @@ synthesizeType typeInfo typeEnv e =
       let (arrow, typeInfo_) = newArrowTemplate typeInfo (List.length ps) in
       tsFun finish typeInfo_ typeEnv ps eBody arrow
 
-    EOp _ op [] _ -> -- [TS-Op]
+    EOp _ _ op [] _ -> -- [TS-Op]
       finish.withType (opType op) typeInfo
 
-    EOp _ op eArgs _ -> -- [TS-Op]
+    EOp _ _ op eArgs _ -> -- [TS-Op]
       case (op.val, stripPolymorphicArrow (opType op)) of
 
         (Plus, _) -> -- hard-coded intersection type
@@ -790,7 +835,7 @@ synthesizeType typeInfo typeEnv e =
         (_, Nothing) ->
           finish.withError "synthesizeType: EOp ..." typeInfo
 
-    EApp _ eFunc eArgs _ -> -- [TS-App]
+    EApp _ eFunc eArgs appType _ -> -- [TS-App]
       let result1 = synthesizeType typeInfo typeEnv eFunc in
       case result1.result of
         Nothing ->
@@ -812,7 +857,7 @@ synthesizeType typeInfo typeEnv e =
              let result = synthesizeType accTypeInfo typeEnv ei in
              (result.result :: accMaybeTypes, result.typeInfo))
            ([], typeInfo)
-           (List.reverse es)
+           (List.reverse (Utils.listValues es))
       in
       case Utils.projJusts maybeTypes of
         Nothing -> finish.withError "synthesizeType: EList 1 ..." typeInfo_
@@ -825,7 +870,48 @@ synthesizeType typeInfo typeEnv e =
                 Nothing -> finish.withError "synthesizeType: EList 2 ..." result.typeInfo
                 Just tRest -> finish.withType (tTupleRest ts (Just tRest)) result.typeInfo
 
-    EIf _ e1 e2 e3 _ -> -- [TS-If]
+    ERecord _ mi es _ ->
+      finish.withError "synthesizeType: ERecord 1 ..." typeInfo
+      -- TODO Type records
+      {-
+      let (maybeTypes, typeInfo_) =
+              List.foldl
+                 (\ei (accMaybeTypes, accTypeInfo) ->
+                   let result = synthesizeType accTypeInfo typeEnv ei in
+                   (result.result :: accMaybeTypes, result.typeInfo))
+                 ([], typeInfo)
+                 (List.reverse (Utils.recordValues es))
+      in
+      case Utils.projJusts maybeTypes of
+        Nothing -> finish.withError "synthesizeType: ERecord 1 ..." typeInfo_
+        Just ts ->
+          let trecord = withDummyInfo <| TRecord space1 (Just ("a", space1)) (List.map2 (\(_, _, k, _, _) t -> (space0, space1, k, space1, t)) es ts) space0 in
+          case mi of
+            Nothing -> finish.withType trecord typeInfo_
+            Just (eRest, _) ->
+              let result = synthesizeType typeInfo_ typeEnv eRest in
+              case result.result of
+                Nothing -> finish.withError "synthesizeType: ERecord 2 ..." result.typeInfo
+                Just tRest ->
+                  case intersect tRest trecord of
+                    Err msg -> finish.withError msg typeInfo_
+                    Ok t ->    finish.withType t result.typeInfo
+      -}
+    ESelect _ c _ _ s ->
+      let resultn = synthesizeType typeInfo typeEnv c in
+      case resultn.result of
+        Nothing -> finish.withError "synthesizeType: ESelect 1 ... " resultn.typeInfo
+        Just ts ->
+          case ts.val of
+            TRecord _ mb ts _ ->
+              case Utils.findLast (\(_, _, k, _, t) -> k == s) ts of
+                Just (_, _, _, _, t) -> finish.withType t resultn.typeInfo
+                Nothing ->
+                  finish.withError ("No field " ++ s ++ " in definition ") resultn.typeInfo
+
+            _ -> finish.withError "This does not evaluate to a dict" resultn.typeInfo
+
+    EIf _ e1 _ e2 _ e3 _ -> -- [TS-If]
       let result1 = checkType typeInfo typeEnv e1 tBool in
       if not result1.result then
         finish.withError "synthesizeType: EIf 1 ..." result1.typeInfo
@@ -874,30 +960,30 @@ synthesizeType typeInfo typeEnv e =
                     Err err -> finish.withError err result2.typeInfo
                     Ok t    -> finish.withType t result2.typeInfo
 
-    ETypeCase _ p tbranches _ -> -- [TS-Typecase]
-      case lookupPat typeEnv p of
+    {-ETypeCase _ e0 tbranches _ -> -- [TS-Typecase]
+      let result1 = synthesizeType typeInfo typeEnv e0 in
+      case result1.result of
         Nothing ->
-          let err = "no type for the pattern: " ++ unparsePat p in
-          { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
+          let err = "synthesizeType: no type for typecase scrutinee " ++ unparse e0 in
+          { result = Nothing, typeInfo = addTypeErrorAt e0.start err result1.typeInfo }
 
-        Just tp ->
-          case tp.val of
+        Just t1 ->
+          case t1.val of
             TUnion _ union _ ->
               let (_, maybeThings) =
                  List.foldl (\te (acc1, acc2) ->
                    let (TBranch_ _ ti ei _) = te.val in
-                   case (acc2, narrowUnionType p acc1 ti typeEnv) of
-                     (Ok things, Ok (acc1_, typeEnvi)) -> (acc1_, Ok ((typeEnvi,ei) :: things))
-                     (Err err, _)                      -> (acc1, Err err)
-                     (_, Err err)                      -> (acc1, Err err)
+                   case (acc2, narrowUnionType acc1 ti) of
+                     (Ok things, acc1_) -> (acc1_, Ok ((typeEnv,ei) :: things))
+                     (Err err, _)       -> (acc1, Err err)
                  ) (union, (Ok [])) tbranches
               in
               case maybeThings of
                 Err err ->
                   let err_ = Utils.spaces [ "ETypeCase: could not typecheck all patterns", err ] in
-                  finish.withError err_ typeInfo
+                  finish.withError err_ result1.typeInfo
                 Ok things ->
-                  let result2 = synthesizeBranchTypes typeInfo things in
+                  let result2 = synthesizeBranchTypes result1.typeInfo things in
                   case Utils.projJusts result2.result of
                     Nothing ->
                       let err = "ETypeCase: could not typecheck all branches" in
@@ -908,11 +994,15 @@ synthesizeType typeInfo typeEnv e =
                         Ok t    -> finish.withType t result2.typeInfo
 
             _ ->
-              let err = "pattern is not a union type: " ++ unparseType tp in
-              { result = Nothing, typeInfo = addTypeErrorAt p.start err typeInfo }
-
-    ELet ws1 letKind rec p e1 e2 ws2 ->
-      case (p.val.p__, lookupTypAnnotation typeEnv p, rec, e1.val.e__) of
+              let err = "typecase scrutinee is not a union type: " ++ unparseType t1 in
+              { result = Nothing, typeInfo = addTypeErrorAt e0.start err result1.typeInfo }
+    -}
+    ELet ws1 letKind decls ws5 e2 -> --rec p ws2 e1 ws3 e2 ws4
+      { result = Nothing
+      , typeInfo = { typeInfo | preludeTypeEnv = Just typeEnv }
+      } -- TODO: Synthesize type of ELet
+      {-
+      case (p.val.p__, lookupTypAnnotation typeEnv p, rec, (unwrapExp e1)) of
 
         (PVar _ "dummyPreludeMain" _, _, _, _) ->
           { result = Nothing
@@ -937,7 +1027,7 @@ synthesizeType typeInfo typeEnv e =
             let err =
               Utils.spaces <|
                 [ "checkType"
-                , (toString e.val.eid)
+                , (toString (expEId e))
                 , "Double annotation. Remove one."
                 ]
             in
@@ -947,7 +1037,7 @@ synthesizeType typeInfo typeEnv e =
           if not (isWellFormed typeEnv t1) then
             let err =
               Utils.spaces <|
-                [ (toString e.val.eid)
+                [ (toString (expEId e))
                 , strPos t1.start
                 , "Type annotation not well-formed, at def:"
                 , String.trim (unparseType t1)
@@ -962,28 +1052,41 @@ synthesizeType typeInfo typeEnv e =
           else
             let typeEnv_ = addRecBinding rec p t1 typeEnv in
             let e1_ = replaceE__ e1 (EColonType space0 e1 space0 t1 space0) in
-            let e_ = replaceE__ e (ELet ws1 letKind rec p e1_ e2 ws2) in
+            let e_ = replaceE__ e (ELet ws1 letKind rec p ws2 e1_ ws3 e2 ws4) in
             synthesizeType typeInfo typeEnv_ e_
-
+    -}
     -- don't need Ace annotations for the remaining expression kinds,
     -- so not calling not calling addRawType (i.e. finish)
 
-    EComment _ _ e1 ->
-      propagateResult <| synthesizeType typeInfo typeEnv e1
-
-    EOption _ _ _ _ e1 ->
-      propagateResult <| synthesizeType typeInfo typeEnv e1
-
-    ETyp _ p t e1 _ ->
+    {-ETyp _ p t e1 _ ->
       -- TODO check well-formedness
       case addTypBindings p t typeEnv of
         Err () -> { result = Nothing, typeInfo = typeInfo }
         Ok typeEnv_ -> propagateResult <| synthesizeType typeInfo typeEnv_ e1
-
-    ETypeAlias _ p t e1 _ ->
+    -}
+    {-ETypeAlias _ p t e1 _ ->
       -- TODO check well-formedness
       let typeEnv_ = TypeAlias p t :: typeEnv in
       propagateResult <| synthesizeType typeInfo typeEnv_ e1
+    -}
+    {-ETypeDef _ ident vars _ dcs e1 _ ->
+      -- TODO-TD add TypeDef type checking
+      propagateResult <| synthesizeType typeInfo typeEnv e1
+    -}
+    EParens _ e1 _ _ ->
+      propagateResult <| synthesizeType typeInfo typeEnv e1
+
+    EHole _ _ ->
+      { result = Nothing, typeInfo = typeInfo }
+
+-- Computes the intersection of types
+intersect: Type -> Type -> Result String Type
+intersect type1 type2 =
+  case (type1.val, type2.val) of
+    (TRecord _ m ts1 _, TRecord _ m2 ts2 _) ->
+       Ok <| withDummyRange <| TRecord space1 m (Record.mergeLabelValues (\(_, _, k1, _, _) (_, _, k2, _, _) -> k1 == k2)  ts1 ts2) space0
+      -- Populate the arguments in the order given.
+    (_, _) -> Err "Cannnot interect record types with anything else than records."
 
 -- TODO need to instantiateTypes of arguments, as in tsAppPoly
 tsAppMono finish typeInfo typeEnv eArgs (argTypes, retType) =
@@ -1213,29 +1316,46 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
 
     -- take care to control unrolling of aliases...
 
-    (TNamed _ a, TNamed _ b) ->
-      if a == b then ok
-      else
-        let maybeNewGoal =
-          case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
-            (Just tipe1_, Just tipe2_) -> Just (tipe1_, tipe2_)
-            (Just tipe1_, Nothing)     -> Just (tipe1_, tipe2 )
-            (Nothing, Just tipe2_)     -> Just (tipe1 , tipe2_)
-            (Nothing, Nothing)         -> Nothing
-        in
-        case maybeNewGoal of
-          Just (tipe1_,tipe2_) -> checkSubtype typeInfo typeEnv tipe1_ tipe2_
-          Nothing              -> err
+    (TApp _ a tsa _, TApp _ b tsb _) ->
+      errAdd "TODO: Implement this part"
+      {-case Utils.maybeZip tsa tsb of
+        Nothing ->
+          errAdd "lengths of app types are not equal"
+        Just list ->
+          let
+            argsSame =
+              checkSubtypeList typeInfo typeEnv list
+          in
+            case argsSame.result of
+              Err _ -> err
+              Ok () ->
+                if a == b then
+                  ok
+                else
+                  let maybeNewGoal =
+                    case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
+                      (Just tipe1_, Just tipe2_) -> Just (tipe1_, tipe2_)
+                      (Just tipe1_, Nothing)     -> Just (tipe1_, tipe2 )
+                      (Nothing, Just tipe2_)     -> Just (tipe1 , tipe2_)
+                      (Nothing, Nothing)         -> Nothing
+                  in
+                    case maybeNewGoal of
+                      Just (tipe1_,tipe2_) -> checkSubtype typeInfo typeEnv tipe1_ tipe2_
+                      Nothing              -> err
 
-    (TNamed _ a, _) ->
-      case expandTypeAlias typeEnv a of
+    -- TODO Ensure this works for `TApp`s with nonempty argument lists
+      -}
+    (TApp _ a _ _, _) ->
+      errAdd "TODO: Implement this part Types.elm"
+      {-case expandTypeAlias typeEnv a of
         Just tipe1_ -> checkSubtype typeInfo typeEnv tipe1_ tipe2
-        Nothing     -> err
+        Nothing     -> err-}
 
-    (_, TNamed _ b) ->
-      case expandTypeAlias typeEnv b of
+    (_, TApp _ b _ _) ->
+      errAdd "TODO: Implement this part in Types.elm"
+      {-case expandTypeAlias typeEnv b of
         Just tipe2_ -> checkSubtype typeInfo typeEnv tipe1 tipe2_
-        Nothing     -> err
+        Nothing     -> err-}
 
     (TUnion _ ts1 _, TUnion _ ts2 _) ->
       let allOk =
@@ -1640,31 +1760,41 @@ unify typeEnv vars accActive accUnifier cs = case cs of
 
       -- the setup of the TNamed cases is very similar to checkSubtype...
 
-      (TNamed _ a, TNamed _ b) ->
-        let maybeNewGoal =
-          case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
-            (Just t1_, Just t2_) -> Just (t1_, t2_)
-            (Just t1_, Nothing)  -> Just (t1_, t2 )
-            (Nothing, Just t2_)  -> Just (t1 , t2_)
-            (Nothing, Nothing)   -> Nothing
-        in
-        case maybeNewGoal of
-          Just (t1_,t2_) -> let induced = [(-1, (t1_, t2_))] in
-                            recurse accActive accUnifier (induced ++ rest)
-          Nothing        -> Err err
+      (TApp _ a tsa _, TApp _ b tsb _) ->
+        Err "unify TApp: Implement this"
+        {-
+        case Utils.maybeZip tsa tsb of
+          Nothing ->
+            Err "unify TApp: different arity"
+          Just list ->
+            let maybeNewGoal =
+              case (expandTypeAlias typeEnv a, expandTypeAlias typeEnv b) of
+                (Just t1_, Just t2_) -> Just (t1_, t2_)
+                (Just t1_, Nothing)  -> Just (t1_, t2 )
+                (Nothing, Just t2_)  -> Just (t1 , t2_)
+                (Nothing, Nothing)   -> Nothing
+            in
+            case maybeNewGoal of
+              Just (t1_,t2_) -> let induced = [(-1, (t1_, t2_))] ++ List.map (\raw -> (-1, raw)) list in
+                                recurse accActive accUnifier (induced ++ rest)
+              Nothing        -> Err err
+        -}
+      -- TODO Ensure this works for `TApp`s with nonempty argument lists
 
-      (TNamed _ a, _) ->
-        case expandTypeAlias typeEnv a of
+      (TApp _ a _ _, _) ->
+        Err "unify TApp: Implement this"
+        {-case expandTypeAlias typeEnv a of
           Just t1_ -> let induced = [(-1, (t1_, t2))] in
                       recurse accActive accUnifier (induced ++ rest)
           Nothing  -> Err err
-
-      (_, TNamed _ b) ->
-        case expandTypeAlias typeEnv b of
+        -}
+      (_, TApp _ b _ _) ->
+        Err "unify TApp: Implement this"
+        {-case expandTypeAlias typeEnv b of
           Just t2_ -> let induced = [(-1, (t1, t2_))] in
                       recurse accActive accUnifier (induced ++ rest)
           Nothing  -> Err err
-
+-}
       _ ->
         -- simple subtyping in unification to help with union types
         if checkSubtypeSimple typeEnv t1 t2 then recurse accActive accUnifier rest
@@ -1743,7 +1873,7 @@ displayRawTypes typeInfo =
     case maybeType of
       Nothing -> ()
       Just t  ->
-        let s = LangUnparser.unparseType t in
+        let s = unparseType t in
         let _ = debugLog "synthesized type: " (eid, s) in
         ()
   ) () typeInfo.rawTypes
@@ -1765,14 +1895,14 @@ displayNamedExps : TypeInfo -> ()
 displayNamedExps typeInfo =
   let _ = debugLog "NAMED EXPS" () in
   List.foldr (\(p, eid) () ->
-    let s1 = String.trim (LangUnparser.unparsePat p) in
+    let s1 = String.trim (unparsePat p) in
     case (Dict.get eid typeInfo.finalTypes, Dict.get eid typeInfo.rawTypes) of
       (Just (Just t), _) ->
-        let s2 = String.trim (LangUnparser.unparseType t) in
+        let s2 = String.trim (unparseType t) in
         let _ = debugLog (s1 ++ " : " ++ s2 ++ " ") (strPos p.start) in
         ()
       (_, Just (_, Just t)) ->
-        let s2 = String.trim (LangUnparser.unparseType t) in
+        let s2 = String.trim (unparseType t) in
         let _ = debugLog (s1 ++ " : " ++ s2 ++ " (raw) ") (strPos p.start) in
         ()
       _ -> ()
@@ -1795,13 +1925,13 @@ aceTypeInfo typeInfo =
   let annots =
      -- for now, displaying (one of the) bindings for each line
      List.foldr (\(p, eid) acc ->
-       let s1 = String.trim (LangUnparser.unparsePat p) in
+       let s1 = String.trim (unparsePat p) in
        case (Dict.get eid typeInfo.finalTypes, Dict.get eid typeInfo.rawTypes) of
          (Just (Just t), _) ->
-           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           let text = s1 ++ " : " ++ String.trim (unparseType t) ++ " " in
            { row = p.start.line - 1, text = text, type_ = "info" } :: acc
          (_, Just (_, Just t)) ->
-           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           let text = s1 ++ " : " ++ String.trim (unparseType t) ++ " " in
            { row = p.start.line - 1, text = text, type_ = "info" } :: acc
          _ ->
            acc
@@ -1829,13 +1959,13 @@ aceTypeInfo typeInfo =
   in
   let varTypeTips =
      List.foldr (\(p, eid) acc ->
-       let s1 = String.trim (LangUnparser.unparsePat p) in
+       let s1 = String.trim (unparsePat p) in
        case (Dict.get eid typeInfo.finalTypes, Dict.get eid typeInfo.rawTypes) of
          (Just (Just t), _) ->
-           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           let text = s1 ++ " : " ++ String.trim (unparseType t) ++ " " in
            { row = p.start.line - 1, col = p.start.col - 1, text = text } :: acc
          (_, Just (_, Just t)) ->
-           let text = s1 ++ " : " ++ String.trim (LangUnparser.unparseType t) ++ " " in
+           let text = s1 ++ " : " ++ String.trim (unparseType t) ++ " " in
            { row = p.start.line - 1, col = p.start.col - 1, text = text } :: acc
          _ ->
            acc

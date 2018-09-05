@@ -16,7 +16,7 @@ import Set exposing (Set)
 import Dict exposing (Dict)
 import Regex exposing (regex, HowMany(..))
 import Html exposing (Html)
-
+import Record
 
 ------------------------------------------------------------------------------
 
@@ -84,10 +84,14 @@ foldPatternsWithIds f (scopeId, path) pats init =
       case pat.val.p__ of
         PConst _ _  -> acc
         PBase _ _   -> acc
+        PWildcard _ -> acc
         PVar _ x _  -> f pathedPatId x acc
-        PAs _ x _ p -> f pathedPatId x (doOne f pathedPatId p acc)
+        PAs _ p1 _ p2 -> doOne f pathedPatId p2 (doOne f pathedPatId p1 acc)
         PList _ ps _ Nothing _  -> doMany f pathedPatId ps acc
         PList _ ps _ (Just p) _ -> doMany f pathedPatId (ps ++ [p]) acc
+        PParens _ p _ -> doOne f pathedPatId p acc
+        PRecord _ p _ -> doMany f pathedPatId (Utils.recordValues p) acc
+        PColonType _ p _ _ -> doOne f pathedPatId p acc
 
     doMany f (scopeId, path) pats acc =
       Utils.foldli1 (\(i, pi) -> doOne f (scopeId, path ++ [i]) pi) acc pats
@@ -251,23 +255,30 @@ compute e =
 
 traverse : Env -> Exp -> ScopeGraph -> ScopeGraph
 traverse env exp acc =
-
   let recurse es = List.foldl (traverse env) acc es in
 
-  let newScopeId = (exp.val.eid, 1) in -- only if e is ELet or EFun; ECase not handled yet
+  let newScopeId = (expEId exp, 1) in -- only if e is ELet or EFun; ECase not handled yet
 
-  case exp.val.e__ of
+  case (unwrapExp exp) of
 
-    ELet _ _ _ p e1 e2 _ ->
-      let env1 = updateEnv newScopeId [p] env in
-      acc
-        |> addScopeNode newScopeId True
-        |> addScopeEdge newScopeId env.currentScope
-        |> foldPatternsWithIds addVarNode (newScopeId, []) [p]
-        |> traverseAndAddDependencies newScopeId env p e1
-        |> addVarBindingsBefore newScopeId env.varBindings
-        |> addVarBindingsAfter newScopeId env1.varBindings
-        |> traverse env1 e2
+    ELet _ _ (Declarations _ _ _ exps as decls) _ e2 ->
+      (foldLeftGroup (acc, env) exps <| \(acc, env) group isRec ->
+        let ps = List.map (\(LetExp _ _ p  _ _ e1) -> p) group in
+        let pes = List.map (\(LetExp _ _ p  _ _ e1) -> (p, e1)) group in
+        let env1 = updateEnv newScopeId ps env in
+        let executeAll funs acc = case funs of
+          [] -> acc
+          head :: tail -> executeAll tail (head acc)
+        in
+        (acc
+          |> addScopeNode newScopeId True
+          |> addScopeEdge newScopeId env.currentScope
+          |> foldPatternsWithIds addVarNode (newScopeId, []) ps
+          |> executeAll (List.map (\(p, e1) -> traverseAndAddDependencies newScopeId env p e1) pes)
+          |> addVarBindingsBefore newScopeId env.varBindings
+          |> addVarBindingsAfter newScopeId env1.varBindings, env1)
+      )
+      |> (\(acc, env1) -> traverse env1 e2 acc)
 
     EFun _ ps eBody _ ->
       let env1 = updateEnv newScopeId ps env in
@@ -290,26 +301,25 @@ traverse env exp acc =
     EConst _ _ _ _  -> acc
     EBase _ _       -> acc
 
-    EApp _ e es _     -> recurse (e::es)
-    EOp _ _ es _      -> recurse es
-    EIf _ e1 e2 e3 _  -> recurse [e1, e2, e3]
+    EApp _ e es _ _     -> recurse (e::es)
+    EOp _ _ _ es _      -> recurse es
+    EIf _ e1 _ e2 _ e3 _  -> recurse [e1, e2, e3]
 
-    EList _ es _ (Just eRest) _  -> recurse (es++[eRest])
-    EList _ es _ Nothing _       -> recurse es
+    EList _ es _ (Just eRest) _  -> recurse (Utils.listValues es ++ [eRest])
+    EList _ es _ Nothing _       -> recurse (Utils.listValues es)
+
+    ERecord _ _ es _ -> recurse (childExps exp)
+
+    ESelect _ e _ _ s -> recurse [e]
 
     ECase _ e branches _ ->
       let _ = Debug.log "TODO: scope tree ECase" () in acc
 
-    ETypeCase _ _ tbranches _ ->
-      let _ = Debug.log "TODO: scope tree ETypeCase" () in acc
+    EColonType _ e _ _ _   -> recurse [e]
+    EParens _ e _ _        -> recurse [e]
+    EHole _ _              -> acc
 
-    EComment _ _ e        -> recurse [e]
-    EOption _ _ _ _ e     -> recurse [e]
-    ETyp _ _ _ e _        -> recurse [e]
-    EColonType _ e _ _ _  -> recurse [e]
-    ETypeAlias _ _ _ e _  -> recurse [e]
-
-
+-- In a let [pattern] = [definition], map each subpattern to its corresponding definition
 traverseAndAddDependencies newScopeId =
   traverseAndAddDependencies_ (newScopeId, [])
 
@@ -346,28 +356,37 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
 
   let clearUsed acc = { acc | usedVars = Set.empty } in
 
-  case (pat.val.p__, exp.val.e__) of
+  case (pat.val.p__, (unwrapExp exp)) of
 
     (PConst _ _, _) -> acc |> traverse env exp
 
     (PBase _ _, _) -> acc |> traverse env exp
+
+    (PWildcard _, _) -> acc |> traverse env exp
 
     (PVar _ x _, _) ->
       acc |> clearUsed
           |> traverse env exp
           |> addDependencies pathedPatId
 
-    (PAs _ x _ p, _) ->
+    (PAs _ p1  _ p2, _) ->
+      acc |> clearUsed
+          |> traverse env exp
+          |> addDependencies pathedPatId
+          |> traverseAndAddDependencies_ pathedPatId env p1 exp
+          |> traverseAndAddDependencies_ pathedPatId env p2 exp
+               -- NOTE: exp gets traversed twice...
+
+    (PParens _ p _, _) ->
       acc |> clearUsed
           |> traverse env exp
           |> addDependencies pathedPatId
           |> traverseAndAddDependencies_ pathedPatId env p exp
-               -- NOTE: exp gets traversed twice...
 
     (PList _ ps_ _ pMaybe _, EList _ es_ _ eMaybe _) ->
 
       let ps = Utils.snocMaybe ps_ pMaybe in
-      let es = Utils.snocMaybe es_ eMaybe in
+      let es = Utils.snocMaybe (Utils.listValues es_) eMaybe in
 
       if List.length ps == List.length es then
         let (scopeId, basePath) = pathedPatId in
@@ -388,6 +407,34 @@ traverseAndAddDependencies_ pathedPatId env pat exp acc =
           |> traverse env exp
           |> addConservativeDependencies
 
+    (PRecord _ ps _, ERecord _ Nothing (Declarations _ _ _ exps) _) ->
+      let recordKeyValues = foldLeftGroup [] exps <|
+        \acc group isRec -> Utils.foldLeft acc group <|
+        \acc (LetExp _ _ p _ _ e) ->
+          case p.val.p__ of
+            PVar _ indent _ -> (indent, e)::acc
+            _ -> acc
+      in
+      let mergeOperations = Record.getPatternMatch Utils.recordKey Tuple.first ps recordKeyValues in
+
+      case mergeOperations of
+        Nothing -> acc |> clearUsed
+                       |> traverse env exp
+                       |> addConservativeDependencies
+        Just replacements ->
+            let (scopeId, basePath) = pathedPatId in
+            Utils.foldli1 (\(i,(pi, ei)) acc ->
+                let pathedPatId2 = (scopeId, basePath ++ [i]) in
+                traverseAndAddDependencies_ pathedPatId2 env pi ei acc
+              ) acc (List.map (Utils.mapFirstSecond Utils.recordValue Tuple.second) replacements)
+    (PRecord _ _ _, _) ->
+          acc |> clearUsed
+              |> traverse env exp
+              |> addConservativeDependencies
+    (PColonType _ _ _ _, _) ->
+          acc |> clearUsed
+              |> traverse env exp
+              |> addConservativeDependencies
 
 ------------------------------------------------------------------------------
 -- Scope Dependencies

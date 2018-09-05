@@ -1,5 +1,5 @@
 module ColorNum exposing
-  (convert, htmlColorNames, convertStringToRgbAndHue)
+  (convert, htmlColorNames, randomHtmlColorName, convertStringToRgbAndHue)
 
 import Utils
 import Dict
@@ -25,7 +25,7 @@ convert i =
 -- w3color.js (https://www.w3schools.com/lib/w3color.js) and node repl.
 
 htmlColorNames =
-  List.map (Tuple.mapFirst String.toLower)
+  List.map (Tuple.mapFirst String.toLower) <|
     [ ("AliceBlue", ((240, 248, 255), (208, 1, 0.97)))
     , ("AntiqueWhite", ((250, 235, 215), (34, 0.78, 0.91)))
     , ("Aqua", ((0, 255, 255), (180, 1, 0.5)))
@@ -85,8 +85,8 @@ htmlColorNames =
     , ("GreenYellow", ((173, 255, 47), (84, 1, 0.59)))
     , ("HoneyDew", ((240, 255, 240), (120, 1, 0.97)))
     , ("HotPink", ((255, 105, 180), (330, 1, 0.71)))
-    , ("IndianRed ", ((0, 0, 0), (0, 0, 0)))
-    , ("Indigo  ", ((0, 0, 0), (0, 0, 0)))
+    , ("IndianRed", ((0, 0, 0), (0, 0, 0)))
+    , ("Indigo", ((0, 0, 0), (0, 0, 0)))
     , ("Ivory", ((255, 255, 240), (60, 1, 0.97)))
     , ("Khaki", ((240, 230, 140), (54, 0.77, 0.75)))
     , ("Lavender", ((230, 230, 250), (240, 0.67, 0.94)))
@@ -176,12 +176,23 @@ htmlColorNames =
     , ("YellowGreen", ((154, 205, 50), (80, 0.61, 0.5)))
     ]
 
+numHtmlColorNames = List.length htmlColorNames
+
+-- randomInt \in [0,470]; see InterfaceController: lightestColor = 470
+randomHtmlColorName : Int -> String
+randomHtmlColorName randomInt =
+  let i = round <| toFloat randomInt / 470 * toFloat numHtmlColorNames in
+  case Utils.maybeGeti0 i htmlColorNames of
+    Just (colorName, _) -> colorName
+    Nothing             -> "gray"
+
+
 --------------------------------------------------------------------------------
 
 convertStringToRgbAndHue (eid, string) =
   let colorName = String.toLower string in
   let values = Utils.maybeFind colorName htmlColorNames in
-  values |> Utils.mapMaybe (\((r,g,b), (h,_,_)) ->
+  values |> Maybe.map (\((r,g,b), (h,_,_)) ->
     let colorNum =
       if colorName == "black" then 360
       else if colorName == "white" then 499

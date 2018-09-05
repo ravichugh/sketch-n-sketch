@@ -1,177 +1,188 @@
-module Solver exposing
-  ( Equation
-  , solve
-  )
+module Solver exposing (..)
 
-import Lang exposing (..)
-import Eval
-import LocEqn exposing (LocEquation(..), locEqnEval, locEqnTerms, locEqnLocIdSet)
+import ImpureGoodies
+import Lang exposing (Num, Op_, Trace(..), Subst)
 import Utils
-import Config
 
-import Set
-import Dict
-import Debug
+import Dict exposing (Dict)
 
 
 --------------------------------------------------------------------------------
 
-debugLog = Config.debugLog Config.debugSync
+-- TODO streamline Equation/MathExp/Trace; see note in LocEqn.elm
 
---------------------------------------------------------------------------------
+type MathExp
+  = MathNum Num
+  | MathVar Int -- Variable identifiers, often locIds
+  | MathOp Op_ (List MathExp)
 
--- TODO streamline Equation/LocEquation/Trace
+type alias Eqn = (MathExp, MathExp) -- LHS, RHS
 
-type alias Equation = (Num, Trace)
+type alias Problem  = (List Eqn, List Int) -- System of equations, and varIds to solve for (usually a singleton).
+type alias Solution = List (MathExp, Int)
 
-solve : Subst -> Equation -> Maybe Num
-solve subst eqn =
-  Utils.plusMaybe (termSolve subst eqn) (solveTopDown subst eqn)
+type alias SolutionsCache = Dict Problem (List Solution)
 
-  -- both solvers assume that a single variable is being solved for
+type NeedSolutionException = NeedSolution Problem
 
 
---------------------------------------------------------------------------------
--- "Make Equal" Solver
+traceToMathExp : Trace -> MathExp
+traceToMathExp trace =
+  case trace of
+    TrLoc (locId, _, _) -> MathVar locId
+    TrOp op_ children   -> MathOp op_ (List.map traceToMathExp children)
 
--- Use the Make Equal solver
-termSolve : Subst -> Equation -> Maybe Num
-termSolve subst (newN, trace) =
-  -- The locId missing from subst is what we are solving for
-  let locEqn = LocEqn.traceToLocEquation trace in
-  let locIds = locEqnLocIdSet locEqn |> Set.toList in
-  let targetLocId =
-    locIds
-    |> Utils.findFirst (\locId -> Dict.get locId subst == Nothing)
-    |> Utils.fromJust_ "subst should be missing a locId"
+
+-- Some locId should be missing from the Subst: the missing locId will be solved for.
+--
+-- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
+solveTrace : SolutionsCache -> Subst -> Trace -> Num -> Maybe Num
+solveTrace solutionsCache subst trace targetVal =
+  let mathExp = traceToMathExp trace in
+  let targetVarId = Utils.diffAsSet (mathExpVarIds mathExp) (Dict.keys subst) |> Utils.head "Solver.solveTrace: expected trace to have a locId remaining after applying subst" in
+  -- Variablify everything to have the most general form of equations in the cache.
+  -- (May push into solve in the future.)
+  let targetValInsertedVarId = 1 + (mathExpVarIds mathExp |> List.maximum |> Maybe.withDefault 0) in
+  case solveOne solutionsCache (mathExp, MathVar targetValInsertedVarId) targetVarId of
+    solvedTerm::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> evalToMaybeNum
+    _             -> Nothing
+
+
+-- Assumes no variables remain, otherwise returns Nothing with a debug message.
+evalToMaybeNum : MathExp -> Maybe Num
+evalToMaybeNum mathExp =
+  case mathExp of
+    MathNum n          -> Just n
+    MathVar _          -> let _ = Utils.log ("Solver.evalToMaybeNum: Found " ++ toString mathExp ++ " in an MathExp that shouldn't have any variables.") in Nothing
+    MathOp op operands ->
+      operands
+      |> List.map evalToMaybeNum
+      |> Utils.projJusts
+      |> Maybe.andThen (\operandNums -> Lang.maybeEvalMathOp op operandNums)
+
+
+-- Solve one equation for one variable. Return a list of possible terms for that variable.
+solveOne : SolutionsCache -> (MathExp, MathExp) -> Int -> List MathExp
+solveOne solutionsCache eqn targetVarId =
+  solve solutionsCache [eqn] [targetVarId]
+  |> List.filterMap
+      (\solution ->
+        case solution of
+          []             -> Nothing
+          [(mathExp, _)] -> Just mathExp
+          _              -> Debug.crash "Solver.solveOne why does a solution for one variable list multiple variables??" <| toString solution
+      )
+
+
+-- The targetVarIds had better occur inside of the eqns!
+--
+-- Maybe multiple solutions: returns a list.
+--
+-- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
+solve : SolutionsCache -> List (MathExp, MathExp) -> List Int -> List Solution
+solve solutionsCache eqns targetVarIds =
+  let allMathExps = List.concatMap Utils.pairToList eqns in
+  let (oldToNormalizedVarIds, normalizedToOldVarIds) = normalizedVarIdMapping allMathExps in
+  let normalizedEquations =
+    eqns
+    |> List.map
+        (\(lhs, rhs) ->
+          case (remapVarIds oldToNormalizedVarIds lhs, remapVarIds oldToNormalizedVarIds rhs) of
+            (Just normalizedLHS, Just normalizedRHS) -> Just (normalizedLHS, normalizedRHS)
+            _                                        -> Debug.crash "Shouldn't happen: Bug in Solver.solve/normalizedVarIdMapping"
+        )
+    |> Utils.projJusts
+    |> Utils.fromJust_ "Also shouldn't happen: Bug in Solver.solve"
   in
-  LocEqn.solveForLocValue targetLocId subst locEqn newN
+  case targetVarIds |> List.map (\targetVarId -> Dict.get targetVarId oldToNormalizedVarIds) |> Utils.projJusts of
+    Just normalizedTargetVarIds ->
+      let problem = (List.map removeCommonSuperExps normalizedEquations, normalizedTargetVarIds) in
+      case Dict.get problem solutionsCache of
+        Just solutions ->
+          -- Now convert back to given varIds
+          solutions |> List.filterMap (remapSolutionVarIds normalizedToOldVarIds)
+
+        Nothing ->
+          ImpureGoodies.throw (NeedSolution problem)
+
+    Nothing ->
+      let _ = Debug.log "WARNING: Asked to solve for variable(s) not in equation! No solutions." (eqns, targetVarIds) in
+      []
 
 
---------------------------------------------------------------------------------
--- "Top-Down" Solver (a.k.a. Solver B)
-
-evalTrace : Subst -> Trace -> Maybe Num
-evalTrace subst t = case t of
-  TrLoc (k,_,_) -> Dict.get k subst
-  TrOp op ts ->
-    Utils.mapMaybe
-      (Eval.evalDelta [] op)
-      (Utils.projJusts (List.map (evalTrace subst) ts))
-
-evalLoc : Subst -> Trace -> Maybe (Maybe Num)
-  -- Just (Just i)   tr is a location bound in subst
-  -- Just Nothing    tr is a location not bound (i.e. it's being solved for)
-  -- Nothing         tr is not a location
-evalLoc subst tr =
-  case tr of
-    TrOp _ _    -> Nothing
-    TrLoc (k,_,_) -> Just (Dict.get k subst)
-
-solveTopDown subst (n, t) = case t of
-
-  TrLoc (k,_,_) ->
-    case Dict.get k subst of
-      Nothing -> Just n
-      Just _  -> Nothing
-
-  TrOp op [t1,t2] ->
-    let left  = (evalTrace subst t1, evalLoc   subst t2) in
-    let right = (evalLoc   subst t1, evalTrace subst t2) in
-    case (isNumBinop op, left, right) of
-
-      -- four cases are of the following form,
-      -- where k is the single location variable being solved for:
-      --
-      --    1.   n =  i op k
-      --    2.   n =  i op t2
-      --    3.   n =  k op j
-      --    4.   n = t1 op j
-
-      (True, (Just i, Just Nothing), _) -> solveR op n i
-      (True, (Just i, Nothing), _)      -> Utils.bindMaybe
-                                             (\n -> solveTopDown subst (n, t2))
-                                             (solveR op n i)
-      (True, _, (Just Nothing, Just j)) -> solveL op n j
-      (True, _, (Nothing, Just j))      -> Utils.bindMaybe
-                                             (\n -> solveTopDown subst (n, t1))
-                                             (solveL op n j)
-
-      _ ->
-        let _ = debugLog "Sync.solveTopDown" <| strTrace t in
-        Nothing
-
-  TrOp op [t1] ->
-    case evalTrace subst t1 of
-      Just _  -> Nothing
-      Nothing ->
-        case op of
-          Cos     -> maybeFloat <| acos n
-          Sin     -> maybeFloat <| asin n
-          ArcCos  -> Just <| cos n
-          ArcSin  -> Just <| sin n
-          Sqrt    -> Just <| n * n
-          Round   -> Nothing
-          Floor   -> Nothing
-          Ceil    -> Nothing
-          _       -> let _ = debugLog "TODO solveTopDown" t in
-                     Nothing
-
-  _ ->
-    let _ = debugLog "TODO solveTopDown" t in
-    Nothing
-
-isNumBinop = (/=) Lt
-
-maybeFloat n =
-  let thresh = 1000 in
-  if isNaN n || isInfinite n then debugLog "maybeFloat Nothing" Nothing
-  else if abs n > thresh     then debugLog "maybeFloat (above thresh)" Nothing
-  else                            Just n
-
--- n = i op j
-solveR op n i = case op of
-  Plus    -> maybeFloat <| n - i
-  Minus   -> maybeFloat <| i - n
-  Mult    -> maybeFloat <| n / i
-  Div     -> maybeFloat <| i / n
-  Pow     -> Just <| logBase i n
-  Mod     -> Nothing
-  ArcTan2 -> maybeFloat <| tan(n) * i
-  _       -> Debug.crash "solveR"
-
--- n = i op j
-solveL op n j = case op of
-  Plus  -> maybeFloat <| n - j
-  Minus -> maybeFloat <| j + n
-  Mult  -> maybeFloat <| n / j
-  Div   -> maybeFloat <| j * n
-  Pow   -> Just <| n ^ (1/j)
-  Mod   -> Nothing
-  ArcTan2 -> maybeFloat <| j / tan(n)
-  _     -> Debug.crash "solveL"
-
-
---------------------------------------------------------------------------------
--- "Addition-Only" Solver (a.k.a. Solver A)
-
-simpleSolve subst (sum, tr) =
-  let walkTrace t = case t of
-    TrLoc (k,_,_) ->
-      case Dict.get k subst of
-        Nothing -> Just (0, 1)
-        Just i  -> Just (i, 0)
-    TrOp Plus ts ->
-      let foo mx macc =
-        case (mx, macc) of
-          (Just (a,b), Just (acc1,acc2)) -> Just (a+acc1, b+acc2)
-          _                              -> Nothing
-      in
-        List.foldl foo (Just (0,0)) (List.map walkTrace ts)
-    _ ->
-      let _ = debugLog "Sync.simpleSolve" <| strTrace tr in
-      Nothing
+-- Let the first variable encountered be 1, second 2, etc...
+--
+-- Want our symbolic solutions to be general so we don't have to round-trip to the solver all the time.
+normalizedVarIdMapping : List MathExp -> (Dict Int Int, Dict Int Int)
+normalizedVarIdMapping mathExps =
+  let (_, oldToNew, newToOld) =
+    mathExps
+    |> List.concatMap mathExpVarIds
+    |> List.foldl
+        (\oldVarId (i, oldToNormalizedVarIds, normalizedToOldVarIds) ->
+          case Dict.get oldVarId oldToNormalizedVarIds of
+            Just _  -> (i, oldToNormalizedVarIds, normalizedToOldVarIds)
+            Nothing ->
+              ( i+1
+              , Dict.insert oldVarId i oldToNormalizedVarIds
+              , Dict.insert i oldVarId normalizedToOldVarIds
+              )
+        )
+        (1, Dict.empty, Dict.empty)
   in
-  Utils.mapMaybe
-    (\(partialSum,n) -> (sum - partialSum) / n)
-    (walkTrace tr)
+  (oldToNew, newToOld)
+
+
+mathExpVarIds : MathExp -> List Int
+mathExpVarIds mathExp =
+  case mathExp of
+    MathNum _           -> []
+    MathVar varId       -> [varId]
+    MathOp _ childTerms -> List.concatMap mathExpVarIds childTerms
+
+
+remapVarIds : Dict Int Int -> MathExp -> Maybe MathExp
+remapVarIds oldToNew mathExp =
+  case mathExp of
+    MathNum _             -> Just mathExp
+    MathVar varId         -> Dict.get varId oldToNew |> Maybe.map MathVar
+    MathOp op_ childTerms -> childTerms |> List.map (remapVarIds oldToNew) |> Utils.projJusts |> Maybe.map (MathOp op_)
+
+
+-- REDUCE doesn't find the appropriate distance solution when everything is wrapped in "sqrt". Help it out.
+removeCommonSuperExps : (MathExp, MathExp) -> (MathExp, MathExp)
+removeCommonSuperExps eqn =
+  case eqn of
+    (MathOp lOp_ [lChild], MathOp rOp_ [rChild]) -> if lOp_ == rOp_ then removeCommonSuperExps (lChild, rChild) else eqn
+    _                                            -> eqn
+
+
+remapSolutionVarIds : Dict Int Int -> Solution -> Maybe Solution
+remapSolutionVarIds oldToNew solution =
+  solution
+  |> List.map
+      (\(mathExp, targetVarId) ->
+        Maybe.map2
+            (,)
+            (remapVarIds oldToNew mathExp)
+            (Dict.get targetVarId oldToNew)
+      )
+  |> Utils.projJusts
+
+
+applySubst : Dict Int Num -> MathExp -> MathExp
+applySubst subst mathExp =
+  case mathExp of
+    MathNum n     -> mathExp
+    MathVar varId ->
+      case Dict.get varId subst of
+        Just n  -> MathNum n
+        Nothing -> mathExp
+    MathOp op_ childTerms -> MathOp op_ (childTerms |> List.map (applySubst subst))
+
+
+mapSolutionsExps : (MathExp -> MathExp) -> List Solution -> List Solution
+mapSolutionsExps f solutions =
+  solutions
+  |> List.map (List.map (\(mathExp, varId) -> (f mathExp, varId)))
+

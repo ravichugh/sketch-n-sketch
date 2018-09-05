@@ -5,8 +5,23 @@ import Debug
 import Set exposing (Set)
 import Dict exposing (Dict)
 import Regex
+import Array
 
 infinity = 1/0
+
+-- Change e.g. 1.4999999999999 to 1.5.
+correctFloatError : Float -> Float
+correctFloatError x =
+  if x == 0.0 then
+    x
+  else
+    let tens = -(logBase 10 (abs x) |> round |> toFloat) in
+    let multiplier = 2*2*2*3*3*5*5*7*11*13*17*19*23*(10.0^(tens + 1)) in
+    let corrected = (x*multiplier |> round |> toFloat) / multiplier in
+    if abs (corrected - x) /  x < 0.0000001
+    then corrected
+    else x
+
 
 maybeFind : a -> List (a,b) -> Maybe b
 maybeFind k l = case l of
@@ -15,6 +30,14 @@ maybeFind k l = case l of
                      then Just v0
                      else maybeFind k l_
 
+maybeFindTail : a -> List (a,b) -> Maybe (b, List (a, b))
+maybeFindTail k l = case l of
+  []            -> Nothing
+  (k0,v0) :: l_ -> if k == k0
+                     then Just (v0, l_)
+                     else maybeFindTail k l_
+
+
 find err d k =
   case maybeFind k d of
     Just f  -> f
@@ -22,7 +45,7 @@ find err d k =
 
 find_ d k = find ("[" ++ toString k ++ "]") d k
 
-update : (comparable, v) -> List (comparable, v) -> List (comparable, v)
+update : (k, v) -> List (k, v) -> List (k, v)
 update (k1, v1) vals =
   case vals of
     [] -> []
@@ -40,6 +63,36 @@ zipWith f xs ys = case (xs, ys) of
   (x::xs_, y::ys_) -> f x y :: zipWith f xs_ ys_
   _                -> []
 
+
+zipWithIndex: List a -> List (a, Int)
+zipWithIndex =
+  let aux: Int -> List a -> List (a, Int)
+      aux i l =
+    case l of
+       [] -> []
+       (head::tail) -> ((head, i)::aux (i+1) tail)
+  in aux 0
+
+updated: List a -> Int -> a -> List a
+updated l index elem =
+  if index == 0 then
+    case l of
+      head::tail -> elem::tail
+      [] -> [elem]
+  else
+    case l of
+      [] -> [elem]
+      head::tail -> head  ::  updated tail (index - 1) elem
+
+inserted: List a -> Int -> a -> List a
+inserted l index elem =
+  if index == 0 then
+    elem :: l
+  else
+    case l of
+      [] -> [elem]
+      head::tail -> head  ::  inserted tail (index - 1) elem
+
 maybeZip : List a -> List b -> Maybe (List (a,b))
 maybeZip xs ys = case (xs, ys) of
   (x::xs_, y::ys_) -> case maybeZip xs_ ys_ of
@@ -48,7 +101,7 @@ maybeZip xs ys = case (xs, ys) of
   ([], [])         -> Just []
   _                -> Nothing
 
-maybeZipDicts : Dict comparable b -> Dict comparable c -> Maybe (Dict comparable (b,c))
+maybeZipDicts : Dict a b -> Dict a c -> Maybe (Dict a (b,c))
 maybeZipDicts d1 d2 =
   if Dict.keys d1 /= Dict.keys d2 then
     Nothing
@@ -84,19 +137,25 @@ maybeZipN lists =
       (Just heads, Just tails) -> Maybe.map ((::) heads) (maybeZipN tails)
       _                        -> Nothing
 
+maybeIsEmpty: Maybe a -> Bool
+maybeIsEmpty mb = Maybe.map (\_ -> False) mb |> Maybe.withDefault True
 
--- In:  [1, 2, 3]
--- Out: [(1,2), (2,3), (3,1)]
--- c.f. adjacentPairs
-selfZipCircConsecPairs : List a -> List (a, a)
-selfZipCircConsecPairs list =
-  let shiftList =
-    case list of
-      x::xs -> xs ++ [x]
-      _     -> []
-  in
-  zip list shiftList
+maybeOrElse: Maybe a -> Maybe a -> Maybe a
+maybeOrElse mb ma = case ma of
+  Just _ -> ma
+  Nothing -> mb
 
+maybeWithLazyDefault: Maybe a -> (() -> a) -> a
+maybeWithLazyDefault mba callback = case mba of
+  Just a -> a
+  Nothing -> callback ()
+
+resultOrElseLazy: (() -> Result err ok) -> Result err ok -> Result err ok
+resultOrElseLazy rb ra = case ra of
+  Ok x -> ra
+  Err x -> case rb () of
+    Err _ -> ra
+    rrb -> rrb
 
 zipi0 : List a -> List (Int, a)
 zipi0 = zipi_ 0
@@ -130,6 +189,21 @@ foldli_ : Int -> ((Int, a) -> b -> b) -> b -> List a -> b
 foldli_ initI f init xs =
   List.foldl f init (zipi_ initI xs)
 
+reverseInsert: List a -> List a -> List a
+reverseInsert elements revAcc =
+  case elements of
+    [] -> revAcc
+    head::tail -> reverseInsert tail (head::revAcc)
+
+maybeReverseInsert: List (Maybe a) -> List a -> List a
+maybeReverseInsert elements revAcc =
+  case elements of
+    [] -> revAcc
+    head::tail ->
+      case head of
+        Nothing -> maybeReverseInsert tail revAcc
+        Just h -> maybeReverseInsert tail (h::revAcc)
+
 -- three passes, oh well
 filteri1 : ((Int, a) -> Bool) -> List a -> List a
 filteri1 f xs =
@@ -139,6 +213,11 @@ concatMapi1 f xs =
   List.concatMap f (zipi1 xs)
 
 reverse2 (xs,ys) = (List.reverse xs, List.reverse ys)
+
+maybeCons: Maybe a -> List a -> List a
+maybeCons x l = case x of
+  Nothing -> l
+  Just v -> v::l
 
 -- If lists are different lengths, extra elements preserved changed.
 filterMapTogetherPreservingLeftovers : (a -> b -> Maybe (a, b)) -> List a -> List b -> (List a, List b)
@@ -165,12 +244,12 @@ listsEqualBy elementEqualityFunc xs ys =
 
 
 -- Preserves original list order
-dedup : List comparable -> List comparable
+dedup : List a -> List a
 dedup xs = dedupBy identity xs
 
 -- Preserves original list order
 -- Dedups based on a provided function (first seen element for each key is preserved)
-dedupBy : (a -> comparable) -> List a -> List a
+dedupBy : (a -> b) -> List a -> List a
 dedupBy f xs =
   let (deduped, _) =
     List.foldl (\x (dd, seen) ->
@@ -180,16 +259,17 @@ dedupBy f xs =
   in
   deduped
 
--- O(n^2). Elements do not need to be comparable.
-dedupByEquality : List a -> List a
-dedupByEquality xs =
-  List.foldr addAsSet [] xs
+-- -- O(n^2). Elements do not need to be comparable.
+-- Shouldn't need now that sets can hold anything.
+-- dedup : List a -> List a
+-- dedup xs =
+--   List.foldr addAsSet [] xs
 
-listDiffSet : List comparable -> Set.Set comparable -> List comparable
+listDiffSet : List a -> Set a -> List a
 listDiffSet list setToRemove =
   List.filter (\element -> not <| Set.member element setToRemove) list
 
-listDiff : List comparable -> List comparable -> List comparable
+listDiff : List a -> List a -> List a
 listDiff l1 l2 =
   listDiffSet l1 (Set.fromList l2)
 
@@ -199,6 +279,10 @@ addAsSet x xs =
   then xs
   else x::xs
 
+addAllAsSet : List a -> List a -> List a
+addAllAsSet xs ys =
+  ys |> List.foldl addAsSet xs
+
 removeAsSet : a -> List a -> List a
 removeAsSet x xs =
   List.filter ((/=) x) xs
@@ -207,6 +291,21 @@ removeAsSet x xs =
 diffAsSet : List a -> List a -> List a
 diffAsSet xs ys =
   ys |> List.foldl removeAsSet xs
+
+-- O(nm)
+intersectAsSet : List a -> List a -> List a
+intersectAsSet xs ys =
+  xs |> List.filter (\x -> List.member x ys)
+
+intersectAllAsSet : List (List a) -> List a
+intersectAllAsSet lists =
+  case lists of
+    first::rest -> List.foldl intersectAsSet first rest
+    _           -> []
+
+unionAllAsSet : List (List a) -> List a
+unionAllAsSet lists =
+  List.foldl addAllAsSet [] lists
 
 removeAll = diffAsSet
 
@@ -220,17 +319,30 @@ equalAsSets : List a -> List a -> Bool
 equalAsSets a b =
   isSublistAsSet a b && isSublistAsSet b a
 
+-- Assumes list already deduplicated.
+combinationsAsSet : Int -> List a -> List (List a)
+combinationsAsSet n list =
+  case (n, list) of
+    (0, _)     -> [[]]
+    (_, [])    -> []
+    (_, x::xs) -> List.map ((::) x) (combinationsAsSet (n-1) xs) ++ combinationsAsSet n xs -- combinations that include x ++ those that don't
 
-groupBy : (a -> comparable) -> List a -> Dict.Dict comparable (List a)
-groupBy f xs =
-  List.foldl
-      (\x dict ->
-        let key = f x in
+
+groupBy : (a -> b) -> List a -> Dict.Dict b (List a)
+groupBy f list =
+  list
+  |> List.map (\x -> (f x, x))
+  |> pairsToDictOfLists
+
+pairsToDictOfLists : List (a, b) -> Dict.Dict a (List b)
+pairsToDictOfLists pairs =
+  pairs
+  |> List.foldr
+      (\(key, val) dict ->
         let equivalents = getWithDefault key [] dict in
-        Dict.insert key (equivalents ++ [x]) dict
+        Dict.insert key (val::equivalents) dict
       )
       Dict.empty
-      xs
 
 -- Is there a one-to-one mapping from the elements in l1 to the elements in l2?
 --
@@ -276,11 +388,23 @@ maybeUnpackSingleton xs = case xs of
 snoc : List a -> a -> List a
 snoc xs x = xs ++ [x]
 
+snocUnapply : List a -> Maybe (List a, a)
+snocUnapply l = case l of
+  [] -> Nothing
+  [head]-> Just ([], head)
+  head::tail -> snocUnapply tail
+   |> Maybe.map (Tuple.mapFirst (\init -> head::init))
+
 snocMaybe : List a -> Maybe a -> List a
-snocMaybe xs mx = Maybe.withDefault xs (mapMaybe (snoc xs) mx)
+snocMaybe xs mx = Maybe.withDefault xs (Maybe.map (snoc xs) mx)
 
 split : Int -> List a -> (List a, List a)
-split n xs = (List.take n xs, List.drop n xs)
+split n xs =
+  let aux prev n l = if n == 0 then (List.reverse prev, l) else
+    case l of
+    [] -> (List.reverse prev, [])
+    head::tail -> aux (head::prev) (n - 1) tail
+  in aux [] n xs
 
 -- Like String.split, but for lists.
 --
@@ -336,40 +460,48 @@ oneOfEach xss = case xss of
 --       ...
 --   sn'  =  sn - s1 - s2 - ... - s(n-1)
 --
-cartProdWithDiff : List (Set comparable) -> List (List comparable)
+cartProdWithDiff : List (Set a) -> List (List a)
 cartProdWithDiff = oneOfEach << List.map Set.toList << manySetDiffs
 
-isSubset : Set comparable -> Set comparable -> Bool
+isSubset : Set a -> Set a -> Bool
 isSubset sub sup =
   sub
   |> Set.toList
   |> List.all (\elem -> Set.member elem sup)
 
-intersectMany : List (Set.Set comparable) -> Set.Set comparable
+intersectMany : List (Set a) -> Set a
 intersectMany list = case list of
   set::sets -> List.foldl Set.intersect set sets
   []        -> Debug.crash "intersectMany"
 
-manySetDiffs : List (Set comparable) -> List (Set.Set comparable)
+-- Leave behind the elements unique to each set.
+manySetDiffs : List (Set a) -> List (Set a)
 manySetDiffs sets =
-  mapi1 (\(i,locs_i) ->
-    foldli1 (\(j,locs_j) acc ->
+  mapi1 (\(i,ithSet) ->
+    foldli1 (\(j,jthSet) acc ->
       if i == j
         then acc
-        else Set.diff acc locs_j
-    ) locs_i sets
+        else Set.diff acc jthSet
+    ) ithSet sets
   ) sets
 
-unionAll : List (Set comparable) -> Set.Set comparable
+unionAll : List (Set a) -> Set a
 unionAll sets =
   List.foldl Set.union Set.empty sets
 
--- Returns false if any two sets share an element.
+-- Returns true if any two sets share an element.
 -- Can help answer, "Is this a valid partition?"
 -- Or if sets are disjoint
-anyOverlap : List (Set comparable) -> Bool
+anyOverlap : List (Set a) -> Bool
 anyOverlap sets =
   Set.size (unionAll sets) < List.sum (List.map Set.size sets)
+
+-- More performant version, if you have a list and a set (fixes a major performance bug in EvalUpdate.assignUniqueNames)
+anyOverlapListSet : List a -> Set a -> Bool
+anyOverlapListSet items set =
+  case items of
+    []    -> False
+    x::xs -> Set.member x set || anyOverlapListSet xs set
 
 -- TODO combine findFirst and removeFirst
 
@@ -434,14 +566,22 @@ removeLastElement list =
 
 -- Equivalent to Maybe.oneOf (List.map f list)
 -- but maps the list lazily to return early
+-- Equivalent of collectFirst
 mapFirstSuccess : (a -> Maybe b) -> List a -> Maybe b
 mapFirstSuccess f list =
   case list of
     []   -> Nothing
-    x::xs ->
-      case f x of
-        Just result -> Just result
+    x::xs -> case f x of
         Nothing     -> mapFirstSuccess f xs
+        res -> res
+
+removeFirstSuccess : (a -> Maybe b) -> List a -> Maybe (b, List a)
+removeFirstSuccess f list =
+  case list of
+    []   -> Nothing
+    x::xs -> case f x of
+        Nothing     -> removeFirstSuccess f xs |> Maybe.map (Tuple.mapSecond <| (::) x)
+        Just res -> Just (res, xs)
 
 firstOrLazySecond : Maybe a -> (() -> Maybe a) -> Maybe a
 firstOrLazySecond maybe1 lazyMaybe2 =
@@ -449,16 +589,27 @@ firstOrLazySecond maybe1 lazyMaybe2 =
     Just x  -> maybe1
     Nothing -> lazyMaybe2 ()
 
--- c.f. selfZipCircConsecPairs
-adjacentPairs : Bool -> List a -> List (a, a)
-adjacentPairs includeLast list = case list of
-  [] -> []
-  x0::xs ->
-    let f xi (xPrev,acc) = (xi, (xPrev,xi) :: acc) in
-    let (xn,pairs) = List.foldl f (x0,[]) xs in
-    if includeLast
-      then List.reverse ((xn,x0) :: pairs)
-      else List.reverse (pairs)
+maybeOrElseLazy: (() -> Maybe a) -> Maybe a -> Maybe a
+maybeOrElseLazy = Basics.flip firstOrLazySecond
+
+-- In:  [1, 2, 3]
+-- Out: [(1,2), (2,3), (3,1)]
+circOverlappingAdjacentPairs : List a -> List (a, a)
+circOverlappingAdjacentPairs list = overlappingAdjacentPairs_ True list
+
+-- In:  [1, 2, 3]
+-- Out: [(1,2), (2,3)]
+overlappingAdjacentPairs : List a -> List (a, a)
+overlappingAdjacentPairs list = overlappingAdjacentPairs_ False list
+
+overlappingAdjacentPairs_ : Bool -> List a -> List (a, a)
+overlappingAdjacentPairs_ includeLast list =
+  let shiftList =
+    case list of
+      x::xs -> if includeLast then xs ++ [x] else xs
+      _     -> []
+  in
+  zip list shiftList
 
 -- 1-based
 findi : (a -> Bool) -> List a -> Maybe Int
@@ -487,11 +638,11 @@ inserti i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop (i-1) xs
 
 -- 0-based
 maybeGeti0 : Int -> List a -> Maybe a
-maybeGeti0 i list = list |> List.drop i |> List.head
+maybeGeti0 i list = if i >= 0 then list |> List.drop i |> List.head else Nothing
 
 -- 1-based
 maybeGeti1 : Int -> List a -> Maybe a
-maybeGeti1 i list = list |> List.drop (i-1) |> List.head
+maybeGeti1 i list = if i >= 1 then list |> List.drop (i-1) |> List.head else Nothing
 
 -- 0-based
 getReplacei0 : Int -> (a -> a) -> List a -> List a
@@ -541,6 +692,52 @@ maybeConsensus bools =
 count : (a -> Bool) -> List a -> Int
 count pred list =
   List.filter pred list |> List.length
+
+listValue: (ws, value) -> value
+listValue = Tuple.second
+
+listValueMake: (ws, value) -> value -> (ws, value)
+listValueMake (a, b) c = (a, c)
+
+listValues: List (ws, value) -> List value
+listValues = List.map listValue
+
+listValuesMake: List (ws, value) -> List a -> List (ws, a)
+listValuesMake = List.map2 (\(sp0, _) value -> (sp0, value))
+
+listValuesMap: (value -> a) -> List (ws, value) -> List (ws, a)
+listValuesMap f ts = listValuesMake ts (List.map f (listValues ts))
+
+recordKey: (sp0, sp1, name, sp2, value) -> name
+recordKey (_, _, k, _, _) = k
+
+recordValue: (sp0, sp1, name, sp2, value) -> value
+recordValue (_, _, _, _, v) = v
+
+recordValueMap: (sp0, sp1, name, sp2, value) -> a -> (sp0, sp1, name, sp2, a)
+recordValueMap (sp0, sp1, name, sp3, value) a = (sp0, sp1, name, sp3, a)
+
+recordKeys: List (sp0, sp1, name, sp2, value) -> List name
+recordKeys = List.map recordKey
+
+recordValues: List (sp0, sp1, name, sp2, value) -> List value
+recordValues = List.map recordValue
+
+recordValuesMake: List (sp0, sp1, name, sp2, value) -> List a -> List (sp0, sp1, name, sp2, a)
+recordValuesMake = List.map2 (\(sp0, sp1, name, sp2, _) value -> (sp0, sp1, name, sp2, value))
+
+recordValuesMap: (value -> a) -> List (sp0, sp1, name, sp2, value) -> List (sp0, sp1, name, sp2, a)
+recordValuesMap f ts = recordValuesMake ts (List.map f (recordValues ts))
+
+recordInitValue: Maybe (a, ws) -> Maybe a
+recordInitValue = Maybe.map Tuple.first
+
+recordInitMake: Maybe (a, ws) -> Maybe b -> Maybe (b, ws)
+recordInitMake m b =
+  m
+  |> Maybe.andThen (\(a, ws) ->
+     Maybe.map (\bv -> (bv, ws)) b
+  )
 
 delimit a b s = String.concat [a, s, b]
 
@@ -666,9 +863,13 @@ maybeToBool m = case m of
   Just _  -> True
   Nothing -> False
 
-fromJust m = case m of
-  Just x -> x
-  Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
+resultToBool r = case r of
+  Ok _  -> True
+  Err _ -> False
+
+--fromJust m = case m of
+--  Just x -> x
+--  Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
 
 fromJust_ s mx = case mx of
   Just x  -> x
@@ -714,45 +915,45 @@ getWithDefault key default dict =
     Just val -> val
     Nothing -> default
 
-toggleSet : comparable -> Set comparable -> Set comparable
+toggleSet : a -> Set a -> Set a
 toggleSet x set =
   if Set.member x set then Set.remove x set else Set.insert x set
 
-toggleDict : (comparable, v) -> Dict comparable v -> Dict comparable v
+multiToggleSet : Set a -> Set a -> Set a
+multiToggleSet insertSet set =
+  Set.diff
+    (Set.union insertSet set)
+    (Set.intersect insertSet set)
+
+toggleDict : (k, v) -> Dict k v -> Dict k v
 toggleDict (k,v) dict =
   if Dict.member k dict then Dict.remove k dict else Dict.insert k v dict
 
-flipDict : Dict comparable1 comparable2 -> Dict comparable2 comparable1
+flipDict : Dict a b -> Dict b a
 flipDict dict =
   dict
   |> Dict.toList
   |> List.map flip
   |> Dict.fromList
 
-multiKeySingleValue : List comparable -> v -> Dict comparable v
+multiKeySingleValue : List k -> v -> Dict k v
 multiKeySingleValue keys value =
   List.foldl
       (\key dict -> Dict.insert key value dict)
       Dict.empty
       keys
 
-dictAddToSet
-   : comparableK -> comparableV
-  -> Dict comparableK (Set comparableV)
-  -> Dict comparableK (Set comparableV)
+dictAddToSet : k -> v -> Dict k (Set v) -> Dict k (Set v)
 dictAddToSet k v dict =
   case Dict.get k dict of
     Just vs -> Dict.insert k (Set.insert v vs) dict
     Nothing -> Dict.insert k (Set.singleton v) dict
 
-dictGetSet : comparableK -> Dict comparableK (Set comparableV) -> Set comparableV
+dictGetSet : k -> Dict k (Set v) -> Set v
 dictGetSet k d =
   Maybe.withDefault Set.empty (Dict.get k d)
 
-dictUnionSet
-   : comparableK -> (Set comparableV)
-  -> Dict comparableK (Set comparableV)
-  -> Dict comparableK (Set comparableV)
+dictUnionSet : k -> (Set v) -> Dict k (Set v) -> Dict k (Set v)
 dictUnionSet k more dict =
   Dict.insert k (Set.union more (dictGetSet k dict)) dict
 
@@ -762,12 +963,31 @@ maybeLast list =
     [x]   -> Just x
     _::xs -> maybeLast xs
 
+maybeInit list =
+  case list of
+    [] -> Nothing
+    [x] -> Just []
+    head::xs -> Maybe.map (\x -> head::x) <| maybeInit xs
+
+maybeInitLast list =
+  case list of
+    [] -> Nothing
+    [x] -> Just ([], x)
+    head::xs -> Maybe.map (\(init, last) -> (head::init, last)) <| maybeInitLast xs
+
 head msg = fromJust_ msg << List.head
 tail msg = fromJust_ msg << List.tail
 last msg = fromJust_ msg << maybeLast
+init msg = fromJust_ msg << maybeInit
 head_ = head "Utils.head_"
 tail_ = fromJust_ "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
+init_ = init "Utils.init_"
+
+nth: List a -> Int -> Result String a
+nth list n = case list of
+  [] -> Err <| "Cannot find " ++ toString n ++ "-th element of a empty list"
+  head::tail -> if n == 0 then Ok head else nth tail (n-1)
 
 uncons xs = case xs of
   x::xs -> (x, xs)
@@ -797,8 +1017,29 @@ dropWhile pred list =
              then dropWhile pred xs
              else list
 
--- Use Maybe.map
-mapMaybe = Maybe.map
+spanWhile pred list =
+  let aux acc list =
+    case list of
+       [] -> (List.reverse acc, [])
+       head::tail -> if pred head then aux (head::acc) tail else (List.reverse acc, list)
+  in aux [] list
+
+foldLeft: b -> List a -> (b -> a -> b) -> b
+foldLeft acc list fold =
+  List.foldl (Basics.flip fold) acc list
+
+foldLeftWithIndex: b -> List a -> (b -> Int -> a -> b) -> b
+foldLeftWithIndex acc list fold =
+  List.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
+
+strFoldLeft: b -> String -> (b -> Char -> b) -> b
+strFoldLeft acc list fold =
+  String.foldl (Basics.flip fold) acc list
+
+strFoldLeftWithIndex: b -> String -> (b -> Int -> Char -> b) -> b
+strFoldLeftWithIndex acc list fold =
+  String.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
+
 
 filterMaybe : (a -> Bool) -> Maybe a -> Maybe a
 filterMaybe pred mx =
@@ -843,6 +1084,18 @@ filterJusts mxs = case mxs of
   Just x  :: rest -> x :: filterJusts rest
   Nothing :: rest -> filterJusts rest
 
+filterOks : List (Result e a) -> List a
+filterOks mxs = case mxs of
+  []            -> []
+  Ok x  :: rest -> x :: filterOks rest
+  Err _ :: rest -> filterOks rest
+
+filterErrs : List (Result e a) -> List e
+filterErrs mxs = case mxs of
+  []            -> []
+  Ok _  :: rest -> filterErrs rest
+  Err x :: rest -> x :: filterErrs rest
+
 bindMaybe2 : (a -> b -> Maybe c) -> Maybe a -> Maybe b -> Maybe c
 bindMaybe2 f mx my = bindMaybe (\x -> bindMaybe (f x) my) mx
 
@@ -878,6 +1131,18 @@ projOk list =
       (Ok [])
       list
 
+-- Returns Err if function ever returns Err
+foldlResult : (a -> b -> Result err b) -> Result err b -> List a -> Result err b
+foldlResult f resultAcc list =
+  case (resultAcc, list) of
+    (Err err, _)    -> resultAcc
+    (Ok acc, x::xs) -> foldlResult f (f x acc) xs
+    (_, [])         -> resultAcc
+
+
+mapFirstSecond : (a -> c) -> (b -> d) -> (a, b) -> (c, d)
+mapFirstSecond f g (a, b) = (f a, g b)
+
 -- Use Tuple.mapFirst
 -- mapFst : (a -> a_) -> (a, b) -> (a_, b)
 -- mapFst f (a, b) = (f a, b)
@@ -910,7 +1175,6 @@ bindResult res f =
 
 setIsEmpty  = (==) [] << Set.toList
 dictIsEmpty = (==) [] << Dict.toList
-setCardinal = List.length << Set.toList
 
 parseInt   = fromOk_ << String.toInt
 parseFloat = fromOk_ << String.toFloat
@@ -971,6 +1235,8 @@ distance (x1,y1) (x2,y2) = sqrt <| (x2-x1)^2 + (y2-y1)^2
 distanceInt (x1,y1) (x2,y2) =
   distance (toFloat x1, toFloat y1) (toFloat x2, toFloat y2)
 
+midpoint (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
+
 -- n:number -> i:[0,n) -> RGB
 numToColor n i =
   let j = round <| (i/n) * 500 in
@@ -1029,6 +1295,14 @@ uniPlusMinus   = "±"
 
 --------------------------------------------------------------------------------
 
+pairToList : (a, a) -> List a
+pairToList (x1, x2) = [x1, x2]
+
+unwrapSingletonSet : Set a -> a
+unwrapSingletonSet set = case Set.toList set of
+  [x] -> x
+  _   -> Debug.crash "unwrapSingletonSet"
+
 unwrap1 xs = case xs of
   [x1] -> x1
   _ -> Debug.crash "unwrap1"
@@ -1080,6 +1354,15 @@ or =
 
 --------------------------------------------------------------------------------
 
+applyIf : Bool -> (a -> a) -> a -> a
+applyIf cond funToApply default =
+  if cond then
+    funToApply default
+  else
+    default
+
+--------------------------------------------------------------------------------
+
 -- Useful for ensuring that the () in "let _ = Debug.log s ()" is not forgotten.
 log : String -> ()
 log s =
@@ -1094,3 +1377,185 @@ isEven n =
 isOdd : Int -> Bool
 isOdd n =
   n % 2 == 1
+
+--------------------------------------------------------------------------------
+
+fromResult : Result a a -> a
+fromResult result =
+  case result of
+    Ok x ->
+      x
+
+    Err x ->
+      x
+
+dictGetFirst keys dictionary = case keys of
+  [] -> Nothing
+  key :: otherKeys -> case Dict.get key dictionary of
+    (Just x) as j -> j
+    Nothing -> dictGetFirst otherKeys dictionary
+
+-- Returns the strings from the first elements which are likely to be corrections of the string given in second.
+stringSuggestions : List String -> String -> List String
+stringSuggestions trueStrings wrongString =
+  let wrongStringCanonical = String.toLower <| String.trim <| wrongString in
+  let trueStringsCanonical = List.map (String.toLower << String.trim) trueStrings in
+  let trueMapping = zip trueStringsCanonical trueStrings in
+  let guess1 = trueMapping
+    |> List.filter (\(x, _) -> x == wrongStringCanonical)
+    |> List.map Tuple.second
+  in case guess1 of
+    head::tail -> guess1
+    [] -> -- Ok the error might come from somewhere else. We look for keys starting the same.
+      let firstChar = String.slice 0 1 wrongStringCanonical in
+      let guess2 = trueMapping
+          |> List.filter (\(x, _) -> String.slice 0 1 x == firstChar)
+          |> List.map Tuple.second
+      in case guess2 of
+        head::tail -> List.take 5 guess2
+        [] -> let lastChar = String.slice -1 (String.length wrongStringCanonical) wrongStringCanonical in
+          let guess3 = trueMapping
+              |> List.filter (\(x, _) -> String.slice -1 (String.length x) x == firstChar)
+              |> List.map Tuple.second
+          in case guess3 of
+            head::tail -> List.take 5 guess2
+            [] -> -- We are a bit puzzled here. No strings with the same start or same end. Just return the first 5 keys.
+              List.take 5 trueStrings
+
+lastCharWRegex = Regex.regex "[\\w_]$"
+firstCharWRegex = Regex.regex "^[\\w_]"
+
+-- If these two strings were concatenated, would the junction be found by tokenizing? I.e. to avoid concatenating variable names.
+wouldNotRecognizeTokenSplit: String -> String -> Bool
+wouldNotRecognizeTokenSplit leftStr rightStr =
+  (Regex.contains lastCharWRegex leftStr) && (Regex.contains firstCharWRegex rightStr)
+
+
+lastLine: String -> String
+lastLine s = snocUnapply (String.lines s) |> Maybe.map Tuple.second |> Maybe.withDefault ""
+
+transpose: List (List a) -> List (List a)
+transpose l =
+  if List.all List.isEmpty l then
+  []
+  else
+  (List.concatMap (List.take 1) l) :: transpose (List.map (List.drop 1) l)
+
+--------------------------------------------------------------------------------
+
+indexedMapFrom : Int -> (Int -> a -> b) -> List a -> List b
+indexedMapFrom n f = List.indexedMap (\i -> f (i + n))
+
+--------------------------------------------------------------------------
+-- Given a print order and a list, outputs the list with the correct order
+reorder: List Int -> List a -> List a
+reorder order elements =
+  if List.isEmpty order then elements else
+  let elementArray = Array.fromList elements in
+  let aux order revAcc = case order of
+    [] -> List.reverse revAcc
+    (head::tailOrder) -> Array.get head elementArray |> Maybe.map (\x -> x :: revAcc) |> Maybe.withDefault revAcc |>
+       aux tailOrder
+  in
+  aux order []
+
+type alias DefinedNames = Set String
+type alias Dependencies = Set String
+type alias NamesDepsIsRec = (DefinedNames, Dependencies, Bool)
+type alias NamesDepsIsRecFirst = (DefinedNames, Dependencies, {isRec: Bool, isFirst: Bool})
+
+-- Orders a list of definitions, grouping the potentially recursive definitions,
+-- keeping the order of definitions as much as possible
+orderWithDependencies: List a -> (a -> NamesDepsIsRec) -> Result String (List (List a))
+orderWithDependencies elements elemToNamesDepsIsrec =
+  -- Group elements with the names they define, the dependencies they need, and if they can be recursive.
+  let elemsWithDefs: List (a, NamesDepsIsRecFirst)
+      elemsWithDefs =
+      let aux definedNames elements revAcc = case elements of
+        [] -> List.reverse revAcc
+        a :: tailElems ->
+          let ((names, deps, isRec) as abst) = elemToNamesDepsIsrec a in
+          (a, (names, deps, {isRec= isRec, isFirst= Set.intersect names definedNames |> Set.isEmpty}))::revAcc |>
+          aux (Set.union definedNames names) tailElems
+      in aux Set.empty elements []
+  in
+  let dependenciesToConsider =
+    elemsWithDefs |> List.concatMap (\(_, (names, _, _)) -> Set.toList names) |> Set.fromList in
+  let aux:Bool ->     List (List a) -> Set String -> List (List a, NamesDepsIsRecFirst) -> List (a, NamesDepsIsRecFirst) -> Result String (List (List a))
+      aux testWaiting okGroups         definedNames  waitingDefs                           elemsWithDefs =
+       -- Given a set of definitions, returns its set of external dependencies which are not yet in definedNames
+       let finalDependencies (names, deps, isRecFirst) =
+         Set.diff (Set.intersect dependenciesToConsider deps) <|
+           if isRecFirst.isRec then Set.union names definedNames else
+           if isRecFirst.isFirst then Set.union names definedNames else
+           definedNames
+       in
+       -- Are there any waiting definitions whose dependencies are all satisfied?
+       -- If yes, we can output them right now (next step)
+       let mbWaitingDefSatisfied = if not testWaiting then Nothing else
+        waitingDefs |> removeFirstSuccess (\(defs, (names, deps, _) as abst) ->
+            let theDependenciesAreSatisfied = finalDependencies abst |> Set.isEmpty in
+            if theDependenciesAreSatisfied then Just (defs, names)
+            else Nothing
+          )
+       in
+       case mbWaitingDefSatisfied of
+         -- Output a set of definitions whose dependencies are all satisfied.
+         Just ((defs, names), newWaitingDefs) ->
+           aux True (defs::okGroups) (Set.union definedNames names) newWaitingDefs elemsWithDefs
+         Nothing ->
+       -- We consider the next set of definitions.
+       case elemsWithDefs of
+          -- No more definitions to consider.
+          [] -> if List.isEmpty waitingDefs then Ok <| List.reverse okGroups
+               else Err <| "I could not find a satisfying assignment for these mutually recursive definitions:\n" ++
+                 (waitingDefs |> List.map (\(_, (n, d, isRecFirst) as abst) ->
+                   let reald = finalDependencies abst in
+                   (Set.toList n |> String.join ",") ++ " depend(s) on " ++ (Set.toList reald |> String.join ",") ++
+                   (if isRecFirst.isRec then " and recursively on each other" else "")
+                 ) |> String.join ",\n") ++ "\nWe don't support mutual recursion between lambdas and non-lambda (yet). Create a lambda, and then call it if you wish."
+          ((a, (names, deps, isRecFirst) as abst) as headDef)::tailDefs ->
+            let theDependenciesAreSatisfied = finalDependencies abst |> Set.isEmpty in
+            if theDependenciesAreSatisfied then
+              aux True ([a]::okGroups) (Set.union definedNames names) waitingDefs tailDefs
+            else -- Add to the first group of rec if rec, and as a single element else.
+            let (newWaitingDefs, retestWaiting) = if isRecFirst.isRec then
+                 let xau: Bool ->
+                            List (List a, NamesDepsIsRecFirst) ->
+                              List (List a, NamesDepsIsRecFirst) ->
+                                (List a, NamesDepsIsRecFirst) ->
+                                  (List (List a, NamesDepsIsRecFirst), Bool)
+                     xau  retestWaiting
+                            collectedWaitingGroups
+                              remainingWaitingGroups
+                                ((newDefs, (namesToIntegrate, depsToIntegrate, r) as abst1) as defToIntegrate) =
+                   case remainingWaitingGroups of
+                      [] -> (List.reverse (defToIntegrate::collectedWaitingGroups), retestWaiting)
+                      ((otherDefs, (otherNames, otherDeps, isRecFirst) as abst2) as headGroup) :: tailGroup ->
+                        if isRecFirst.isRec &&
+                          (Set.intersect (finalDependencies abst2) namesToIntegrate |> Set.isEmpty |> not) &&
+                                (Set.intersect (finalDependencies abst1) otherNames |> Set.isEmpty |> not) then
+                          let newDefToIntegrate = (otherDefs ++ newDefs, (Set.union otherNames namesToIntegrate, Set.union otherDeps depsToIntegrate, {isRec=True, isFirst=isRecFirst.isFirst && r.isFirst})) in
+                          -- Mutual recursion found ! we merge the two.
+                          xau True [] (reverseInsert collectedWaitingGroups tailGroup) newDefToIntegrate
+                        else
+                          xau retestWaiting (headGroup::collectedWaitingGroups) tailGroup defToIntegrate
+                 in xau False [] waitingDefs ([a], abst)
+               else (waitingDefs ++ [([a], abst)], False)
+            in
+            aux retestWaiting okGroups definedNames newWaitingDefs tailDefs
+  in aux False [] Set.empty [] elemsWithDefs
+
+{- -- Nice way to present circular errors.
+   case correctDependencies elements Set.empty [] of
+     (result, []) -> Ok result
+     (result, notResolved) ->
+       case smallestCycle notResolved of
+         Nothing -> Ok (result ++ notResolved) -- Let's leave it to the type checker.
+         Just cycle ->
+           Err <| "Cycle in explicit dependencies not allowed:\n    ┌─────┐" ++ (cycle |>
+            List.map (\a ->
+              let nameDisplay = elemToNameDisplay a in
+              "\n    |    " ++ nameDisplay) |> String.join "\n    |     |"
+           ) ++ "\n    └─────┘\n\nHint: An explicit dependency happens when a variable is not bound by a lambda."
+-}

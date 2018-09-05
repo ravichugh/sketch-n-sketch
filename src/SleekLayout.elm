@@ -16,8 +16,10 @@
 --------------------------------------------------------------------------------
 
 module SleekLayout exposing
-  ( px
+  ( BoundingBox
+  , px
   , half
+  , canvasPosition
   , clickToCanvasPoint
   , panelBorderWidth
   , spacing
@@ -31,18 +33,12 @@ module SleekLayout exposing
   , mainResizer
   , mainResizerLeftBound
   , mainResizerRightBound
-  , proseResizer
-  , proseResizerBottomBound
-  , proseResizerTopBound
-  , prosePanelFullHeight
-  , prosePanel
   , codePanel
   , outputPanel
   , outputCanvas
   )
 
 import InterfaceModel as Model exposing (Model)
-import UserStudy
 
 --------------------------------------------------------------------------------
 -- Bounding Box
@@ -81,6 +77,13 @@ px n =
 half : Int -> Int
 half x =
   x // 2
+
+canvasPosition : Model -> { x : Int, y : Int } -> { x : Int, y : Int }
+canvasPosition model {x, y} =
+  let box = outputCanvas model in
+  { x = x - box.x
+  , y = y - box.y
+  }
 
 clickToCanvasPoint : Model -> { x : Int, y : Int } -> (Bool, (Int, Int))
 clickToCanvasPoint model {x, y} =
@@ -137,16 +140,10 @@ menuBarTotalHeight =
 --------------------------------------------------------------------------------
 
 toolPanel =
-  if UserStudy.enabled then
-    { width = 0
-    , right = spacing.width
-    , marginLeft = 0
-    }
-  else
-    { width = 50
-    , right = spacing.width
-    , marginLeft = spacing.width
-    }
+  { width = 50
+  , right = spacing.width
+  , marginLeft = spacing.width
+  }
 
 iconButton =
   { width =
@@ -181,46 +178,12 @@ synthesisPanel model =
   { bottom =
       spacing.height
   , height =
-      if Model.synthesisResultsNotEmpty model &&
+      if Model.synthesisResultsNotEmpty model "Auto-Synthesis" &&
            (not model.viewState.menuActive) then
-         300
+         250
       else
         0
   }
-
---------------------------------------------------------------------------------
--- Prose Panel
---------------------------------------------------------------------------------
-
-prosePanelFullHeight : Int
-prosePanelFullHeight =
-  300
-
-prosePanel : Model -> BoundingBox
-prosePanel model =
-  let
-    mainResizerBB =
-      mainResizer model
-    proseResizerBB =
-      proseResizer model
-    outputPanelBB =
-      outputPanel model
-    x =
-      mainResizerBB.x + mainResizerBB.width
-    y =
-      proseResizerBB.y + proseResizerBB.height
-    width =
-      model.dimensions.width
-        - toolPanel.right
-        - toolPanel.width
-        - toolPanel.marginLeft
-        - x
-    height =
-      dynamicContentHeight model
-        - outputPanelBB.height
-        - proseResizerBB.height
-  in
-    box x y width height
 
 --------------------------------------------------------------------------------
 -- Main Panels
@@ -267,8 +230,6 @@ outputPanel model =
   let
     mainResizerBB =
       mainResizer model
-    proseResizerBB =
-      proseResizer model
     x =
       mainResizerBB.x + mainResizerBB.width
     y =
@@ -280,10 +241,7 @@ outputPanel model =
         - toolPanel.marginLeft
         - x
     height =
-      if UserStudy.enabled then
-        proseResizerBB.y - mainPanelY
-      else
-        dynamicContentHeight model
+      dynamicContentHeight model
   in
     box x y width height
 
@@ -344,66 +302,6 @@ mainResizerRightBound model =
       outputPanel model
   in
     outputPanelBB.x + outputPanelBB.width - mainResizerBoundMargin
-
---------------------------------------------------------------------------------
--- Prose Resizer
---------------------------------------------------------------------------------
-
-proseResizerHeight : Int
-proseResizerHeight =
-  20
-
--- Position without moving the resizer
-defaultProseResizerY : Model -> Int
-defaultProseResizerY model =
-  let
-    ratio =
-      0.6
-    spaceToDivide =
-      toFloat <|
-        dynamicContentHeight model - proseResizerHeight
-    top =
-      mainPanelY
-  in
-    top + round (ratio * spaceToDivide)
-
-proseResizer : Model -> BoundingBox
-proseResizer model =
-  let
-    mainResizerBB =
-      mainResizer model
-    x =
-      mainResizerBB.x + mainResizerBB.width
-    y =
-      Maybe.withDefault
-        (defaultProseResizerY model)
-        model.proseResizerY
-    height =
-      proseResizerHeight
-    width =
-      model.dimensions.width
-        - toolPanel.right
-        - toolPanel.width
-        - toolPanel.marginLeft
-        - x
-  in
-    box x y width height
-
-proseResizerBoundMargin : Int
-proseResizerBoundMargin =
-  100
-
-proseResizerBottomBound : Model -> Int
-proseResizerBottomBound model =
-  mainPanelY + dynamicContentHeight model - proseResizerBoundMargin
-
-proseResizerTopBound : Model -> Int
-proseResizerTopBound model =
-  let
-    outputPanelBB =
-      outputPanel model
-  in
-    outputPanelBB.y + proseResizerBoundMargin
 
 --------------------------------------------------------------------------------
 -- Output Dimensions (descriptive)

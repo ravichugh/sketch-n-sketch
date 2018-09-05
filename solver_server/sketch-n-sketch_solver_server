@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+# https://stackoverflow.com/questions/59895/getting-the-source-directory-of-a-bash-script-from-within
+THIS_FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$THIS_FILE_DIR"
+
+# Requires websocketd and Ruby
+# $ brew install websocketd
+# or
+# wget https://github.com/joewalnes/websocketd/releases/download/v0.2.12/websocketd-0.2.12-linux_amd64.zip
+# unzip websocketd-0.2.12-linux_amd64.zip
+# sudo mv websocketd /usr/local/bin/
+#
+# This will open a websocket server at localhost:7444/reduce
+websocketd --port=7444 --dir=endpoints

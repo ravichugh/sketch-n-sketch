@@ -153,6 +153,8 @@
   ; TODO eta-reduced version:
   ; (def reverse (foldl cons nil))
 
+(def adjacentPairs (\xs (zip xs (tl xs))))
+
 ;; Given two numbers, creates the list between them (inclusive)
 (typ range (-> Num Num (List Num)))
 (defrec range (\(i j)
@@ -190,6 +192,8 @@
 
 (typ mapi (forall (a b) (-> (-> [Num a] b) (List a) (List b))))
 (def mapi (\(f xs) (map f (zip (range 0 (- (len xs) 1)) xs))))
+
+(def indexedMap (\(f xs) (mapi (\[i x] (f i x)) xs)))
 
 
 (typ nth (forall a (-> (List a) Num (union Null a))))
@@ -1227,8 +1231,8 @@
   (let [xs ys] [(map fst pts) (map snd pts)]
   (let [xMin xMax] [(minimum xs) (maximum xs)]
   (let [yMin yMax] [(minimum ys) (maximum ys)]
-  (let xMiddle (+ xMin (* 0.5 (- xMax xMin)))
-  (let yMiddle (+ yMin (* 0.5 (- yMax yMin)))
+  (let xMiddle (noWidgets (+ xMin (* 0.5 (- xMax xMin))))
+  (let yMiddle (noWidgets (+ yMin (* 0.5 (- yMax yMin))))
     [xMiddle yMiddle] )))))))
 
 (typ polygonPoints (-> SVG Points))
@@ -1703,6 +1707,173 @@
     (rect fill x y w h)
       ["stroke" stroke])
       ["stroke-width" strokeWidth])))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; (def columnsToRows (\columns
+;   (let numColumns (len columns)
+;   (let numRows ; maxColumnSize
+;     (if (= numColumns 0) 0 (maximum (map len columns)))
+;   (foldr
+;     (\(col rows)
+;       (let paddedCol (append col (repeat (- numRows (len col)) "."))
+;       (map
+;         (\[datum row] [ datum | row ])
+;         (zip paddedCol rows))))
+;     (repeat numRows [])
+;     columns)
+; ))))
+; 
+; (def addColToRows (\(col rows)
+;   (let width (maximum (map len rows))
+;   (letrec foo (\(col rows)
+;     (case [col rows]
+;       ([ []     []     ] [                                          ])
+;       ([ [x|xs] [r|rs] ] [ (snoc x r)                 | (foo xs rs) ])
+;       ([ []     [r|rs] ] [ (snoc '' r)                | (foo [] rs) ])
+;       ([ [x|xs] []     ] [ (snoc x (repeat width '')) | (foo xs []) ])
+;     ))
+;   (foo col rows)))))
+
+; (def border ['border' '1px solid black'])
+; (def padding ['padding' '5px'])
+; (def center ['align' 'center'])
+; (def style (\list ['style' list]))
+; (def onlyStyle (\list [(style list)]))
+; 
+; (def td (\text
+;   ['td' (onlyStyle [border padding])
+;         [['TEXT' text]]]))
+; 
+; (def th (\text
+;   ['th' (onlyStyle [border padding center])
+;         [['TEXT' text]]]))
+; 
+; (def tr (\children
+;   ['tr' (onlyStyle [border])
+;         children]))
+; 
+; ; TODO div name is already taken...
+; 
+; (def div_ (\children ['div' [] children]))
+; (def h1 (\text ['h1' [] [['TEXT' text]]]))
+; (def h2 (\text ['h2' [] [['TEXT' text]]]))
+; (def h3 (\text ['h3' [] [['TEXT' text]]]))
+; 
+; (def table (\children
+;   ['table' (onlyStyle [border padding]) children]))
+
+; (def table (\children
+;   (let [x y] [100 100]
+;   ['table' (onlyStyle [border padding
+;                       ["position" "relative"]
+;                       ["left" (toString x)]
+;                       ["top" (toString y)]]) children])))
+
+; (def tableOfData (\data
+;   (let letters (explode " ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+;   (let data (mapi (\[i row] [(+ i 1) | row]) data)
+;   (let tableWidth (maximum (map len data))
+;   (let headers
+;     (tr (map (\letter (th letter)) (take letters tableWidth)))
+;   (let rows
+;     (map (\row (tr (map (\col (td (toString col))) row))) data)
+;   (table
+;     [ headers | rows ]
+; ))))))))
+
+
+(def textNode (\text
+  ["TEXT" text]))
+
+(def textElementHelper (\(tag styles attrs text)
+  [ tag [ ["style" styles] | attrs ] [ (textNode text) ] ]))
+
+(def elementHelper (\(tag styles attrs children)
+  [ tag [ ["style" styles] | attrs ] children ]))
+
+(def p (textElementHelper "p"))
+(def th (textElementHelper "th"))
+(def td (textElementHelper "td"))
+(def h1 (textElementHelper "h1"))
+(def h2 (textElementHelper "h2"))
+(def h3 (textElementHelper "h3"))
+
+(def div_ (elementHelper "div"))
+(def tr (elementHelper "tr"))
+(def table (elementHelper "table"))
+
+; absolutePositionStyles x y = let _ = [x, y] : Point in
+;   [ ["position", "absolute"]
+;   , ["left", toString x + "px"]
+;   , ["top", toString y + "px"]
+;   ] 
+
+
+
+(def setStyles (\(newStyles [kind attrs children])
+  (let attrs
+    (let styleAttr (lookup 'style' attrs)
+    (typecase styleAttr
+      (Null [ ['style' []] | attrs ])
+      (_    attrs)))
+    ; (if (= styleAttr null)
+    ;   [ ['style' []] | attrs ]
+    ;   attrs)
+  (let attrs
+    (map (\[key val]
+      (case key
+        ('style'
+          (let otherStyles
+            (concatMap (\[k v]
+              (case (elem k (map fst newStyles))
+                (true  [])
+                (false [[k v]])))
+              val)
+          ['style' (append newStyles otherStyles)]))
+        (_
+          [key val])))
+      attrs)
+  [kind attrs children]
+))))
+
+(def placeAt (\([x y] node)
+  (let _ ([x y] : Point)
+  ; TODO px suffix should be added in LangSvg/Html translation
+  (setStyles
+    [ ['position' 'absolute']
+      ['left' (+ (toString x) 'px')]
+      ['top' (+ (toString y) 'px')]
+    ]
+    node))))
+
+(def placeAtFixed (\([x y] node)
+  (let _ ([x y] : Point)
+  (setStyles
+    [['position' 'fixed'] ['FIXED_LEFT' x] ['FIXED_TOP' y]]
+    node))))
+
+(def placeSvgAt (\([x y] w h shapes)
+  (placeAt [x y]
+    ['svg' [['width' w] ['height' h]] shapes])))
+
+(def workspace (\(minSize children)
+  (div_
+    (cons
+      (placeAt minSize (h3 '</workspace>'))
+      children))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def nothing ["Nothing"])
+(def just (\x ["Just"  x]))
+
+(def mapFirst (\(f [x y]) [(f x) y]))
+(def mapSecond (\(f [x y]) [x (f y)]))
+
+(def freeze (\x x))
+
 
 ; The type checker relies on the name of this definition.
 (let dummyPreludeMain ['svg' [] []] dummyPreludeMain)
