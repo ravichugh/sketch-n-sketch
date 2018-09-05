@@ -40,7 +40,7 @@ object SNS extends Module {
 
   def currentDate = new SimpleDateFormat("HH:mm:ss  (yyyy-MM-dd)").format(Calendar.getInstance().getTime())
   
-  def all = T{
+  def elmmake = T{
     packages()
     examples()
     prelude()
@@ -77,9 +77,10 @@ object SNS extends Module {
         (if(filename_linenums.length > 1) " and " + numErrors.length + " errors covering " + lineNums.length + " lines." else " and this is the last error!")
     }.mkString("\n")
   }
-  
+
   def copyNative = T{
     nativeRoot()
+    elmmake()
     List("aceCodeBox.js",
          "outputCanvas.js",
          "aceTooltips.js",
@@ -105,8 +106,8 @@ object SNS extends Module {
   }
 
   def html = T{
+    elmmake()
     copyNative()
-    all()
   }
   
   def insertLinks(msg: String) = {
