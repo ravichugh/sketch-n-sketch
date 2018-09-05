@@ -1,4 +1,4 @@
-module DrawAddShape exposing (addShape)
+module DrawAddShape exposing (addShape, maybeShapeCountAndListItemCountInContextOutput)
 
 -- The "addShape" function that does the heavy lifting of adding some binding into the drawing context
 -- and adding the new variable into the shape list / return list.
@@ -22,6 +22,21 @@ import Utils
 import Dict
 import Set
 
+
+maybeShapeCountAndListItemCountInContextOutput
+  :  { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, solutionsCache : Solver.SolutionsCache, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
+  -> Exp
+  -> Maybe (Int, Int)
+maybeShapeCountAndListItemCountInContextOutput model program =
+  case InterfaceModel.runAndResolveAtContext model program of
+    Ok (val, _, (root, shapeTree), _, _) ->
+      Just <|
+          ( Dict.size shapeTree
+          , val |> vListToMaybeValsExcludingPoint |> Maybe.map List.length |> Maybe.withDefault 1
+          )
+
+    Err _ ->
+      Nothing
 
 -- Precondition: Incoming program should have non-dummy EIds on expressions, for the typechecker.
 --
@@ -121,10 +136,7 @@ addShape
       else
         (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
 
-    (oldListItemsCount, oldShapeTree) =
-      case InterfaceModel.runAndResolveAtContext model originalProgram of
-        Ok (val, _, (root, shapeTree), _, _) -> (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1, shapeTree)
-        _                                    -> (0, Dict.empty)
+    (oldShapeCount, oldListItemsCount) = maybeShapeCountAndListItemCountInContextOutput model originalProgram |> Maybe.withDefault (0, 0)
 
     -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
     --    If return val is not a list, make it a list.
@@ -170,24 +182,25 @@ addShape
       |> List.filter
           (\(listEId, newProgram) ->
             areCrashingProgramsOkay ||
-            case InterfaceModel.runAndResolveAtContext model newProgram of
-              Ok (val, _, (root, shapeTree), _, _) ->
+            case maybeShapeCountAndListItemCountInContextOutput model newProgram of
+              Just (newShapeCount, newListItemsCount) ->
                 let
                   shapeCountOkay =
                     case maybeReallyNumberOfNewShapesExpected of
-                      Just numberOfNewShapesExpected -> Dict.size oldShapeTree + numberOfNewShapesExpected == Dict.size shapeTree
-                      Nothing                        -> Dict.size oldShapeTree <= Dict.size shapeTree -- Removing shapes signifies a type error
+                      Just numberOfNewShapesExpected -> oldShapeCount + numberOfNewShapesExpected == newShapeCount
+                      Nothing                        -> oldShapeCount <= newShapeCount -- Removing shapes signifies a type error
 
                   listItemCountOkay =
                     case maybeReallyNumberOfNewListItemsExpected of
                       -- Just numberOfNewListItemsExpected -> Debug.log "expect count" (oldListItemsCount + numberOfNewListItemsExpected) == Debug.log "actual count " (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1)
-                      Just numberOfNewListItemsExpected -> oldListItemsCount + numberOfNewListItemsExpected == (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1)
-                      Nothing                           -> oldListItemsCount <= (vListToMaybeValsExcludingPoint val |> Maybe.map List.length |> Maybe.withDefault 1) -- Removing items signifies a type error
+                      Just numberOfNewListItemsExpected -> oldListItemsCount + numberOfNewListItemsExpected == newListItemsCount
+                      Nothing                           -> oldListItemsCount <= newListItemsCount -- Removing items signifies a type error
 
                   -- _ = Utils.log (Syntax.unparser Syntax.Elm newProgram)
                   -- _ = Debug.log "(shapeCountOkay, listItemCountOkay)" (shapeCountOkay, listItemCountOkay)
                 in
                 shapeCountOkay && listItemCountOkay
+
               _ ->
                 -- let _ = Utils.log <| "Bad program " ++ Syntax.unparser Syntax.Elm newProgram in
                 False

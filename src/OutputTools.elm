@@ -417,11 +417,11 @@ groupTool selections =
   { name =
       "Group"
   , shortcut =
-      Just "G"
+      Nothing
   , kind =
-      Single
+      Multi
   , func =
-      Just Controller.msgGroupBlobs
+      Just Controller.msgGroup
   , reqs =
       [ atLeastTwoSelections selections
       ]

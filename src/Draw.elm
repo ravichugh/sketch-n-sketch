@@ -661,58 +661,12 @@ perhapsPrepareRecursiveFunction someEIdAtTopLevelOfFunction program =
       program
 
 
-findRecursiveBranch : Exp -> Exp -> Maybe Exp
-findRecursiveBranch program funcExp =
-  case LangTools.findLetAndIdentBindingExpLoose funcExp.val.eid program of
-    Just (letExp, funcName) ->
-      if LangTools.expToLetRec letExp == True then
-        LangTools.expToMaybeFuncBody funcExp
-        |> Maybe.andThen (LangTools.identifierUses funcName >> List.map (.val >> .eid >> parentByEId program >> Maybe.withDefault Nothing) >> Utils.projJusts >> Maybe.map (List.filter isApp))
-        |> Utils.filterMaybe (not << List.isEmpty)
-        |> Maybe.andThen
-            (\recCalls ->
-              funcExp
-              |> mapFirstSuccessNode
-                  (\e ->
-                    case e.val.e__ of
-                      EIf _ _ _ branchExp1 _ branchExp2 _ ->
-                        if Utils.isSublistAsSet recCalls (flattenExpTree branchExp1) then
-                          Just branchExp1
-                        else if  Utils.isSublistAsSet recCalls (flattenExpTree branchExp2) then
-                          Just branchExp2
-                        else
-                          Nothing
-                      _ ->
-                        Nothing
-                  )
-            )
-      else
-        Nothing
-
-    _ ->
-      Nothing
-
-
--- Bug not worth fixing right now:
--- If the function is recursive, only ever returns the end of the recursive branch.
-contextExpAndEndOfDrawingContextExp : Maybe (EId, a) -> Exp -> (Exp, Exp)
-contextExpAndEndOfDrawingContextExp editingContext program =
-  let contextExp = FocusedEditingContext.drawingContextExp editingContext program in
-  let endOfDrawingContextExp =
-    let maybeFocusedExp = FocusedEditingContext.maybeFocusedExp editingContext program in
-    case maybeFocusedExp |> Maybe.map (findRecursiveBranch program) of
-      Just (Just recursiveBranchExp)  -> LangTools.lastSameLevelExp recursiveBranchExp
-      _                               -> LangTools.lastSameLevelExp contextExp
-  in
-  (contextExp, endOfDrawingContextExp)
-
-
 -- Bug not worth fixing right now:
 -- If the function is recursive, only ever adds to the recursive branch (even if the base case is focused).
 addToEndOfDrawingContext : Model -> Ident -> Exp -> Model
 addToEndOfDrawingContext old varSuggestedName exp =
   let originalProgram = old.inputExp in
-  let (contextExp, endOfDrawingContextExp) = contextExpAndEndOfDrawingContextExp old.editingContext originalProgram in
+  let (contextExp, endOfDrawingContextExp) = FocusedEditingContext.contextExpAndEndOfDrawingContextExp old.editingContext originalProgram in
   let varName = LangTools.nonCollidingName varSuggestedName 2 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp contextExp).val.eid) in
   let newProgram =
     originalProgram
@@ -749,7 +703,7 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
       (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
       (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
       _                            ->
-        let (contextExp, endOfDrawingContextExp) = contextExpAndEndOfDrawingContextExp old.editingContext originalProgram in
+        let (contextExp, endOfDrawingContextExp) = FocusedEditingContext.contextExpAndEndOfDrawingContextExp old.editingContext originalProgram in
         case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp endOfDrawingContextExp).val.eid) of
           [pointName, xName, yName, offsetXName, offsetYName] ->
             let

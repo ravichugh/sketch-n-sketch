@@ -1284,6 +1284,32 @@ selectionsSingleEIdInterpretations program slate widgets selectedFeatures select
   in
   directSingleEIdInterpretations ++ parentSingleEIdInterpretations
 
+
+uniqueNonVarSingleExpressionInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List EId
+uniqueNonVarSingleExpressionInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+  let
+    singleExpressionInterpretationEIds =
+      selectionsSingleEIdInterpretations
+          program
+          slate
+          widgets
+          selectedFeatures
+          selectedShapes
+          selectedBlobs
+          (\e -> expFilter e && not (isVar (expEffectiveExp e)))
+      |> Set.fromList
+  in
+  selectionsUniqueProximalEIdInterpretations
+      program
+      slate
+      widgets
+      selectedFeatures
+      selectedShapes
+      selectedBlobs
+      (\e -> Set.member e.val.eid singleExpressionInterpretationEIds)
+  |> List.filterMap Utils.maybeUnwrap1
+
+
 -- Heuristic: Closest and farthest interpretation only.
 selectedFeaturesToProximalDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> List SelectableFeature -> (Exp -> Bool) -> (Set EId, Set EId)
 selectedFeaturesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as slate) widgets selectedFeatures expFilter =

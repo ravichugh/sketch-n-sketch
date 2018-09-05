@@ -23,7 +23,7 @@ port module InterfaceController exposing
   , msgAddArg, msgRemoveArg
   , msgShowTerminationConditionOptions
   , msgAddToOutput
-  , msgGroupBlobs, msgDuplicate, msgMerge, msgAbstractBlobs
+  , msgGroup, msgDuplicate, msgMerge, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
   , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
@@ -122,7 +122,7 @@ import DependenceGraph exposing (lookupIdent)
 import CodeMotion
 import DeuceWidgets exposing (..) -- TODO
 import DeuceTools
-import ColorNum
+import Types
 import Syntax exposing (Syntax)
 import ElmParser
 import LangUnparser -- for comparing expressions for equivalence
@@ -1525,11 +1525,11 @@ msgKeyDown keyCode =
           |> Maybe.map (\synthesisResult -> { newModel | code = Syntax.unparser old.syntax  (resultExp synthesisResult) } |> clearSynthesisResults |> upstateRun )
           |> Maybe.withDefault old
         else if old.outputMode /= ShowValue && keyCode == Keys.keyBackspace && old.renamingInOutput == Nothing then
-          deleteInOutput old
+          doDelete old
         else if old.outputMode /= ShowValue && keyCode == Keys.keyD && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doDuplicate old
-        else if old.outputMode /= ShowValue && keyCode == Keys.keyG && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
-          doGroup old
+        -- else if old.outputMode /= ShowValue && keyCode == Keys.keyG && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+        --   doGroup old
         else if old.outputMode /= ShowValue && keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           doUndo old
         else if old.outputMode /= ShowValue && keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
@@ -1924,7 +1924,7 @@ addToOutput old =
     old
 
 
-deleteInOutput old =
+doDelete old =
   let
     proximalInterpretations =
       ShapeWidgets.selectionsUniqueProximalEIdInterpretations
@@ -1971,20 +1971,167 @@ msgStopAutoSynthesisAndClear =
 
 --------------------------------------------------------------------------------
 
-msgGroupBlobs = Msg "Group Blobs" doGroup
+msgGroup = Msg "Group" doGroup
 
-doGroup =
-  \old ->
-    case Blobs.maybeSimpleProgram old.inputExp of
-      Nothing -> old
-      Just simple ->
-        let maybeAnchorPoint = ETransform.anchorOfSelectedFeatures old.selectedFeatures in
-        let multipleSelectedBlobs = Dict.size old.selectedBlobs > 1 in
-        case (maybeAnchorPoint, multipleSelectedBlobs) of
-          (Ok Nothing, False)   -> old
-          (Ok Nothing, True)    -> upstateRun <| ETransform.groupSelectedBlobs old simple
-          (Ok (Just anchor), _) -> upstateRun <| ETransform.groupSelectedBlobsAround old simple anchor
-          (Err err, _)          -> let _ = Debug.log "bad anchor" err in old
+-- Needs some annoying detail fixups to get this to go for, say, selected
+-- points but it should otherwise just work.
+doGroup old =
+  let
+    valsToGroup =
+      ShapeWidgets.selectedFeaturesValTreesWithPoints old.slate old.widgets (Set.toList old.selectedFeatures) ++
+      ShapeWidgets.selectedShapesValTrees old.slate old.widgets (Set.toList old.selectedShapes)
+
+    -- uniqueSingleExpressionInterpretations selectedFeature =
+    --   ShapeWidgets.uniqueNonVarSingleExpressionInterpretations
+    --       old.inputExp
+    --       old.slate
+    --       old.widgets
+    --       old.selectedFeatures
+    --       Set.empty
+    --       Dict.empty
+    --       (always True)
+    --   |> Set.fromList
+
+    logProgram caption e = Utils.log <| caption ++ ":\n" ++ Syntax.unparser old.syntax e
+
+    -- 1. We need a list.
+    -- 2. We need these things to be in the list.
+    -- 3. We need the list to appear in the output.
+    -- 4. We need the originals to not appear in the output.
+    -- 5. We need the unique dependencies to (possibly) be consolidated into the group definition.
+
+    originalProgram = old.inputExp
+    maxId = FastParser.maxId originalProgram
+    (insertedLetEId, insertedBoundExpEId) = (maxId + 1, maxId + 2)
+    (contextExp, endOfDrawingContextExp) = FocusedEditingContext.contextExpAndEndOfDrawingContextExp old.editingContext originalProgram
+
+    groupTuple = setEId insertedBoundExpEId <| eTuple <| List.map eHoleVal valsToGroup
+
+    -- 1. We need a list.
+
+    listsToTry =
+      let areAllHomogenousListsOfTheSameType =
+        valsToGroup
+        |> List.map Types.valToMaybeType
+        |> Utils.projJusts
+        |> Maybe.map (Utils.dedup >> List.length >> (==) 1)
+        |> Maybe.withDefault False
+      in
+      [groupTuple] ++
+        if areAllHomogenousListsOfTheSameType
+        then [setEId insertedBoundExpEId <| eCall "concat" [clearEId groupTuple]]
+        else []
+
+    synthesisResults =
+      listsToTry
+      |> List.map
+          (\initialGroupListWithHoles ->
+            let
+              (groupInitialName, programWithList) =
+                originalProgram
+                |> LangTools.newVariableVisibleTo
+                    insertedLetEId
+                    "group"
+                    1 -- number to start from when resolving name collisions
+                    initialGroupListWithHoles
+                    [endOfDrawingContextExp.val.eid]
+
+              _ = logProgram "programWithList" programWithList
+
+              -- 2. We need these things to be in the list.
+
+              -- DrawAddShape resolves holes so we can probably skip this step.
+              programWithListHolesFilled =
+                programWithList
+                |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
+                |> List.head
+                |> Maybe.withDefault originalProgram
+
+              _ = logProgram "programWithListHolesFilled" programWithListHolesFilled
+
+              -- 3. We need the list to appear in the output.
+
+              -- To make this work well with non-shapes, need to detect ...
+              -- ...really now that type inference is better, just need to make
+              -- type-direct choices in DrawAddShape instead of relying on crashing
+              -- and precise output expectations
+              programWithListInOutput =
+                programWithListHolesFilled
+                |> DrawAddShape.addShape
+                    old
+                    (always True) -- targetListFilter
+                    Nothing -- maybeNewShapeName
+                    (eVar groupInitialName) -- newShapeExp
+                    Nothing -- (Just <| List.length valsToGroup) -- maybeNumberOfNewShapesExpected -- we're not smart enough to predict the number of shapes when flattening lists
+                    Nothing -- maybeNumberOfNewShapesExpectedIfListInlined
+                    Nothing -- maybeNumberOfNewListItemsExpected
+                    Nothing -- maybeNumberOfNewListItemsExpectedIfListInlined
+                    False -- areCrashingProgramsOkay
+                |> freshen
+
+              _ = logProgram "programWithListInOutput" programWithListInOutput
+
+
+              groupBoundExp = LangTools.justFindExpByEId programWithListInOutput initialGroupListWithHoles.val.eid
+
+              -- 4. We need the originals to not appear in the output.
+              -- Need to do this late in the pipeline here in case newVariableVisibleTo inserted variables into shape list where previously there was a more literal expression in the shape list.
+              programWithOriginalUsesRemoved =
+                let (oldShapeCount, oldListItemsCount) = DrawAddShape.maybeShapeCountAndListItemCountInContextOutput old programWithListInOutput |> Maybe.withDefault (0, 0) in
+                -- Get the tuple that contains group items (e.g. just grab it, or perhaps dig into the concat args)
+                let insertedTuple =
+                  groupBoundExp
+                  |> LangTools.expToMaybeAppArgs
+                  |> Maybe.andThen Utils.maybeUnwrap1
+                  |> Maybe.withDefault groupBoundExp
+                in
+                insertedTuple
+                |> childExps
+                |> List.map expEffectiveExp
+                |> List.filter isVar
+                |> List.map (.val >> .eid)
+                |> Utils.foldl
+                    programWithListInOutput
+                    (\varEIdInTuple program ->
+                      let possibleUsageEIdsToRemove =
+                        LangTools.allVarUsages varEIdInTuple program
+                        |> List.map (.val >> .eid)
+                        |> Utils.removeAsSet varEIdInTuple
+                      in
+                      let maybeProgramWithItemRemovedFromOutput =
+                        possibleUsageEIdsToRemove
+                        |> Utils.mapFirstSuccess
+                            (\varEIdToRemove ->
+                              case CodeMotion.maybeDeleteEId varEIdToRemove program of
+                                Just programWithVarEIdRemoved ->
+                                  let _ = logProgram "programWithVarEIdRemoved" programWithVarEIdRemoved in
+                                  case DrawAddShape.maybeShapeCountAndListItemCountInContextOutput old programWithVarEIdRemoved of
+                                    Just (newShapeCount, newListItemsCount) ->
+                                      if newShapeCount < oldShapeCount || newListItemsCount < oldListItemsCount
+                                      then Just programWithVarEIdRemoved
+                                      else Nothing
+
+                                    Nothing ->
+                                      Nothing
+
+                                Nothing ->
+                                  Nothing
+                            )
+                      in
+                      maybeProgramWithItemRemovedFromOutput
+                      |> Maybe.withDefault program
+                    )
+
+              -- 5. We need the unique dependencies to (possibly) be consolidated into the group definition.
+            in
+            synthesisResult
+                (groupBoundExp |> Syntax.unparser Syntax.Elm |> Utils.squish)
+                programWithOriginalUsesRemoved
+          )
+  in
+  { old | synthesisResultsDict = Dict.insert "Group" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
+
+
 
 
 -- Find a single expression that explains everything selected: duplicate it.
@@ -1992,45 +2139,18 @@ doGroup =
 -- Could change to instead duplicate everything selected, inidividually.
 msgDuplicate = Msg "Duplicate " doDuplicate
 
-
--- (def r 15)
---
--- (def circles
---   (map (\i
---       (let [cx cy r] [208 168 (+ (* i 18) r)]
---       (let color (if (= (mod i 2) 0) 499 0)
---         (rawCircle color 360 0 cx cy r))))
---     (reverse (zeroTo 8!{0-15}))))
---
--- (svg (concat [
---   circles
--- ]))
-
 doDuplicate : Model -> Model
 doDuplicate old =
   let
-    singleExpressionInterpretations =
-      ShapeWidgets.selectionsSingleEIdInterpretations
-          old.inputExp
-          old.slate
-          old.widgets
-          old.selectedFeatures
-          old.selectedShapes
-          old.selectedBlobs
-          (not << isVar << expEffectiveExp)
-      |> Set.fromList
-
-
     uniqueSingleExpressionInterpretations =
-      ShapeWidgets.selectionsUniqueProximalEIdInterpretations
+      ShapeWidgets.uniqueNonVarSingleExpressionInterpretations
           old.inputExp
           old.slate
           old.widgets
           old.selectedFeatures
           old.selectedShapes
           old.selectedBlobs
-          (\e -> Set.member e.val.eid singleExpressionInterpretations)
-      |> List.filterMap Utils.maybeUnwrap1
+          (always True)
 
   -- let _ = Utils.log <| LangUnparser.unparseWithIds old.inputExp in
 

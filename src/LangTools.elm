@@ -454,6 +454,38 @@ terminalExpLevels exp =
     _                                    -> [exp]
 
 
+findRecursiveBranch : Exp -> Exp -> Maybe Exp
+findRecursiveBranch program funcExp =
+  case findLetAndIdentBindingExpLoose funcExp.val.eid program of
+    Just (letExp, funcName) ->
+      if expToLetRec letExp == True then
+        expToMaybeFuncBody funcExp
+        |> Maybe.andThen (identifierUses funcName >> List.map (.val >> .eid >> parentByEId program >> Maybe.withDefault Nothing) >> Utils.projJusts >> Maybe.map (List.filter isApp))
+        |> Utils.filterMaybe (not << List.isEmpty)
+        |> Maybe.andThen
+            (\recCalls ->
+              funcExp
+              |> mapFirstSuccessNode
+                  (\e ->
+                    case e.val.e__ of
+                      EIf _ _ _ branchExp1 _ branchExp2 _ ->
+                        if Utils.isSublistAsSet recCalls (flattenExpTree branchExp1) then
+                          Just branchExp1
+                        else if  Utils.isSublistAsSet recCalls (flattenExpTree branchExp2) then
+                          Just branchExp2
+                        else
+                          Nothing
+                      _ ->
+                        Nothing
+                  )
+            )
+      else
+        Nothing
+
+    _ ->
+      Nothing
+
+
 -- Find outermost expression that resolves to the same value.
 outerSameValueExp : Exp -> Exp -> Exp
 outerSameValueExp program targetExp =
@@ -1540,6 +1572,13 @@ expToMaybeAppFunc : Exp -> Maybe Exp
 expToMaybeAppFunc exp =
   case exp.val.e__ of
     EApp _ fExp _ _ _ -> Just fExp
+    _                 -> Nothing
+
+
+expToMaybeAppArgs : Exp -> Maybe (List Exp)
+expToMaybeAppArgs exp =
+  case exp.val.e__ of
+    EApp _ _ args _ _ -> Just args
     _                 -> Nothing
 
 
@@ -3027,10 +3066,38 @@ usedPIdsToVarEIds program =
   |> Utils.pairsToDictOfLists
 
 
+allVarUsages : EId -> Exp -> List Exp
+allVarUsages targetVarEId program =
+  let varsAndMaybePat = allVarsToBindingPatList program in
+  case varsAndMaybePat |> Utils.findFirst (\(var, _) -> var.val.eid == targetVarEId) of
+    Just (representativeVar, Just definingPat) ->
+      varsAndMaybePat
+      |> List.filter (\(_, maybePat) -> maybePat == Just definingPat)
+      |> List.map Tuple.first
+
+    Just (representativeVar, Nothing) ->
+      -- Free in program.
+      let targetIdent = expToIdent representativeVar in
+      varsAndMaybePat
+      |> List.filter (\(var, maybePat) -> maybePat == Nothing && expToIdent var == targetIdent)
+      |> List.map Tuple.first
+
+    Nothing ->
+      []
+
+
 -- "Nothing" means free in program
 -- May want this list version when you might have duplicate EIds
 allVarEIdsToBindingPatList : Exp -> List (EId, Maybe Pat)
 allVarEIdsToBindingPatList program =
+  allVarsToBindingPatList program
+  |> List.map (Tuple.mapFirst (.val >> .eid))
+
+
+-- "Nothing" means free in program
+-- May want this list version when you might have duplicate EIds
+allVarsToBindingPatList : Exp -> List (Exp, Maybe Pat)
+allVarsToBindingPatList program =
   let handleELet letExp identToPId =
     Dict.union
         (expToLetPat letExp |> indentPatsInPat |> Dict.fromList)
@@ -3048,10 +3115,10 @@ allVarEIdsToBindingPatList program =
   in
   program
   |> foldExpTopDownWithScope
-      (\exp eidAndMaybePId identToPId ->
+      (\exp expAndMaybePId identToPId ->
         case expToMaybeIdent exp of
-          Just ident -> (exp.val.eid, Dict.get ident identToPId) :: eidAndMaybePId
-          Nothing    -> eidAndMaybePId
+          Just ident -> (exp, Dict.get ident identToPId) :: expAndMaybePId
+          Nothing    -> expAndMaybePId
       )
       handleELet
       handleEFun

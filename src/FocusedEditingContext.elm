@@ -36,6 +36,19 @@ maybeFocusedExp editingContext program =
     _             -> Nothing
 
 
+-- Bug not worth fixing right now:
+-- If the function is recursive, only ever returns the end of the recursive branch.
+contextExpAndEndOfDrawingContextExp : Maybe (EId, a) -> Exp -> (Exp, Exp)
+contextExpAndEndOfDrawingContextExp editingContext program =
+  let contextExp = drawingContextExp editingContext program in
+  let endOfDrawingContextExp =
+    case maybeFocusedExp editingContext program |> Maybe.map (LangTools.findRecursiveBranch program) of
+      Just (Just recursiveBranchExp)  -> LangTools.lastSameLevelExp recursiveBranchExp
+      _                               -> LangTools.lastSameLevelExp contextExp
+  in
+  (contextExp, endOfDrawingContextExp)
+
+
 contextInputVals : Maybe (EId, a) -> Maybe Env -> Exp -> List Val
 contextInputVals editingContext maybeEnv program =
   case (maybeEnv, maybeFocusedExp editingContext program) of
