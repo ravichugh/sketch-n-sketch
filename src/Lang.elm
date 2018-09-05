@@ -3334,9 +3334,7 @@ tagSinglePat ppid pat =
         PWildcard _ ->
           []
         PAs _ _ _ p1 ->
-          -- TODO Unsure if this is the right ppid (it is the same as the
-          --      parent).
-          tagSinglePat ppid p1
+          tagPatList ppid [p1]
         PList _ ps _ Nothing _  ->
           tagPatList ppid ps
         PList _ ps _ (Just pTail) _ ->
