@@ -647,7 +647,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
     in
     [region, box, text, ball]
   in
-  let drawPointWidget i_ widget (cx, cxTr) xVal (cy, cyTr) yVal =
+  let drawPointWidget i_ widget (cx, cxTr) xVal (cy, cyTr) yVal pairVal =
     let idAsShape = -2 - i_ in
     let extraAttrs = [ onMouseEnter (addHoveredShape idAsShape), onMouseLeave (removeHoveredShape idAsShape) ] in
     let getShapeInterp () =
@@ -667,7 +667,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
         -- , onMouseEnter (Msg "Hover Point" (\old -> { old | deuceState = { emptyDeuceState | hoveredWidgets = getShapeInterp () |> List.map DeuceWidgets.DeuceExp} }))
         -- , onMouseLeave (Msg "Hover Point" (\old -> { old | deuceState = emptyDeuceState }))
         ] <|
-        zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal
+        zoneSelectCrossDot model True (idAsShape, "point", LonePoint) (cx, cxTr) xVal (cy, cyTr) yVal pairVal
         ++ if model.tool /= Cursor then [] else zonePoint model True idAsShape "point" (ZPoint LonePoint) [] (cx, cy)
     ]
   in
@@ -701,7 +701,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
         svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp model.renamingInOutput idAsShape (baseXNumTr, baseYNumTr) axis sign (amount, amountTr) amountVal shouldHighlight dragStyle
       in
       let endPt =
-        zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal
+        zoneSelectCrossDot model False (idAsShape, "offset", EndPoint) endXNumTr endXVal endYNumTr endYVal dummyVal
       in
       if amount /= 0 then
         [ Svg.g
@@ -935,7 +935,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
         drawNumWidget i_ widget k cap minVal maxVal curVal val
 
       WPoint xNumTr xVal yNumTr yVal pairVal ->
-        drawPointWidget i_ widget xNumTr xVal yNumTr yVal
+        drawPointWidget i_ widget xNumTr xVal yNumTr yVal pairVal
 
       WOffset1D baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal ->
         drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign amountNumTr amountVal endXVal endYVal
@@ -1689,13 +1689,13 @@ doToggleSelected selectableFeatures =
     { model | selectedFeatures = List.foldl updateSet model.selectedFeatures selectableFeatures }
 
 
-maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr xVal yNumTr yVal =
+maybeZoneSelectCrossDot sideLength model thisCrosshair xNumTr xVal yNumTr yVal pairVal =
   if sideLength < minLengthForMiddleZones then []
-  else zoneSelectCrossDot model False thisCrosshair xNumTr xVal yNumTr yVal
+  else zoneSelectCrossDot model False thisCrosshair xNumTr xVal yNumTr yVal pairVal
 
 zoneSelectCrossDot : Model -> Bool -> (Int, ShapeKind, PointFeature)
-                  -> NumTr -> Val -> NumTr -> Val -> List (Svg Msg)
-zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal yNumTr yVal =
+                  -> NumTr -> Val -> NumTr -> Val -> Val -> List (Svg Msg)
+zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal yNumTr yVal pairVal =
   let ((xFloat, _), (yFloat, _)) = (xNumTr, yNumTr) in
   let (x, y) = (round xFloat, round yFloat) in
   let thisCrosshair = (id, pointFeature) in
@@ -1847,7 +1847,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
       ] ++ if model.tool /= Cursor then [] else
         [ onMouseDownAndStop (toggleSelected [ySelectableFeature]) ]
   in
-  let isFromOutsideProgram = FastParser.isPreludeEId (valEId xVal) || FastParser.isPreludeEId (valEId yVal) in
+  let isFromOutsideProgram = (FastParser.isPreludeEId (valEId xVal) || FastParser.isPreludeEId (valEId yVal)) && not (FastParser.isProgramEId (valEId pairVal)) in
   let perhapsFaded = if isFromOutsideProgram then [ attr "opacity" "0.4" ] else [] in
   -- using nested group for onMouseLeave handler
   List.singleton <| Svg.g
@@ -1911,8 +1911,8 @@ boxySelectZones model id kind boxyNums =
 
   let drawPoint maybeThreshold feature x y =
     case maybeThreshold of
-      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal
-      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal in
+      Just thresh -> maybeZoneSelectCrossDot thresh model (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal dummyVal
+      Nothing     -> zoneSelectCrossDot model False (id, kind, feature) (x, dummyTrace) dummyVal (y, dummyTrace) dummyVal dummyVal in
 
   let drawLine threshold feature pt1 pt2 =
     perhapsZoneSelectLine threshold model id feature pt1 pt2 in
@@ -2013,9 +2013,9 @@ makeZonesLine model id l =
   in
   let zonesSelect =
     List.concat
-       [ maybeZoneSelectCrossDot (Utils.distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) dummyVal (cy, dummyTrace) dummyVal
-       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) dummyVal (y1, dummyTrace) dummyVal
-       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) dummyVal (y2, dummyTrace) dummyVal]
+       [ maybeZoneSelectCrossDot (Utils.distance pt1 pt2) model (id, "line", Center) (cx, dummyTrace) dummyVal (cy, dummyTrace) dummyVal dummyVal
+       , zoneSelectCrossDot model False (id, "line", Point 1) (x1, dummyTrace) dummyVal (y1, dummyTrace) dummyVal dummyVal
+       , zoneSelectCrossDot model False (id, "line", Point 2) (x2, dummyTrace) dummyVal (y2, dummyTrace) dummyVal dummyVal]
   in
   let primaryWidgets =
     boundingBoxZones model id bounds <|
@@ -2146,10 +2146,10 @@ makeZonesPoly model shape id l =
     let midptCrossDot ((i1, ((xi1, xTr1), (yi1, yTr1))), (i2, ((xi2, xTr2), (yi2, yTr2)))) =
       let (midX, midXTr) = ((xi1+xi2)/2, TrOp Plus [xTr1, xTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
       let (midY, midYTr) = ((yi1+yi2)/2, TrOp Plus [yTr1, yTr2]) in -- Can't divide by two until we unify traces which will allow introduction of constants. Here it only affects drawing new offests (for now).
-      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) dummyVal (midY, midYTr) dummyVal
+      zoneSelectCrossDot model False (id, shape, Midpoint i1) (midX, midXTr) dummyVal (midY, midYTr) dummyVal dummyVal
     in
     let ptCrossDot (i, (xNumTrI, yNumTrI)) =
-      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI dummyVal yNumTrI dummyVal
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTrI dummyVal yNumTrI dummyVal dummyVal
     in
     let midptCrossDots =
       let ptsI = Utils.mapi1 identity pts in
@@ -2198,7 +2198,7 @@ makeZonesPath model shape id nodeAttrs =
   let zSelect =
     let ptCrossDot (maybeIndex, (xNumTr, yNumTr)) =
       let i = Utils.fromJust maybeIndex in
-      zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyVal yNumTr dummyVal
+      zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyVal yNumTr dummyVal dummyVal
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in
     crossDots
