@@ -388,6 +388,10 @@ updateOutputValueTool selections =
 tools : Selections a -> List (List OutputTool)
 tools selections =
   List.map (List.map <| \tool -> tool selections) <|
+    [ [ updateOutputValueTool
+      ]
+    ]
+{-
     [ [ digHoleTool
       , makeEqualTool
       , relateTool
@@ -406,3 +410,4 @@ tools selections =
     , [ updateOutputValueTool
       ]
     ]
+-}

@@ -1401,7 +1401,7 @@ initModel =
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
     , codeToolsMenuMode = CTAll
-    , outputToolsMenuMode = True
+    , outputToolsMenuMode = False
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True
