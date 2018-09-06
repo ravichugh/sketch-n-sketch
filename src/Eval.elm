@@ -148,7 +148,7 @@ withParentsProvenanceWidgets = EvalOptions True True True
 withoutParentsProvenanceWidgets = EvalOptions False False False
 
 type EvalStack =
-    EvalResult EvalResult (Maybe (EvalResult -> EvalStack))
+    EvalReturn EvalResult (Maybe (EvalResult -> EvalStack))
   | EvalError String
   | EvalContinue EvalOptions Syntax Env Backtrace Exp (Maybe (EvalResult -> EvalStack))
 
@@ -156,20 +156,20 @@ type EvalStack =
 eval_ : EvalOptions -> Syntax -> Env -> Backtrace -> Exp -> Result String (Val, Widgets)
 eval_ options syntax env bt e = Result.map Tuple.first <| eval [] (evalContext options syntax env bt e)
 
-evalResult: EvalResult -> EvalStack
-evalResult r = EvalResult r Nothing
+evalReturn: EvalResult -> EvalStack
+evalReturn r = EvalReturn r Nothing
 
 evalContext: EvalOptions -> Syntax -> Env -> Backtrace -> Exp -> EvalStack
 evalContext options syntax env bt e = EvalContinue options syntax env bt e Nothing
 
 evalContinue: EvalOptions -> Syntax -> Env -> Backtrace -> Exp -> (EvalResult -> EvalStack) -> EvalStack
-evalContinue options syntax env bt e continuation = EvalContinue options syntax env bt e (Just continuation)
+evalContinue options syntax env bt e continuation = EvalContinue options syntax env bt e <| Just continuation
 
 eval: List (EvalResult -> EvalStack) -> EvalStack -> Result String EvalResult
 eval callbacks currentStack =
   case currentStack of
     EvalError msg -> Err msg
-    EvalResult result mb ->
+    EvalReturn result mb ->
       case Utils.maybeCons mb callbacks of
         [] -> Ok result
         f :: tail -> eval tail <| f result
@@ -260,29 +260,29 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
     let v_ = VConst Nothing (n, TrLoc loc) in
     let retVal = introduceVal [] v_ in
     if options.recordWidgets then
-      evalResult ((retVal, []), env)
+      evalReturn ((retVal, []), env)
     else
     case wd.val of
       NoWidgetDecl         ->
-        evalResult ((retVal, []), env)
+        evalReturn ((retVal, []), env)
       IntSlider a _ b mcap hidden ->
         let widget = WIntSlider a.val b.val (mkCap mcap loc) (floor n) retVal loc hidden in
-        evalResult ((retVal, [widget]), env)
+        evalReturn ((retVal, [widget]), env)
       NumSlider a _ b mcap hidden ->
         let widget = WNumSlider a.val b.val (mkCap mcap loc) n retVal loc hidden in
-        evalResult ((retVal, [widget]), env)
+        evalReturn ((retVal, [widget]), env)
 
-  EBase _ v     -> evalResult <| ret [] <| VBase (eBaseToVBase v)
+  EBase _ v     -> evalReturn <| ret [] <| VBase (eBaseToVBase v)
   EVar _ x      -> case lookupVar syntax env (e::bt) x e_start of
     Err msg -> EvalError msg
-    Ok v -> evalResult <| retV [v] v
-  EFun _ ps e _ -> evalResult <| ret [] <| VClosure [] ps e env
+    Ok v -> evalReturn <| retV [v] v
+  EFun _ ps e _ -> evalReturn <| ret [] <| VClosure [] ps e env
   EOp _ _ op es _ ->
      let aux revVsComputed revWsComputed esRemaining = case esRemaining of
        [] ->
           case evalOp syntax env e (e::bt) op es (List.reverse revVsComputed) (List.reverse revWsComputed) of
             Err msg -> EvalError msg
-            Ok res -> evalResult <| if options.recordParents then addParentToRet (res, env) else (res, env)
+            Ok res -> evalReturn <| if options.recordParents then addParentToRet (res, env) else (res, env)
        e1 :: esTail ->
           evalContinue options syntax env bt_ e1 <| \((v, ws), _) ->
             aux (v :: revVsComputed) (Utils.reverseInsert ws revWsComputed) esTail
@@ -294,11 +294,11 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
          let vs = List.reverse revVsComputed in
          let ws = List.reverse revWsComputed in
          case m of
-           Nothing   -> evalResult <| retBoth vs (VList vs, ws)
+           Nothing   -> evalReturn <| retBoth vs (VList vs, ws)
            Just (Expr rest as eRest) ->
              evalContinue options syntax env bt_ eRest <| \((vRest, ws_), _) ->
                case vRest.v_ of
-                 VList vs_ -> evalResult <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_)
+                 VList vs_ -> evalReturn <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_)
                  _ -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list, but " ++ valToString vRest
 
       (spc, e1) :: esTail ->
@@ -323,14 +323,14 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
        let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
          \i -> (i, lookupVar syntax newEnv (e::bt) i e_start |> Utils.fromOk "Record variable"))
              |> Set.toList |> Dict.fromList) d) in
-       evalResult <| retBoth (Maybe.withDefault [] <| Maybe.map (\x -> [x]) v) (kvs, ws)
+       evalReturn <| retBoth (Maybe.withDefault [] <| Maybe.map (\x -> [x]) v) (kvs, ws)
 
   ESelect ws0 (Expr exp1_ as e1) _ wsId id ->
     evalContinue options syntax env bt_ e1 <| \((d, ws), _) ->
       case d.v_ of
         VRecord dict ->
           case Dict.get id dict of
-            Just v -> evalResult <| retBoth [d] (v.v_, ws)
+            Just v -> evalReturn <| retBoth [d] (v.v_, ws)
             _ ->
                 let suggestions = Utils.stringSuggestions (Dict.keys dict) id in
                 errorWithBacktrace syntax (e1::bt) <| strPos wsId.end ++ " Key " ++ id ++ " not found." ++ (case suggestions of
@@ -344,7 +344,7 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
   EIf _ (Expr e1 as eCond) _ eThen _ eElse _ ->
     evalContinue options syntax env bt eCond <| \((v1, ws1), _) -> let
         afterEval (((v, _), _) as result) =
-          evalResult <| addProvenanceToRet [v] <| addWidgets ws1 result -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          evalReturn <| addProvenanceToRet [v] <| addWidgets ws1 result -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
       in case v1.v_ of
           VBase (VBool True)  ->
             evalContinue options syntax env bt eThen afterEval
@@ -357,7 +357,7 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
       evalBranches options syntax env (e::bt) v1 bs (\() ->
         errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement, cannot match " ++ valToString v1
       ) <| \((v2,ws2), _) ->
-        evalResult <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+        evalReturn <| retVBoth [v2] (v2, ws1 ++ ws2) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
 
   EApp sp0 (Expr exp1_ as e1) es appStyle sp1 ->
     let e1 = Expr exp1_ in
@@ -390,7 +390,7 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
                then [WCall v1 argVals fRetVal fRetWs]
                else []
              in
-             evalResult <| retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
+             evalReturn <| retVBoth [fRetVal] (fRetVal, ws1 ++ fRetWs ++ perhapsCallWidget)
          VFun name argList evalDef _ -> let
              arity = List.length argList
              availableArgs = List.length es
@@ -417,7 +417,7 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
                      if List.length remaining > 0 then
                        evalVApp v (List.reverse <| Utils.reverseInsert newWs revArgWidgets) remaining
                      else
-                       evalResult (vw, env) in
+                       evalReturn (vw, env) in
              aux arguments [] (List.reverse ws)
 
          _ ->
@@ -427,7 +427,7 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
   ELet wsLet lk declarations _ e2 ->
     evalDeclarations options syntax env bt_ declarations <| \newEnv widgets ->
       evalContinue options syntax newEnv bt_ e2 <| \result ->
-        evalResult <| addWidgets widgets <| result
+        evalReturn <| addWidgets widgets <| result
 
   EColonType _ e1 _ t1 _ ->
     -- Pass-through, so don't add provenance.
@@ -441,17 +441,17 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
               case (v1.v_, v2.v_) of
                 (VConst _ nt1, VConst _ nt2) ->
                   let vNew = {v | v_ = VList [{v1 | v_ = VConst (Just (X, nt2, v2)) nt1}, {v2 | v_ = VConst (Just (Y, nt1, v1)) nt2}]} in
-                  evalResult ((vNew, ws ++ [WPoint nt1 v1 nt2 v2]), env_)
+                  evalReturn ((vNew, ws ++ [WPoint nt1 v1 nt2 v2]), env_)
                 _ ->
-                  evalResult result
+                  evalReturn result
             _ ->
-              evalResult result
-          else evalResult result
+              evalReturn result
+          else evalReturn result
       _ ->
         evalContext options syntax env bt e1
 
   EParens _ e1 _ _      -> evalContext options syntax env bt e1
-  EHole _ (ESnapHole val) -> evalResult <| retV [val] val
+  EHole _ (ESnapHole val) -> evalReturn <| retV [val] val
   EHole _ EEmptyHole    -> errorWithBacktrace syntax (e::bt) <| strPos e_start ++ " empty hole!"
 
 
