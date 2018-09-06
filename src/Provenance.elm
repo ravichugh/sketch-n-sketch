@@ -1,6 +1,7 @@
 module Provenance exposing (..)
 
 import FastParser
+import Javascript
 import Lang exposing (..)
 import LangTools
 import LangUnparser
@@ -32,10 +33,11 @@ valsSame v1 v2 =
 
 valEqFast : Val -> Val -> Bool
 valEqFast v1 v2 =
-  -- This comparison order should abort earlier for unequal values.
-  v1.v_ == v2.v_ &&
-  v1.provenance == v2.provenance &&
-  v1.parents == v2.parents
+  Javascript.tripleEqualsOperator v1 v2
+  -- -- This comparison order should abort earlier for unequal values.
+  -- v_EqFast v1.v_ v2.v_ &&
+  -- v1.provenance == v2.provenance &&
+  -- v1.parents == v2.parents
 
 
 -- Step backwards in the provenance by one step, if, based on the expression evaluated, the prior step has to be the same value.
@@ -181,7 +183,7 @@ pointPartsToPointValsStrict xValTree yValTree =
   let parentPoints = coordinateIntermediatesToSharedPointParents (valToSameVals xValTree) (valToSameVals yValTree) in
   parentPoints
   |> List.concatMap valToSameVals
-  |> Utils.dedup
+  |> dedupByValEqFast
 
 
 -- Includes given val.
@@ -196,7 +198,34 @@ equivalentValParents =
   valToSameVals
   >> List.concatMap valParents
   >> List.concatMap valToSameVals
-  >> Utils.dedup
+  >> dedupByValEqFast
+
+
+listMemberByValEqFast : Val -> List Val -> Bool
+listMemberByValEqFast targetVal vals =
+  case vals of
+    []    -> False
+    v::vs -> valEqFast targetVal v || listMemberByValEqFast targetVal vs
+
+
+dedupByValEqFast : List Val -> List Val
+dedupByValEqFast vals =
+  let (deduped, _) =
+    vals
+    |> Utils.foldl
+        ([], [])
+        (\val (deduped, seen) ->
+          if listMemberByValEqFast val seen
+          then (deduped, seen)
+          else (deduped ++ [val], val::seen)
+        )
+  in
+  deduped
+
+
+intersectAsSetByValEqFast : List Val -> List Val -> List Val
+intersectAsSetByValEqFast vals1 vals2 =
+  vals1 |> List.filter (\v -> listMemberByValEqFast v vals2)
 
 
 sharedParents : List Val -> List Val
@@ -204,7 +233,7 @@ sharedParents vals =
   case vals of
     []            -> []
     [val]         -> equivalentValParents val
-    val::restVals -> Utils.intersectAsSet (sharedParents restVals) (equivalentValParents val)
+    val::restVals -> intersectAsSetByValEqFast (sharedParents restVals) (equivalentValParents val)
 
 
 coordinateIntermediatesToSharedPointParents : List Val -> List Val -> List Val

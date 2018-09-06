@@ -91,7 +91,8 @@ loc:
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm \
     DefaultIconTheme.elm \
-    Native/ImpureGoodies.js
+    Native/ImpureGoodies.js \
+    Native/Javascript.js
 
 littleloc:
 	# wc -l ../examples/*
