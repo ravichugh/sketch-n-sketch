@@ -9655,12 +9655,12 @@ main = htmlpass <| markdown <|
 # Sketch-n-sketch Tutorial - Fair grades
 _This tutorial supposes that you have Sketch-n-sketch 0.7.1 configured correctly_  
   
-Finally, your teaching assistants corrected all the assignments,
+At last, your teaching assistants corrected all the assignments,
 the mid-terms and the final exam.
-You are left with a list of student names and a grade over 100.  
+They provided you with a list of student names and their average grade over 100.
 How to fairly map these grades to letters, such as A+, A, A-, B+... until E?
 
-To start, paste the following code in the Sketch-n-sketch editor:
+To start, paste the following code in the Sketch-n-sketch editor on the left pane:
 @newcode<|\"\"\"@path1
 
 -- Displays the interface
@@ -9669,13 +9669,16 @@ main = <span><h1>Fair grades</h1>
   @path2
   </span>\"\"\"
 @displaycode
-Above is the expected result. Note that the <code>main = </code> is optional, if the program ends with an expression, it will be the main.
+After clicking on \"Run\", you should have the result below on the right.
+Note that the <code>main = </code> is optional, if the program ends with an expression, it will automatically insert <code>main = </code> in front of it.
 @displayproductionevalcode
 
-## Student data
-Now is the time to import the grades.  
-Let's suppose you managed to export a comma-separated value file containing on each line a name and a grade.  
-@replacepath(path1)<|\"\"\"input_data = @(q3)Alice,64.7
+## Import the grades
+Out of the spreadsheet that your assistants provided you with,
+you managed to export a comma-separated value file containing on each line a name and a grade.
+Fortunately, sketch-n-sketch can handle raw strings by enclosing them in triple quotes <code>\"\"\"</code>.
+Let us assign this string data to the variable <code>@var_input_data</code>  
+@replacepath(path1)<|\"\"\"@var_input_data = @(q3)Alice,64.7
 Bob,78.5
 Eve,57.9
 Seya,100
@@ -9705,42 +9708,54 @@ Derrick,66.4
 Rudolph,83.2
 Rafael,86.6@(q3)
 
-@path3
-\"\"\"## Convert student data
-First, we convert this data to a list of structured records or datatypes.
-@replacepath(path3)<|\"\"\"studentsGrades = 
-  List.map (\\line -> case Regex.extract \"^(.*),(.*)\" line of
+@path3\"\"\"## Convert student data
+If you want to display this data, you could simply insert in the <code>main</code> the code <code>@@@var_input_data</code>, but that would only display the string, which would not be very helpful.  
+First, we convert this data to a list of datatypes like <code>Student \"Alice\" 64.7</code> and store it to a variable <code>@var_studentsGrades</code>.  
+@replacepath(path3)<|\"\"\"type Student = Student String Num
+
+@var_studentsGrades = 
+  @var_input_data
+  |> Regex.split \"\\r?\\n\"
+  |> List.map (\\line -> case Regex.extract \"^(.*),(.*)\" line of
     Just [name, gradeString] ->
       Student name (Update.freeze <| String.toFloat gradeString)
-  ) <| Regex.split \"\\r?\\n\" input_data
+  )
 
-@path4\"\"\"
-Our language can define arbitrary data constructors, provided they start with a capital name, hence the <code>Student</code> constructor.
-Note that we use <code>Update.freeze</code> to prevent any change to be propagated to the grade at this stage.
+@path4\"\"\"First notice how we define a datatype constructor <code>Student</code> that accepts a string (the name) and a number (the grade over 100). This datatype is like a pair that stores the two pieces of information.  
+The construcion <code>b |> f a</code> is equivalent to the more natural <code>f a b</code> (a function <code>f</code> applied to two arguments <code>a</code> and <code>b</code>) but it is a good way to visualize the transformation step by step.  
+Here, we use the library function <code>Regex.split</code> to split the <code>@var_input_data</code> on newlines, which gives us a list of strings.
+Then, each of these \"lines\" is extracted against a regular expression for the informations before and after the comma, so that we can build a data <code>Student</code> with the extracted <code>name</code> and the grade that we convert to a float (number).  
+Note that we also add <code>Update.freeze</code> to make sure we will never modify this grade indirectly.
 
 ## Define the cut-offs
-First, we need to define associations between letters and minimum grades.
-We have a first guess (e.g. from previous year, or a linear guess).
+We need to define associations between letters and minimum grades to obtain them.
+We suppose that we have a first guess (e.g. from previous year, or a linear guess).
 
 @replacepath(path4)<|\"\"\"cutoffs = [
   CutOff \"A+\" 96.8,
-  CutOff \"A\" 90,
+  CutOff \"A\"  90,
   CutOff \"A-\" 86,
   CutOff \"B+\" 82.9,
-  CutOff \"B\" 76,
+  CutOff \"B\"  76,
   CutOff \"B-\" 68.5,
   CutOff \"C+\" 61,
-  CutOff \"C\" 55.8,
+  CutOff \"C\"  55.8,
   CutOff \"C-\" 40.4,
-  CutOff \"D\" 29.5,
-  CutOff \"E\" 0]
+  CutOff \"D\"  29.5,
+  CutOff \"E\"  0]
 
-@path5\"\"\"## Display cut-offs and grades as SVG
+@path5\"\"\"## Example: get students in each group
+Just as an exercise, if we wanted to display how many students obtained a letter given \"B-\" and \"A+\", we could insert the following code next to <code>@path2</code> in <code>main</code>:
+@displaylocalcode(example1)
+You would end up with the following output on the right-hand side.
+@displayevalcodeLocalReplace(path2)(example1)
+This is just an example to illustrate general-purpose computing techniques (such as recursion, pattern matching, list construction and deconstruction), but for now you can discard this code snippet.
+## Display cut-offs and grades as SVG
 We display cut-offs as horizontal lines, and the grades as bars,
 to \"see\" where the cuts are. To make it meaningful, we sort students by grade.
 
 @replacepath(path5)<|\"\"\"sortedGrades =
-  sortBy (\\(Student _ n1) (Student _ n2) -> n1 > n2) studentsGrades
+  sortBy (\\(Student _ n1) (Student _ n2) -> n1 > n2) @var_studentsGrades
 
 numStudents = List.length sortedGrades
 
@@ -10022,9 +10037,29 @@ path9 = \"-- We will write code here #8\"
 path2_1 = \" Table coming soon...\"
 path2_2 = \"\"
 
+var_input_data = \"input_data\"
+var_studentsGrades = \"studentsGrades\"
+
+example1 = \"\"\"@@(let
+    thresholdOf name =
+      let aux cutoffs = case cutoffs of
+        [] -> 0
+        CutOff n t :: tail -> if name == n then t else aux tail
+      in aux cutoffs
+    
+    minGrade = thresholdOf \"B-\"
+    maxGrade = 100
+  in
+  (@var_studentsGrades
+  |> List.filterMap (\\Student name grade ->
+    if grade >= minGrade && grade < maxGrade then Just name else Nothing)
+  |> String.join \",\") ++ \" are above B-\"
+)\"\"\"
+
 newcode code = <newcode code=code></newcode>
 replacepath path code = <replacepath path=path code=code class=\"snippet\"></replacepath>
 displaycode = <displaycode class=\"snippet\"></displaycode>
+displaylocalcode code = <displaylocalcode code=code class=\"snippet\"></displaylocalcode>
 displayevalcode = <displayevalcode></displayevalcode>
 displayproductionevalcode = <displayproductionevalcode></displayproductionevalcode>
 
@@ -10062,6 +10097,8 @@ htmlpass htmlnode =
     [\"replacepath\", [\"path\", path]::[\"code\", code]::attrs, []] ->
       let newSrc = Regex.replace (escape path) (\\_ -> code) src in
       (newSrc, <span>Replace the code <code>@path</code> by<code @attrs>@code</code></span>)
+    [\"displaylocalcode\", [\"code\", code]::attrs, []] ->
+      (src, [\"code\", attrs, [[\"TEXT\", code]]])
     [\"displaycode\", attrs, []] ->
       (src, [\"code\", attrs, [[\"TEXT\", src]]])
     [\"displayproductionevalcode\", attrs, []] ->
