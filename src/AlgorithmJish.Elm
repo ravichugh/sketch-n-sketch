@@ -79,6 +79,7 @@ inst_ : TypesHeap -> Dict Ident Type -> Type -> Type
 inst_ typesHeap subst t =
   let recurse = inst_ typesHeap subst in
   let wrap t__ = replaceT__ t t__ in
+  addRoles t.val.roles <|
   case t.val.t__ of
     TForall _ _ t1 _ ->
       let
@@ -93,17 +94,12 @@ inst_ typesHeap subst t =
               )
       in
       inst_ typesHeap newSubst t1
-      |> addRoles t.val.roles
 
-    TVar _ ident ->
-      case Dict.get ident subst of
-        Just newType -> addRoles t.val.roles newType
-        Nothing      -> t
-
+    TVar _ ident             -> Utils.getWithDefault ident t subst
     TList ws1 t1 ws2         -> wrap <| TList ws1 (recurse t1) ws2
     TDict ws1 t1 t2 ws2      -> wrap <| TDict ws1 (recurse t1) (recurse t2) ws2
     TArrow ws1 ts ws2        -> wrap <| TArrow ws1 (List.map recurse ts) ws2
-    TUnion ws1 ts ws2        -> addRoles t.val.roles (newVar typesHeap) -- wrap <| TUnion ws1 (List.map recurse ts) ws2
+    TUnion ws1 ts ws2        -> newVar typesHeap -- wrap <| TUnion ws1 (List.map recurse ts) ws2
     TTuple ws1 ts ws2 mt ws3 -> wrap <| TTuple ws1 (List.map recurse ts) ws2 (Maybe.map recurse mt) ws3
 
     TNum _      -> t
@@ -221,29 +217,33 @@ findRepresentativesAndShareRoles typesHeap t0 t1 =
 
     roles = Set.union aClass.representative.val.roles bClass.representative.val.roles
 
-    ta = addRoles roles aClass.representative
-    tb = addRoles roles bClass.representative
+    _ = addRolesToClass typesHeap roles t0
+    _ = addRolesToClass typesHeap roles t1
+  in
+  ( (find typesHeap t0).representative
+  , (find typesHeap t1).representative
+  )
 
-    newAClass = { aClass | representative = ta }
-    newBClass = { bClass | representative = tb }
 
-    newEquivalenceClasses1 =
-      newAClass.members
+addRolesToClass : TypesHeap -> Set Ident -> Type -> ()
+addRolesToClass typesHeap roles t =
+  let
+    class = find typesHeap t
+
+    tWithRoles = addRoles roles class.representative
+
+    newClass = { class | representative = tWithRoles }
+
+    newEquivalenceClasses =
+      newClass.members
       |> Set.toList
       |> Utils.foldl
           typesHeap.equivalenceClasses
-          (\memberIdent newEquivalenceClasses -> Dict.insert memberIdent newAClass newEquivalenceClasses)
+          (\memberIdent newEquivalenceClasses -> Dict.insert memberIdent newClass newEquivalenceClasses)
 
-    newEquivalenceClasses2 =
-      newBClass.members
-      |> Set.toList
-      |> Utils.foldl
-          newEquivalenceClasses1
-          (\memberIdent newEquivalenceClasses -> Dict.insert memberIdent newBClass newEquivalenceClasses)
-
-    _ = ImpureGoodies.mutateRecordField typesHeap "equivalenceClasses" newEquivalenceClasses2
+    _ = ImpureGoodies.mutateRecordField typesHeap "equivalenceClasses" newEquivalenceClasses
   in
-  (ta, tb)
+  ()
 
 
 tVarToIdent : Type -> Ident
@@ -296,8 +296,6 @@ union typesHeap t1 t2 =
 
 
 -- Mutates TypesHeap to affect the unification.
---
--- No occurs check at the moment.
 unify : TypesHeap -> Type -> Type -> ()
 unify typesHeap t0 t1 =
   let
@@ -321,8 +319,8 @@ unify typesHeap t0 t1 =
     (TForall _ _ ta_ _, _)                         -> fail "Internal error: should never be unifying a polytype"
     (_, TForall _ _ tb_ _)                         -> fail "Internal error: should never be unifying a polytype"
     (TVar _ aIdent, TVar _ bIdent)                 -> union typesHeap ta tb
-    (_, TVar _ ident)                              -> if doesOccurIn ident ta then fail "occurs check failed" else union typesHeap ta tb
-    (TVar _ ident, _)                              -> if doesOccurIn ident tb then fail "occurs check failed" else union typesHeap ta tb
+    (_, TVar _ ident)                              -> if doesOccurIn ident ta then fail "occurs check failed" else union typesHeap t0 t1
+    (TVar _ ident, _)                              -> if doesOccurIn ident tb then fail "occurs check failed" else union typesHeap t0 t1
     -- (TNamed _ name1, TNamed _ name2)               -> if name1 == name2 then () else fail "type alias names don't match (we're a little dumb right now)"
     -- (_, TNamed _ _)                                -> LT -- Hrm.
     -- (TNamed _ _, _)                                -> GT -- Hrm.
@@ -347,8 +345,8 @@ unify typesHeap t0 t1 =
         _                       -> fail "Tuple shapes don't match"
     (TDict _ ta1 ta2 _, TDict _ tb1 tb2 _)         -> let _ = unify typesHeap ta1 tb1 in unify typesHeap ta2 tb2
     (TArrow _ [ta1, ta2] _, TArrow _ [tb1, tb2] _) -> let _ = unify typesHeap ta1 tb1 in unify typesHeap ta2 tb2
-    (TArrow _ (ta1::ta2::ta3::taRest) _, _)        -> unify typesHeap (tArrow ta1 (tArrows (ta2::ta3::taRest))) tb
-    (_, TArrow _ (tb1::tb2::tb3::tbRest) _)        -> unify typesHeap ta (tArrow tb1 (tArrows (tb2::tb3::tbRest)))
+    (TArrow _ (ta1::ta2::ta3::taRest) _, _)        -> unify typesHeap (tArrow ta1 (tArrows (ta2::ta3::taRest))) t1
+    (_, TArrow _ (tb1::tb2::tb3::tbRest) _)        -> unify typesHeap t0 (tArrow tb1 (tArrows (tb2::tb3::tbRest)))
     (TNum _, TNum _)                               -> ()
     (TBool _, TBool _)                             -> ()
     (TString _, TString _)                         -> ()
@@ -560,6 +558,13 @@ infer typesHeap context e =
       else
         ()
 
+    -- So we can add role information after-the-fact to certain types.
+    newVarAs : TypesHeap -> Type -> Type
+    newVarAs typesHeap tipe =
+      let t = newVar typesHeap in
+      let _ = unify typesHeap t tipe in
+      t
+
     patToTypeAndContext : TupleTypingPreference -> TypesHeap -> Pat -> (Type, TypingContext)
     patToTypeAndContext tupleTypingPreference typesHeap p =
       let recurse = patToTypeAndContext tupleTypingPreference typesHeap in
@@ -573,11 +578,11 @@ infer typesHeap context e =
           let t = newVar typesHeap in
           ( t, [(ident, t)] )
 
-        PConst _ _            -> ( tNum,             [] )
-        PBase _ (EBool _)     -> ( tBool,            [] )
-        PBase _ (EString _ _) -> ( tString,          [] )
-        PBase _ ENull         -> ( tNull,            [] )
-        PWildcard _           -> ( newVar typesHeap, [] )
+        PConst _ _            -> ( newVarAs typesHeap tNum, [] )
+        PBase _ (EBool _)     -> ( tBool,                   [] )
+        PBase _ (EString _ _) -> ( tString,                 [] )
+        PBase _ ENull         -> ( tNull,                   [] )
+        PWildcard _           -> ( newVar typesHeap,        [] )
 
         -- For function args and let bindings, want to be strict here and type as tuples, not lists.
         --
@@ -586,13 +591,13 @@ infer typesHeap context e =
           let (ts, contexts) = List.unzip <| List.map recurse ps in
           case tupleTypingPreference of
             PreferTuples ->
-              ( tTuple ts
+              ( newVarAs typesHeap <| tTuple ts
               , List.concat contexts
               )
 
             PreferLists ->
               let tTail = newVar typesHeap in
-              ( tTupleRest ts (Just tTail)
+              ( newVarAs typesHeap <| tTupleRest ts (Just tTail)
               , List.concat contexts
               )
 
@@ -618,6 +623,8 @@ infer typesHeap context e =
     let _ = recordType typesHeap e.val.eid inferred context in
     inferred
   ) <|
+  -- Tag [Num, Num] pairs as points
+  tagWithRolesBasedOnStructure typesHeap <|
   case e.val.e__ of
     EVar _ x ->
       --
@@ -697,7 +704,10 @@ infer typesHeap context e =
       let handlePolymorphic ident =
         let
           t1_ =
-            if isRec then
+            -- This back-and-forth bit seems to have been fixed either by the copious introduction
+            -- of type vars (so we can do role propogation) or by unify recursing on its inputs rather
+            -- than on the found representatives (also for role propogation).
+            if False then -- isRec then
               -- I'm not smart enough to figure out how not to need these steps.
               -- How many times back and forth is sufficient?!
               let t1_  = infer typesHeap boundExpContext e1 in
@@ -725,12 +735,14 @@ infer typesHeap context e =
             _            -> handleRegular ()
         _ -> handleRegular ()
 
-    EConst _ _ _ _          -> tNum
+    EConst _ n _ _          -> newVarAs typesHeap tNum |> tagWithRolesBasedOnNumber typesHeap n
     EBase _ (EBool _)       -> tBool
     EBase _ (EString _ _)   -> tString
     EBase _ ENull           -> tNull
     EOp _ op es _ ->
       let tOperands = List.map (infer typesHeap context) es in
+      tagWithRolesBasedOnOperation typesHeap op.val tOperands <|
+      newVarAs typesHeap <|
       let
         operandsShouldBe typesHeap ts =
           Utils.zip tOperands ts
@@ -806,7 +818,7 @@ infer typesHeap context e =
         tInTail    = newVar typesHeap
         _          = maybeTTail |> Maybe.map (unify typesHeap (tList tInTail))
       in
-      tTupleRest tHeads (Just tInTail)
+      newVarAs typesHeap <| tTupleRest tHeads (Just tInTail)
 
     EIf _ e1 _ e2 _ e3 _ ->
       let
@@ -891,3 +903,174 @@ infer typesHeap context e =
 
     EHole _ _ ->
       newVar typesHeap
+
+
+--------------------------------------
+-- Role Handling                    --
+--------------------------------------
+
+--
+-- Our special role rules here (beyond propogation w/unification).
+--
+-- The information propogation dynamics of our current setup isn't super great so we may miss some roles.
+--
+
+
+--
+-- 0 = Zero
+-- 1 = One
+--
+
+tagWithRolesBasedOnNumber : TypesHeap -> Num -> Type -> Type
+tagWithRolesBasedOnNumber typesHeap n tipe =
+  let roles =
+    case n of
+      0 -> Set.singleton "Zero"
+      1 -> Set.singleton "One"
+      _ -> Set.empty
+  in
+  if Set.size roles > 0 then
+    let _ = addRolesToClass typesHeap roles tipe in
+    tipe
+  else
+    tipe
+
+
+--
+-- [Num, Num] = [X, Y] : Point
+--
+
+tagWithRolesBasedOnStructure : TypesHeap -> Type -> Type
+tagWithRolesBasedOnStructure typesHeap tipe =
+  let typeClass = find typesHeap tipe in
+  case typeClass.representative.val.t__ of
+    TTuple ws1 [t1, t2] ws2 mt ws3 ->
+      let
+        aRep = (find typesHeap t1).representative
+        bRep = (find typesHeap t2).representative
+
+        tupleISPoint = Set.member "Point" typeClass.representative.val.roles
+        aIsX         = Set.member "X"     aRep.val.roles
+        bIsY         = Set.member "Y"     bRep.val.roles
+      in
+      if tupleISPoint && aIsX && bIsY then
+        tipe
+      else
+        case (aRep.val.t__, bRep.val.t__) of
+          (TNum _, TNum _) ->
+            let
+              _ = addRolesToClass typesHeap (Set.singleton "Point") tipe
+              _ = addRolesToClass typesHeap (Set.singleton "X") t1
+              _ = addRolesToClass typesHeap (Set.singleton "Y") t2
+            in
+            tipe
+
+          _ ->
+            tipe
+
+    _ ->
+      tipe
+
+
+
+-- Operation-based rules -----------
+
+
+whatever        = always True
+is role         = Set.member role
+isntAnyOf roles = not << Utils.anyOverlapListSet roles
+unchanged       = Set.empty
+becomes role    = Set.singleton role
+
+
+-- Add roles if predicates match.
+--
+-- ( (returnTypePred, arg1Pred, arg2Pred), (newReturnRoles, newArg1Roles, newArg2Roles) )
+--
+-- Because of the information flow direction, I don't think it's ever worth trying to test the return type (it should have no roles the point these are evaluated during inference)
+
+
+-- Addition rules ----
+--
+-- X = X + HorizontalDistance
+-- Y = Y + VerticalDistance
+--
+-- HorizontalDistance = HorizontalDistance + HorizontalDistance
+-- VerticalDistance   = VerticalDistance + VerticalDistance
+--
+additionRules =
+  [ ( ( whatever , is "X"                                , isntAnyOf ["X", "HorizontalDistance"] ), ( becomes "X"                  , unchanged                    , becomes "HorizontalDistance" ) ) -- (X) = X + (HorizontalDistance)
+  , ( ( whatever , isntAnyOf ["X", "HorizontalDistance"] , is "X"                                ), ( becomes "X"                  , becomes "HorizontalDistance" , unchanged                    ) ) -- (X) = (HorizontalDistance) + X
+  , ( ( whatever , is "HorizontalDistance"               , isntAnyOf ["X"]                       ), ( becomes "HorizontalDistance" , unchanged                    , becomes "HorizontalDistance" ) ) -- (HorizontalDistance) = HorizontalDistance + (HorizontalDistance)
+  , ( ( whatever , isntAnyOf ["X"]                       , is "HorizontalDistance"               ), ( becomes "HorizontalDistance" , becomes "HorizontalDistance" , unchanged                    ) ) -- (HorizontalDistance) = (HorizontalDistance) + HorizontalDistance
+  , ( ( whatever , is "Y"                                , isntAnyOf ["Y", "VerticalDistance"]   ), ( becomes "Y"                  , unchanged                    , becomes "VerticalDistance"   ) ) -- (Y) = Y + (VerticalDistance)
+  , ( ( whatever , isntAnyOf ["Y", "VerticalDistance"]   , is "Y"                                ), ( becomes "Y"                  , becomes "VerticalDistance"   , unchanged                    ) ) -- (Y) = (VerticalDistance) + Y
+  , ( ( whatever , is "VerticalDistance"                 , isntAnyOf ["Y"]                       ), ( becomes "VerticalDistance"   , unchanged                    , becomes "VerticalDistance"   ) ) -- (VerticalDistance) = VerticalDistance + (VerticalDistance)
+  , ( ( whatever , isntAnyOf ["Y"]                       , is "VerticalDistance"                 ), ( becomes "VerticalDistance"   , becomes "VerticalDistance"   , unchanged                    ) ) -- (VerticalDistance) = (VerticalDistance) + VerticalDistance
+  ]
+
+-- Subtraction rules ----
+--
+-- X = X - HorizontalDistance
+-- Y = Y - VerticalDistance
+--
+-- HorizontalDistance = HorizontalDistance - HorizontalDistance
+-- VerticalDistance   = VerticalDistance - VerticalDistance
+--
+-- HorizontalDistance = X - X
+-- VerticalDistance   = Y - Y
+--
+subtractionRules =
+  [ ( ( whatever , is "X"                                , is "HorizontalDistance" ), ( becomes "X"                  , unchanged , unchanged ) ) -- (X) = X - HorizontalDistance
+  , ( ( whatever , is "Y"                                , is "VerticalDistance"   ), ( becomes "Y"                  , unchanged , unchanged ) ) -- (Y) = Y - VerticalDistance
+  , ( ( whatever , is "HorizontalDistance"               , is "HorizontalDistance" ), ( becomes "HorizontalDistance" , unchanged , unchanged ) ) -- (HorizontalDistance) = HorizontalDistance - HorizontalDistance
+  , ( ( whatever , is "VerticalDistance"                 , is "VerticalDistance"   ), ( becomes "VerticalDistance"   , unchanged , unchanged ) ) -- (VerticalDistance)   = VerticalDistance   - VerticalDistance
+  , ( ( whatever , is "X"                                , is "X"                  ), ( becomes "HorizontalDistance" , unchanged , unchanged ) ) -- (HorizontalDistance) = X - X
+  , ( ( whatever , is "Y"                                , is "Y"                  ), ( becomes "VerticalDistance"   , unchanged , unchanged ) ) -- (VerticalDistance)    = Y - Y
+  ]
+
+-- Less Than rules ----
+--
+-- var < 1  =>  var = PivotsOnOne (possible a depth)
+--
+lessThanRules =
+  [ ( ( whatever , is "One"  , whatever  ), ( unchanged , unchanged              , becomes "PivotsOnOne"  ) )
+  , ( ( whatever , whatever  , is "One"  ), ( unchanged , becomes "PivotsOnOne"  , unchanged              ) )
+  , ( ( whatever , is "Zero" , whatever  ), ( unchanged , unchanged              , becomes "PivotsOnZero" ) )
+  , ( ( whatever , whatever  , is "Zero" ), ( unchanged , becomes "PivotsOnZero" , unchanged              ) )
+  ]
+
+tagWithRolesBasedOnOperation : TypesHeap -> Op_ -> List Type -> Type -> Type
+tagWithRolesBasedOnOperation typesHeap op_ ts returnType =
+  case ts of
+    [t1, t2] ->
+      let opRules =
+        case op_ of
+          Plus  -> additionRules
+          Minus -> subtractionRules
+          Lt    -> lessThanRules
+          _     -> []
+      in
+      if opRules /= [] then
+        let
+          aRep   = (find typesHeap t1).representative
+          bRep   = (find typesHeap t2).representative
+          retRep = (find typesHeap returnType).representative
+        in
+        case opRules |> Utils.findFirst (\((returnTypePred, arg1Pred, arg2Pred), _) -> returnTypePred retRep.val.roles && arg1Pred aRep.val.roles && arg2Pred bRep.val.roles) of
+          Just (_, (retRoles, aRoles, bRoles)) ->
+            let
+              _ = if retRoles /= unchanged then addRolesToClass typesHeap retRoles returnType else ()
+              _ = if aRoles   /= unchanged then addRolesToClass typesHeap aRoles   t1         else ()
+              _ = if bRoles   /= unchanged then addRolesToClass typesHeap bRoles   t2         else ()
+            in
+            returnType
+
+          Nothing ->
+            returnType
+
+      else
+        returnType
+
+    _ ->
+      returnType

@@ -1327,7 +1327,7 @@ prelude =
     ['cx' cx] ['cy' cy] ['r' r]
     ['fill' fill] ['stroke' stroke] ['stroke-width' strokeWidth] ])))
 
-(typ rawEllipse (-> Color Color StrokeWidth Num Num Num Num Degress Ellipse))
+(typ rawEllipse (-> Color Color StrokeWidth Num Num Num Num Degrees Ellipse))
 (def rawEllipse (\\(fill stroke strokeWidth cx cy rx ry rot)
   (rotateAround rot cx cy
     (rawShape 'ellipse' [
@@ -1341,7 +1341,7 @@ prelude =
     (rawShape 'polygon'
       [ ['fill' fill] ['points' pts] ['stroke' stroke] ['stroke-width' w] ])))))
 
-(typ rawPath (-> Color Color StrokeWidth PathCmds Degress SVG))
+(typ rawPath (-> Color Color StrokeWidth PathCmds Degrees SVG))
 (def rawPath (\\(fill stroke w d rot)
   (let [cx cy] (middleOfPoints (allPointsOfPathCmds d))
   (rotateAround rot cx cy

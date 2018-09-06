@@ -69,10 +69,12 @@ roleExps =
   , ("HorizontalDistance" , eConstDummyLoc 81) -- Golden ratio
   , ("VerticalDistance"   , eConstDummyLoc 50)
   , ("Count"              , withDummyExpInfo <| EConst space1 3 dummyLoc (rangeSlider IntSlider 0 10))
+  , ("PivotsOnOne"        , withDummyExpInfo <| EConst space1 2 dummyLoc (rangeSlider IntSlider 1 5)) -- Possibly a depth
+  , ("PivotsOnZero"       , withDummyExpInfo <| EConst space1 1 dummyLoc (rangeSlider IntSlider 0 4)) -- Possibly a depth
   , ("Radians"            , withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider NumSlider -3.14 3.14))
   , ("Degrees"            , withDummyExpInfo <| EConst space1 0 dummyLoc (rangeSlider IntSlider -180 180))
-  , ("Radius"             , eConstDummyLoc 150)
-  , ("Distance"           , eConstDummyLoc 150)
+  , ("Radius"             , eConstDummyLoc 100)
+  , ("Distance"           , eConstDummyLoc 100)
   ]
 
 
