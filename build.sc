@@ -22,7 +22,7 @@ object SNS extends Module {
   val outDir = pwd / "build" /"out"
   val outSNS = outDir / "sns.js"
 
-  def publish = T{
+  def publish = T.input{
     html()
     val publishFile = pwd / "publish_local.txt"
     println("Testing if publish-local exists")
