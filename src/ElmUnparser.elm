@@ -110,12 +110,7 @@ tryUnparseTuple
   -> WS -> List (Maybe WS, WS, String, WS, t) -> WS
   -> Maybe String
 tryUnparseTuple unparseTerm wsBefore keyValues wsBeforeEnd =
-  let
-    ctorString = ctorTuple
-  in
-  if keyValues
-    |> List.map (\(_, _, key, _, _) -> key)
-    |> List.member ctorString
+  if recordEntriesToCtorKind keyValues == Just TupleCtor
   then
     let
       inside =

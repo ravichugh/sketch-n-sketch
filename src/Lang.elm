@@ -94,6 +94,26 @@ ctorKind s =
     _ ->
       Nothing
 
+recordEntriesToCtorKind : List (Maybe WS, WS, String, WS, t) -> Maybe CtorKind
+recordEntriesToCtorKind entries =
+  case entries of
+    [] ->
+      Nothing
+    (_, _, key, _, _) :: rest ->
+      let entryKind = ctorKind key in
+      case entryKind of
+        Nothing -> recordEntriesToCtorKind rest
+        _ -> entryKind
+
+-- Returns Just TupleCtor if e is a tuple, Just DataTypeCtor if it's a datatype, and Nothing otherwise
+expToCtorKind : Exp -> Maybe CtorKind
+expToCtorKind e =
+  case unwrapExp e of
+    ERecord _ _ decls _ ->
+      recordEntriesFromDeclarations decls |> Maybe.andThen recordEntriesToCtorKind
+    _ ->
+      Nothing
+
 ctorTupleName: Int -> String
 ctorTupleName i = "Tuple" ++ toString i
 
@@ -3248,6 +3268,7 @@ splitBeforeWhitespace e1Ws =
 
 declarationsCodeObjects : Exp -> Declarations -> List CodeObject
 declarationsCodeObjects e declarations =
+  let isTupleOrDatatype = expToCtorKind e |> Utils.maybeToBool in
   getDeclarationsInOrderWithIndex declarations |> List.concatMap (\(def, index) ->
     case def of
       DeclType (LetType mbSpColon sp1 mbSpAlias p1 funStyle spEq tp) ->
@@ -3279,18 +3300,23 @@ declarationsCodeObjects e declarations =
         , T tp
         ]
       DeclExp (LetExp mbSpColon sp1 p1 funStyle ws2 (Expr e1)) ->
-        let (spAfterPreviousDecl, spBeforeThisDecl) =
-          if index == 0 then (Nothing, sp1)
-          else splitBeforeWhitespace sp1
-        in
-        -- The space before the comma is always a target for the previous declaration.
-        (Maybe.map (\spc -> [DT After spc e (index - 1)]) mbSpColon |> Maybe.withDefault []) ++
-        (spAfterPreviousDecl |> Maybe.map (\sp -> [DT After sp e (index - 1)]) |> Maybe.withDefault []) ++
-        [ DT Before spBeforeThisDecl e index
-        , D (withInfo (expEId e) p1.start e1.end) index
-        , P (e, index) p1
-        , PT After ws2 (e, index) p1
-        , E <| Expr e1
+        ( if isTupleOrDatatype then
+            []
+          else
+            let (spAfterPreviousDecl, spBeforeThisDecl) =
+              if index == 0 then (Nothing, sp1)
+              else splitBeforeWhitespace sp1
+            in
+            -- The space before the comma is always a target for the previous declaration.
+            (Maybe.map (\spc -> [DT After spc e (index - 1)]) mbSpColon |> Maybe.withDefault []) ++
+            (spAfterPreviousDecl |> Maybe.map (\sp -> [DT After sp e (index - 1)]) |> Maybe.withDefault []) ++
+            [ DT Before spBeforeThisDecl e index
+            , D (withInfo (expEId e) p1.start e1.end) index
+            , P (e, index) p1
+            , PT After ws2 (e, index) p1
+            ]
+        ) ++
+        [ E <| Expr e1
         , ET After (zeroWidthWSAfter e1) <| Expr e1
         ]
   )
