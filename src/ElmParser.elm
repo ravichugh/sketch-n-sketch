@@ -217,6 +217,7 @@ isSmallFirstChar char =
   not <|
     Char.isUpper char ||
     Char.isDigit char ||
+    char == '_' || -- so we don't parse PWildcards as identifiers; note this logic is slightly different than in Little
     Set.member char nonIdentifierCharSet
 
 isRestChar : Char -> Bool
