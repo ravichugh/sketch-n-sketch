@@ -532,7 +532,7 @@ printNode namespace showGhosts prettyPrint indent slate i =
             (if prettyPrint then tab indent else "") ++ ending
 
 printNodes namespace showGhosts prettyPrint indent slate =
-  Utils.lines << List.map (
+  (if prettyPrint then Utils.lines else String.join "") << List.map (
     (if prettyPrint then (++) (tab indent) else identity) <<
     printNode namespace showGhosts prettyPrint indent slate)
 

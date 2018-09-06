@@ -31,13 +31,13 @@ object SNS extends Module {
       println("output path" + path)
       ls! pwd/'build/'out |! (copy(_, path))
 
-      /*val current_sha1 = %("git rev-parse HEAD").trim()
-      val current_commit_message = %("git log -1 --pretty=%B").trim()
-      val commit_message = current_commit_message+"\n@"+current_sha1
+      val current_sha1 = %%("git", "rev-parse", "HEAD").out.lines.mkString("\n").trim()
+      val current_commit_message = %%("git", "log", "-1", "--pretty=%B").out.lines.mkString("\n").trim()
+      val commit_message = "SNS: " + current_commit_message+"\n@"+current_sha1
       println("Commit message: " + commit_message)
-      println(%("git add -A")(path).!!)
-      println(%("git commit -am \""+commit_message+"\"")(path))
-      println(%("git push")(path))*/
+      println(%("git", "add", "-A")(path))
+      println(%("git", "commit", "-am", "\""+commit_message+"\"")(path))
+      println(%("git", "push")(path))
     } else {
       println(
         """`publish-local.txt` was not found.

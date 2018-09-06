@@ -9648,19 +9648,20 @@ Html.forceRefresh  <div id=\"content\" style=\"margin:20px;cursor:text\">
 """
 
 tutorialStudentGrades =
- """options = {production = False}
+ """options = {production = True}
 
 main = htmlpass <| markdown <|
-<div class=\"outer\"><div class=\"inner\" contenteditable=\"true\">
+<div class=\"outer\"><div class=\"inner\" contenteditable=(toString (not options.production))>
 # Sketch-n-sketch Tutorial - Fair grades
-_This tutorial supposes that you have Sketch-n-sketch 0.7.1 configured correctly_  
+<i>This tutorial assumes that you have
+<a href=\"https://mikaelmayer.github.io/sketch-n-sketch/\">Sketch-n-sketch</a> running on your browser. If you encounter editing issues, try resizing your window.</i>  
   
 At last, your teaching assistants corrected all the assignments,
 the mid-terms and the final exam.
 They provided you with a list of student names and their average grade over 100.
 How to fairly map these grades to letters, such as A+, A, A-, B+... until E?
 
-To start, paste the following code in the Sketch-n-sketch editor on the left pane:
+To start, replace the program in the Sketch-n-sketch editor on the left pane, by selecting everything and pasting the following code:
 @newcode<|\"\"\"@path1
 
 -- Displays the interface
@@ -9672,6 +9673,17 @@ main = <span><h1>Fair grades</h1>
 After clicking on \"Run\", you should have the result below on the right.
 Note that the <code>main = </code> is optional, if the program ends with an expression, it will automatically insert <code>main = </code> in front of it.
 @displayproductionevalcode
+
+## Update basics
+Sketch-n-sketch not only displays the webpage, it allows you to modify it.  
+In the right panel,
+<ul><li>type \"student\" inside \"Fair grades\" so that it becomes \"Fair student grades\".@hiddenreplacepath(\"Fair grades\")(\"Fair student grades\")@displayproductionevalcode</li>
+<li>A pop-up menu \"Output Editor\" appears on the left panel.</li>
+<li>Hover over \"Update program\".</li>
+<li>Hover over the first solution.</li>
+<li>You see that the code is updated accordingly:@displaycode</li>
+<li>Click on the first solution to accept the change.</li></ul>
+For your information, right next to the right panel, a button labelled \"Auto Sync\" enables the propagation of non-ambiguous changes automatically, if activated. We are not using it in this tutorial.
 
 ## Import the grades
 Out of the spreadsheet that your assistants provided you with,
@@ -9731,7 +9743,9 @@ Note that we also add <code>Update.freeze</code> to make sure we will never modi
 We need to define associations between letters and minimum grades to obtain them.
 We suppose that we have a first guess (e.g. from previous year, or a linear guess).
 
-@replacepath(path4)<|\"\"\"cutoffs = [
+@replacepath(path4)<|\"\"\"type CutOff = Student String Num
+
+cutoffs = [
   CutOff \"A+\" 96.8,
   CutOff \"A\"  90,
   CutOff \"A-\" 86,
@@ -9790,8 +9804,7 @@ height = 389
 chart = barChart 50 0 width height
 
 @path6\"\"\"
-@replacepath(path2)<|\"\"\"
-<svg width=(toString (width + 100)) height=toString(height)>@@chart</svg>
+@replacepath(path2)<|\"\"\"<svg width=(toString (width + 100)) height=toString(height)>@@chart</svg><br>
 
 @path2_1
 \"\"\"
@@ -9799,14 +9812,21 @@ chart = barChart 50 0 width height
 You should obtain the following result, after running the program.
 @displayproductionevalcode
 
-Thanks to SVG editing capabilities, we can now move the horizontal line to change cut-offs.
+Thanks to SVG editing capabilities, we can now move the horizontal lines up and down to change cut-offs.
+
+Make sure the line 48 is visible in the code editor (in the left panel).
+
+Your task is now to move the cut-off of the letter B (in the right panel) to accept one more student (by dragging it slowly below).
+A pop-up \"Output Editor\" appears. Hover over \"Update program\", it then takes 1 second to find where to change the cut-off. Click on the solution to accept it.
+You should obtain something like the following on the right-hand side.  
+@displayproductionevalcodeLocalReplace(\"CutOff \\\"B\\\"  76\")<|\"CutOff \\\"B\\\"  72.7\"
 
 ## First lens: 1-digit cut-offs
-If you try to change a cut-off from the SVG, the cut-off number might start to have a lot of decimals. However, only one is necessary.
+After this update, the cut-off number for the letter B might start to have a lot of decimals.
+However, only one is necessary.
 To avoid this, we add a lens to modify how the cut-off is updated.
 
-@replacepath(path6)<|\"\"\"
-updateDecimal = Update.lens {
+@replacepath(path6)<|\"\"\"updateDecimal = Update.lens {
   apply cutOff = cutOff
   update {input=oldCutOff,outputNew=newCutOff} =
     Ok (Inputs [round (newCutOff * 10) / 10])
@@ -9817,9 +9837,10 @@ updateDecimal = Update.lens {
 A lens is a pair of two functions (here <code>apply</code> and <code>update</code>),
 such that the first contains the logic to compute forward, and the second the logic to back-propagate an updated value.
 In our case, this function takes the new output and round it to the nearest multiple of 0.1.
-Since a lens is a record, we can invoke it using a special constructor called <code>Update.lens</code>.
-Try to modify one cutoff to see: all cut-offs are rounded in the code.
-@displayproductionevalcode
+Since a lens is a record, we invoke it on an argument using a special constructor called <code>Update.lens</code>.  
+  
+Modify the cut-off for letter B back to where it was, approximately (just above the blue line right above it).
+You will observe that, on update, the cut-off contains only once decimal in the code.
 
 ## Table of results
 At this point, we hope that our cut-offs are well placed.
@@ -9865,28 +9886,26 @@ displayBuckets =
   ) buckets)
 </table>
 
-@path8
-\"\"\"
+@path8\"\"\"
 @replacepath(path2_1)<|\"\"\"<h2>Grade by category</h2>
-@@displayBuckets
-\"\"\"
+@@displayBuckets\"\"\"
 You should see the following table appear below the graph in the output view:
 @displayproductionevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
   @@displayBuckets
 </span>
 notmain = \"\"\"
-Note that you can again change the cutoffs from this table right where they are displayed!
+Note that you can again change the cutoffs from this table right where they are displayed, using basic update techniques.
  
 ## Unfair letter attribution.
 We want to know if there are unfair letter attribution.
-A possibly unfair letter attribution arises if two student grades are very close to each other (e.g. 0.2),
+A possibly unfair letter attribution arises if two student grades are very close to each other (e.g. the difference is below 0.5),
 but they have been assigned different letters.
 To avoid being contested, it is better to make sure there is no possibly unfair letter attribution.
 We compute and display this information in the table.
 
 @replacepath(path8)<|\"\"\"ifunfair i =
   if i == 0 then \"\" else let
-  epsilon = 0.72{0-1.9}
+  epsilon = 0.5{0-1.9}
   (CutOff nameA cutoffA, studentsAbove) = nth buckets (i - 1)
   (CutOff nameB cutoffB, studentsBelow) = nth buckets i
   in case (List.last studentsAbove, List.head studentsBelow) of
@@ -9906,39 +9925,35 @@ We compute and display this information in the table.
 </span>
 notmain = \"\"\"
 
-It looks like we were right, if you did not change the original cut-offs, we have one unfair letter attribution.
+It looks like we were right, we have one unfair letter attribution.
 Of course, we can use the graph to change the cut-offs to avoid that, or change the cut-offs directly in the table.
 What if we had a way to just resolve the potential complaint using buttons, such as \"Upgrade XXX\" or \"Downgrade XXX\"?
 
 ## Button to modify cut-offs
-
 Adding buttons to upgrade or downgrade a student's means that these buttons will modify the cut-off.
 This behavior can be locally defined with the following trick:
 When we click a button, it modifies a property using JavaScript that is supposed to contain the cut-off, with a new cut-off.
 
-Let us focus on the function \"ifunfair\" for this task.
-@replacepath(\"was assigned @nameA</span>\")<|\"\"\"
-was assigned @@nameA.
+Let us focus on the function \"ifunfair\" for this task.  
+@replacepath(\"was assigned @nameA</span>\")<|\"\"\"was assigned @@nameA.
 <button onclick=@(q3)this.setAttribute('v', '@@(gradeB - 0.1)')@(q3)
   v=toString(updateDecimal cutoffA)>Give @@nameA to @@envier</button>
 <button onclick=@(q3)this.setAttribute('v', '@@(gradeA + 0.1)')@(q3)
   v=toString(updateDecimal cutoffA)>Give @@nameB to @@enviee</button>
-</span>
-\"\"\"
+</span>\"\"\"
 @displayproductionevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
   @@displayBuckets
 </span>
 notmain = \"\"\"
-You can now precisely resolve the dilemmas before they arrive, much faster than if you had to talk to students!
-What is the fastest way to resolve the problem here? To downgrade or to upgrade?
+You can now precisely resolve the dilemmas before they arrive, much faster than if you had to talk to students.
+What is the fastest way to resolve all problems here? To downgrade or to upgrade? Can you guess from the graph?
 
 ## Second lens: Group size
-
 Sometimes we wish we could simply change the number of students in a group to change the cut-off.
-This is possible, we can add a lens applied to the displayed number of students.
+In usual interfaces it is impossible, but in Sketch-n-Sketch
+we can add a lens applied to the displayed number of students.
 This lens takes care of modifying the cut-offs in the backward direction.
-Note that we never change the count itself!
-
+Note that we never change the count itself.  
 @replacepath(path9)<|\"\"\"updateGroupCount bucketNum cutoff numStudents =
   Update.lens2 {
     apply (cutoff, count) = count
@@ -9955,15 +9970,12 @@ Note that we never change the count itself!
           List.length students - (prevCount - newCount)) students
         Student _ belowCutoff = hd declassed
         in Ok (Inputs [(belowCutoff + 0.1, prevCount)])
-  } cutoff numStudents 
-\"\"\"
-
-We now focus on the main function.
+  } cutoff numStudents\"\"\"
 @replacepath(\"@List.length(students)\")<|\"\"\"@@updateGroupCount(i)(cutoff)<|
         List.length(students)\"\"\"
 
 Try now to change the number of students in one group to see the cut-offs change appropriately.
-For example, the you can decrease to 4 the number of students in B+ (downgrade Kellee) or increase to 6 the number of students in B+ (upgrade Loida).
+For example, you can decrease to 4 the number of students in B+ (downgrade Kellee) or increase to 6 the number of students in B+ (upgrade Loida).
 @displayproductionevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
   @@displayBuckets
 </span>
@@ -10020,7 +10032,8 @@ div.outputwrapper {
   box-shadow: 5px 10px 5px 0px rgba(0,0,0,0.5);
   margin:10px;
   padding:10px;
-  border:2px solid black
+  border:2px solid black;
+  margin-bottom: 15px;
 }
 </style>
 </div>
@@ -10053,11 +10066,12 @@ example1 = \"\"\"@@(let
   (@var_studentsGrades
   |> List.filterMap (\\Student name grade ->
     if grade >= minGrade && grade < maxGrade then Just name else Nothing)
-  |> String.join \",\") ++ \" are above B-\"
+  |> String.join \", \") ++ \" are above B-\"
 )\"\"\"
 
 newcode code = <newcode code=code></newcode>
 replacepath path code = <replacepath path=path code=code class=\"snippet\"></replacepath>
+hiddenreplacepath path code = <hiddenreplacepath path=path code=code></hiddenreplacepath>
 displaycode = <displaycode class=\"snippet\"></displaycode>
 displaylocalcode code = <displaylocalcode code=code class=\"snippet\"></displaylocalcode>
 displayevalcode = <displayevalcode></displayevalcode>
@@ -10089,14 +10103,24 @@ localReplace src attrs = case attrs of
   attrs -> (src, attrs)
 
 escape = Regex.replace \"\"\"\\(|\\)\"\"\" (\\m -> if m.match == \"(\" then \"\"\"\\(\"\"\" else \"\"\"\\)\"\"\")
-  
+
+positionOf path code =
+  case Regex.extract \"\"\"^([\\s\\S]*?)@(escape path)([\\s\\S]*)$\"\"\" code of
+    Just [before, after] ->
+      let line = Regex.split \"\\r?\\n\" before |> List.length |> toString in
+      \"\"\"line @line\"\"\"
+    _ -> \"position unknown\"
+
 htmlpass htmlnode = 
   let aux src htmlnode = case htmlnode of
     [\"newcode\", [\"code\", code]::attrs, []] ->
       (code, htmlnode)
+    [\"hiddenreplacepath\", [\"path\", path]::[\"code\", code]::attrs, []] ->
+      let newSrc = Regex.replace (escape path) (\\_ -> code) src in
+      (newSrc, htmlnode)
     [\"replacepath\", [\"path\", path]::[\"code\", code]::attrs, []] ->
       let newSrc = Regex.replace (escape path) (\\_ -> code) src in
-      (newSrc, <span>Replace the code <code>@path</code> by<code @attrs>@code</code></span>)
+      (newSrc, <span>Replace the code <code>@path</code> (@(positionOf path src)) by<code @attrs>@code</code></span>)
     [\"displaylocalcode\", [\"code\", code]::attrs, []] ->
       (src, [\"code\", attrs, [[\"TEXT\", code]]])
     [\"displaycode\", attrs, []] ->
