@@ -1581,6 +1581,13 @@ expToMaybeAppArgs exp =
     _                 -> Nothing
 
 
+expToHoleVal : Exp -> Val
+expToHoleVal exp =
+  case exp.val.e__ of
+    EHole _ (HoleVal val) -> val
+    _                     -> Debug.crash <| "LangTools.expToHoleVal exp is not an val hole: " ++ unparseWithIds exp
+
+
 expToMaybeHoleVal : Exp -> Maybe Val
 expToMaybeHoleVal exp =
   case exp.val.e__ of

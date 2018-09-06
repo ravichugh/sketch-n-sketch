@@ -1990,11 +1990,13 @@ eColonTypeAlias e aliasName =
 
 eComment a b   = withDummyExpInfo <| EComment space1 a b
 
-pVar0 a        = withDummyPatInfo <| PVar space0 a noWidgetDecl
-pVar a         = withDummyPatInfo <| PVar space1 a noWidgetDecl
-pList0 ps      = withDummyPatInfo <| PList space0 ps space0 Nothing space0
-pList ps       = withDummyPatInfo <| PList space1 ps space0 Nothing space0
-pAs x p        = withDummyPatInfo <| PAs space1 x space1 p
+pVar0 a           = withDummyPatInfo <| PVar space0 a noWidgetDecl
+pVar a            = withDummyPatInfo <| PVar space1 a noWidgetDecl
+pList0 ps         = withDummyPatInfo <| PList space0 ps space0 Nothing space0
+pList ps          = withDummyPatInfo <| PList space1 ps space0 Nothing space0
+pAs x p           = withDummyPatInfo <| PAs space1 x space1 p
+pWildcard         = withDummyPatInfo <| PWildcard space1
+pWildcard0        = withDummyPatInfo <| PWildcard space0
 
 pListOfPVars names = pList (listOfPVars names)
 

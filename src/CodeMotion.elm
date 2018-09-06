@@ -3090,13 +3090,31 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
                       --   2. Structurally matches the hole-containing program exp
                       case (expEffectiveExp expWithHoles).val.e__ of
                         EHole _ (HoleVal holeVal) -> -- No need to look at parents for lone holes.
-                          case envCandidates1 |> Utils.findFirst (\(ident, envVal) -> Provenance.valsSame envVal holeVal) of
-                            Just (ident, envVal) ->
+                          case envCandidates1 |> List.filter (\(ident, envVal) -> Provenance.valsSame envVal holeVal) of
+                            [] ->
+                              program
+
+                            [(ident, envVal)] ->
                               program
                               |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar ident |> setEId (1 + Parser.maxId program))
 
-                            Nothing ->
+                            (firstMatch::_) as multipleEnvCandidates ->
+                              -- There's a stupid case with offset widgets where we have multiple variables pointing
+                              -- at the same thing and we want to take an earlier one so that the offset draws from
+                              -- the right place.
+                              --
+                              -- So search for an exact match, otherwise take any.
+                              let (identToUse, _) =
+                                multipleEnvCandidates
+                                |> Utils.findFirst
+                                    (\(ident, _) ->
+                                      Utils.find "resolveValueHole: Ident in env not found in env. Shouldn't happen." env ident
+                                      |> Provenance.valEqFast holeVal
+                                    )
+                                |> Maybe.withDefault firstMatch
+                              in
                               program
+                              |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar identToUse |> setEId (1 + Parser.maxId program))
 
                         EHole _ (HoleLoc holeLocId) -> -- No need to look at parents for lone holes.
                           case envCandidates1 |> Utils.findFirst (\(ident, envVal) -> envVal |> Provenance.valToDistalSameVal |> valExp |> expToMaybeLocId |> (==) (Just holeLocId)) of
@@ -3229,9 +3247,99 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
             else
               program
           )
+
+
+    -- Maybe we want the x coordinate of a point that is in program as a variable (e.g. from a call to a prelude function) but
+    -- not yet destructured yet into x and y. (This happens with trying to make offsets from the midpoint function for the
+    -- SnS lambda logo with deadspace)
+
+    makeDestructuring : Exp -> Set Ident -> Val -> Val -> Exp -> Maybe (Ident, Pat, Exp)
+    makeDestructuring program namesToAvoid targetVal parentVal parentExp =
+      if Provenance.valsSame targetVal parentVal then
+        let
+          suggestedName = Provenance.nameForVal program targetVal
+          name = nonCollidingName suggestedName 2 namesToAvoid
+        in
+        Just (name, pVar name, parentExp)
+      else
+        case (parentVal.v_, valToMaybeXYVals parentVal) of
+          (_, Just (xVal, yVal)) ->
+            if Provenance.valsSame targetVal xVal then
+              let name = nonCollidingName "x" 1 namesToAvoid in
+              Just (name, pList [pVar0 name, pWildcard], parentExp)
+            else if Provenance.valsSame targetVal yVal then
+              let name = nonCollidingName "y" 1 namesToAvoid in
+              Just (name, pList [pWildcard0, pVar name], parentExp)
+            else
+              Nothing
+
+          (VList childVals, _) ->
+            childVals
+            |> Utils.foldl
+                (0, Nothing)
+                (\childVal (i, result) ->
+                  if result == Nothing then
+                    let newParentExp = eCall "nth" [parentExp, eConstDummyLoc i] in
+                    (i + 1, makeDestructuring program namesToAvoid targetVal childVal newParentExp)
+                  else
+                    (i + 1, result)
+                )
+            |> Tuple.second
+
+          _ ->
+            Nothing
+
+
+    programWithSomeHolesResolvedByDestructuring =
+      flattenExpTree programWithSomeHolesResolvedByLifting
+      |> List.filter isValHole
+      |> Utils.foldl
+          programWithSomeHolesResolvedByLifting
+          (\valHoleExp program ->
+            let
+              val = expToHoleVal valHoleExp
+              valParents = Provenance.equivalentValParents val
+
+              maybeWithParentVisible =
+                valParents
+                |> Utils.mapFirstSuccess
+                    (\parentVal ->
+                      parentVal
+                      |> Provenance.valBasedOnTreeToProgramExp program
+                      |> Maybe.andThen
+                          (\parentExp ->
+                            makeEIdVisibleToEIds program parentExp.val.eid (Set.singleton valHoleExp.val.eid)
+                          )
+                      |> Maybe.map ((,) parentVal)
+                    )
+            in
+            case maybeWithParentVisible of
+              Just (parentVal, (parentName, _, newProgram)) ->
+                let namesToAvoid = visibleIdentifiersAtEIds newProgram (Set.singleton valHoleExp.val.eid) in
+                case makeDestructuring newProgram namesToAvoid val parentVal (eVar parentName) of
+                  Just (name, destructuredPat, destructuringExp) ->
+                    -- need to insert the let
+                    let
+                      expToWrap = deepestCommonAncestorOrSelfWithNewline newProgram (always True) (.val >> .eid >> (==) valHoleExp.val.eid)
+                      insertedLetEId = Parser.maxId newProgram + 1
+                      programWithDestructuring =
+                        newProgram
+                        |> replaceExpNode
+                            expToWrap.val.eid
+                            (newLetFancyWhitespace insertedLetEId False destructuredPat destructuringExp expToWrap newProgram)
+                    in
+                    programWithDestructuring
+                    |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar name |> setEId (1 + Parser.maxId programWithDestructuring))
+
+                  Nothing ->
+                    program
+
+              Nothing ->
+                program
+          )
   in
   -- Resolve any remaining holes by loc lifting.
-  resolveValueHolesByLocLifting solutionsCache syncOptions programWithSomeHolesResolvedByLifting
+  resolveValueHolesByLocLifting solutionsCache syncOptions programWithSomeHolesResolvedByDestructuring
 
 
 resolveValueHolesByLocLifting : Solver.SolutionsCache -> Sync.Options -> Exp -> List Exp

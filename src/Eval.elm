@@ -260,7 +260,7 @@ eval maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell e =
         let deeperRetEnv = deeperRetEnvs |> Utils.findLast ((/=) Nothing) |> Maybe.withDefault Nothing in
         let (vs,wss) = List.unzip vws in
         let ws = List.concat wss in
-        case (m, vs, FastParser.isProgramEId e.val.eid) of
+        case (m, vs, True) of -- FastParser.isProgramEId e.val.eid) of -- need to be able to draw offsets off points calculated in prelude but returned to the program
           (Nothing, [v1, v2], True) ->
             case (v1.v_, v2.v_) of
               (VConst _ nt1, VConst _ nt2) ->
