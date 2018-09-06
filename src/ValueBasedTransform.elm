@@ -878,9 +878,11 @@ buildAbstraction program editingContext selectedFeatures selectedShapes selected
     Err s -> []
     Ok (_, widgets, slate, _) ->
       -- Some of var bindings pulled into function could have the same name, and could come from all over the program, so let's do our favorite thing...
+      --
+      -- Actually the dependency gathering will not rearrange definitions so this may be unnecessary now.
       let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
       -- Still doesn't correctly handle abstracting a shape list b/c provenance is not smart enough.
-      ShapeWidgets.selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs (\e -> childExps e /= [] && freeVars e /= [])
+      ShapeWidgets.selectionsProximalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs (\e -> childExps e /= [] && freeVars e /= [])
       -- |> List.map (\interp -> let _ = Utils.log <| String.join ", " <| List.map (justFindExpByEId program >> Syntax.unparser Syntax.Elm) interp in interp)
       |> List.concatMap (\interpretation ->
         -- 1. Choose an expression to be the output (try all)
@@ -972,7 +974,7 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
 
       -- Okay, now the fun part: building the function.
 
-      funcLocation = deepestCommonAncestorOrSelfWithNewline originalProgramUniqueNames (\e -> Set.member e.val.eid insertionLocationEIds) (.val >> .eid >> (==) returnExp.val.eid) -- Place function as close as possible in the focused scope or higher, as near as just before abstracted expression
+      funcLocation = deepestCommonAncestorOrSelfWithNewline programUniqueNamesBindingsRemoved (\e -> Set.member e.val.eid insertionLocationEIds) (.val >> .eid >> (==) returnExp.val.eid) -- Place function as close as possible in the focused scope or higher, as near as just before abstracted expression
       funcSuggestedName = expNameForEId program outputEId ++ "Func"
       funcName =
         nonCollidingName
@@ -987,8 +989,11 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
       -- computeExpsGroupsToArgumentize should return a list of possible ways to turn pieces of the function into arguments
       -- computeExpsGroupsToArgumentize : Exp -> List (List Exp)
       expsGroupsToArgumentize = computeExpsGroupsToArgumentize funcBodyAfterSlurpingBeforeArgumentization
-    in
 
+      -- _ = Utils.log <| "funcBodyAfterSlurpingBeforeArgumentization\n" ++ Syntax.unparser Syntax.Elm funcBodyAfterSlurpingBeforeArgumentization
+      -- _ = Utils.log <| "programUniqueNamesBindingsRemoved\n" ++ Syntax.unparser Syntax.Elm programUniqueNamesBindingsRemoved
+      -- _ = Utils.log <| "expsGroupsToArgumentize\n" ++ (List.map (List.map (Syntax.unparser Syntax.Elm)) expsGroupsToArgumentize |> toString)
+    in
     -- For each possible way to argumentize the function, compute some results.
     expsGroupsToArgumentize
     |> List.concatMap
@@ -1121,7 +1126,7 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
                   (justFindExpByEId programWithCall funcLocation.val.eid)
                   programWithCall
             programWithCallAndFunc =
-              programUniqueNamesBindingsRemoved
+              programWithCall -- programUniqueNamesBindingsRemoved
               |> replaceExpNode
                   funcLocation.val.eid
                   funcLet

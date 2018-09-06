@@ -701,7 +701,7 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
     in
     let otherCoordinateForValIs val targetVal =
       case val.v_ of
-        VConst (Just (_, _, otherCoordinateVal)) _ -> Provenance.valsSame otherCoordinateVal targetVal
+        VConst (Just (_, _, otherCoordinateVal)) _ -> Provenance.valEqFast otherCoordinateVal targetVal
         _                                          -> False
     in
     let pointAndOffset addPointAtBeginning =
@@ -730,6 +730,9 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
 
         _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
     in
+    -- Trying to predict how resolveValueAndLocHoles will resolve the hole so we
+    -- can ensure that the offset is off of the correct point. Unfortunately we can't
+    -- get it right in all cases.
     case (axis, pt1) of
       (X, ((_, SnapVal x1Val), (_, NoSnap)))        -> offsetFromExisting x1Val
       (Y, ((_, NoSnap),        (_, SnapVal y1Val))) -> offsetFromExisting y1Val

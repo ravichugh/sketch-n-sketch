@@ -1096,12 +1096,12 @@ selectionsProximalDistalEIdInterpretations program slate widgets selectedFeature
   in
   proximalInterps ++ distalInterps |> Utils.dedup
 
--- selectionsProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> List (List EId)
--- selectionsProximalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs =
---   let (proximalInterps, _{- proximalInterps -}) =
---     selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs (always True)
---   in
---   proximalInterps
+selectionsProximalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
+selectionsProximalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =
+  let (proximalInterps, _{- proximalInterps -}) =
+    selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter
+  in
+  proximalInterps
 
 -- selectionsDistalEIdInterpretations : Exp -> RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> (Exp -> Bool) -> List (List EId)
 -- selectionsDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs expFilter =

@@ -761,7 +761,7 @@ simpleExpNameWithDefault default exp =
         (_,          [headName])            -> headName ++ "Singleton"
         ([headName], _)                     -> if headName == "num" && List.length heads == 2 then "point" else headName ++ "s"
         (_,          [name1, name2])        -> name1 ++ Utils.capitalize name2 ++ "Pair"
-        (_,          [name1, name2, name3]) -> name1 ++ Utils.capitalize name2 ++ Utils.capitalize name3 ++ "Triple"
+        (_,          [name1, name2, name3]) -> name1 ++ Utils.capitalize name2 ++ Utils.capitalize name3
         (_,          name::names)           -> name ++ String.join "" (List.map Utils.capitalize names)
     EOp _ _ es _               -> List.map recurse es |> Utils.findFirst ((/=) default) |> Maybe.withDefault default
     EBase _ ENull              -> "null"
@@ -787,8 +787,8 @@ typeToExpName tipe =
         (_,          [headName])            -> headName ++ "Singleton"
         ([headName], [_, _])                -> if headName == "num" then "point" else headName ++ "Pair" -- For now, we follow the convention that [Num, Num] == Point
         (_,          [name1, name2])        -> name1 ++ Utils.capitalize name2 ++ "Pair"
-        ([headName], [_, _, _])             -> headName ++ "Triple"
-        (_,          [name1, name2, name3]) -> name1 ++ Utils.capitalize name2 ++ Utils.capitalize name3 ++ "Triple"
+        ([headName], [_, _, _])             -> "three" ++ Utils.capitalize headName ++ "s"
+        (_,          [name1, name2, name3]) -> name1 ++ Utils.capitalize name2 ++ Utils.capitalize name3
         (_,          name::names)           -> name ++ String.join "" (List.map Utils.capitalize names)
     TDict _ t1 t2 _       -> typeToExpName t1 ++ "To" ++ Utils.capitalize (typeToExpName t2)
     TArrow _ ts _         -> Utils.maybeLast ts |> Maybe.map (\retType -> typeToExpName retType ++ "Func") |> Maybe.withDefault "func"

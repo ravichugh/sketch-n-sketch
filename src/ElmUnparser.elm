@@ -240,6 +240,11 @@ unparse e =
       EHole _ _       -> unparse e
       _               -> wrapWithTightParens (unparse e)
   in
+  let unparseFuncPat p =
+    case p.val.p__ of
+      PAs _ _ _ _ -> wrapWithTightParens (unparsePattern p)
+      _           -> unparsePattern p
+  in
   case e.val.e__ of
     EConst wsBefore num (_, frozen, _) wd ->
       wsBefore.val
@@ -258,7 +263,7 @@ unparse e =
     EFun wsBefore parameters body _ ->
       wsBefore.val
         ++ "\\"
-        ++ String.concat (List.map unparsePattern parameters)
+        ++ String.concat (List.map unparseFuncPat parameters)
         ++ " ->"
         ++ unparse body
 
@@ -364,7 +369,7 @@ unparse e =
               ([], binding_)
 
         strParametersDefault =
-          String.concat (List.map unparsePattern parameters)
+          String.concat (List.map unparseFuncPat parameters)
 
         -- NOTE: to help with converting Little to Elm
         strParameters =
