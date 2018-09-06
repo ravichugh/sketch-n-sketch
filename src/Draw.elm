@@ -699,28 +699,43 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
       let offsetExp = eOp plusOrMinus [eHoleVal baseVal, offsetAmountExp] in
       addToEndOfDrawingContext old offsetSuggestedName offsetExp
     in
-    case (axis, pt1) of
-      (X, ((_, SnapVal x1Val), _)) -> offsetFromExisting x1Val
-      (Y, (_, (_, SnapVal y1Val))) -> offsetFromExisting y1Val
-      _                            ->
-        let (contextExp, endOfDrawingContextExp) = FocusedEditingContext.contextExpAndEndOfDrawingContextExp old.editingContext originalProgram in
-        case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp endOfDrawingContextExp).val.eid) of
-          [pointName, xName, yName, offsetXName, offsetYName] ->
-            let
-              (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
-              -- Put point at beginning of context...
-              programWithPoint =
-                LangTools.newLetAfterComments contextExp.val.eid (pAs pointName (pList [pVar0 xName, pVar yName])) (identity (eTuple [eInt0 x1Int, eInt y1Int])) originalProgram |> FastParser.freshen -- eAsPoint
-              -- ...and offset at the end.
-              programWithOffsetAndPoint =
-                LangTools.newLetAfterComments endOfDrawingContextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, offsetAmountExp]) programWithPoint
-                |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
-                |> List.head
-                |> Maybe.withDefault originalProgram
-            in
-            { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
+    let otherCoordinateForValIs val targetVal =
+      case val.v_ of
+        VConst (Just (_, _, otherCoordinateVal)) _ -> Provenance.valsSame otherCoordinateVal targetVal
+        _                                          -> False
+    in
+    let pointAndOffset addPointAtBeginning =
+      let (contextExp, endOfDrawingContextExp) = FocusedEditingContext.contextExpAndEndOfDrawingContextExp old.editingContext originalProgram in
+      case LangTools.nonCollidingNames ["point", "x", "y", "x{n}Offset", "y{n}Offset"] 1 <| LangTools.visibleIdentifiersAtEIds originalProgram (Set.singleton (LangTools.lastExp endOfDrawingContextExp).val.eid) of
+        [pointName, xName, yName, offsetXName, offsetYName] ->
+          let
+            (offsetName, offsetFromName) = if axis == X then (offsetXName, xName) else (offsetYName, yName)
 
-          _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
+            insertPointBeforeEId = if addPointAtBeginning then contextExp.val.eid else endOfDrawingContextExp.val.eid
+
+            programWithPoint =
+              originalProgram
+              |> LangTools.newLetAfterComments insertPointBeforeEId (pAs pointName (pList [pVar0 xName, pVar yName])) (makePointExpFromPointWithSnap pt1)
+              |> FastParser.freshen
+
+            -- Offset goes at the end of the context.
+            programWithOffsetAndPoint =
+              programWithPoint
+              |> LangTools.newLetAfterComments endOfDrawingContextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, offsetAmountExp])
+              |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
+              |> List.head
+              |> Maybe.withDefault originalProgram
+          in
+          { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
+
+        _ -> Debug.crash "unsatisfied list length invariant in LangTools.nonCollidingNames or bug in Draw.addOffsetAndMaybePoint"
+    in
+    case (axis, pt1) of
+      (X, ((_, SnapVal x1Val), (_, NoSnap)))        -> offsetFromExisting x1Val
+      (Y, ((_, NoSnap),        (_, SnapVal y1Val))) -> offsetFromExisting y1Val
+      (X, ((_, SnapVal x1Val), (_, SnapVal y1Val))) -> if otherCoordinateForValIs x1Val y1Val then offsetFromExisting x1Val else pointAndOffset False
+      (Y, ((_, SnapVal x1Val), (_, SnapVal y1Val))) -> if otherCoordinateForValIs y1Val x1Val then offsetFromExisting y1Val else pointAndOffset False
+      _                                             -> pointAndOffset True
 
 
 --------------------------------------------------------------------------------
