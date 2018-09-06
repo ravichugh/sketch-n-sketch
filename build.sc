@@ -21,8 +21,31 @@ object SNS extends Module {
   def preludeRoot = T.sources { pwd / 'examples / "preludeLeo.elm" }
   val outDir = pwd / "build" /"out"
   val outSNS = outDir / "sns.js"
-  
-  def packages = T{ //TODO 
+
+  def publish = T{
+    html()
+    val publishFile = pwd / "publish_local.txt"
+    println("Testing if publish-local exists")
+    if (exists! publishFile)  {
+      val path = Path(read(publishFile))
+      println("output path" + path)
+      ls! pwd/'build/'out |! (copy(_, path))
+
+      /*val current_sha1 = %("git rev-parse HEAD").trim()
+      val current_commit_message = %("git log -1 --pretty=%B").trim()
+      val commit_message = current_commit_message+"\n@"+current_sha1
+      println("Commit message: " + commit_message)
+      println(%("git add -A")(path).!!)
+      println(%("git commit -am \""+commit_message+"\"")(path))
+      println(%("git push")(path))*/
+    } else {
+      println(
+        """`publish-local.txt` was not found.
+          |This file should contain the path to the folder where to publish sketch-n-sketch""".stripMargin)
+    }
+  }
+
+  def packages = T{ //TODO : Find a condition when to execute this. "elm-package install" followed by the git stuff.
   }
   
   def examples = T{
@@ -38,21 +61,21 @@ object SNS extends Module {
     println("Prelude regenerated")
   }
 
-  def currentDate = new SimpleDateFormat("HH:mm:ss  (yyyy-MM-dd)").format(Calendar.getInstance().getTime())
+  def currentDate = new SimpleDateFormat("HH:mm:ss  (yyyy-MM-dd)").format(Calendar.getInstance().getTime)
   
   def elmmake = T{
     packages()
     examples()
     prelude()
     sourceRoot()
-    val startTime =  Calendar.getInstance().getTime().getTime
+    val startTime =  Calendar.getInstance().getTime.getTime
     println("elm_make started at " + currentDate)
     stderr(%%(ELM_MAKE,"Main.elm", "--output", outSNS)) match {
       case Left(msg) =>
         System.out.print("\033[H\033[2J") // Clears the console to display the error
         println(buildSummary(fixpoint(insertLinks)(msg)))
       case Right(ok) =>
-        val endTime =  Calendar.getInstance().getTime().getTime
+        val endTime =  Calendar.getInstance().getTime.getTime
         println("it took " + (endTime - startTime )/ 1000 + "s")
         val output = read(outSNS)
         write.over(outSNS, output.replace("""var Elm = {};""",
@@ -72,8 +95,8 @@ object SNS extends Module {
       (m.group(1), m.group(2))
     ).toList.groupBy(_._1).map{case (filename, filename_linenums) =>
       val lineNums = filename_linenums.map(_._2.toInt)
-      val numErrors = lineNums.filter(x => !lineNums.exists(y => y == x + 1))
-      "at .(" + filename + ":" + lineNums.sorted.last + ")" +
+      val numErrors = lineNums.filter(x => !lineNums.contains(x + 1))
+      "at .(" + filename + ":" + lineNums.max + ")" +
         (if(filename_linenums.length > 1) " and " + numErrors.length + " errors covering " + lineNums.length + " lines." else " and this is the last error!")
     }.mkString("\n")
   }
@@ -134,8 +157,8 @@ object SNS extends Module {
     try {
       Right(commandResult.err.string)
     } catch {
-      case ammonite.ops.ShelloutException(commandResult) =>
-        Left(commandResult.err.string)
+      case ammonite.ops.ShelloutException(commandResultException) =>
+        Left(commandResultException.err.string)
     }
   }
 
