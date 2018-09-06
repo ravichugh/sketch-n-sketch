@@ -35,7 +35,7 @@ port module InterfaceController exposing
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
   , msgToggleAutosave
-  , msgExportCode, msgExportSvg
+  , msgExportCode, msgExportHtml
   , msgImportCode, msgAskImportCode
   , msgMouseEnterCodeBox, msgMouseLeaveCodeBox
   , msgReceiveDotImage
@@ -1153,11 +1153,16 @@ issueCommandBasedOnCaption kind oldModel newModel =
               (Model.prettyFilename WithoutExtension newModel ++ ext)
               newModel.code
 
-        "Export SVG" ->
+        "Export HTML" ->
+          let (prefix, suffix, extension) =
+            case vHtmlNodeUnapply newModel.inputVal of
+               Just ("svg", _, _) -> ("", "", ".svg")
+               _ -> ("<html>\n<body>", "</body>\n</html>", ".html")
+          in
           FileHandler.sendMessage <|
             Download
-              (Model.prettyFilename WithoutExtension newModel ++ ".svg")
-              (LangSvg.printHTML newModel.showGhosts newModel.slate)
+              (Model.prettyFilename WithoutExtension newModel ++ extension)
+              (prefix ++ LangSvg.printRawHTML newModel.showGhosts newModel.slate ++ suffix)
 
         "Import Code" ->
           FileHandler.sendMessage <|
@@ -2923,7 +2928,7 @@ msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
 
 msgExportCode = Msg "Export Code" identity
 
-msgExportSvg = Msg "Export SVG" identity
+msgExportHtml = Msg "Export HTML" identity
 
 --------------------------------------------------------------------------------
 -- Importing

@@ -2354,6 +2354,12 @@ vListUnapply v = case v.v_ of
   VList elems -> Just elems
   _ -> Nothing
 
+vHtmlNodeUnapply v = case vListUnapply v of
+  Just [tagVal, attrsVal, childrenVal] -> case vStringUnapply tagVal of
+    Just tag -> Just (tag, attrsVal, childrenVal)
+    _ -> Nothing
+  _ -> Nothing
+
 vStringUnapply v = case v.v_ of
   VBase (VString s) -> Just s
   _ -> Nothing

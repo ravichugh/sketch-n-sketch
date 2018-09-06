@@ -9,7 +9,7 @@ module LangSvg exposing
   , dummySvgNode
   , isSvg
   , valToIndexedTree
-  , printHTML
+  , printHTML, printRawHTML
   , compileAttr, compileAttrs
   , desugarShapeAttrs
   , buildSvgSimple
@@ -495,20 +495,22 @@ strStyle styles =
     |> String.join ";"
 
 
+printRawHTML: Bool -> RootedIndexedTree -> String
+printRawHTML showGhosts (rootId, tree) =
+  printNode HTMLParser.HTML showGhosts False 0 tree rootId
+
 ------------------------------------------------------------------------------
 -- Compiling to SVG (Text Format)
 
 printHTML : Bool -> RootedIndexedTree -> String
 printHTML showGhosts (rootId, tree) =
-  let s = printNode HTMLParser.HTML showGhosts 0 tree rootId in
-  --Regex.replace Regex.All (Regex.regex "[ ]+\\n") (\_ -> "") s
-  s
+  printNode HTMLParser.HTML showGhosts True 0 tree rootId
 
-printNode: HTMLParser.NameSpace -> Bool -> Int ->  IndexedTree -> NodeId -> String
-printNode namespace showGhosts indent slate i =
+printNode: HTMLParser.NameSpace -> Bool -> Bool -> Int ->  IndexedTree -> NodeId -> String
+printNode namespace showGhosts prettyPrint indent slate i =
   case Utils.justGet i slate |> .interpreted of
     -- TODO escape strings in TextNode and TextListNode
-    TextNode s -> s
+    TextNode s -> ImpureGoodies.htmlescape s
     SvgNode kind_ l1_ l2 ->
       let (kind,l1) = desugarShapeAttrs 0 0 kind_ l1_ in
       case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
@@ -525,12 +527,14 @@ printNode namespace showGhosts indent slate i =
             Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ ending
           else
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ "\n" ++
-            printNodes newKind showGhosts (indent+1) slate l2 ++ "\n" ++
-            tab indent ++ ending
+            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ (if prettyPrint then "\n" else "") ++
+            printNodes newKind showGhosts prettyPrint (indent+1) slate l2 ++ (if prettyPrint then "\n" else "") ++
+            (if prettyPrint then tab indent else "") ++ ending
 
-printNodes namespace showGhosts indent slate =
-  Utils.lines << List.map ((++) (tab indent) << printNode namespace showGhosts indent slate)
+printNodes namespace showGhosts prettyPrint indent slate =
+  Utils.lines << List.map (
+    (if prettyPrint then (++) (tab indent) else identity) <<
+    printNode namespace showGhosts prettyPrint indent slate)
 
 printAttrs l = case l of
   [] -> ""

@@ -657,7 +657,7 @@ menuBar model =
         , [ simpleTextButton "Export Code"
               Controller.msgExportCode
           , simpleTextButton "Export HTML"
-              Controller.msgExportSvg
+              Controller.msgExportHtml
           ]
         , [ simpleTextButton "Import Code..." <|
               Controller.msgOpenDialogBox ImportCode
@@ -1288,6 +1288,9 @@ codePanel model =
         past =
           History.prior model.history
         attributes =
+          if not <| List.member Keys.keyShift model.keysDown then
+            []
+          else
           case past of
             Just snapshot ->
               [ E.onMouseEnter <| Controller.msgPreview (Right snapshot.code)
