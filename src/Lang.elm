@@ -1731,23 +1731,9 @@ isOption exp =
     EOption _ _ _ _ _ -> True
     _                 -> False
 
-varsOfPat : Pat -> List Ident
-varsOfPat pat =
-  case pat.val.p__ of
-    PConst _ _              -> []
-    PBase _ _               -> []
-    PWildcard _             -> []
-    PVar _ x _              -> [x]
-    PList _ ps _ Nothing _  -> List.concatMap varsOfPat ps
-    PList _ ps _ (Just p) _ -> List.concatMap varsOfPat (p::ps)
-    PAs _ x _ p             -> x::(varsOfPat p)
-    PParens _ p _           -> varsOfPat p
-
-
 flattenPatTree : Pat -> List Pat
 flattenPatTree pat =
   pat :: List.concatMap flattenPatTree (childPats pat)
-
 
 -- Children left-to-right.
 childPats : Pat -> List Pat
@@ -3342,7 +3328,7 @@ tagSinglePat ppid pat =
         PList _ ps _ (Just pTail) _ ->
           tagPatList ppid (ps ++ [pTail])
         PParens _ p1 _ ->
-          tagSinglePat ppid p1
+          tagPatList ppid [p1]
 
 tagBranchList
   :  EId

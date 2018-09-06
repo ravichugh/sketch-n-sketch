@@ -208,6 +208,8 @@ patternsEqual patA patB =
     (PList ws1A psA ws2A Nothing ws3A,   PList ws1B psB ws2B Nothing ws3B)   -> patternListsEqual psA psB
     (PList ws1A psA ws2A (Just pA) ws3A, PList ws1B psB ws2B (Just pB) ws3B) -> patternListsEqual (pA::psA) (pB::psB)
     (PAs ws1A identA ws2A pA,            PAs ws1B identB ws2B pB)            -> identA == identB && patternsEqual pA pB
+    (PParens ws1 pA ws2,                 _)                                  -> patternsEqual pA patB
+    (_,                                  PParens ws1 pB ws2)                 -> patternsEqual patA pB
     _                                                                        -> False
 
 
@@ -1726,12 +1728,8 @@ identifiersListPatsOnly exp =
 
 identifiersListInPat : Pat -> List Ident
 identifiersListInPat pat =
-  case pat.val.p__ of
-    PVar _ ident _              -> [ident]
-    PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
-    PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
-    PAs _ ident _ pat           -> ident::(identifiersListInPat pat)
-    _                           -> []
+  flattenPatTree pat
+  |> List.filterMap patToMaybeIdent
 
 
 identifiersListInPats : List Pat -> List Ident
@@ -1819,6 +1817,9 @@ renameIdentifiersInPat subst pat =
         case Dict.get ident subst of
           Just new -> PAs ws1 new ws2 (recurse innerPat)
           Nothing  -> PAs ws1 ident ws2 (recurse innerPat)
+
+      PParens ws1 innerPat ws2 ->
+        PParens ws1 (recurse innerPat) ws2
 
       _ ->
         pat.val.p__
@@ -1936,6 +1937,9 @@ setPatNameInPat path newName pat =
         replaceP__ pat (PList ws1 ps ws2 (Just (setPatNameInPat is newName tailPat)) ws3)
       else
         pat
+
+    (PParens ws1 p ws2, 1::is) ->
+      replaceP__ pat (PParens ws1 (setPatNameInPat is newName p) ws2)
 
     _ ->
       pat
@@ -2129,6 +2133,9 @@ followPathInPat path pat =
     (PAs _ _ _ p, 1::is) ->
       followPathInPat is p
 
+    (PParens _ p _, 1::is) ->
+      followPathInPat is p
+
     (PList _ ps _ Nothing _, i::is) ->
       Utils.maybeGeti1 i ps
       |> Maybe.andThen (\p -> followPathInPat is p)
@@ -2299,6 +2306,11 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
       |> Maybe.map (postProcessDescendentsWithPath 1)
       |> addThisMatch
 
+    PParens ws1 innerPat ws2 ->
+      recurse innerPat exp
+      |> Maybe.map (postProcessDescendentsWithPath 1)
+      |> addThisMatch
+
     PList _ ps _ Nothing _ ->
       case (expEffectiveExp exp).val.e__ of
         EList _ es _ Nothing _ ->
@@ -2349,9 +2361,6 @@ tryMatchExpPatToSomething makeThisMatch postProcessDescendentWithPath pat exp =
       case (expEffectiveExp exp).val.e__ of
         EBase _ ev -> if eBaseValsEqual bv ev then Just thisMatch else Nothing
         _          -> Just thisMatch
-
-    PParens ws1 innerPat ws2 ->
-      recurse innerPat exp
 
 
 -- Given an EId, look for a name bound to it and the let scope that defined the binding.

@@ -850,7 +850,7 @@ groupAndRearrange model newGroup defs blobs selectedNiceBlobs
            (\beforeDef (acc1,acc2) ->
              -- if needed, could split a multi-binding into smaller chunks
              let (_,p,_,_) = beforeDef in
-             let vars = varsOfPat p in
+             let vars = identifiersListInPat p in
              let someVarAppearsIn e = let free = freeIdentifiers e in List.any (\ident -> Set.member ident free) vars in
              let noVarAppearsIn e   = let free = freeIdentifiers e in List.all (\ident -> not (Set.member ident free)) vars in
              if List.any someVarAppearsIn (getExps (plucked ++ acc1)) &&
