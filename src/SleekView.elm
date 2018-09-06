@@ -906,6 +906,13 @@ menuBar model =
                   True "Every 3 seconds" Controller.msgNoop
               ]
           ]
+        , [ hoverMenu "Enable Type Checking" <|
+              booleanOption
+                model.doTypeChecking
+                "True"
+                "False"
+                Controller.msgSetDoTypeChecking
+          ]
         , [ hoverMenu "Enable Text Edits" <|
               booleanOption
                 (Updatable.extract model.enableTextEdits)

@@ -73,6 +73,7 @@ port module InterfaceController exposing
   , msgValuePathUpdate
   , msgAutoSync
   , msgSetCodeEditorMode
+  , msgSetDoTypeChecking
   )
 
 import Updatable exposing (Updatable)
@@ -173,16 +174,35 @@ debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
-maybeTypecheck : Exp -> (Exp, Types2.AceTypeInfo)
-maybeTypecheck inputExp =
-  -- TODO add a flag to Model for type checking
-  if True then
+maybeTypeCheck : Bool -> Exp -> (Exp, Types2.AceTypeInfo)
+maybeTypeCheck doTypeChecking inputExp =
+  if doTypeChecking then
     let newInputExp = Types2.typecheck inputExp in
     let ati = Types2.aceTypeInfo newInputExp in
     (newInputExp, ati)
 
   else
     (inputExp, Types2.dummyAceTypeInfo)
+
+msgSetDoTypeChecking : Bool -> Msg
+msgSetDoTypeChecking bool =
+  NewModelAndCmd "Toggle Type Checking" <| \model ->
+    let
+      (inputExp, aceTypeInfo) =
+        maybeTypeCheck bool model.inputExp
+
+      newModel =
+        { model
+            | doTypeChecking =
+                bool
+            , inputExp =
+                inputExp
+            , codeBoxInfo =
+                updateCodeBoxInfo aceTypeInfo model
+        }
+          |> resetDeuceState
+    in
+      (newModel, Cmd.none)
 
 refreshLiveInfo m =
   case mkLive
@@ -780,7 +800,7 @@ tryRun old =
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok parsedExp ->
-        let (e, aceTypeInfo) = maybeTypecheck parsedExp in
+        let (e, aceTypeInfo) = maybeTypeCheck old.doTypeChecking parsedExp in
         let resultThunk () =
 
           -- want final environment of top-level definitions when evaluating e,
@@ -1537,7 +1557,7 @@ refreshInputExp old =
     (newInputExp, newCodeBoxInfo, newLastParsedCode) =
       case parseResult of
         Ok parsedExp ->
-          let (inputExp, aceTypeInfo) = maybeTypecheck parsedExp in
+          let (inputExp, aceTypeInfo) = maybeTypeCheck old.doTypeChecking parsedExp in
           (inputExp, updateCodeBoxInfo aceTypeInfo old, old.code)
 
         Err _ ->
@@ -2782,11 +2802,11 @@ msgNew template = Msg "New" (handleNew template)
 handleNew template = (\old ->
   let f = loadTemplate template () in
   let
-    {e,v,ws,env,ati} = case f of
-         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types2.dummyAceTypeInfo}
+    {e,v,ws,env} = case f of
+         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
          Ok ff -> ff
   in
-  let (inputExp, aceTypeInfo) = maybeTypecheck e in
+  let (inputExp, aceTypeInfo) = maybeTypeCheck old.doTypeChecking e in
   let so = Sync.syncOptionsOf old.syncOptions inputExp in
   let outputMode =
     Utils.fromOk "SelectExample mkLive" <|
@@ -2849,6 +2869,8 @@ handleNew template = (\old ->
 
                 , outputMode = Graphics
                 , syncMode = old.syncMode
+
+                , doTypeChecking = old.doTypeChecking
 
                 } |> resetDeuceState
   ) |> handleError old) >> closeDialogBox New

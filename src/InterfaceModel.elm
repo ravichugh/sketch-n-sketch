@@ -217,6 +217,7 @@ type alias Model =
   , syntax : Syntax
   , codeEditorMode : CodeEditorMode
   , deuceOverlayCache : Maybe (Html Msg)
+  , doTypeChecking : Bool
   }
 
 type OutputMode
@@ -1270,7 +1271,7 @@ initModel =
   let f    = loadTemplate initTemplate () in
   let
     {e,v,ws,env} = case f of
-         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[], ati=Types.AceTypeInfo [] [] []}
+         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
          Ok ff -> ff
   in
   let unwrap = Utils.fromOk "generating initModel" in
@@ -1420,4 +1421,5 @@ initModel =
     , syntax = Syntax.Elm
     , codeEditorMode = CEText
     , deuceOverlayCache = Nothing
+    , doTypeChecking = False
     }

@@ -25,7 +25,6 @@ module ExamplesGenerated exposing
 import Lang exposing (Exp, Val, Widget, Env)
 import FastParser
 import ElmParser
-import Types2
 import Eval
 import Utils
 import PreludeGenerated as Prelude
@@ -39,7 +38,6 @@ type alias Example = {
    e: Exp,
    v: Val,
    ws: List Widget,
-   ati: Types2.AceTypeInfo,
    env: Env}
 
 --------------------------------------------------------------------------------
@@ -60,14 +58,13 @@ makeExample_ parser syntax name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
     parser s |> Result.mapError (\pmsg -> "Error parsing example " ++ name ++"\n" ++ ParserUtils.showError pmsg) |> Result.map (\e ->
-    let ati = Types2.aceTypeInfo e in
     -----------------------------------------------------
     -- if name == "*Prelude*" then
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
     let ((v,ws), env) = Utils.fromOk ("Error executing example " ++ name) <| EvalUpdate.runWithEnv syntax e in
-    {e=e, v=v, ws=ws, ati=ati,env=env}
+    {e=e, v=v, ws=ws, env=env}
     )
   in
   (name, (s, thunk))
