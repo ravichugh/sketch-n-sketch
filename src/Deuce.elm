@@ -43,7 +43,6 @@ import Lang exposing
   , extractInfoFromCodeObject
   , isTarget
   , foldCode
-  , hasChildElements
   , childCodeObjects
   , computePatMap
   , firstNestedExp
