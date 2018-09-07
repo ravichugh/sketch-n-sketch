@@ -750,11 +750,19 @@ addSubsumingPriorWidgets widget widgets =
       widgets ++ [widget]
 
 
--- Need to revisit this to do deeper dedup.
 postProcessWidgets : Exp -> List Widget -> List Widget
 postProcessWidgets program widgets =
   let
-    dedupedWidgets = Utils.dedup widgets
+    dedupedWidgets =
+      -- Our own deduped to avoid nasty val comparison freezes
+      widgets
+      |> Utils.foldr
+          []
+          (\widget deduped ->
+            if List.any (ValWidgets.widgetsSameForPostprocessingRemoval widget) deduped
+            then deduped
+            else widget::deduped
+          )
 
     -- partition so that hidden and point sliders don't affect indexing
     -- (and, thus, positioning) of range sliders

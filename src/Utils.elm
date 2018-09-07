@@ -611,6 +611,9 @@ allSame list = case list of
   []    -> False
   v::vs -> List.all ((==) v) vs
 
+allTrue : List Bool -> Bool
+allTrue = List.all identity
+
 maybeConsensus : List Bool -> Maybe Bool
 maybeConsensus bools =
   if List.all ((==) True) bools then

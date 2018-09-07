@@ -1493,7 +1493,7 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
       abstractedCandidatePrograms
       |> List.filter
           (\synthesisResult ->
-            case InterfaceModel.runAndResolveAtContext model (InterfaceModel.resultExp synthesisResult) of
+            case InterfaceModel.runAndResolveAtContext model (logProgram "Testing candidate for crashing:" <| InterfaceModel.resultExp synthesisResult) of
               Err s                                          -> False
               Ok (_, widgets, (_, shapeTree) as slate, _, _) -> if shapeCountBefore > 1 then Dict.size shapeTree > 1 else True -- Top level 'svg' is an element
           )
