@@ -1763,6 +1763,7 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
   let synthesisResults =
     ValueBasedTransform.buildAbstraction
         old.inputExp
+        old.idToTypeAndContextThunk
         old.editingContext
         old.selectedFeatures
         old.selectedShapes
@@ -2614,10 +2615,7 @@ msgAddArg = Msg "Add Arg to Focused Function in Output" <| \old ->
                 )
             |> List.sortBy (\(SynthesisResult result) -> (if result.isSafe then 0 else 1, result.sortKey))
           in
-          case results of
-            []             -> old
-            [singleResult] -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp singleResult) }
-            _              -> { old | synthesisResultsDict = Dict.insert "Add Argument" results old.synthesisResultsDict }
+          { old | synthesisResultsDict = Dict.insert "Add Argument" results old.synthesisResultsDict }
 
         _ ->
           let _ = Utils.log "could not find func to add argument to, not focused on a function" in

@@ -872,8 +872,8 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 
 -- Returns synthesis results
 -- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
-buildAbstraction : Exp -> Maybe (EId, a) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
-buildAbstraction program editingContext selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
+buildAbstraction : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Maybe (EId, a) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
+buildAbstraction program idToTypeAndContextThunk editingContext selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we abort on unparsable code
     Err s -> []
     Ok (_, widgets, slate, _) ->
@@ -881,6 +881,11 @@ buildAbstraction program editingContext selectedFeatures selectedShapes selected
       --
       -- Actually the dependency gathering will not rearrange definitions so this may be unnecessary now.
       let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
+      let varEIdsReferringToFunctions =
+        allVars originalProgramUniqueNames
+        |> List.map (.val >> .eid)
+        |> List.filter (\varEId -> Dict.get varEId idToTypeAndContextThunk |> Maybe.map (\(tipe,_) -> Types.isArrow tipe) |> Maybe.withDefault False)
+      in
       -- Still doesn't correctly handle abstracting a shape list b/c provenance is not smart enough.
       ShapeWidgets.selectionsProximalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs (\e -> childExps e /= [] && freeVars e /= [])
       -- |> List.map (\interp -> let _ = Utils.log <| String.join ", " <| List.map (justFindExpByEId program >> Syntax.unparser Syntax.Elm) interp in interp)
@@ -909,7 +914,8 @@ buildAbstraction program editingContext selectedFeatures selectedShapes selected
               [
                 freeVars funcBodyAfterSlurpingBeforeArgumentization
                 |> List.filter (\var -> not <| List.member (expToIdent var) patUniqueNamesInFunction) -- in case some definitions got rearranged, these vars should not be considered free (will be reorganized by programOriginalNamesAndMaybeRenamedLiftedTwiddledResults)
-                |> List.filter (\var -> not <| List.member var expsUsedAsApplicationFunctionInFunction) -- leave Vars used only as functions free
+                |> List.filter (\var -> not <| List.member var expsUsedAsApplicationFunctionInFunction)
+                |> List.filter (\var -> not <| List.member var.val.eid varEIdsReferringToFunctions)
                 |> Utils.dedupBy expToIdent
               ]
 

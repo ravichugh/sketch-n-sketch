@@ -54,6 +54,14 @@ isForall tipe =
     _               -> False
 
 
+isArrow : Type -> Bool
+isArrow tipe =
+  case tipe.val.t__ of
+    TForall _ _ t _ -> isArrow t
+    TArrow _ _ _    -> True
+    _               -> False
+
+
 isListNotTuple : Type -> Bool
 isListNotTuple tipe =
   case tipe.val.t__ of
