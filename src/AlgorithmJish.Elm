@@ -670,6 +670,7 @@ infer typesHeap context e =
         bodyContext = List.concat contexts ++ context
         returnType = infer typesHeap bodyContext fBody
       in
+      let returnType = infer typesHeap bodyContext fBody in -- Take a second pass to propogate role information now that we know more about the types of the function args.
       tArrows (argTypes ++ [returnType])
 
     ELet _ _ isRec p _ e1 _ e2 _ ->
@@ -682,9 +683,11 @@ infer typesHeap context e =
           then pContext ++ context
           else context
 
-        t1 = infer typesHeap boundExpContext e1
-        _  = unify typesHeap pType t1
+        t1Pre  = infer typesHeap boundExpContext e1
+        _      = unify typesHeap pType t1Pre
       in
+      let t1 = t1Pre in
+      -- let t1 = infer typesHeap boundExpContext e1 in -- Take another pass to propogate role information.
       let handleRegular () =
         let t2 = infer typesHeap (pContext ++ context) e2 in
         t2
@@ -1002,12 +1005,14 @@ becomes role    = Set.singleton role
 additionRules =
   [ ( ( whatever , is "X"                                , isntAnyOf ["X", "HorizontalDistance"] ), ( becomes "X"                  , unchanged                    , becomes "HorizontalDistance" ) ) -- (X) = X + (HorizontalDistance)
   , ( ( whatever , isntAnyOf ["X", "HorizontalDistance"] , is "X"                                ), ( becomes "X"                  , becomes "HorizontalDistance" , unchanged                    ) ) -- (X) = (HorizontalDistance) + X
-  , ( ( whatever , is "HorizontalDistance"               , isntAnyOf ["X"]                       ), ( becomes "HorizontalDistance" , unchanged                    , becomes "HorizontalDistance" ) ) -- (HorizontalDistance) = HorizontalDistance + (HorizontalDistance)
-  , ( ( whatever , isntAnyOf ["X"]                       , is "HorizontalDistance"               ), ( becomes "HorizontalDistance" , becomes "HorizontalDistance" , unchanged                    ) ) -- (HorizontalDistance) = (HorizontalDistance) + HorizontalDistance
+  -- , ( ( whatever , is "HorizontalDistance"               , isntAnyOf ["X"]                       ), ( becomes "HorizontalDistance" , unchanged                    , becomes "HorizontalDistance" ) ) -- (HorizontalDistance) = HorizontalDistance + (HorizontalDistance) -- prematurely marks x's as horizontal distances
+  -- , ( ( whatever , isntAnyOf ["X"]                       , is "HorizontalDistance"               ), ( becomes "HorizontalDistance" , becomes "HorizontalDistance" , unchanged                    ) ) -- (HorizontalDistance) = (HorizontalDistance) + HorizontalDistance -- prematurely marks x's as horizontal distances
+  , ( ( whatever , is "HorizontalDistance"               , is "HorizontalDistance"               ), ( becomes "HorizontalDistance" , unchanged                    , unchanged                    ) ) -- (HorizontalDistance) = HorizontalDistance + HorizontalDistance
   , ( ( whatever , is "Y"                                , isntAnyOf ["Y", "VerticalDistance"]   ), ( becomes "Y"                  , unchanged                    , becomes "VerticalDistance"   ) ) -- (Y) = Y + (VerticalDistance)
   , ( ( whatever , isntAnyOf ["Y", "VerticalDistance"]   , is "Y"                                ), ( becomes "Y"                  , becomes "VerticalDistance"   , unchanged                    ) ) -- (Y) = (VerticalDistance) + Y
-  , ( ( whatever , is "VerticalDistance"                 , isntAnyOf ["Y"]                       ), ( becomes "VerticalDistance"   , unchanged                    , becomes "VerticalDistance"   ) ) -- (VerticalDistance) = VerticalDistance + (VerticalDistance)
-  , ( ( whatever , isntAnyOf ["Y"]                       , is "VerticalDistance"                 ), ( becomes "VerticalDistance"   , becomes "VerticalDistance"   , unchanged                    ) ) -- (VerticalDistance) = (VerticalDistance) + VerticalDistance
+  -- , ( ( whatever , is "VerticalDistance"                 , isntAnyOf ["Y"]                       ), ( becomes "VerticalDistance"   , unchanged                    , becomes "VerticalDistance"   ) ) -- (VerticalDistance) = VerticalDistance + (VerticalDistance) -- prematurely marks y's as horizontal distances
+  -- , ( ( whatever , isntAnyOf ["Y"]                       , is "VerticalDistance"                 ), ( becomes "VerticalDistance"   , becomes "VerticalDistance"   , unchanged                    ) ) -- (VerticalDistance) = (VerticalDistance) + VerticalDistance -- prematurely marks y's as horizontal distances
+  , ( ( whatever , is "VerticalDistance"                 , is "VerticalDistance"                 ), ( becomes "VerticalDistance"   , unchanged                    , unchanged                    ) ) -- (VerticalDistance) = VerticalDistance + VerticalDistance
   ]
 
 -- Subtraction rules ----
@@ -1027,7 +1032,7 @@ subtractionRules =
   , ( ( whatever , is "HorizontalDistance"               , is "HorizontalDistance" ), ( becomes "HorizontalDistance" , unchanged , unchanged ) ) -- (HorizontalDistance) = HorizontalDistance - HorizontalDistance
   , ( ( whatever , is "VerticalDistance"                 , is "VerticalDistance"   ), ( becomes "VerticalDistance"   , unchanged , unchanged ) ) -- (VerticalDistance)   = VerticalDistance   - VerticalDistance
   , ( ( whatever , is "X"                                , is "X"                  ), ( becomes "HorizontalDistance" , unchanged , unchanged ) ) -- (HorizontalDistance) = X - X
-  , ( ( whatever , is "Y"                                , is "Y"                  ), ( becomes "VerticalDistance"   , unchanged , unchanged ) ) -- (VerticalDistance)    = Y - Y
+  , ( ( whatever , is "Y"                                , is "Y"                  ), ( becomes "VerticalDistance"   , unchanged , unchanged ) ) -- (VerticalDistance)   = Y - Y
   ]
 
 -- Less Than rules ----
