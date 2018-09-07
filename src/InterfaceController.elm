@@ -1872,7 +1872,7 @@ msgShowTerminationConditionOptions funcEId scrutineeEId = Msg "Show Termination 
                 funcExp
                 |> mapExp (\e -> if LangTools.expToMaybeHoleName e == Just "* NEW ARG *" then eParens (eOp Minus [eVar0 argName, eConstDummyLoc 1]) else e) -- * NEW ARG * -> (depth - 1)
                 |> LangTools.renameIdentifier "* NEW ARG *" argName -- Rename the arg in the pattern.
-                |> replaceExpNodePreservingPrecedingWhitespace scrutineeEId (eCall "le" [eVar argName, eConstDummyLoc 1])
+                |> replaceExpNodePreservingPrecedingWhitespace scrutineeEId (eOp Lt [eVar argName, eConstDummyLoc 2])
 
               newProgram =
                 program

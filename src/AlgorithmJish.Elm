@@ -927,6 +927,7 @@ tagWithRolesBasedOnNumber typesHeap n tipe =
     case n of
       0 -> Set.singleton "Zero"
       1 -> Set.singleton "One"
+      2 -> Set.singleton "Two"
       _ -> Set.empty
   in
   if Set.size roles > 0 then
@@ -1034,7 +1035,9 @@ subtractionRules =
 -- var < 1  =>  var = PivotsOnOne (possible a depth)
 --
 lessThanRules =
-  [ ( ( whatever , is "One"  , whatever  ), ( unchanged , unchanged              , becomes "PivotsOnOne"  ) )
+  [ ( ( whatever , is "Two"  , whatever  ), ( unchanged , unchanged              , becomes "PivotsOnTwo"  ) )
+  , ( ( whatever , whatever  , is "Two"  ), ( unchanged , becomes "PivotsOnTwo"  , unchanged              ) )
+  , ( ( whatever , is "One"  , whatever  ), ( unchanged , unchanged              , becomes "PivotsOnOne"  ) )
   , ( ( whatever , whatever  , is "One"  ), ( unchanged , becomes "PivotsOnOne"  , unchanged              ) )
   , ( ( whatever , is "Zero" , whatever  ), ( unchanged , unchanged              , becomes "PivotsOnZero" ) )
   , ( ( whatever , whatever  , is "Zero" ), ( unchanged , becomes "PivotsOnZero" , unchanged              ) )
