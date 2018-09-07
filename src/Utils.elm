@@ -1305,6 +1305,9 @@ log : String -> ()
 log s =
   Debug.log s ()
 
+logInChain : String -> a -> a
+logInChain s x = let _ = log s in x
+
 -- For usage in a chain. something |> perhapsLogError "mySomething failed" |> Result.map f
 perhapsLogError prefix result =
   case result of

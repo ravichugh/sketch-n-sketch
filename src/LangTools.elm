@@ -14,11 +14,18 @@ import Info exposing (parsedThingToLocation)
 import ElmParser
 import Utils
 import LangUnparser exposing (unparseWithIds)
+import Syntax
 import Types
 
 import Dict exposing (Dict)
 import Regex
 import Set exposing (Set)
+
+
+logProgram : String -> Exp -> Exp
+logProgram caption program =
+  let _ = Utils.log <| caption ++ ":\n" ++ Syntax.unparser Syntax.Elm program in
+  program
 
 
 -- For ranking synthesized expressions

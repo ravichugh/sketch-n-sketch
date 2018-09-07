@@ -672,6 +672,7 @@ addToEndOfDrawingContext old varSuggestedName exp =
     originalProgram
     |> LangTools.newLetAfterComments endOfDrawingContextExp.val.eid (pVar varName) exp
     |> perhapsPrepareRecursiveFunction endOfDrawingContextExp.val.eid
+    |> LangTools.logProgram "addToEndOfDrawingContext about to resolve holes"
     |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
     |> List.head
     |> Maybe.withDefault originalProgram
@@ -891,7 +892,7 @@ addFunction : Ident -> Model -> PointWithSnap -> PointWithSnap -> Model
 addFunction fName old pt1 pt2 =
   case newFunctionCallExp fName old pt1 pt2 of
     Just (callExp, returnType) ->
-      if TypeDirectedFunctionUtils.clearlyNotShapeOrListOfShapesType returnType then
+      if TypeDirectedFunctionUtils.clearlyNotShapeOrListOfShapesType returnType |> Debug.log "TypeDirectedFunctionUtils.clearlyNotShapeOrListOfShapesType returnType" then
         addToEndOfDrawingContext old fName callExp
       else
         addShapeToModel old fName callExp

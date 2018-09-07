@@ -1991,7 +1991,7 @@ doGroup old =
     --       (always True)
     --   |> Set.fromList
 
-    logProgram caption e = Utils.log <| caption ++ ":\n" ++ Syntax.unparser old.syntax e
+    logProgram = LangTools.logProgram
 
     -- 1. We need a list.
     -- 2. We need these things to be in the list.

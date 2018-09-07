@@ -10,8 +10,10 @@ import CodeMotion
 import FastParser
 import FocusedEditingContext
 import InterfaceModel
+import Eval
 import Lang exposing (..)
 import LangTools
+import LangSvg
 import Solver
 import StaticAnalysis
 import Sync
@@ -54,7 +56,7 @@ addShape
   targetListFilter
   maybeNewShapeName
   newShapeExp
-  maybeNumberOfNewShapesExpected
+  maybeNumberOfNewShapesExpected -- If not Nothing, overridden with number of shapes actually counted in newShapeExp
   maybeNumberOfNewShapesExpectedIfListInlined -- If provided, may attempt to inline newShapeExp if it is a list
   maybeNumberOfNewListItemsExpected
   maybeNumberOfNewListItemsExpectedIfListInlined -- If provided, may attempt to inline newShapeExp if it is a list
@@ -64,19 +66,40 @@ addShape
     contextExp         = FocusedEditingContext.drawingContextExp model.editingContext originalProgram
     -- _ = inferredReturnType |> List.map (Syntax.typeUnparser Syntax.Elm) |> Debug.log "inferredReturnType"
     -- _ = Utils.log <| "addShape incoming program: " ++ Syntax.unparser Syntax.Elm originalProgram
-    idToTypeAndContextThunk = AlgorithmJish.inferTypes originalProgram
-    inferredReturnTypeAndContextThunk = Dict.get contextExp.val.eid idToTypeAndContextThunk
+    idToTypeAndContextThunk           = AlgorithmJish.inferTypes originalProgram
+    inferredReturnTypeAndContextThunk = Dict.get (expEffectiveExp contextExp).val.eid idToTypeAndContextThunk
     inferredReturnType                = inferredReturnTypeAndContextThunk |> Maybe.map Tuple.first
     typeContextAtReturnType           = inferredReturnTypeAndContextThunk |> Maybe.map (Tuple.second >> (\thunk -> thunk ())) |> Maybe.withDefault AlgorithmJish.preludeTypeContext
+
+    incomingExpFreshened              = FastParser.freshen newShapeExp
+    incomingType                      = AlgorithmJish.inferOne typeContextAtReturnType incomingExpFreshened
+    _                                 = Utils.log ("incomingType: " ++ Syntax.typeUnparser Syntax.Elm incomingType)
+
+
+    eidsThatWouldMakeARecursiveFunction =
+      let identBoundExps = LangTools.allSimplyResolvableLetBindings contextExp in -- If you've focused the function, it's on you if you try to make it recursive.
+      LangTools.freeIdentifiers incomingExpFreshened
+      |> Set.toList
+      |> List.filterMap (flip Utils.maybeFind identBoundExps)
+      |> List.concatMap allEIds
+      |> Set.fromList
 
 
     isPossibleTargetList exp =
       isList exp &&
       targetListFilter exp &&
+      (not <| Set.member exp.val.eid eidsThatWouldMakeARecursiveFunction) &&
       -- Optimization: exclude numeric lists/tuples
-      case Dict.get exp.val.eid idToTypeAndContextThunk |> Maybe.andThen (Tuple.first >> Types.maybeListOrHomogenousTupleElementsType) of
-        Just t -> not (Types.isNumType t)
-        _      -> True
+      case Dict.get exp.val.eid idToTypeAndContextThunk of
+        Just (listExpType, _) ->
+          -- childExps exp == [] || -- Empty list
+          let _ = Utils.log ("listExpType: " ++ Syntax.typeUnparser Syntax.Elm listExpType) in
+          List.all (AlgorithmJish.doesUnify (Types.tList incomingType)) (childTypes listExpType) || -- list literal wrapped in concat
+          List.all (AlgorithmJish.doesUnify incomingType) (childTypes listExpType) || -- incoming exp is same type as list literal items
+          AlgorithmJish.doesUnify incomingType listExpType -- if wrapped in concat
+
+        Nothing -> childExps exp == [] -- Empty list
+
 
     -- 1. Find all list literals.
     possibleTargetLists = flattenExpTree contextExp |> List.filter isPossibleTargetList
@@ -103,13 +126,35 @@ addShape
                 )
             |> FastParser.freshen
 
-          possibleTargetLists = LangTools.justFindExpByEId programWithListifiedReturnExp contextExp.val.eid |> flattenExpTree |> List.filter isPossibleTargetList
+          possibleTargetLists =
+            LangTools.justFindExpByEId programWithListifiedReturnExp contextExp.val.eid
+            |> LangTools.terminalExpLevels
+            |> List.map LangTools.lastSameLevelExp
+            |> List.filter isList
         in
         Just (programWithListifiedReturnExp, possibleTargetLists)
       else
         Nothing
 
-    -- incomingExpFreshened = FastParser.freshen newShapeExp
+    (oldShapeCount, oldListItemsCount) = maybeShapeCountAndListItemCountInContextOutput model originalProgram |> Maybe.withDefault (0, 0)
+    _ = Debug.log "(oldShapeCount, oldListItemsCount)" (oldShapeCount, oldListItemsCount)
+
+    (incomingShapeCount, incomingListItemsCount) =
+      Eval.doEval model.syntax (model.maybeEnv |> Maybe.withDefault Eval.initEnv) newShapeExp
+      |> Result.andThen
+          (\((val, _), _, _) ->
+            LangSvg.resolveToRootedIndexedTree model.syntax model.slideNumber model.movieNumber model.movieTime val
+            |> Result.map
+                (\(root, shapeTree) ->
+                  ( if Dict.size shapeTree > 1 then Dict.size shapeTree - 1 else Dict.size shapeTree -- Lists of shapes are wrapped in an ['svg' ... ...] wrapper that adds 1 to the shape count.
+                  , val |> vListToMaybeValsExcludingPoint |> Maybe.map List.length |> Maybe.withDefault 1
+                  )
+                )
+          )
+      |> Result.toMaybe
+      |> Maybe.withDefault (0, 0)
+
+    _ = Debug.log "(incomingShapeCount, incomingListItemsCount)" (incomingShapeCount, incomingListItemsCount)
 
     -- Should we try to inline the item to add?
     (maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected, incomingExpShouldBeInlined) =
@@ -117,8 +162,6 @@ addShape
       if maybeNumberOfNewShapesExpectedIfListInlined /= Nothing || maybeNumberOfNewListItemsExpectedIfListInlined /= Nothing then
         case inferredReturnType of
           Just retType ->
-            let incomingExpFreshened = FastParser.freshen newShapeExp in
-            let incomingType = AlgorithmJish.inferOne typeContextAtReturnType incomingExpFreshened in
             -- let _ = Utils.log ("incomingExpFreshened: "    ++ Syntax.unparser Syntax.Elm incomingExpFreshened) in
             -- let _ = Utils.log ("typeContextAtReturnType: " ++ toString (List.map (flip Utils.maybeFind typeContextAtReturnType >> Maybe.map (Syntax.typeUnparser Syntax.Elm)) (LangTools.freeIdentifiers incomingExpFreshened |> Set.toList))) in
             -- let _ = Utils.log ("retType: "                 ++ Syntax.typeUnparser Syntax.Elm retType) in
@@ -129,14 +172,12 @@ addShape
               , True
               )
             else
-              (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
+              (maybeNumberOfNewShapesExpected |> Maybe.map (always incomingShapeCount), maybeNumberOfNewListItemsExpected, False)
 
           _ ->
-            (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
+            (maybeNumberOfNewShapesExpected |> Maybe.map (always incomingShapeCount), maybeNumberOfNewListItemsExpected, False)
       else
-        (maybeNumberOfNewShapesExpected, maybeNumberOfNewListItemsExpected, False)
-
-    (oldShapeCount, oldListItemsCount) = maybeShapeCountAndListItemCountInContextOutput model originalProgram |> Maybe.withDefault (0, 0)
+        (maybeNumberOfNewShapesExpected |> Maybe.map (always incomingShapeCount), maybeNumberOfNewListItemsExpected, False)
 
     -- 2. Make candidate programs by adding both `shape` and `[shape]` to the end of each list.
     --    If return val is not a list, make it a list.
@@ -181,6 +222,7 @@ addShape
       -- 5. Keep those programs that result in one more shape in the output.
       |> List.filter
           (\(listEId, newProgram) ->
+            let _ = LangTools.logProgram "checking candidate" newProgram in
             areCrashingProgramsOkay ||
             case maybeShapeCountAndListItemCountInContextOutput model newProgram of
               Just (newShapeCount, newListItemsCount) ->
