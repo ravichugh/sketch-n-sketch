@@ -5,6 +5,39 @@
 ; This is not an example that generates an SVG canvas,
 ; but we include it here for reference.
 
+; === Type Aliases ===
+
+(def Ratio Num)
+(def Point [Num Num])
+(def Width Num)
+(def Height Num)
+(def HalfWidth Num)
+(def HalfHeight Num)
+(def Radius Num)
+(def Distance Num)
+(def HorizontalDistance Num)
+(def VerticalDistance Num)
+(def Count Num)
+(def Radians Num)
+(def Degrees Num)
+(def RGBA [Num Num Num Num])
+(def Color (union String Num RGBA))
+(def StrokeWidth Num)
+(def PathCmds (List (union String Num)))
+(def Points (List Point))
+(def RotationCmd [[String Num Num Num]])
+(def AttrVal (union String Num Bool Color PathCmds Points RotationCmd))
+(def AttrName String)
+(def AttrPair [AttrName AttrVal])
+(def Attrs (List AttrPair))
+(def NodeKind String)
+; TODO add recursive types properly
+; (def SVGOrText (union SVG [String String]))
+; (def SVG [NodeKind Attrs (List SVGOrText)])
+(def SVG (forall a [NodeKind Attrs (List a)]))
+(def Blob (List SVG))
+
+
 ;; The identity function - given a value, returns exactly that value
 (typ id (forall a (-> a a)))
 (def id (\x x))
@@ -167,14 +200,14 @@
 (def list0N (\n (range 0 n)))
 
 ;; Given a number, create the list of 1 to that number inclusive
-(typ list1N (-> Num (List Num)))
+(typ list1N (-> Count (List Num)))
 (def list1N (\n (range 1 n)))
 
-(typ zeroTo (-> Num (List Num)))
+(typ zeroTo (-> Count (List Num)))
 (def zeroTo (\n (range 0 (- n 1))))
 
 ;; Given a number n and some value x, return a list with x repeated n times
-(typ repeat (forall a (-> Num a (List a))))
+(typ repeat (forall a (-> Count a (List a))))
 (def repeat (\(n x) (map (always x) (range 1 n))))
 
 ;; Given two lists, return a single list that alternates between their values (first element is from first list)
@@ -352,37 +385,6 @@
 ; SVG Manipulating Functions
 ;
 
-; === SVG Types ===
-
-(def Ratio Num)
-(def Point [Num Num])
-(def Width Num)
-(def Height Num)
-(def HalfWidth Num)
-(def HalfHeight Num)
-(def Radius Num)
-(def Distance Num)
-(def HorizontalDistance Num)
-(def VerticalDistance Num)
-(def Count Num)
-(def Radians Num)
-(def Degrees Num)
-(def RGBA [Num Num Num Num])
-(def Color (union String Num RGBA))
-(def StrokeWidth Num)
-(def PathCmds (List (union String Num)))
-(def Points (List Point))
-(def RotationCmd [[String Num Num Num]])
-(def AttrVal (union String Num Bool Color PathCmds Points RotationCmd))
-(def AttrName String)
-(def AttrPair [AttrName AttrVal])
-(def Attrs (List AttrPair))
-(def NodeKind String)
-; TODO add recursive types properly
-; (def SVGOrText (union SVG [String String]))
-; (def SVG [NodeKind Attrs (List SVGOrText)])
-(def SVG (forall a [NodeKind Attrs (List a)]))
-(def Blob (List SVG))
 
 ; === Attribute Lookup ===
 
