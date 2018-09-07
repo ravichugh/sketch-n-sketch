@@ -15,7 +15,7 @@ module Draw exposing
   -- , addRawSquare , addRawRect , addStretchySquare , addStretchyRect
   -- , addRawCircle , addRawOval , addStretchyCircle , addStretchyOval
   , addPath , addPolygon
-  , addRawPolygonList
+  , addPolygonList
   -- , addLambda
   , addFunction
   , addPoint , addOffsetAndMaybePoint , horizontalVerticalSnap
@@ -780,36 +780,21 @@ pointWithSnapToPairExp pointWithSnap =
   eTuple [xExp, yExp]
 
 addPolygon old pointsWithSnap =
-  let points = pointsWithSnap |> List.map (\((x, _), (y, _)) -> (x, y)) in
-  addRawPolygon old pointsWithSnap
-
-addRawPolygon old pointsWithSnap =
   let ePts =
     List.reverse pointsWithSnap
     |> List.map pointWithSnapToPairExp
   in
-  let polygonExp =
-    makeCallWithLocals
-        [ makeLet ["pts"] [eTuple ePts]
-        , makeLet ["color","strokeColor","strokeWidth"]
-                  [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
-        ]
-        (eVar0 "rawPolygon")
-        [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
-        , eVar "pts", eConst 0 dummyLoc ]
-  in
-  addShapeToModel old "polygon" polygonExp
+  addPolygonList old (eTuple (setExpListWhitespace "" " " ePts))
 
-addRawPolygonList old listExp =
+addPolygonList old listExp =
   let polygonExp =
     makeCallWithLocals
         [ makeLet ["pts"] [listExp]
         , makeLet ["color","strokeColor","strokeWidth"]
                   [randomColor old, eConst 360 dummyLoc, eConst 2 dummyLoc]
         ]
-        (eVar0 "rawPolygon")
-        [ eVar "color", eVar "strokeColor", eVar "strokeWidth"
-        , eVar "pts", eConst 0 dummyLoc ]
+        (eVar0 "polygon")
+        [ eVar "color", eVar "strokeColor", eVar "strokeWidth", eVar "pts" ]
   in
   addShapeToModel old "polygon" polygonExp
 

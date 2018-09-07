@@ -291,7 +291,7 @@ maybeClickableToPointWithSnap (defaultX, defaultY) maybeClickable =
 maybeDrawOnSelect selectedIdAsShape old =
   case (old.tool, Set.size old.selectedFeatures, Set.size old.selectedShapes, Dict.size old.selectedBlobs, Utils.maybeGeti1 (-2 - selectedIdAsShape) old.widgets) of
     (Poly, 0, 0, 0, Just (WList listVal)) ->
-      Just <| upstateRun <| switchToCursorTool <| Draw.addRawPolygonList old (eHoleVal listVal)
+      Just <| upstateRun <| switchToCursorTool <| Draw.addPolygonList old (eHoleVal listVal)
 
     _ ->
       Nothing
