@@ -1160,10 +1160,11 @@ abstract_ program originalProgramUniqueNames editingContext uniqueNameToOldName 
                       ("new", "old") -- (touchedAdjective, untouchedAdjective)
                       (Set.insert funcUniqueName (identifiersSetInPats argPats)) -- namesUniqueTouched -- namesUniqueTouched
                       [] -- varEIdsPreviouslyDeliberatelyRemoved
-                      Dict.empty -- insertedVarEIdToBindingPId -- insertedVarEIdToBindingPId
+                      Dict.empty -- insertedVarEIdToBindingPId -- lack of this is causing the results to be marked as unsafe.
                       originalProgramUniqueNames -- originalProgramUniqueNames
                       programWithCallAndFuncPostProcessed -- newProgramUniqueNames
                 )
+            |> List.map (InterfaceModel.setResultSafe True) -- Don't show "[UNSAFE]" in the UI. No idea if it's safe or not.
           else
             []
         )

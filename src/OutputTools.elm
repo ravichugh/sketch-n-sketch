@@ -527,6 +527,7 @@ pointListBasedRepeatTools model =
   model.widgets
   |> List.filterMap ValWidgets.widgetToMaybeVal
   |> List.filter (Lang.vListToMaybePointVals >> Maybe.withDefault [] >> (/=) []) -- Empty lists pass vListToMaybePointVals but we want them excluded.
+  |> List.filter (Lang.valExp >> Lang.isList) -- No variable usages, just want literal lists.
   |> Utils.dedupBy Lang.valEId -- Avoid showing same list multiple times.
   |> Utils.mapi1
       (\(i, pointListVal) ->
@@ -534,9 +535,10 @@ pointListBasedRepeatTools model =
           let name =
             -- Name is also used as synthesisResultsDict key, so include an index i to avoid collisions.
             "Repeat Over List " ++ toString i ++ ": " ++
+                let prefixes = LangTools.expDescriptionParts model.inputExp (Lang.valEId pointListVal) |> Utils.dropLast 1 in
                 case LangTools.findLetAndIdentBindingExpLoose (Lang.valEId pointListVal) model.inputExp of
-                  Just (_, ident) -> ident
-                  Nothing         -> Utils.squish (Syntax.unparser Syntax.Elm (Lang.valExp pointListVal))
+                  Just (_, ident) -> String.join " " <| prefixes ++ [ident]
+                  Nothing         -> String.join " " <| prefixes ++ [Utils.squish (Syntax.unparser Syntax.Elm (Lang.valExp pointListVal))]
           in
           { name = name
           , shortcut = Nothing
@@ -639,8 +641,8 @@ tools model =
     , [ repeatByIndexedMergeTool ]
     , pointListBasedRepeatTools model
     , functionBasedRepeatTools model
-    , [ repeatRightTool
-      , repeatToTool
-      , repeatAroundTool
-      ]
+    -- , [ repeatRightTool
+    --   , repeatToTool
+    --   , repeatAroundTool
+    --   ]
     ]
