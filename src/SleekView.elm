@@ -705,9 +705,9 @@ menuBar model =
 --              Controller.msgIndexedRelate
 --          , relateHoverMenu
 --              model
---              "Build Abstraction"
---              "Build Abstraction"
---              Controller.msgBuildAbstraction
+--              "Abstract"
+--              "Abstract"
+--              Controller.msgAbstract
 --          ]
 --        , [ groupTextButton
 --              model

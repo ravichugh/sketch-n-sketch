@@ -13,7 +13,7 @@ port module InterfaceController exposing
   , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgHideWidgets
-  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgBuildAbstraction, msgFillPBEHole, msgRepeatByIndexedMerge, msgRepeatUsingFunction, msgRepeatUsingPointList
+  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgAbstract, msgFillPBEHole, msgRepeatByIndexedMerge, msgRepeatUsingFunction, msgRepeatUsingPointList
   , msgSelectSynthesisResult, msgClearSynthesisResults
   , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
@@ -1759,9 +1759,9 @@ msgIndexedRelate = Msg "Indexed Relate" <| \old ->
 --       }
 --   )
 
-msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
+msgAbstract = Msg "Abstract" <| \old ->
   let synthesisResults =
-    ValueBasedTransform.buildAbstraction
+    ValueBasedTransform.abstract
         old.inputExp
         old.idToTypeAndContextThunk
         old.editingContext
@@ -1773,7 +1773,7 @@ msgBuildAbstraction = Msg "Build Abstraction" <| \old ->
         old.movieTime
         old.syncOptions
   in
-  { old | synthesisResultsDict = Dict.insert "Build Abstraction" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
+  { old | synthesisResultsDict = Dict.insert "Abstract" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 
 msgFillPBEHole pbeHoleEId synthesisResultsDictKey =  Msg synthesisResultsDictKey <| \old ->

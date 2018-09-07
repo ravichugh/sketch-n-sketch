@@ -872,8 +872,8 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 
 -- Returns synthesis results
 -- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
-buildAbstraction : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Maybe (EId, a) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
-buildAbstraction program idToTypeAndContextThunk editingContext selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
+abstract : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Maybe (EId, a) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
+abstract program idToTypeAndContextThunk editingContext selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we abort on unparsable code
     Err s -> []
     Ok (_, widgets, slate, _) ->
@@ -926,7 +926,7 @@ buildAbstraction program idToTypeAndContextThunk editingContext selectedFeatures
                 )
               ]
           in
-          buildAbstraction_
+          abstract_
               program
               originalProgramUniqueNames
               editingContext
@@ -939,7 +939,7 @@ buildAbstraction program idToTypeAndContextThunk editingContext selectedFeatures
       )
 
 
-buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameToOldName outputEId slurpedBindingsFilter computeExpsGroupsToArgumentize postProcessBeforeProblemResolution =
+abstract_ program originalProgramUniqueNames editingContext uniqueNameToOldName outputEId slurpedBindingsFilter computeExpsGroupsToArgumentize postProcessBeforeProblemResolution =
   let
     -- If interpretation is (line color width x1 y1 x2 y2) in...
     --
@@ -1062,7 +1062,7 @@ buildAbstraction_ program originalProgramUniqueNames editingContext uniqueNameTo
                   (\uniqueIdent ->
                     case Utils.findFirst (patToMaybeIdent >> (==) (Just uniqueIdent)) allProgramPats of
                       Just programPat -> (replaceP__PreservingPrecedingWhitespace programPat (PVar space0 uniqueIdent noWidgetDecl), eVar uniqueIdent)
-                      Nothing         -> let _ = Utils.log <| "buildAbstraction shouldn't happen: couldn't find existing program pattern for argument name " ++ uniqueIdent in (pVar uniqueIdent, eVar uniqueIdent)
+                      Nothing         -> let _ = Utils.log <| "abstract shouldn't happen: couldn't find existing program pattern for argument name " ++ uniqueIdent in (pVar uniqueIdent, eVar uniqueIdent)
                   )
 
             -- Trying to figure out whether to abstract out the whole argumentization logic down through (argPats, argExps)
@@ -1337,7 +1337,7 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
               (\e -> Set.member e.val.eid nonTrivialEIdsContainingSomeRelevantExps)
 
 
-        -- Step 3: Use Build Abstraction infrastructure to turn the shape into a function over the point
+        -- Step 3: Use Abstract infrastructure to turn the shape into a function over the point
 
         (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames program
 
@@ -1476,7 +1476,7 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
                       _ ->
                         []
                 in
-                buildAbstraction_
+                abstract_
                     program
                     originalProgramUniqueNames
                     editingContext
@@ -1487,7 +1487,7 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
                     postProcessBeforeProblemResolution
               )
       in
-      -- Since we bypassed DrawAddShape.addShape's crash check in order to allow buildAbstraction_ to do
+      -- Since we bypassed DrawAddShape.addShape's crash check in order to allow abstract_ to do
       -- unique name problem resolution (which may obviate some crashes), we should now do crash filtering.
       --
       -- Also remove results that screw up the SVG output (if original output was SVG).

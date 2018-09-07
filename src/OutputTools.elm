@@ -346,24 +346,24 @@ indexedRelateTool { selectedFeatures } =
   }
 
 --------------------------------------------------------------------------------
--- Build Abstraction
+-- Abstract
 --------------------------------------------------------------------------------
 
-buildAbstractionTool : Selections a -> OutputTool
-buildAbstractionTool selections =
+abstractTool : Selections a -> OutputTool
+abstractTool selections =
   { name =
-      "Build Abstraction"
+      "Abstract"
   , shortcut =
       Nothing
   , kind =
       Multi
   , func =
-      Just Controller.msgBuildAbstraction
+      Just Controller.msgAbstract
   , reqs =
       [ atLeastOneSelection selections
       ]
   , id =
-      "buildAbstraction"
+      "abstract"
   }
 
 --------------------------------------------------------------------------------
@@ -427,27 +427,6 @@ groupTool selections =
       ]
   , id =
       "group"
-  }
-
---------------------------------------------------------------------------------
--- Abstract
---------------------------------------------------------------------------------
-
-abstractTool : Selections a -> OutputTool
-abstractTool selections =
-  { name =
-      "Abstract"
-  , shortcut =
-      Nothing
-  , kind =
-      Single
-  , func =
-      Just Controller.msgAbstractBlobs
-  , reqs =
-      [ atLeastOneShapeNoFeatures selections
-      ]
-  , id =
-      "abstract"
   }
 
 --------------------------------------------------------------------------------
@@ -624,11 +603,10 @@ tools model =
       , chooseTerminationConditionTool
       ]
     , perhapsAddArgumentTool model
-    , [ digHoleTool
-      , makeEqualTool
+    , -- [ digHoleTool
+      [ makeEqualTool
       , relateTool
-      , indexedRelateTool
-      , buildAbstractionTool
+      -- , indexedRelateTool
       ]
     , [ dupeTool
       , mergeTool
