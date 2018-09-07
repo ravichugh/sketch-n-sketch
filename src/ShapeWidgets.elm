@@ -1227,7 +1227,7 @@ selectionsSingleEIdInterpretations program slate widgets selectedFeatures select
       |> List.filter (\exp -> valTrees |> List.all (Provenance.isPossibleSingleEIdInterpretation exp.val.eid))
       |> List.map (.val >> .eid)
 
-    valExpIsInProgram val = valExp val |> .val |> .eid |> FastParser.isProgramEId
+    valExpIsInProgram val = FastParser.isProgramEId (valEId val)
 
     parentSingleEIdInterpretations =
       case valTrees of

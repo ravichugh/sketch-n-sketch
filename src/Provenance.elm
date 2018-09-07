@@ -487,6 +487,8 @@ proximalValInterpretationsAllInside vals val =
   let (Provenance exp basedOnVals) = val.provenance in
   if List.member val vals then
     [[val]]
+  else if basedOnVals == [] then -- Need this branch, otherwise the base case of Utils.cartProdAll returns an empty interpretation
+    []
   else
     -- We do want poisoning here: a child that can't be interpreted inside vals should break the entire interpretation.
     basedOnVals
@@ -494,6 +496,9 @@ proximalValInterpretationsAllInside vals val =
     |> Utils.cartProdAll -- This will kill this interpretation and all ancestors if any value is not interpreted.
     |> List.map Utils.unionAllAsSet
 
+-- _ = Debug.log "[] |> Utils.cartProdAll |> List.map Utils.unionAllAsSet"       ([] |> Utils.cartProdAll |> List.map Utils.unionAllAsSet)
+-- _ = Debug.log "[[]] |> Utils.cartProdAll |> List.map Utils.unionAllAsSet"     ([[]] |> Utils.cartProdAll |> List.map Utils.unionAllAsSet)
+-- _ = Debug.log "[[], []] |> Utils.cartProdAll |> List.map Utils.unionAllAsSet" ([[], []] |> Utils.cartProdAll |> List.map Utils.unionAllAsSet)
 
 -- There are two proximal and two distal intepretations.
 -- Proximal/distal to final x and proximal/distal to final y.
