@@ -336,6 +336,7 @@ type HoverPadding
 patAsHTML : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> HoverPadding -> (Html Msg, Int)
 patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding =
   let pid = pat.val.pid in
+  let nameCurrentlyInCode = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
   let nameWidth nameStr = 10 + String.length nameStr * 10 in
   let maybeRenamingInOutput =
     modelRenamingInOutput
@@ -343,7 +344,7 @@ patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatu
   in
   case maybeRenamingInOutput of
     Just (renamingPId, _, _, renameStr) ->
-      let width = nameWidth renameStr in
+      let width = max (nameWidth renameStr) (nameWidth nameCurrentlyInCode) in -- Max so the box doesnt shrink during renaming, causing a mouseleave event which de-focuses the textbox.
       let renameBox =
         flip Html.input [] <|
           [ Attr.defaultValue renameStr
@@ -365,7 +366,7 @@ patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatu
       )
 
     Nothing ->
-      let nameStr = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
+      let nameStr = nameCurrentlyInCode in
       let width = nameWidth nameStr + if showRemover then 10 else 0 in
       let perhapsHoverPaddingAttr =
         case hoverPadding of
