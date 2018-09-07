@@ -23,6 +23,7 @@ port module InterfaceController exposing
   , msgAddArg, msgRemoveArg
   , msgShowTerminationConditionOptions
   , msgAddToOutput
+  , msgReorderInList
   , msgGroup, msgDuplicate, msgMerge, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
@@ -1923,6 +1924,80 @@ addToOutput old =
     |> upstateRun
   else
     old
+
+
+msgReorderInList = Msg "Reorder in List" <| \old ->
+  let
+    originalProgram = old.inputExp
+
+    eidsInNonSingletonLists =
+      originalProgram
+      |> flattenExpTree
+      |> List.filterMap LangTools.expToMaybeListHeads
+      |> List.filter (List.length >> (<=) 2)
+      |> List.concat
+      |> List.map (.val >> .eid)
+      |> Set.fromList
+
+    interpretationsInsideLists =
+      ShapeWidgets.selectionsSingleEIdInterpretations
+          originalProgram
+          old.slate
+          old.widgets
+          old.selectedFeatures
+          old.selectedShapes
+          old.selectedBlobs
+          (.val >> .eid >> flip Set.member eidsInNonSingletonLists)
+
+    results =
+      interpretationsInsideLists
+      |> List.concatMap
+          (\eidInList ->
+            case findWithAncestorsByEId originalProgram eidInList |> Maybe.map List.reverse of
+              Just (item :: list :: _) ->
+                case list.val.e__ of
+                  EList ws1 heads ws2 maybeTail ws3 ->
+                    case Utils.findi (Tuple.second >> .val >> .eid >> (==) eidInList) heads of
+                      Just itemI ->
+                        let
+                          (wsItem, remaining) = Utils.getRemovei1 itemI heads
+                          itemCount           = List.length heads
+                          positions =
+                            [ (1, "to head")
+                            , (itemCount, "to end")
+                            , (itemI - 1, "towards head")
+                            , (itemI + 1, "towards end")
+                            ]
+                            |> List.filter (\(newI, _) -> newI >= 1 && newI <= itemCount && newI /= itemI)
+                            |> Utils.dedupBy (\(newI, _) -> newI)
+
+                          itemStr = Syntax.unparser old.syntax item |> Utils.squish
+                        in
+                        positions
+                        |> List.map
+                            (\(newI, movementStr) ->
+                              let newHeads = Utils.inserti newI wsItem remaining in
+                              let newList =  EList ws1 newHeads ws2 maybeTail ws3 |> replaceE__ list |> LangTools.copyListWhitespace list in
+                              let newListStr = Syntax.unparser old.syntax newList |> Utils.squish in
+                              Model.synthesisResult
+                                ("Move " ++ itemStr ++ " " ++ movementStr ++ ": " ++ newListStr)
+                                (originalProgram |> replaceExpNode list.val.eid newList)
+                            )
+
+                      Nothing ->
+                        let _ = Debug.log "Reorder in List: Could not find item in parent list!!! (Should not happen!)" list in
+                        []
+
+                  _ ->
+                    let _ = Debug.log "Reorder in List: parent was not a list!!! (Should not happen!)" list in
+                    []
+
+              _ ->
+                let _ = Utils.log "Reorder in List: didn't find interpretation and parent list!!! (Should not happen!)" in
+                []
+          )
+  in
+  { old | synthesisResultsDict = Dict.insert "Reorder in List" (cleanDedupSortSynthesisResults old results) old.synthesisResultsDict }
 
 
 doDelete old =

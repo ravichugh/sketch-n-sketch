@@ -567,6 +567,9 @@ removei i xs = List.take (i-1) xs ++ List.drop i xs
 inserti : Int -> a -> List a -> List a
 inserti i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop (i-1) xs
 
+getRemovei1 : Int -> List a -> (a, List a)
+getRemovei1 i xs = (geti i xs, removei i xs)
+
 -- 0-based
 maybeGeti0 : Int -> List a -> Maybe a
 maybeGeti0 i list = if i >= 0 then list |> List.drop i |> List.head else Nothing

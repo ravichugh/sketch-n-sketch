@@ -512,8 +512,15 @@ outerSameValueExpByEId program targetEId =
 copyListWhitespace : Exp -> Exp -> Exp
 copyListWhitespace templateList list =
   case (templateList.val.e__, list.val.e__) of
-    (EList ws1 _ ws2 _ ws3, EList _ heads _ maybeTail _) ->
-      replaceE__ list (EList ws1 heads ws2 maybeTail ws3)
+    (EList ws1 templateHeads ws2 _ ws3, EList _ heads _ maybeTail _) ->
+      let
+        (headPairs, leftoverTemplateHeads, leftoverHeads) = Utils.zipAndLeftovers templateHeads heads
+        newHeads =
+          headPairs
+          |> List.map (\((templateHeadWs, templateHead), (_, head)) -> (templateHeadWs, copyPrecedingWhitespace templateHead head))
+          |> flip (++) leftoverHeads
+      in
+      replaceE__ list (EList ws1 newHeads ws2 maybeTail ws3)
 
     _ ->
       Debug.crash <| "Lang.copyListWs expected lists, but given " ++ unparseWithIds templateList ++ " and " ++ unparseWithIds list
@@ -1407,6 +1414,13 @@ expToListParts exp =
   case exp.val.e__ of
     EList ws1 heads ws2 maybeTail ws3 -> (ws1, List.map Tuple.second heads, ws2, maybeTail, ws3)
     _                                 -> Debug.crash <| "LangTools.expToListParts exp is not an EList: " ++ unparseWithIds exp
+
+
+expToMaybeListHeads : Exp -> Maybe (List Exp)
+expToMaybeListHeads exp =
+  case exp.val.e__ of
+    EList ws1 heads ws2 maybeTail ws3 -> Just <| List.map Tuple.second heads
+    _                                 -> Nothing
 
 
 expToLetParts : Exp -> (WS, LetKind, Bool, Pat, WS, Exp, WS, Exp, WS)

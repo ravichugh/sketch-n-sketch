@@ -262,6 +262,27 @@ perhapsAddArgumentTool model =
       []
 
 --------------------------------------------------------------------------------
+-- Reorder in List
+--------------------------------------------------------------------------------
+
+reorderInListTool : Selections a -> OutputTool
+reorderInListTool selections =
+  { name =
+      "Reorder in List"
+  , shortcut =
+      Nothing
+  , kind =
+      Multi
+  , func =
+      Just Controller.msgReorderInList
+  , reqs =
+      [ atLeastOneSelection selections
+      ]
+  , id =
+      "reorderInList"
+  }
+
+--------------------------------------------------------------------------------
 -- Dig Hole
 --------------------------------------------------------------------------------
 
@@ -603,6 +624,7 @@ tools model =
       , chooseTerminationConditionTool
       ]
     , perhapsAddArgumentTool model
+    , [ reorderInListTool ]
     , -- [ digHoleTool
       [ makeEqualTool
       , relateTool

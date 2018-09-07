@@ -687,6 +687,7 @@ interpretationIsNonEmpty val =
   FastParser.isProgramEId exp.val.eid || List.any interpretationIsNonEmpty basedOnVals
 
 
+-- This function is written correctly.
 isPossibleSingleEIdInterpretation : EId -> Val -> Bool
 isPossibleSingleEIdInterpretation eid val =
   let (Provenance exp basedOnVals) = val.provenance in
@@ -694,7 +695,7 @@ isPossibleSingleEIdInterpretation eid val =
   || let relevantChildren = List.filter interpretationIsNonEmpty basedOnVals in
   case relevantChildren of
     [] -> False
-    _  -> List.all (\basedOnVal -> isPossibleSingleEIdInterpretation eid basedOnVal) basedOnVals
+    _  -> List.all (isPossibleSingleEIdInterpretation eid) relevantChildren
 
 --
 -- isPossibleEIdInterpretation : Exp -> EId -> Val -> Bool
