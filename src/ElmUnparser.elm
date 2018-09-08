@@ -322,8 +322,8 @@ unparseType tipe =
     TBool ws                  -> ws.val ++ "Bool"
     TString ws                -> ws.val ++ "String"
     TNull ws                  -> ws.val ++ "Null"
-    TList ws1 tipe ws2        -> ws1.val ++ "(List" ++ (unparseType tipe) ++ ws2.val ++ ")"
-    TDict ws1 tipe1 tipe2 ws2 -> ws1.val ++ "(Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2.val ++ ")"
+    TList ws1 tipe ws2        -> ws1.val ++ "List" ++ (unparseType tipe) ++ ws2.val
+    TDict ws1 tipe1 tipe2 ws2 -> ws1.val ++ "Dict" ++ (unparseType tipe1) ++ (unparseType tipe2) ++ ws2.val
     TTuple ws1 typeList ws2 maybeRestType ws3 ->
       case maybeRestType of
         Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"

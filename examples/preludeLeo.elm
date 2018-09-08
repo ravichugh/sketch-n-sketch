@@ -760,8 +760,21 @@ Update =
     foldDiff = foldDiff
     applyLens = applyLens
     lens l x = l.apply x
+    lens1 = lens
     lens2 l x y = l.apply (x, y)
     lens3 l x y z = l.apply (x, y, z)
+    lens4 l x y z w = l.apply (x, y, z, w)
+    vTupleDiffs_1 d = VRecordDiffs {_1=d}
+    vTupleDiffs_2 d = VRecordDiffs {_2=d}
+    vTupleDiffs_3 d = VRecordDiffs {_3=d}
+    vTupleDiffs_4 d = VRecordDiffs {_4=d}
+    default apply updateInput =
+        __updateApp__ {updateInput | fun = apply }
+    -- Instead of returning a result of a lens, just returns the list or empty if there is an error.
+    defaultAsListWithDiffs apply updateInput =
+      case default apply uInput of
+        Err msg -> []
+        Ok (InputsWithDiffs l) -> l
       -- "f.apply x" is a syntactic form for U-Lens, but eta-expanded anyway
 
     softFreeze = softFreeze
@@ -769,6 +782,10 @@ Update =
     listDiffOp = listDiffOp
     updateApp  = __updateApp__
     diff = __diff__
+    -- Instead of returning Ok (Maybe VDiffs) or error, raises the error if there is one or returns the Maybe VDiffs
+    diffs a b = case __diff__ a b of
+        Err msg -> error msg
+        Ok d -> d
     merge = __merge__
     listDiff = listDiffOp __diff__
     strDiffToConcreteDiff = strDiffToConcreteDiff
@@ -1883,17 +1900,27 @@ String =
 Maybe =
   { type Maybe a = Nothing | Just a
 
-    withDefault x mb = case mb of
-        Nothing -> x
+    -- Returns the first argument if the second is Nothing. If the second is Just x returns x
+    -- In the reverse direction, it first tries to propagate the new value as if was non empty.
+    -- On a second round it changes the default value.
+    withDefault = Update.lens2 {
+      apply (d, mb) = case mb of
+        Nothing -> d
         Just j -> j
+      update {input=(d,mb) as input,outputNew} as uInput =
+        Ok (InputsWithDiffs ([((d, Just outputNew), __diff__ mb (Just outputNew) |> .args._1 |> Maybe.map Update.vTupleDiffs_2)] ++ (
+          if mb /= Nothing then [] else Update.defaultAsListWithDiffs apply uInput)))
+    }
 
-    withDefault x mb = case mb of
-        Nothing -> x
+    withDefaultLazy = Update.lens2 {
+      apply (df, mb) = case mb of
+        Nothing -> df ()
         Just j -> j
-
-    withDefaultLazy lazyX mb = case mb of
-        Nothing -> lazyX []
-        Just j -> j
+      update {input=(df,mb) as input,outputNew} as uInput =
+        Ok (InputsWithDiffs ([((df, Just outputNew),
+            __diff__ mb (Just outputNew) |> .args._1 |> Maybe.map Update.vTupleDiffs_2)] ++ (
+            if mb /= Nothing then [] else Update.defaultAsListWithDiffs apply uInput)))
+    }
 
     map f a = case a of
       Nothing -> Nothing
