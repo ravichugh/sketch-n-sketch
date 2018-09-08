@@ -2,7 +2,12 @@
 -- This modules provides the Deuce overlay for the View.
 --------------------------------------------------------------------------------
 
-module Deuce exposing (Messages, overlay, diffOverlay)
+module Deuce exposing
+  ( handleHover
+  , Messages
+  , overlay
+  , diffOverlay
+  )
 
 import List
 import String
@@ -15,7 +20,6 @@ import Svg.Attributes as SAttr
 import Svg.Events as SE
 
 import Utils
-import HtmlUtils exposing (styleListToString)
 
 import InterfaceModel as Model exposing
   ( Model
@@ -126,6 +130,42 @@ startEnd codeInfo codeObject =
     , realEndCol - 1
     , realEndLine - 1
     )
+
+codeInfoFromModel : Model -> CodeInfo
+codeInfoFromModel model =
+  let
+    ast =
+      model.inputExp
+    displayInfo =
+      { lineHeight =
+          model.codeBoxInfo.lineHeight
+      , characterWidth =
+          model.codeBoxInfo.characterWidth
+      , colorScheme =
+          model.colorScheme
+      }
+    (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
+      lineHullsFromCode displayInfo model.code
+    patMap =
+      computePatMap ast
+  in
+    { displayInfo =
+        displayInfo
+    , untrimmedLineHulls =
+        untrimmedLineHulls
+    , trimmedLineHulls =
+        trimmedLineHulls
+    , selectedWidgets =
+        model.deuceState.selectedWidgets
+    , hoveredWidgets =
+        model.deuceState.hoveredWidgets
+    , patMap =
+        patMap
+    , maxLineLength =
+        maxLineLength
+    , needsParse =
+        Model.needsParse model
+    }
 
 --==============================================================================
 --= DATA TYPES
@@ -473,6 +513,90 @@ codeObjectHullPoints : Bool -> CodeInfo -> CodeObject -> String
 codeObjectHullPoints shouldDecrust codeInfo codeObject =
   hullPoints <| codeObjectHull shouldDecrust codeInfo codeObject
 
+--------------------------------------------------------------------------------
+-- Custom Collision Detection
+--------------------------------------------------------------------------------
+
+-- Uses raytracing to determine if a hull contains a point
+hullContains : Hull -> AbsolutePos -> Bool
+hullContains hull (x, y) =
+  case List.tail hull of
+    -- Empty hull
+    Nothing ->
+      False
+
+    -- Nonempty hull
+    Just hullTail ->
+      let
+        -- Note: does not contain the final pair (top right and top left)
+        -- because that is a horizontal line and unnecessary to compute
+        pairs =
+          Utils.zip hull hullTail
+
+        -- Checks whether or not a ray that extends infinitely to the right of
+        -- the point (x, y) intersects a horizontal or vertical line segment
+        rayIntersects ((x1, y1), (x2, y2)) =
+          if y1 == y2 then
+            -- Line is horizontal, so ray does not intersect
+            False
+          else if x1 == x2 then
+            -- Line is vertical, so ray may intersect
+            x1 > x && min y1 y2 <= y && y <= max y1 y2
+          else
+            -- The hull is malformed
+            False
+
+        rayIntersections =
+          Utils.count rayIntersects pairs
+      in
+        rayIntersections == 1
+
+computeHoveredWidgets : CodeInfo -> Exp -> (Float, Float) -> List DeuceWidget
+computeHoveredWidgets codeInfo ast mousePos =
+  let
+    inCodeObject codeObject =
+      hullContains
+        (codeObjectHull False codeInfo codeObject)
+        mousePos
+
+    finder : Maybe CodeObject -> List CodeObject -> List CodeObject
+    finder deepestValidCodeObject codeObjects =
+      case codeObjects of
+        [] ->
+          deepestValidCodeObject
+            |> Maybe.map List.singleton
+            |> Maybe.withDefault []
+
+        x :: xs ->
+          if inCodeObject x then
+            finder (Just x) (childCodeObjects x)
+          else
+            finder deepestValidCodeObject xs
+
+    hoveredCodeObjects =
+      finder Nothing [E ast]
+  in
+    hoveredCodeObjects
+      |> List.map (toDeuceWidget codeInfo.patMap)
+      |> Utils.filterJusts
+
+handleHover : (Float, Float) -> Model -> Model
+handleHover mousePos old =
+  let
+    codeInfo =
+      codeInfoFromModel old
+
+    hoveredWidgets =
+      computeHoveredWidgets codeInfo old.inputExp mousePos
+
+    oldDeuceState =
+      old.deuceState
+
+    newDeuceState =
+      { oldDeuceState | hoveredWidgets = hoveredWidgets }
+  in
+    { old | deuceState = newDeuceState }
+
 --==============================================================================
 --= POLYGONS
 --==============================================================================
@@ -653,23 +777,26 @@ codeObjectPolygon msgs codeInfo codeObject color =
                    hoverSelectPolygon msgs False codeInfo child deuceWidget
                  )
       in
-        childPolygons ++
-        hoverSelectPolygon msgs True codeInfo codeObject deuceWidget ++
-        [ Svg.polygon
-            [ SAttr.class class
-            , SAttr.points <|
-                codeObjectHullPoints False codeInfo codeObject
-            , SAttr.strokeWidth <|
-                strokeWidth codeInfo.displayInfo.colorScheme
-            , SAttr.stroke <|
-                rgbaString finalColor 1
-            , SAttr.fill <|
-                rgbaString
-                  finalColor
-                  (polygonOpacity codeInfo.displayInfo.colorScheme)
-            ]
-            []
-        ]
+        if hoveredOrSelected then
+          childPolygons ++
+          hoverSelectPolygon msgs True codeInfo codeObject deuceWidget ++
+          [ Svg.polygon
+              [ SAttr.class class
+              , SAttr.points <|
+                  codeObjectHullPoints False codeInfo codeObject
+              , SAttr.strokeWidth <|
+                  strokeWidth codeInfo.displayInfo.colorScheme
+              , SAttr.stroke <|
+                  rgbaString finalColor 1
+              , SAttr.fill <|
+                  rgbaString
+                    finalColor
+                    (polygonOpacity codeInfo.displayInfo.colorScheme)
+              ]
+              []
+          ]
+        else
+          []
 
 diffpolygon: CodeInfo -> Exp -> Svg msg
 diffpolygon codeInfo (Expr exp) =
@@ -776,7 +903,7 @@ polygons msgs codeInfo ast =
       (E ast)
 
 --==============================================================================
---= EXPORTS
+--= OVERLAYS
 --==============================================================================
 
 type alias Messages msg =
@@ -790,36 +917,8 @@ overlay msgs model =
   let
     ast =
       model.inputExp
-    displayInfo =
-      { lineHeight =
-          model.codeBoxInfo.lineHeight
-      , characterWidth =
-          model.codeBoxInfo.characterWidth
-      , colorScheme =
-          model.colorScheme
-      }
-    (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
-      lineHullsFromCode displayInfo model.code
-    patMap =
-      computePatMap ast
     codeInfo =
-      { displayInfo =
-          displayInfo
-      , untrimmedLineHulls =
-          untrimmedLineHulls
-      , trimmedLineHulls =
-          trimmedLineHulls
-      , selectedWidgets =
-          model.deuceState.selectedWidgets
-      , hoveredWidgets =
-          model.deuceState.hoveredWidgets
-      , patMap =
-          patMap
-      , maxLineLength =
-          maxLineLength
-      , needsParse =
-          Model.needsParse model
-      }
+      codeInfoFromModel model
     leftShift =
       model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
   in
@@ -833,34 +932,8 @@ overlay msgs model =
 diffOverlay : Model -> List Exp -> Svg msg
 diffOverlay model exps =
   let
-    displayInfo =
-      { lineHeight =
-          model.codeBoxInfo.lineHeight
-      , characterWidth =
-          model.codeBoxInfo.characterWidth
-      , colorScheme =
-          model.colorScheme
-      }
-    (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
-      lineHullsFromCode displayInfo model.code
     codeInfo =
-      { displayInfo =
-          displayInfo
-      , untrimmedLineHulls =
-          untrimmedLineHulls
-      , trimmedLineHulls =
-          trimmedLineHulls
-      , selectedWidgets =
-          model.deuceState.selectedWidgets
-      , hoveredWidgets =
-          model.deuceState.hoveredWidgets
-      , patMap =
-          Dict.empty
-      , maxLineLength =
-          maxLineLength
-      , needsParse =
-          Model.needsParse model
-      }
+      codeInfoFromModel model
     leftShift =
       model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
   in

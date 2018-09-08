@@ -1524,7 +1524,15 @@ msgMousePosition pos_ =
   in
     NewModelAndCmd
       ("MousePosition " ++ toString pos_)
-      (mouseStateUpdater >> Tuple.mapFirst deucePopupPanelPositionUpdater)
+      ( mouseStateUpdater
+          >> Tuple.mapFirst deucePopupPanelPositionUpdater
+          >> Tuple.mapFirst
+               ( Deuce.handleHover
+                   ( -63 + toFloat pos_.x
+                   , -110 + toFloat pos_.y
+                   )
+               )
+      )
 
 --------------------------------------------------------------------------------
 
