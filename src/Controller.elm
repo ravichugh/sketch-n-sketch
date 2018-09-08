@@ -2663,7 +2663,7 @@ doCallUpdate m =
       let _ = Debug.log "Filtering solutions" () in
       let solutionsNotModifyingEnv =
          LazyList.filter
-           (\(env, exp) -> List.isEmpty env.changes)
+           (\(env, exp) -> UpdateUtils.isEmptyEnvDiffs env.changes)
            solutions
       in
       let _ = Debug.log "Filtered solutions" () in

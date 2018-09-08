@@ -2044,6 +2044,12 @@ reorderDeclarations letExps =
   case Utils.orderWithDependencies expDefsWithDependencies Tuple.second of
     Err msg -> Err msg
     Ok expsGrouped ->
+      {-let _ = Debug.log ("inferred order at parsing:\n" ++
+           (expsGrouped |> List.concatMap identity |> List.map (
+             Tuple.second >>
+             (\(names, deps, isRec) -> (Set.toList names |> String.join ",") ++ " <- ... " ++ (if isRec then "REC" else "") ++ (Set.toList deps |> String.join ",")))
+             |> String.join "\n")) ()
+      in-}
       case Utils.orderWithDependencies typeDefsWithDependencies Tuple.second  of
           Err msg -> Err msg
           Ok typesGrouped ->

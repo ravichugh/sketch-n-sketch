@@ -1027,6 +1027,11 @@ nth list n = case list of
   [] -> Err <| "Cannot find " ++ toString n ++ "-th element of a empty list"
   head::tail -> if n == 0 then Ok head else nth tail (n-1)
 
+nthMaybe: List a -> Int -> Maybe a
+nthMaybe list n = case list of
+  [] -> Nothing
+  head::tail -> if n == 0 then Just head else nthMaybe tail (n-1)
+
 uncons xs = case xs of
   x::xs -> (x, xs)
   []    -> Debug.crash "uncons"

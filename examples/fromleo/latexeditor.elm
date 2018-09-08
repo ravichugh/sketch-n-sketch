@@ -376,7 +376,7 @@ toHtml x =
   let [raw, opts] = toHtmlWithoutRefs initOptions x in
   let replaceMap replaceReferences trees = case trees of
     [] -> freeze []
-    (head :: tail) -> {
+    head :: tail -> {
         apply x = x
         update {input, outputNew, outputOriginal, diffs} =
           if (len outputNew /= len outputOriginal && len outputOriginal == 1) then
@@ -407,36 +407,41 @@ toHtml x =
   in
   replaceMap replaceReferences raw
 
-latex2html latex = 
+latex2html latex = Update.lens2
   { apply (f, latex) = f latex,
     update {input = (f, latex), outputOld, outputNew, diffs = (VListDiffs ldiffs) as diffs} = 
-      let gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
+      let gatherDiffsChild gatherDiffs cOld cNew childDiffs = case childDiffs of
         [] -> Ok [[]]
-        ((j, ListElemUpdate d) :: diffTail) ->
-          if j > i then
-            gatherDiffsChild gatherDiffs j (LensLess.List.drop (j - i) cOld) (LensLess.List.drop (j - i) cNew) childDiffs
-          else
-            case (cOld, cNew) of
-              (oldHead::oldTail, newHead::newTail) ->
-                let subdiffs = gatherDiffs oldHead newHead d in
-                subdiffs |> LensLess.Results.andThen (\replacements ->
-                  gatherDiffsChild gatherDiffs (i + 1) oldTail newTail diffTail |> LensLess.Results.map (\replacementTails ->
-                    replacements ++ replacementTails
-                  )
+        ListElemSkip count :: diffTail ->
+          gatherDiffsChild gatherDiffs (LensLess.List.drop count cOld) (LensLess.List.drop count cNew) diffTail
+        ListElemUpdate d :: diffTail ->
+          case (cOld, cNew) of
+            (oldHead::oldTail, newHead::newTail) ->
+              let subdiffs = gatherDiffs oldHead newHead d in
+              subdiffs |> LensLess.Results.andThen (\replacements ->
+                gatherDiffsChild gatherDiffs oldTail newTail diffTail |> LensLess.Results.map (\replacementTails ->
+                  replacements ++ replacementTails
                 )
-              _ -> error "Unexpected size of cOld and cNew"
-        ((j, subdiff)::diffTail) -> Err ("Insertion or deletions, cannot short-circuit at " + toString j + ", " + toString subdiff)
+              )
+            _ -> error "Unexpected size of cOld and cNew"
+        subdiff::diffTail -> Err ("Insertion or deletions, cannot short-circuit at " + toString j + ", " + toString subdiff)
       in
       let gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
         (["span", [["start", p]], [["TEXT", vOld]]], 
          ["span", [["start", p]], [["TEXT", vNew]]],
-          VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 
+          VListDiffs [ListElemSkip 2, ListElemUpdate (VListDiffs [ListElemUpdate (VListDiffs [ListElemSkip 1, ListElemUpdate sd])])]) ->
            Ok [[(Debug.log ("escaped string '" + vNew + "' with diffs " + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]]
-        ([_, _, cOld], [_, _, cNew], VListDiffs [(2, ListElemUpdate (VListDiffs childDiffs))]) ->
-           gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
+        (["span", [["start", p]], [["TEXT", vOld]]],
+         ["span", [["start", p]], [["TEXT", vNew]]],
+          VListDiffs [ListElemSkip 1, ListElemSkip 1, ListElemUpdate (VListDiffs [ListElemUpdate (VListDiffs [ListElemSkip 1, ListElemUpdate sd])])]) ->
+           Ok [[(Debug.log ("escaped string '" + vNew + "' with diffs " + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]]
+        ([_, _, cOld], [_, _, cNew], VListDiffs [ListElemSkip 2, ListElemUpdate (VListDiffs childDiffs)]) ->
+           gatherDiffsChild gatherDiffs cOld cNew childDiffs
+        ([_, _, cOld], [_, _, cNew], VListDiffs [ListElemSkip 1, ListElemSkip 1, ListElemUpdate (VListDiffs childDiffs)]) ->
+           gatherDiffsChild gatherDiffs cOld cNew childDiffs
         _ -> Err ("Could not find text differences " + toString (outputOld, outputNew, diffs))
       in
-      case gatherDiffsChild gatherDiffs 0 outputOld outputNew ldiffs of
+      case gatherDiffsChild gatherDiffs outputOld outputNew ldiffs of
         Ok [replacements] ->
           let newLatex = foldl (\(newValue, start, end) acc ->
             String.substring 0 start acc + newValue + String.drop end acc
@@ -450,7 +455,7 @@ latex2html latex =
           Update.updateApp {
             fun (f, x) = f x, input = (f, latex), outputOld = outputOld, output = outputNew, diffs = diffs
           }
-  }.apply (\x -> toHtml <| parse <| tokens x, latex)
+  } (toHtml << parse << tokens) latex
 
 Html.forceRefresh <|
 <span style="margin:10px">

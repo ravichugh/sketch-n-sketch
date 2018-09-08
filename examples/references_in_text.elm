@@ -1,3 +1,4 @@
+-- TODO: This file is obsolete
 compareStr a b = if a == b then 0 else if a < b then -1 else 1
 
 quicksort compare list = case list of
@@ -7,7 +8,7 @@ quicksort compare list = case list of
       quicksort compare tBefore ++ [pivot] ++ quicksort compare tAfter
 
 addReferences references node =
-  let collectedAddedReferences references node =
+  let collectedAddedReferences = Update.lens2
     { apply (references, node) = node
       update {input = (references, node) as input, outputNew} =
         let refAddRegex = """\[\+\s*((?:(?!\]).)*)\]""" in
@@ -20,7 +21,7 @@ addReferences references node =
           in 
           let newInput = (newReferences, newNode) in
           Ok (Inputs [newInput])
-    }.apply (references, node)
+    }
   in
   let refRegex = """\[(\d+)\]""" in
   let -- returns a list of sorted references according to some criterion and an updated node.
@@ -60,10 +61,10 @@ addReferences references node =
         Ok (InputsWithDiffs [((newReferences, newNode), Just diffs)])
     }.apply (references, node)
   in
-  let finalReferences = {
+  let finalReferences = Update.lens2 {
     apply (references, node) = references
     update {input=(references, node), outputNew=newReferences, diffs=(VListDiffs diffs) as listDiffs} =
-      let aux offset currentNode nodeHasChanged diffs = case diffs of
+      let aux j offset currentNode nodeHasChanged diffs = case diffs of
         [] -> if nodeHasChanged then
             case __diff__ node currentNode of
               Err msg -> Err msg
@@ -75,9 +76,10 @@ addReferences references node =
                 Ok (InputsWithDiffs [((newReferences, currentNode), Just (VRecordDiffs finalDiffs))])
           else
             Ok (InputsWithDiffs [((newReferences, currentNode), Just (VRecordDiffs {_1 = listDiffs}))])
-        (j, d)::diffsTail ->
+        d::diffsTail ->
           case d of
-          ListElemUpdate _ -> aux offset currentNode nodeHasChanged diffsTail
+          ListElemSkip count -> aux (j + count) offset currentNode nodeHasChanged diffsTail
+          ListElemUpdate _ -> aux (j + 1) offset currentNode nodeHasChanged diffsTail
           ListElemInsert count ->
             let newNode = Html.replace refRegex (\{submatches=[ref],match} ->
               let nref = String.toInt ref in
@@ -85,7 +87,7 @@ addReferences references node =
               else [["TEXT", match]]
               ) currentNode
             in
-            aux (offset + count) newNode True diffsTail
+            aux j (offset + count) newNode True diffsTail
           ListElemDelete count ->
             let newNode = Html.replace refRegex (\{submatches=[ref],match} ->
               let nref = String.toInt ref in
@@ -95,10 +97,10 @@ addReferences references node =
               else [["TEXT", match]]
               ) currentNode
             in
-            aux (offset - count) newNode True diffsTail
+            aux (j + count) (offset - count) newNode True diffsTail
       in
       aux 0 node False diffs |> Debug.log "aux"
-  }.apply (sortedReferences, sortedNode)
+  } sortedReferences sortedNode
   in
   [Html.replace refRegex  (\{submatches=[ref],match} ->
     Dict.get ref referencesDict |> 

@@ -51,13 +51,15 @@ unparsePattern = Syntax.patternUnparser Syntax.Leo
 
 updateEnv: Env -> Ident -> Val -> VDiffs -> UpdatedEnv
 updateEnv env k newValue modif =
-  let aux: Int -> Env -> Env -> UpdatedEnv
-      aux i acc env =
+  let aux: List (Maybe VDiffs) -> Env -> Env -> UpdatedEnv
+      aux accNothing acc env =
      case env of
-       [] -> Debug.crash <| k ++ " not found in environment "
-       ((kk, vv) as kv)::tail ->
-         if kk == k then UpdatedEnv (List.reverse acc ++ ((kk, newValue)::tail)) [(i, modif)] else aux (i + 1) (kv::acc) tail
-  in aux 0 [] env
+         [] -> Debug.crash <| k ++ " not found in environment "
+         ((kk, vv) as kv)::tail ->
+          if kk == k then
+             UpdatedEnv (List.reverse acc ++ ((kk, newValue)::tail)) (accNothing ++ [Just modif])
+          else aux (Nothing::accNothing) (kv::acc) tail {-accNothing is not sensitive to where to insert -}
+  in aux [] [] env
 
 -- Make sure that Env |- Exp evaluates to oldVal
 -- NextAction is a list of HandlePreviousREsult followed by a list of Fork in the same list.
@@ -87,14 +89,17 @@ update callbacks forks updateStack =
        --}
       case (LazyList.maybeCons mb callbacks) of -- Let's consume the stack !
         LazyList.Nil ->
+          --let _ = Debug.log "No more callbacks !" () in
           case forks of
             LazyList.Nil ->
               ok1 <| (fUpdatedEnv, fOut)
             LazyList.Cons (Fork msg newUpdateStack callbacks2 forks2) lazyForkTail ->
               okLazy (fUpdatedEnv, fOut) <| (\lft m nus cb2 fk2 -> \() ->
+                --let _ = Debug.log "Calling updateRec !" () in
                 --let _ = Debug.log ("Exploring other updates: '" ++ m ++ "'") () in
                 updateRec cb2 (Lazy.force lft) nus) lazyForkTail msg newUpdateStack callbacks2 forks2
         LazyList.Cons (HandlePreviousResult msg f) lazyTail ->
+          --let _ = Debug.log "Calling back update again" msg in
           update (Lazy.force lazyTail) forks <| f fUpdatedEnv fOut
 
     UpdateResultAlternative msg updateStack maybeNext ->
@@ -120,7 +125,10 @@ update callbacks forks updateStack =
       Err msg
 
 getUpdateStackOp : Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> UpdateStack
-getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
+getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs_ =
+   case simplifyDiffs (Just diffs_) of -- TOFO: Manage to remove this. This is overkill to check differences each time.
+     Nothing -> updateResultSameEnvExp env (Expr exp_)
+     Just diffs ->
    let e = Expr exp_ in
    let ret = replaceE__ e in
    case unwrapExp e of
@@ -155,7 +163,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                  Nothing -> UpdatedExp e Nothing
                  Just bodyModif -> UpdatedExp (ret <| EFun sp0 newPs newE sp1) (UpdateUtils.wrap 0 mbBodyModif)
                in
-               updateResult (UpdatedEnv newEnv envModifs) updatedE
+               updateResult (UpdatedEnv newEnv (if List.all ((==) Nothing) envModifs then [] else envModifs)) updatedE
              k -> UpdateCriticalError <| "[internal error] Unexpected modifications to a function: " ++ toString k
          _ -> UpdateCriticalError <| "[internal error] Trying to update a function with non-closure " ++ valToString newVal
 
@@ -168,8 +176,8 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
          (VList origVals, VList newOutVals) ->
            case diffs of
              VListDiffs vldiffs ->
-               let updateDiffs: Int -> UpdatedEnv ->       List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> Maybe (WS -> Exp -> (WS, Exp)) ->  List Val ->    List Val -> (List (Int, ListElemDiff VDiffs)) -> UpdateStack
-                   updateDiffs  i      collectedUpdatedEnv revElems          revEDiffs           elemsToCollect    changeWhitespaceNext               originalValues newValues   ldiffs =
+               let updateDiffs: UpdatedEnv ->       List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> Maybe (WS -> Exp -> (WS, Exp)) ->  List Val ->    List Val -> (ListDiffs VDiffs) -> UpdateStack
+                   updateDiffs  collectedUpdatedEnv revElems          revEDiffs           elemsToCollect    changeWhitespaceNext               originalValues newValues   ldiffs =
                     case ldiffs of
                      [] ->
                        let finalElemsToCollect = case changeWhitespaceNext of
@@ -181,167 +189,171 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        let finalElems = List.reverse <| Utils.reverseInsert finalElemsToCollect revElems in
                        let updatedE= case List.reverse revEDiffs of
                          [] -> UpdatedExp e Nothing
-                         l -> UpdatedExp (ret <| EList sp1 finalElems sp2 Nothing sp3) (Just <| EListDiffs l)
+                         l ->
+                            if List.all (\elem -> case elem of
+                             ListElemSkip _ -> True
+                             _ -> False) l then UpdatedExp e Nothing
+                            else
+                             UpdatedExp (ret <| EList sp1 finalElems sp2 Nothing sp3) (Just <| EListDiffs l)
                        in
                        updateResult collectedUpdatedEnv updatedE
-                     (i1, modif)::modiftail ->
-                       if i == i1 then
-                         case modif of
-                           ListElemDelete count ->
-                             updateDiffs (i + count) collectedUpdatedEnv revElems ((i, ListElemDelete count)::revEDiffs) (List.drop count elemsToCollect) changeWhitespaceNext (List.drop count originalValues) newValues modiftail
+                     modif::modiftail ->
+                       case modif of
+                         ListElemSkip count ->
+                           case changeWhitespaceNext of
+                               Nothing ->
+                                 let (skipped, remaining) = Utils.split count elemsToCollect in
+                                 updateDiffs collectedUpdatedEnv (Utils.reverseInsert skipped revElems) (ListElemSkip count :: revEDiffs) remaining Nothing (List.drop count originalValues) (List.drop count newValues) modiftail
+                               Just f ->
+                                 case (elemsToCollect, originalValues, newValues) of
+                                   ((sp, hdElem)::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
+                                     updateDiffs collectedUpdatedEnv (f sp hdElem :: revElems)
+                                       ((ListElemUpdate <| EConstDiffs EOnlyWhitespaceDiffs)::revEDiffs)
+                                       tlToCollect Nothing origTail newValuesTail
+                                       (if count == 1 then modiftail else ListElemSkip (count - 1) :: modiftail)
+                                   _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from (whitespace only):\n" ++
+                                                               "ldiffs = " ++ toString vldiffs ++
+                                                               "\nelems = [" ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elems |> String.join ",") ++
+                                                               "]\noriginalValues = [" ++ (List.map valToString origVals |> String.join ",") ++
+                                                               "]\nnewValues = [" ++  (List.map valToString newOutVals |> String.join ",") ++ "]"
+                             {- _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to propagate ldiffs:\n" ++
+                                       "ldiffs = " ++ toString ldiffs ++
+                                       ",\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elemsToCollect |> String.join ",") ++
+                                       ",\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
+                                       ",\nnewValues = " ++  (List.map valToString newValues |> String.join ",") -}
+                         ListElemDelete count ->
+                           updateDiffs collectedUpdatedEnv revElems (ListElemDelete count ::revEDiffs) (List.drop count elemsToCollect) changeWhitespaceNext (List.drop count originalValues) newValues modiftail
 
-                           ListElemUpdate newModifs ->
-                             case (elemsToCollect, originalValues, newValues) of
-                               ((sp, hdElem)::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
-                                 updateContinue "List" env hdElem [] origValue newValue newModifs  <|
-                                   (\sp i revElems tlToCollect origTail newValuesTail  newUpdatedEnv newRawElem ->
-                                   let finalEnv = UpdatedEnv.merge env collectedUpdatedEnv newUpdatedEnv in
-                                   let newRevEDiffs = case newRawElem.changes of
-                                     Nothing -> case changeWhitespaceNext of
-                                         Nothing -> revEDiffs
-                                         Just _ -> (i1, ListElemUpdate <| EConstDiffs EOnlyWhitespaceDiffs)::revEDiffs
-                                     Just d -> (i1, ListElemUpdate d)::revEDiffs
-                                   in
-                                   let newSpRawElem = Maybe.map (\f -> f sp newRawElem.val) changeWhitespaceNext |> Maybe.withDefault (sp, newRawElem.val) in
-                                   updateDiffs (i + 1) finalEnv (newSpRawElem::revElems) newRevEDiffs tlToCollect Nothing origTail newValuesTail modiftail
-                                  ) sp i revElems tlToCollect origTail newValuesTail
-                               _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from:\n" ++
-                                 "diffs = " ++ toString diffs ++
-                                 "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elems |> String.join ",") ++
-                                 "\noriginalValues = " ++ (List.map valToString origVals |> String.join ",") ++
-                                 "\nnewValues = " ++  (List.map valToString newOutVals |> String.join ",")
+                         ListElemUpdate newModifs ->
+                           case (elemsToCollect, originalValues, newValues) of
+                             ((sp, hdElem)::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
+                               updateContinue "List" env hdElem [] origValue newValue newModifs  <|
+                                 (\sp revElems tlToCollect origTail newValuesTail  newUpdatedEnv newRawElem ->
+                                 let finalEnv = UpdatedEnv.merge env collectedUpdatedEnv newUpdatedEnv in
+                                 let newRevEDiffs = case newRawElem.changes of
+                                   Nothing -> case changeWhitespaceNext of
+                                       Nothing -> ListElemSkip 1 :: revEDiffs
+                                       Just _ -> (ListElemUpdate <| EConstDiffs EOnlyWhitespaceDiffs)::revEDiffs
+                                   Just d -> (ListElemUpdate d)::revEDiffs
+                                 in
+                                 let newSpRawElem = Maybe.map (\f -> f sp newRawElem.val) changeWhitespaceNext |> Maybe.withDefault (sp, newRawElem.val) in
+                                 updateDiffs finalEnv (newSpRawElem::revElems) newRevEDiffs tlToCollect Nothing origTail newValuesTail modiftail
+                                ) sp revElems tlToCollect origTail newValuesTail
+                             _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from:\n" ++
+                               "diffs = " ++ toString diffs ++
+                               "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elems |> String.join ",") ++
+                               "\noriginalValues = " ++ (List.map valToString origVals |> String.join ",") ++
+                               "\nnewValues = " ++  (List.map valToString newOutVals |> String.join ",")
 
-                           ListElemInsert count ->
-                             let (inserted, remainingNewVals) = Utils.split count newValues in
-                             let insertionIndex = List.length revElems in
-                             let ((wsBeforeCommaHead, valToWSExpHead), (wsBeforeCommaTail, valToWSExpTail), changeElementAfterInsert) =
-                                  let me = Just e in
-                                  if insertionIndex > 0 then
-                                    if List.length elems > 1 then
-                                      case List.drop (min insertionIndex (List.length elems - 1)) elems |> List.take 1 of
-                                        [(wsComma, Expr elemToCopy_)] ->
-                                           let elemToCopy = Expr elemToCopy_ in
-                                           let psWs = ws <| Lang.precedingWhitespace elemToCopy in
-                                           let indentation = if elemToCopy_.start.line == elemToCopy_.end.line
-                                                 then InlineSpace
-                                                 else IndentSpace (String.repeat (elemToCopy_.start.col - 1) " ")
-                                           in
-                                           let policy = (wsComma, Lang.copyPrecedingWhitespace elemToCopy << valToExpFull (Just elemToCopy) psWs indentation) in
-                                           (policy, policy, Nothing)
-                                        _   -> Debug.crash <| "[internal error] There should be an element in this list's position"
-                                    else -- Insertion index == 1 and List.length elems == 1
-                                      case elems of
-                                        [(wsHead, Expr head)] ->
-                                          let (wsComma, wsElem, indentation) = if exp_.start.line == exp_.end.line
-                                            then (ws "", ws " ", InlineSpace)
-                                            else if exp_.end.col - 1 > head.start.col then -- If the ] is after the value, then let's put the commas after the values.
-                                               (ws "",
-                                                ws <| "\n" ++ String.repeat (head.start.col - 1) " ",
-                                                IndentSpace (String.repeat (head.start.col - 1) " ")
-                                               )
-                                            else
-                                               (ws <| "\n" ++ String.repeat (exp_.end.col - 2) " ",
-                                                ws (String.repeat (max (head.start.col - exp_.end.col - 1) 1) " "),
-                                                IndentSpace (String.repeat (exp_.end.col - 2) " "))
-                                          in
-                                          let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
-                                          (policy, policy, Nothing)
-                                        [] -> -- We are inserting at the second place, but the first one was an insertion already
-                                          let (wsComma, wsElem, indentation) = (ws "", ws " ", InlineSpace)
-                                          in
-                                          let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
-                                          (policy, policy, Nothing)
-                                        _ ->  Debug.crash <| "[internal error] There should be not more than 1 element in this list's position"
-                                  else --if insertionIndex == 0 then -- Inserting the first element is always trickier
+                         ListElemInsert count ->
+                           let (inserted, remainingNewVals) = Utils.split count newValues in
+                           let insertionIndex = List.length revElems in
+                           let ((wsBeforeCommaHead, valToWSExpHead), (wsBeforeCommaTail, valToWSExpTail), changeElementAfterInsert) =
+                                let me = Just e in
+                                if insertionIndex > 0 then
+                                  if List.length elems > 1 then
+                                    case List.drop (min insertionIndex (List.length elems - 1)) elems |> List.take 1 of
+                                      [(wsComma, Expr elemToCopy_)] ->
+                                         let elemToCopy = Expr elemToCopy_ in
+                                         let psWs = ws <| Lang.precedingWhitespace elemToCopy in
+                                         let indentation = if elemToCopy_.start.line == elemToCopy_.end.line
+                                               then InlineSpace
+                                               else IndentSpace (String.repeat (elemToCopy_.start.col - 1) " ")
+                                         in
+                                         let policy = (wsComma, Lang.copyPrecedingWhitespace elemToCopy << valToExpFull (Just elemToCopy) psWs indentation) in
+                                         (policy, policy, Nothing)
+                                      _   -> Debug.crash <| "[internal error] There should be an element in this list's position"
+                                  else -- Insertion index == 1 and List.length elems == 1
                                     case elems of
-                                      [] ->
-                                        if exp_.start.line == exp_.end.line then
-                                          ( (ws "", valToExpFull Nothing (ws "") InlineSpace)
-                                          , (ws " ", valToExpFull Nothing (ws " ") InlineSpace)
-                                          , Nothing
-                                          )
-                                        else -- By default, multi-line lists will use the syntax [ elem1\n, elem2\n ...]
-                                          let indentationSquareBracket = String.repeat (exp_.end.col - 2) " " in
-                                          let indentation = indentationSquareBracket ++ "  " in
-                                          ( (ws "", valToExpFull Nothing (ws " ") (IndentSpace indentation))
-                                          , (ws <| "\n" ++ indentationSquareBracket, valToExpFull Nothing (ws " ") (IndentSpace indentation))
-                                          , Nothing
-                                          )
-                                      (_, Expr head_)::tail ->
-                                        let head = Expr head_ in
-                                        let (wsSecondBeforeComma, wsSecondBeforeValue, secondOrHead, indent) =
-                                             case tail of
-                                               [] ->
-                                                 if exp_.start.line == exp_.end.line then
-                                                   (ws "", " ", head, InlineSpace)
-                                                 else if exp_.end.col - 1 > head_.start.col then -- The square bracket is after the element
-                                                   let indentation = String.repeat (head_.start.col - 1) " " in
-                                                   (ws "", "\n" ++ indentation, head, IndentSpace indentation)
-                                                 else
-                                                   let indentation = String.repeat (exp_.end.col - 2) " " in
-                                                   (ws <| "\n" ++ indentation, " ", head, IndentSpace indentation)
-                                               (wsNext, Expr elemNext)::tail2 ->
-                                                 let indentationSquareBracket = String.repeat (exp_.end.col - 2) " " in
-                                                 let indentation = if elemNext.start.line == elemNext.end.line then
-                                                      InlineSpace
-                                                      else IndentSpace (indentationSquareBracket  ++ "  ") in
-                                                 (wsNext, Lang.precedingWhitespace <| Expr elemNext, Expr elemNext, indentation)
+                                      [(wsHead, Expr head)] ->
+                                        let (wsComma, wsElem, indentation) = if exp_.start.line == exp_.end.line
+                                          then (ws "", ws " ", InlineSpace)
+                                          else if exp_.end.col - 1 > head.start.col then -- If the ] is after the value, then let's put the commas after the values.
+                                             (ws "",
+                                              ws <| "\n" ++ String.repeat (head.start.col - 1) " ",
+                                              IndentSpace (String.repeat (head.start.col - 1) " ")
+                                             )
+                                          else
+                                             (ws <| "\n" ++ String.repeat (exp_.end.col - 2) " ",
+                                              ws (String.repeat (max (head.start.col - exp_.end.col - 1) 1) " "),
+                                              IndentSpace (String.repeat (exp_.end.col - 2) " "))
                                         in
-                                        ( (ws "", valToExpFull (Just head) (ws " ") indent)
-                                        , (wsSecondBeforeComma, valToExpFull (Just secondOrHead) (ws wsSecondBeforeValue) indent)
-                                        , Just <| \nextWsBeforeComma nextElem -> (wsSecondBeforeComma, Lang.replacePrecedingWhitespace wsSecondBeforeValue nextElem)
+                                        let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
+                                        (policy, policy, Nothing)
+                                      [] -> -- We are inserting at the second place, but the first one was an insertion already
+                                        let (wsComma, wsElem, indentation) = (ws "", ws " ", InlineSpace)
+                                        in
+                                        let policy = (wsComma, valToExpFull Nothing wsElem indentation) in
+                                        (policy, policy, Nothing)
+                                      _ ->  Debug.crash <| "[internal error] There should be not more than 1 element in this list's position"
+                                else --if insertionIndex == 0 then -- Inserting the first element is always trickier
+                                  case elems of
+                                    [] ->
+                                      if exp_.start.line == exp_.end.line then
+                                        ( (ws "", valToExpFull Nothing (ws "") InlineSpace)
+                                        , (ws " ", valToExpFull Nothing (ws " ") InlineSpace)
+                                        , Nothing
                                         )
-                                        -- We need to copy the whitespace of second to head.
-                             in
-                             let insertedExp = List.indexedMap (\index inserted ->
-                                  ( (if index + insertionIndex == 0 then wsBeforeCommaHead else wsBeforeCommaTail)
-                                  , (if index + insertionIndex == 0 then valToWSExpHead    else valToWSExpTail) inserted) ) inserted
-                             in
-                             let elemsToAdd = insertedExp in
-                             updateDiffs i collectedUpdatedEnv (Utils.reverseInsert elemsToAdd revElems) ((i, ListElemInsert count)::revEDiffs) elemsToCollect changeElementAfterInsert originalValues remainingNewVals modiftail
-                       else --((i, ListElemDelete count)::revEDiffs)
-                         case changeWhitespaceNext of
-                           Nothing ->
-                             let count = i1 - i in
-                             let (skipped, remaining) = Utils.split count elemsToCollect in
-                             updateDiffs i1 collectedUpdatedEnv (Utils.reverseInsert skipped revElems) revEDiffs remaining Nothing (List.drop count originalValues) (List.drop count newValues) ldiffs
-                           Just f ->
-                             case (elemsToCollect, originalValues, newValues) of
-                               ((sp, hdElem)::tlToCollect, origValue::origTail, newValue::newValuesTail) ->
-                                 updateDiffs (i+1) collectedUpdatedEnv (f sp hdElem :: revElems) ((i, ListElemUpdate (EConstDiffs EOnlyWhitespaceDiffs))::revEDiffs) tlToCollect Nothing origTail newValuesTail ldiffs
-                               _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from (whitespace only):\n" ++
-                                                                  "ldiffs = " ++ toString vldiffs ++
-                                                                  "\nelems = [" ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elems |> String.join ",") ++
-                                                                  "]\noriginalValues = [" ++ (List.map valToString origVals |> String.join ",") ++
-                                                                  "]\nnewValues = [" ++  (List.map valToString newOutVals |> String.join ",") ++ "]"
-                         {- _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to propagate ldiffs:\n" ++
-                                   "ldiffs = " ++ toString ldiffs ++
-                                   ",\ni=" ++ toString i ++
-                                   ",\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elemsToCollect |> String.join ",") ++
-                                   ",\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
-                                   ",\nnewValues = " ++  (List.map valToString newValues |> String.join ",") -}
-               in updateDiffs 0 (UpdatedEnv.original env) [] [] elems Nothing origVals newOutVals vldiffs
+                                      else -- By default, multi-line lists will use the syntax [ elem1\n, elem2\n ...]
+                                        let indentationSquareBracket = String.repeat (exp_.end.col - 2) " " in
+                                        let indentation = indentationSquareBracket ++ "  " in
+                                        ( (ws "", valToExpFull Nothing (ws " ") (IndentSpace indentation))
+                                        , (ws <| "\n" ++ indentationSquareBracket, valToExpFull Nothing (ws " ") (IndentSpace indentation))
+                                        , Nothing
+                                        )
+                                    (_, Expr head_)::tail ->
+                                      let head = Expr head_ in
+                                      let (wsSecondBeforeComma, wsSecondBeforeValue, secondOrHead, indent) =
+                                           case tail of
+                                             [] ->
+                                               if exp_.start.line == exp_.end.line then
+                                                 (ws "", " ", head, InlineSpace)
+                                               else if exp_.end.col - 1 > head_.start.col then -- The square bracket is after the element
+                                                 let indentation = String.repeat (head_.start.col - 1) " " in
+                                                 (ws "", "\n" ++ indentation, head, IndentSpace indentation)
+                                               else
+                                                 let indentation = String.repeat (exp_.end.col - 2) " " in
+                                                 (ws <| "\n" ++ indentation, " ", head, IndentSpace indentation)
+                                             (wsNext, Expr elemNext)::tail2 ->
+                                               let indentationSquareBracket = String.repeat (exp_.end.col - 2) " " in
+                                               let indentation = if elemNext.start.line == elemNext.end.line then
+                                                    InlineSpace
+                                                    else IndentSpace (indentationSquareBracket  ++ "  ") in
+                                               (wsNext, Lang.precedingWhitespace <| Expr elemNext, Expr elemNext, indentation)
+                                      in
+                                      ( (ws "", valToExpFull (Just head) (ws " ") indent)
+                                      , (wsSecondBeforeComma, valToExpFull (Just secondOrHead) (ws wsSecondBeforeValue) indent)
+                                      , Just <| \nextWsBeforeComma nextElem -> (wsSecondBeforeComma, Lang.replacePrecedingWhitespace wsSecondBeforeValue nextElem)
+                                      )
+                                      -- We need to copy the whitespace of second to head.
+                           in
+                           let insertedExp = List.indexedMap (\index inserted ->
+                                ( (if index + insertionIndex == 0 then wsBeforeCommaHead else wsBeforeCommaTail)
+                                , (if index + insertionIndex == 0 then valToWSExpHead    else valToWSExpTail) inserted) ) inserted
+                           in
+                           let elemsToAdd = insertedExp in
+                           updateDiffs collectedUpdatedEnv (Utils.reverseInsert elemsToAdd revElems) ( ListElemInsert count ::revEDiffs) elemsToCollect changeElementAfterInsert originalValues remainingNewVals modiftail
+               in updateDiffs (UpdatedEnv.original env) [] [] elems Nothing origVals newOutVals vldiffs
              _ -> UpdateCriticalError <| "Expected VListDiffs, got " ++ toString diffs
          _ -> UpdateCriticalError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
-     EList sp1 elems sp2 (Just tail) sp3 ->
+     EList sp1 elems sp2 (Just tail) sp3 -> -- exactly one element in elems
        case (oldVal.v_, newVal.v_) of
          (VList origVals, VList newOutVals) ->
            case diffs of
              VListDiffs ldiffs -> --We do not allow insertions or deletions of elemnts before the tail.
-              let updateDiffs: Int -> Int ->     UpdatedEnv -> List (WS, Exp) -> TupleDiffs EDiffs -> List (WS, Exp) -> List Val -> List Val -> List (Int, ListElemDiff VDiffs) -> UpdateStack
+              let updateDiffs: Int -> Int ->     UpdatedEnv -> List (WS, Exp) -> TupleDiffs EDiffs -> List (WS, Exp) -> List Val -> List Val -> ListDiffs VDiffs -> UpdateStack
                   updateDiffs  i      elemSize   collectedEnv  revElems          revEDiffs            elemsToCollect    origVals    newOutVals  ldiffs =
                    case ldiffs of
                      [] ->
-
                        let updatedList = case List.reverse revEDiffs of
                          [] -> UpdatedExp e Nothing
                          l -> let finalElems = List.reverse <| Utils.reverseInsert elemsToCollect revElems in
-                              UpdatedExp (ret <| EList sp1 finalElems sp2 (Just tail) sp3) (Just <| EChildDiffs l)
+                              UpdatedExp (ret <| EList sp1 finalElems sp2 (Just tail) sp3) (mbEChildDiffs l)
                        in
                        updateResult collectedEnv updatedList
-                     (i, m)::tailmodif ->
-                       if i >= elemSize then
+                     m::tailmodif ->
+                       if i >= elemSize then -- That's the tail diffs
                          let (finalElems, changesInOrder) =  case List.reverse revEDiffs of
                            [] -> (elems, [])
                            l -> (List.reverse <| Utils.reverseInsert elemsToCollect revElems, l)
@@ -349,23 +361,29 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                          let valsToRemove = List.length elemsToCollect in
                          let tailOldVal = List.drop valsToRemove origVals in
                          let tailNewOutVal = List.drop valsToRemove newOutVals in
-                         updateContinue "EList tail" env tail [] (replaceV_ oldVal <| VList tailOldVal) (replaceV_ newVal <| VList tailNewOutVal) (VListDiffs <| UpdateUtils.offset (0 - elemSize) ldiffs) <| \newTailUpdatedEnv newUpdatedTailExp ->
+                         updateContinue "EList tail" env tail [] (replaceV_ oldVal <| VList tailOldVal) (replaceV_ newVal <| VList tailNewOutVal) (VListDiffs <| ldiffs) <| \newTailUpdatedEnv newUpdatedTailExp ->
                            let finalUpdatedEnv = UpdatedEnv.merge env collectedEnv newTailUpdatedEnv in
                            let finalChanges = case newUpdatedTailExp.changes of
-                             Nothing -> case changesInOrder of
-                                [] -> Nothing
-                                l -> Just <| EChildDiffs l
+                             Nothing -> mbEChildDiffs changesInOrder
                              Just tailDiff ->
-                                Just <| EChildDiffs (changesInOrder ++ [(List.length elems, tailDiff)])
+                                mbEChildDiffs (UpdateUtils.completeDiffs (List.length elems) changesInOrder ++ [Just tailDiff])
                            in
                            updateResult finalUpdatedEnv <| UpdatedExp (ret <| EList sp1 finalElems sp2 (Just newUpdatedTailExp.val) sp3) finalChanges
                        else -- i < elemSize then
                          case m of
+                           ListElemSkip count ->
+                             let (_, origValsRemaining) = Utils.split 1 origVals in
+                             let (elemsToCollectSkipped, tlCollect) = Utils.split 1 elemsToCollect in
+                             let (_, tlNewOutVals) = Utils.split 1 newOutVals in
+                             let (_, tlOrigVals) = Utils.split 1 origVals in
+                             let newTailModifs = if count == 1 then tailmodif else (ListElemSkip (count - 1) :: tailmodif) in
+                             updateDiffs (i + 1) elemSize collectedEnv (Utils.reverseInsert elemsToCollectSkipped revElems) revEDiffs tlCollect tlOrigVals tlNewOutVals newTailModifs
+
                            ListElemDelete count -> -- Let's check if we can propagate this delete for the tail.
                              case (origVals, elemsToCollect, newOutVals) of
                                (headOrigVal::tailOrigVal, hdCollect::tlCollect, hdOut::tlOut) ->
                                  if (List.take count tailOrigVal |> List.all (valEqual headOrigVal)) && valEqual hdOut headOrigVal then
-                                   updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) revEDiffs tlCollect tailOrigVal tlOut ((i + 1, ListElemDelete count)::tailmodif)
+                                   updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) revEDiffs tlCollect tailOrigVal tlOut (ListElemDelete count::tailmodif)
                                  else
                                    UpdateFails <| "Cannot delete elements appended to the left of a :: . Trying to remove element " ++ valToString headOrigVal
                                _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
@@ -373,7 +391,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                              case (origVals, elemsToCollect, newOutVals) of
                                (headOrigVal::tailOrigVal, hdCollect::tlCollect, hdOut::tlOut) ->
                                  if (List.take count tlOut |> List.all (valEqual hdOut)) && valEqual hdOut headOrigVal then
-                                   updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) revEDiffs tlCollect tailOrigVal tlOut ((i + 1, ListElemInsert count)::tailmodif)
+                                   updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) revEDiffs tlCollect tailOrigVal tlOut (ListElemInsert count::tailmodif)
                                  else
                                    UpdateFails <| "Cannot inserted before elements appended to the left of a :: . Trying to insert element " ++ valToString headOrigVal
                                _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
@@ -384,8 +402,8 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                      \elemSize env collectedEnv revElems sp1 tlCollect tailOrigVal tlOut tailmodif -> \newUpdatedEnv newhdCollect ->
                                      let updatedEnv = UpdatedEnv.merge env collectedEnv newUpdatedEnv in
                                      let newRevEDiffs = case newhdCollect.changes of
-                                       Nothing -> revEDiffs
-                                       Just d -> (i, d)::revEDiffs
+                                       Nothing -> Nothing :: revEDiffs
+                                       Just d -> Just d :: revEDiffs
                                      in
                                      updateDiffs (i + 1) elemSize updatedEnv ((sp1, newhdCollect.val)::revElems) newRevEDiffs tlCollect tailOrigVal tlOut tailmodif
                                    ) elemSize env collectedEnv revElems sp1 tlCollect tailOrigVal tlOut tailmodif
@@ -455,10 +473,9 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                             (replaceV_ newVal <| VRecord miRecord) (replaceV_ newVal <| VRecord newMiRecord) (VRecordDiffs newMiDiffs) <| \updatedEnvInit updatedInit ->
                                let finalEnv = UpdatedEnv.merge env updatedEnvBeforeRecord updatedEnvInit in
                                let finalExpDiffs =
-                                 let miDiffsAsChild = updatedInit.changes |> Maybe.map (\d -> [(0, d)]) |> Maybe.withDefault [] in
-                                 case miDiffsAsChild ++ (Maybe.map (\changes -> UpdateUtils.offset 1 changes) updatedDecls.changes |> Maybe.withDefault []) of
-                                    [] -> Nothing
-                                    l -> Just <| EChildDiffs l
+                                 let miDiffsAsChild = updatedInit.changes |> Maybe.map (\d -> [Just d]) |> Maybe.withDefault [Nothing] in
+                                 let l = miDiffsAsChild ++ (updatedDecls.changes |> Maybe.withDefault []) in
+                                 mbEChildDiffs l
                                in
                                let finalExp = UpdatedExp (ret <| ERecord sp1 (Just (updatedInit.val, initSp)) updatedDecls.val sp2) finalExpDiffs in
                                updateResult finalEnv finalExp
@@ -483,7 +500,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                  Just vValue ->
                    let withNewE1 newE1UpdatedEnv newE1 =
                         let finalExp = ret <| ESelect sp0 newE1.val sp1 sp2 ident in
-                        let finalChanges = Maybe.map (\d -> EChildDiffs [(0, d)]) newE1.changes in
+                        let finalChanges = Maybe.map (\d -> EChildDiffs [Just d]) newE1.changes in
                         updateResult newE1UpdatedEnv <| UpdatedExp finalExp finalChanges
                    in
                    let default () =
@@ -504,11 +521,12 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                [("this", newThis), ("recRecordMethod", newRecMethod)] ->
                                  let (thisChange, otherChanges) =
                                        case newRecRecordMethodThis.changes of
-                                         (0, vRecordDiffs)::c -> (Just vRecordDiffs, c)
-                                         c -> (Nothing, c)
+                                         Just vRecordDiffs::c -> (Just vRecordDiffs, c)
+                                         Nothing::c -> (Nothing, c)
+                                         _ -> (Nothing, [])
                                      recMethodChange =
                                        case otherChanges of
-                                         (1, methodChanges)::_ -> Just methodChanges
+                                         Just methodChanges::_ -> Just methodChanges
                                          _ -> Nothing
                                      (finalThis, finalThisChange) =
                                        case recMethodChange of
@@ -533,29 +551,29 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
        let e1 = Expr e1_ in
        let isFreezing e1 =
          --Debug.log ("Testing if " ++ unparse e1 ++ " is freezing:") <|
-         case (unwrapExp e1) of
+         case unwrapExp e1 of
          EVar _ "freeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
          ESelect _ e _ _ "freeze" -> case (unwrapExp e) of
-           EVar _ "Update" -> True
-           _ -> False
+            EVar _ "Update" -> True
+            _ -> False
          _ -> False
        in
        let isFreezingExpression e1 =
-         case (unwrapExp e1) of
-           EVar _ "expressionFreeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
-           ESelect _ e _ _ "expressionFreeze" -> case (unwrapExp e) of
-             EVar _ "Update" -> True
-             _ -> False
-           _ -> False
+         case unwrapExp e1 of
+            EVar _ "expressionFreeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
+            ESelect _ e _ _ "expressionFreeze" -> case (unwrapExp e) of
+              EVar _ "Update" -> True
+              _ -> False
+            _ -> False
         in
        let continueIfNotFrozen = if isFreezing e1 then
          --case e2s of
-           --[argument] -> -- Since we call this function only if there is a difference, freeze will fail !
+            --[argument] -> -- Since we call this function only if there is a difference, freeze will fail !
              --if valEqual oldVal newVal then -- OK, that's the correct freeze semantics
              --  \continuation -> updateResultSameEnvExp env e
              --else
          \continuation -> UpdateFails <| "Hit a freeze (line " ++ toString exp_.start.line ++ ")" --: You are trying to update " ++ unparse e ++ " (line " ++ toString exp_.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'"
-           --_ -> \continuation -> continuation()
+            --_ -> \continuation -> continuation()
          else \continuation -> continuation()
        in
        continueIfNotFrozen <| \_ ->
@@ -631,7 +649,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                               continuation <|
                                                 \newUpdatedEnvArg newUpdatedArg ->
                                                 let newExp = ret <| EApp sp0 (ret <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
-                                                let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
+                                                let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [Nothing, Just changes]) in
                                                 updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
                            in
                            updateMaybeFirst2 "after testing update, testing unapply" (not isApplyFrozen) mbUpdateField <| \_ ->
@@ -656,7 +674,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                                updateContinue ".unapply" env argument (keepLets env vArgEnv) vArg newOut newDiff <|
                                                 \newUpdatedEnvArg newUpdatedArg ->
                                                 let newExp = ret <| EApp sp0 (ret <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
-                                                let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
+                                                let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [Nothing, Just changes]) in
                                                 updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
                                Nothing -> Nothing
                          _ -> Nothing
@@ -696,7 +714,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                       (Nothing, Nothing) -> (e, Nothing)
                                       (e1Change, e2Change) ->
                                          (replaceE__ e <| EApp sp0 e1 [newELeft.val, newERight.val] appType sp1,
-                                          combineEChildDiffs [(1, e1Change), (2, e2Change)])
+                                          combineEChildDiffs [Nothing, e1Change, e2Change])
                                     in
                                     let finalEnv = UpdatedEnv.merge env newELeftEnv newERightEnv in
                                     updateResult finalEnv <| UpdatedExp newE newEChanges
@@ -744,7 +762,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        let ((newV2s, newV2sDiffs), updatedExpandedEnv_) = consBuilder updatedInsideEnv in
                        let updatedEnv_ = if recNames == [] then updatedExpandedEnv_ else UpdatedEnv.expandRecEnvReverse recNames env_ updatedExpandedEnv_ in
                        let (newV1, newV1Diffs) = updatedVal.unapply <| updated.vClosure (replaceV_ v1) recNames e1ps updatedBody updatedEnv_ in
-                       let e1_updater = case newV1Diffs of
+                       let e1_updater = case simplifyDiffs newV1Diffs of
                          Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp e1 Nothing)
                          Just v1Diffs -> updateContinue ("VClosure1 partial app") env e1 (keepLets env v1Env) v1 newV1 v1Diffs
                        in
@@ -833,10 +851,10 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                            let v2s = List.map (\((v2, _), _) -> v2) v2ls in
                            case updateDef v2s oldVal newVal diffs of
                              Err msg -> UpdateCriticalError msg
-                             Ok LazyList.Nil -> UpdateFails <| "not solution for updating " ++ name
+                             Ok LazyList.Nil -> UpdateFails <| "no solution for updating " ++ name ++ " from " ++ valToString oldVal ++ " tot " ++ valToString newVal ++ " with " ++ toString diffs
                              Ok ll ->
                                let llWithDiffResult = ll |> LazyList.map (\(outputs, diffs) ->
-                                 let resMaybeDiffsOffsetted = UpdateUtils.offset 1 diffs in
+                                 let resMaybeDiffsOffsetted = Nothing :: diffs in
                                  (v1::outputs, ok1 <| Just <| resMaybeDiffsOffsetted)) in
                                updateOpMultiple "vfun" env (e1::e2s) (\funAndNewE2s ->
                                      ret <| EApp sp0 e1 (Utils.tail "vfun" funAndNewE2s) appType sp1
@@ -884,17 +902,18 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                      VListDiffs listDiffs -> toTupleDiffs listDiffs
                      _ -> Nothing) |>
                      Result.fromMaybe "Insertions and deletions not authorized in environments" |>
-                     Result.andThen (List.map (\(i, d) ->
-                     case d of
-                       VRecordDiffs dict ->
+                     Result.andThen (List.map (\mbd ->
+                     case mbd of
+                       Nothing -> Ok Nothing
+                       Just (VRecordDiffs dict) ->
                          case (Dict.get Lang.ctorTuple dict, Dict.get "_1" dict, Dict.get "_2" dict) of
                            (Just _, _, _) -> Err <| "Unexpected change to the tuple constructor's name"
                            (_, Just _, _) -> Err <| "Cannot change the name of a variable"
-                           (_, _, Just d) -> Ok [(i, d)]
-                           _ -> Ok []
-                       _ ->
+                           (_, _, Just d) -> Ok (Just d)
+                           _ -> Ok Nothing
+                       Just d ->
                          Err <| "Expected VRecordDiffs, got " ++ toString d
-                   ) >> Utils.projOk) |> Result.map (List.concatMap identity)
+                   ) >> Utils.projOk)
                    in
                    case (resNewEnv, resNewEnvDiffs) of
                      (Ok newEnv, Ok envDiffs) -> updateResult (UpdatedEnv newEnv envDiffs) (UpdatedExp e Nothing)
@@ -910,23 +929,23 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                            let resNewResultDiffs =
                              let
                                aux: ListDiffs VDiffs -> List String -> List String ->
-                                   (Int,           Int,             List StringDiffs) -> Result String VDiffs
+                                   (Int,             List StringDiffs) -> Result String VDiffs
                                aux  d                   oldStrings     newStrings
-                                   (currentOffset, strLengthBefore, revAcc) = case d of
+                                   (strLengthBefore, revAcc) = case d of
                                  [] -> Ok <| VStringDiffs <| List.reverse revAcc
-                                 (i, localdiff)::taildiff ->
-                                   let notModified = i - currentOffset in
-                                   if notModified > 0 then
-                                     let (sameOld, remainingOld) = Utils.split notModified oldStrings in
-                                     let (_, remainingNew) = Utils.split notModified newStrings in
-                                     let sameStringLength = List.map String.length sameOld |> List.sum in
-                                     (i, strLengthBefore + sameStringLength, revAcc) |>
-                                     aux d remainingOld remainingNew
-                                   else case localdiff of
+                                 localdiff::taildiff ->
+                                   case localdiff of
+                                     ListElemSkip notModified ->
+                                       let (sameOld, remainingOld) = Utils.split notModified oldStrings in
+                                       let (_, remainingNew) = Utils.split notModified newStrings in
+                                       let sameStringLength = List.map String.length sameOld |> List.sum in
+                                       (strLengthBefore + sameStringLength, revAcc) |>
+                                       aux d remainingOld remainingNew
+
                                      ListElemInsert count ->
                                        let (inserted, remainingNew) = Utils.split count newStrings in
                                        let insertedStringLength = List.map String.length inserted |> List.sum in
-                                       (i, strLengthBefore,
+                                       (strLengthBefore,
                                         (StringUpdate strLengthBefore strLengthBefore insertedStringLength)::revAcc
                                        ) |>
                                        aux taildiff oldStrings remainingNew
@@ -934,19 +953,19 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                      ListElemDelete count ->
                                        let (deleted, remainingOld) = Utils.split count oldStrings in
                                        let deletedStringLength = List.map String.length deleted |> List.sum in
-                                       (i + count, strLengthBefore + deletedStringLength,
+                                       (strLengthBefore + deletedStringLength,
                                          StringUpdate strLengthBefore (strLengthBefore + deletedStringLength) 0 :: revAcc) |>
                                        aux taildiff remainingOld newStrings
 
                                      ListElemUpdate dd -> case (oldStrings, newStrings, dd) of
                                        (headOld::tailOld, _::tailNew, VStringDiffs l) ->
-                                         (i + 1, strLengthBefore + String.length headOld,
+                                         (strLengthBefore + String.length headOld,
                                          Utils.reverseInsert (offsetStr strLengthBefore l) revAcc) |>
                                          aux taildiff tailOld tailNew
                                        ([], _, _) -> Err <| "Diff and values are not coherent for explode: " ++ toString diffs ++ "\n" ++ valToString oldVal ++ "\n" ++ valToString newVal
                                        (_, [], _) -> Err <| "Diff and values are not coherent for explode: " ++ toString diffs ++ "\n" ++ valToString oldVal ++ "\n" ++ valToString newVal
                                        _ -> Err <| "expected a VStringDiffs in the diffs of explode's output's elements, got " ++ toString dd
-                             in aux d oldStrings newStrings (0, 0, [])
+                             in aux d oldStrings newStrings (0, [])
                            in
                            case resNewResultDiffs of
                              Err msg -> UpdateCriticalError <| msg
@@ -966,13 +985,13 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                          Ok listKeyDictKeyValues ->
                             case (newVal.v_, diffs) of
                               (VDict newDict, VDictDiffs dictDiffs) ->
-                                let (newListRev, newDiffsRev) = List.foldl (\(((k, dKey), v), i) (newListRev, newDiffsRev) ->
+                                let (newListRev, newDiffsRev) = List.foldl (\((k, dKey), v) (newListRev, newDiffsRev) ->
                                     case (Dict.get dKey dictDiffs, Dict.get dKey newDict)  of
-                                      (Just VDictElemDelete, _) -> (newListRev, (i, ListElemDelete 1)::newDiffsRev)
-                                      (Just (VDictElemUpdate x), Just newElem)  -> ((k, newElem)::newListRev, (i, ListElemUpdate (VRecordDiffs (Dict.fromList [("_2", x)])))::newDiffsRev)
-                                      (Nothing, _) -> ((k, v)::newListRev, newDiffsRev)
+                                      (Just VDictElemDelete, _) -> (newListRev, ListElemDelete 1::newDiffsRev)
+                                      (Just (VDictElemUpdate x), Just newElem)  -> ((k, newElem)::newListRev, ListElemUpdate (VRecordDiffs (Dict.fromList [("_2", x)]))::newDiffsRev)
+                                      (Nothing, _) -> ((k, v)::newListRev, ListElemSkip 1 :: newDiffsRev)
                                       (d, v) -> Debug.crash <| "Unexpected diff: " ++ toString d ++ " on val " ++ (Maybe.map valToString v |> Maybe.withDefault "Nothing") ++ " when updating DictFromList -- if it was a VDictElemInsert, the key already existed"
-                                    ) ([], []) <| Utils.zipWithIndex listKeyDictKeyValues
+                                    ) ([], []) <| listKeyDictKeyValues
                                 in
                                 let (finalListRev, numberAdded) = Dict.foldl (\k v (newListRev, numberAdded) ->
                                       case v of
@@ -984,7 +1003,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                         _ -> (newListRev, numberAdded)
                                       ) (newListRev, 0) dictDiffs
                                 in
-                                let finalDiffsRev = if numberAdded > 0 then (List.length listKeyDictKeyValues, ListElemInsert numberAdded)::newDiffsRev else newDiffsRev in
+                                let finalDiffsRev = if numberAdded > 0 then ListElemInsert numberAdded :: newDiffsRev else newDiffsRev in
                                 let finalValuesList = Vb.list (Vb.tuple2 Vb.identity Vb.identity) (Vb.fromVal keyValuesList) (List.reverse finalListRev) in
                                 let finalDiffsList = VListDiffs <| List.reverse finalDiffsRev in
                                 updateContinue "DictFromList" env keyValuesListE [] keyValuesList finalValuesList finalDiffsList <| \newEnv newKeyValuesListE ->
@@ -1115,7 +1134,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                        continuation <| \newEnv newDictE ->
                                          continuationInserted  <| \newEnv2 newInsertedE ->
                                            let finalEnv = UpdatedEnv.merge env newEnv newEnv2 in
-                                           let finalChanges = UpdateUtils.combineEChildDiffs [(1, newInsertedE.changes), (2, newDictE.changes)] in
+                                           let finalChanges = UpdateUtils.combineEChildDiffs [Nothing, newInsertedE.changes, newDictE.changes] in
                                            updateResult finalEnv <| UpdatedExp (ret <| EOp sp1 spo op [keyE, newInsertedE.val, newDictE.val] sp2) finalChanges
 
                                      e -> UpdateCriticalError <| "[Internal error] Expected a VDictDiffs, got " ++ toString e
@@ -1207,25 +1226,20 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                  input_update <| \newInputUpdatedEnv newInputUpdatedExp ->
                    let finalUpdatedEnv = UpdatedEnv.merge env newBranchUpdatedEnv newInputUpdatedEnv in
                    let finalExp = ret <| ECase sp1 newInputUpdatedExp.val nBranches sp2 in
-                   let finalChanges = UpdateUtils.combineEChildDiffs <| (0, newInputUpdatedExp.changes)::(UpdateUtils.offset 1 nBranchesDiffs) in
+                   let finalChanges = UpdateUtils.combineEChildDiffs <| newInputUpdatedExp.changes :: nBranchesDiffs in
                    updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
 
      ELet sp1 letKind ((Declarations po types anns letexpsGroups) as decls) wsIn body ->
        updateDeclarations env prevLets decls <| \envBody remainingPrevLets finishUpdateDeclarations ->
          updateContinue "ELet" envBody body remainingPrevLets oldVal newVal diffs <| \updatedEnvBody updatedBody ->
            finishUpdateDeclarations updatedEnvBody <| \updatedEnv updatedDecls ->
-             let declsDiffs = case updatedDecls.changes of
-               Nothing -> []
-               Just x -> x
+             let declsDiffs =
+               UpdateUtils.completeDiffs (List.map (Tuple.second >> List.length) letexpsGroups |> List.sum) <|
+               case updatedDecls.changes of
+                 Nothing -> []
+                 Just x -> x
              in
-             let bodyDiff = case updatedBody.changes of
-               Nothing -> []
-               Just bd -> [(List.map (\(x, y) -> List.length y) letexpsGroups |> List.sum, bd)]
-             in
-             let finalDiff = case declsDiffs ++ bodyDiff of
-               [] -> Nothing
-               x -> Just (EChildDiffs x)
-             in
+             let finalDiff = mbEChildDiffs (declsDiffs ++ [updatedBody.changes]) in
              updateResult updatedEnv <| UpdatedExp (replaceE__ e <|
                ELet sp1 letKind updatedDecls.val wsIn updatedBody.val) finalDiff
 
@@ -1373,7 +1387,7 @@ updateLetExps env prevLets letExps continue =
                         in
                         let nonrecDiffs = case mbDiff of
                           Just (VClosureDiffs closureEnvDiffs bodyDiffs) ->
-                             Just (VClosureDiffs originalUpdatedEnv.changes bodyDiffs)
+                             Just (VClosureDiffs (if List.all ((==) Nothing) originalUpdatedEnv.changes then [] else originalUpdatedEnv.changes) bodyDiffs)
                           _ -> Nothing
                         in
                         ((nonrecClosure, Just recUpdatedEnv), nonrecDiffs)
@@ -1395,7 +1409,7 @@ updateLetExps env prevLets letExps continue =
               let newGroup = List.map2 (\(LetExp ms wp p fs we e) newE -> LetExp ms wp p fs we newE) letexpGroup updatedExpTuple.val in
               let newGroupDiffs = updatedExpTuple.changes |> Maybe.withDefault [] in
               let newUpdatedEnv = UpdatedEnv.merge env updatedEnv updatedEnvTuple in
-              return newUpdatedEnv ((recursion, newGroup)::newTailGroups) (newGroupDiffs ++ UpdateUtils.offset (List.length letexpGroup) newTailGroupsDiffs)
+              return newUpdatedEnv ((recursion, newGroup)::newTailGroups) (UpdateUtils.completeDiffs (List.length letexpGroup) newGroupDiffs ++ newTailGroupsDiffs)
             ) env prevLets letExps continue letexpGroup tailGroups newPrevLets revPatList revValList
               groupPatterns recursion groupOldValues_ groupOldValues envWithE1s conssBuilder) -- Need to provide all closed variables because updateLetExp is tail-recursive.
           Nothing ->
@@ -1483,8 +1497,8 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                       let newA = replaceV_ oldOutVal <| VBase <| VString <| newSa in
                       let newB = replaceV_ oldOutVal <| VBase <| VString <| newSb in
                       let finalDiffs =
-                        (if forSa == [] then [] else [(0, VStringDiffs forSa)]) ++
-                        (if forSb == [] then [] else [(1, VStringDiffs forSb)])
+                        (if forSa == [] then if forSb == [] then [] else [Nothing] else [Just <| VStringDiffs forSa]) ++
+                        (if forSb == [] then [] else [Just <| VStringDiffs forSb])
                       in
                       ([newA, newB], finalDiffs)
                     )
@@ -1510,34 +1524,33 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
         Just operands ->
           let autoDiff: Num -> Num -> Results String (Num, Num) -> Results String (List Num, TupleDiffs VDiffs)
               autoDiff l r res = res |> Results.map (\(newL, newR) ->
+                let newRNotr = newR /= r in
                 ([newL, newR],
-                  (if newL /= l then [(0, VConstDiffs)] else []) ++
-                  (if newR /= r then [(1, VConstDiffs)] else [])
+                  (if newL /= l then [Just <| VConstDiffs] else if newRNotr then [Nothing] else []) ++
+                  (if newRNotr then [Just <| VConstDiffs] else [])
                 )
                )
           in
           let autoDiff1: Num -> Results String Num -> Results String (List Num, TupleDiffs VDiffs)
               autoDiff1 n res = res |> Results.map (\newN ->
-                ([newN], if newN /= n then [(0, VConstDiffs)] else [])
+                ([newN], if newN /= n then [Just VConstDiffs] else [])
                )
           in
           let result = case (op.val, operands) of
-                (Plus,    [l,r]) -> oks [([newOut - r, r], [(0, VConstDiffs)]),
-                                         ([l, newOut - l], [(1, VConstDiffs)])]
-                (Minus,   [l,r]) -> oks [([r + newOut, r], [(0, VConstDiffs)]),
-                                         ([l, l - newOut], [(1, VConstDiffs)])]
+                (Plus,    [l,r]) -> oks [([newOut - r, r], [Just VConstDiffs]),
+                                         ([l, newOut - l], [Nothing, Just VConstDiffs])]
+                (Minus,   [l,r]) -> oks [([r + newOut, r], [Just VConstDiffs]),
+                                         ([l, l - newOut], [Nothing, Just VConstDiffs])]
                 (Mult,    [l,r]) -> let newR = newOut / l
                                         newL = newOut / r
                                     in
-                                    oks [([l, newR], if newR /= r then [(1, VConstDiffs)] else []),
-                                         ([newL, r], if newL /= l then [(0, VConstDiffs)] else [])]
+                                    autoDiff l r <| oks [(l, newR), (newL, r)]
                 (Div,     [l,r]) -> if newOut /= 0 then
                                          let newL = r * newOut
                                              newR = l / newOut
                                          in
-                                         oks [([newL, r], if newL /= l then [(0, VConstDiffs)] else []),
-                                              ([l, newR], if newR /= r then [(1, VConstDiffs)] else [])]
-                                    else ok1 ([0, r], if l == 0 then [] else [(0, VConstDiffs)])
+                                         autoDiff l r <| oks [(newL, r), (l, newR)]
+                                    else ok1 ([0, r], if l == 0 then [] else [Just VConstDiffs])
                 (Pow,     [l,r]) -> autoDiff l r <| if l < 0 && r >= 0 && floor r == ceiling r then --Powers of negative must be with integer numbers
                                       if (floor r) % 2 == 0 then -- The result should be positive
                                         if newOut >= 0 then ok1 (0 - newOut ** (1 / r), r)
@@ -1553,7 +1566,7 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
                                       else Err "No way to invert l^r <-- out where l >= 0, out < 0 and 1/r not an integer or not < 0"
                                     else Err "No way to invert l^r <-- out where l < 0 and r < 0 or r is not an integer"
                 (Mod,     [l,r]) -> let newL = l + newOut - oldOut in
-                                    ok1 ([newL, r], if newL /= l then [(0, VConstDiffs)] else [])
+                                    ok1 ([newL, r], if newL /= l then [Just VConstDiffs] else [])
                 (ArcTan2, [l,r]) -> -- We keep the same radius but change the angle
                                     autoDiff l r <|
                                     let (radius, theta) = toPolar (r, l) in
@@ -1620,7 +1633,7 @@ commonPrefix =
 commonSuffix: String -> String -> String
 commonSuffix s1 s2 = commonPrefix (String.reverse s1) (String.reverse s2) |> String.reverse
 
-branchWithInversion: Env -> Val -> List Branch -> Maybe ((Env, Exp), (UpdatedEnv, UpdatedExp) -> (UpdatedEnv, Val, Maybe VDiffs, List Branch, TupleDiffs (Maybe EDiffs)))
+branchWithInversion: Env -> Val -> List Branch -> Maybe ((Env, Exp), (UpdatedEnv, UpdatedExp) -> (UpdatedEnv, Val, Maybe VDiffs, List Branch, TupleDiffs EDiffs))
 branchWithInversion env input branches =
   case branches of
     [] -> Nothing
@@ -1634,14 +1647,14 @@ branchWithInversion env input branches =
                 ((augEnv, exp),
                 (\(newUpdatedEnv, newUpdatedExp) ->
                   let (updatedUpdatedEnv, updatedVal, vdiff, newTailBranches, branchdiffs) = patValEnvRebuilder (newUpdatedEnv, newUpdatedExp) in
-                  (updatedUpdatedEnv, updatedVal, vdiff, head::newTailBranches, UpdateUtils.offset 1 branchdiffs)
+                  (updatedUpdatedEnv, updatedVal, vdiff, head::newTailBranches, Nothing :: branchdiffs)
                   ))
               )
             Just (augEnv, patValEnvRebuilder) ->
               Just ((augEnv, exp), \(newAugUpdatedEnv, newUpdatedExp) ->
                 let ((updatedVal, updatedValDiff), newUpdatedEnv) = patValEnvRebuilder newAugUpdatedEnv in
                 let newBranch = replaceB__ head <| Branch_ sp1 pat newUpdatedExp.val sp2 in
-                let newDiff = [(0, newUpdatedExp.changes)] in
+                let newDiff = [newUpdatedExp.changes] in
                 (newUpdatedEnv, updatedVal, updatedValDiff, newBranch :: tail, newDiff)
               )
 
@@ -1680,7 +1693,8 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
      )
   (PVar ws x wd, _) -> Just ([(x,v)], \newUpdatedEnv ->
      case (newUpdatedEnv.val, newUpdatedEnv.changes) of
-       ([(x, newV)], [(0, diffs)]) -> (newV, Just diffs)
+       ([(x, newV)], [Just diffs]) -> (newV, Just diffs)
+       (_, [Nothing]) -> (v, Nothing)
        (_, []) -> (v, Nothing)
        _ -> Debug.crash <| "Not the same shape before/after pattern update: " ++ envToString newUpdatedEnv.val ++ " should have length 1"
      )
@@ -1708,7 +1722,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
           let (newVals, newValsDiffs) = updatedEnvRenewer newUpdatedEnv in
           let (newVal, newValDiff) = case newValsDiffs of
                []-> (v, Nothing)
-               _ -> (replaceV_ v <| VList newVals, Just <| VListDiffs <| List.map (\(i, m) -> (i, ListElemUpdate m)) <| newValsDiffs)
+               _ -> (replaceV_ v <| VList newVals, Just <| VListDiffs <| List.map (Maybe.map ListElemUpdate >> Maybe.withDefault (ListElemSkip 1)) <| newValsDiffs)
           in
           (newVal, newValDiff)))
   (PList sp0 ps sp1 (Just rest) sp2, VList vs) ->
@@ -1727,14 +1741,20 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
                (newVals,    mbValsDiffs)) = envRenewer newUpdatedEnv in
           let (finalVal, finalValDiffs) = case (mbValsDiffs, newTailVal.v_, mbTailValDiffs) of
             ([], _, Nothing) -> (v, Nothing)
-            (_, VList tailVals, _) -> (replaceV_ v <| (VList <| newVals ++ tailVals),
-                                      Just <| VListDiffs <|
-                                       (List.map (\(i, d) -> (i, ListElemUpdate d)) mbValsDiffs) ++ (case mbTailValDiffs of
-                                         Nothing -> []
-                                         Just (VListDiffs diffs) ->
-                                           UpdateUtils.offset (List.length ps) diffs
-                                         Just x -> Debug.crash <| "Expected VListDiffs, got " ++ toString x
-                                           ))
+            (_, VList tailVals, _) ->
+               let headDiffsRaw =
+                 List.map (Maybe.map ListElemUpdate >> Maybe.withDefault (ListElemSkip 1)) mbValsDiffs in
+               let headDiffs = if mbTailValDiffs == Nothing && List.all (\le -> case le of
+                 ListElemSkip _ -> True
+                 _ -> False) headDiffsRaw then [] else headDiffsRaw in
+               (replaceV_ v <| (VList <| newVals ++ tailVals),
+                Just <| VListDiffs <|
+                 headDiffs ++ (case mbTailValDiffs of
+                   Nothing -> []
+                   Just (VListDiffs diffs) ->
+                     (List.range 1 (List.length ps - List.length headDiffs) |> List.map (always (ListElemSkip 1))) ++ diffs
+                   Just x -> Debug.crash <| "Expected VListDiffs, got " ++ toString x
+                     ))
             _ -> Debug.crash <| "RHS of list pattern is not a list: " ++ valToString newTailVal
           in
           (finalVal, finalValDiffs)
@@ -1771,13 +1791,15 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
                   Dict.insert k newv dTemp
                 ) d),
                 Just <| VRecordDiffs (newValsDiffs |>
-                List.foldl (\(i, newvdiff) (dTemp, remainingPds, currentIndex) ->
-                  let (discardedPts, nextPts) = Utils.split (i - currentIndex) remainingPds in
-                  case nextPts of
-                    (_, _, k, _, _)::_ ->
-                      (Dict.insert k newvdiff dTemp, nextPts, i)
-                    _ -> Debug.crash <| "Expected modification at index " ++ toString i ++ " but the list of patterns is " ++ Syntax.patternUnparser Syntax.Leo p
-                ) (Dict.empty, pd, 0) |> \(d, _, _) -> d))
+                List.foldl (\mbNewvdiff (dTemp, remainingPds) ->
+                  case mbNewvdiff of
+                    Nothing -> (dTemp,  List.drop 1 remainingPds)
+                    Just newvdiff ->
+                      case remainingPds of
+                        (_, _, k, _, _)::tailPts ->
+                          (Dict.insert k newvdiff dTemp, tailPts)
+                        _ -> Debug.crash <| "Expected modification but the list of patterns is " ++ Syntax.patternUnparser Syntax.Leo p
+                ) (Dict.empty, pd) |> Tuple.first))
            in
            (newVal, newValDiff)
          )
@@ -1816,15 +1838,11 @@ matchListWithInversion (ps, vs) =
     (finalEnv, \newUpdatedEnv ->
       if UpdatedEnv.isUnmodified newUpdatedEnv then (vs, []) else
       let (newVals, newValsDiffs, _) =
-        List.foldl (\(eToVE, inversed_i) (vals, valsDiffs, env)->
-           let i = inverse_index inversed_i in
+        List.foldl (\eToVE (vals, valsDiffs, env)->
            let (v, vDiff, e) = eToVE env in
-           let newValsDiffs = case vDiff of
-             Nothing -> valsDiffs
-             Just m -> (i, m)::valsDiffs
-           in
+           let newValsDiffs = vDiff :: valsDiffs in
            (v::vals, newValsDiffs, e)
-           )  ([], [], newUpdatedEnv) (Utils.zipWithIndex envBuilders) in
+           )  ([], [], newUpdatedEnv) envBuilders in
       (newVals, newValsDiffs)
     ))
 

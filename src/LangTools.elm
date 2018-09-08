@@ -2608,7 +2608,7 @@ allVarEIdsToBindingPatsBasedOnUniqueName program =
 -- presumably the pathedPatternId that bound the identifier as seen from the usage site (Nothing means free)
 bindingPathedPatternIdFor_ : Maybe PathedPatternId -> Ident -> (Exp -> Maybe PathedPatternId -> Maybe a) -> Exp -> Maybe a
 bindingPathedPatternIdFor_ currentBindingPathedPatternId targetName predicateMap exp =
-  let _ = Debug.log "bindingPathedPatternIdFor_" (currentBindingPathedPatternId, targetName, expEId exp) in
+  --let _ = Debug.log "bindingPathedPatternIdFor_" (currentBindingPathedPatternId, targetName, expEId exp) in
   let recurse pathedPatternId e = bindingPathedPatternIdFor_ pathedPatternId targetName predicateMap e in
   let maybeNewBindingForRecursion pat branchI pathPrefix =
     pathForIdentInPat targetName pat

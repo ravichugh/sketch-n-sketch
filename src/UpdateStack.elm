@@ -12,6 +12,7 @@ import UpdateUtils exposing (..)
 import Utils exposing (reverseInsert)
 import UpdatedEnv exposing (original)
 import Pos exposing (Pos)
+import LangUtils exposing (valToString)
 
 type alias PrevLets = Env -- In traversing order
 type alias PrevEnv = Env
@@ -155,37 +156,34 @@ updateMaybeFirst2 msg canContinueAfter mb ll =
 updateContinueMultiple: String -> Env -> PrevLets -> List (Exp, PrevOutput, Output) -> TupleDiffs VDiffs -> ContinuationUpdate2 UpdatedEnv UpdatedExpTuple
 updateContinueMultiple  msg       env    prevLets     totalExpValOut                    diffs                continuation  =
   let totalExp = withDummyExpInfo <| EList space0 (totalExpValOut |> List.map (\(e, _, _) -> (space1, e))) space0 Nothing space0 in
-  let aux: Int -> List Exp   -> TupleDiffs EDiffs -> UpdatedEnv -> List (Exp, PrevOutput, Output) ->TupleDiffs VDiffs -> UpdateStack
-      aux  i      revAccExps    revAccEDiffs         updatedEnvAcc expValOut                        diffs =
+  let aux: List Exp   -> TupleDiffs EDiffs -> UpdatedEnv -> List (Exp, PrevOutput, Output) ->TupleDiffs VDiffs -> UpdateStack
+      aux  revAccExps    revAccEDiffs         updatedEnvAcc expValOut                        diffs =
         case diffs of
          [] ->
            let finalExpTupleDiffs = case List.reverse revAccEDiffs of
              [] -> Nothing
-             l -> Just l
+             l -> if List.all ((==) Nothing) revAccEDiffs then Nothing else Just l
            in
            continuation updatedEnvAcc (UpdatedExpTuple (List.reverse (Utils.reverseInsert (List.map (\(e, _, _) -> e) expValOut) revAccExps)) finalExpTupleDiffs)
-         (j, m) :: td ->
-            if j > i then
-              let (unchanged, remaining) = Utils.split (j - i) expValOut in
-              let unchangedExps = unchanged |> List.map (\(e, _, _) -> e) in
-               aux j (Utils.reverseInsert unchangedExps revAccExps) revAccEDiffs updatedEnvAcc remaining diffs
-            else if j < i then Debug.crash <| "Unexpected modification index : " ++ toString j ++ ", expected " ++ toString i ++ " or above."
-            else
+         mb :: td ->
+           case mb of
+             Nothing ->
+               let (unchanged, remaining) = Utils.split 1 expValOut in
+               let unchangedExps = unchanged |> List.map (\(e, _, _) -> e) in
+                aux (Utils.reverseInsert unchangedExps revAccExps) (Nothing::revAccEDiffs) updatedEnvAcc remaining td
+             Just m ->
               case expValOut of
                 (e, oldOut, newOut)::tail ->
-                  updateContinue (toString (i + 1) ++ "/" ++ toString (List.length totalExpValOut) ++ " " ++ msg) env e prevLets oldOut newOut m <|  \newUpdatedEnv newUpdatedExp ->
+                  updateContinue msg env e prevLets oldOut newOut m <|  \newUpdatedEnv newUpdatedExp ->
                     --let _ = Debug.log "started tricombine" () in
                     let newUpdatedEnvAcc = UpdatedEnv.merge env updatedEnvAcc newUpdatedEnv in
-                    let newRevAccEDiffs = case newUpdatedExp.changes of
-                      Nothing -> revAccEDiffs
-                      Just d -> (i, d)::revAccEDiffs
-                    in
+                    let newRevAccEDiffs = newUpdatedExp.changes ::revAccEDiffs in
                     --let _ = Debug.log "Finished tricombine" () in
-                    aux (i + 1) (newUpdatedExp.val::revAccExps) newRevAccEDiffs newUpdatedEnvAcc tail td
+                    aux (newUpdatedExp.val::revAccExps) newRevAccEDiffs newUpdatedEnvAcc tail td
                 [] -> Debug.crash <| msg ++
-                   "Expected at least one element because it was modified at index " ++ toString j ++
-                   ", got nothing. We are at index " ++ toString i ++ " / length = " ++ toString (List.length totalExpValOut)
-  in aux 0 [] [] (UpdatedEnv.original env) totalExpValOut diffs
+                   "Expected at least one element because it was modified" ++
+                   ", got nothing. length = " ++ toString (List.length totalExpValOut)
+  in aux [] [] (UpdatedEnv.original env) totalExpValOut diffs
 
 updateManyMbHeadTail: a -> Lazy.Lazy (LazyList (Maybe a)) -> ContinuationUpdate a
 updateManyMbHeadTail  firstdiff otherdiffs builder =
@@ -194,10 +192,12 @@ updateManyMbHeadTail  firstdiff otherdiffs builder =
 -- Constructor for combining multiple expressions evaluated in the same environment, when there are multiple values available.
 updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> PrevLets -> List PrevOutput -> LazyList (List Output, Results String (Maybe (TupleDiffs VDiffs))) -> UpdateStack
 updateOpMultiple  hint     env    es          eBuilder             prevLets     prevOutputs        outputs =
-  {-let _ = Debug.log ("updateOpMultiple called with " ++ String.join "," (List.map (Syntax.unparser Syntax.Leo) es) ++
-          "\nprevOutputs = " ++ (List.map valToString prevOutputs |> String.join ",") ++
-          "\nupdates = \n<--" ++ (outputs |> LazyList.toList |> List.map (\(o, d) -> (List.map valToString o |> String.join ",") ++ " (diffs " ++ toString d++ ")" ) |> String.join "\n<-- ")
-      ) () in-}
+  {--
+  let _ = Debug.log ("updateOpMultiple called with " ++ String.join "," (List.map (Syntax.unparser Syntax.Leo) es) ++
+           "\nprevOutputs = " ++ (List.map valToString prevOutputs |> String.join ",") ++
+           "\nupdates = \n<--" ++ (outputs |> LazyList.toList |> List.map (\(o, d) -> (List.map valToString o |> String.join ",") ++ " (diffs " ++ toString d++ ")" ) |> String.join "\n<-- ")
+           ) ()
+  in--}
   let aux: Int -> List Output -> Results String (Maybe (TupleDiffs VDiffs))-> Lazy.Lazy (LazyList (List Output, Results String (Maybe (TupleDiffs VDiffs)))) -> UpdateStack
       aux  nth    outputsHead    diffResult                                   lazyTail =
     let continue = case diffResult of
@@ -261,49 +261,47 @@ replaceInsertions e f =
     Just d -> case d of
       EChildDiffs cd ->
         let (children, rebuilder) = childExpsExtractors e.val in
-        let aux: Int -> List Exp -> TupleDiffs EDiffs -> List Exp -> UpdatedExp
-            aux i children diffs revAccChildren = case diffs of
+        let aux: List Exp -> TupleDiffs EDiffs -> List Exp -> UpdatedExp
+            aux children diffs revAccChildren = case diffs of
           [] -> UpdatedExp (rebuilder <| List.reverse <| reverseInsert children revAccChildren) e.changes
-          (j, subd)::tail ->
-             if j > i then
-              let (childrenOk, childrenTail) = Utils.split (j - i) children in
-              aux j childrenTail diffs (reverseInsert childrenOk revAccChildren)
-             else -- j == i
-              case children of
-                hdchild :: tlchild ->
-                  (replaceInsertions (UpdatedExp hdchild (Just subd)) f).val :: revAccChildren |>
-                  aux (i + 1) tlchild tail
-                _ ->
-                  aux i children tail revAccChildren
-        in aux 0 children cd []
+          mbSubd::tail ->
+             case children of
+              [] -> aux children tail revAccChildren
+              hdchild :: tlchild ->
+                case mbSubd of
+                  Nothing ->
+                      aux tlchild tail (hdchild::revAccChildren)
+
+                  Just subd ->
+                      (replaceInsertions (UpdatedExp hdchild (Just subd)) f).val :: revAccChildren |>
+                      aux tlchild tail
+        in aux children cd []
       EListDiffs ld ->
         case unwrapExp e.val of
           EList sp0 children sp1 Nothing sp2 ->
-            let aux: Int -> List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> UpdatedExp
-                aux i children diffs revAccChildren = case diffs of
+            let aux: List (WS, Exp) -> ListDiffs EDiffs -> List (WS, Exp) -> UpdatedExp
+                aux children diffs revAccChildren = case diffs of
               [] -> UpdatedExp (replaceE__ e.val <| EList sp0 (List.reverse <| reverseInsert children revAccChildren) sp1 Nothing sp2) e.changes
-              (j, subd)::tail ->
-                 if j > i then
-                   let count = j - i in
+              subd::tail ->
+                 case subd of
+                  ListElemSkip count ->
                    let (childrenOk, childrenTail) = Utils.split count children in
-                   aux j childrenTail diffs (reverseInsert childrenOk revAccChildren)
-                 else -- j == i
-                   case subd of
-                     ListElemUpdate d ->
-                       case children of
-                         (sp, hdchild) :: tlchild ->
-                           (sp, (replaceInsertions (UpdatedExp hdchild (Just d)) f).val) :: revAccChildren |>
-                           aux (i + 1) tlchild tail
-                         _ ->
-                           aux i children tail revAccChildren
-                     ListElemDelete count -> -- They were deleted and hence they are no more.
-                       aux (i + count) children tail revAccChildren
-                     ListElemInsert count ->
-                       let (inserted, rem) = Utils.split count children in
-                       let insertedMapped = inserted |> List.map (\(sp, e) -> (sp, postMapExp f e)) in
-                       reverseInsert insertedMapped revAccChildren |>
-                       aux i rem tail
-            in aux 0 children ld []
+                   aux childrenTail tail (reverseInsert childrenOk revAccChildren)
+                  ListElemUpdate d ->
+                    case children of
+                      (sp, hdchild) :: tlchild ->
+                        (sp, (replaceInsertions (UpdatedExp hdchild (Just d)) f).val) :: revAccChildren |>
+                        aux tlchild tail
+                      _ ->
+                        aux children tail revAccChildren
+                  ListElemDelete count -> -- They were deleted and hence they are no more.
+                    aux children tail revAccChildren
+                  ListElemInsert count ->
+                    let (inserted, rem) = Utils.split count children in
+                    let insertedMapped = inserted |> List.map (\(sp, e) -> (sp, postMapExp f e)) in
+                    reverseInsert insertedMapped revAccChildren |>
+                    aux rem tail
+            in aux children ld []
           _ -> e
       EConstDiffs _ -> e
       EStringDiffs _ -> e

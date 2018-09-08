@@ -7957,7 +7957,7 @@ toHtml x =
   let [raw, opts] = toHtmlWithoutRefs initOptions x in
   let replaceMap replaceReferences trees = case trees of
     [] -> freeze []
-    (head :: tail) -> {
+    head :: tail -> {
         apply x = x
         update {input, outputNew, outputOriginal, diffs} =
           if (len outputNew /= len outputOriginal && len outputOriginal == 1) then
@@ -7988,36 +7988,41 @@ toHtml x =
   in
   replaceMap replaceReferences raw
 
-latex2html latex = 
+latex2html latex = Update.lens2
   { apply (f, latex) = f latex,
     update {input = (f, latex), outputOld, outputNew, diffs = (VListDiffs ldiffs) as diffs} = 
-      let gatherDiffsChild gatherDiffs i cOld cNew childDiffs = case childDiffs of
+      let gatherDiffsChild gatherDiffs cOld cNew childDiffs = case childDiffs of
         [] -> Ok [[]]
-        ((j, ListElemUpdate d) :: diffTail) ->
-          if j > i then
-            gatherDiffsChild gatherDiffs j (LensLess.List.drop (j - i) cOld) (LensLess.List.drop (j - i) cNew) childDiffs
-          else
-            case (cOld, cNew) of
-              (oldHead::oldTail, newHead::newTail) ->
-                let subdiffs = gatherDiffs oldHead newHead d in
-                subdiffs |> LensLess.Results.andThen (\\replacements ->
-                  gatherDiffsChild gatherDiffs (i + 1) oldTail newTail diffTail |> LensLess.Results.map (\\replacementTails ->
-                    replacements ++ replacementTails
-                  )
+        ListElemSkip count :: diffTail ->
+          gatherDiffsChild gatherDiffs (LensLess.List.drop count cOld) (LensLess.List.drop count cNew) diffTail
+        ListElemUpdate d :: diffTail ->
+          case (cOld, cNew) of
+            (oldHead::oldTail, newHead::newTail) ->
+              let subdiffs = gatherDiffs oldHead newHead d in
+              subdiffs |> LensLess.Results.andThen (\\replacements ->
+                gatherDiffsChild gatherDiffs oldTail newTail diffTail |> LensLess.Results.map (\\replacementTails ->
+                  replacements ++ replacementTails
                 )
-              _ -> error \"Unexpected size of cOld and cNew\"
-        ((j, subdiff)::diffTail) -> Err (\"Insertion or deletions, cannot short-circuit at \" + toString j + \", \" + toString subdiff)
+              )
+            _ -> error \"Unexpected size of cOld and cNew\"
+        subdiff::diffTail -> Err (\"Insertion or deletions, cannot short-circuit at \" + toString j + \", \" + toString subdiff)
       in
       let gatherDiffs outputOld outputNew diffs = case (outputOld, outputNew, diffs) of
         ([\"span\", [[\"start\", p]], [[\"TEXT\", vOld]]], 
          [\"span\", [[\"start\", p]], [[\"TEXT\", vNew]]],
-          VListDiffs [(2, ListElemUpdate (VListDiffs [(0, ListElemUpdate (VListDiffs [(1, ListElemUpdate sd)]))]))]) -> 
+          VListDiffs [ListElemSkip 2, ListElemUpdate (VListDiffs [ListElemUpdate (VListDiffs [ListElemSkip 1, ListElemUpdate sd])])]) ->
            Ok [[(Debug.log (\"escaped string '\" + vNew + \"' with diffs \" + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]]
-        ([_, _, cOld], [_, _, cNew], VListDiffs [(2, ListElemUpdate (VListDiffs childDiffs))]) ->
-           gatherDiffsChild gatherDiffs 0 cOld cNew childDiffs
+        ([\"span\", [[\"start\", p]], [[\"TEXT\", vOld]]],
+         [\"span\", [[\"start\", p]], [[\"TEXT\", vNew]]],
+          VListDiffs [ListElemSkip 1, ListElemSkip 1, ListElemUpdate (VListDiffs [ListElemUpdate (VListDiffs [ListElemSkip 1, ListElemUpdate sd])])]) ->
+           Ok [[(Debug.log (\"escaped string '\" + vNew + \"' with diffs \" + toString sd) <| Update.mapInserted escape vNew sd, String.toInt p, String.toInt p + String.length vOld)]]
+        ([_, _, cOld], [_, _, cNew], VListDiffs [ListElemSkip 2, ListElemUpdate (VListDiffs childDiffs)]) ->
+           gatherDiffsChild gatherDiffs cOld cNew childDiffs
+        ([_, _, cOld], [_, _, cNew], VListDiffs [ListElemSkip 1, ListElemSkip 1, ListElemUpdate (VListDiffs childDiffs)]) ->
+           gatherDiffsChild gatherDiffs cOld cNew childDiffs
         _ -> Err (\"Could not find text differences \" + toString (outputOld, outputNew, diffs))
       in
-      case gatherDiffsChild gatherDiffs 0 outputOld outputNew ldiffs of
+      case gatherDiffsChild gatherDiffs outputOld outputNew ldiffs of
         Ok [replacements] ->
           let newLatex = foldl (\\(newValue, start, end) acc ->
             String.substring 0 start acc + newValue + String.drop end acc
@@ -8031,7 +8036,7 @@ latex2html latex =
           Update.updateApp {
             fun (f, x) = f x, input = (f, latex), outputOld = outputOld, output = outputNew, diffs = diffs
           }
-  }.apply (\\x -> toHtml <| parse <| tokens x, latex)
+  } (toHtml << parse << tokens) latex
 
 Html.forceRefresh <|
 <span style=\"margin:10px\">
@@ -9484,7 +9489,8 @@ Try the following on @highlight(color2)(\"\"\"the result above in @color2\"\"\")
 """
 
 references_in_text =
- """compareStr a b = if a == b then 0 else if a < b then -1 else 1
+ """-- TODO: This file is obsolete
+compareStr a b = if a == b then 0 else if a < b then -1 else 1
 
 quicksort compare list = case list of
     [] -> []
@@ -9493,7 +9499,7 @@ quicksort compare list = case list of
       quicksort compare tBefore ++ [pivot] ++ quicksort compare tAfter
 
 addReferences references node =
-  let collectedAddedReferences references node =
+  let collectedAddedReferences = Update.lens2
     { apply (references, node) = node
       update {input = (references, node) as input, outputNew} =
         let refAddRegex = \"\"\"\\[\\+\\s*((?:(?!\\]).)*)\\]\"\"\" in
@@ -9506,7 +9512,7 @@ addReferences references node =
           in 
           let newInput = (newReferences, newNode) in
           Ok (Inputs [newInput])
-    }.apply (references, node)
+    }
   in
   let refRegex = \"\"\"\\[(\\d+)\\]\"\"\" in
   let -- returns a list of sorted references according to some criterion and an updated node.
@@ -9546,10 +9552,10 @@ addReferences references node =
         Ok (InputsWithDiffs [((newReferences, newNode), Just diffs)])
     }.apply (references, node)
   in
-  let finalReferences = {
+  let finalReferences = Update.lens2 {
     apply (references, node) = references
     update {input=(references, node), outputNew=newReferences, diffs=(VListDiffs diffs) as listDiffs} =
-      let aux offset currentNode nodeHasChanged diffs = case diffs of
+      let aux j offset currentNode nodeHasChanged diffs = case diffs of
         [] -> if nodeHasChanged then
             case __diff__ node currentNode of
               Err msg -> Err msg
@@ -9561,9 +9567,10 @@ addReferences references node =
                 Ok (InputsWithDiffs [((newReferences, currentNode), Just (VRecordDiffs finalDiffs))])
           else
             Ok (InputsWithDiffs [((newReferences, currentNode), Just (VRecordDiffs {_1 = listDiffs}))])
-        (j, d)::diffsTail ->
+        d::diffsTail ->
           case d of
-          ListElemUpdate _ -> aux offset currentNode nodeHasChanged diffsTail
+          ListElemSkip count -> aux (j + count) offset currentNode nodeHasChanged diffsTail
+          ListElemUpdate _ -> aux (j + 1) offset currentNode nodeHasChanged diffsTail
           ListElemInsert count ->
             let newNode = Html.replace refRegex (\\{submatches=[ref],match} ->
               let nref = String.toInt ref in
@@ -9571,7 +9578,7 @@ addReferences references node =
               else [[\"TEXT\", match]]
               ) currentNode
             in
-            aux (offset + count) newNode True diffsTail
+            aux j (offset + count) newNode True diffsTail
           ListElemDelete count ->
             let newNode = Html.replace refRegex (\\{submatches=[ref],match} ->
               let nref = String.toInt ref in
@@ -9581,10 +9588,10 @@ addReferences references node =
               else [[\"TEXT\", match]]
               ) currentNode
             in
-            aux (offset - count) newNode True diffsTail
+            aux (j + count) (offset - count) newNode True diffsTail
       in
       aux 0 node False diffs |> Debug.log \"aux\"
-  }.apply (sortedReferences, sortedNode)
+  } sortedReferences sortedNode
   in
   [Html.replace refRegex  (\\{submatches=[ref],match} ->
     Dict.get ref referencesDict |> 

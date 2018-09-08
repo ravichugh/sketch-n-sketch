@@ -2672,11 +2672,12 @@ vHtmlTextUnapply v = case v.v_ of
   _ -> Nothing
 
 vHtmlTextDiffs d =
-  VListDiffs [(1, ListElemUpdate d)]
+  VListDiffs [ListElemSkip 1, ListElemUpdate d]
 
 vHtmlTextDiffsUnapply d = case d of
   VListDiffs ld -> case ld of
-    [(1, ListElemUpdate (VStringDiffs x))] -> Just x
+    [ListElemSkip 1, ListElemUpdate (VStringDiffs x)] -> Just x
+    [ListElemSkip _] -> Just []
     [] -> Just []
     _ -> Nothing
   _ -> Nothing
@@ -4338,10 +4339,10 @@ getTopLevelOptions e = getOptions e
 
 -- Diffs
 
-type alias TupleDiffs a = List (Int, a)
-type alias ListDiffs a = List (Int, ListElemDiff a)
+type alias TupleDiffs a = List (Maybe a)
+type alias ListDiffs a = List (ListElemDiff a)
 
-type ListElemDiff a = ListElemUpdate a | ListElemInsert Int | ListElemDelete Int
+type ListElemDiff a = ListElemSkip Int | ListElemUpdate a | ListElemInsert Int | ListElemDelete Int
 
 type VDictElemDiff = VDictElemDelete | VDictElemInsert | VDictElemUpdate VDiffs
 
@@ -4411,11 +4412,11 @@ updated = {
 
    --: List (String, (Val, Maybe VDiffs)) -> UpdatedEnv
    env = \namesUpdatedVals ->
-     let (revEnv, revDiffs) = Utils.foldLeftWithIndex ([], []) namesUpdatedVals <|
-       \(revEnv, revDiffs) index (name, {val, changes}) ->
+     let (revEnv, revDiffs) = Utils.foldLeft ([], []) namesUpdatedVals <|
+       \(revEnv, revDiffs) (name, {val, changes}) ->
           case changes of
-           Nothing -> ((name, val)::revEnv, revDiffs)
-           Just d -> ((name, val)::revEnv, (index, d)::revDiffs)
+           Nothing -> ((name, val)::revEnv, Nothing::revDiffs)
+           Just d -> ((name, val)::revEnv, (Just d)::revDiffs)
      in
      UpdatedEnv (List.reverse revEnv) (List.reverse revDiffs)
   }

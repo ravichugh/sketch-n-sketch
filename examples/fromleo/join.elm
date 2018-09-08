@@ -62,7 +62,7 @@ joinEmpty list =
                   let newOffsetOutput = offsetOutput + replaced - (end - start) in
                   let appendNow = gather -1 tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |>
                     Results.andThen (\(newTail, newDiffTail) ->
-                    ok1 (newHead :: newTail, (indexInput, ListElemUpdate (VStringDiffs [StringUpdate (start - startHead) (end - startHead) replaced])) :: newDiffTail)
+                    ok1 (newHead :: newTail, ListElemUpdate (VStringDiffs [StringUpdate (start - startHead) (end - startHead) replaced]) :: newDiffTail)
                     )
                   in
                   if indexInput == lastIndex then
@@ -70,7 +70,7 @@ joinEmpty list =
                   else
                    let appendLater = gather -1 tail (indexInput + 1) endHead 0 offsetOutput diffs |>
                         Results.andThen (\(newTail, newDiffTail) ->
-                        ok1 (head::newTail, newDiffTail)
+                        ok1 (head::newTail, ListElemSkip 1 :: newDiffTail)
                       )
                    in
                   if preferStringInsertionToLeft_ sa inserted sb
@@ -82,7 +82,7 @@ joinEmpty list =
                   if start == startHead && end == endHead && replaced == 0 then
                   -- If the entire string was deleted, one option is to delete the element alltogether. We display only this option if chars from the left and from the right were deleted as well.
                   let resultsWithDelete = gather end tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |> Results.andThen (\(newTail, newDiffTail) ->
-                    ok1 (newTail, (indexInput, ListElemDelete 1)::newDiffTail)
+                    ok1 (newTail, ListElemDelete 1::newDiffTail)
                     )
                   in
                   let deleteAnyway = lastIndexDeleted == start && (case diffTail of
@@ -90,7 +90,7 @@ joinEmpty list =
                     _ -> indexInput == lastIndex )
                   in
                   let resultsWithEmptyString = gather end tail (indexInput + 1) endHead 0 newOffsetOutput diffTail |> Results.andThen (\(newTail, newDiffTail) ->
-                    ok1 ("" :: newTail, (indexInput, ListElemUpdate (VStringDiffs [StringUpdate 0 (endHead - startHead) 0]))::newDiffTail)
+                    ok1 ("" :: newTail, ListElemUpdate (VStringDiffs [StringUpdate 0 (endHead - startHead) 0])::newDiffTail)
                   )
                   in
                   if deleteAnyway then
@@ -106,12 +106,12 @@ joinEmpty list =
                   gather (if replaced == 0 then end else -1) (newHead::tail) indexInput startHead newDeltaLengthHeadInput newOffsetOutput diffTail |> Results.andThen (\(newList, newDiffTail) ->
                     let finalDiffs = 
                       case newDiffTail of
-                        ((i, ListElemUpdate (VStringDiffs l))::tail) ->
+                        ListElemUpdate (VStringDiffs l) ::tail ->
                           if i == indexInput then
                             (i, ListElemUpdate (VStringDiffs (thisDiff::l)))::tail
                           else
-                             (indexInput, ListElemUpdate (VStringDiffs [thisDiff]))::newDiffTail
-                        _ -> (indexInput, ListElemUpdate (VStringDiffs [thisDiff]))::newDiffTail
+                             ListElemUpdate (VStringDiffs [thisDiff]) :: newDiffTail
+                        _ -> ListElemUpdate (VStringDiffs [thisDiff]) :: newDiffTail
                     in
                     ok1 (newList, finalDiffs)
                   )

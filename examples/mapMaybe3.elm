@@ -22,15 +22,15 @@ mapMaybe default f mx =
                   case d of
                      Nothing -> Nothing
                      Just (VListDiffs funxdiffs) ->
-                       Just (VListDiffs (funxdiffs |>
+                       Just (VListDiffs (funxdiffs |> zipWithIndex |>
                          map (case of
-                           [0, funDiff] -> [0, funDiff]
-                           [  1, ListElemUpdate xDiff] ->
-                             [1, ListElemUpdate (VListDiffs [[0,
+                           (0, funDiff) -> funDiff
+                           (1, ListElemUpdate xDiff) ->
+                             ListElemUpdate (VListDiffs [
                                case mx of
                                  [_] -> ListElemUpdate xDiff
                                  [] -> ListElemInsert 1
-                             ]])]
+                             ])
                          ))))
                 ) vds
               ))

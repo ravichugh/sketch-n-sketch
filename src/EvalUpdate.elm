@@ -45,17 +45,17 @@ builtinEnv =
      ) <| Just <| twoArgsUpdate "&&" <| \left right oldVal newVal diffs ->
        case (oldVal.v_, newVal.v_) of
          (VBase (VBool True), VBase (VBool False)) -> -- At least one of the two must become false.
-           oks [([newVal, oldVal], [(0, VConstDiffs)]),
-                ([oldVal, newVal], [(1, VConstDiffs)]),
-                ([newVal, newVal], [(0, VConstDiffs), (1, VConstDiffs)])]
+           oks [([newVal, oldVal], [Just <| VConstDiffs]),
+                ([oldVal, newVal], [Nothing, Just <| VConstDiffs]),
+                ([newVal, newVal], [Just <| VConstDiffs, Just <| VConstDiffs])]
          (VBase (VBool False), VBase (VBool True)) -> -- Both need to become true
            let leftDiff = case left.v_ of
               VBase (VBool True) -> []
-              _ -> [(0, VConstDiffs)]
+              _ -> [Just <| VConstDiffs]
            in
            let rightDiff = case right.v_ of
              VBase (VBool True) -> []
-             _ -> [(1, VConstDiffs)]
+             _ -> [Nothing, Just <| VConstDiffs]
            in
            ok1 ([newVal, newVal], leftDiff ++ rightDiff)
          _ ->
@@ -69,17 +69,17 @@ builtinEnv =
      ) <| Just <| twoArgsUpdate "&&" <| \left right oldVal newVal diffs ->
       case (oldVal.v_, newVal.v_) of
         (VBase (VBool False), VBase (VBool True)) -> -- At least one of the two must become True.
-          oks [([newVal, oldVal], [(0, VConstDiffs)]),
-               ([oldVal, newVal], [(1, VConstDiffs)]),
-               ([newVal, newVal], [(0, VConstDiffs), (1, VConstDiffs)])]
+          oks [([newVal, oldVal], [Just <| VConstDiffs]),
+               ([oldVal, newVal], [Nothing, Just <| VConstDiffs]),
+               ([newVal, newVal], [Just <| VConstDiffs, Just <| VConstDiffs])]
         (VBase (VBool True), VBase (VBool False)) -> -- Both need to become False
           let leftDiff = case left.v_ of
              VBase (VBool False) -> []
-             _ -> [(0, VConstDiffs)]
+             _ -> [Just <| VConstDiffs]
           in
           let rightDiff = case right.v_ of
             VBase (VBool False) -> []
-            _ -> [(1, VConstDiffs)]
+            _ -> [Nothing, Just <| VConstDiffs]
           in
           ok1 ([newVal, newVal], leftDiff ++ rightDiff)
         _ ->
@@ -196,7 +196,7 @@ builtinEnv =
                              let newProgramV = Vb.string (Vb.fromVal oldProgram) newProgram in
                              let newProgramDiffs = defaultVDiffs oldProgram newProgramV in
                              flip  Results.map  newProgramDiffs <| \pd ->
-                               ([oldpEnv, newProgramV], Maybe.map (\d -> [(1, d)]) pd |> Maybe.withDefault [])
+                               ([oldpEnv, newProgramV], Maybe.map (\d -> [Nothing, Just d]) pd |> Maybe.withDefault [])
                            Nothing -> Err <| "No way to change the outpur of __evaluate__ from error to " ++ msg2 ++ "'"
                      Err msg -> Err msg
                      Ok (Ok x) -> Err <| "Cannot change the outpur of __evaluate__ from error to " ++ valToString x ++ "'"
@@ -208,19 +208,19 @@ builtinEnv =
                          |> update
                          |> Results.filter (\(newEnv, newProg) ->
                              let envLength = List.length env in
-                             newEnv.changes |> Utils.findFirst (\(i, _) -> i >= envLength) |> Utils.maybeIsEmpty
+                             let (_, builtinDiffs) = Utils.split envLength newEnv.changes in
+                             List.all ((==) Nothing) builtinDiffs
                            )
                          |> Results.andThen (\(newEnv, newProg) ->
-                           let _ = Debug.log "#1" () in
                            let x = Syntax.unparser Syntax.Leo newProg.val in
                            let newProgram = replaceV_ oldProgram <| VBase <| VString x in
                            let newEnvValue = newEnv.val |> Vb.list (Vb.tuple2 Vb.string Vb.identity) (Vb.fromVal oldpEnv) in
                            let newEnvDiffs = newEnv.changes
-                             |> List.map (\(i, d) -> (i, ListElemUpdate <| VRecordDiffs <| Dict.fromList  [("_2", d)]))
-                             |>(\d -> [(0,  VListDiffs d)]) in
+                             |> List.map (Maybe.map (\d -> ListElemUpdate <| VRecordDiffs <| Dict.fromList  [("_2", d)]) >> Maybe.withDefault (ListElemSkip 1))
+                             |> (\d -> [Just <| VListDiffs d]) in
                            UpdateUtils.defaultVDiffs oldProgram newProgram |> Results.map (\mbd -> case mbd of
                              Nothing -> ([newEnvValue, newProgram], newEnvDiffs )
-                             Just d -> ([newEnvValue, newProgram], newEnvDiffs ++ [(1, d)])
+                             Just d -> ([newEnvValue, newProgram], newEnvDiffs ++ [Just d])
                            )
                          )
                       (_, _, Nothing) -> Err <| "Expected VRecordDiffs with 1 element, got " ++ toString d
@@ -268,7 +268,7 @@ builtinEnv =
                              let lFiltered = List.filter (\(newXYEnv, newExp) ->
                                case newXYEnv.changes of
                                   [] -> True
-                                  [(1, _)] -> True
+                                  Nothing:: _  -> True
                                   _ -> False) l
                              in
                              if List.isEmpty lFiltered then
@@ -281,9 +281,8 @@ builtinEnv =
                                  case newXYEnv.val of
                                     [("x", newFun), ("y",newArg)] ->
                                       case newXYEnv.changes of
-                                        [] -> (newArg, Nothing)
-                                        [(1, diff)] -> (newArg, Just diff)
-                                        _ -> Debug.crash "Internal error: expected not much than (1, diff) in environment changes"
+                                         Nothing :: [mbdiff] -> (newArg, mbdiff)
+                                         _ -> (newArg, Nothing)
                                     _ -> Debug.crash "Internal error: expected x and y in environment"
                                  ) |> List.unzip in
                                Ok <| InputsWithDiffs <| Utils.zip results diffs
@@ -329,10 +328,10 @@ builtinEnv =
            Nothing -> Err <| "Expected a list, got " ++ valToString original
        ) <| Just <| oneArgUpdate "htmlnodeList" <| \original oldVal newVal diffs ->
        --let _ = Debug.log ("__mergeHtmlText__'s input diffs: " ++ UpdateUtils.vDiffsToString oldVal newVal diffs) () in
-       let aux: Int -> Int -> List Val -> List Val -> List Val -> ListDiffs VDiffs ->
+       let aux:List Val -> List Val -> List Val -> ListDiffs VDiffs ->
                 Results String (List Val, ListDiffs VDiffs) -> Results String (List Val, ListDiffs VDiffs)
-           aux originalIndex outputIndex originals oldOutputs newOutputs diffs resAccRevValRevDiffs =
-             {-let _ = Debug.log ("aux " ++ toString originalIndex ++ " " ++ toString outputIndex ++ " " ++
+           aux originals oldOutputs newOutputs diffs resAccRevValRevDiffs =
+             {-let _ = Debug.log ("aux " ++
                (List.map valToString originals |> String.join ",") ++ " " ++
                (List.map valToString oldOutputs |> String.join ",") ++ " " ++
                (List.map valToString newOutputs |> String.join ",") ++ " " ++
@@ -342,29 +341,29 @@ builtinEnv =
                   Ok x -> "List of size " ++ (LazyList.toList x |> List.length |> toString)
                 )
                 ) () in-}
-             let skipStep originalCount diffs =
+             let skipStep count originalCount tailDiffs =
+               let newDiffs = if count == 1 then tailDiffs else ListElemSkip (count - 1) :: tailDiffs in
                resAccRevValRevDiffs
                |> Results.map (\(revVals, revDiffs) ->
                   (Utils.reverseInsert (List.take originalCount originals) revVals,
-                   revDiffs)
-                ) |> aux (originalIndex + originalCount) (outputIndex + 1)
-                   (List.drop originalCount originals) (List.drop 1 oldOutputs) (List.drop 1 newOutputs) diffs
+                   ListElemSkip originalCount :: revDiffs)
+                ) |> aux (List.drop originalCount originals) (List.drop 1 oldOutputs) (List.drop 1 newOutputs) newDiffs
              in
              let insertStep count tailDiffs =
                let (inserted, newOutputTail) = Utils.split count newOutputs in
                resAccRevValRevDiffs
                |> Results.map (\(revVals, revDiffs) ->
                   (Utils.reverseInsert inserted revVals,
-                   (originalIndex, ListElemInsert count) :: revDiffs)
-               ) |> aux originalIndex outputIndex originals oldOutputs newOutputTail tailDiffs
+                   ListElemInsert count :: revDiffs)
+               ) |> aux originals oldOutputs newOutputTail tailDiffs
              in
              let deleteStep count originalCount tailDiffs =
-               let newDiffs = if count == 1 then tailDiffs else (outputIndex + 1, ListElemDelete (count - 1)) :: tailDiffs in
+               let newDiffs = if count == 1 then tailDiffs else ListElemDelete (count - 1) :: tailDiffs in
                resAccRevValRevDiffs
                |> Results.map (\(revVals, revDiffs) ->
                   (revVals,
-                   (originalIndex, ListElemDelete originalCount) :: revDiffs)
-               ) |> aux (originalIndex + originalCount) (outputIndex + 1) (List.drop originalCount originals) (List.drop 1 oldOutputs) newOutputs newDiffs
+                   ListElemDelete originalCount :: revDiffs)
+               ) |> aux (List.drop originalCount originals) (List.drop 1 oldOutputs) newOutputs newDiffs
              in
              let defaultStep () = -- When the original element has been directly put into the output
                case diffs of
@@ -374,24 +373,19 @@ builtinEnv =
                         resAccRevValRevDiffs
                         |> Results.map (\(revVals, revDiffs) ->
                             (List.reverse revVals, List.reverse revDiffs))
-                      _ -> skipStep 1 []
-                  (j, textDiffs) :: tailDiffs ->
-                    if outputIndex < j then
-                      skipStep 1 diffs
-                    else -- i == j
-                      case textDiffs of
-                        ListElemDelete count ->
-                          deleteStep count 1 tailDiffs
-                        ListElemInsert count ->
-                          insertStep count tailDiffs
-                        ListElemUpdate d ->
-                          resAccRevValRevDiffs
-                          |> Results.map (\(revVals, revDiffs) ->
-                            (Utils.reverseInsert (List.take 1 newOutputs) revVals,
-                             (originalIndex, ListElemUpdate d)::revDiffs)
-                          ) |>
-                          aux (originalIndex + 1) (outputIndex + 1)
-                              (List.drop 1 originals) (List.drop 1 oldOutputs) (List.drop 1 newOutputs) tailDiffs
+                      _ -> skipStep 1 1 []
+                  textDiffs :: tailDiffs ->
+                    case textDiffs of
+                      ListElemSkip count   -> skipStep count 1 tailDiffs
+                      ListElemDelete count -> deleteStep count 1 tailDiffs
+                      ListElemInsert count -> insertStep count tailDiffs
+                      ListElemUpdate d ->
+                        resAccRevValRevDiffs
+                        |> Results.map (\(revVals, revDiffs) ->
+                          (Utils.reverseInsert (List.take 1 newOutputs) revVals,
+                           ListElemUpdate d::revDiffs)
+                        ) |>
+                        aux (List.drop 1 originals) (List.drop 1 oldOutputs) (List.drop 1 newOutputs) tailDiffs
              in
              let (consecutiveTexts, originalTail) = Utils.splitPrefix vHtmlTextUnapply originals in
              case consecutiveTexts of
@@ -406,16 +400,12 @@ builtinEnv =
                            resAccRevValRevDiffs
                            |> Results.map (\(revVals, revDiffs) ->
                               (List.reverse revVals, List.reverse revDiffs))
-                         _ -> skipStep (List.length manyTexts) []
-                     (j, diff) :: tailDiffs ->
-                       if outputIndex /= j then -- we skip all these values
-                         skipStep (List.length manyTexts) diffs
-                       else
+                         _ -> skipStep 1 (List.length manyTexts) []
+                     diff :: tailDiffs ->
                        case diff of
-                         ListElemDelete count ->
-                           deleteStep count (List.length manyTexts) tailDiffs
-                         ListElemInsert count ->
-                           insertStep count tailDiffs
+                         ListElemSkip count   -> skipStep count (List.length manyTexts) tailDiffs
+                         ListElemDelete count -> deleteStep count (List.length manyTexts) tailDiffs
+                         ListElemInsert count -> insertStep count tailDiffs
                          ListElemUpdate textDiffs ->
                            case (oldOutputs, newOutputs) of
                              (_, []) -> Err <| "Inconsistent diffs, says ListElemUpdate but got no new output"
@@ -427,7 +417,7 @@ builtinEnv =
                                    --let _ = Debug.log "newStr" newStr in
                                    --let _ = Debug.log "strDiffs" strDiffs in
                                    UpdateUtils.reverseStringConcatenationMultiple manyTexts newStr strDiffs
-                                   |> Results.andThen ((\resAccRevValRevDiffs originalIndex (newMany, newManyDiffs) ->
+                                   |> Results.andThen ((\resAccRevValRevDiffs (newMany, newManyDiffs) ->
                                      --let _ = Debug.log "newMany" newMany in
                                      --let _ = Debug.log "newManyDiffs" newManyDiffs in
                                      resAccRevValRevDiffs
@@ -437,12 +427,12 @@ builtinEnv =
                                         Utils.reverseInsert
                                           (Utils.zipWithIndex newManyDiffs
                                            |> List.concatMap (\(d, index) ->
-                                             if d == [] then []
+                                             if d == [] then [ListElemSkip 1]
                                              else
-                                               [(originalIndex + index, ListElemUpdate (vHtmlTextDiffs <| VStringDiffs d))]))
+                                               [ListElemUpdate (vHtmlTextDiffs <| VStringDiffs d)]))
                                           revDiffs)
-                                     ) newMany newManyDiffs)) resAccRevValRevDiffs originalIndex)
-                                   |> aux (originalIndex + List.length manyTexts) (outputIndex + 1) originalTail oldTail newTail tailDiffs
+                                     ) newMany newManyDiffs)) resAccRevValRevDiffs)
+                                   |> aux originalTail oldTail newTail tailDiffs
                                  (_, Nothing) ->
                                    Err <| "In a html text node, cannot update anything else than the text itself. Got " ++ toString textDiffs
                                  (Nothing, _) ->
@@ -450,10 +440,9 @@ builtinEnv =
        in
        case (vListUnapply original, vListUnapply oldVal, vListUnapply newVal, diffs) of
          (Just originals, Just oldOutputs, Just newOutputs, VListDiffs ldiffs) ->
-
-          aux 0 0 originals oldOutputs newOutputs ldiffs (ok1 ([], []))
+          aux originals oldOutputs newOutputs ldiffs (ok1 ([], []))
           |> Results.map (\(l, ldiffs) ->
-            let finalDiffs = if ldiffs == [] then [] else [(0, VListDiffs ldiffs)] in
+            let finalDiffs = if ldiffs == [] then [] else [Just <| VListDiffs ldiffs] in
             ([Vb.list Vb.identity (Vb.fromVal original) l], finalDiffs)
           )
          _ -> Err <| "Expected lists and listdiffs to update __mergeHtmlText__, got " ++
@@ -475,10 +464,10 @@ builtinEnv =
      ) <| Just <| oneArgUpdate "string_node_listnode" <| \original oldVal newVal diffs ->
       let unwrapExpDiffs newVal diffs=
          case (newVal.v_, diffs) of
-           (VList [elem], VListDiffs [(0, ListElemUpdate d)]) ->
+           (VList [elem], VListDiffs [ListElemUpdate d]) ->
              --let _ = Debug.log ("elem, d: " ++ valToString elem ++ ", " ++ toString d) () in
              case (Vu.viewtuple2 Vu.string Vu.string elem, d) of
-               (Ok ("TEXT", newContent), VListDiffs [(1, ListElemUpdate (ds))]) ->
+               (Ok ("TEXT", newContent), VListDiffs [ListElemSkip 1, ListElemUpdate ds]) ->
                  Ok (Just (Just (newContent, ds)))
                (_, VListDiffs []) -> Ok (Just Nothing)
                (Err msg, _) -> Err msg
@@ -495,20 +484,20 @@ builtinEnv =
             Ok (Just (Just (newContent, ds))) ->
               case String.toFloat newContent of
                 Err msg -> Ok LazyList.Nil
-                Ok newFloat -> ok1 ([Vb.const (Vb.fromVal original) newFloat], [(0, VConstDiffs)])
+                Ok newFloat -> ok1 ([Vb.const (Vb.fromVal original) newFloat], [Just VConstDiffs])
         VBase (VString content) -> -- We make sure no element was inserted and we unwrap the value and the diffs
           case unwrapExpDiffs newVal diffs of
             Err msg -> Err msg
             Ok Nothing -> Ok LazyList.Nil
             Ok (Just Nothing) -> ok1 ([original], [])
             Ok (Just (Just (newContent, ds))) ->
-              ok1 ([Vb.string (Vb.fromVal original) newContent], [(0, ds)])
+              ok1 ([Vb.string (Vb.fromVal original) newContent], [Just ds])
         VList (head::tail) ->
           case (head.v_, newVal.v_, diffs) of
-            (VBase (VString tagName), VList [newElem], VListDiffs [(0, ListElemUpdate d)]) ->
-              ok1 ([newElem], [(0, d)])
-            _ -> ok1 ([newVal], [(0, diffs)])
-        _ -> ok1 ([newVal], [(0, diffs)])
+            (VBase (VString tagName), VList [newElem], VListDiffs [ListElemUpdate d]) ->
+              ok1 ([newElem], [Just <| d])
+            _ -> ok1 ([newVal], [Just diffs])
+        _ -> ok1 ([newVal], [Just diffs])
     )
   {-, ("toPathData", builtinVal "EvalUpdate.toPathData" <|
     VFun "toPathData" ["d_str"] (oneArg "toPathData" <| \original ->
@@ -538,40 +527,38 @@ builtinEnv =
          _ -> Err <| "__mbstylesplit__ takes a string or a list, got " ++ valToString original
      ) <| Just <| oneArgUpdate "__mbstylesplit__" <| \original oldVal newVal diffs ->
           case original.v_ of
-            VList _ -> ok1 ([newVal], UpdateUtils.combineTupleDiffs [(0, Just diffs)] |> Maybe.withDefault [])
+            VList _ -> ok1 ([newVal], UpdateUtils.combineTupleDiffs [Just diffs] |> Maybe.withDefault [])
             VBase (VString content) -> -- Need to transform the List diffs into string diffs
               let originalStyles = LangParserUtils.explodeStyleValue content in
               case (diffs, Vu.list (Vu.viewtuple2 Vu.string Vu.string) newVal) of
                 (VListDiffs diffElems, Ok updatedStyles) ->
                   let combineOldString (s1, s2, s3, s4, s5) = s1 ++ s2 ++ s3 ++ s4 ++ s5 in
-                  let aux:Int ->
-                            List (String, String, String, String, String) ->
-                                           List (String, String) ->
-                                                         ListDiffs VDiffs ->
-                                                                   (String,    Int,    List StringDiffs) -> Results String (List Val, TupleDiffs VDiffs)
-                      aux i originalStyles updatedStyles diffElems (accString, originalOffset, revAccDiffs) = case diffElems of
+                  let aux: List (String, String, String, String, String) ->
+                                         List (String, String) ->
+                                                       ListDiffs VDiffs ->
+                                                                 (String,    Int,    List StringDiffs) -> Results String (List Val, TupleDiffs VDiffs)
+                      aux originalStyles updatedStyles diffElems (accString, originalOffset, revAccDiffs) = case diffElems of
                     [] ->
-                       let finalDiffs = Debug.log "finalDiffs" <| (UpdateUtils.combineTupleDiffs [(0, Just <| VStringDiffs (List.reverse revAccDiffs))] |> Maybe.withDefault []) in
+                       let finalDiffs = Debug.log "finalDiffs" <| (UpdateUtils.combineTupleDiffs [Just <| VStringDiffs (List.reverse revAccDiffs)] |> Maybe.withDefault []) in
                        let remainingAcc = List.map combineOldString originalStyles |> String.join ";" in
                        let finalString = replaceV_ original <| VBase <| VString (Debug.log "final string:"  (accString ++ remainingAcc)) in
                        ok1 ([finalString], finalDiffs)
-                    (j, d)::tailDiffElems ->
-                       if j > i then
-                        let (originalStylesKept, originalStylesTail) = Utils.split (j - i) originalStyles in
-                        let newUpdatedStyles = List.drop (j - i) updatedStyles in
-                        let newString = originalStylesKept |> List.map combineOldString |> String.join "" in
-                        let newFinalString = accString ++ newString in
-                        let newOffset = originalOffset + String.length newString in
-                        aux j originalStylesTail newUpdatedStyles diffElems (newFinalString, newOffset, revAccDiffs)
-                       else -- j == i
-                        case d of
+                    d::tailDiffElems ->
+                       case d of
+                          ListElemSkip count ->
+                            let (originalStylesKept, originalStylesTail) = Utils.split count originalStyles in
+                            let newUpdatedStyles = List.drop count updatedStyles in
+                            let newString = originalStylesKept |> List.map combineOldString |> String.join "" in
+                            let newFinalString = accString ++ newString in
+                            let newOffset = originalOffset + String.length newString in
+                            aux originalStylesTail newUpdatedStyles diffElems (newFinalString, newOffset, revAccDiffs)
                           ListElemDelete count ->
                             let (originalStylesRemoved, originalStylesTail) = Utils.split count originalStyles in
                             let oldString = originalStylesRemoved |> List.map (\(s1, s2, s3, s4, s5) -> s1 ++ s2 ++ s3 ++ s4 ++ s5) |> String.join "" in
                             let newOriginalOffset = originalOffset + String.length (List.map combineOldString originalStylesRemoved |> String.join "") in
                             let deletionPoint = originalOffset in
                             (accString, newOriginalOffset, [StringUpdate deletionPoint  (deletionPoint + String.length oldString) 0]) |>
-                            aux (j + 1) originalStylesTail updatedStyles tailDiffElems
+                            aux originalStylesTail updatedStyles tailDiffElems
                           ListElemInsert count ->
                             let (insertedStyles, tailUpdatedStyles) = Utils.split count updatedStyles in
                             let insertedString = (if String.endsWith ";" accString || accString == "" then "" else ";") ++
@@ -580,7 +567,7 @@ builtinEnv =
                             let insertionPoint = originalOffset + String.length accString in
                             let _ = Debug.log "inserted" (count, originalOffset, insertionPoint, insertedString) in
                             (accString ++ insertedString, originalOffset, [StringUpdate insertionPoint insertionPoint (String.length insertedString)]) |>
-                            aux j originalStyles tailUpdatedStyles tailDiffElems
+                            aux originalStyles tailUpdatedStyles tailDiffElems
                           ListElemUpdate d ->
                             case (originalStyles, updatedStyles) of
                               ((oldPreName, oldName, oldColon, oldValue, oldPostValue) :: originalStylesTail,
@@ -607,10 +594,10 @@ builtinEnv =
                                       let newString = oldPreName ++ newName ++ oldColon ++ newValue ++ oldPostValue in
                                       let newOriginalOffset = originalOffset + String.length oldPreName + String.length oldName + String.length oldColon + String.length oldValue + String.length oldPostValue in
                                       (accString ++ newString, newOriginalOffset, revAccDiffs |> reverseInsert nameDiffs |> reverseInsert valueDiffs) |>
-                                      aux (i + 1) originalStylesTail updatedStylesTail tailDiffElems
+                                      aux originalStylesTail updatedStylesTail tailDiffElems
                               _ -> Err <| "[Internal error]: the diff is not consistent " ++ valToString oldVal ++ " " ++ valToString newVal ++ " " ++ toString diffs
                   in
-                  aux 0 originalStyles updatedStyles diffElems ("", 0, [])
+                  aux originalStyles updatedStyles diffElems ("", 0, [])
                 (_, Err msg) -> Err <| "Expected VListDiffs got an error: " ++ msg
                 _ -> Err <| "Expected VListDiffs and a List, got " ++ toString diffs ++ " and " ++ valToString newVal
             _ -> Err <| "__mbstylesplit__ takes a string or a List, got " ++ valToString newVal

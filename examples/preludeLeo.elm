@@ -446,7 +446,7 @@ Result =
 
 Update =
   let {String, List} = LensLess in
-  let {reverse} = List in
+  let {reverse, append} = List in
   let freeze x =
     x
   in
@@ -513,31 +513,29 @@ Update =
             case listDiffs of
               [] ->
                 reverse (map1 (\_ -> KeepValue) oldValues ++ revAcc)
-              (j, listDiff)::diffTail ->
-                if j > i then
-                  case [oldValues, newValues] of
-                    [_::oldTail, _::newTail] ->
-                      aux (i + 1) (KeepValue::revAcc) oldTail newTail listDiffs
-                    _ -> Debug.crash <| "[Internal error] Expected two non-empty tails, got  " + toString [oldValues, newValues]
-                else if j == i then
+              listDiff::diffTail ->
                   case listDiff of
+                    ListElemSkip count ->
+                      case [oldValues, newValues] of
+                        [_::oldTail, _::newTail] ->
+                          aux (KeepValue::revAcc) oldTail newTail (if count == 1 then diffTail else ListElemSkip (count - 1) :: diffTail)
+                        _ -> Debug.crash <| "[Internal error] Expected two non-empty tails, got  " + toString [oldValues, newValues]
                     ListElemUpdate _ ->
                       case [oldValues, newValues] of
                         [oldHead::oldTail, newHead::newTail] ->
-                          aux (i + 1) (UpdateValue newHead :: revAcc) oldTail newTail diffTail
+                          aux (UpdateValue newHead :: revAcc) oldTail newTail diffTail
                         _ -> Debug.crash <| "[Internal error] update but missing element"
                     ListElemInsert count ->
                       case newValues of
                         newHead::newTail ->
-                          aux i (InsertValue newHead::revAcc) oldValues newTail (if count == 1 then diffTail else (i, ListElemInsert (count - 1))::diffTail)
+                          aux (InsertValue newHead::revAcc) oldValues newTail (if count == 1 then diffTail else ListElemInsert (count - 1)::diffTail)
                         _ -> Debug.crash <| "[Internal error] insert but missing element"
                     ListElemDelete count ->
                       case oldValues of
                         oldHead::oldTail ->
-                          aux (i + 1) (DeleteValue::revAcc) oldTail newValues (if count == 1 then diffTail else (i + 1, ListElemDelete (count - 1))::diffTail)
+                          aux (DeleteValue::revAcc) oldTail newValues (if count == 1 then diffTail else ListElemDelete (count - 1)::diffTail)
                         _ -> Debug.crash <| "[Internal error] insert but missing element"
-                else Debug.crash <| "[Internal error] Differences not in order, got index " + toString j + " but already at index " + toString i
-          in aux 0 [] oldValues newValues listDiffs
+          in aux [] oldValues newValues listDiffs
 
         result -> Debug.crash ("Expected Ok (Just (VListDiffs listDiffs)), got " + toString result)
   in
@@ -611,44 +609,59 @@ Update =
       (i, d)::tail -> (i + n, d)::offsetList n tail
       [] -> []
   in
-  -- Given a split index n (offset is zero at the beginning), split the newList that is being
-  -- pushed back at the index n (n should be the original length of the left list being concatenated)
+  -- Given a split index n, splits at the index n the newList that is being
+  -- pushed back (n should be the original length of the left list being concatenated)
   -- Returns the new list to the left and its differences, and the new list on the right and its differences.
   let
-    splitListDiffsAt n offset newList listDiffs = case listDiffs of
+    splitListDiffsAt: Int ->        List a -> ListDiffs va -> List (List a, ListDiffs va, List a, ListDiffs va)
+    splitListDiffsAt  inputCutIndex newList   listDiffs = case listDiffs of
       [] ->
-        let (left, right) = List.split (n + offset) newList in
+        let (left, right) = List.split inputCutIndex newList in
         [(left, [], right, [])]
-      (i, d) :: tail ->
-        let newOffset = case d of
-          ListElemInsert count -> offset + count
-          ListElemDelete count -> offset - count
-          ListElemUpdate _ -> offset
-        in
-        if i < n then
-          if i + (offset - newOffset) > n then -- a deletion spanning until after the split point
-            let (left, right) = List.split (n + offset) newList in
-            [(left, (i, ListElemDelete (n - i))::[],
-              right, offsetList (0 - n) <| (n, ListElemDelete (i + (offset - newOffset) - n))::tail)]
-          else
-          splitListDiffsAt n newOffset newList tail
-          |> List.map (\(left, leftDiffs, right, rightDiffs) ->
-            (left, (i, d)::leftDiffs, right, rightDiffs))
-        else if i > n || i == n && (case d of ListElemInsert _ -> False; _ -> True) then
-          let (left, right) = List.split (n + offset) newList in
-          [(left, [], right, offsetList (0 - n) listDiffs)]
-        else -- i == n now, everything happens at the intersection.
-          let insertionToLeft =
-            let (left, right) = List.split (i + newOffset) newList in
-            (left, (i, d)::[],
-             right, tail)
-          in
-          let insertionToRight =
-            let (left, right) = List.split (i + offset) newList in
-            (left, [],
-             right, offsetList (0 - i) <| (i, d)::tail)
-          in
-          [insertionToLeft, insertionToRight]
+      d :: tailDiffs -> let
+          (outSplitCount, nextInputCutIndex) =
+               case d of
+                 ListElemSkip count   -> (count, inputCutIndex - count)
+                 ListElemInsert count -> (count, inputCutIndex)
+                 ListElemDelete count -> (0,     inputCutIndex - count)
+                 ListElemUpdate _     -> (1,     inputCutIndex - 1)
+
+          processTail withLeftAndRecursiveResult =
+            let (newListLeft, newListRemaining) = List.split outSplitCount newList in
+            splitListDiffsAt nextInputCutIndex newListRemaining tailDiffs
+            |> List.concatMap (withLeftAndRecursiveResult newListLeft)
+        in case d of
+          ListElemSkip count ->
+            if nextInputCutIndex >= 0 then -- The skip is entirely on the left
+              processTail <| \newListLeft (left, leftDiffs, right, rightDiffs) ->
+                [(newListLeft ++ left, d::leftDiffs, right, rightDiffs)]
+            else -- if inputCutIndex < count then -- The split occurs inside the skipped elements
+              let (newListLeft, newListRemaining) = List.split inputCutIndex newList in
+              [(newListLeft, [], newListRemaining, ListElemSkip (count - inputCutIndex) ::tailDiffs)]
+
+          ListElemInsert count ->
+            processTail <| \newListLeft (left, leftDiffs, right, rightDiffs) ->
+              [(newListLeft ++ left, ListElemInsert count :: leftDiffs, right, rightDiffs)] ++
+              (if nextInputCutIndex == 0 then -- Also insertion to the right.
+                [(left, leftDiffs, newListLeft ++ right, ListElemInsert count :: rightDiffs)]
+               else [])
+
+          ListElemDelete count ->
+            if nextInputCutIndex >= 0 then -- Deletion entirely on the left.
+              processTail <| \_ (left, leftDiffs, right, rightDiffs) ->
+                [(left, ListElemDelete count :: leftDiffs, right, rightDiffs)]
+            else -- Split the deletion between left and right.
+              [([], if inputCutIndex > 0
+                    then [ListElemDelete inputCutIndex]
+                    else [],
+                newList, ListElemDelete (count - inputCutIndex)::tailDiffs)]
+
+          ListElemUpdate _ ->
+            if nextInputCutIndex >= 0 then -- update on the left.
+              processTail <| \newListLeft (left, leftDiffs, right, rightDiffs) ->
+                [(newListLeft ++ left, d :: leftDiffs, right, rightDiffs)]
+            else -- update on the right
+              [([], [], newList, listDiffs)]
   in
   let --------------------------------------------------------------------------------
       -- Update.foldDiff
@@ -692,30 +705,29 @@ Update =
                onSkip acc {count = count, index = j, oldOutputs = oldOutput, newOutputs = newOutput}
                |> next (j + count) [] [] listDiffs
 
-            (i, diff)::dtail  ->
-              if i > j then
-                let count = i - j in
-                let (previous, remainingOld) = split count oldOutput in
-                let (current,  remainingNew) = split count newOutput in
-                onSkip acc {count = count, index = j, oldOutputs = previous, newOutputs = current}
-                |> next i remainingOld remainingNew listDiffs
-              else case diff of
+            diff::dtail  ->
+              case diff of
+                ListElemSkip count ->
+                  let (previous, remainingOld) = split count oldOutput in
+                  let (current,  remainingNew) = split count newOutput in
+                  onSkip acc {count = count, index = j, oldOutputs = previous, newOutputs = current}
+                  |> next j remainingOld remainingNew dtail
                 ListElemUpdate d->
                   let previous::remainingOld = oldOutput in
                   let current::remainingNew = newOutput in
-                  onUpdate acc {oldOutput = previous, index = i, output = current, newOutput = current, diffs = d}
-                  |> next (i + 1) remainingOld remainingNew dtail
+                  onUpdate acc {oldOutput = previous, index = j, output = current, newOutput = current, diffs = d}
+                  |> next (j + 1) remainingOld remainingNew dtail
                 ListElemInsert count ->
                   if count >= 1 then
                     let current::remainingNew = newOutput in
-                    onInsert acc {newOutput = current, index = i}
-                    |> next i oldOutput remainingNew (if count == 1 then dtail else (i, ListElemInsert (count - 1))::dtail)
+                    onInsert acc {newOutput = current, index = j}
+                    |> next j oldOutput remainingNew (if count == 1 then dtail else ListElemInsert (count - 1)::dtail)
                   else Debug.crash <| "insertion count should be >= 1, got " + toString count
                 ListElemDelete count ->
                   if count >= 1 then
                     let dropped::remainingOld = oldOutput in
-                    onRemove acc {oldOutput =dropped, index = i} |>
-                    next (i + count) remainingOld newOutput (if count == 1 then dtail else (i + 1, ListElemDelete (count - 1))::dtail)
+                    onRemove acc {oldOutput =dropped, index = j} |>
+                    next (j + count) remainingOld newOutput (if count == 1 then dtail else ListElemDelete (count - 1)::dtail)
                   else Debug.crash <| "deletion count should be >= 1, got " ++ toString count
             _ -> Debug.crash <| "Expected a list of diffs, got " + toString diffs
         in
@@ -774,6 +786,20 @@ Update =
     vTupleDiffs_3 d = VRecordDiffs {_3=d}
     vTupleDiffs_4 d = VRecordDiffs {_4=d}
     vTupleDiffs_1_2 d1 d2 = VRecordDiffs {_1=d1, _2=d2}
+    mbVTupleDiffs mbd1 mbd2 = case mbd1 of
+      Nothing ->
+        case mbd2 of
+          Nothing -> Nothing
+          Just d2 -> Just (vTupleDiffs_2 d2)
+      Just d1 ->
+        case mbd2 of
+          Nothing -> Just (vTupleDiffs_1 d1)
+          Just d2 -> Just (vTupleDiffs_1_2 d1 d2)
+
+    mbVListDiffs listDiffs = case listDiffs of
+      [] -> Nothing
+      _ -> Just (VListDiffs listDiffs)
+
     default apply uInput =
         __updateApp__ {uInput | fun = apply }
     -- Instead of returning a result of a lens, just returns the list or empty if there is an error.
@@ -852,61 +878,28 @@ evaluate program =
 -- Note that because this is not syntactically a lambda, the function is not recursive.
 append =
   let {append,split} = LensLess.List in
-  \aas bs -> {
-    apply [aas, bs] = append aas bs
-    update {input = [aas, bs], outputNew, outputOld, diffs} =
-      let asLength = len aas in
-      Update.foldDiff {
-        start = [[], [], [], [], len aas, len bs]
-        onSkip [nas, nbs, diffas, diffbs, numA, numB] {count = n, newOutputs = outs} =
-          if n <= numA then
-            Ok [[nas ++ outs, nbs, diffas, diffbs, numA - n, numB]]
-          else
-            let (forA, forB) = split numA outs in
-            Ok [[nas ++ forA, nbs ++ forB, diffas, diffbs, 0, numB - (n - numA)]]
-        onUpdate [nas, nbs, diffas, diffbs, numA, numB] {newOutput = out, diffs, index} =
-          Ok [if numA >= 1
-           then [nas ++ [out],                                      nbs,
-                 diffas ++ [(index, ListElemUpdate diffs)], diffbs,
-                 numA - 1,                                          numB]
-           else [nas,    nbs ++ [out],
-                 diffas, diffbs ++ [(index - asLength, ListElemUpdate diffs)],
-                 0,      numB - 1]]
-        onRemove  [nas, nbs, diffas, diffbs, numA, numB] {oldOutput, index} =
-          if 1 <= numA then
-            Ok [[nas, nbs, diffas ++ [(index, ListElemDelete 1)], diffbs, numA - 1, numB]]
-          else
-            Ok [[nas, nbs, diffas, diffbs ++ [(index - asLength, ListElemDelete 1)], numA, numB - 1]]
-        onInsert [nas, nbs, diffas, diffbs, numA, numB] {newOutput, index} =
-          Ok (
-            (if numA > 0 || len nbs == 0 then
-              [[nas ++ [newOutput], nbs,
-                diffas ++ [(index, ListElemInsert 1)], diffbs,
-                numA, numB]]
-            else []) ++
-              (if len nbs > 0 || numA == 0 then
-                [[nas,    nbs ++ [newOutput],
-                  diffas, diffbs ++ [(index - asLength, ListElemInsert 1)],
-                  numA, numB]]
-              else [])
-            )
-
-        onFinish [nas, nbs, diffas, diffbs, _, _] = Ok [[[nas, nbs], (if len diffas == 0 then [] else
-             [(0, ListElemUpdate (VListDiffs diffas))]) ++
-                   (if len diffbs == 0 then [] else
-             [(1, ListElemUpdate (VListDiffs diffbs))])]]
-        onGather [[nas, nbs], diffs] = Ok (InputWithDiff ([nas, nbs],
-          if len diffs == 0 then Nothing else Just (VListDiffs diffs)))
-      } outputOld outputNew diffs
-    }.apply [aas, bs]
+  let {mbVTupleDiffs,mbVListDiffs} = Update in
+  Update.lens2 {
+    apply (left, right) = append left right
+    update {input = (left, right), outputNew, outputOld, diffs} =
+      let leftLength = len left in
+      case diffs of
+        VListDiffs ldiffs ->
+          let result = Update.splitListDiffsAt leftLength outputNew ldiffs
+               |> LensLess.List.map (\(newLeft, newLeftDiffs, newRight, newRightDiffs) ->
+                 ((newLeft, newRight),
+                   mbVTupleDiffs (mbVListDiffs newLeftDiffs) (mbVListDiffs newRightDiffs)))
+          in Ok (InputsWithDiffs result)
+        _ -> Err ("Expected VListDiffs for append, got " ++ toString diffs)
+    }
 
 --; Maps a function, f, over a list of values and returns the resulting list
 
 --; Maps a function, f, over a list of values and returns the resulting list
 --map a b: (a -> b) -> List a -> List b
-map f l = {
-  apply [f, l] = LensLess.List.map f l
-  update {input=[f, l], oldOutput, outputNew, diffs} =
+map = Update.lens2 {
+  apply (f, l) = LensLess.List.map f l
+  update {input=(f, l), oldOutput, outputNew, diffs} =
     Update.foldDiff {
       start =
         --Start: the collected functions and diffs,
@@ -919,7 +912,7 @@ map f l = {
       onSkip [fs, insA, diffInsA, insB] {count} =
         --'outs' was the same in oldOutput and outputNew
         let (skipped, remaining) = LensLess.List.split count insB in
-        Ok [[fs, insA ++ skipped, diffInsA, remaining]]
+        Ok [[fs, insA ++ skipped, diffInsA ++ [ListElemSkip count], remaining]]
 
       onUpdate [fs, insA, diffInsA, insB] {oldOutput, newOutput, diffs, index} =
         let input::remaining = insB in
@@ -932,14 +925,14 @@ map f l = {
                   _ -> fs
                 in
                 let newDiffsInsA = case d of
-                  Just (VRecordDiffs {_2 = d}) -> diffInsA ++ [(index, ListElemUpdate d)]
-                  _ -> diffInsA
+                  Just (VRecordDiffs {_2 = d}) -> diffInsA ++ [ListElemUpdate d]
+                  _ -> diffInsA ++ [ListElemSkip 1]
                 in
                 [newFs, insA ++ [newA], newDiffsInsA, remaining]) vsds)
 
       onRemove [fs, insA, diffInsA, insB] {oldOutput, index} =
         let _::remaining = insB in
-        Ok [[fs, insA, diffInsA ++ [(index, ListElemDelete 1)], remaining]]
+        Ok [[fs, insA, diffInsA ++ [ListElemDelete 1], remaining]]
 
       onInsert [fs, insA, diffInsA, insB] {newOutput, index} =
         let input =
@@ -952,11 +945,11 @@ map f l = {
               let aprioriResult = LensLess.List.concatMap (\((newF, newA), diff) ->
                 case diff of
                   Just (VRecordDiffs {_1}) -> []
-                  _ -> [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) <| vsds
+                  _ -> [[fs, insA++[newA], diffInsA ++ [ListElemInsert 1], insB]]) <| vsds
               in -- If one of the result does not change f, that's good. Else, we take all the results.
               if aprioriResult == [] then -- Here we return all possibilities, ignoring changes to the function
                 LensLess.List.concatMap (\((newF, newA), _) ->
-                   [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) vsds
+                   [[fs, insA++[newA], diffInsA ++ [ListElemInsert 1], insB]]) vsds
               else
                 aprioriResult)
 
@@ -967,36 +960,28 @@ map f l = {
        Ok [[Update.merge f newFs, newIns, diffInsA]]
 
       onGather [(newF, fdiff), newIns, diffInsA] =
-        let fdiffPart = case fdiff of
-          Nothing -> []
-          Just d -> [(0, ListElemUpdate d)]
-        in
-        let inPart = case diffInsA of
-          [] -> []
-          d -> [(1, ListElemUpdate (VListDiffs d))]
-        in
-        let finalDiff = case fdiffPart ++ inPart of
-          [] -> Nothing
-          d -> Just (VListDiffs d)
-        in
-        Ok (InputWithDiff ([newF, newIns], finalDiff))
+        let finalDiff = Update.mbVTupleDiffs fdiff (Update.mbVListDiffs diffInsA) in
+        Ok (InputWithDiff ((newF, newIns), finalDiff))
     } oldOutput outputNew diffs
-  }.apply [f, l]
+  }
 
-zipWithIndex xs =
-  { apply x = zip (range 0 (len xs - 1)) xs
-    update {output} = Ok (Inputs [map (\(i, x) -> x) output])}.apply xs
+zipWithIndex = Update.lens
+  { apply xs = zip (range 0 (len xs - 1)) xs
+    update {output, diffs} =
+      let newDiffs = case diffs of
+        VListDiffs ldiffs ->
+          ldiffs |> LensLess.List.map (case of
+            ListElemUpdate (VRecordDiffs {_2=xDiff}) ->
+              ListElemUpdate xDiff
+            ListElemUpdate _ ->
+              ListElemSkip 1
+            diff -> diff
+          )
+      in
+    Ok (InputsWithDiffs [(map (\(i, x) -> x) output, Update.mbVListDiffs newDiffs)])}
 
 indexedMap f l =
   map (\(i, x) -> f i x) (zipWithIndex l)
-
--- TODO: Remove list lenses (lenses should be part of List)
-ListLenses =
-  { map = map
-    append = append
-    zipWithIndex = zipWithIndex
-    indexedMap = indexedMap
-  }
 
 -- TODO: Create lens-enabled versions.
 Result = {
@@ -1667,12 +1652,12 @@ List =
       _ -> Nothing
     update {input, outputNew, diffs} = case (input, outputNew, diffs) of
       (h :: tail, Nothing, _) ->
-        Ok (InputsWithDiffs [(tail, Just (VListDiffs [(0, ListElemDelete 1)]))])
+        Ok (InputsWithDiffs [(tail, Just (VListDiffs [ListElemDelete 1]))])
       (h :: tail, Just newH, VRecordDiffs {args= VRecordDiffs {_1=d}}) ->
-        Ok (InputsWithDiffs [(newH :: tail, Just (VListDiffs [(0, ListElemUpdate d)]))])
+        Ok (InputsWithDiffs [(newH :: tail, Just (VListDiffs [ListElemUpdate d]))])
       ([], Nothing, _) -> Ok (Inputs [input])
       ([], Just newH, _) ->
-        Ok (InputsWithDiffs [([newH], Just (VListDiffs [(0, ListElemInsert 1)]))])
+        Ok (InputsWithDiffs [([newH], Just (VListDiffs [ListElemInsert 1]))])
       (_, _, _) -> Err ("Inconsistent diffs in List.head" ++ toString diffs)
     }.apply l
   in
@@ -1682,10 +1667,10 @@ List =
       _ -> Nothing
     update {input, outputNew, diffs} = case (input, outputNew, diffs) of
       (h :: tail, Nothing, _) ->
-        Ok (InputsWithDiffs [([], Just (VListDiffs [(0, ListElemDelete (List.length input))]))])
+        Ok (InputsWithDiffs [([], Just (VListDiffs [ListElemDelete (length input)]))])
       (h :: tail, Just newTail, VRecordDiffs {args= VRecordDiffs {_1=VListDiffs tailDiffs}}) ->
-        Ok (InputsWithDiffs [(h :: newTail, Just (VListDiffs (List.map (\(i, d) -> (i+1, d)) tailDiffs)))])
-      ([], Nothing, _) -> Ok (Inputs [input])
+        Ok (InputsWithDiffs [(h :: newTail, Just (VListDiffs (ListElemSkip 1 :: tailDiffs)))])
+      ([], Nothing, _) -> Ok (InputsWithDiffs [(input, Nothing)])
       ([], Just newTail, _) ->
         Err "I don't know how to insert a new tail where there was none originally."
       (_, _, _) -> Err ("Inconsistent diffs in List.head" ++ toString diffs)
@@ -1708,27 +1693,25 @@ List =
        let nNew = length outputNew in
        let nNewDiffs = if nNew == n then Nothing else Just (VConstDiffs) in
        let mergeEnabled =
-         let aux i diffs outputNew = case diffs of
+         let aux diffs outputNew = case diffs of
            [] -> []
-           (j, diff)::tailDiffs ->
-             if i == j then
+           diff::tailDiffs ->
                case diff of
+                 ListElemSkip count ->
+                   let (_, remOutputNew) = split count outputNew in
+                   aux diffs remOutputNew
                  ListElemUpdate d ->
                    case outputNew of
-                     o :: t -> (o, Just d) :: aux (i + 1) tailDiffs t
+                     o :: t -> (o, Just d) :: aux tailDiffs t
                  ListElemInsert count ->
                    let (inserted, remOutputNew) = split count outputNew in
                    concatMap (\newA ->
                      case __diff__ a newA of
                        Err msg -> []
-                       Ok mbDiff -> [(newA, mbDiff)]) inserted ++ aux i tailDiffs remOutputNew
+                       Ok mbDiff -> [(newA, mbDiff)]) inserted ++ aux tailDiffs remOutputNew
                  ListElemDelete count ->
-                   aux (i + count) tailDiffs outputNew
-             else
-               let (_, remOutputNew) = split (j - i) outputNew in
-               aux j diffs remOutputNew
-           k::tailDiffs -> aux i tailDiffs outputNew
-         in aux 0 ds outputNew
+                   aux tailDiffs outputNew
+         in aux ds outputNew
        in
        let (nA, nDiffsA) = __merge__ a mergeEnabled in
        Ok (InputsWithDiffs [((nNew, nA), Update.mbPairDiffs (nNewDiffs, nDiffsA))])
@@ -1882,7 +1865,7 @@ String =
                 Update.pairDiff3
                   (if leftDiffs == [] then Nothing else Just (VStringDiffs leftDiffs))
                   (if rightDiffs == [] then Nothing else
-                   Just (VListDiffs [(0, ListElemUpdate (VStringDiffs rightDiffs))]))
+                   Just (VListDiffs [ListElemUpdate (VStringDiffs rightDiffs)]))
                   (if firstCharDeleted then Just VConstDiffs else Nothing)
               )]) ++
             (if elemDeleted then -- The string was deleted, one solution is to remove it.
@@ -2190,7 +2173,7 @@ html string = {
         onSkip (revAcc, revDiffs, input) {count} =
           --'outs' was the same in oldOutput and outputNew
           let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
-          Ok [(newRevAcc, revDiffs, remainingInput)]
+          Ok [(newRevAcc, ListElemSkip count :: revDiffs, remainingInput)]
 
         onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
           let inputElem::inputRemaining = input in
@@ -2219,18 +2202,18 @@ html string = {
             _ -> Debug.crash "Expected HTMLAttribute, got " ++ toString (inputElem, newOutput)
           in
           let newRevDiffs = case Update.diff inputElem newInputElem of
-            Ok (Just d) -> (index, ListElemUpdate d)::revDiffs
-            Ok (Nothing) ->  revDiffs
+            Ok (Just d) -> ListElemUpdate d::revDiffs
+            Ok (Nothing) ->  ListElemSkip 1::revDiffs
             Err msg -> Debug.crash msg
           in
           Ok [(newInputElem::revAcc, newRevDiffs, inputRemaining)]
 
         onRemove (revAcc, revDiffs, input) {oldOutput, index} =
           let _::remainingInput = input in
-          Ok [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)]
+          Ok [(revAcc, ListElemDelete 1::revDiffs, remainingInput)]
 
         onInsert (revAcc, revDiffs, input) {newOutput, index} =
-          Ok [(toHTMLAttribute newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]
+          Ok [(toHTMLAttribute newOutput :: revAcc, ListElemInsert 1::revDiffs, input)]
 
         onFinish (revAcc, revDiffs, _) =
           Ok [(reverse revAcc, reverse revDiffs)]
@@ -2250,7 +2233,7 @@ html string = {
         onSkip (revAcc, revDiffs, input) {count} =
           --'outs' was the same in oldOutput and outputNew
           let (newRevAcc, remainingInput) = LensLess.List.reverse_move count revAcc input in
-          Ok [(newRevAcc, revDiffs, remainingInput)]
+          Ok [(newRevAcc, ListElemSkip count :: revDiffs, remainingInput)]
 
         onUpdate (revAcc, revDiffs, input) {oldOutput, newOutput, diffs, index} =
           let inputElem::inputRemaining = input in
@@ -2263,12 +2246,14 @@ html string = {
                  case diffs of
                    VListDiffs listDiffs ->
                      let (newAttrsMerged, otherDiffs) = case listDiffs of
-                       (1, ListElemUpdate diffAttrs)::tailDiff ->
+                       ListElemSkip 1 :: ListElemUpdate diffAttrs :: tailDiff ->
                          (mergeAttrs attrs attrs1 attrs2 diffAttrs, tailDiff)
-                       _ -> (Ok (Inputs [attrs]), listDiffs)
+                       ListElemSkip 2 :: tailDiff ->
+                         (Ok (Inputs [attrs]), tailDiff)
+                       _ -> (Ok (Inputs [attrs]), [])
                      in
                      let newChildrenMerged = case otherDiffs of
-                       (2, ListElemUpdate diffNodes)::_ ->
+                       ListElemUpdate diffNodes::_ ->
                          case mergeNodes children children1 children2 diffNodes of
                            Ok (InputsWithDiffs vds) -> Ok (List.map Tuple.first vds)
                            Err msg -> Err msg
@@ -2288,23 +2273,23 @@ html string = {
               Err msg -> Err msg
               Ok maybeDiff ->
                 let newRevDiffs = case maybeDiff of
-                  Nothing -> revDiffs
-                  Just v -> (index, ListElemUpdate v)::revDiffs in
+                  Nothing -> ListElemSkip 1::revDiffs
+                  Just v -> ListElemUpdate v::revDiffs in
                 Ok [ (newInputElem::revAcc, newRevDiffs, inputRemaining) ]
           )
 
         onRemove (revAcc, revDiffs, input) {oldOutput, index} =
           let _::remainingInput = input in
-          Ok [(revAcc, (index, ListElemDelete 1)::revDiffs, remainingInput)]
+          Ok [(revAcc, ListElemDelete 1::revDiffs, remainingInput)]
 
         onInsert (revAcc, revDiffs, input) {newOutput, index} =
-          Ok [(toHTMLNode newOutput :: revAcc, (index, ListElemInsert 1)::revDiffs, input)]
+          Ok [(toHTMLNode newOutput :: revAcc, ListElemInsert 1::revDiffs, input)]
 
         onFinish (revAcc, revDiffs, _) =
           Ok [(reverse revAcc, reverse revDiffs)]
 
         onGather (acc, diffs) =
-          Ok (InputWithDiff (acc, if len diffs == 0 then Nothing else Just (VListDiffs diffs)))
+          Ok (InputWithDiff (acc, Update.mbVListDiffs diffs))
       } oldOutput newOutput diffs
     in mergeNodes input oldOutput newOutput diffs
 }.apply (parseHTML string)
@@ -2577,7 +2562,7 @@ random = {
           floor (float * (maxExclusive - minInclusive)) + minInclusive
 
     randomInt: Int -> Int -> (Generator, Int)
-    randomInt minInclusive maxExclusive = generateInt_ minInclusive maxExclusive (,)
+    randomInt minInclusive maxExclusive = randomInt_ minInclusive maxExclusive (,)
 
     -- Extract a random sublist of elements, but not in order
     randomSublist_: Int -> List a -> (Generator -> List a -> b) -> b
