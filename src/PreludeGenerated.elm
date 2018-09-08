@@ -3600,9 +3600,8 @@ List =
         }
   in
   let find pred list = case list of
-      [] -> Nothing
-      head :: tail -> if pred head then Just head else find pred tail
-    }
+    [] -> Nothing
+    head :: tail -> if pred head then Just head else find pred tail
   in
   -- TODO: Continue to insert List functions from Elm (http://package.elm-lang.org/packages/elm-lang/core/latest/List#range)
   { simpleMap = simpleMap

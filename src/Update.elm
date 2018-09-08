@@ -570,7 +570,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                                ++ valToString vResult ++ ". (error was " ++ msg ++ ")"
                                           Ok d ->
                                             case d of
-                                              Err msg -> UpdateCriticalError <| "Line " ++ toString exp_.start.line ++ ": " ++ msg
+                                              Err msg -> UpdateFails <| "Line " ++ toString exp_.start.line ++ ": " ++ msg
                                               Ok newInputs ->
                                             let diffListRes: Results String (Val, Maybe VDiffs)
                                                 diffListRes = case newInputs of
