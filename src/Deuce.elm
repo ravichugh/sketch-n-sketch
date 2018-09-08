@@ -189,8 +189,6 @@ type alias CodeInfo =
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
   , selectedWidgets : List DeuceWidget
-  -- TODO: For performance, we need to remove this and rely on CSS for hover again
-  , hoveredWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
   , needsParse : Bool
@@ -573,7 +571,8 @@ blockerPolygon codeInfo codeObject =
 hoverSelectPolygon : Messages msg -> Bool -> CodeInfo -> CodeObject -> DeuceWidget -> List (Svg msg)
 hoverSelectPolygon msgs shouldDecrust codeInfo codeObject deuceWidget =
   [ Svg.polygon
-      [ SAttr.opacity "0"
+      [ SAttr.class "hover-select-polygon"
+      , SAttr.opacity "0"
       , SE.onMouseOver <| msgs.onMouseOver deuceWidget
       , SE.onMouseOut <| msgs.onMouseOut deuceWidget
       , SE.onClick <| msgs.onClick deuceWidget
@@ -591,9 +590,8 @@ codeObjectPolygon msgs codeInfo codeObject color =
       []
     Just deuceWidget ->
       let
-        -- TODO: need to stop relying on hoveredWidgets, use CSS instead
-        hoveredOrSelected =
-          List.member deuceWidget <| codeInfo.selectedWidgets ++ codeInfo.hoveredWidgets
+        selected =
+          List.member deuceWidget codeInfo.selectedWidgets
 
         codeObjectHasTypeError =
           case (codeInfo.needsParse, codeObject) of
@@ -632,9 +630,9 @@ codeObjectPolygon msgs codeInfo codeObject color =
           objectInfoColor codeInfo.displayInfo.colorScheme
 
         (classModifier, finalColor)  =
-          if hoveredOrSelected && codeObjectHasTypeError then
+          if selected && codeObjectHasTypeError then
             (" opaque", errorColor)
-          else if hoveredOrSelected then
+          else if selected then
             (" opaque", color)
           else if highlightError then
             (" translucent", errorColor)
@@ -646,30 +644,46 @@ codeObjectPolygon msgs codeInfo codeObject color =
         class =
           "code-object-polygon" ++ classModifier
 
-        childPolygons =
-          childCodeObjects codeObject
+        -- The polygon to render for the current code object
+        renderPolygon =
+          [ Svg.polygon
+              [ SAttr.class class
+              , SAttr.points <|
+                  codeObjectHullPoints False codeInfo codeObject
+              , SAttr.strokeWidth <|
+                  strokeWidth codeInfo.displayInfo.colorScheme
+              , SAttr.stroke <|
+                  rgbaString finalColor 1
+              , SAttr.fill <|
+                  rgbaString
+                    finalColor
+                    (polygonOpacity codeInfo.displayInfo.colorScheme)
+              ]
+              []
+          ]
+
+        -- The decrusted polygon for the current code object
+        hoverPolygon =
+          hoverSelectPolygon msgs True codeInfo codeObject deuceWidget
+
+        -- The polygons (with crust) of the children of the current code object,
+        -- which can also be used to select the current code object
+        childHoverPolygons =
+          codeObject
+            |> childCodeObjects
             |> List.concatMap
-                 (\child ->
-                   hoverSelectPolygon msgs False codeInfo child deuceWidget
+                 ( \child ->
+                     hoverSelectPolygon msgs False codeInfo child deuceWidget
                  )
       in
-        childPolygons ++
-        hoverSelectPolygon msgs True codeInfo codeObject deuceWidget ++
-        [ Svg.polygon
-            [ SAttr.class class
-            , SAttr.points <|
-                codeObjectHullPoints False codeInfo codeObject
-            , SAttr.strokeWidth <|
-                strokeWidth codeInfo.displayInfo.colorScheme
-            , SAttr.stroke <|
-                rgbaString finalColor 1
-            , SAttr.fill <|
-                rgbaString
-                  finalColor
-                  (polygonOpacity codeInfo.displayInfo.colorScheme)
-            ]
+        [ Svg.g
             []
+            ( hoverPolygon ++
+              childHoverPolygons ++
+              renderPolygon
+            )
         ]
+
 
 diffpolygon: CodeInfo -> Exp -> Svg msg
 diffpolygon codeInfo (Expr exp) =
@@ -811,8 +825,6 @@ overlay msgs model =
           trimmedLineHulls
       , selectedWidgets =
           model.deuceState.selectedWidgets
-      , hoveredWidgets =
-          model.deuceState.hoveredWidgets
       , patMap =
           patMap
       , maxLineLength =
@@ -852,8 +864,6 @@ diffOverlay model exps =
           trimmedLineHulls
       , selectedWidgets =
           model.deuceState.selectedWidgets
-      , hoveredWidgets =
-          model.deuceState.hoveredWidgets
       , patMap =
           Dict.empty
       , maxLineLength =
