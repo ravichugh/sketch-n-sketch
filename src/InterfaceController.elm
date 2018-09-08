@@ -24,7 +24,7 @@ port module InterfaceController exposing
   , msgShowTerminationConditionOptions
   , msgAddToOutput
   , msgReorderInList
-  , msgGroup, msgDuplicate, msgMerge, msgAbstractBlobs
+  , msgGroup, msgDuplicate, msgMerge
   , msgReplicateBlob
   , msgToggleCodeBox
   , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
@@ -1900,9 +1900,7 @@ msgAddToOutput = Msg "Add to Output" addToOutput
 addToOutput : Model -> Model
 addToOutput old =
   let
-    valsToAdd =
-      ShapeWidgets.selectedFeaturesValTreesWithPoints old.slate old.widgets (Set.toList old.selectedFeatures) ++
-      ShapeWidgets.selectedShapesValTrees old.slate old.widgets (Set.toList old.selectedShapes)
+    valsToAdd = ShapeWidgets.selectedValsInterpretingPoints old.slate old.widgets old.selectedFeatures old.selectedShapes old.selectedBlobs
 
     newCode =
       valsToAdd
@@ -2052,9 +2050,7 @@ msgGroup = Msg "Group" doGroup
 
 doGroup old =
   let
-    valsToGroup =
-      ShapeWidgets.selectedFeaturesValTreesWithPoints old.slate old.widgets (Set.toList old.selectedFeatures) ++
-      ShapeWidgets.selectedShapesValTrees old.slate old.widgets (Set.toList old.selectedShapes)
+    valsToGroup = ShapeWidgets.selectedValsInterpretingPoints old.slate old.widgets old.selectedFeatures old.selectedShapes old.selectedBlobs
 
     -- uniqueSingleExpressionInterpretations selectedFeature =
     --   ShapeWidgets.uniqueNonVarSingleExpressionInterpretations
@@ -2323,8 +2319,8 @@ msgMerge = Msg "Merge" <| \old ->
   { old | synthesisResultsDict = Dict.insert "Merge" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
 
-msgAbstractBlobs = Msg "Abstract Blobs" <| \old ->
-  upstateRun <| ETransform.abstractSelectedBlobs old
+-- msgAbstractBlobs = Msg "Abstract Blobs" <| \old ->
+--   upstateRun <| ETransform.abstractSelectedBlobs old
 
 msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
   case Blobs.maybeSimpleProgram old.inputExp of

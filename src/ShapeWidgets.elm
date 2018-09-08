@@ -1194,6 +1194,15 @@ selectionsProximalDistalEIdInterpretations_ program slate widgets selectedFeatur
 --   |> Utils.dedup
 
 
+selectedValsInterpretingPoints : RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> List Val
+selectedValsInterpretingPoints slate widgets selectedFeatures selectedShapes selectedBlobs =
+  List.concat
+      [ selectedFeaturesValTreesWithPoints slate widgets (Set.toList selectedFeatures)
+      , selectedShapesValTrees             slate widgets (Set.toList selectedShapes)
+      , selectedBlobsValTrees              slate         (Dict.toList selectedBlobs)
+      ]
+
+
 selectedVals : RootedIndexedTree -> Widgets -> Set SelectableFeature -> Set NodeId -> Dict Int NodeId -> List Val
 selectedVals slate widgets selectedFeatures selectedShapes selectedBlobs =
   List.concat

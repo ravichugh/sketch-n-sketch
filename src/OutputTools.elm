@@ -187,6 +187,38 @@ hideWidgetTool { selectedFeatures, selectedShapes, selectedBlobs } =
   }
 
 --------------------------------------------------------------------------------
+-- Focus Definition
+--------------------------------------------------------------------------------
+
+perhapsFocusDefinitionTool : Model -> List (Selections a -> OutputTool)
+perhapsFocusDefinitionTool model =
+  let selectedVals = ShapeWidgets.selectedValsInterpretingPoints model.slate model.widgets model.selectedFeatures model.selectedShapes model.selectedBlobs in
+  let referrantEIds = selectedVals |> List.map (Lang.valExp >> Lang.expEffectiveExp >> .val >> .eid) |> Set.fromList in
+  let maybeDefinition =
+    model.inputExp
+    |> Lang.findFirstNode
+        (\e ->
+          Lang.isLet e &&
+          (LangTools.expToMaybeLetBoundExp e |> Maybe.map (\boundExp -> Set.size referrantEIds > 0 && Utils.isSubset referrantEIds (Set.fromList (Lang.expEffectiveEIds boundExp))) |> Maybe.withDefault False)
+        )
+  in
+  case maybeDefinition of
+    Just definitionLet ->
+      [
+        \selections ->
+        { name = "Focus " ++ (Syntax.patternUnparser model.syntax (LangTools.expToLetPat definitionLet) |> Utils.squish)
+        , shortcut = Nothing
+        , kind = Single
+        , func = Just (Controller.msgSetEditingContext (LangTools.expToLetBoundExp definitionLet).val.eid Nothing)
+        , reqs = [ atLeastOneSelection selections ]
+        , id = "focusDefinition"
+        }
+      ]
+    Nothing ->
+      []
+
+
+--------------------------------------------------------------------------------
 -- Add to Output
 --------------------------------------------------------------------------------
 
@@ -621,8 +653,9 @@ repeatAroundTool selections =
 tools : Model -> List (List OutputTool)
 tools model =
   List.map (List.map <| \tool -> tool model) <|
-    [ [ hideWidgetTool
-      , addToOutputTool
+    [ [ hideWidgetTool ] ++
+      perhapsFocusDefinitionTool model ++
+      [ addToOutputTool
       , chooseTerminationConditionTool
       ]
     , perhapsAddArgumentTool model

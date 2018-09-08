@@ -582,6 +582,8 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
     hToolBox      = numRows * hWidget
     xL            = pad
     yBL           = hCanvas - hWidget - pad
+
+    maybeFocusedExp = FocusedEditingContext.maybeFocusedExp model.editingContext model.inputExp
   in
 
   let drawNumWidget i_ widget locId cap_ minVal maxVal curVal val =
@@ -873,21 +875,34 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
   let drawListWidget i_ maybeBounds listVal model =
     let program = model.inputExp in
     let idAsShape = -2 - i_ in
+    let isCurrentContext =
+      case maybeFocusedExp of
+        Just focusedExp -> (expEffectiveExp focusedExp).val.eid == valEId listVal
+        _               -> False
+    in
     let isSelected = Set.member idAsShape model.selectedShapes in
-    if not <| isSelected || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
+    if not <| isCurrentContext || isSelected || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
       []
-    else if model.mouseMode /= MouseNothing then
+    else if model.mouseMode /= MouseNothing && not isCurrentContext then
       []
     else
       case maybeBounds of
         Nothing -> []
         Just (left, top, right, bot) ->
           let boxTop = top + ShapeWidgets.heightForWListExp in
-          let titleAttribute =
-            if isSelected then
-              Svg.title [] [Svg.text "Click to deselect this list."]
+          let (titleAttribute, events) =
+            if isCurrentContext then
+              ( Svg.title [] [Svg.text "Click to leave editing this definition."]
+              , [onMouseDownAndStop Controller.msgClearEditingContext]
+              )
+            else if isSelected then
+              ( Svg.title [] [Svg.text "Click to deselect this list."]
+              , [onMouseDownAndStop (Controller.msgDeselectList idAsShape)]
+              )
             else
-              Svg.title [] [Svg.text "Click to select this list."]
+              ( Svg.title [] [Svg.text "Click to select this list."]
+              , [onMouseDownAndStop (Controller.msgSelectList idAsShape)]
+              )
           in
           let deuceWidget = DeuceWidgets.DeuceExp (valExp listVal).val.eid in
           let edgeHoverEvents =
@@ -902,18 +917,18 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               , attr "stroke" (if isSelected then colorPointSelected else "black")
               , attr "stroke-width" "6px"
               , attr "stroke-dasharray" "10,1"
-              , attr "opacity" (if isSelected then "1.0" else "0.15")
+              , attr "opacity" (if isCurrentContext then "0.6" else if isSelected then "1.0" else "0.15")
               , attr "rx" (toString ShapeWidgets.widgetBoundsPadding)
               , attr "ry" (toString ShapeWidgets.widgetBoundsPadding)
               , attr "x" (toString left)
               , attr "y" (toString boxTop)
               , attr "width" (toString (right - left))
               , attr "height" (toString (bot - boxTop))
-              , onMouseDownAndStop (if isSelected then Controller.msgDeselectList idAsShape else Controller.msgSelectList idAsShape)
-              ]
+              ] ++ events
           in
           let shouldShowLabel =
-            isSelected
+            isCurrentContext
+            || isSelected
             || List.member deuceWidget model.deuceState.hoveredWidgets
             || List.length model.hoveredBoundsWidgets == 1
           in -- Okay this is sort of an abuse of the hovered deuce widgets

@@ -2897,7 +2897,7 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
 -- Currently _always_ returns a singleton list, even if program unchanged. Why? I don't know.
 --
 -- Note: maybeEnv should be the env visible at the holes; InterfaceControlluer.tryRun sets the maybeEnv on the model to be
---       the env at the expEffectivExp either of the whole program or of the focused scope. So if you're adding
+--       the env at the expEffectiveExp either of the whole program or of the focused scope. So if you're adding
 --       definitions/holes at the end of the program/scope (e.g with Draw.addToEndOfDrawingContext), you're good.
 --
 --       Unfortunately, DrawAddShape.addShape does not necessarily add to the end of the program/scope, so there's bugs
@@ -3015,7 +3015,7 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
     -- Slow b/c does static variable lookups.
     expMatchesExpWithHoles : Exp -> EId -> Exp -> Exp -> Bool
     expMatchesExpWithHoles program viewerEId expWithHoles existingExp =
-      case ((expEffectiveExp expWithHoles).val.e__, existingExp.val.e__) of -- Don't do expEffectivExp for existingExp so that the outermost existingExp is never an EComment. Recursions should call expEffectiveExp on it before recursing however.
+      case ((expEffectiveExp expWithHoles).val.e__, existingExp.val.e__) of -- Don't do expEffectiveExp for existingExp so that the outermost existingExp is never an EComment. Recursions should call expEffectiveExp on it before recursing however.
         (EVar _ expWithHolesIdent, _) ->
           if Parser.isProgramEId viewerEId then
             -- This is the expensive step.
