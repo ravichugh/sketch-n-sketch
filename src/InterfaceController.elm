@@ -3555,4 +3555,5 @@ navigateTemplate offset m =
 msgSetCodeEditorMode : CodeEditorMode -> Msg
 msgSetCodeEditorMode mode =
   Msg "Set Code Editor Mode" <| \model ->
-    { model | codeEditorMode = mode }
+    let refreshedModel = refreshInputExp model in
+    { refreshedModel | codeEditorMode = mode }

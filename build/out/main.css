@@ -1242,6 +1242,7 @@ code {
 
 .code-object-polygon {
   opacity: 0;
+  /* So that hover events pass through to the hover polygons */
   pointer-events: none;
 }
 
@@ -1250,8 +1251,7 @@ code {
   cursor: pointer;
 }
 
-.code-object-polygon:hover,
+.hover-select-polygon:hover ~ .code-object-polygon,
 .code-object-polygon.opaque {
   opacity: 1;
-  pointer-events: none;
 }
