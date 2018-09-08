@@ -2168,6 +2168,11 @@ LensLess =
   in
   let zip = map2 (,) in
   { appendStrDef = \"\"\"let append a b = case a of [] -> b; (h::t) -> h :: append t b in \"\"\"
+    Maybe = {
+      map f a = case a of
+        Nothing -> Nothing
+        Just x -> Just (f x)
+    }
     List = {
       append = append
       split = split
@@ -2654,10 +2659,10 @@ Update =
     vTupleDiffs_2 d = VRecordDiffs {_2=d}
     vTupleDiffs_3 d = VRecordDiffs {_3=d}
     vTupleDiffs_4 d = VRecordDiffs {_4=d}
-    default apply updateInput =
-        __updateApp__ {updateInput | fun = apply }
+    default apply uInput =
+        __updateApp__ {uInput | fun = apply }
     -- Instead of returning a result of a lens, just returns the list or empty if there is an error.
-    defaultAsListWithDiffs apply updateInput =
+    defaultAsListWithDiffs apply uInput =
       case default apply uInput of
         Err msg -> []
         Ok (InputsWithDiffs l) -> l
@@ -3568,6 +3573,37 @@ List =
     let (before, after) = split index elements in
     before ++ [newElem] ++ after
   in
+  let -- Given two converters cA and cB, a list and a target, finds an element
+      -- of the list that, converted using cA, equals target. Returns cB of this element.
+      -- In the reverse direction, it finds the cB of the new output and returns the cA.
+      findByAReturnB: (a -> b) -> (a -> c) -> b -> List a -> Maybe c
+      findByAReturnB =
+        Update.lens4 {
+          apply (cA, cB, target, l) =
+            let aux l = case l of
+              [] -> Nothing
+              h :: t -> if cA h == target then Just (cB h) else aux t
+            in aux l
+          update {input=(converterA, converterB, target, list) as input, outputNew} as uInput =
+            case outputNew of
+              Nothing -> Ok (InputsWithDiffs [(input, Nothing)])
+              Just outputNewTarget ->
+            case apply (converterB, converterA, outputNewTarget, list) of
+              Just x -> -- No rename here.
+                Ok (InputsWithDiffs [
+                  ((converterA, converterB, x, list),
+                    Update.diffs target x |> Maybe.map Update.vTupleDiffs_3)])
+              Nothing ->
+                Update.default apply uInput
+            -- To ways to update: Either find the new B in the list and return A
+            -- Or just regular update (to change the name)
+        }
+  in
+  let find pred list = case list of
+      [] -> Nothing
+      head :: tail -> if pred head then Just head else find pred tail
+    }
+  in
   -- TODO: Continue to insert List functions from Elm (http://package.elm-lang.org/packages/elm-lang/core/latest/List#range)
   { simpleMap = simpleMap
     map = map
@@ -3590,6 +3626,8 @@ List =
     foldl2 = foldl2
     filterMap = filterMap
     filter = filter
+    findByAReturnB = findByAReturnB
+    find = find
     sum = sum
     range = range
     zipWithIndex = zipWithIndex
@@ -3794,8 +3832,9 @@ Maybe =
         Nothing -> d
         Just j -> j
       update {input=(d,mb) as input,outputNew} as uInput =
-        Ok (InputsWithDiffs ([((d, Just outputNew), __diff__ mb (Just outputNew) |> .args._1 |> Maybe.map Update.vTupleDiffs_2)] ++ (
-          if mb /= Nothing then [] else Update.defaultAsListWithDiffs apply uInput)))
+        Ok (InputsWithDiffs ([((d, Just outputNew),
+              Update.diffs mb (Just outputNew) |> LensLess.Maybe.map Update.vTupleDiffs_2)] ++ (
+              if mb /= Nothing then [] else Update.defaultAsListWithDiffs apply uInput)))
     }
 
     withDefaultLazy = Update.lens2 {
@@ -3804,8 +3843,8 @@ Maybe =
         Just j -> j
       update {input=(df,mb) as input,outputNew} as uInput =
         Ok (InputsWithDiffs ([((df, Just outputNew),
-            __diff__ mb (Just outputNew) |> .args._1 |> Maybe.map Update.vTupleDiffs_2)] ++ (
-            if mb /= Nothing then [] else Update.defaultAsListWithDiffs apply uInput)))
+              Update.diffs mb (Just outputNew) |> LensLess.Maybe.map Update.vTupleDiffs_2)] ++ (
+              if mb /= Nothing then [] else Update.defaultAsListWithDiffs apply uInput)))
     }
 
     map f a = case a of
@@ -4257,6 +4296,26 @@ Html =
     find = find
     foldAndReplace = foldAndReplace
     onClickCallback = onClickCallback
+
+    scriptFindEnclosing tagName varnameWhatToDo = \"\"\"
+      var elem = this
+      while(elem != null && elem.tagName.toLowerCase() != \"@tagName\")
+        elem = elem.parentElement;
+      if(elem == null) {
+        console.log('Error: duplicate button could not find enclosing target @tagName');
+      } else {
+        @(varnameWhatToDo \"elem\")
+      }\"\"\"
+
+    buttonToDuplicateEnclosing tagNameToDuplicate attrs children =
+      <button onclick=(scriptFindEnclosing(tagNameToDuplicate)(\\v ->
+          \"\"\"@(v).parentElement.insertBefore(@(v).cloneNode(true), @(v))\"\"\"))
+      @attrs>@children</button>
+
+    buttonToDeleteEnclosing tagNameToDelete attrs children=
+      <button onclick=(scriptFindEnclosing(tagNameToDelete)(\\v ->
+          \"\"\"@(v).remove()\"\"\"))
+      @attrs>@children</button>
   }
 
 -- TODO remove this; add as imports as needed in examples
