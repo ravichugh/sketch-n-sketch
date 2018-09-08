@@ -892,7 +892,7 @@ evalRegexExtractFirstIn regexpV stringV =
         m::_ ->
           Ok (Vb.constructor (Vb.fromVal stringV) "Just"
                [Vb.list (\v {match} -> Vb.string v <| Maybe.withDefault "" match) (Vb.fromVal stringV) m.submatches])
-    _ -> Err "Expected two strings, a regex and a string, got something else"
+    _ -> Err <| "Expected two strings, a regex and a string, got " ++ valToString regexpV ++ " and " ++ valToString stringV
 
 updateRegexExtractFirstIn: Val -> Val -> Val -> Val -> Results String Val
 updateRegexExtractFirstIn regexpV stringV oldVal newVal =

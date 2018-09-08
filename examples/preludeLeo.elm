@@ -1928,6 +1928,13 @@ String =
       freezeLeft = freezeLeft
       freezeRight = freezeRight
     }
+    padLeft n c = Update.lens {
+      apply s = (List.range 1 (n - length s) |> List.map (always c) |> join "") + s
+      update {outputNew} =
+         case extractFirstIn ("^(" + c + ")*([\\s\\S]*)$") outputNew of
+           Just [padding, str] -> Ok (Inputs [str])
+           Nothing -> Err "String.pad could not complete"
+    }
   }
 
 
