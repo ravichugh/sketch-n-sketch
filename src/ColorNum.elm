@@ -178,7 +178,7 @@ htmlColorNames =
 
 numHtmlColorNames = List.length htmlColorNames
 
--- randomInt \in [0,470]; see InterfaceController: lightestColor = 470
+-- randomInt \in [0,470]; see Controller: lightestColor = 470
 randomHtmlColorName : Int -> String
 randomHtmlColorName randomInt =
   let i = round <| toFloat randomInt / 470 * toFloat numHtmlColorNames in

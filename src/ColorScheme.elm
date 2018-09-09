@@ -2,7 +2,7 @@ port module ColorScheme exposing
   ( updateColorScheme
   )
 
-import InterfaceModel exposing (ColorScheme(..))
+import Model exposing (ColorScheme(..))
 
 -- Internal
 

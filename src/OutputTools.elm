@@ -7,8 +7,8 @@ module OutputTools exposing
 import Set exposing (Set)
 import Dict exposing (Dict)
 
-import InterfaceModel exposing (..)
-import InterfaceController as Controller
+import Model exposing (..)
+import Controller
 import Lang exposing (Predicate, PredicateValue(..))
 import LangSvg exposing (NodeId)
 import ShapeWidgets exposing (SelectableFeature)

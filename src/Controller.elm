@@ -1,4 +1,4 @@
-port module InterfaceController exposing
+port module Controller exposing
   ( update
   , msgNoop
   , msgWindowDimensions
@@ -100,8 +100,8 @@ import Results exposing (Results)
 import LazyList
 import Utils
 import Keys
-import InterfaceModel as Model exposing (..)
-import SleekLayout exposing
+import Model exposing (..)
+import Layout exposing
   ( canvasPosition
   , clickToCanvasPoint
   , deucePopupPanelMouseOffset
@@ -115,7 +115,6 @@ import File exposing (FileExtension, Filename, File, FileIndex)
 import DeucePopupPanelInfo exposing (DeucePopupPanelInfo)
 import ColorScheme
 import SyntaxHighlight exposing (ExternalSyntaxHighlightMessage(..))
--- import InterfaceStorage exposing (installSaveState, removeDialog)
 import LangSvg
 import ShapeWidgets exposing (SelectableFeature(..), GenericFeature(..), ShapeFeature(..), RealZone(..), PointFeature(..), DistanceFeature(..), OtherFeature(..))
 import ExamplesGenerated as Examples
@@ -915,7 +914,7 @@ update msg oldModel =
             Msg caption f -> (caption, (f oldModel, Cmd.none))
             NewModelAndCmd caption f -> (caption, f oldModel)
             ResponseFromSolver _ ->
-              Debug.crash "InterfaceController.update: solver response messages should never hit here"
+              Debug.crash "Controller.update: solver response messages should never hit here"
         in
         let _ = debugLog "Msg (or MsgNewModelAndCmd)" caption in
         (newModel, cmd)
@@ -957,10 +956,10 @@ upstate msg old =
 
     NewModelAndCmd caption _ ->
       Debug.crash <|
-        "InterfaceController.upstate: shouldn't be called with a NewModelAndCmd: " ++ caption
+        "Controller.upstate: shouldn't be called with a NewModelAndCmd: " ++ caption
 
     ResponseFromSolver _ ->
-      Debug.crash "InterfaceController.upstate: solver response messages should never hit here"
+      Debug.crash "Controller.upstate: solver response messages should never hit here"
 
 --------------------------------------------------------------------------------
 -- Hooks to be run after every message
@@ -2649,7 +2648,7 @@ requireSaveAsker msg needsSave =
         msg
 
     _ ->
-      Debug.crash "InterfaceController.requireSaveAsker shouldn't get a solver response message!!"
+      Debug.crash "Controller.requireSaveAsker shouldn't get a solver response message!!"
 
 --------------------------------------------------------------------------------
 -- Dialog Box
@@ -2735,9 +2734,9 @@ iconify syntax env code =
         Utils.fromOkay "Error resolving index tree of icon"
           <| LangSvg.resolveToRootedIndexedTree syntax 1 1 0 val
       svgElements =
-        -- Not using Canvas.buildHtml because can't have circular dependency between InterfaceController and Canvas
+        -- Not using Canvas.buildHtml because can't have circular dependency between Controller and Canvas
         -- Various widgets in Canvas defined their model update functions inline to avoid this, but now we're
-        -- invoking more complicated transforms from the output, so Canvas has to depend on InterfaceController.
+        -- invoking more complicated transforms from the output, so Canvas has to depend on Controller.
         --
         -- So icons are limited to SVG for now, which is probably fine.
         LangSvg.buildSvgSimple slate
@@ -2747,9 +2746,9 @@ iconify syntax env code =
     in
     Svg.svg
       [ Svg.Attributes.width <|
-          (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
+          (Layout.px << subPadding << .width) Layout.iconButton
       , Svg.Attributes.height <|
-          (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
+          (Layout.px << subPadding << .height) Layout.iconButton
       ]
       [ svgElements ]
 
@@ -3164,7 +3163,7 @@ msgHoverDeuceResult isRenamer (SynthesisResult result) path =
       (False, Nothing) -> -- not already run and cached
         let
           (preview, class) =
-            -- CSS classes from SleekView leak out here. Oh, well.
+            -- CSS classes from View leak out here. Oh, well.
             case (result.isSafe, runAndResolve m result.exp) of
               (True, Ok (val, widgets, env, slate, code)) ->
                 (Just (code, [], Ok (val, widgets, slate)), "expected-safe")
@@ -3450,11 +3449,11 @@ msgDragMainResizer =
     updater oldPosition newPosition old =
       let
         leftBound =
-          SleekLayout.mainResizerLeftBound old
+          Layout.mainResizerLeftBound old
         rightBound =
-          SleekLayout.mainResizerRightBound old
+          Layout.mainResizerRightBound old
         oldMainResizerX =
-          (SleekLayout.mainResizer old).x
+          (Layout.mainResizer old).x
         newMainResizerX =
           Utils.clamp leftBound rightBound <|
             oldMainResizerX +

@@ -1,4 +1,4 @@
-module InterfaceModel exposing (..)
+module Model exposing (..)
 
 import Updatable exposing (Updatable)
 import Lang exposing (..)
@@ -852,7 +852,7 @@ prettyFilename includeExtension model =
 
 --------------------------------------------------------------------------------
 
--- if this looks okay, use it in more places in SleekView in place of model.needsSave
+-- if this looks okay, use it in more places in View in place of model.needsSave
 reallyNeedsSave : Model -> Bool
 reallyNeedsSave model =
   -- use of bufferName, following prettyFilename...

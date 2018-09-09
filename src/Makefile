@@ -67,10 +67,10 @@ loc:
     Types2.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \
     UpdateStack.elm UpdateRegex.elm Update.elm \
-    InterfaceModel.elm \
+    Model.elm \
     Canvas.elm \
-    SleekView.elm SleekLayout.elm \
-    InterfaceController.elm \
+    View.elm Layout.elm \
+    Controller.elm \
     History.elm \
     LangTools.elm LangSimplify.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \

@@ -17,7 +17,7 @@ import Svg.Events as SE
 import Utils
 import HtmlUtils exposing (styleListToString)
 
-import InterfaceModel as Model exposing
+import Model exposing
   ( Model
   , Code
   , ColorScheme(..)
@@ -55,7 +55,7 @@ import DeuceWidgets exposing
   , toDeuceWidget
   )
 
-import SleekLayout
+import Layout
 
 --==============================================================================
 --= HELPER FUNCTIONS
@@ -309,7 +309,7 @@ addBleed (x, y) =
     , y
     )
   else if x <= 0 then
-    ( -SleekLayout.deuceOverlayBleed
+    ( -Layout.deuceOverlayBleed
     , y
     )
   else
@@ -832,7 +832,7 @@ overlay msgs model =
           Model.needsParse model
       }
     leftShift =
-      model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
+      model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
   in
     Svg.g
       [ SAttr.transform <|
@@ -871,7 +871,7 @@ diffOverlay model exps =
           Model.needsParse model
       }
     leftShift =
-      model.codeBoxInfo.contentLeft + SleekLayout.deuceOverlayBleed
+      model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
   in
     Svg.g
       [ SAttr.transform <|

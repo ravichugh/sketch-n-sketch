@@ -1,4 +1,4 @@
-module SleekView exposing (view)
+module View exposing (view)
 
 import List
 import Dict
@@ -21,9 +21,9 @@ import Either exposing (..)
 import Updatable
 import History
 
-import InterfaceModel as Model exposing (..)
+import Model exposing (..)
 
-import InterfaceController as Controller
+import Controller
 import Keys
 import ExamplesGenerated as Examples
 
@@ -32,7 +32,7 @@ import DeuceTools
 
 import OutputTools exposing (OutputTool)
 
-import SleekLayout exposing (px, half)
+import Layout exposing (px, half)
 import Canvas
 import OutputCanvas
 import Draw
@@ -543,10 +543,10 @@ menuHeading heading =
         }
         (Json.succeed <| Controller.msgToggleMenu)
     , Attr.style
-        [ ("height", (px << .height) SleekLayout.menuBar)
-        , ("line-height", (px << .height) SleekLayout.menuBar)
+        [ ("height", (px << .height) Layout.menuBar)
+        , ("line-height", (px << .height) Layout.menuBar)
         , ("padding", "0 " ++
-            (px << half << .height) SleekLayout.menuBar)
+            (px << half << .height) Layout.menuBar)
         ]
     ] ++
     logMouseOver ("Menu \"" ++ heading ++ "\"")
@@ -567,7 +567,7 @@ menuOptions options =
     Html.div
       [ Attr.class "menu-options"
       , Attr.style
-          [ ("top", (px << .height) SleekLayout.menuBar) ]
+          [ ("top", (px << .height) Layout.menuBar) ]
       ]
       ( options
           |> List.intersperse [ menuOptionDivider ]
@@ -1150,8 +1150,8 @@ menuBar model =
     Html.div
       [ Attr.class "menu-bar"
       , Attr.style
-          [ ("height", (px << .height) SleekLayout.menuBar)
-          , ("borderBottomWidth", (px << .borderWidth) SleekLayout.menuBar)
+          [ ("height", (px << .height) Layout.menuBar)
+          , ("borderBottomWidth", (px << .borderWidth) Layout.menuBar)
           ]
       ]
       [ Html.div
@@ -1467,10 +1467,10 @@ codePanel model =
     Html.div
       [ Attr.class "panel code-panel"
       , Attr.style
-          [ ("left", (px << .x) <| SleekLayout.codePanel model)
-          , ("top", (px << .y) <| SleekLayout.codePanel model)
-          , ("width", (px << .width) <| SleekLayout.codePanel model)
-          , ("height", (px << .height) <| SleekLayout.codePanel model)
+          [ ("left", (px << .x) <| Layout.codePanel model)
+          , ("top", (px << .y) <| Layout.codePanel model)
+          , ("width", (px << .width) <| Layout.codePanel model)
+          , ("height", (px << .height) <| Layout.codePanel model)
           ]
       ]
       [ statusBar
@@ -1488,7 +1488,7 @@ mainResizer : Model -> Html Msg
 mainResizer model =
   let
     mainResizerBB =
-      SleekLayout.mainResizer model
+      Layout.mainResizer model
   in
     Html.div
       [ Attr.class "resizer main-resizer"
@@ -1522,7 +1522,7 @@ outputPanel : Model -> Html Msg
 outputPanel model =
   let
     canvasDim =
-      SleekLayout.outputCanvas model
+      Layout.outputCanvas model
     output =
       case (model.errorBox, model.outputMode, model.preview) of
         (_, _, Just (_, _, Err errorMsg)) ->
@@ -1562,10 +1562,10 @@ outputPanel model =
       Html.div
         [ Attr.class "output-panel-warning"
         , Attr.style
-            [ ("top", (px << negate) SleekLayout.panelBorderWidth)
-            , ("right", (px << negate) SleekLayout.panelBorderWidth)
-            , ("bottom", (px << negate) SleekLayout.panelBorderWidth)
-            , ("left", (px << negate) SleekLayout.panelBorderWidth)
+            [ ("top", (px << negate) Layout.panelBorderWidth)
+            , ("right", (px << negate) Layout.panelBorderWidth)
+            , ("bottom", (px << negate) Layout.panelBorderWidth)
+            , ("left", (px << negate) Layout.panelBorderWidth)
             ]
         ]
         []
@@ -1573,10 +1573,10 @@ outputPanel model =
     Html.div
       [ Attr.class "panel output-panel"
       , Attr.style
-          [ ("left", (px << .x) <| SleekLayout.outputPanel model)
-          , ("top", (px << .y) <| SleekLayout.outputPanel model)
-          , ("width", (px << .width) <| SleekLayout.outputPanel model)
-          , ("height", (px << .height) <| SleekLayout.outputPanel model)
+          [ ("left", (px << .x) <| Layout.outputPanel model)
+          , ("top", (px << .y) <| Layout.outputPanel model)
+          , ("width", (px << .width) <| Layout.outputPanel model)
+          , ("height", (px << .height) <| Layout.outputPanel model)
           ]
       ]
       [ Html.div
@@ -1631,8 +1631,8 @@ iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
     [ Attr.disabled disabled
     , Attr.class "icon-button"
     , Attr.style
-        [ ("width", (px << .width) SleekLayout.iconButton)
-        , ("height", (px << .height) SleekLayout.iconButton)
+        [ ("width", (px << .width) Layout.iconButton)
+        , ("height", (px << .height) Layout.iconButton)
         , ("background", color)
         ]
     ]
@@ -1858,9 +1858,9 @@ toolPanel model =
     Html.div
       [ Attr.class "panel tool-panel"
       , Attr.style
-          [ ("width", (px << .width) SleekLayout.toolPanel)
-          , ("right", (px << .right) SleekLayout.toolPanel)
-          , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
+          [ ("width", (px << .width) Layout.toolPanel)
+          , ("right", (px << .right) Layout.toolPanel)
+          , ("marginLeft", (px << .marginLeft) Layout.toolPanel)
           ]
       ]
       toolButtons
@@ -1886,8 +1886,8 @@ synthesisPanel model =
   Html.div
     [ Attr.class "synthesis-panel-wrapper"
     , Attr.style
-        [ ( "bottom", (px << .bottom) <| SleekLayout.synthesisPanel model)
-        , ( "height", (px << .height) <| SleekLayout.synthesisPanel model)
+        [ ( "bottom", (px << .bottom) <| Layout.synthesisPanel model)
+        , ( "height", (px << .height) <| Layout.synthesisPanel model)
         ]
     ]
     [ Html.div
@@ -1910,8 +1910,8 @@ workArea model =
   Html.div
     [ Attr.class "work-area"
     , Attr.style
-        [ ("margin", px <| .width SleekLayout.spacing)
-        , ("top", px <| .height SleekLayout.menuBar)
+        [ ("margin", px <| .width Layout.spacing)
+        , ("top", px <| .height Layout.menuBar)
         ]
     ] <|
     [ Html.div
@@ -2234,11 +2234,11 @@ deuceOverlay model =
                 )
               , ( "left"
                 , px <|
-                    model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
+                    model.codeBoxInfo.scrollerLeft - Layout.deuceOverlayBleed
                 )
               , ( "width"
                 , px <|
-                    model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
+                    model.codeBoxInfo.scrollerWidth + Layout.deuceOverlayBleed
                 )
               , ( "height"
                 , px model.codeBoxInfo.scrollerHeight
@@ -2289,11 +2289,11 @@ diffOverlay model =
             )
           , ( "left"
             , px <|
-                model.codeBoxInfo.scrollerLeft - SleekLayout.deuceOverlayBleed
+                model.codeBoxInfo.scrollerLeft - Layout.deuceOverlayBleed
             )
           , ( "width"
             , px <|
-                model.codeBoxInfo.scrollerWidth + SleekLayout.deuceOverlayBleed
+                model.codeBoxInfo.scrollerWidth + Layout.deuceOverlayBleed
             )
           , ( "height"
             , px model.codeBoxInfo.scrollerHeight

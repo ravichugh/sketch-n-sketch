@@ -20,7 +20,7 @@ import LangTools exposing (..)
 import LangUtils exposing (..)
 import LangSimplify
 import Types
-import InterfaceModel exposing (Model, ReplicateKind(..), resultExp)
+import Model exposing (Model, ReplicateKind(..), resultExp)
 import Utils
 import Keys
 
@@ -63,7 +63,7 @@ passiveSynthesisSearch model originalExp =
   mapAbstractSynthesisResults originalExp ++
   rangeSynthesisResults originalExp ++
   inlineListSynthesisResults originalExp
-  |> List.filter (\synthesisResult -> InterfaceModel.runAndResolve model (resultExp synthesisResult) |> Utils.resultToBool)
+  |> List.filter (\synthesisResult -> Model.runAndResolve model (resultExp synthesisResult) |> Utils.resultToBool)
 
 
 rangeSynthesisResults : Exp -> List SynthesisResult

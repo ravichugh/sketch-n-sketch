@@ -15,7 +15,7 @@
 --       be MANUALLY MODIFIED.
 --------------------------------------------------------------------------------
 
-module SleekLayout exposing
+module Layout exposing
   ( BoundingBox
   , px
   , half
@@ -38,7 +38,7 @@ module SleekLayout exposing
   , outputCanvas
   )
 
-import InterfaceModel as Model exposing (Model)
+import Model exposing (Model)
 
 --------------------------------------------------------------------------------
 -- Bounding Box

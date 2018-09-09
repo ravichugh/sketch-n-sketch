@@ -1,8 +1,8 @@
 module Main exposing (main)
 
-import InterfaceModel as Model exposing (Msg(..), Model)
-import SleekView as View
-import InterfaceController as Controller
+import Model exposing (Msg(..), Model)
+import View
+import Controller
 import AceCodeBox
 import OutputCanvas
 import AnimationLoop

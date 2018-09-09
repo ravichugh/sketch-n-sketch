@@ -20,7 +20,7 @@ import Utils
 import ImpureGoodies
 import ColorNum
 
-import InterfaceModel as Model exposing
+import Model exposing
   ( Model
   , oneSafeResult
   , setResultSafe

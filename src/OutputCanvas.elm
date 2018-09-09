@@ -16,7 +16,7 @@ port module OutputCanvas exposing
   , startDomListener
   )
 
-import InterfaceModel as Model exposing (Model, OutputCanvasInfo)
+import Model exposing (Model, OutputCanvasInfo)
 import Json.Decode as JSDecode
 
 --------------------------------------------------------------------------------

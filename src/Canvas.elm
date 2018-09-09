@@ -16,11 +16,11 @@ import ShapeWidgets exposing
   ( RealZone, RealZone(..)
   , SelectableFeature(..), GenericFeature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..), ShapeFeature(..)
   )
-import SleekLayout exposing (canvasPosition)
+import Layout exposing (canvasPosition)
 import Sync
 import Draw
-import InterfaceModel exposing (..)
-import InterfaceController as Controller
+import Model exposing (..)
+import Controller
 
 import LangUnparser
 import Eval
@@ -70,7 +70,7 @@ msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
   case old.outputMode of
     Graphics ->
       -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
-      let (_, (mx, my)) = SleekLayout.clickToCanvasPoint old (mousePosition old) in
+      let (_, (mx, my)) = Layout.clickToCanvasPoint old (mousePosition old) in
       let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
       { old | mouseMode = MouseDragZone zoneKey (mx, my) False trigger }
     _ ->
@@ -99,7 +99,7 @@ startDrawing old =
 --------------------------------------------------------------------------------
 
 
-build : SleekLayout.BoundingBox -> Model -> List (Html Msg)
+build : Layout.BoundingBox -> Model -> List (Html Msg)
 build dim model =
   let addZones = case (model.outputMode, model.preview) of
     (Graphics, Nothing) -> model.tool == Cursor
@@ -197,7 +197,7 @@ buildHtml_ (model, addZones) insideSvgNode d i =
 -}
       in
       let (rawKind, compiledAttrs) =
-        let canvasDim = SleekLayout.outputCanvas model in
+        let canvasDim = Layout.outputCanvas model in
         attrs_
           |> LangSvg.desugarShapeAttrs canvasDim.x canvasDim.y shape
           |> Tuple.mapSecond LangSvg.compileAttrs
@@ -395,7 +395,7 @@ patsInOutput modelRenamingInOutput showRemover pats left top =
     ]
 
 
-buildSvgWidgets : Int -> Int -> Widgets -> InterfaceModel.Model -> List (Svg Msg)
+buildSvgWidgets : Int -> Int -> Widgets -> Model -> List (Svg Msg)
 buildSvgWidgets wCanvas hCanvas widgets model =
   let
     pad            = params.mainSection.uiWidgets.pad

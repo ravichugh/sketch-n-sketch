@@ -8,7 +8,7 @@ port module AceCodeBox exposing
   , aceCodeBoxScroll
   )
 
-import InterfaceModel as Model exposing (Model, AceCodeBoxInfo)
+import Model exposing (Model, AceCodeBoxInfo)
 import Ace
 
 --------------------------------------------------------------------------------

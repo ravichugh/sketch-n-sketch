@@ -12,7 +12,7 @@ import LangTools exposing (..)
 import LangUtils exposing (..)
 import ElmParser as Parser
 import LangUnparser exposing (unparseWD, unparseWithIds)
-import InterfaceModel
+import Model
 import Eval
 import EvalUpdate
 import Sync
@@ -185,7 +185,7 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
 
 evalToSlateAndWidgetsResult : Exp -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
 evalToSlateAndWidgetsResult exp slideNumber movieNumber movieTime =
-  InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } exp -- Syntax is dummy, we throw away unparse code
+  Model.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } exp -- Syntax is dummy, we throw away unparse code
   |> Result.map (\(val, widgets, _, slate, code) -> (slate, widgets))
 
 
@@ -416,7 +416,7 @@ makeEqual syntax solutionsCache originalExp selectedFeatures slideNumber movieNu
         (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToMathExp} as priorResult) ->
           let priorExp = exp in
           relate__ syntax solutionsCache Equalize featureEqns priorExp maybeTermShape removedLocIdToMathExp syncOptions
-          |> List.map (InterfaceModel.prependDescription (description ++ " → " ++ descriptionPrefix ++ " "))
+          |> List.map (Model.prependDescription (description ++ " → " ++ descriptionPrefix ++ " "))
           |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
           -- |> List.map (\result -> let _ = if True then Debug.log ("Before:\n" ++ LangUnparser.unparseWithIds priorExp ++ "\nAfter:\n" ++ LangUnparser.unparseWithIds result.exp) () else () in result)
         )
@@ -440,7 +440,7 @@ relate syntax solutionsCache originalExp selectedFeatures slideNumber movieNumbe
         (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToMathExp} as priorResult) ->
           let priorExp = exp in
           relate__ syntax solutionsCache Relate featureEqns priorExp maybeTermShape removedLocIdToMathExp syncOptions
-          |> List.map (InterfaceModel.prependDescription (description ++ " → "))
+          |> List.map (Model.prependDescription (description ++ " → "))
           |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
         )
   in
@@ -493,7 +493,7 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
 --             let descriptionPrefix = ShapeWidgets.featureDesc featureA ++ " = " ++ ShapeWidgets.featureDesc featureB ++ " " in
 --             let newResults =
 --               relate__ syntax solutionsCache (Equalize featureAEqn featureBEqn) priorExp maybeTermShape removedLocIdToMathExp syncOptions
---               |> List.map (InterfaceModel.prependDescription descriptionPrefix)
+--               |> List.map (Model.prependDescription descriptionPrefix)
 --             in
 --             case newResults of
 --               [] ->
@@ -502,7 +502,7 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
 --
 --               _ ->
 --                 newResults
---                 |> List.map (InterfaceModel.prependDescription (description ++ " → "))
+--                 |> List.map (Model.prependDescription (description ++ " → "))
 --                 |> List.map (\result -> { result | dependentLocIds = dependentLocIds ++ result.dependentLocIds })
 --                 -- |> List.map (\result -> let _ = if True then Debug.log ("Before:\n" ++ LangUnparser.unparseWithIds priorExp ++ "\nAfter:\n" ++ LangUnparser.unparseWithIds result.exp) () else () in result)
 --                 |> equalizeMore
@@ -800,7 +800,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 -- Build an abstraction where one feature is returned as function of the other selected features.
 buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   let unparse = Syntax.unparser syntax in
-  case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we ignore unparsed code
+  case Model.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we ignore unparsed code
     Err s -> []
     Ok (_, widgets, _, slate, _) ->
       ShapeWidgets.selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs
@@ -871,7 +871,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
               if List.length unusedArgs == List.length argPats then
                 Nothing
               else
-                Just (synthesisResult caption programWithCallAndFunc |> InterfaceModel.setResultSafe False)
+                Just (synthesisResult caption programWithCallAndFunc |> Model.setResultSafe False)
         )
       )
 

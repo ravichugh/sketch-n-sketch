@@ -30,7 +30,7 @@ import LangUnparser exposing (unparseWithIds, expsEquivalent, patsEquivalent, un
 import ElmParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
-import InterfaceModel exposing
+import Model exposing
   ( Model, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
   )
 import LocEqn                        -- For twiddling
