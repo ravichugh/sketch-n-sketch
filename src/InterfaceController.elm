@@ -2311,10 +2311,11 @@ msgMerge = Msg "Merge" <| \old ->
   let synthesisResults =
     let eidSet =
       Set.fromList <|
+      -- Debug.log "selectionsEIdsTouched" <|
         ShapeWidgets.selectionsEIdsTouched old.inputExp old.slate old.widgets old.selectedFeatures old.selectedShapes old.selectedBlobs (\e -> childExps e /= [])
     in
     let minCloneCount = max 2 (Set.size old.selectedShapes) in
-    ETransform.cloneEliminationSythesisResults (\e -> Set.member e.val.eid eidSet) minCloneCount 2 old.inputExp
+    ETransform.cloneEliminationSythesisResults (\e -> Utils.anyOverlapListSet (expEffectiveEIds e) eidSet) minCloneCount 2 old.inputExp
   in
   { old | synthesisResultsDict = Dict.insert "Merge" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
