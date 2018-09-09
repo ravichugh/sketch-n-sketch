@@ -14,7 +14,7 @@ import LangParserUtils
 import LangUtils exposing (..)
 import Utils exposing (reverseInsert)
 import Syntax exposing (Syntax)
-import ElmParser as Parser
+import LeoParser as Parser
 import Results exposing (Results, ok1, oks)
 import LazyList exposing (LazyList)
 import LangTools exposing (..)
@@ -130,7 +130,7 @@ builtinEnv =
       case args of
         [left, right, x] ->
            let env = [("x", x), ("left", left), ("right", right)] in
-           Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) |> Result.map Tuple.first
+           Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo env (eApp (eVar "right") [eApp (eVar "left") [eVar "x"]]) |> Result.map Tuple.first
         _ -> Err <| ">> expects 3 arguments, got " ++ toString (List.length args)
       ) (Just (\args oldVal newVal d -> case args of
       [left, right, x] ->
@@ -150,7 +150,7 @@ builtinEnv =
     case args of
       [left, right, x] ->
          let env = [("x", x), ("left", left), ("right", right)] in
-         Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) |> Result.map Tuple.first
+         Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo env (eApp (eVar "left") [eApp (eVar "right") [eVar "x"]]) |> Result.map Tuple.first
       _ -> Err <| ">> expects 2 arguments, got " ++ toString (List.length args)
     ) (Just (\args oldVal newVal d -> case args of
     [left, right, x] ->
@@ -174,10 +174,10 @@ builtinEnv =
   , ("__evaluate__", builtinVal "EvalUpdate.__evaluate__" <| VFun "__evaluate__" ["environment", "program"] (twoArgs "__evaluate__" <| \penv program ->
       case (Vu.list (Vu.tuple2 Vu.string Vu.identity) penv, program.v_) of
           (Ok env, VBase (VString s)) ->
-              Syntax.parser Syntax.Elm s
+              Syntax.parser Syntax.Leo s
               |> Result.mapError (ParserUtils.showError)
               |> Result.andThen (\prog ->
-                  Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm (env ++ builtinEnv) prog
+                  Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ builtinEnv) prog
                 )
               |> Result.map (Tuple.first >> Tuple.first)
               |> Vb.result Vb.identity (Vb.fromVal program)
@@ -186,7 +186,7 @@ builtinEnv =
     ) <| Just <| twoArgsUpdate "__evaluate__" <| \oldpEnv oldProgram oldValr newValr d ->
           case (Vu.list (Vu.tuple2 Vu.string Vu.identity) oldpEnv, oldProgram.v_) of
             (Ok env, VBase (VString s)) ->
-              let parsed = Syntax.parser Syntax.Elm s in
+              let parsed = Syntax.parser Syntax.Leo s in
               case parsed of
                  Err err -> let (error, reverser) = ParserUtils.showErrorReversible err in
                   case Vu.result Vu.identity newValr of
@@ -212,7 +212,7 @@ builtinEnv =
                            )
                          |> Results.andThen (\(newEnv, newProg) ->
                            let _ = Debug.log "#1" () in
-                           let x = Syntax.unparser Syntax.Elm newProg.val in
+                           let x = Syntax.unparser Syntax.Leo newProg.val in
                            let newProgram = replaceV_ oldProgram <| VBase <| VString x in
                            let newEnvValue = newEnv.val |> Vb.list (Vb.tuple2 Vb.string Vb.identity) (Vb.fromVal oldpEnv) in
                            let newEnvDiffs = newEnv.changes
@@ -244,7 +244,7 @@ builtinEnv =
                 let xyEnv = [("x", fun),("y", input)] in
                 let xyExp = (withDummyExpInfo <| EApp space0 (eVar "x") [eVar "y"] SpaceApp space0) in
                 let oldOut = case Utils.dictGetFirst ["oldOutput", "oldOut", "outputOld"] d of
-                  Nothing -> Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm xyEnv xyExp |> Result.map (\((v, _), _) -> v)
+                  Nothing -> Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo xyEnv xyExp |> Result.map (\((v, _), _) -> v)
                   Just v -> Ok v
                 in
                 case oldOut of
@@ -494,10 +494,10 @@ twoArgsUpdate msg fun args a b c = case args of
     [left, right] -> fun left right a b c
     _ -> Err <| msg ++ " takes 2 arguments, got " ++ toString (List.length args)
 
-eval env e = Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm env e |> Result.map Tuple.first
+eval env e = Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo env e |> Result.map Tuple.first
 update updateStack = Update.update LazyList.Nil LazyList.Nil updateStack
 
-preludeEnvRes = Result.map Tuple.second <| (Eval.eval [] (Eval.evalContext Eval.withParentsProvenanceWidgets Syntax.Elm builtinEnv [] Parser.prelude))
+preludeEnvRes = Result.map Tuple.second <| (Eval.eval [] (Eval.evalContext Eval.withParentsProvenanceWidgets Syntax.Leo builtinEnv [] Parser.prelude))
 preludeEnv = Utils.fromOk "Eval.preludeEnv" <| preludeEnvRes
 
 run : Syntax -> Exp -> Result String (Val, Widgets)
@@ -858,14 +858,14 @@ compile e = Debug.crash "not implemented compile yet"
 
 parse: String -> Result String Exp
 parse s =
-  Syntax.parser Syntax.Elm s
+  Syntax.parser Syntax.Leo s
   |> Result.mapError ParserUtils.showError
 
 unparse: Exp -> String
-unparse e = Syntax.unparser Syntax.Elm e
+unparse e = Syntax.unparser Syntax.Leo e
 
 evalExp: Exp -> Result String Val
-evalExp exp = run Syntax.Elm exp |> Result.map Tuple.first
+evalExp exp = run Syntax.Leo exp |> Result.map Tuple.first
 
 updateExp: Exp -> Val -> Val -> Results String Exp
 updateExp oldExp oldVal newVal =
@@ -906,10 +906,10 @@ nativeToVal vb v =
 
 evaluate: String -> Result String Val
 evaluate s =
-  Syntax.parser Syntax.Elm s
+  Syntax.parser Syntax.Leo s
   |> Result.mapError ParserUtils.showError
   |> Result.andThen (\exp ->
-    run Syntax.Elm exp
+    run Syntax.Leo exp
   ) |> Result.map Tuple.first
 
 api = {

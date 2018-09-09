@@ -1100,13 +1100,13 @@ menuBar model =
           , [ hoverMenu "Syntax"
                 [ simpleTextRadioButton
                     ( case model.syntax of
-                        Syntax.Elm ->
+                        Syntax.Leo ->
                           True
                         _ ->
                           False
                     )
-                    "Elm"
-                    (Controller.msgSetSyntax Syntax.Elm)
+                    "Leo"
+                    (Controller.msgSetSyntax Syntax.Leo)
                 , simpleTextRadioButton
                     ( case model.syntax of
                         Syntax.Little ->

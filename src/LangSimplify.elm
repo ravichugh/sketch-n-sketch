@@ -22,7 +22,7 @@ import Lang exposing (..)
 import LangTools exposing (..)
 import LangUnparser exposing (..)
 import LangUtils exposing (..)
-import ElmParser as Parser
+import LeoParser as Parser
 import Utils
 
 

@@ -82,7 +82,7 @@ import Types2
 import Ace
 import ParserUtils exposing (showError)
 -- import FastParser exposing (freshen)
-import ElmParser as Parser
+import LeoParser as Parser
 import LangTools
 import LangUtils
 import LangSimplify
@@ -1146,7 +1146,7 @@ issueCommandBasedOnCaption kind oldModel newModel =
         "Export Code" ->
           -- not just using prettyFilename WithExtension, because that
           -- function handles templates and local differently
-          let ext = if newModel.syntax == Syntax.Elm then ".elm" else ".little" in
+          let ext = if newModel.syntax == Syntax.Leo then ".elm" else ".little" in
           FileHandler.sendMessage <|
             Download
               (Model.prettyFilename WithoutExtension newModel ++ ext)

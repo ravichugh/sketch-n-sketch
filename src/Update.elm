@@ -46,8 +46,8 @@ import Char
 import LangParserUtils exposing (isSpace)
 import Types
 
-unparse = Syntax.unparser Syntax.Elm
-unparsePattern = Syntax.patternUnparser Syntax.Elm
+unparse = Syntax.unparser Syntax.Leo
+unparsePattern = Syntax.patternUnparser Syntax.Leo
 
 updateEnv: Env -> Ident -> Val -> VDiffs -> UpdatedEnv
 updateEnv env k newValue modif =
@@ -207,7 +207,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                   ) sp i revElems tlToCollect origTail newValuesTail
                                _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from:\n" ++
                                  "diffs = " ++ toString diffs ++
-                                 "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elems |> String.join ",") ++
+                                 "\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elems |> String.join ",") ++
                                  "\noriginalValues = " ++ (List.map valToString origVals |> String.join ",") ++
                                  "\nnewValues = " ++  (List.map valToString newOutVals |> String.join ",")
 
@@ -311,13 +311,13 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                  updateDiffs (i+1) collectedUpdatedEnv (f sp hdElem :: revElems) ((i, ListElemUpdate (EConstDiffs EOnlyWhitespaceDiffs))::revEDiffs) tlToCollect Nothing origTail newValuesTail ldiffs
                                _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to update from (whitespace only):\n" ++
                                                                   "ldiffs = " ++ toString vldiffs ++
-                                                                  "\nelems = [" ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elems |> String.join ",") ++
+                                                                  "\nelems = [" ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elems |> String.join ",") ++
                                                                   "]\noriginalValues = [" ++ (List.map valToString origVals |> String.join ",") ++
                                                                   "]\nnewValues = [" ++  (List.map valToString newOutVals |> String.join ",") ++ "]"
                          {- _ -> UpdateCriticalError <| "[internal error] Unexpected missing elements to propagate ldiffs:\n" ++
                                    "ldiffs = " ++ toString ldiffs ++
                                    ",\ni=" ++ toString i ++
-                                   ",\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Elm ex) elemsToCollect |> String.join ",") ++
+                                   ",\nelems = " ++ (List.map (\(ws, ex) -> ws.val ++ Syntax.unparser Syntax.Leo ex) elemsToCollect |> String.join ",") ++
                                    ",\noriginalValues = " ++ (List.map valToString originalValues |> String.join ",") ++
                                    ",\nnewValues = " ++  (List.map valToString newValues |> String.join ",") -}
                in updateDiffs 0 (UpdatedEnv.original env) [] [] elems Nothing origVals newOutVals vldiffs
@@ -759,8 +759,8 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                  let finalChanges = newRewriting.changes |> Maybe.map (UpdateUtils.flattenFirstEChildDiffs arity) in
                                  let finalExp = ret <| EApp sp0 newE1 (newEsToEval ++ newEsForLater) appType sp1 in
                                  updateResult newUpdatedEnv <| UpdatedExp finalExp finalChanges
-                               e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm innerApp
-                           e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Elm newRewriting.val
+                               e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Leo innerApp
+                           e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ Syntax.unparser Syntax.Leo newRewriting.val
                        )
                      else if arity > nAvailableArgs then  -- Rewrite using eta-expansion.
                        let convertedBody = replaceE__ e1 <|
@@ -783,7 +783,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                  let finalChanges = newUpdatedBody.changes in
                                  updateResult newUpdatedEnv <| UpdatedExp finalExp finalChanges
                                else UpdateFails "Cannot modify the definition of a built-in function"
-                             _ -> UpdateCriticalError <| "[internal error] expected EApp, got" ++ Syntax.unparser Syntax.Elm e
+                             _ -> UpdateCriticalError <| "[internal error] expected EApp, got" ++ Syntax.unparser Syntax.Leo e
                      else -- Right arity
                        case List.map (doEvalw env) e2s |> Utils.projOk of
                          Err s       -> UpdateCriticalError s
@@ -919,7 +919,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                  DictFromList ->
                    case (vs, opArgs) of
                      ([keyValuesList], [keyValuesListE]) ->
-                       case Vu.list (Vu.tuple2 (Vu.dup Vu.identity (LangUtils.valToDictKey Syntax.Elm)) Vu.identity) keyValuesList of
+                       case Vu.list (Vu.tuple2 (Vu.dup Vu.identity (LangUtils.valToDictKey Syntax.Leo)) Vu.identity) keyValuesList of
                          Err msg -> UpdateCriticalError <| "Expected a list of key/values, got " ++ msg ++ " for " ++ valToString keyValuesList
                          Ok listKeyDictKeyValues ->
                             case (newVal.v_, diffs) of
@@ -935,7 +935,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                 let (finalListRev, numberAdded) = Dict.foldl (\k v (newListRev, numberAdded) ->
                                       case v of
                                         VDictElemInsert -> case Dict.get k newDict of
-                                          Just newV -> case dictKeyToVal Syntax.Elm k of
+                                          Just newV -> case dictKeyToVal Syntax.Leo k of
                                             Ok thekey ->  ((thekey, newV)::newListRev, numberAdded + 1)
                                             Err msg -> Debug.crash <| "Could not get a key out of " ++ toString k ++ " because " ++ msg
                                           _ -> Debug.crash <| "Unexpected VictElemInsert of " ++ toString k ++ " but this key was not found in the updating dictionary " ++ valToString newVal
@@ -953,7 +953,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                  DictGet ->
                    case vs of
                      [key, dict] ->
-                       case valToDictKey Syntax.Elm key of
+                       case valToDictKey Syntax.Leo key of
                          Err msg -> UpdateCriticalError <| "Could not convert this to a dictionary key: " ++ valToString key
                          Ok dictKey ->
                            case dict.v_ of
@@ -1002,7 +1002,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                  DictRemove ->
                    case vs of
                      [key, dict] ->
-                       case valToDictKey Syntax.Elm key of
+                       case valToDictKey Syntax.Leo key of
                          Err msg -> UpdateCriticalError <| "Could not convert this to a dictionary key: " ++ valToString key
                          Ok dictKey ->
                            case dict.v_ of
@@ -1042,7 +1042,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                  DictInsert ->
                    case (vs, opArgs) of
                      ([key, insertedVal, dict], [keyE, insertedE, dictE]) ->
-                       case valToDictKey Syntax.Elm key of
+                       case valToDictKey Syntax.Leo key of
                          Err msg -> UpdateCriticalError <| "Could not convert this to a dictionary key: " ++ valToString key
                          Ok dictKey ->
                            case dict.v_ of
@@ -1084,7 +1084,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                    let default original =
                         case newVal.v_ of
                           VBase (VString s) ->
-                            case Syntax.parser Syntax.Elm s of
+                            case Syntax.parser Syntax.Leo s of
                               Err msg -> UpdateFails <| "Could not parse new output value '"++s++"' for ToStrExceptStr expression " ++ ParserUtils.showError msg ++ "\nOriginal value was " ++ valToString original
                               Ok parsed ->
                                 case doEvalw [] parsed of
@@ -1114,7 +1114,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                  ToStr      ->
                    case newVal.v_ of
                      VBase (VString s) ->
-                       case Syntax.parser Syntax.Elm s of
+                       case Syntax.parser Syntax.Leo s of
                          Err msg -> UpdateFails <| "Could not parse new output value '"++s++"' for ToStr expression. " ++ (ParserUtils.showError msg)
                          Ok parsed ->
                            case doEvalw [] parsed of
@@ -1145,7 +1145,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                      Err msg ->
                        UpdateCriticalError msg
                      Ok LazyList.Nil ->
-                       UpdateFails <| "No way to update computation" ++ Syntax.unparser Syntax.Elm e ++ " with " ++ valToString newVal ++ " (was" ++ valToString oldVal ++ ")"
+                       UpdateFails <| "No way to update computation" ++ Syntax.unparser Syntax.Leo e ++ " with " ++ valToString newVal ++ " (was" ++ valToString oldVal ++ ")"
                      Ok ll ->
                        updateOpMultiple "op" env opArgs (\newOpArgs -> ret <| EOp sp1 spo op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
 
@@ -1154,7 +1154,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
          Err msg -> UpdateCriticalError msg
          Ok ((inputVal, _), inputValEnv) ->
            case branchWithInversion env inputVal branches of
-             Nothing -> UpdateCriticalError <| "Match error: " ++ valToString inputVal ++ " on branches " ++ Syntax.unparser Syntax.Elm e
+             Nothing -> UpdateCriticalError <| "Match error: " ++ valToString inputVal ++ " on branches " ++ Syntax.unparser Syntax.Leo e
              Just ((branchEnv, branchExp), envValBranchBuilder) ->
                updateContinue "ECase" branchEnv branchExp [] oldVal newVal diffs <| \upUpdatedEnv upExp ->
                  let (newBranchUpdatedEnv, newInputVal, newInputValDiffs, nBranches, nBranchesDiffs) = envValBranchBuilder (upUpdatedEnv, upExp) in
@@ -1264,7 +1264,7 @@ updateDeclarations env prevLets (Declarations po types anns letexpsGroups) doUpd
                      let finalChanges = UpdateUtils.combineEChildDiffs <| [(0, newUpdatedE1.changes), (1, newUpdatedBody.changes)] in
                      updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
             Nothing ->
-              UpdateCriticalError <| strPos exp_.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
+              UpdateCriticalError <| strPos exp_.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Leo >> Utils.squish) p ++ " with " ++ strVal oldE1Val
  -}
 
 updateLetExps: {-Give me -} Env -> {- Give me -} PrevLets -> {- Give me -} GroupsOf LetExp ->
@@ -1358,7 +1358,7 @@ updateLetExps env prevLets letExps continue =
               groupPatterns recursion groupOldValues_ groupOldValues envWithE1s conssBuilder) -- Need to provide all closed variables because updateLetExp is tail-recursive.
           Nothing ->
               UpdateCriticalError <| strPos (groupPatterns |> Utils.head "update letexps" |> .start) ++ " could not match pattern " ++
-                (List.map (Syntax.patternUnparser Syntax.Elm >> Utils.squish) groupPatterns |> String.join ",") ++
+                (List.map (Syntax.patternUnparser Syntax.Leo >> Utils.squish) groupPatterns |> String.join ",") ++
                 " with " ++ (List.map valToString groupOldValues |> String.join ",")
 
 getFromPrevLetsOrEval: Vb.Vb -> PrevLets -> Pat -> Env -> Exp -> Result String (Val, PrevLets)
@@ -1776,7 +1776,7 @@ matchWithInversion (p,v) = case (p.val.p__, v.v_) of
                   case nextPts of
                     (_, _, k, _, _)::_ ->
                       (Dict.insert k newvdiff dTemp, nextPts, i)
-                    _ -> Debug.crash <| "Expected modification at index " ++ toString i ++ " but the list of patterns is " ++ Syntax.patternUnparser Syntax.Elm p
+                    _ -> Debug.crash <| "Expected modification at index " ++ toString i ++ " but the list of patterns is " ++ Syntax.patternUnparser Syntax.Leo p
                 ) (Dict.empty, pd, 0) |> \(d, _, _) -> d))
            in
            (newVal, newValDiff)
@@ -1862,7 +1862,7 @@ vConst   = val << VConst Nothing
 vList    = val << VList
 -- vDict    = val << VDict
 
-doEvalw = Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Elm
+doEvalw = Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo
 
 --------------------------------------------------------------------------------
 -- Updated value from changes through text-based value editor

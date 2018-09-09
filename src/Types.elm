@@ -4,7 +4,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import Pos exposing (..)
 import Info exposing (..)
-import ElmParser as Parser
+import LeoParser as Parser
 import LangUnparser exposing (unparse, unparsePat, unparseType)
 import Utils
 import Ace
@@ -113,7 +113,7 @@ identifiersEquivalent t1 t2 =
 
 valIsType val tipe =
   let unsupported msg =
-    Debug.crash <| "typing values against " ++ msg ++ " such as " ++ Syntax.typeUnparser Syntax.Elm tipe++ " is not supported"
+    Debug.crash <| "typing values against " ++ msg ++ " such as " ++ Syntax.typeUnparser Syntax.Leo tipe++ " is not supported"
   in
   case (val.v_, tipe.val) of
     (VConst _ _, TNum _)             -> True

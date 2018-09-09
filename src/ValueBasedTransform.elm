@@ -10,7 +10,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools exposing (..)
 import LangUtils exposing (..)
-import ElmParser as Parser
+import LeoParser as Parser
 import LangUnparser exposing (unparseWD, unparseWithIds)
 import Model
 import Eval
@@ -185,7 +185,7 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
 
 evalToSlateAndWidgetsResult : Exp -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
 evalToSlateAndWidgetsResult exp slideNumber movieNumber movieTime =
-  Model.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } exp -- Syntax is dummy, we throw away unparse code
+  Model.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Leo } exp -- Syntax is dummy, we throw away unparse code
   |> Result.map (\(val, widgets, _, slate, code) -> (slate, widgets))
 
 
@@ -800,7 +800,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 -- Build an abstraction where one feature is returned as function of the other selected features.
 buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   let unparse = Syntax.unparser syntax in
-  case Model.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we ignore unparsed code
+  case Model.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Leo } program of -- Syntax is dummy; we ignore unparsed code
     Err s -> []
     Ok (_, widgets, _, slate, _) ->
       ShapeWidgets.selectionsProximalDistalEIdInterpretations program slate widgets selectedFeatures selectedShapes selectedBlobs

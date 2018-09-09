@@ -377,11 +377,11 @@ matchApp replacementName argumentName =
 -- Returns the name of the application in this match application
 appMatchArg: Exp -> Result String String
 appMatchArg e = case eOpUnapply1 ToStrExceptStr e of
-   Nothing -> Err <| "Expected ToStrExceptStr, got " ++ Syntax.unparser Syntax.Elm e
+   Nothing -> Err <| "Expected ToStrExceptStr, got " ++ Syntax.unparser Syntax.Leo e
    Just inside -> case eAppUnapply1 inside of
-     Nothing  -> Err <| "In ToStrExceptStr, expected f x, got " ++ Syntax.unparser Syntax.Elm inside
+     Nothing  -> Err <| "In ToStrExceptStr, expected f x, got " ++ Syntax.unparser Syntax.Leo inside
      Just (r, a) -> case eVarUnapply a of
-       Nothing -> Err <| "In ToStrExceptStr (f x), expected x to be a variable name, got " ++ Syntax.unparser Syntax.Elm a
+       Nothing -> Err <| "In ToStrExceptStr (f x), expected x to be a variable name, got " ++ Syntax.unparser Syntax.Leo a
        Just s -> Ok s
 
 extractHeadTail: String -> List a -> ((a, List a) -> Result String e) -> Result String e
@@ -533,7 +533,7 @@ evalReplacement eval closureReplacementV gsmMatch =
   let localEnv = [(replacementName, closureReplacementV), (argumentName, matchVal)] in
   let localExp = matchApp replacementName argumentName in
   --let _ = Debug.log ("The new env is" ++ LangUtils.envToString localEnv) () in
-  --let _ = Debug.log ("The replacement body is" ++ Syntax.unparser Syntax.Elm localExp) () in
+  --let _ = Debug.log ("The replacement body is" ++ Syntax.unparser Syntax.Leo localExp) () in
   eval localEnv localExp |> Result.map Tuple.first
 
 evalRegexReplaceByIn: Regex.HowMany -> (Env -> Exp -> Result String (Val, Widgets))-> Val -> Val -> Val -> Result String (Val, Widgets)
@@ -676,9 +676,9 @@ concat joinName l =
 -- Use only within UpdateRegex. Supposes that it was a join [....]
 unconcat: Exp -> Maybe EDiffs -> Result String (List Exp, ListDiffs EDiffs)
 unconcat e mbdiffs = case eAppUnapply1 e of
-  Nothing -> Err <| "[internal error] Not a join [], instead " ++ Syntax.unparser Syntax.Elm e
+  Nothing -> Err <| "[internal error] Not a join [], instead " ++ Syntax.unparser Syntax.Leo e
   Just (_, l) -> case eListUnapply l of
-    Nothing -> Err <| "[internal error] Not a join [], instead " ++ Syntax.unparser Syntax.Elm e
+    Nothing -> Err <| "[internal error] Not a join [], instead " ++ Syntax.unparser Syntax.Leo e
     Just ls -> case mbdiffs of
       Just (EChildDiffs [(1, EListDiffs ld)]) -> Ok (ls, ld)
       Nothing -> Ok (ls, [])
@@ -827,7 +827,7 @@ recoverStringDiffs  recoverSubExpressionStringDiffs
   let aux: Int -> List Int ->            List Exp ->      ListDiffs EDiffs -> Results String (List (Int, Int, String)) -> Results String (List (Int, Int, String))
       aux  i      oldConcatenationStarts newConcatenation diffs               accRes =
     --let _ = Debug.log ("recoverStringDiffs.aux " ++ toString i ++ " " ++ toString oldConcatenationStarts ++ " " ++
-     -- (newConcatenation |> List.map (Syntax.unparser Syntax.Elm) |> String.join "") ++ " " ++ toString diffs ++ " " ++ toString accRes) () in
+     -- (newConcatenation |> List.map (Syntax.unparser Syntax.Leo) |> String.join "") ++ " " ++ toString diffs ++ " " ++ toString accRes) () in
     let currentDiff = case diffs of
        [] -> Nothing
        (j, d) :: tail -> if j > i then Nothing else Just (d, tail)
@@ -873,7 +873,7 @@ recoverStringDiffs  recoverSubExpressionStringDiffs
                 (_, []) -> Err "[Internal error] newConcatenation was empty"
                 (startOld::tlOld, updatedElem::tlNew) ->
                    case recoverSubStringsDiffs updatedElem |> Maybe.andThen (\k -> k d) of
-                     Nothing ->  Err <| "[Internal error] Cannot update something else than a string in regex join, got " ++ Syntax.unparser Syntax.Elm updatedElem
+                     Nothing ->  Err <| "[Internal error] Cannot update something else than a string in regex join, got " ++ Syntax.unparser Syntax.Leo updatedElem
                      Just concreteDiffs ->
                        Results.map (\acc -> acc ++ (concreteDiffs  |> offsetConcStr startOld)) accRes |>
                        aux (i + 1) tlOld tlNew diffTail

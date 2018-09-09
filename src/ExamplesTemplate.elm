@@ -24,7 +24,7 @@ module ExamplesGenerated exposing
 
 import Lang exposing (Exp, Val, Widget, Env)
 import FastParser
-import ElmParser
+import LeoParser
 import Eval
 import Utils
 import PreludeGenerated as Prelude
@@ -51,7 +51,7 @@ badPreludeTemplate = "Bad Prelude"
 
 makeExample = makeExample_ FastParser.parseE Syntax.Little
 
-makeLeoExample = makeExample_ ElmParser.parse Syntax.Elm
+makeLeoExample = makeExample_ LeoParser.parse Syntax.Leo
 
 makeExample_: (String -> Result Parser.Error Exp) -> Syntax.Syntax -> String -> String -> (String, (String, () -> Result String Example))
 makeExample_ parser syntax name s =

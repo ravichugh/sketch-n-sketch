@@ -1,10 +1,10 @@
-module ElmParser exposing
+module LeoParser exposing
   ( parse
   , builtInPrecedenceTable
   , builtInPatternPrecedenceTable
 
   -- All of these exports are copied from FastParser,
-  -- so that ElmParser can be a drop-in replacement
+  -- so that LeoParser can be a drop-in replacement
   -- and FasterParser can be deprecated soon.
   , parseT
   , preludeNotParsed
@@ -32,7 +32,7 @@ import Utils
 
 import Lang exposing (..)
 import Info exposing (..)
-import ElmLang
+import LeoLang
 
 -- import FastParser
 import PreludeGenerated as Prelude
@@ -514,7 +514,7 @@ symbolIdentifier =
       , source (symbol "|>")
       , source (symbol "::")
       , source (symbol "||")
-      , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|'))
+      , keep oneOrMore (\x -> LeoLang.isSymbol x && not (x == '|'))
       ]
 
 htmlAttributeSymbolIdentifier : ParserI Ident
@@ -524,7 +524,7 @@ htmlAttributeSymbolIdentifier =
       [ source (symbol "<|")
       , source (symbol "::")
       , source (symbol "||")
-      , keep oneOrMore (\x -> ElmLang.isSymbol x && not (x == '|' || x == '>' || x == '/'))
+      , keep oneOrMore (\x -> LeoLang.isSymbol x && not (x == '|' || x == '>' || x == '/'))
       ]
 
 
@@ -726,7 +726,7 @@ multilineEscapedElmExpression =
         (succeed (\wsToExp ->
           let exp = wsToExp space0 in
           (EOp space0 space1 (withInfo ToStrExceptStr exp.start exp.start) [
-            Expr <| withInfo (exp_ <| EParens space0 (Expr exp) ElmSyntax space0) exp.start exp.end] space0))
+            Expr <| withInfo (exp_ <| EParens space0 (Expr exp) LeoSyntax space0) exp.start exp.end] space0))
         |= tuple)
   ]
 
@@ -874,7 +874,7 @@ htmlToExp node =
               )
             )
     HTMLParser.HTMLComment commentStyle ->
-      fail <| "Line " ++ toString node.start.line ++ ": comments are not supported by Elm at this moment. Got " ++ HTMLParser.unparseNode node
+      fail <| "Line " ++ toString node.start.line ++ ": comments are not supported by Leo at this moment. Got " ++ HTMLParser.unparseNode node
     HTMLParser.HTMLListNodeExp e ->
       let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") node.start node.start in
       succeed <| withInfo (exp_ <| EApp space0 appendFun [
@@ -936,9 +936,9 @@ htmlliteral =
            (symbol "<")
            (oneOf [identifier, source <| symbol "@"])))
       |= HTMLParser.parseOneNode (HTMLParser.Interpolation
-        { attributevalue = inContext "HTML attribute value" << wrapWithSyntax ElmSyntax << (\apparg -> map always <| expressionWithoutGreater spaces 0 NoSpace)
-        , attributelist = inContext "HTML special attribute list" <| wrapWithSyntax ElmSyntax <| simpleExpression 0 NoSpace
-        , childlist = inContext "HTML special child list" << wrapWithSyntax ElmSyntax << (\spaceapparg ->
+        { attributevalue = inContext "HTML attribute value" << wrapWithSyntax LeoSyntax << (\apparg -> map always <| expressionWithoutGreater spaces 0 NoSpace)
+        , attributelist = inContext "HTML special attribute list" <| wrapWithSyntax LeoSyntax <| simpleExpression 0 NoSpace
+        , childlist = inContext "HTML special child list" << wrapWithSyntax LeoSyntax << (\spaceapparg ->
               oneOf [
                 variableExpression |> addSelections |> addParenthesizedParameters |> addRightApplications,
                 letBinding 0 NoSpace,
@@ -948,7 +948,7 @@ htmlliteral =
                 list
               ]
             )
-        , tagName = inContext "HTML special tag name" <| wrapWithSyntax ElmSyntax <| simpleExpression 0 NoSpace
+        , tagName = inContext "HTML special tag name" <| wrapWithSyntax LeoSyntax <| simpleExpression 0 NoSpace
         })) |> andThen htmlToExp)
 
 --------------------------------------------------------------------------------
@@ -2666,7 +2666,7 @@ parseT =
 --------------------------------------------------------------------------------
 
 -- The rest of this file is basically copied from FastParser,
--- so that ElmParser can be a drop-in replacement
+-- so that LeoParser can be a drop-in replacement
 -- and FasterParser can be deprecated soon.
 -- At that point, it will probably be nicer to move a bunch of
 -- these definitions elsewhere, maybe into Prelude directly.
@@ -2704,7 +2704,7 @@ sanitizeVariableName unsafeName =
         Ok k -> (Just msg, freshenClean 1 k)
         Err err -> --(Just "Prelude did not parse and 0 either", freshenClean 1 (withDummyExpInfo <| EConst space0 0 dummyLoc noWidgetDecl))
           Debug.crash <|
-            """ElmParser: "0" failed to parse?""" ++ ParserUtils.showError err
+            """LeoParser: "0" failed to parse?""" ++ ParserUtils.showError err
 
 preludeIds = allIds prelude
 

@@ -11,7 +11,7 @@ module LangTools exposing (..)
 -- (possibly defunct) relate attributes selection screen.
 
 import Lang exposing (..)
-import ElmParser
+import LeoParser
 import Utils
 import LangUnparser exposing (unparseWithIds)
 import Types
@@ -281,7 +281,7 @@ replaceConstsWithVars locIdToNewName exp =
 unfrozenLocIdsAndNumbers : Exp -> List (LocId, Num)
 unfrozenLocIdsAndNumbers exp =
   allLocsAndNumbers exp
-  |> List.filter (\((locId, annotation, _), n) -> annotation /= "!" && not (ElmParser.isPreludeLocId locId))
+  |> List.filter (\((locId, annotation, _), n) -> annotation /= "!" && not (LeoParser.isPreludeLocId locId))
   |> List.map (\((locId, _, _), n) -> (locId, n))
 
 
@@ -290,7 +290,7 @@ unfrozenLocIdsAndNumbers exp =
 frozenLocIdsAndNumbers : Exp -> List (LocId, Num)
 frozenLocIdsAndNumbers exp =
   allLocsAndNumbers exp
-  |> List.filter (\((locId, annotation, _), n) -> annotation == "!" || ElmParser.isPreludeLocId locId)
+  |> List.filter (\((locId, annotation, _), n) -> annotation == "!" || LeoParser.isPreludeLocId locId)
   |> List.map (\((locId, _, _), n) -> (locId, n))
 
 
@@ -2582,7 +2582,7 @@ type ExpressionBinding
 
 -- Too much recursion here, for some reason.
 preludeExpEnv: Dict Ident ExpressionBinding
-preludeExpEnv = expEnvAt_ ElmParser.prelude (expEId <| lastTopLevelExp ElmParser.prelude) |> Utils.fromJust_ "LangTools.preludeExpEnv"
+preludeExpEnv = expEnvAt_ LeoParser.prelude (expEId <| lastTopLevelExp LeoParser.prelude) |> Utils.fromJust_ "LangTools.preludeExpEnv"
 
 -- Return bindings to expressions (as best as possible) at EId
 expEnvAt : Exp -> EId -> Maybe (Dict Ident ExpressionBinding)
@@ -2689,7 +2689,7 @@ eidToMaybeCorrespondingArgumentPathedPatId program targetEId =
               EVar _ funcName ->
                 case resolveIdentifierToExp funcName (expEId appFuncExp) program of -- This is probably slow.
                   Just (Bound funcExp) ->
-                    case ((unwrapExp funcExp), ElmParser.isPreludeEId (expEId funcExp)) of
+                    case ((unwrapExp funcExp), LeoParser.isPreludeEId (expEId funcExp)) of
                       (EFun _ fpats _ _, False) ->
                         -- Allow partial application
                         tryMatchExpsPatsToPathsAtFunctionCall fpats argExps

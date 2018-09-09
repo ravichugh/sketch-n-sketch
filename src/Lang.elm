@@ -389,7 +389,7 @@ unExpr (Expr e) = e
 unwrapExp : Exp -> Exp__
 unwrapExp (Expr e) = e.val.e__
 
-type ParensStyle = Parens | LongStringSyntax | ElmSyntax | HtmlSyntax
+type ParensStyle = Parens | LongStringSyntax | LeoSyntax | HtmlSyntax
 
 type Hole
   = EEmptyHole
@@ -404,8 +404,8 @@ type Type_
   | TDict WS Type Type WS
   | TRecord WS (Maybe (Ident, WS {- | -})) (List (Maybe WS, {- , -} WS, Ident, WS{-:-}, Type)) WS {- }-}
   | TTuple WS (List Type) WS (Maybe Type) WS -- TODO: keep using only the encoding? if so, remove?
-  | TArrow WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
-  | TUnion WS (List Type) WS -- not used in the new ElmParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
+  | TArrow WS (List Type) WS -- not used in the new LeoParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
+  | TUnion WS (List Type) WS -- not used in the new LeoParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
   | TApp WS Type (List Type) ApplicationType
   | TVar WS Ident
   | TForall WS (List TPat) Type WS -- TODO this is not being used; remove?
@@ -3631,7 +3631,7 @@ firstNestedExp e =
       e
 
 --------------------------------------------------------------------------------
--- Fixing operators in Elm syntax
+-- Fixing operators in Leo syntax
 --------------------------------------------------------------------------------
 
 --fixOps : Exp -> Exp

@@ -1,6 +1,6 @@
 module Provenance exposing (..)
 
-import ElmParser as Parser
+import LeoParser as Parser
 import Lang exposing (..)
 import LangTools
 import Utils

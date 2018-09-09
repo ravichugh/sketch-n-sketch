@@ -15,9 +15,8 @@ import String
 import ImpureGoodies
 import Lang exposing (..)
 import ValUnparser exposing (strVal_, strOp, strLoc)
-import ElmUnparser
-import ElmParser as Parser
-import ElmLang
+import LeoParser as Parser
+import LeoLang
 import Syntax exposing (Syntax)
 import Types
 import Utils
@@ -181,7 +180,7 @@ getEvalStack: EvalOptions -> Syntax -> Env -> Backtrace -> Exp -> EvalStack
 getEvalStack options syntax env bt (Expr exp_ as e) =
   let e_start = exp_.start in
 
-  --let _ = Debug.log ("Evaluating " ++ (Syntax.unparser Syntax.Elm e)) () in
+  --let _ = Debug.log ("Evaluating " ++ (Syntax.unparser Syntax.Leo e)) () in
 
   -- Deeply tag value's children to say the child flowed through here.
   --
@@ -466,7 +465,7 @@ evalOp syntax env e bt opWithInfo es vs wss = let
   addProvenanceOk val_ = Ok (addProvenance val_)
   mkClosureOrError () =
     let vLength = List.length vs in
-    let nbArgs = ElmLang.arity opWithInfo in
+    let nbArgs = LeoLang.arity opWithInfo in
     if vLength >= nbArgs then error() else
     let vars = List.range 1 nbArgs |> List.map (\i -> Parser.implicitVarName ++ if (i == 1) then "" else toString i) in
     let (varsComputed, varsRemaining) = Utils.split vLength vars in
@@ -685,7 +684,7 @@ evalDeclarations options syntax env bt (Declarations  _ _ _ letexpsGroups) conti
              Just newEnv -> aux tail (widgets ++ newWidgets) newEnv
              _         -> errorWithBacktrace syntax bt <| (bt |> Utils.head "bt.first" |> (\(Expr exp) -> exp.start) |> strPos) ++
                "match error in deconstructing the value of " ++ (Utils.zip patterns values |> List.map (\(name, value) ->
-                 (Syntax.patternUnparser Syntax.Elm name) ++ " with " ++ valToString value
+                 (Syntax.patternUnparser Syntax.Leo name) ++ " with " ++ valToString value
                ) |> String.join "\n") in
        evalGroup [] [] [] expHead
   in aux letexpsGroups [] env
@@ -744,7 +743,7 @@ apply options syntax env bt bt_ (Expr exp_ as e) psLeft esLeft funcBody closureE
           Just newClosureEnv ->
             aux psLeft esLeft funcBody newClosureEnv (argVal::revArgVals) (Utils.reverseInsert argWs revArgWidgets)
           Nothing         ->
-            errorWithBacktrace syntax (e::bt) <| strPos exp_.start ++ " bad arguments to function, cannot match " ++ Syntax.patternUnparser Syntax.Elm p ++ " with " ++ Syntax.unparser Syntax.Elm e ++ "(evaluates to " ++ valToString argVal ++ ")" in
+            errorWithBacktrace syntax (e::bt) <| strPos exp_.start ++ " bad arguments to function, cannot match " ++ Syntax.patternUnparser Syntax.Leo p ++ " with " ++ Syntax.unparser Syntax.Leo e ++ "(evaluates to " ++ valToString argVal ++ ")" in
   aux psLeft esLeft funcBody closureEnv [] []
 
 

@@ -6,7 +6,7 @@
  ******************************************************************************/
 
 function setSyntax(syntax) {
-  if (syntax === "Elm") {
+  if (syntax === "Leo") {
     editor.getSession().setMode("ace/mode/elm");
   } else if (syntax === "Little") {
     editor.getSession().setMode("ace/mode/little");

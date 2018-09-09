@@ -25,9 +25,9 @@ import Utils
 
 type FileExtension
   = LittleFile
-  | ElmFile
+  | LeoFile
   | LittleIcon
-  | ElmIcon
+  | LeoIcon
 
 fileExtensionToString : FileExtension -> String
 fileExtensionToString fe =
@@ -35,13 +35,13 @@ fileExtensionToString fe =
     LittleFile ->
       "little"
 
-    ElmFile ->
+    LeoFile ->
       "elm"
 
     LittleIcon ->
       "licon"
 
-    ElmIcon ->
+    LeoIcon ->
       "eicon"
 
 fileExtensionFromString : String -> Maybe FileExtension
@@ -51,13 +51,13 @@ fileExtensionFromString s =
       Just LittleFile
 
     "elm" ->
-      Just ElmFile
+      Just LeoFile
 
     "licon" ->
       Just LittleIcon
 
     "eicon" ->
-      Just ElmIcon
+      Just LeoIcon
 
     _ ->
       Nothing
@@ -79,7 +79,7 @@ fileExtensionDecoder =
 
 iconExtensionPrecedences : List FileExtension
 iconExtensionPrecedences =
-  [ ElmIcon, LittleIcon ]
+  [ LeoIcon, LittleIcon ]
 
 --------------------------------------------------------------------------------
 -- Filenames
@@ -107,7 +107,7 @@ parseFilename : String -> Filename
 parseFilename s =
   let
     default =
-      { name = s, extension = ElmFile }
+      { name = s, extension = LeoFile }
   in
     case Utils.maybeLast (String.indexes "." s) of
       Just i ->

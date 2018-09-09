@@ -27,7 +27,7 @@ import LangTools exposing (..)
 import LangUtils exposing (..)
 import LangSimplify
 import LangUnparser exposing (unparseWithIds, expsEquivalent, patsEquivalent, unparseWithUniformWhitespace)
-import ElmParser as Parser
+import LeoParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
 import Model exposing
@@ -143,7 +143,7 @@ renamePat (scopeId, path) newName program =
       case LangTools.patToMaybeIdent pat of
         Just oldName ->
           let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in -- ScopeAreas are the outermost exp in which the variable might appear.
-          --let _ = Debug.log ("scopeAreas where to rename:" ++ (List.map (Syntax.unparser Syntax.Elm) scopeAreas |> String.join "\n;\n")) () in
+          --let _ = Debug.log ("scopeAreas where to rename:" ++ (List.map (Syntax.unparser Syntax.Leo) scopeAreas |> String.join "\n;\n")) () in
           let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map expEId in
           let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
           let newUseEIds = List.concatMap (LangTools.identifierUses newName) newScopeAreas |> List.map expEId in
@@ -310,7 +310,7 @@ pluck__ p e1 path =
         Debug.log "pluck index longer than head list of PList or EList" Nothing
 
     _ ->
-      let _ = Debug.log ("pluck_: bad pattern " ++ Syntax.patternUnparser Syntax.Elm p) path in
+      let _ = Debug.log ("pluck_: bad pattern " ++ Syntax.patternUnparser Syntax.Leo p) path in
       Nothing
 
 
@@ -1391,7 +1391,7 @@ insertPat__ (patToInsert, boundExp) p e1 path =
                , EList ews1 (List.map ((,) space0) (Utils.inserti i boundExp (Utils.listValues es)    |> imitateExpListWhitespace (Utils.listValues es))) ews2 Nothing ews3 )
                -- TODO whitespace before commas
         else
-          let _ = Debug.log "can't insert into this list (note: cannot insert on list tail)" (Syntax.patternUnparser Syntax.Elm p, Syntax.unparser Syntax.Elm e1, path) in
+          let _ = Debug.log "can't insert into this list (note: cannot insert on list tail)" (Syntax.patternUnparser Syntax.Leo p, Syntax.unparser Syntax.Leo e1, path) in
           Nothing
 
       ( PList pws1 ps pws2 maybePTail pws3
@@ -1424,7 +1424,7 @@ insertPat__ (patToInsert, boundExp) p e1 path =
                  EList ews1 es ews2 (Just newBoundExp) ews3)
               )
         else
-          let _ = Debug.log "can't insert into this list (note: cannot insert on list tail)" (Syntax.patternUnparser Syntax.Elm p, Syntax.unparser Syntax.Elm e1, path) in
+          let _ = Debug.log "can't insert into this list (note: cannot insert on list tail)" (Syntax.patternUnparser Syntax.Leo p, Syntax.unparser Syntax.Leo e1, path) in
           Nothing
 
       _ ->
@@ -2285,7 +2285,7 @@ tryReorderExps pathsToMove insertPath pathsToRemove exps =
   -- 3. remove exps as directed (when reordering arguments, this is used to kill empty lists created when all interior arguments are lifted to a higher level)
   case maybePathAfterPathsRemoved pathsToMove insertPath of
     Nothing ->
-      let _ = Debug.log ("can't insert at that path in " ++ String.join " " (List.map (Syntax.unparser Syntax.Elm) exps)) insertPath in
+      let _ = Debug.log ("can't insert at that path in " ++ String.join " " (List.map (Syntax.unparser Syntax.Leo) exps)) insertPath in
       Nothing
 
     Just realInsertPath ->
@@ -2670,7 +2670,7 @@ introduceVarTransformation_
     initGlobal = ([], []) -- List of expressions to insert
 
     initScope: (List Ident, ParensStyle)
-    initScope = (EvalUpdate.preludeEnv |> List.map Tuple.first, ElmSyntax)
+    initScope = (EvalUpdate.preludeEnv |> List.map Tuple.first, LeoSyntax)
 
   -- First pass: We collect all the definitions
   -- and abstract over variables that are not present at the target position.
@@ -3137,13 +3137,13 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
           -- Case 2.1: If target position is at the same level and boundExp free vars are the same at both locations (no recursive lifting needed), move the entire let. This will nicely preserve (def point @ [x y] [30 40])
           if List.member bindingLet (topLevelExps expToWrap) && List.all (
               \var -> List.member var freeVarsAtNewLocation) (List.concatMap freeVars bindingLetBoundExp) then
-            moveEquationsBeforeEId Syntax.Elm [(expEId bindingLet, 0)] (expEId expToWrap) originalProgram -- Syntax only used for generating description, which we throw away
+            moveEquationsBeforeEId Syntax.Leo [(expEId bindingLet, 0)] (expEId expToWrap) originalProgram -- Syntax only used for generating description, which we throw away
             |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
             |> Maybe.map (\(SynthesisResult {exp}) -> exp)
           else
             -- Case 2.2: Move just the definition needed.
             let pathedPatId = bindingPathedPatternIdForUniqueName mobileUniqueName bindingLet |> Utils.fromJust_ "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames" in
-            moveDefinitionsBeforeEId Syntax.Elm [pathedPatId] (expEId expToWrap) originalProgram -- Syntax only used for generating description, which we throw away
+            moveDefinitionsBeforeEId Syntax.Leo [pathedPatId] (expEId expToWrap) originalProgram -- Syntax only used for generating description, which we throw away
             |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
             |> Maybe.map (\(SynthesisResult {exp}) -> exp)
         in

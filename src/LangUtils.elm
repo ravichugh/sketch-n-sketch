@@ -197,15 +197,15 @@ valToExpFull copyFrom sp_ indent v =
           Dict.toList vs |> List.indexedMap (\i (key, value) ->
             let spaceComma = if i == 0 then ws "" else ws <| foldIndent "" indent in
             let spaceElem = ws " " in
-            (spaceComma, valToExp  spaceElem (increaseIndent indent) (replaceV_ v <| vTuple [dictKeyToVal Syntax.Elm key |> Utils.fromOk "valToExp", value])))
+            (spaceComma, valToExp  spaceElem (increaseIndent indent) (replaceV_ v <| vTuple [dictKeyToVal Syntax.Leo key |> Utils.fromOk "valToExp", value])))
           ) space0 Nothing space0] space0
     VFun name _ _ _ -> EVar sp name
 
 valToString: Val -> String
-valToString = Syntax.unparser Syntax.Elm << valToExp (ws "") (IndentSpace "")
+valToString = Syntax.unparser Syntax.Leo << valToExp (ws "") (IndentSpace "")
 
 logVal msg v = let _ = Debug.log (msg ++ ":" ++ valToString v) () in v
-logExp msg v = let _ = Debug.log (msg ++ ":" ++ Syntax.unparser Syntax.Elm v) () in v
+logExp msg v = let _ = Debug.log (msg ++ ":" ++ Syntax.unparser Syntax.Leo v) () in v
 logEnv msg exp env = let _ = Debug.log (msg ++ ":" ++ envToString (pruneEnv exp env)) () in env
 
 envToString: Env -> String
@@ -234,8 +234,8 @@ wsEqual: WS -> WS -> Bool
 wsEqual ws1 ws2 = ws1.val == ws2.val
 
 patEqual: Pat -> Pat -> Bool
-patEqual p1_ p2_ = --let _ = Debug.log "patEqual " (Syntax.patternUnparser Syntax.Elm p1_, Syntax.patternUnparser Syntax.Elm p2_) in
-  Syntax.patternUnparser Syntax.Elm p1_ == Syntax.patternUnparser Syntax.Elm p2_
+patEqual p1_ p2_ = --let _ = Debug.log "patEqual " (Syntax.patternUnparser Syntax.Leo p1_, Syntax.patternUnparser Syntax.Leo p2_) in
+  Syntax.patternUnparser Syntax.Leo p1_ == Syntax.patternUnparser Syntax.Leo p2_
 {--  case (p1_.val.p__, p2_.val.p__) of
   (PVar sp1 ident1 _,PVar sp2 ident2 _) -> wsEqual sp1 sp2 && ident1 == ident2
   (PConst sp1 num1, PConst sp2 num2)  -> wsEqual sp1 sp2 && num1 == num2
@@ -308,8 +308,8 @@ typeEqual ty1 ty2 = --let _ = Debug.log "typeEqual " (ty1, ty2) in
 
 expEqual: Exp -> Exp -> Bool
 expEqual e1_ e2_ =
-  --let _ = Debug.log "expEqual " (Syntax.unparser Syntax.Elm e1_, Syntax.unparser Syntax.Elm e2_) in
-  Syntax.unparser Syntax.Elm e1_ == Syntax.unparser Syntax.Elm e2_
+  --let _ = Debug.log "expEqual " (Syntax.unparser Syntax.Leo e1_, Syntax.unparser Syntax.Leo e2_) in
+  Syntax.unparser Syntax.Leo e1_ == Syntax.unparser Syntax.Leo e2_
 {--
   case ((unwrapExp e1_), (unwrapExp e2_)) of
   (EConst sp1 num1 _ _, EConst sp2 num2 _ _) -> wsEqual sp1 sp2 && num1 == num2

@@ -43,10 +43,10 @@ clean: remove_build_artifacts
 	cd ../build/out && rm -rf sns.js $(out_from_Native) $(out_from_ace-builds) viz.js img/*
 
 prelude:
-	../scripts/expandTemplate.py Prelude
+	python3 ../scripts/expandTemplate.py Prelude
 
 examples:
-	../scripts/expandTemplate.py Examples
+	python3 ../scripts/expandTemplate.py Examples
 
 lint:
 	scripts/lint # Just looks for unused vars for now, and only in files dirty in git.
@@ -58,11 +58,11 @@ loc:
 	wc -l \
     ../build/out/index.html ../build/out/main.css \
     Lang.elm LangSvg.elm Syntax.elm TopLevelExp.elm \
-		ElmLang.elm \
+		LeoLang.elm \
 		Info.elm Pos.elm \
 		ParserUtils.elm LangParserUtils.elm BinaryOperatorParser.elm \
     FastParser.elm LangUnparser.elm \
-		ElmParser.elm ElmUnparser.elm \
+		LeoParser.elm LeoUnparser.elm \
 		ValUnparser.elm \
     Types2.elm Eval.elm ShapeWidgets.elm \
     Solver.elm LocEqn.elm Sync.elm \

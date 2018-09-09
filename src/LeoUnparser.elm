@@ -1,4 +1,4 @@
-module ElmUnparser exposing
+module LeoUnparser exposing
   ( unparse
   , unparsePattern
   , unparseType -- Experimental
@@ -8,8 +8,8 @@ module ElmUnparser exposing
   )
 
 import Lang exposing (..)
-import ElmLang
-import ElmParser
+import LeoLang
+import LeoParser
 import LangParserUtils
 import BinaryOperatorParser
 import Utils
@@ -492,22 +492,22 @@ unparse e =
         ++ unparse functionBinding
       in
       case parameters of
-        (p::_) -> if pVarUnapply p == Just ElmParser.implicitVarName then
+        (p::_) -> if pVarUnapply p == Just LeoParser.implicitVarName then
           case (unwrapExp functionBinding) of
-            ECase wsBefore examinedExpression branches wsBeforeOf -> if eVarUnapply examinedExpression == Just ElmParser.implicitVarName then
+            ECase wsBefore examinedExpression branches wsBeforeOf -> if eVarUnapply examinedExpression == Just LeoParser.implicitVarName then
                 unparse (replaceE__ functionBinding <| ECase wsBefore (replaceE__ examinedExpression <| EVar space0 "") branches wsBeforeOf)
               else default ()
             ESelect _ selected wsBeforeDot wsAfterDot name ->
               let res = unparse  functionBinding in
-              if String.startsWith ElmParser.implicitVarName res then
-                wsBeforeFun.val ++ String.dropLeft (String.length ElmParser.implicitVarName) res
+              if String.startsWith LeoParser.implicitVarName res then
+                wsBeforeFun.val ++ String.dropLeft (String.length LeoParser.implicitVarName) res
               else
                 let _ = Debug.log ("Could not find the implicit var name at the start of '" ++ res ++ "' reverting to default") () in
                 default ()
             ERecord wsBefore Nothing (Declarations _ [] [] elems) wsBeforeEnd ->
               wsBeforeFun.val ++ "(" ++ String.repeat (List.length elems - 2) "," ++ ")"
             EOp wsBefore wsOp op args wsBeforeEnd ->
-              {-if ElmLang.arity op == List.length args then
+              {-if LeoLang.arity op == List.length args then
                 wsBefore.val ++
                 unparseOp op
               else-} -- Won't work correctly, e.G. (+) will be displayed as "+"
@@ -517,7 +517,7 @@ unparse e =
         _ -> default ()
 
     EApp wsBefore function arguments appType _ ->
-      -- Not just for help converting Little to Elm. Allows synthesis ot not have to worry about so many cases.
+      -- Not just for help converting Little to Leo. Allows synthesis ot not have to worry about so many cases.
       let unparseArg e =
         case (unwrapExp e) of
            EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
@@ -537,7 +537,7 @@ unparse e =
                      else argStr
                    in
                    currentRendering ++ mbWrapArg
-            -- NOTE: to help with converting Little to Elm
+            -- NOTE: to help with converting Little to Leo
             -- ++ String.concat (List.map unparse arguments)
         LeftApp lws ->
           case arguments of
@@ -574,7 +574,7 @@ unparse e =
             ++ unparseOp op
             ++ String.concat (List.map (\x -> wrapWithParensIfLessPrecedence OpRight e x (unparse x)) arguments)
       in
-        if ElmLang.isInfixOperator op then
+        if LeoLang.isInfixOperator op then
           case arguments of
             [ left, right ] ->
               wsBefore.val
@@ -676,7 +676,7 @@ unparse e =
         HtmlSyntax ->
           wsBefore.val
             ++ unparseHtmlNode innerExpression
-        ElmSyntax ->
+        LeoSyntax ->
            -- We just unparse the inner expression as regular parentheses
            -- This is normally never called from here.
           unparse innerExpression  --<| replaceE__ e <| EParens wsBefore innerExpression Parens wsAfter
@@ -738,7 +738,7 @@ getParametersBinding funArgStyle binding_  =
        (FunArgAsPats, EFun _ parameters functionBinding _) ->
          let default = (parameters, functionBinding) in
          case parameters of
-            [p] -> if pVarUnapply p == Just ElmParser.implicitVarName then
+            [p] -> if pVarUnapply p == Just LeoParser.implicitVarName then
                     ([], binding_)
               else default
             _ -> default
@@ -748,7 +748,7 @@ getParametersBinding funArgStyle binding_  =
   let strParametersDefault =
         String.concat (List.map unparsePattern parameters)
   in
-  let strParameters = --To help to convert from little to Elm
+  let strParameters = --To help to convert from little to Leo
      case (parameters, String.startsWith " " strParametersDefault) of
        (_::_, False) -> " " ++ strParametersDefault
        _             -> strParametersDefault
@@ -763,7 +763,7 @@ getTypeParametersBinding funArgStyle binding_  =
        (FunArgAsPats, TForall _ parameters functionBinding _) ->
          let default = (parameters, functionBinding) in
          case parameters of
-            [p] -> if tpVarUnapply p == Just ElmParser.implicitVarName then
+            [p] -> if tpVarUnapply p == Just LeoParser.implicitVarName then
                   ([], binding_)
               else default
             _ -> default
@@ -773,7 +773,7 @@ getTypeParametersBinding funArgStyle binding_  =
   let strParametersDefault =
         String.concat (List.map unparseTypePattern parameters)
   in
-  let strParameters = --To help to convert from little to Elm
+  let strParameters = --To help to convert from little to Leo
      case (parameters, String.startsWith " " strParametersDefault) of
        (_::_, False) -> " " ++ strParametersDefault
        _             -> strParametersDefault
@@ -797,7 +797,7 @@ multilineContentUnparse e = case (unwrapExp e) of
         let unwrapToStrExceptStr x =
           case eOpUnapply1 ToStrExceptStr x of
              Just arg ->
-               case eParensUnapplyIf ElmSyntax arg of
+               case eParensUnapplyIf LeoSyntax arg of
                Just arg ->
                  (arg, (unwrapExp arg))
                Nothing ->  (arg, (unwrapExp arg))
@@ -958,7 +958,7 @@ unparseAnyHtml e =
                 _ -> unparse e
               _ -> unparse e
         Nothing -> case (unwrapExp tag) of
-          EParens _ inner ElmSyntax _-> unparseHtmlNode e
+          EParens _ inner LeoSyntax _-> unparseHtmlNode e
           _ -> unparse e
     _ -> unparseHtmlChildList e
 
@@ -972,7 +972,7 @@ getExpPrecedence exp =
     EApp _ f _ (InfixApp) _        ->
       case (unwrapExp f) of
         EVar _ name ->
-          case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
+          case BinaryOperatorParser.getOperatorInfo name LeoParser.builtInPrecedenceTable of
             Nothing -> Nothing
             Just (associativity, precedence) -> Just precedence
         _ -> Nothing
@@ -983,10 +983,10 @@ getExpPrecedence exp =
         Just x -> Just 10
     EColonType _ _ _ _ _           -> Just -1
     EOp _ _ operator _ _ ->
-      case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
+      case BinaryOperatorParser.getOperatorInfo (unparseOp operator) LeoParser.builtInPrecedenceTable of
         Nothing -> Just 10
         Just (associativity, precedence) -> Just precedence
-    EParens _ e ElmSyntax _ -> getExpPrecedence e
+    EParens _ e LeoSyntax _ -> getExpPrecedence e
     _ -> Nothing
 
 getExpAssociativity: Exp -> Maybe BinaryOperatorParser.Associativity
@@ -998,13 +998,13 @@ getExpAssociativity exp =
     EApp _ f _ (InfixApp) _        ->
       case (unwrapExp f) of
         EVar _ name ->
-          case BinaryOperatorParser.getOperatorInfo name ElmParser.builtInPrecedenceTable of
+          case BinaryOperatorParser.getOperatorInfo name LeoParser.builtInPrecedenceTable of
             Nothing -> Nothing
             Just (associativity, precedence) -> Just associativity
         _ -> Nothing
     EColonType _ _ _ _ _           -> Just BinaryOperatorParser.Left
     EOp _ _ operator _ _ ->
-      case BinaryOperatorParser.getOperatorInfo (unparseOp operator) ElmParser.builtInPrecedenceTable of
+      case BinaryOperatorParser.getOperatorInfo (unparseOp operator) LeoParser.builtInPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just associativity
     _ -> Nothing
@@ -1041,11 +1041,11 @@ getPatPrecedence: Pat -> Maybe Int
 getPatPrecedence pat =
   case pat.val.p__ of
     PList _ _ _ (Just tail) _ ->
-      case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
+      case BinaryOperatorParser.getOperatorInfo "::" LeoParser.builtInPatternPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just precedence
     PAs _ _ _ _ ->
-      case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
+      case BinaryOperatorParser.getOperatorInfo "as" LeoParser.builtInPatternPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just precedence
     PColonType _ _ _ _ ->
@@ -1056,11 +1056,11 @@ getPatAssociativity: Pat -> Maybe BinaryOperatorParser.Associativity
 getPatAssociativity pat =
   case pat.val.p__ of
     PList _ _ _ (Just tail) _ ->
-      case BinaryOperatorParser.getOperatorInfo "::" ElmParser.builtInPatternPrecedenceTable of
+      case BinaryOperatorParser.getOperatorInfo "::" LeoParser.builtInPatternPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just associativity
     PAs _ _ _ _ ->
-      case BinaryOperatorParser.getOperatorInfo "as" ElmParser.builtInPatternPrecedenceTable of
+      case BinaryOperatorParser.getOperatorInfo "as" LeoParser.builtInPatternPrecedenceTable of
         Nothing -> Nothing
         Just (associativity, precedence) -> Just associativity
     _ -> Nothing

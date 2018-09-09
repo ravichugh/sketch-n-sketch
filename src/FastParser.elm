@@ -1295,7 +1295,7 @@ parseE = parseE_ freshen
 --   )
 
 parse = parseE
-  -- so that FastParser and ElmParser (eventually) have same interface
+  -- so that FastParser and LeoParser (eventually) have same interface
 
 parseT : String -> Result Error Type
 parseT = run typ

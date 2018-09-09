@@ -24,7 +24,7 @@ import LangSvg
 import Types
 import Blobs exposing (..)
 import Model exposing (..)
-import ElmParser as Parser
+import LeoParser as Parser
 import LangTools
 import LangUnparser
 import StaticAnalysis

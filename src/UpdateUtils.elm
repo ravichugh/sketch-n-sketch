@@ -14,7 +14,7 @@ import Set exposing (Set)
 import Pos exposing (Pos)
 import ValBuilder as Vb
 import ValUnbuilder as Vu
-import ElmUnparser
+import LeoUnparser
 import ImpureGoodies exposing (nativeDict, nativeIntDict)
 import Array
 import Char
@@ -23,7 +23,7 @@ import LangParserUtils exposing (isSpace)
 import ParserUtils
 
 bvToString: EBaseVal -> String
-bvToString b = Syntax.unparser Syntax.Elm <| withDummyExpInfo <| EBase space0 <| b
+bvToString b = Syntax.unparser Syntax.Leo <| withDummyExpInfo <| EBase space0 <| b
 
 splitRegex = Regex.regex "\\b|(?=[-\\]\"'\\[\\)\\(,><\\\\])"
 
@@ -44,19 +44,19 @@ diffStringPositions initialPosition s1 s2 =
 
 diffExp: Exp -> Exp -> String --Summary in strings
 diffExp e1 e2 =
-   let s1 = Syntax.unparser Syntax.Elm e1 in
-   let s2 = Syntax.unparser Syntax.Elm e2 in
+   let s1 = Syntax.unparser Syntax.Leo e1 in
+   let s2 = Syntax.unparser Syntax.Leo e2 in
    diffString s1 s2
 
 diffExpWithPositions: Exp -> Exp -> (String, List Exp)
 diffExpWithPositions e1 e2 =
-   let s1 = Syntax.unparser Syntax.Elm e1 in
-   let s2 = Syntax.unparser Syntax.Elm e2 in
+   let s1 = Syntax.unparser Syntax.Leo e1 in
+   let s2 = Syntax.unparser Syntax.Leo e2 in
    diffStringPositions (Pos 1 1) s1 s2
 
 diffVals: List Val -> List Val -> List (DiffChunk (List Val))
 diffVals before after =
-  let vToString = Syntax.unparser Syntax.Elm << valToExp (ws "") InlineSpace in
+  let vToString = Syntax.unparser Syntax.Leo << valToExp (ws "") InlineSpace in
   let beforeStrings = List.map (\v -> (v, vToString v)) before in
   let afterStrings = List.map (\v -> (v, vToString v)) after in
   let diffRaw= diff Tuple.second beforeStrings afterStrings in
@@ -997,7 +997,7 @@ vClosureDiffsToString indent origEnv origBody modifEnv modifBody diffEnv maybeDi
 
 eDiffsToString: String -> Exp -> Exp -> EDiffs -> String
 eDiffsToString indent origExp modifExp ediff =
-  eDiffsToStringPositions ElmSyntax indent (Pos 1 1, (0, 0)) origExp modifExp ediff |> Tuple.first
+  eDiffsToStringPositions LeoSyntax indent (Pos 1 1, (0, 0)) origExp modifExp ediff |> Tuple.first
 
 -- (p, (r, c)) = On the original position p, it's like if the user pressed r times ENTER ( and added c characters
 -- If c is negative, the user pressed -c times the backspace key
@@ -1073,8 +1073,8 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
   let aux: Int -> LastEdit -> Pos ->  List (WS, Exp) -> List (WS, Exp) -> ListDiffs EDiffs -> (String, List Exp) -> (String, ((LastEdit, Pos), List Exp))
       aux  i      lastEdit    lastPos original          modifieds         diffs               (accStr, accList) =
     --let _ = Debug.log ("listDiffsToString.aux: i=" ++ toString i ++ ", lastEdit = " ++ toString lastEdit ++ ", lastPos = " ++ toString lastPos ++
-    --   ", original = " ++ Syntax.unparser Syntax.Elm (eListWs original Nothing) ++ ", modifieds = " ++
-    --   Syntax.unparser Syntax.Elm (eListWs modifieds Nothing) ++ ", diffs=" ++ toString diffs ++
+    --   ", original = " ++ Syntax.unparser Syntax.Leo (eListWs original Nothing) ++ ", modifieds = " ++
+    --   Syntax.unparser Syntax.Leo (eListWs modifieds Nothing) ++ ", diffs=" ++ toString diffs ++
     --   ", acc=" ++ toString accStr ++ ", accList=" ++ toString accList) () in
     case diffs of
        [] -> (accStr, ((lastEdit, lastPos), accList))
@@ -1085,7 +1085,7 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
           let newLastPos = Utils.maybeLast originalDropped |> flip Utils.maybeWithLazyDefault ( \_ ->
                Debug.crash <| "Inconsistent diffs at index " ++ toString i ++ " in listDiffsToStrings2 " ++ toString renderingStyle ++ " " ++
                 toString structName ++ " _ " ++ toString indent ++ " " ++ toString lastEdit ++ " " ++ toString lastPos ++ " " ++
-                Syntax.unparser Syntax.Elm (eListWs  originals_ Nothing) ++ " " ++ Syntax.unparser Syntax.Elm (eListWs  modifieds_ Nothing)  ++ " " ++ toString diffs_
+                Syntax.unparser Syntax.Leo (eListWs  originals_ Nothing) ++ " " ++ Syntax.unparser Syntax.Leo (eListWs  modifieds_ Nothing)  ++ " " ++ toString diffs_
             ) |> Tuple.second |> (\(Expr e) -> e.end) in
           aux j lastEdit newLastPos  (List.drop count original) (List.drop count modifieds) diffs (accStr, accList)
         else
@@ -1148,8 +1148,8 @@ listDiffsToString2 renderingStyle structName elementDisplay     indent    lastEd
 stringDiffsToString2: ParensStyle -> String -> LastEdit -> Pos   -> String -> String -> String -> List StringDiffs -> (String, ((LastEdit, Pos), List Exp))
 stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar original  modified  diffs =
   let renderChars = case renderingStyle of
-     LongStringSyntax -> ElmUnparser.unparseLongStringContent
-     HtmlSyntax -> ElmUnparser.unparseHtmlTextContent
+     LongStringSyntax -> LeoUnparser.unparseLongStringContent
+     HtmlSyntax -> LeoUnparser.unparseHtmlTextContent
      _ -> ParserUtils.unparseStringContent quoteChar
   in
   let initialLine = lastPos.line in
@@ -1220,8 +1220,8 @@ tupleDiffsToString2  renderingStyle indent    lastEdit    originalChildren modif
               (accStr ++ incAcc,  accList ++ newExps) |>
                 aux (i + 1) newLastEdit tailOriginal tailModified diffsTail
             _ -> ("[Internal error] Expcted non-empty " ++ "expression" ++
-                ", diffs = " ++ toString childDiffs ++ ", original children = " ++ (List.map (Syntax.unparser Syntax.Elm) originalChildren |> String.join ",") ++
-                ", modified children: " ++ (List.map (Syntax.unparser Syntax.Elm) modifiedChildren |> String.join ""), (lastEdit, []))
+                ", diffs = " ++ toString childDiffs ++ ", original children = " ++ (List.map (Syntax.unparser Syntax.Leo) originalChildren |> String.join ",") ++
+                ", modified children: " ++ (List.map (Syntax.unparser Syntax.Leo) modifiedChildren |> String.join ""), (lastEdit, []))
         else
           Debug.crash <| "Changes does not match the expression"
   in
@@ -1235,9 +1235,9 @@ tupleDiffsToString2  renderingStyle indent    lastEdit    originalChildren modif
 eDiffsToStringPositions: ParensStyle -> String ->  LastEdit -> Exp ->          Exp ->         EDiffs -> (String, ((LastEdit, Pos), List Exp))
 eDiffsToStringPositions renderingStyle  indent     lastEdit    (Expr origExp) (Expr modifExp) ediff =
   let renderExp = case renderingStyle of
-     --LongStringSyntax -> ElmUnparser.unparseAnyLongString
-     HtmlSyntax -> ElmUnparser.unparseAnyHtml
-     _ -> Syntax.unparser Syntax.Elm
+     --LongStringSyntax -> LeoUnparser.unparseAnyLongString
+     HtmlSyntax -> LeoUnparser.unparseAnyHtml
+     _ -> Syntax.unparser Syntax.Leo
   in
   --let _ = Debug.log ("eDiffsToStringPositions: lastEdit = " ++ toString lastEdit) () in
   --let _ = Debug.log ("eDiffsToStringPositions: origExp.start = " ++ toString origExp.start) () in
@@ -1766,9 +1766,9 @@ defaultEDiffs e1 e2 =
        defaultStringDiffs s1 s2 |> Results.map (Maybe.map EStringDiffs)
     (EBase _ x, EBase _ y) -> if x == y then ok1 <| Just <| EConstDiffs EAnyDiffs else ok1 <| Nothing
     (EList _ e1s _ Nothing _, EList _ e2s _ Nothing _) ->
-      defaultListDiffs (Syntax.unparser Syntax.Elm) (\_ -> Nothing) defaultEDiffs (Utils.listValues e1s) (Utils.listValues e2s) |> Results.map (Maybe.map EListDiffs)
+      defaultListDiffs (Syntax.unparser Syntax.Leo) (\_ -> Nothing) defaultEDiffs (Utils.listValues e1s) (Utils.listValues e2s) |> Results.map (Maybe.map EListDiffs)
     (_, _) ->
-      defaultTupleDiffs (Syntax.unparser Syntax.Elm) defaultEDiffs (childExps e1) (childExps e2) |> Results.map (Maybe.map EChildDiffs)
+      defaultTupleDiffs (Syntax.unparser Syntax.Leo) defaultEDiffs (childExps e1) (childExps e2) |> Results.map (Maybe.map EChildDiffs)
 
 -- Assume that the lists are always aligned
 autoMergeTuple: (o -> a -> a -> a) -> List o -> List a -> List a -> List a
@@ -1973,8 +1973,8 @@ mergeListDiffs submerger l1_ l2_ =
 
 mergeExp: Exp -> Exp -> EDiffs -> Exp -> EDiffs -> (Exp, EDiffs)
 mergeExp o e1 ediff1 e2 ediff2 =
-  --let _ = Debug.log ("mergeExp "  ++ Syntax.unparser Syntax.Elm o ++ " " ++ Syntax.unparser Syntax.Elm e1 ++ " " ++ toString ediff1 ++
-  --   " " ++ Syntax.unparser Syntax.Elm e2 ++ " " ++ toString ediff2) () in
+  --let _ = Debug.log ("mergeExp "  ++ Syntax.unparser Syntax.Leo o ++ " " ++ Syntax.unparser Syntax.Leo e1 ++ " " ++ toString ediff1 ++
+  --   " " ++ Syntax.unparser Syntax.Leo e2 ++ " " ++ toString ediff2) () in
   case (ediff1, ediff2) of
     (EConstDiffs EAnyDiffs, EConstDiffs EOnlyWhitespaceDiffs) ->
       (e1, ediff1)
@@ -1996,8 +1996,8 @@ mergeExp o e1 ediff1 e2 ediff2 =
              ((wso, finale), finald)) x l1 ld1 l2 ld2
            in
            (replaceE__ o <| EList sp0 finalelems sp1 Nothing sp2, EListDiffs finaldiff)
-        _ -> Debug.crash <| "unexpected EListDiffs without lists: " ++ Syntax.unparser Syntax.Elm o ++ ", " ++
-             Syntax.unparser Syntax.Elm e1 ++ ", " ++ Syntax.unparser Syntax.Elm e2
+        _ -> Debug.crash <| "unexpected EListDiffs without lists: " ++ Syntax.unparser Syntax.Leo o ++ ", " ++
+             Syntax.unparser Syntax.Leo e1 ++ ", " ++ Syntax.unparser Syntax.Leo e2
     (EChildDiffs cd1, EChildDiffs cd2) ->
       case (childExpsExtractors o, childExpsExtractors e1, childExpsExtractors e2) of
         ((os, oBuild), (e1s, e1sBuild), (e2s, e2sBuild)) ->

@@ -1,7 +1,7 @@
 module ShapeWidgets exposing (..)
 
 import Lang exposing (..)
-import ElmParser as Parser
+import LeoParser as Parser
 import LangUnparser
 import LangSvg exposing (RootedIndexedTree, IndexedTree, NodeId, ShapeKind, Attr, AVal)
 import Provenance

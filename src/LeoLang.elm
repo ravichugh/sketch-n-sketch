@@ -1,4 +1,4 @@
-module ElmLang exposing
+module LeoLang exposing
   ( symbols
   , isSymbol
   , isInfixOperator

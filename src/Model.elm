@@ -2,7 +2,7 @@ module Model exposing (..)
 
 import Updatable exposing (Updatable)
 import Lang exposing (..)
-import ElmParser
+import LeoParser
 import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
@@ -1235,7 +1235,7 @@ initColorScheme : ColorScheme
 initColorScheme = Light
 
 initTemplate =
-  case ElmParser.preludeNotParsed of
+  case LeoParser.preludeNotParsed of
     Nothing -> Examples.initTemplate
     Just msg -> Examples.badPreludeTemplate
 
@@ -1244,7 +1244,7 @@ loadTemplate name =
   if name /= Examples.badPreludeTemplate then
     theTemplate
   else
-    case ElmParser.preludeNotParsed of
+    case LeoParser.preludeNotParsed of
       Nothing -> theTemplate
       Just msg ->
         let _ = Debug.log "error in template" () in
@@ -1371,11 +1371,11 @@ initModel =
     , needsSave     = False
     , lastSaveState = Nothing
     , autosave      = False
-    , filename      = { name = "", extension = File.ElmFile }
+    , filename      = { name = "", extension = File.LeoFile }
     , fileIndex     = []
     , dialogBoxes   = Set.empty
     , filenameInput = ""
-    , fileToDelete  = { name = "", extension = File.ElmFile }
+    , fileToDelete  = { name = "", extension = File.LeoFile }
     , pendingFileOperation = Nothing
     , fileOperationConfirmed = False
     , icons = Dict.empty
@@ -1418,7 +1418,7 @@ initModel =
     , htmlEditorString = Nothing
     , updatedValue = Nothing
     , shapeUpdatesViaZones = Dict.empty
-    , syntax = Syntax.Elm
+    , syntax = Syntax.Leo
     , codeEditorMode = CEText
     , deuceOverlayCache = Nothing
     , doTypeChecking = False

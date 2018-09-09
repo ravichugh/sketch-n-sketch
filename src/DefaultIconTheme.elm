@@ -15,7 +15,7 @@ icons =
     , ("lambda", lambda)
     ]
 
--- TODO switch these to Elm syntax
+-- TODO switch these to Leo syntax
 -- TODO maybe build them into ExamplesTemplate from standalone examples/ files
 
 cursor = """

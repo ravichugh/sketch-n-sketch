@@ -41,7 +41,7 @@ updatedExpToString e ue =
 
 updatedExpToStringWithPositions: Exp -> UpdatedExp -> (String, List Exp)
 updatedExpToStringWithPositions e ue =
-  ue.changes |> Maybe.map (UpdateUtils.eDiffsToStringPositions ElmSyntax "" (Pos 0 0, (0, 0)) e ue.val >> (\(msg, (_, l)) -> (msg, l))) |> Maybe.withDefault ("<no change>", [])
+  ue.changes |> Maybe.map (UpdateUtils.eDiffsToStringPositions LeoSyntax "" (Pos 0 0, (0, 0)) e ue.val >> (\(msg, (_, l)) -> (msg, l))) |> Maybe.withDefault ("<no change>", [])
 
 handleResultToString_: String -> HandlePreviousResult -> String
 handleResultToString_ indent handleResult = case handleResult of
@@ -55,9 +55,9 @@ updateStackName = updateStackName_ ""
 
 updateStackName_: String -> UpdateStack ->  String
 updateStackName_ indent u = case u of
-  UpdateResultS _ exp mb -> "\n" ++ indent ++ "Res(" ++Syntax.unparser Syntax.Elm exp.val ++ (Maybe.map (handleResultToString_ indent) mb |> Maybe.withDefault "") ++ ")"
-  UpdateContextS _ exp _ _ o _ (Just n) -> "\n" ++ indent ++ "Contn(" ++Syntax.unparser Syntax.Elm exp ++ " <-- " ++ outputToString o ++ ")[" ++ handleResultToString_ (indent ++ " ") n ++ "]"
-  UpdateContextS _ e _ _ o _ Nothing->   "\n" ++ indent ++ "Ctx " ++ Syntax.unparser Syntax.Elm e ++ "<--" ++ outputToString o
+  UpdateResultS _ exp mb -> "\n" ++ indent ++ "Res(" ++Syntax.unparser Syntax.Leo exp.val ++ (Maybe.map (handleResultToString_ indent) mb |> Maybe.withDefault "") ++ ")"
+  UpdateContextS _ exp _ _ o _ (Just n) -> "\n" ++ indent ++ "Contn(" ++Syntax.unparser Syntax.Leo exp ++ " <-- " ++ outputToString o ++ ")[" ++ handleResultToString_ (indent ++ " ") n ++ "]"
+  UpdateContextS _ e _ _ o _ Nothing->   "\n" ++ indent ++ "Ctx " ++ Syntax.unparser Syntax.Leo e ++ "<--" ++ outputToString o
   UpdateResultAlternative msg u ll -> "\n" ++ indent ++ "Alt("++updateStackName u ++") then [" ++ (case Lazy.force ll of
       Just u -> updateStackName_ (indent ++ " ") u ++ "]"
       Nothing -> "]"
@@ -194,7 +194,7 @@ updateManyMbHeadTail  firstdiff otherdiffs builder =
 -- Constructor for combining multiple expressions evaluated in the same environment, when there are multiple values available.
 updateOpMultiple: String-> Env -> List Exp -> (List Exp -> Exp) -> PrevLets -> List PrevOutput -> LazyList (List Output, Results String (Maybe (TupleDiffs VDiffs))) -> UpdateStack
 updateOpMultiple  hint     env    es          eBuilder             prevLets     prevOutputs        outputs =
-  {-let _ = Debug.log ("updateOpMultiple called with " ++ String.join "," (List.map (Syntax.unparser Syntax.Elm) es) ++
+  {-let _ = Debug.log ("updateOpMultiple called with " ++ String.join "," (List.map (Syntax.unparser Syntax.Leo) es) ++
           "\nprevOutputs = " ++ (List.map valToString prevOutputs |> String.join ",") ++
           "\nupdates = \n<--" ++ (outputs |> LazyList.toList |> List.map (\(o, d) -> (List.map valToString o |> String.join ",") ++ " (diffs " ++ toString d++ ")" ) |> String.join "\n<-- ")
       ) () in-}

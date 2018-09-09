@@ -21,7 +21,6 @@ import Parser as P exposing (..)
 import Parser.LanguageKit as LK
 import Lang exposing (..)
 import Info exposing (..)
-import ElmLang
 
 import ParserUtils exposing (..)
 import LangParserUtils exposing (..)

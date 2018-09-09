@@ -11,7 +11,7 @@ import Info exposing (WithInfo, withDummyInfo)
 import Lang exposing (..)
 import LangTools
 import LangUtils
-import ElmUnparser exposing (unparse, unparsePattern, unparseType)
+import LeoUnparser exposing (unparse, unparsePattern, unparseType)
 import Ace
 -- can't depend on Model, since ExamplesGenerated depends on Types2
 import Utils

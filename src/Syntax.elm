@@ -16,15 +16,15 @@ import Parser
 import Json.Encode
 
 import FastParser
-import ElmParser
+import LeoParser
 import LangUnparser
-import ElmUnparser
+import LeoUnparser
 import Lang
 import File
 
 type Syntax
   = Little
-  | Elm
+  | Leo
 
 parser : Syntax -> String -> Result Parser.Error Lang.Exp
 parser syntax =
@@ -32,8 +32,8 @@ parser syntax =
     Little ->
       FastParser.parseE
 
-    Elm ->
-      ElmParser.parse
+    Leo ->
+      LeoParser.parse
 
 unparser : Syntax -> Lang.Exp -> String
 unparser syntax =
@@ -41,8 +41,8 @@ unparser syntax =
     Little ->
       LangUnparser.unparse
 
-    Elm ->
-      ElmUnparser.unparse
+    Leo ->
+      LeoUnparser.unparse
 
 patternUnparser : Syntax -> Lang.Pat -> String
 patternUnparser syntax =
@@ -50,8 +50,8 @@ patternUnparser syntax =
     Little ->
       LangUnparser.unparsePat
 
-    Elm ->
-      ElmUnparser.unparsePattern
+    Leo ->
+      LeoUnparser.unparsePattern
 
 typeUnparser : Syntax -> Lang.Type -> String
 typeUnparser syntax =
@@ -59,8 +59,8 @@ typeUnparser syntax =
     Little ->
       LangUnparser.unparseType
 
-    Elm ->
-      ElmUnparser.unparseType
+    Leo ->
+      LeoUnparser.unparseType
 
 convertSyntax : Syntax -> Syntax -> String -> Result Parser.Error String
 convertSyntax oldSyntax newSyntax code =
@@ -71,8 +71,8 @@ convertSyntax oldSyntax newSyntax code =
 sourceExtension : Syntax -> File.FileExtension
 sourceExtension syntax =
   case syntax of
-    Elm ->
-      File.ElmFile
+    Leo ->
+      File.LeoFile
 
     Little ->
       File.LittleFile
@@ -80,8 +80,8 @@ sourceExtension syntax =
 iconExtension : Syntax -> File.FileExtension
 iconExtension syntax =
   case syntax of
-    Elm ->
-      File.ElmIcon
+    Leo ->
+      File.LeoIcon
 
     Little ->
       File.LittleIcon
@@ -89,11 +89,11 @@ iconExtension syntax =
 fromFileExtension : File.FileExtension -> Syntax
 fromFileExtension extension =
   case extension of
-    File.ElmFile ->
-      Elm
+    File.LeoFile ->
+      Leo
 
-    File.ElmIcon ->
-      Elm
+    File.LeoIcon ->
+      Leo
 
     File.LittleFile ->
       Little
@@ -105,8 +105,8 @@ encode : Syntax -> Json.Encode.Value
 encode syntax =
   Json.Encode.string <|
     case syntax of
-      Elm ->
-        "Elm"
+      Leo ->
+        "Leo"
 
       Little ->
         "Little"
