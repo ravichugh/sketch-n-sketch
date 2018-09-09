@@ -2069,6 +2069,7 @@ withDummyExp_Info e__       = WithInfo (exp_ e__) dummyPos dummyPos
 withDummyExpInfo e__        = Expr <| withDummyExp_Info e__
 withDummyPatInfoPId pid p__ = WithInfo (makePat_ p__ pid) dummyPos dummyPos
 withDummyExpInfoEId eid e__ = withDummyRange (makeExp_ e__ eid)
+withDummyBranchInfo b_      = WithInfo b_ dummyPos dummyPos
 
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ (Expr e) e__ = let e_ = e.val in Expr { e | val = { e_ | e__ = e__ } }
@@ -2490,6 +2491,8 @@ precedingWhitespace : Exp -> String
 precedingWhitespace exp =
   precedingWhitespaceExp__ (unwrapExp exp)
 
+newlineCount : String -> Int
+newlineCount s = List.length (String.split "\n" s) - 1
 
 extractIndentation : String -> String
 extractIndentation string =
@@ -2503,6 +2506,10 @@ extractIndentation string =
 indentationOf : Exp -> String
 indentationOf exp =
   extractIndentation (precedingWhitespace exp)
+
+indentationOfBranch : Branch -> String
+indentationOfBranch branch =
+  extractIndentation (precedingWhitespaceBranch branch)
 
 -- Given an EId in the program, what is the indentation on the line on which the expression starts?
 indentationAt : EId -> Exp -> String
@@ -2522,6 +2529,11 @@ indentationAt eid program =
 
     Nothing ->
       ""
+
+precedingWhitespaceBranch : Branch -> String
+precedingWhitespaceBranch branch =
+  let (Branch_ wsb _ _ _) = branch.val in
+  wsb.val
 
 precedingWhitespaceDeclarationWithInfo: Declaration -> WS
 precedingWhitespaceDeclarationWithInfo decl = case decl of
@@ -2814,8 +2826,8 @@ ensureNoWhitespacePat pat =
 
 ensureWhitespaceNNewlines : Int -> String -> String
 ensureWhitespaceNNewlines n s =
-  let newlineCount = List.length (String.split "\n" s) - 1 in
-  String.repeat (n - newlineCount) "\n" ++ s
+  let nlCount = newlineCount s in
+  String.repeat (n - nlCount) "\n" ++ s
   |> ensureWhitespace
 
 -- whitespaceTwoNewlines : String -> String

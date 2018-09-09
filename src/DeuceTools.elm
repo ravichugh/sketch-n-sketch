@@ -139,6 +139,10 @@ oneOrMoreNumsOnly selections =
 -- Create elements in place of holes
 --------------------------------------------------------------------------------
 
+inBodyPosition : Exp -> Exp -> Bool
+inBodyPosition root e =
+  LangTools.performActionIfBody root e (\_ _ _ -> True) (always True) False
+
 doesChildNeedParens : Exp -> Bool
 doesChildNeedParens e =
   case unwrapExp e of
@@ -149,7 +153,14 @@ doesChildNeedParens e =
     ESelect _ _ _ _ _ -> True
     _ -> False
 
-makeReplaceHoleTool : String -> String -> (Exp -> EId -> WS -> Exp) -> Model -> Selections -> DeuceTool
+shouldHaveParensOnAccountOfParent : Exp -> EId -> Bool
+shouldHaveParensOnAccountOfParent root expEId =
+  parentByEId root expEId |>
+    Utils.fromJust_ "Couldn't find hole EId" |>
+      Maybe.map doesChildNeedParens |>
+        Maybe.withDefault False
+
+makeReplaceHoleTool : String -> String -> (Exp -> Exp -> Maybe Exp) -> Model -> Selections -> DeuceTool
 makeReplaceHoleTool   toolID    replDesc  programModifier              model    selections =
   let
     (func, predVal) =
@@ -163,9 +174,13 @@ makeReplaceHoleTool   toolID    replDesc  programModifier              model    
         (_, _, [holeEId], [], [], [], [], []) ->
           let holeExp = LangTools.justFindExpByEId root holeEId in
           case unwrapExp holeExp of
-            EHole wsb EEmptyHole ->
-              let newProgram = programModifier root holeEId wsb in
-              (Just <| \() -> [synthesisResult ("Replace with " ++ replDesc) newProgram], FullySatisfied)
+            EHole _ EEmptyHole ->
+              let mbNewProgram = programModifier root holeExp in
+              case mbNewProgram of
+                Nothing ->
+                  impossible
+                Just newProgram ->
+                  (Just <| \() -> [synthesisResult ("Replace with " ++ replDesc) newProgram], FullySatisfied)
             _ ->
               impossible
         _ ->
@@ -185,17 +200,13 @@ makeReplaceHoleTool   toolID    replDesc  programModifier              model    
 
 makeSimpleReplaceHoleTool : String -> String -> Bool ->         (WS -> Exp__) -> Model -> Selections -> DeuceTool
 makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__ =
-  makeReplaceHoleTool toolID replDesc (\root holeEId wsb ->
+  makeReplaceHoleTool toolID replDesc (\root holeExp ->
     let
+      holeEId = expEId holeExp
+      wsb = ws <| precedingWhitespace holeExp
       nextID = LeoParser.maxId root + 1
       newExp =
-        if
-          mightNeedParens &&
-          ( parentByEId root holeEId |>
-            Utils.fromJust_ "Couldn't find hole EId" |>
-            Maybe.map doesChildNeedParens |>
-            Maybe.withDefault False
-          )
+        if mightNeedParens && shouldHaveParensOnAccountOfParent root holeEId
         then
           Expr <|
             withDummyExpInfoEId nextID <|
@@ -203,7 +214,7 @@ makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__ =
         else
           Expr <| withDummyExpInfoEId nextID <| wsToExp__ wsb
     in
-    replaceExpNode holeEId newExp root
+    Just <| replaceExpNode holeEId newExp root
   )
 
 -- TODO text box or slider (via the WidgetDecl) to specify the value
@@ -358,23 +369,92 @@ createCondTool =
     True
     (\wsb -> EIf wsb eEmptyHoleVal space1 eEmptyHoleVal space1 eEmptyHoleVal space0)
 
-{- TODO current the harder cases
-  | ECase WS t1 (List Branch) WS
--}
+createCaseTool =
+  makeReplaceHoleTool
+    "createCaseFromHole"
+    "a case clause"
+    (\oldRoot holeExp ->
+      let
+        holeEId = expEId holeExp
+        wsb = precedingWhitespace holeExp
+        maxID = LeoParser.maxId oldRoot
+        (caseID, ofID, patID) = Utils.mapThree ((+) maxID) (1, 2, 3)
+        ofExp = Expr <| withDummyExpInfoEId ofID <| EHole space1 EEmptyHole
+        pat = withDummyPatInfoPId patID <| PWildcard space0
+        holeExpWithOneSpace = replacePrecedingWhitespace " " holeExp
+        caseExp wsBeforeCase wsBeforeBranch =
+          let branch =
+            withDummyBranchInfo <|
+              Branch_ (ws wsBeforeBranch) pat holeExpWithOneSpace space0
+          in
+          Expr <|
+            withDummyExpInfoEId caseID <|
+              ECase (ws wsBeforeCase) ofExp [branch] space1
+        caseExpSeparateLine caseIndent =
+          let
+            wsbNewlineCount = max 1 <| newlineCount wsb
+            wsBeforeCase = String.repeat wsbNewlineCount "\n" ++ caseIndent
+            wsBeforeBranch = "\n" ++ caseIndent ++ "  "
+          in
+          caseExp wsBeforeCase wsBeforeBranch
+        mbCaseIndentIfBody = LangTools.getProperIndentationIfBody oldRoot holeExp
+      in
+      Maybe.map (\newExp -> replaceExpNode holeEId newExp oldRoot) <|
+      case (mbCaseIndentIfBody, parentByEId oldRoot holeEId) of
+        (Just caseIndentIfBody, _) ->
+          Just <| caseExpSeparateLine caseIndentIfBody
+        (Nothing, Just (Just parent)) ->
+          let parentEId = expEId parent in
+          case unwrapExp parent of
+            ELet _ _ _ _ _ ->
+              -- If we get here, we already know that holeExp is a bound exp of the ELet
+              Just <| caseExpSeparateLine <| indentationAt parentEId oldRoot ++ "  "
+            EParens _ _ _ _ ->
+              Just <|
+                if String.contains "\n" wsb then
+                  caseExpSeparateLine <| indentationAt holeEId oldRoot
+                else
+                  caseExp wsb <| "\n" ++ indentationAt parentEId oldRoot ++ "  "
+            _ ->
+              Nothing
+        (Nothing, Just Nothing) ->
+          Just <| caseExpSeparateLine <| indentationAt holeEId oldRoot
+        (Nothing, Nothing) ->
+          Nothing
+    )
 
 createLetTool =
   makeReplaceHoleTool
     "createLetFromHole"
     "a let clause"
-    (\root holeEId wsb ->
+    (\oldRoot holeExp ->
       let
-        maxID = LeoParser.maxId root
-        (letID, patID, boundID) = Utils.mapThree ((+) maxID) (1, 2, 3)
-        pat = withDummyPatInfoPId patID <| PWildcard space1
+        holeEId = expEId holeExp
+        wsb = ws <| precedingWhitespace holeExp
+        maxID = LeoParser.maxId oldRoot
+        (letID, patID, boundID, parensID) = Utils.mapFour ((+) maxID) (1, 2, 3, 4)
+        isTopLevel = LangTools.isTopLevelEId holeEId oldRoot
+        pat = withDummyPatInfoPId patID <| PWildcard <| if isTopLevel then space0 else space1
         boundExp = Expr <| withDummyExpInfoEId boundID <| EHole space1 EEmptyHole
-        newExp holeExp = LangTools.newLetFancyWhitespace letID False pat boundExp holeExp root
+        newExp =
+          let
+            letOrDef = if isTopLevel then Def else Let
+            holeExpWithOneSpace = replacePrecedingWhitespace " " holeExp
+            flatLet wsBeforeLet =
+              Expr <|
+                withDummyExpInfoEId letID <|
+                  eLet__ wsBeforeLet letOrDef False pat space1 boundExp space1 holeExpWithOneSpace space0
+          in
+          if shouldHaveParensOnAccountOfParent oldRoot holeEId then
+            Expr <|
+              withDummyExpInfoEId parensID <|
+                EParens wsb (flatLet space0) Parens space0
+          else if inBodyPosition oldRoot holeExp || newlineCount (precedingWhitespace holeExp) /= 0 then
+            LangTools.newLetFancyWhitespace letID False pat boundExp holeExp oldRoot
+          else
+            flatLet wsb
       in
-      mapExpNode holeEId newExp root
+      Just <| replaceExpNode holeEId newExp oldRoot
     )
 
 createTypeAscriptionTool =
@@ -2452,6 +2532,7 @@ toolList =
     , createApplicationTool
     , createEmptyListTool
     , createCondTool
+    , createCaseTool
     , createLetTool
     , createTypeAscriptionTool
     , createParenthesizedTool

@@ -417,8 +417,7 @@ reflowLetWhitespace program letExp =
     ELet oldLetWs letKind isRec pat wsBeforeEq boundExp wsBeforeIn body ws2 ->
       let oldIndentation = indentationOf letExp in
       let oneOrTwoNewlinesBeforeLet =
-        let newlineCount = List.length (String.split "\n" oldLetWs.val) - 1 in
-        if newlineCount <= 1
+        if newlineCount oldLetWs.val <= 1
         then "\n"
         else "\n\n"
       in
@@ -531,32 +530,38 @@ reflowLetWhitespace program letExp =
       Debug.crash <| "reflowLetWhitespace expected an ELet, got: " ++ unparseWithIds letExp
    -}
 
--- Note: the isRec flag is ignored if the new let is placed at the top level.
+getProperIndentationIfBody : Exp -> Exp -> Maybe String
+getProperIndentationIfBody root e =
+  let
+    eId = expEId e
+    indentationAtParent e parent mbBranch =
+      Just <|
+        case (unwrapExp parent, mbBranch) of
+          (ELet _ _ _ _ _, _) -> indentationAt (expEId parent) root
+          (_, Just branch) -> indentationOfBranch branch ++ "  "
+          _ -> indentationAt (expEId parent) root ++ "  "
+  in
+  performActionIfBody root e indentationAtParent (always Nothing) Nothing
+
+-- Note: the isRec flag is ignored
 newLetFancyWhitespace : EId ->         Bool -> Pat -> Exp ->   Exp ->    Exp -> Exp
 newLetFancyWhitespace   insertedLetEId isRec   pat    boundExp expToWrap program =
-  let isTopLevel = isTopLevelEId (expEId expToWrap) program in
+  let toWrapEId = expEId expToWrap in
+  let isTopLevel = isTopLevelEId toWrapEId program in
   let letOrDef = if isTopLevel then Def else Let in
-  -- At the top level, rec is implicit. We create the exp as it will actually be reparsed so
-  -- any safety checks later in the pipeline work correctly.
-  let isActuallyRec = isRec in
   let newLetIndentation =
-    -- If target expression is the body of a existing let, then use the indentation of the existing let.
-    -- Otherwise, copy indentation of the wrapped expression.
-    case parentByEId program (expEId expToWrap) of
-       Just (Just parent) ->
-         if (expToMaybeLetBody parent |> Maybe.map expEId) == Just (expEId expToWrap)
-         then indentationAt (expEId parent) program
-         else indentationAt (expEId expToWrap) program
-       _ -> indentationAt (expEId expToWrap) program
+    getProperIndentationIfBody program expToWrap |>
+      Maybe.withDefault (indentationAt toWrapEId program)
   in
+  -- TODO This seems unnecessary - we really only blank newlines before the let, not between the let and its decls
   let newlineCountAfterLet =
-    let newlinesBeforeWrapped = List.length (String.split "\n" (precedingWhitespace expToWrap)) - 1 in
+    let newlinesBeforeWrapped = newlineCount <| precedingWhitespace expToWrap in
     if isTopLevel || newlinesBeforeWrapped >= 2
     then 2
     else 1
   in
   let newlineCountBeforeLet =
-    if (expEId expToWrap) == (expEId program) then 1 else newlineCountAfterLet
+    if toWrapEId == expEId program then 1 else newlineCountAfterLet
   in
   let expToWrapWithNewWs =
     let wrappedExpIndent = if isLet expToWrap || isTopLevel then "" else "  " in
@@ -565,7 +570,7 @@ newLetFancyWhitespace   insertedLetEId isRec   pat    boundExp expToWrap program
     then expToWrap |> ensureWhitespaceNNewlinesExp newlineCountAfterLet |> replaceIndentation wrappedExpIndent
     else expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet wrappedExpIndent
   in
-  eLet__ space0 letOrDef isActuallyRec (
+  eLet__ space0 letOrDef isRec (
     (if isTopLevel then ensureNoWhitespacePat else ensureWhitespacePat) pat) space1 (replaceIndentation "  " boundExp |> ensureWhitespaceExp) space1 expToWrapWithNewWs space0
   |> withDummyExpInfoEId insertedLetEId
   |> Expr
@@ -1054,6 +1059,45 @@ addFirstDef program pat boundExp =
         newLetFancyWhitespace -1 False pat boundExp nonComment program
       )
 
+-- if e is the "body" of its parent, returns `action e (parent e) mbBranch`, otherwise returns default
+performActionIfBody : Exp -> Exp -> (Exp -> Exp -> Maybe Branch -> r) -> (Exp -> r) -> r -> r
+performActionIfBody root e action actionForRoot default =
+  let eId = expEId e in
+  case parentByEId root eId of
+    Just (Just parent) ->
+      let return bodies mbBranch =
+        if List.member eId <| List.map expEId bodies then
+          action e parent mbBranch
+        else
+          default
+      in
+      case unwrapExp parent of
+        EFun _ _ body _ ->
+          return [body] Nothing
+        EIf _ _ _ tExp _ fExp _ ->
+          return [tExp, fExp] Nothing
+        ECase _ _ branches _ ->
+          let mbBranch =
+            branches |>
+              Utils.mapFirstSuccess (\branch ->
+                if eId == expEId (branchExp branch) then
+                  Just branch
+                else
+                  Nothing
+              )
+          in
+          case mbBranch of
+            Nothing -> default
+            Just _ -> action e parent mbBranch
+        ELet _ _ _ _ body ->
+          return [body] Nothing
+        _ ->
+          default
+    Just Nothing ->
+      actionForRoot root
+    _ ->
+      default
+
 
 expToMaybeNum : Exp -> Maybe Num
 expToMaybeNum exp =
@@ -1198,7 +1242,6 @@ expToMaybeSnapHoleVal exp =
   case (unwrapExp exp) of
     EHole _ (ESnapHole val) -> Just val
     _                       -> Nothing
-
 
 -- This is a rather generous definition of literal.
 isLiteral : Exp -> Bool
