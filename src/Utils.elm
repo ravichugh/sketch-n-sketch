@@ -273,6 +273,7 @@ listDiff : List a -> List a -> List a
 listDiff l1 l2 =
   listDiffSet l1 (Set.fromList l2)
 
+-- Guaranteed to add to the head of the list
 addAsSet : a -> List a -> List a
 addAsSet x xs =
   if List.member x xs
