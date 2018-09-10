@@ -2226,7 +2226,7 @@ toolList =
 deuceToolsOf : Model -> List (List DeuceTool)
 deuceToolsOf model =
   let
-    selections = selectionsTuple model.inputExp model.deuceState.selectedWidgets
+    selections = selectionsTuple model.inputExp <| Model.getAllSelected model
   in
   toolList
   |> List.map (List.map (\tool -> tool model selections))

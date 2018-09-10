@@ -1360,6 +1360,15 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 --------------------------------------------------------------------------------
 
+resetDeuceCacheAndReselect : Model -> (Model -> List (List CachedDeuceTool)) -> Model
+resetDeuceCacheAndReselect almostNewModel cacheRefresher =
+  { almostNewModel
+      | deuceToolsAndResults =
+          cacheRefresher almostNewModel
+      , deuceToolResultPreviews =
+          Dict.empty
+  } |> DeuceTools.reselectDeuceTool
+
 resetDeucePopupPanelPosition : Model -> Model
 resetDeucePopupPanelPosition m =
   let
@@ -1398,14 +1407,8 @@ updateTrackedValues newHistory recent old =
               newHistory
       }
   in
-    { almostNew
-        | deuceToolsAndResults =
-            DeuceTools.createToolCache almostNew
-        , deuceToolResultPreviews =
-            Dict.empty
-    }
-      |> DeuceTools.reselectDeuceTool
-      |> resetDeucePopupPanelPosition
+  resetDeuceCacheAndReselect almostNew DeuceTools.createToolCache |>
+  resetDeucePopupPanelPosition
 
 msgUndo = Msg "Undo" doUndo
 
@@ -3000,7 +3003,7 @@ toggleDeuceWidget widget model =
         |> multipleTargetPositionsFilter
         |> Utils.addAsSet widget
     newSelectedWidgetsEmpty =
-      List.isEmpty newSelectedWidgets
+      List.isEmpty newSelectedWidgets && oldDeuceState.mbKeyboardFocusedWidget == Nothing
     newDeuceState =
       { oldDeuceState
           | selectedWidgets =
@@ -3019,12 +3022,7 @@ toggleDeuceWidget widget model =
               newDeuceRightClickMenuMode
       }
   in
-    { almostNewModel
-        | deuceToolsAndResults =
-            DeuceTools.createToolCache almostNewModel
-        , deuceToolResultPreviews =
-            Dict.empty
-    } |> DeuceTools.reselectDeuceTool
+  resetDeuceCacheAndReselect almostNewModel DeuceTools.createToolCache
 
 msgMouseClickDeuceWidget widget =
   Msg ("msgMouseClickDeuceWidget " ++ toString widget) <| \old ->
@@ -3066,7 +3064,8 @@ deuceMove destWidget old =
     oldDS = old.deuceState
     newDS = { oldDS | mbKeyboardFocusedWidget = Just destWidget }
   in
-  { old | deuceState = newDS }
+  { old | deuceState = newDS } |>
+  flip resetDeuceCacheAndReselect DeuceTools.createToolCache
 
 handleDeuceMoveHorizontal_ old selected isLeftMove =
   let
@@ -3263,12 +3262,7 @@ msgUpdateRenameVarTextBox text =
                 }
         }
     in
-      { almostNewModel
-          | deuceToolsAndResults =
-              DeuceTools.updateRenameToolsInCache almostNewModel
-          , deuceToolResultPreviews =
-              Dict.empty
-      } |> DeuceTools.reselectDeuceTool
+    resetDeuceCacheAndReselect almostNewModel DeuceTools.updateRenameToolsInCache
 
 --------------------------------------------------------------------------------
 -- Clear Drag

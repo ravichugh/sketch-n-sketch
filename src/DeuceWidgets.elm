@@ -44,6 +44,7 @@ isTargetPosition widget =
     DeuceDeclTarget _         -> True
 
 -- TODO: This is not totally correct because of DeuceLetBindingEquation which now has (EId, BindingNumber)
+-- It appears that this function returns true if both widgets are the same
 isSubWidget : Exp -> DeuceWidget -> DeuceWidget -> Bool
 isSubWidget program widget superWidget =
   let isSubEId subEId superEId =
@@ -136,17 +137,6 @@ emptyDeuceState =
   , hoveredMenuPath = []
   , renameVarTextBox = ""
   }
-
-mergeSelected : List DeuceWidget -> Maybe DeuceWidget -> List DeuceWidget
-mergeSelected selected mbKeyboardFocusedWidget =
-  case mbKeyboardFocusedWidget of
-    Nothing ->
-      selected
-    Just focused ->
-      if List.member focused selected then
-        selected
-      else
-        focused :: selected
 
 setHoveredMenuPath path m =
   let deuceState = m.deuceState in

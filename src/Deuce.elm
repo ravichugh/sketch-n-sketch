@@ -126,10 +126,6 @@ startEnd codeInfo codeObject =
     , realEndLine - 1
     )
 
-getAllSelected : CodeInfo -> List DeuceWidget
-getAllSelected codeInfo =
-  DeuceWidgets.mergeSelected codeInfo.selectedWidgets codeInfo.mbKeyboardFocusedWidget
-
 --==============================================================================
 --= DATA TYPES
 --==============================================================================
@@ -600,9 +596,8 @@ codeObjectPolygon msgs codeInfo codeObject color =
       []
     Just deuceWidget ->
       let
-        isSelected = List.member deuceWidget <| getAllSelected codeInfo
+        isClickSelected = List.member deuceWidget codeInfo.selectedWidgets
         isKeyboardFocused = codeInfo.mbKeyboardFocusedWidget == Just deuceWidget
-        allSelected = getAllSelected codeInfo
 
         codeObjectHasTypeError =
           case (codeInfo.needsParse, codeObject) of
@@ -618,17 +613,19 @@ codeObjectPolygon msgs codeInfo codeObject color =
               False
 
         highlightError =
-          codeObjectHasTypeError && allSelected == []
+          codeObjectHasTypeError &&
+          codeInfo.selectedWidgets == [] &&
+          codeInfo.mbKeyboardFocusedWidget == Nothing
 
         highlightInfo =
           case (codeInfo.needsParse, codeObject) of
             (False, E e) ->
               case (unExpr e).val.extraTypeInfo of
                 Just (HighlightWhenSelected eId) ->
-                  if allSelected == [DeuceExp eId] then
-                    True
-                  else
-                    False
+                  Utils.maybeCons
+                    codeInfo.mbKeyboardFocusedWidget
+                    codeInfo.selectedWidgets |>
+                    List.all ((==) <| DeuceExp eId)
                 _ ->
                   False
             _ ->
@@ -644,11 +641,11 @@ codeObjectPolygon msgs codeInfo codeObject color =
           keyboardFocusedColor codeInfo.displayInfo.colorScheme
 
         (classModifier, finalColor)  =
-          if isSelected && codeObjectHasTypeError then
+          if (isKeyboardFocused || isClickSelected) && codeObjectHasTypeError then
             (" opaque", errorColor)
           else if isKeyboardFocused then
             (" opaque", focusedColor)
-          else if isSelected then
+          else if isClickSelected then
             (" opaque", color)
           else if highlightError then
             (" translucent", errorColor)

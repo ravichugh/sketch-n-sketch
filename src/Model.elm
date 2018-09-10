@@ -1126,7 +1126,24 @@ codeObjectFromSelection allowSingleSelection model =
 
 getAllSelected : Model -> List DeuceWidgets.DeuceWidget
 getAllSelected model =
-  DeuceWidgets.mergeSelected model.deuceState.selectedWidgets model.deuceState.mbKeyboardFocusedWidget
+  let
+    selected = model.deuceState.selectedWidgets
+    mbKeyboardFocusedWidget = model.deuceState.mbKeyboardFocusedWidget
+    root = model.inputExp
+  in
+  case mbKeyboardFocusedWidget of
+    Nothing ->
+      selected
+    Just focused ->
+      if
+        selected |>
+          List.any (\slctd ->
+            DeuceWidgets.isSubWidget root slctd focused ||
+            DeuceWidgets.isSubWidget root focused slctd)
+      then
+        selected
+      else
+        focused :: selected
 
 noCodeWidgetsSelected : Model -> Bool
 noCodeWidgetsSelected model =
