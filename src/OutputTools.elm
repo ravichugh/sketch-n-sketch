@@ -476,7 +476,7 @@ groupTool selections =
   , func =
       Just Controller.msgGroup
   , reqs =
-      [ atLeastTwoSelections selections
+      [ atLeastOneSelection selections
       ]
   , id =
       "group"
