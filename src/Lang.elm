@@ -2285,6 +2285,7 @@ eColonType (Expr e) t = withInfo (exp_ <| EColonType space1 (Expr e) space1 t sp
 pVar0 a        = withDummyPatInfo <| PVar space0 a noWidgetDecl
 pVar a         = withDummyPatInfo <| PVar space1 a noWidgetDecl
 pWildcard0     = withDummyPatInfo <| PWildcard space0
+pWildcard ps   = withDummyPatInfo <| PWildcard space0
 pList0 ps      = withDummyPatInfo <| PList space0 ps space0 Nothing space0
 pList ps       = withDummyPatInfo <| PList space1 ps space0 Nothing space0
 pAs x p        = withDummyPatInfo <| PAs space0 p space1 (withDummyPatInfo <| PVar space1 x noWidgetDecl)

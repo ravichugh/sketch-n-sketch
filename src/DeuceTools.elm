@@ -29,6 +29,7 @@ import Model exposing
 import Info
 import Lang exposing (..)
 import LangTools
+import LeoParser
 import Syntax
 import Types2
 
@@ -148,13 +149,13 @@ doesChildNeedParens e =
     ESelect _ _ _ _ _ -> True
     _ -> False
 
-makeSimpleReplaceHoleTool : String -> String -> Bool         -> (WS -> Exp__) -> Model -> Selections -> DeuceTool
-makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__        model    selections =
+makeReplaceHoleTool : String -> String -> (Exp -> EId -> WS -> Exp) -> Model -> Selections -> DeuceTool
+makeReplaceHoleTool   toolID    replDesc  programModifier              model    selections =
   let
     (func, predVal) =
       let
-        root = model.inputExp
         impossible = (Nothing, Impossible)
+        root = model.inputExp
       in
       case selections of
         (_, _, [], [], [], [], [], []) ->
@@ -163,22 +164,7 @@ makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__       
           let holeExp = LangTools.justFindExpByEId root holeEId in
           case unwrapExp holeExp of
             EHole wsb EEmptyHole ->
-              let
-                newExp =
-                  if
-                    mightNeedParens &&
-                    ( parentByEId root holeEId |>
-                      Utils.fromJust_ "Couldn't find hole EId" |>
-                      Maybe.map doesChildNeedParens |>
-                      Maybe.withDefault False
-                    )
-                  then
-                    withDummyExpInfo <| EParens wsb (withDummyExpInfo <| wsToExp__ space0) Parens space0
-                  else
-                    withDummyExpInfo <| wsToExp__ wsb
-                newProgram =
-                  replaceExpNode holeEId newExp root
-              in
+              let newProgram = programModifier root holeEId wsb in
               (Just <| \() -> [synthesisResult ("Replace with " ++ replDesc) newProgram], FullySatisfied)
             _ ->
               impossible
@@ -196,6 +182,29 @@ makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__       
         ]
     , id = toolID
     }
+
+makeSimpleReplaceHoleTool : String -> String -> Bool ->         (WS -> Exp__) -> Model -> Selections -> DeuceTool
+makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__ =
+  makeReplaceHoleTool toolID replDesc (\root holeEId wsb ->
+    let
+      nextID = LeoParser.maxId root + 1
+      newExp =
+        if
+          mightNeedParens &&
+          ( parentByEId root holeEId |>
+            Utils.fromJust_ "Couldn't find hole EId" |>
+            Maybe.map doesChildNeedParens |>
+            Maybe.withDefault False
+          )
+        then
+          Expr <|
+            withDummyExpInfoEId nextID <|
+              EParens wsb (Expr <| withDummyExpInfoEId (nextID + 1) <| wsToExp__ space0) Parens space0
+        else
+          Expr <| withDummyExpInfoEId nextID <| wsToExp__ wsb
+    in
+    replaceExpNode holeEId newExp root
+  )
 
 -- TODO text box or slider (via the WidgetDecl) to specify the value
 createNumTool =
@@ -351,8 +360,22 @@ createCondTool =
 
 {- TODO current the harder cases
   | ECase WS t1 (List Branch) WS
-  | ELet WS LetKind (Declarations_ t2) WS{-in or ;-} t2
 -}
+
+createLetTool =
+  makeReplaceHoleTool
+    "createLetFromHole"
+    "a let clause"
+    (\root holeEId wsb ->
+      let
+        maxID = LeoParser.maxId root
+        (letID, patID, boundID) = Utils.mapThree ((+) maxID) (1, 2, 3)
+        pat = withDummyPatInfoPId patID <| PWildcard space1
+        boundExp = Expr <| withDummyExpInfoEId boundID <| EHole space1 EEmptyHole
+        newExp holeExp = LangTools.newLetFancyWhitespace letID False pat boundExp holeExp root
+      in
+      mapExpNode holeEId newExp root
+    )
 
 createTypeAscriptionTool =
   makeSimpleReplaceHoleTool
@@ -2429,6 +2452,7 @@ toolList =
     , createApplicationTool
     , createEmptyListTool
     , createCondTool
+    , createLetTool
     , createTypeAscriptionTool
     , createParenthesizedTool
     , createRecordTool
