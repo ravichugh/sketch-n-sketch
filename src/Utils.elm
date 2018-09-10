@@ -1041,7 +1041,6 @@ strFoldLeftWithIndex: b -> String -> (b -> Int -> Char -> b) -> b
 strFoldLeftWithIndex acc list fold =
   String.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
 
-
 filterMaybe : (a -> Bool) -> Maybe a -> Maybe a
 filterMaybe pred mx =
   case mx of

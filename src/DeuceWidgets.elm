@@ -13,6 +13,7 @@ import Dict exposing (Dict)
 
 type alias DeuceState =
   { selectedWidgets : List DeuceWidget   -- not Set b/c not comparable
+  , mbKeyboardFocusedWidget : Maybe DeuceWidget
   , hoveredWidgets : List DeuceWidget    -- not Set b/c not comparable
       -- not used for styling anymore (see .code-object-polygon:hover),
       -- but still tracking in case other UI elements depend on knowing
@@ -130,10 +131,22 @@ toDeuceWidget patMap codeObject =
 emptyDeuceState : DeuceState
 emptyDeuceState =
   { selectedWidgets = []
+  , mbKeyboardFocusedWidget = Nothing
   , hoveredWidgets = []
   , hoveredMenuPath = []
   , renameVarTextBox = ""
   }
+
+mergeSelected : List DeuceWidget -> Maybe DeuceWidget -> List DeuceWidget
+mergeSelected selected mbKeyboardFocusedWidget =
+  case mbKeyboardFocusedWidget of
+    Nothing ->
+      selected
+    Just focused ->
+      if List.member focused selected then
+        selected
+      else
+        focused :: selected
 
 setHoveredMenuPath path m =
   let deuceState = m.deuceState in

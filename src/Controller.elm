@@ -689,7 +689,7 @@ finishTrigger zoneKey old =
   let old_ = old in
   refreshHighlights zoneKey
     { old_ | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old_
-           , history = modelCommit old.code [] old_.history
+           , history = modelCommit old.code [] Nothing old_.history
            , synthesisResultsDict = Dict.empty
            }
 
@@ -791,7 +791,7 @@ tryRun old =
     oldWithUpdatedHistory =
       let
         updatedHistory =
-          modelCommit old.code [] old.history
+          modelCommit old.code [] Nothing old.history
       in
         { old | history = updatedHistory }
   in
@@ -847,7 +847,7 @@ tryRun old =
                       , slate         = newSlate
                       , slateCount    = 1 + old.slateCount
                       , widgets       = ws
-                      , history       = modelCommit newCode [] old.history
+                      , history       = modelCommit newCode [] Nothing old.history
                       , caption       = Nothing
                       , syncOptions   = Sync.syncOptionsOf old.syncOptions e
                       , lambdaTools   = lambdaTools_
@@ -1395,6 +1395,8 @@ updateTrackedValues newHistory recent old =
       { ranDeuceState
           | selectedWidgets =
               recent.selectedDeuceWidgets
+          , mbKeyboardFocusedWidget =
+              recent.mbKeyboardFocusedWidget
       }
     almostNew =
       { ran
@@ -1578,6 +1580,14 @@ refreshInputExp old =
 
 --------------------------------------------------------------------------------
 
+getKeyboardFocusedWidget : Model -> Maybe DeuceWidget
+getKeyboardFocusedWidget model =
+  let ds = model.deuceState in
+  case (ds.mbKeyboardFocusedWidget, ds.selectedWidgets) of
+    (Just keyboardFocusedWidget, _) -> Just keyboardFocusedWidget
+    (_, selected :: _) -> Just selected
+    _ -> Nothing
+
 isKeyDown : Int -> Model -> Bool
 isKeyDown keyCode model =
   List.member keyCode model.keysDown
@@ -1600,8 +1610,12 @@ msgKeyDown keyCode =
       let
         currentKeyDown =
           isKeyDown keyCode old
+        noughtSelectedInOutput =
+          nothingSelectedInOutput old
         somethingSelectedInOutput =
-          not (nothingSelectedInOutput old)
+          not noughtSelectedInOutput
+        mbKeyboardFocusedWidget =
+          getKeyboardFocusedWidget old
       in
         if keyCode == Keys.keyEsc then
           if Model.anyDialogShown old then
@@ -1656,6 +1670,10 @@ msgKeyDown keyCode =
         else if isHtmlText old.outputMode && keyCode == Keys.keyUp &&
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           { old | outputMode = Graphics }
+
+        else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick && not currentKeyDown &&
+                mbKeyboardFocusedWidget /= Nothing then
+          handleDeuceHotKey old keyCode <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
 
         else if
           not currentKeyDown &&
@@ -1727,7 +1745,7 @@ msgDigHole = Msg "Dig Hole" <| \old ->
             , inputExp         = reparsed
             , inputVal         = newVal
             , inputEnv         = newEnv
-            , history          = modelCommit newCode [] old.history
+            , history          = modelCommit newCode [] Nothing old.history
             , slate            = newSlate
             , slateCount       = 1 + old.slateCount
             , widgets          = newWidgets
@@ -1927,7 +1945,7 @@ doSelectSynthesisResult newExp old =
     { old | code = newCode
           , lastParsedCode = newCode
           , lastRunCode = newCode
-          , history = modelCommit newCode [] old.history
+          , history = modelCommit newCode [] Nothing old.history
           } |> clearSynthesisResults
   in
   runWithErrorHandling new newExp (\reparsed newVal newEnv newWidgets newSlate newCode ->
@@ -2462,7 +2480,7 @@ msgSelectOption (exp, val, slate, code) = Msg "Select Option..." <| \old ->
         , inputExp      = exp
         , inputVal      = val
         , valueEditorString = LangUtils.valToString val
-        , history       = modelCommit code [] old.history
+        , history       = modelCommit code [] Nothing old.history
         , slate         = slate
         , preview       = Nothing
         , synthesisResultsDict = Dict.empty
@@ -2682,7 +2700,7 @@ readFile file needsSave old =
   { old | filename = file.filename
         , code = file.contents
         , syntax = Syntax.fromFileExtension file.filename.extension
-        , history = History.begin { code = file.contents, selectedDeuceWidgets = [] }
+        , history = History.begin { code = file.contents, selectedDeuceWidgets = [], mbKeyboardFocusedWidget = Nothing }
         , lastSaveState = Just file.contents
         , needsSave = needsSave
         , outputMode = Graphics
@@ -2832,7 +2850,7 @@ handleNew template = (\old ->
                 , code          = code
                 , lastParsedCode  = code
                 , lastRunCode   = code
-                , history       = History.begin { code = code, selectedDeuceWidgets = [] }
+                , history       = History.begin { code = code, selectedDeuceWidgets = [], mbKeyboardFocusedWidget = Nothing }
                 , liveSyncInfo  = outputMode
                 , syncOptions   = so
                 , slideNumber   = 1
@@ -3035,7 +3053,7 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
 msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
   let
     modifiedHistory =
-      modelModify m.code m.deuceState.selectedWidgets m.history
+      modelModify m.code m.deuceState.selectedWidgets m.deuceState.mbKeyboardFocusedWidget m.history
     modelWithCorrectHistory =
       case modifiedHistory of
         Just h ->
@@ -3046,6 +3064,50 @@ msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m -
   in
     -- TODO version of tryRun/upstateRun starting with parsed expression
     upstateRun ( { modelWithCorrectHistory | code = Syntax.unparser m.syntax exp })
+
+--------------------------------------------------------------------------------
+-- Deuce Keyboard Interactions
+
+deuceMove : DeuceWidget -> Model -> Model
+deuceMove destWidget old =
+  let
+    oldDS = old.deuceState
+    newDS = { oldDS | mbKeyboardFocusedWidget = Just destWidget }
+  in
+  { old | deuceState = newDS }
+
+handleDeuceMoveHorizontal_ old selected isLeftMove =
+  let
+    oldRoot = old.inputExp
+    patMap = computePatMap oldRoot
+    cosAfterSelected =
+      E oldRoot |>
+        flattenToCodeObjects |>
+          Utils.applyIf isLeftMove List.reverse |>
+            Utils.dropWhile (toDeuceWidget patMap >> (==) (Just selected) >> not) |>
+              List.tail |>
+                Maybe.withDefault []
+  in
+  Utils.mapFirstSuccess (\co -> if isTarget co then Nothing else toDeuceWidget patMap co) cosAfterSelected |>
+    Maybe.map (flip deuceMove old) |>
+      Maybe.withDefault old
+
+handleDeuceHotKey : Model -> Char.KeyCode -> DeuceWidget -> Model
+handleDeuceHotKey old keyCode selected =
+  if List.member keyCode [Keys.keyLeft, Keys.keyH] then
+    handleDeuceLeft old selected
+  else if List.member keyCode [Keys.keyRight, Keys.keyL] then
+    handleDeuceRight old selected
+  else if keyCode == Keys.keySpace then
+    handleDeuceSpace old selected
+  else
+    old
+
+handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected True
+
+handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected False
+
+handleDeuceSpace old selected = toggleDeuceWidget selected old
 
 --------------------------------------------------------------------------------
 -- DOT

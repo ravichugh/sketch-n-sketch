@@ -126,6 +126,10 @@ startEnd codeInfo codeObject =
     , realEndLine - 1
     )
 
+getAllSelected : CodeInfo -> List DeuceWidget
+getAllSelected codeInfo =
+  DeuceWidgets.mergeSelected codeInfo.selectedWidgets codeInfo.mbKeyboardFocusedWidget
+
 --==============================================================================
 --= DATA TYPES
 --==============================================================================
@@ -187,6 +191,7 @@ type alias CodeInfo =
   { displayInfo : DisplayInfo
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
+  , mbKeyboardFocusedWidget : Maybe DeuceWidget
   , selectedWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
@@ -526,6 +531,12 @@ objectInfoColor colorScheme =
     Light -> { r = 144, g = 238, b = 144 }
     Dark  -> { r = 144, g = 238, b = 144 }
 
+keyboardFocusedColor : ColorScheme -> Color
+keyboardFocusedColor colorScheme =
+  case colorScheme of
+    Light -> { r = 20, g = 200, b = 40 }
+    Dark  -> { r = 20, g = 200, b = 40 }
+
 typeColor : ColorScheme -> Color
 typeColor colorScheme =
   case colorScheme of
@@ -589,8 +600,9 @@ codeObjectPolygon msgs codeInfo codeObject color =
       []
     Just deuceWidget ->
       let
-        selected =
-          List.member deuceWidget codeInfo.selectedWidgets
+        isSelected = List.member deuceWidget <| getAllSelected codeInfo
+        isKeyboardFocused = codeInfo.mbKeyboardFocusedWidget == Just deuceWidget
+        allSelected = getAllSelected codeInfo
 
         codeObjectHasTypeError =
           case (codeInfo.needsParse, codeObject) of
@@ -606,14 +618,14 @@ codeObjectPolygon msgs codeInfo codeObject color =
               False
 
         highlightError =
-          codeObjectHasTypeError && codeInfo.selectedWidgets == []
+          codeObjectHasTypeError && allSelected == []
 
         highlightInfo =
           case (codeInfo.needsParse, codeObject) of
             (False, E e) ->
               case (unExpr e).val.extraTypeInfo of
                 Just (HighlightWhenSelected eId) ->
-                  if codeInfo.selectedWidgets == [DeuceExp eId] then
+                  if allSelected == [DeuceExp eId] then
                     True
                   else
                     False
@@ -628,10 +640,15 @@ codeObjectPolygon msgs codeInfo codeObject color =
         infoColor =
           objectInfoColor codeInfo.displayInfo.colorScheme
 
+        focusedColor =
+          keyboardFocusedColor codeInfo.displayInfo.colorScheme
+
         (classModifier, finalColor)  =
-          if selected && codeObjectHasTypeError then
+          if isSelected && codeObjectHasTypeError then
             (" opaque", errorColor)
-          else if selected then
+          else if isKeyboardFocused then
+            (" opaque", focusedColor)
+          else if isSelected then
             (" opaque", color)
           else if highlightError then
             (" translucent", errorColor)
@@ -822,6 +839,8 @@ overlay msgs model =
           untrimmedLineHulls
       , trimmedLineHulls =
           trimmedLineHulls
+      , mbKeyboardFocusedWidget =
+          model.deuceState.mbKeyboardFocusedWidget
       , selectedWidgets =
           model.deuceState.selectedWidgets
       , patMap =
@@ -861,6 +880,8 @@ diffOverlay model exps =
           untrimmedLineHulls
       , trimmedLineHulls =
           trimmedLineHulls
+      , mbKeyboardFocusedWidget =
+          model.deuceState.mbKeyboardFocusedWidget
       , selectedWidgets =
           model.deuceState.selectedWidgets
       , patMap =

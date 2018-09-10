@@ -48,6 +48,7 @@ type alias Code = String
 type alias TrackedValues =
   { code : Code
   , selectedDeuceWidgets : List DeuceWidgets.DeuceWidget
+  , mbKeyboardFocusedWidget : Maybe DeuceWidgets.DeuceWidget
   }
 
 type alias Position = { col : Int, line : Int }
@@ -1123,9 +1124,13 @@ codeObjectFromSelection allowSingleSelection model =
 
 --------------------------------------------------------------------------------
 
+getAllSelected : Model -> List DeuceWidgets.DeuceWidget
+getAllSelected model =
+  DeuceWidgets.mergeSelected model.deuceState.selectedWidgets model.deuceState.mbKeyboardFocusedWidget
+
 noCodeWidgetsSelected : Model -> Bool
 noCodeWidgetsSelected model =
-  List.isEmpty model.deuceState.selectedWidgets
+  List.isEmpty <| getAllSelected model
 
 nothingSelectedInOutput : Model -> Bool
 nothingSelectedInOutput model =
@@ -1181,22 +1186,24 @@ historyUpdateCondition previousValues currentValues =
     -- Might need some sort of sorting because not a set?
     , previousValues.selectedDeuceWidgets
         /= currentValues.selectedDeuceWidgets
+    , previousValues.mbKeyboardFocusedWidget
+        /= currentValues.mbKeyboardFocusedWidget
     ]
 
 modelCommit
-  :  Code -> List DeuceWidgets.DeuceWidget
+  :  Code -> List DeuceWidgets.DeuceWidget -> Maybe DeuceWidgets.DeuceWidget
   -> History TrackedValues -> History TrackedValues
-modelCommit code dws =
+modelCommit code dws dwkf =
   History.commit
     historyUpdateCondition
-    { code = code, selectedDeuceWidgets = dws }
+    { code = code, selectedDeuceWidgets = dws, mbKeyboardFocusedWidget = dwkf }
 
 modelModify
-  :  Code -> List DeuceWidgets.DeuceWidget
+  :  Code -> List DeuceWidgets.DeuceWidget -> Maybe DeuceWidgets.DeuceWidget
   -> History TrackedValues -> Maybe (History TrackedValues)
-modelModify code dws =
+modelModify code dws dwkf =
   History.modify
-    { code = code, selectedDeuceWidgets = dws }
+    { code = code, selectedDeuceWidgets = dws, mbKeyboardFocusedWidget = dwkf }
 
 --------------------------------------------------------------------------------
 
@@ -1204,6 +1211,7 @@ modelModify code dws =
 type alias DeuceCacheTriggerValues =
   { code : String
   , inputExp : Exp
+  , mbKeyboardFocusedWidget : Maybe DeuceWidgets.DeuceWidget
   , selectedWidgets : List DeuceWidgets.DeuceWidget
   -- , hoveredWidgets : List DeuceWidgets.DeuceWidget
   , colorScheme : ColorScheme
@@ -1216,6 +1224,7 @@ deuceCacheTriggerValues : Model -> DeuceCacheTriggerValues
 deuceCacheTriggerValues m =
   { code = m.code
   , inputExp = m.inputExp
+  , mbKeyboardFocusedWidget = m.deuceState.mbKeyboardFocusedWidget
   , selectedWidgets = m.deuceState.selectedWidgets
   -- , hoveredWidgets = m.deuceState.hoveredWidgets
   , colorScheme = m.colorScheme
@@ -1287,7 +1296,7 @@ initModel =
     , preview       = Nothing
     , previewdiffs  = Nothing
     , previewdiffsDelay = 1000 --ms
-    , history       = History.begin { code = code, selectedDeuceWidgets = [] }
+    , history       = History.begin { code = code, selectedDeuceWidgets = [], mbKeyboardFocusedWidget = Nothing }
     , inputExp      = e
     , inputVal      = v
     , inputEnv      = env
