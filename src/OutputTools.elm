@@ -559,7 +559,7 @@ pointListBasedRepeatTools model =
   model.widgets
   |> List.filterMap ValWidgets.widgetToMaybeVal
   |> List.filter (Lang.vListToMaybePointVals >> Maybe.withDefault [] >> (/=) []) -- Empty lists pass vListToMaybePointVals but we want them excluded.
-  |> List.filter (Lang.valExp >> Lang.isList) -- No variable usages, just want literal lists.
+  |> List.filter (not << Lang.isVar << Lang.valExp) -- No variable usages, just want literal lists.
   |> Utils.dedupBy Lang.valEId -- Avoid showing same list multiple times.
   |> Utils.mapi1
       (\(i, pointListVal) ->
