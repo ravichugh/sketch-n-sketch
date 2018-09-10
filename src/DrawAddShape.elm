@@ -26,7 +26,7 @@ import Set
 
 
 maybeShapeCountAndListItemCountInContextOutput
-  :  { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, solutionsCache : Solver.SolutionsCache, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
+  :  { a | showPreludeOffsets : Bool, slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, solutionsCache : Solver.SolutionsCache, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
   -> Exp
   -> Maybe (Int, Int)
 maybeShapeCountAndListItemCountInContextOutput model program =
@@ -49,7 +49,7 @@ maybeShapeCountAndListItemCountInContextOutput model program =
 -- 5. Keep those programs that result in one more shape in the output.
 -- 6. Finally, use list the others do not depend on.
 addShape
-  :  { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, solutionsCache : Solver.SolutionsCache, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
+  :  { a | showPreludeOffsets : Bool, slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, solutionsCache : Solver.SolutionsCache, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
   -> (Exp -> Bool) -> Maybe String -> Exp -> Maybe Int -> Maybe Int -> Maybe Int -> Maybe Int -> Bool -> Exp -> Exp
 addShape
   model
@@ -140,10 +140,10 @@ addShape
     _ = Debug.log "(oldShapeCount, oldListItemsCount)" (oldShapeCount, oldListItemsCount)
 
     (incomingShapeCount, incomingListItemsCount) =
-      Eval.doEval model.syntax (model.maybeEnv |> Maybe.withDefault Eval.initEnv) newShapeExp
+      Eval.doEval False model.syntax (model.maybeEnv |> Maybe.withDefault Eval.initEnv) newShapeExp
       |> Result.andThen
           (\((val, _), _, _) ->
-            LangSvg.resolveToRootedIndexedTree model.syntax model.slideNumber model.movieNumber model.movieTime val
+            LangSvg.resolveToRootedIndexedTree False model.syntax model.slideNumber model.movieNumber model.movieTime val
             |> Result.map
                 (\(root, shapeTree) ->
                   ( if Dict.size shapeTree > 1 then Dict.size shapeTree - 1 else Dict.size shapeTree -- Lists of shapes are wrapped in an ['svg' ... ...] wrapper that adds 1 to the shape count.

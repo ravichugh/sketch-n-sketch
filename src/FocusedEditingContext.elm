@@ -127,8 +127,8 @@ isValidInsertionLocationExpForContext editingContext program =
 
 
 
-evalAtContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Maybe Env, List Eval.PBEHoleSeen)
-evalAtContext syntax editingContext program =
+evalAtContext : Bool -> Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Result String ((Val, Widgets), Maybe Env, List Eval.PBEHoleSeen)
+evalAtContext showPreludeOffsets syntax editingContext program =
   -- let returnEnvAtExp ret env =
   --   -- What env gets returned from the evaluator is wacky.
   --   -- Here, we always want the env the expression saw.
@@ -148,7 +148,7 @@ evalAtContext syntax editingContext program =
           |> expEffectiveExp
           |> (.val >> .eid)
       in
-      Eval.doEvalEarlyAbort (Just envEId) abortPred syntax Eval.initEnv program
+      Eval.doEvalEarlyAbort showPreludeOffsets (Just envEId) abortPred syntax Eval.initEnv program
       |> Result.map
           (\((val, widgets), maybeContextEnv, pbeHolesSeen) ->
             case maybeContextEnv of
@@ -168,7 +168,7 @@ evalAtContext syntax editingContext program =
 
     Nothing ->
       let envEId = (expEffectiveExp program).val.eid in
-      Eval.doEvalEarlyAbort (Just envEId) Eval.runUntilTheEnd syntax Eval.initEnv program
+      Eval.doEvalEarlyAbort showPreludeOffsets (Just envEId) Eval.runUntilTheEnd syntax Eval.initEnv program
 
 
 editingContextFromMarkers : Exp -> Maybe (EId, Maybe EId)

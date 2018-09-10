@@ -123,6 +123,7 @@ type alias Model =
   , syncOptions : Sync.Options
   , caption : Maybe Caption
   , showGhosts : ShowGhosts
+  , showPreludeOffsets : Bool
   , localSaves : List String
   , startup : Bool
   , codeBoxInfo : CodeBoxInfo
@@ -662,22 +663,23 @@ type alias DeuceToolResultPreviews =
 
 --------------------------------------------------------------------------------
 
-runAndResolve : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve : { a | showPreludeOffsets : Bool, slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve model exp =
   runAndResolve_
-    { movieNumber = model.movieNumber
-    , movieTime   = model.movieTime
-    , slideNumber = model.slideNumber
-    , syntax      = model.syntax
+    { showPreludeOffsets = model.showPreludeOffsets
+    , movieNumber        = model.movieNumber
+    , movieTime          = model.movieTime
+    , slideNumber        = model.slideNumber
+    , syntax             = model.syntax
     }
     exp
 
 
-runAndResolveAtContext : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code, List Eval.PBEHoleSeen)
+runAndResolveAtContext : { a | showPreludeOffsets : Bool, slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code, List Eval.PBEHoleSeen)
 runAndResolveAtContext model program =
   let thunk () =
     let editingContext = FocusedEditingContext.editingContextFromMarkers program in
-    FocusedEditingContext.evalAtContext model.syntax editingContext program
+    FocusedEditingContext.evalAtContext model.showPreludeOffsets model.syntax editingContext program
     |> Result.andThen (\((val, widgets), env, pbeHolesSeen) -> slateAndCode model (program, val)
     |> Result.map (\(slate, code) -> (val, widgets, slate, code, pbeHolesSeen)))
   in
@@ -685,10 +687,10 @@ runAndResolveAtContext model program =
   |> Utils.unwrapNestedResult
 
 
-runAndResolve_ : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
+runAndResolve_ : { a | showPreludeOffsets : Bool, slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> Exp -> Result String (Val, Widgets, RootedIndexedTree, Code)
 runAndResolve_ model exp =
   let thunk () =
-    Eval.run model.syntax exp
+    Eval.run model.showPreludeOffsets model.syntax exp
     |> Result.andThen (\(val, widgets) -> slateAndCode model (exp, val)
     |> Result.map (\(slate, code) -> (val, widgets, slate, code)))
   in
@@ -698,14 +700,14 @@ runAndResolve_ model exp =
 
 slateAndCode : { a | slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax } -> (Exp, Val) -> Result String (RootedIndexedTree, Code)
 slateAndCode old (exp, val) =
-  LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime val
+  LangSvg.resolveToRootedIndexedTree False old.syntax old.slideNumber old.movieNumber old.movieTime val
   |> Result.map (\slate -> (slate, Syntax.unparser old.syntax exp))
 
 --------------------------------------------------------------------------------
 
 mkLive : Syntax -> Sync.Options -> Int -> Int -> Float -> Exp -> (Val, Widgets) -> Result String Sync.LiveInfo
 mkLive syntax opts slideNumber movieNumber movieTime e (val, widgets) =
-  LangSvg.resolveToRootedIndexedTree syntax slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
+  LangSvg.resolveToRootedIndexedTree False syntax slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
   Sync.prepareLiveUpdates opts e (slate, widgets)                           |> Result.andThen (\liveInfo ->
     Ok liveInfo
   ))
@@ -1062,7 +1064,7 @@ initModel =
   in
   let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
-    unwrap (LangSvg.fetchEverything Syntax.Little 1 1 0.0 v)
+    unwrap (LangSvg.fetchEverything False Syntax.Little 1 1 0.0 v)
   in
   let liveSyncInfo = unwrap (mkLive Syntax.Little Sync.defaultOptions 1 1 0.0 e (v, ws)) in
   let code = LangUnparser.unparse e in
@@ -1098,6 +1100,7 @@ initModel =
     , syncOptions   = Sync.defaultOptions
     , caption       = Nothing
     , showGhosts    = True
+    , showPreludeOffsets = False
     , localSaves    = []
     , startup       = True
     , codeBoxInfo   = { cursorPos = { row = round 0, column = round 0 }

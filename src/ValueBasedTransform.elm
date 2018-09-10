@@ -194,9 +194,9 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
 
 
 
-evalToSlateAndWidgetsResult : Exp -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
-evalToSlateAndWidgetsResult exp slideNumber movieNumber movieTime =
-  InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } exp -- Syntax is dummy, we throw away unparse code
+evalToSlateAndWidgetsResult : Exp -> Bool -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
+evalToSlateAndWidgetsResult exp showPreludeOffsets slideNumber movieNumber movieTime =
+  InterfaceModel.runAndResolve_ { showPreludeOffsets = showPreludeOffsets, slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } exp -- Syntax is dummy, we throw away unparse code
   |> Result.map (\(val, widgets, slate, code) -> (slate, widgets))
 
 
@@ -230,12 +230,12 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp =
   sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
 
 
-indexedRelate : Syntax -> Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
-indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
+indexedRelate : Bool -> Syntax -> Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
+indexedRelate showPreludeOffsets syntax originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
   if True then
     []
   else
-  case evalToSlateAndWidgetsResult originalExp slideNumber movieNumber movieTime of
+  case evalToSlateAndWidgetsResult originalExp showPreludeOffsets slideNumber movieNumber movieTime of
     Err _    -> []
     Ok (slate, widgets) ->
       let (_, tree) = slate in
@@ -397,9 +397,9 @@ rankComparedTo originalExp synthesisResults =
       )
 
 
-selectedFeaturesToFeaturesAndEquations : Set.Set ShapeWidgets.SelectableFeature -> Exp -> Int -> Int -> Float -> List SelectedFeatureAndEquation
-selectedFeaturesToFeaturesAndEquations selectedFeatures program slideNumber movieNumber movieTime =
-  case evalToSlateAndWidgetsResult program slideNumber movieNumber movieTime of
+selectedFeaturesToFeaturesAndEquations : Set.Set ShapeWidgets.SelectableFeature -> Exp -> Bool -> Int -> Int -> Float -> List SelectedFeatureAndEquation
+selectedFeaturesToFeaturesAndEquations selectedFeatures program showPreludeOffsets slideNumber movieNumber movieTime =
+  case evalToSlateAndWidgetsResult program showPreludeOffsets slideNumber movieNumber movieTime of
     Err s -> []
     Ok ((rootI, tree), widgets) ->
       selectedFeatures
@@ -412,10 +412,10 @@ selectedFeaturesToFeaturesAndEquations selectedFeatures program slideNumber movi
           )
 
 
-makeEqual syntax solutionsCache originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+makeEqual showPreludeOffsets syntax solutionsCache originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   -- Have to convert to equations early: some transformations may move or create widgets which messes up feature indexing.
   let featuresAndEquations =
-    selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
+    selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp showPreludeOffsets slideNumber movieNumber movieTime
   in
   let equalizeAll priorResults featuresAndEquations =
     -- equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions
@@ -440,10 +440,10 @@ makeEqual syntax solutionsCache originalExp selectedFeatures slideNumber movieNu
       featuresAndEquations
 
 
-relate syntax solutionsCache originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+relate showPreludeOffsets syntax solutionsCache originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
   -- Have to convert to equations early: some transformations may move or create widgets which messes up feature indexing.
   let featuresAndEquations =
-    selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp slideNumber movieNumber movieTime
+    selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp showPreludeOffsets slideNumber movieNumber movieTime
   in
   let relateOneInTermsOfAllOthers priorResults featuresAndEquations =
     let (_, featureEqns) = List.unzip featuresAndEquations in
@@ -872,9 +872,9 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 
 -- Returns synthesis results
 -- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
-abstract : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Maybe (EId, a) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
-abstract program idToTypeAndContextThunk editingContext selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
-  case InterfaceModel.runAndResolve_ { slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we abort on unparsable code
+abstract : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Bool -> Maybe (EId, a) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
+abstract program idToTypeAndContextThunk showPreludeOffsets editingContext selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
+  case InterfaceModel.runAndResolve_ { showPreludeOffsets = showPreludeOffsets, slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we abort on unparsable code
     Err s -> []
     Ok (_, widgets, slate, _) ->
       -- Some of var bindings pulled into function could have the same name, and could come from all over the program, so let's do our favorite thing...
@@ -1171,8 +1171,8 @@ abstract_ program originalProgramUniqueNames editingContext uniqueNameToOldName 
   )
 
 
-repeatUsingFunction : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
-repeatUsingFunction program idToTypeAndContextThunk editingContext maybeEnv pointsFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
+repeatUsingFunction : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Bool -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeatUsingFunction program idToTypeAndContextThunk showPreludeOffsets editingContext maybeEnv pointsFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let maybeMakePointsExpAndRepeatingOverWhatDesc argExps shouldReverseXY =
     let
       ptArgExp =
@@ -1213,6 +1213,7 @@ repeatUsingFunction program idToTypeAndContextThunk editingContext maybeEnv poin
   in
   repeat_
     program
+    showPreludeOffsets
     editingContext
     maybeEnv
     maybeMakePointsExpAndRepeatingOverWhatDesc
@@ -1226,8 +1227,8 @@ repeatUsingFunction program idToTypeAndContextThunk editingContext maybeEnv poin
     syncOptions
 
 
-repeatUsingPointList : Exp -> Maybe (EId, a) -> Maybe Env -> Val -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
-repeatUsingPointList program editingContext maybeEnv pointListVal selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
+repeatUsingPointList : Exp -> Bool -> Maybe (EId, a) -> Maybe Env -> Val -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeatUsingPointList program showPreludeOffsets editingContext maybeEnv pointListVal selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let maybeMakePointsExpAndRepeatingOverWhatDesc argExps shouldReverseXY =
     Just <|
       ( eHoleVal pointListVal -- There is a round of hole resolution after this exp is inserted.
@@ -1236,6 +1237,7 @@ repeatUsingPointList program editingContext maybeEnv pointListVal selectedFeatur
   in
   repeat_
     program
+    showPreludeOffsets
     editingContext
     maybeEnv
     maybeMakePointsExpAndRepeatingOverWhatDesc
@@ -1249,8 +1251,8 @@ repeatUsingPointList program editingContext maybeEnv pointListVal selectedFeatur
     syncOptions
 
 
-repeat_ : Exp -> Maybe (EId, a) -> Maybe Env -> (List Exp -> Bool -> Maybe (Exp, String)) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
-repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDesc selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
+repeat_ : Exp -> Bool -> Maybe (EId, a) -> Maybe Env -> (List Exp -> Bool -> Maybe (Exp, String)) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeat_ program showPreludeOffsets editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDesc selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let
     model =
       { slideNumber    = slideNumber
@@ -1259,6 +1261,7 @@ repeat_ program editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDe
       , syntax         = Syntax.Elm
       , solutionsCache = solutionsCache
       , syncOptions    = syncOptions
+      , showPreludeOffsets = showPreludeOffsets
       , maybeEnv       = maybeEnv
       , editingContext = editingContext
       }

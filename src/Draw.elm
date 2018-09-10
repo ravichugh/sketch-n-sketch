@@ -308,7 +308,7 @@ drawNewFunction fName model pt1 pt2 =
       in
       if Types.isPointType returnType || Types.isPointListType returnType then
         let maybePoints =
-          Eval.doEval Syntax.Elm Eval.initEnv pseudoProgram
+          Eval.doEval False Syntax.Elm Eval.initEnv pseudoProgram
           |> Utils.perhapsLogError "drawNewFunction error"
           |> Result.toMaybe
           -- Handle single point or list of points

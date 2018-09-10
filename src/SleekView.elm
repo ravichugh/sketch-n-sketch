@@ -189,17 +189,25 @@ simpleTextRadioButton active title onClick =
           , attributes = logMouseOver ("Radio Button \"" ++ radioButtonIcon ++ " " ++ title ++ "\"")
       }
 
-booleanOption : Bool -> String -> String -> (Bool -> Msg) -> List (Html Msg)
-booleanOption test onString offString handler =
-  [ simpleTextRadioButton
-      test
-      onString
-      (handler True)
-  , simpleTextRadioButton
-      (not test)
-      offString
-      (handler False)
-  ]
+
+simpleBooleanButton : Bool -> String -> (Bool -> Msg) -> Html Msg
+simpleBooleanButton isOn string handler =
+  simpleTextButton
+    ((if isOn then "✔︎ " else "") ++ string)
+    (handler (not isOn))
+
+
+-- booleanOption : Bool -> String -> String -> (Bool -> Msg) -> List (Html Msg)
+-- booleanOption test onString offString handler =
+--   [ simpleTextRadioButton
+--       test
+--       onString
+--       (handler True)
+--   , simpleTextRadioButton
+--       (not test)
+--       offString
+--       (handler False)
+--   ]
 
 -- Logic moved to OutputTools
 -- relateTextButton : Model -> String -> Msg -> Html Msg
@@ -757,12 +765,14 @@ menuBar model =
       menu "View" <|
         [ [ disableableTextButton True "Main Layer" Controller.msgNoop
           , disableableTextButton True "Widget Layer" Controller.msgNoop
-          , hoverMenu "Ghost Layer" <|
-              booleanOption
-                model.showGhosts
-                "On"
-                "Off"
-                Controller.msgSetGhostsShown
+          , simpleBooleanButton model.showGhosts "Show Widgets" Controller.msgSetGhostsShown
+          , simpleBooleanButton model.showPreludeOffsets "Show Offset Widgets from Prelude" Controller.msgSetPreludeOffsetsShown
+          -- , hoverMenu "Ghost Layer" <|
+          --     booleanOption
+          --       model.showGhosts
+          --       "On"
+          --       "Off"
+          --       Controller.msgSetGhostsShown
           ]
         , [ simpleTextButton
               "Reset Interface Layout"
@@ -884,24 +894,27 @@ menuBar model =
                   True "Every 3 seconds" Controller.msgNoop
               ]
           ]
-        , [ hoverMenu "Enable Text Edits" <|
-              booleanOption
-                (Updatable.extract model.enableTextEdits)
-                "True"
-                "False"
-                Controller.msgSetEnableTextEdits
-          , hoverMenu "Enable Deuce Box Selection" <|
-              booleanOption
-                model.enableDeuceBoxSelection
-                "True"
-                "False"
-                Controller.msgSetEnableDeuceBoxSelection
-          , hoverMenu "Enable Deuce Text Selection" <|
-              booleanOption
-                model.enableDeuceTextSelection
-                "True"
-                "False"
-                Controller.msgSetEnableDeuceTextSelection
+        , [ simpleBooleanButton (Updatable.extract model.enableTextEdits) "Enable Text Edits" Controller.msgSetEnableTextEdits
+        -- hoverMenu "Enable Text Edits" <|
+        --       booleanOption
+        --         (Updatable.extract model.enableTextEdits)
+        --         "True"
+        --         "False"
+        --         Controller.msgSetEnableTextEdits
+          , simpleBooleanButton model.enableDeuceBoxSelection "Enable Deuce Box Selection" Controller.msgSetEnableDeuceBoxSelection
+          -- hoverMenu "Enable Deuce Box Selection" <|
+          --     booleanOption
+          --       model.enableDeuceBoxSelection
+          --       "True"
+          --       "False"
+          --       Controller.msgSetEnableDeuceBoxSelection
+          , simpleBooleanButton model.enableDeuceTextSelection "Enable Deuce Text Selection" Controller.msgSetEnableDeuceTextSelection
+          -- hoverMenu "Enable Deuce Text Selection" <|
+          --     booleanOption
+          --       model.enableDeuceTextSelection
+          --       "True"
+          --       "False"
+          --       Controller.msgSetEnableDeuceTextSelection
           ]
         , [ hoverMenu "Code Tools Menu Mode"
               [ simpleTextRadioButton
@@ -971,23 +984,26 @@ menuBar model =
                   "SubsetExtra"
                   (Controller.msgSetTextSelectMode SubsetExtra)
               ]
-          , hoverMenu "Allow Multiple Target Positions" <|
-              booleanOption
-                (model.allowMultipleTargetPositions)
-                "True"
-                "False"
-                Controller.msgSetAllowMultipleTargetPositions
+          , simpleBooleanButton model.allowMultipleTargetPositions "Allow Multiple Target Positions" Controller.msgSetAllowMultipleTargetPositions
+          -- hoverMenu "Allow Multiple Target Positions" <|
+          --     booleanOption
+          --       (model.allowMultipleTargetPositions)
+          --       "True"
+          --       "False"
+          --       Controller.msgSetAllowMultipleTargetPositions
           ]
-        , [ hoverMenu "Automatically Suggest Code Changes"
-              [ simpleTextRadioButton
-                  model.autoSynthesis
-                  "On"
-                  Controller.msgStartAutoSynthesis
-              , simpleTextRadioButton
-                  (not model.autoSynthesis)
-                  "Off"
-                  Controller.msgStopAutoSynthesisAndClear
-              ]
+        , [ simpleBooleanButton model.autoSynthesis "Automatically Suggest Code Changes" Controller.msgSetAutoSynthesis
+        --
+        -- hoverMenu "Automatically Suggest Code Changes"
+        --       [ simpleTextRadioButton
+        --           model.autoSynthesis
+        --           "On"
+        --           Controller.msgStartAutoSynthesis
+        --       , simpleTextRadioButton
+        --           (not model.autoSynthesis)
+        --           "Off"
+        --           Controller.msgStopAutoSynthesisAndClear
+        --       ]
           , hoverMenu "Output Synchronization"
               [ simpleTextRadioButton
                   (model.liveSyncDelay == False)

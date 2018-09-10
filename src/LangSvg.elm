@@ -658,10 +658,10 @@ buildSvgSimple_ tree i  =
 
 evalToSvg : Syntax -> Env -> Exp -> Result String (Svg.Svg a)
 evalToSvg syntax env exp =
-  Eval.doEval syntax env exp
+  Eval.doEval False syntax env exp
   |> Result.andThen
       (\((val, _), _, _) ->
-        resolveToRootedIndexedTree syntax 1 1 0 val
+        resolveToRootedIndexedTree False syntax 1 1 0 val
         |> Result.map buildSvgSimple
       )
 
@@ -899,40 +899,40 @@ type alias AnimationKey = (Int, Int, Float)
 vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance (eConstDummyLoc0 n) [], parents = Parents [] }
 vIntFrozen i = vNumFrozen (toFloat i)
 
-resolveToMovieCount : Syntax -> Int -> Val -> Result String Int
-resolveToMovieCount syntax slideNumber val =
-  fetchSlideVal syntax slideNumber val
+resolveToMovieCount : Bool -> Syntax -> Int -> Val -> Result String Int
+resolveToMovieCount showPreludeOffsets syntax slideNumber val =
+  fetchSlideVal showPreludeOffsets syntax slideNumber val
   |> Result.map fetchMovieCount
 
-resolveToMovieFrameVal : Syntax -> Int -> Int -> Float -> Val -> Result String Val
-resolveToMovieFrameVal syntax slideNumber movieNumber movieTime val =
-  fetchEverything_ syntax slideNumber movieNumber movieTime val
+resolveToMovieFrameVal : Bool -> Syntax -> Int -> Int -> Float -> Val -> Result String Val
+resolveToMovieFrameVal showPreludeOffsets syntax slideNumber movieNumber movieTime val =
+  fetchEverything_ showPreludeOffsets syntax slideNumber movieNumber movieTime val
   |> Result.map (\(_, _, _, _, movieFrameVal) -> movieFrameVal)
 
-resolveToRootedIndexedTree : Syntax -> Int -> Int -> Float -> Val -> Result String RootedIndexedTree
-resolveToRootedIndexedTree syntax slideNumber movieNumber movieTime val =
-  fetchEverything syntax slideNumber movieNumber movieTime val
+resolveToRootedIndexedTree : Bool -> Syntax -> Int -> Int -> Float -> Val -> Result String RootedIndexedTree
+resolveToRootedIndexedTree showPreludeOffsets syntax slideNumber movieNumber movieTime val =
+  fetchEverything showPreludeOffsets syntax slideNumber movieNumber movieTime val
   |> Result.map (\(_, _, _, _, indexedTree) -> indexedTree)
 
-fetchEverything_ : Syntax -> Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
-fetchEverything_ syntax slideNumber movieNumber movieTime val =
+fetchEverything_ : Bool -> Syntax -> Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, Val)
+fetchEverything_ showPreludeOffsets syntax slideNumber movieNumber movieTime val =
   let slideCount = fetchSlideCount val in
-  fetchSlideVal syntax slideNumber val |>
+  fetchSlideVal showPreludeOffsets syntax slideNumber val |>
   Result.andThen (\slideVal ->
     let movieCount = fetchMovieCount slideVal in
-    fetchMovieVal syntax movieNumber slideVal |>
+    fetchMovieVal showPreludeOffsets syntax movieNumber slideVal |>
     Result.andThen (\movieVal ->
       let (movieDuration, continue) = fetchMovieDurationAndContinueBool movieVal in
-      fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal
+      fetchMovieFrameVal showPreludeOffsets syntax slideNumber movieNumber movieTime movieVal
       |> Result.map (\movieFrameVal ->
         (slideCount, movieCount, movieDuration, continue, movieFrameVal)
       )
     )
   )
 
-fetchEverything : Syntax -> Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
-fetchEverything syntax slideNumber movieNumber movieTime val =
-  fetchEverything_ syntax slideNumber movieNumber movieTime val |>
+fetchEverything : Bool -> Syntax -> Int -> Int -> Float -> Val -> Result String (Int, Int, Float, Bool, RootedIndexedTree)
+fetchEverything showPreludeOffsets syntax slideNumber movieNumber movieTime val =
+  fetchEverything_ showPreludeOffsets syntax slideNumber movieNumber movieTime val |>
   Result.andThen (\(slideCount, movieCount, movieDuration, continue, movieVal) ->
     valToIndexedTree movieVal
     |> Result.map (\indexedTree -> (slideCount, movieCount, movieDuration, continue, indexedTree))
@@ -950,8 +950,8 @@ fetchMovieCount slideVal =
     Just [VConst _ (movieCount, _), _] -> round movieCount
     _ -> 1 -- Program returned a plain SVG array structure...we hope.
 
-fetchSlideVal : Syntax -> Int -> Val -> Result String Val
-fetchSlideVal syntax slideNumber val =
+fetchSlideVal : Bool -> Syntax -> Int -> Val -> Result String Val
+fetchSlideVal showPreludeOffsets syntax slideNumber val =
   case unwrapVList val of
     Just [VConst _ (slideCount, _), VClosure _ [pat] fexp fenv] ->
       -- Program returned the slide count and a
@@ -960,20 +960,20 @@ fetchSlideVal syntax slideNumber val =
         PVar _ argumentName _ ->
           -- Bind the slide number to the function's argument.
           let fenv_ = (argumentName, vIntFrozen slideNumber) :: fenv in
-          Eval.doEval syntax fenv_ fexp
+          Eval.doEval showPreludeOffsets syntax fenv_ fexp
           |> Result.map (\((returnVal, _), _, _) -> returnVal)
         _ -> Err ("expected slide function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok val -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieVal : Syntax -> Int -> Val -> Result String Val
-fetchMovieVal syntax movieNumber slideVal =
+fetchMovieVal : Bool -> Syntax -> Int -> Val -> Result String Val
+fetchMovieVal showPreludeOffsets syntax movieNumber slideVal =
   case unwrapVList slideVal of
     Just [VConst _ (movieCount, _), VClosure _ [pat] fexp fenv] ->
       case pat.val.p__ of -- Find the function's argument name
         PVar _ movieNumberArgumentName _ ->
           let fenv_ = (movieNumberArgumentName, vIntFrozen movieNumber) :: fenv in
-          Eval.doEval syntax fenv_ fexp
+          Eval.doEval showPreludeOffsets syntax fenv_ fexp
           |> Result.map (\((returnVal, _), _, _) -> returnVal)
         _ -> Err ("expected movie function to take a single argument, got " ++ (toString pat.val.p__))
     _ -> Ok slideVal -- Program returned a plain SVG array structure...we hope.
@@ -989,8 +989,8 @@ fetchMovieDurationAndContinueBool movieVal =
       (0.0, False) -- Program returned a plain SVG array structure...we hope.
 
 -- This is nasty b/c a two-arg function is really a function that returns a function...
-fetchMovieFrameVal : Syntax -> Int -> Int -> Float -> Val -> Result String Val
-fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
+fetchMovieFrameVal : Bool -> Syntax -> Int -> Int -> Float -> Val -> Result String Val
+fetchMovieFrameVal showPreludeOffsets syntax slideNumber movieNumber movieTime movieVal =
   case unwrapVList movieVal of
     -- [
     --   "Static"
@@ -998,7 +998,7 @@ fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
     -- ]
     Just [VBase (VString "Static"), VClosure _ _ _ _] ->
       let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal1" |> Utils.geti 2 in
-      Eval.doEval syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber)])
+      Eval.doEval showPreludeOffsets syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber)])
       |> Result.map (\((returnVal, _), _, _) -> returnVal)
 
     -- [
@@ -1009,7 +1009,7 @@ fetchMovieFrameVal syntax slideNumber movieNumber movieTime movieVal =
     -- ]
     Just [VBase (VString "Dynamic"), VConst _ (movieDuration, _), VClosure _ _ _ _, VBase (VBool _)] ->
       let getFrameValClosure = movieVal |> vListToVals "fetchMovieFrameVal2" |> Utils.geti 3 in
-      Eval.doEval syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber), eConstDummyLoc movieTime])
+      Eval.doEval showPreludeOffsets syntax [("getFrameVal", getFrameValClosure)] (eCall "getFrameVal" [eConstDummyLoc (toFloat slideNumber), eConstDummyLoc (toFloat movieNumber), eConstDummyLoc movieTime])
       |> Result.map (\((returnVal, _), _, _) -> returnVal)
 
     _ -> Ok movieVal -- Program returned a plain SVG array structure...we hope.

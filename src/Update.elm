@@ -206,10 +206,10 @@ getUpdateStackOp env e oldVal out nextToUpdate =
             _ -> UpdateError <| "Cannot update a list " ++ unparse e ++ " with non-list " ++ valToString newVal
 
     EApp sp0 e1 e2s appType sp1 ->
-      case doEval Syntax.Elm env e1 of
+      case doEval False Syntax.Elm env e1 of
       Err s       -> UpdateError s
       Ok ((v1, _),_,_) ->
-        case List.map (doEval Syntax.Elm env) e2s |> Utils.projOk of
+        case List.map (doEval False Syntax.Elm env) e2s |> Utils.projOk of
           Err s       -> UpdateError s
           Ok v2ls ->
             let v2s = List.map (\((v2, _), _, _) -> v2) v2ls in
@@ -253,7 +253,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                 UpdateError <| strPos e1.start ++ " not a function"
 
     EIf sp0 cond sp1 thn sp2 els sp3 ->
-      case doEval Syntax.Elm env cond of
+      case doEval False Syntax.Elm env cond of
         Ok ((v, _), _, _) ->
           case v.v_ of
             VBase (VBool b) ->
@@ -272,7 +272,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
           UpdateContinue env arg oldVal out <| HandlePreviousResult <| \(newEnv, newArg) ->
             UpdateResult newEnv <| replaceE__ e <| EOp sp1 op [newArg] sp2
         _ ->
-          case Utils.projOk <| List.map (doEval Syntax.Elm env) opArgs of
+          case Utils.projOk <| List.map (doEval False Syntax.Elm env) opArgs of
             Err msg -> UpdateError msg
             Ok argsEvaled ->
               let ((vs, wss), envs, _) = Utils.mapFst3 List.unzip <| Utils.unzip3 argsEvaled in
@@ -303,7 +303,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                             case Syntax.parser Syntax.Elm s of
                               Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression " ++ toString msg
                               Ok parsed ->
-                                case doEval Syntax.Elm [] parsed of
+                                case doEval False Syntax.Elm [] parsed of
                                   Err msg -> UpdateError msg
                                   Ok ((v, _), _, _) ->
                                     case (opArgs, vs) of
@@ -334,7 +334,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                           case Syntax.parser Syntax.Elm s of
                             Err msg -> UpdateError <| "Could not parse new output value '"++s++"' for ToStr expression " ++ toString msg
                             Ok parsed ->
-                              case doEval Syntax.Elm [] parsed of
+                              case doEval False Syntax.Elm [] parsed of
                                 Err msg -> UpdateError msg
                                 Ok ((v, _), _, _) ->
                                   case (opArgs, vs) of
@@ -356,7 +356,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                             handleRemainingResults lazyTail nextToUpdate
 
     ECase sp1 input branches sp2 ->
-      case doEval Syntax.Elm env input of
+      case doEval False Syntax.Elm env input of
         Err msg -> UpdateError msg
         Ok ((inputVal, _), _, _) ->
           case branchWithInversion env inputVal branches of
@@ -370,7 +370,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                   UpdateResult finalEnv finalExp
     --  ETypeCase WS Exp (List TBranch) WS
     ELet sp1 letKind False p sp2 e1 sp3 body sp4 ->
-        case doEval Syntax.Elm env e1 of
+        case doEval False Syntax.Elm env e1 of
           Err s       -> UpdateError s
           Ok ((oldE1Val,_), _, _) ->
             case consWithInversion (p, oldE1Val) (Just (env, (\newEnv -> newEnv))) of
@@ -385,7 +385,7 @@ getUpdateStackOp env e oldVal out nextToUpdate =
                Nothing ->
                  UpdateError <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser Syntax.Elm >> Utils.squish) p ++ " with " ++ strVal oldE1Val
     ELet sp1 letKind True p sp2 e1 sp3 body sp4 ->
-        case doEval Syntax.Elm env e1 of
+        case doEval False Syntax.Elm env e1 of
           Err s       -> UpdateError s
           Ok ((oldE1Val,_), _, _) ->
             case (p.val.p__, oldE1Val.v_) of

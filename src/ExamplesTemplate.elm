@@ -20,7 +20,7 @@ makeExample name s =
     --   {e=e, v=LangSvg.dummySvgVal, ws=[], ati=ati}
     -- else
     -----------------------------------------------------
-    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run Syntax.Little e in
+    let (v,ws) = Utils.fromOk ("Error executing example " ++ name) <| Eval.run False Syntax.Little e in
     {e=e, v=v, ws=ws, ati=ati}
   in
   (name, (s, thunk))

@@ -217,7 +217,7 @@ pbeHoleFillings solutionsCache pbeHolesSeen =
                                       (\(varVal, exampleVal) sketchSoFar->
                                         let env = [(ident, varVal)] in
                                         -- If we hit a named hole, evaluation will fail...
-                                        case Eval.doEval Syntax.Elm env sketchSoFar of
+                                        case Eval.doEval False Syntax.Elm env sketchSoFar of
                                           Err errStr ->
                                             -- ...then we'll fill that hole with the current example value
                                             if errStr |> String.contains "empty hole exampleVal1!" then
@@ -261,7 +261,7 @@ pbeHoleFillings solutionsCache pbeHolesSeen =
               Utils.zip envs exampleVals
               |> List.all
                   (\(env, originalExampleVal) ->
-                    case Eval.doEval Syntax.Elm env sketch of
+                    case Eval.doEval False Syntax.Elm env sketch of
                       Ok ((newExampleVal, _), _, _) ->
                         Types.valToMaybeType originalExampleVal == Types.valToMaybeType newExampleVal &&
                         (

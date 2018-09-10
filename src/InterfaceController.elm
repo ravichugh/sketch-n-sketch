@@ -14,8 +14,8 @@ port module InterfaceController exposing
   , msgUndo, msgRedo, msgCleanCode
   , msgHideWidgets
   , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgAbstract, msgFillPBEHole, msgRepeatByIndexedMerge, msgRepeatUsingFunction, msgRepeatUsingPointList
-  , msgSelectSynthesisResult, msgClearSynthesisResults
-  , msgStartAutoSynthesis, msgStopAutoSynthesisAndClear
+  , msgSelectSynthesisResult
+  , msgSetAutoSynthesis
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
   , msgSetEditingContext, msgClearEditingContext
   , msgSelectList, msgDeselectList
@@ -52,6 +52,7 @@ port module InterfaceController exposing
   , msgHideMenu, msgToggleMenu -- , msgShowMenu
   , msgUpdateFontSize
   , msgSetGhostsShown
+  , msgSetPreludeOffsetsShown
   , msgHoverDeuceResult
   , msgLeaveDeuceResult
   , msgUpdateRenameVarTextBox
@@ -657,8 +658,8 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
   in
   let dragInfo_ = (trigger, (mx0, my0), True) in
 
-  FocusedEditingContext.evalAtContext old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), maybeEnv, _) ->
-  LangSvg.resolveToRootedIndexedTree old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
+  FocusedEditingContext.evalAtContext old.showPreludeOffsets old.syntax old.editingContext newExp |> Result.andThen (\((newVal, newWidgets), maybeEnv, _) ->
+  LangSvg.resolveToRootedIndexedTree old.showPreludeOffsets old.syntax old.slideNumber old.movieNumber old.movieTime newVal |> Result.map (\newSlate ->
     let newCode = Syntax.unparser old.syntax newExp in
     { old | code = newCode
           , lastRunCode = newCode
@@ -742,9 +743,9 @@ tryRun old =
         let resultThunk () =
           let editingContext = FocusedEditingContext.editingContextFromMarkers e in
 
-          FocusedEditingContext.evalAtContext old.syntax editingContext e |>
+          FocusedEditingContext.evalAtContext old.showPreludeOffsets old.syntax editingContext e |>
           Result.andThen (\((newVal,ws), maybeEnv, _) ->
-            LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber 0.0 newVal
+            LangSvg.fetchEverything old.showPreludeOffsets old.syntax old.slideNumber old.movieNumber 0.0 newVal
             |> Result.map (\(newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
               let newCode = Syntax.unparser old.syntax e in -- unnecessary, if parse/unparse were inverses
               let new =
@@ -1692,6 +1693,7 @@ msgMakeEqual = Msg "Make Equal" doMakeEqual
 doMakeEqual old =
   let synthesisResults =
     ValueBasedTransform.makeEqual
+        old.showPreludeOffsets
         old.syntax
         old.solutionsCache
         old.inputExp
@@ -1706,6 +1708,7 @@ doMakeEqual old =
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.relate
+        old.showPreludeOffsets
         old.syntax
         old.solutionsCache
         old.inputExp
@@ -1720,6 +1723,7 @@ msgRelate = Msg "Relate" <| \old ->
 msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.indexedRelate
+        old.showPreludeOffsets
         old.syntax
         old.inputExp
         old.selectedFeatures
@@ -1765,6 +1769,7 @@ msgAbstract = Msg "Abstract" <| \old ->
     ValueBasedTransform.abstract
         old.inputExp
         old.idToTypeAndContextThunk
+        old.showPreludeOffsets
         old.editingContext
         old.selectedFeatures
         old.selectedShapes
@@ -1815,6 +1820,7 @@ msgRepeatUsingFunction repeatFuncName synthesisResultsDictKey =
       ValueBasedTransform.repeatUsingFunction
           old.inputExp
           old.idToTypeAndContextThunk
+          old.showPreludeOffsets
           old.editingContext
           old.maybeEnv
           repeatFuncName
@@ -1835,6 +1841,7 @@ msgRepeatUsingPointList pointListVal synthesisResultsDictKey =
     let synthesisResults =
       ValueBasedTransform.repeatUsingPointList
           old.inputExp
+          old.showPreludeOffsets
           old.editingContext
           old.maybeEnv
           pointListVal
@@ -2029,19 +2036,10 @@ clearSynthesisResults : Model -> Model
 clearSynthesisResults old =
   { old | preview = Nothing, synthesisResultsDict = Dict.empty }
 
-msgClearSynthesisResults : Msg
-msgClearSynthesisResults =
-  Msg "Clear Synthesis Results" clearSynthesisResults
-
-msgStartAutoSynthesis : Msg
-msgStartAutoSynthesis =
-  Msg "Start Auto Synthesis" <| \old ->
-    { old | autoSynthesis = True }
-
-msgStopAutoSynthesisAndClear : Msg
-msgStopAutoSynthesisAndClear =
-  Msg "Stop Auto Synthesis and Clear" <| \old ->
-    clearSynthesisResults { old | autoSynthesis = False }
+msgSetAutoSynthesis : Bool -> Msg
+msgSetAutoSynthesis shouldBeOn =
+  Msg "Set Auto Synthesis" <| \old ->
+    clearSynthesisResults { old | autoSynthesis = shouldBeOn }
 
 --------------------------------------------------------------------------------
 
@@ -2085,10 +2083,12 @@ doGroup old =
         valsToGroup
         |> List.map Types.valToMaybeType
         |> Utils.projJusts
+        |> Maybe.map (\types -> let _ = List.map (Syntax.typeUnparser Syntax.Elm >> Utils.log) types in types)
         |> Maybe.map Types.allListsOrHomogenousTuplesOfSameTipe
         -- |> Maybe.andThen (List.map Types.maybeListOrHomogenousTupleElementsType >> Utils.projJusts)
         -- |> Maybe.map (Utils.dedup >> List.length >> (==) 1)
         |> Maybe.withDefault False
+        |> Debug.log "doGroup, areAllHomogenousListsOfTheSameType"
       in
       [groupTuple] ++
         if areAllHomogenousListsOfTheSameType
@@ -2384,7 +2384,7 @@ msgStartAnimation = Msg "Start Animation" <| \old ->
   upstate msgRedraw { old | movieTime = 0, runAnimation = True }
 
 msgRedraw = Msg "Redraw" <| \old ->
-  case LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime old.inputVal of
+  case LangSvg.fetchEverything old.showPreludeOffsets old.syntax old.slideNumber old.movieNumber old.movieTime old.inputVal of
     Ok (newSlideCount, newMovieCount, newMovieDuration, newMovieContinue, newSlate) ->
       { old | slideCount    = newSlideCount
             , movieCount    = newMovieCount
@@ -2421,9 +2421,9 @@ msgPreviousSlide = Msg "Previous Slide" <| \old ->
   else
     let previousSlideNumber = old.slideNumber - 1 in
     let result =
-      FocusedEditingContext.evalAtContext old.syntax old.editingContext old.inputExp |>
+      FocusedEditingContext.evalAtContext old.showPreludeOffsets old.syntax old.editingContext old.inputExp |>
       Result.andThen (\((previousVal, _), _, _) ->
-        LangSvg.resolveToMovieCount old.syntax previousSlideNumber previousVal
+        LangSvg.resolveToMovieCount old.showPreludeOffsets old.syntax previousSlideNumber previousVal
         |> Result.map (\previousMovieCount ->
              upstate msgStartAnimation
                { old | slideNumber = previousSlideNumber
@@ -2461,7 +2461,7 @@ msgCallUpdate = Msg "Call Update" doCallUpdate
 doCallUpdate m =
   let updatedExp = Syntax.parser m.syntax m.valueEditorString
     |> Result.mapError (\e -> toString e)
-    |> Result.andThen (Eval.doEval m.syntax [])
+    |> Result.andThen (Eval.doEval False m.syntax [])
     |> Result.map (\((v, _), _, _) -> Update.Raw v)
     |> Results.fromResult
     |> Results.andThen (\out -> Update.update Eval.initEnv m.inputExp m.inputVal out Results.LazyNil)
@@ -2899,7 +2899,7 @@ handleNew template = (\old ->
         Utils.fromOk "SelectExample mkLive" <|
           mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime e (v,ws)
       in
-      LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime v
+      LangSvg.fetchEverything old.showPreludeOffsets old.syntax old.slideNumber old.movieNumber old.movieTime v
       |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
         let code = Syntax.unparser old.syntax e in
         { initModel | inputExp      = e
@@ -3174,6 +3174,14 @@ msgSetGhostsShown shown =
       { old | showGhosts = shown
             , outputMode = newMode
       }
+
+--------------------------------------------------------------------------------
+-- Ghosts
+
+msgSetPreludeOffsetsShown : Bool -> Msg
+msgSetPreludeOffsetsShown showPreludeOffsets =
+  Msg "Set Prelude Offsets Shown" <| \old ->
+    { old | showPreludeOffsets = showPreludeOffsets } |> upstateRun
 
 --------------------------------------------------------------------------------
 -- Deuce Tools
