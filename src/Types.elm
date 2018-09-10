@@ -44,6 +44,7 @@ tForall vars t =
 
 tUnion ts = withDummyRangeAndNoRoles (TUnion space1 ts space0)
 
+tAny = tForall ["a"] (tVar "a")
 
 -- Other Helpers ------------------------------------------------------------
 
@@ -104,7 +105,7 @@ simplifyTailedTuple tipe =
 allListsOrHomogenousTuplesOfSameTipe : List Type -> Bool
 allListsOrHomogenousTuplesOfSameTipe tipes =
   List.all isListOrTuple tipes &&
-  List.all (not << typeContains isForall) tipes &&
+  -- List.all (not << typeContains isForall) tipes &&
   case List.concatMap childTypes tipes of
     []    -> True
     t::ts -> List.all (equalUnderSameTypeVars t) ts
@@ -114,7 +115,7 @@ maybeListOrHomogenousTupleElementsType : Type -> Maybe Type
 maybeListOrHomogenousTupleElementsType tipe =
   let figureItOut () =
     case childTypes tipe of
-      []    -> Just (tForall ["a"] (tVar "a"))
+      []    -> Just tAny
       t::ts ->
         if List.all (equalUnderSameTypeVars t) ts && List.all (not << typeContains isForall) (t::ts)
         then Just t
@@ -229,6 +230,7 @@ flattenUnion tipe =
 
 
 -- Do the types match, modulo type variable renaming?
+-- (and Foralls need to have variables in the same order)
 equal : Type -> Type -> Bool
 equal t1 t2 =
   let
