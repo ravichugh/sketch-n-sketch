@@ -565,6 +565,21 @@ infer typesHeap context e =
       let _ = unify typesHeap t tipe in
       t
 
+    -- So we can use some top-down role information to apply the role rules for operations
+    addRolesFromPreviousPass : TypesHeap -> Exp -> Type -> Type
+    addRolesFromPreviousPass typesHeap e inferredBottomUpThisPass =
+      if e.val.eid > 0 then
+        case Dict.get e.val.eid typesHeap.idToTypeAndContext of
+          Just (typeOnPriorPass, _) ->
+            let rolesOnPriorPass = (find typesHeap typeOnPriorPass).representative.val.roles in
+            let _ = inferredBottomUpThisPass |> addRolesToClass typesHeap rolesOnPriorPass in
+            inferredBottomUpThisPass
+
+          Nothing ->
+            inferredBottomUpThisPass
+      else
+        inferredBottomUpThisPass
+
     patToTypeAndContext : TupleTypingPreference -> TypesHeap -> Pat -> (Type, TypingContext)
     patToTypeAndContext tupleTypingPreference typesHeap p =
       let recurse = patToTypeAndContext tupleTypingPreference typesHeap in
@@ -670,7 +685,9 @@ infer typesHeap context e =
         bodyContext = List.concat contexts ++ context
         returnType = infer typesHeap bodyContext fBody
       in
-      let returnType = infer typesHeap bodyContext fBody in -- Take a second pass to propogate role information now that we know more about the types of the function args.
+      let _          = infer typesHeap bodyContext fBody in -- Take a second pass to propogate role information now that we know more about the types of the function args.
+      let returnType = infer typesHeap bodyContext fBody in -- Take a third pass to propogate even more role information
+      let returnType = infer typesHeap bodyContext fBody in -- Take a third pass to propogate even more role information
       tArrows (argTypes ++ [returnType])
 
     ELet _ _ isRec p _ e1 _ e2 _ ->
@@ -745,6 +762,7 @@ infer typesHeap context e =
     EOp _ op es _ ->
       let tOperands = List.map (infer typesHeap context) es in
       tagWithRolesBasedOnOperation typesHeap op.val tOperands <|
+      addRolesFromPreviousPass typesHeap e <|
       newVarAs typesHeap <|
       let
         operandsShouldBe typesHeap ts =
@@ -990,8 +1008,6 @@ becomes role    = Set.singleton role
 -- Add roles if predicates match.
 --
 -- ( (returnTypePred, arg1Pred, arg2Pred), (newReturnRoles, newArg1Roles, newArg2Roles) )
---
--- Because of the information flow direction, I don't think it's ever worth trying to test the return type (it should have no roles the point these are evaluated during inference)
 
 
 -- Addition rules ----
@@ -1003,16 +1019,20 @@ becomes role    = Set.singleton role
 -- VerticalDistance   = VerticalDistance + VerticalDistance
 --
 additionRules =
-  [ ( ( whatever , is "X"                                , isntAnyOf ["X", "HorizontalDistance"] ), ( becomes "X"                  , unchanged                    , becomes "HorizontalDistance" ) ) -- (X) = X + (HorizontalDistance)
-  , ( ( whatever , isntAnyOf ["X", "HorizontalDistance"] , is "X"                                ), ( becomes "X"                  , becomes "HorizontalDistance" , unchanged                    ) ) -- (X) = (HorizontalDistance) + X
+  [ ( ( whatever                , is "X"                                , isntAnyOf ["X", "HorizontalDistance"] ), ( becomes "X"                  , unchanged                    , becomes "HorizontalDistance" ) ) -- (X) = X + (HorizontalDistance)
+  , ( ( whatever                , isntAnyOf ["X", "HorizontalDistance"] , is "X"                                ), ( becomes "X"                  , becomes "HorizontalDistance" , unchanged                    ) ) -- (X) = (HorizontalDistance) + X
+  , ( ( whatever                , is "HorizontalDistance"               , is "HorizontalDistance"               ), ( becomes "HorizontalDistance" , unchanged                    , unchanged                    ) ) -- (HorizontalDistance) = HorizontalDistance + HorizontalDistance
+  , ( ( is "HorizontalDistance" , isntAnyOf ["X", "HorizontalDistance"] , is "HorizontalDistance"               ), ( unchanged                    , becomes "HorizontalDistance" , unchanged                    ) ) -- HorizontalDistance = (HorizontalDistance) + HorizontalDistance
+  , ( ( is "HorizontalDistance" , is "HorizontalDistance"               , isntAnyOf ["X", "HorizontalDistance"] ), ( unchanged                    , unchanged                    , becomes "HorizontalDistance" ) ) -- HorizontalDistance = HorizontalDistance + (HorizontalDistance)
+  , ( ( whatever                , is "Y"                                , isntAnyOf ["Y", "VerticalDistance"]   ), ( becomes "Y"                  , unchanged                    , becomes "VerticalDistance"   ) ) -- (Y) = Y + (VerticalDistance)
+  , ( ( whatever                , isntAnyOf ["Y", "VerticalDistance"]   , is "Y"                                ), ( becomes "Y"                  , becomes "VerticalDistance"   , unchanged                    ) ) -- (Y) = (VerticalDistance) + Y
+  , ( ( whatever                , is "VerticalDistance"                 , is "VerticalDistance"                 ), ( becomes "VerticalDistance"   , unchanged                    , unchanged                    ) ) -- (VerticalDistance) = VerticalDistance + VerticalDistance
+  , ( ( is "VerticalDistance"   , isntAnyOf ["Y", "VerticalDistance"]   , is "VerticalDistance"                 ), ( unchanged                    , becomes "VerticalDistance"   , unchanged                    ) ) -- VerticalDistance = (VerticalDistance) + VerticalDistance
+  , ( ( is "VerticalDistance"   , is "VerticalDistance"                 , isntAnyOf ["Y", "VerticalDistance"]   ), ( unchanged                    , unchanged                    , becomes "VerticalDistance"   ) ) -- VerticalDistance = VerticalDistance + (VerticalDistance)
   -- , ( ( whatever , is "HorizontalDistance"               , isntAnyOf ["X"]                       ), ( becomes "HorizontalDistance" , unchanged                    , becomes "HorizontalDistance" ) ) -- (HorizontalDistance) = HorizontalDistance + (HorizontalDistance) -- prematurely marks x's as horizontal distances
   -- , ( ( whatever , isntAnyOf ["X"]                       , is "HorizontalDistance"               ), ( becomes "HorizontalDistance" , becomes "HorizontalDistance" , unchanged                    ) ) -- (HorizontalDistance) = (HorizontalDistance) + HorizontalDistance -- prematurely marks x's as horizontal distances
-  , ( ( whatever , is "HorizontalDistance"               , is "HorizontalDistance"               ), ( becomes "HorizontalDistance" , unchanged                    , unchanged                    ) ) -- (HorizontalDistance) = HorizontalDistance + HorizontalDistance
-  , ( ( whatever , is "Y"                                , isntAnyOf ["Y", "VerticalDistance"]   ), ( becomes "Y"                  , unchanged                    , becomes "VerticalDistance"   ) ) -- (Y) = Y + (VerticalDistance)
-  , ( ( whatever , isntAnyOf ["Y", "VerticalDistance"]   , is "Y"                                ), ( becomes "Y"                  , becomes "VerticalDistance"   , unchanged                    ) ) -- (Y) = (VerticalDistance) + Y
   -- , ( ( whatever , is "VerticalDistance"                 , isntAnyOf ["Y"]                       ), ( becomes "VerticalDistance"   , unchanged                    , becomes "VerticalDistance"   ) ) -- (VerticalDistance) = VerticalDistance + (VerticalDistance) -- prematurely marks y's as horizontal distances
   -- , ( ( whatever , isntAnyOf ["Y"]                       , is "VerticalDistance"                 ), ( becomes "VerticalDistance"   , becomes "VerticalDistance"   , unchanged                    ) ) -- (VerticalDistance) = (VerticalDistance) + VerticalDistance -- prematurely marks y's as horizontal distances
-  , ( ( whatever , is "VerticalDistance"                 , is "VerticalDistance"                 ), ( becomes "VerticalDistance"   , unchanged                    , unchanged                    ) ) -- (VerticalDistance) = VerticalDistance + VerticalDistance
   ]
 
 -- Subtraction rules ----
@@ -1027,12 +1047,16 @@ additionRules =
 -- VerticalDistance   = Y - Y
 --
 subtractionRules =
-  [ ( ( whatever , is "X"                                , is "HorizontalDistance" ), ( becomes "X"                  , unchanged , unchanged ) ) -- (X) = X - HorizontalDistance
-  , ( ( whatever , is "Y"                                , is "VerticalDistance"   ), ( becomes "Y"                  , unchanged , unchanged ) ) -- (Y) = Y - VerticalDistance
-  , ( ( whatever , is "HorizontalDistance"               , is "HorizontalDistance" ), ( becomes "HorizontalDistance" , unchanged , unchanged ) ) -- (HorizontalDistance) = HorizontalDistance - HorizontalDistance
-  , ( ( whatever , is "VerticalDistance"                 , is "VerticalDistance"   ), ( becomes "VerticalDistance"   , unchanged , unchanged ) ) -- (VerticalDistance)   = VerticalDistance   - VerticalDistance
-  , ( ( whatever , is "X"                                , is "X"                  ), ( becomes "HorizontalDistance" , unchanged , unchanged ) ) -- (HorizontalDistance) = X - X
-  , ( ( whatever , is "Y"                                , is "Y"                  ), ( becomes "VerticalDistance"   , unchanged , unchanged ) ) -- (VerticalDistance)   = Y - Y
+  [ ( ( whatever                , is "X"                                , is "HorizontalDistance"               ), ( becomes "X"                  , unchanged                    , unchanged                    ) ) -- (X) = X - HorizontalDistance
+  , ( ( whatever                , is "Y"                                , is "VerticalDistance"                 ), ( becomes "Y"                  , unchanged                    , unchanged                    ) ) -- (Y) = Y - VerticalDistance
+  , ( ( whatever                , is "HorizontalDistance"               , is "HorizontalDistance"               ), ( becomes "HorizontalDistance" , unchanged                    , unchanged                    ) ) -- (HorizontalDistance) =  HorizontalDistance  -  HorizontalDistance
+  , ( ( is "HorizontalDistance" , isntAnyOf ["X", "HorizontalDistance"] , is "HorizontalDistance"               ), ( unchanged                    , becomes "HorizontalDistance" , unchanged                    ) ) --  HorizontalDistance  = (HorizontalDistance) -  HorizontalDistance
+  , ( ( is "HorizontalDistance" , is "HorizontalDistance"               , isntAnyOf ["X", "HorizontalDistance"] ), ( unchanged                    , unchanged                    , becomes "HorizontalDistance" ) ) --  HorizontalDistance  =  HorizontalDistance  - (HorizontalDistance)
+  , ( ( is "VerticalDistance"   , isntAnyOf ["Y", "VerticalDistance"]   , is "VerticalDistance"                 ), ( unchanged                    , becomes "VerticalDistance"   , unchanged                    ) ) --  VerticalDistance  = (VerticalDistance) -  VerticalDistance
+  , ( ( is "VerticalDistance"   , is "VerticalDistance"                 , isntAnyOf ["Y", "VerticalDistance"]   ), ( unchanged                    , unchanged                    , becomes "VerticalDistance"   ) ) --  VerticalDistance  =  VerticalDistance  - (VerticalDistance)
+  , ( ( whatever                , is "VerticalDistance"                 , is "VerticalDistance"                 ), ( becomes "VerticalDistance"   , unchanged                    , unchanged                    ) ) -- (VerticalDistance) =  VerticalDistance  -  VerticalDistance
+  , ( ( whatever                , is "X"                                , is "X"                                ), ( becomes "HorizontalDistance" , unchanged                    , unchanged                    ) ) -- (HorizontalDistance) = X - X
+  , ( ( whatever                , is "Y"                                , is "Y"                                ), ( becomes "VerticalDistance"   , unchanged                    , unchanged                    ) ) -- (VerticalDistance)   = Y - Y
   ]
 
 -- Less Than rules ----
@@ -1064,18 +1088,33 @@ tagWithRolesBasedOnOperation typesHeap op_ ts returnType =
           aRep   = (find typesHeap t1).representative
           bRep   = (find typesHeap t2).representative
           retRep = (find typesHeap returnType).representative
+          _ =
+            opRules
+            |> List.map
+                (\((returnTypePred, arg1Pred, arg2Pred), (retRoles, aRoles, bRoles)) ->
+                  if returnTypePred retRep.val.roles && arg1Pred aRep.val.roles && arg2Pred bRep.val.roles then
+                    let
+                      _ = if retRoles /= unchanged then addRolesToClass typesHeap retRoles returnType else ()
+                      _ = if aRoles   /= unchanged then addRolesToClass typesHeap aRoles   t1         else ()
+                      _ = if bRoles   /= unchanged then addRolesToClass typesHeap bRoles   t2         else ()
+                    in
+                    ()
+                  else
+                    ()
+                )
         in
-        case opRules |> Utils.findFirst (\((returnTypePred, arg1Pred, arg2Pred), _) -> returnTypePred retRep.val.roles && arg1Pred aRep.val.roles && arg2Pred bRep.val.roles) of
-          Just (_, (retRoles, aRoles, bRoles)) ->
-            let
-              _ = if retRoles /= unchanged then addRolesToClass typesHeap retRoles returnType else ()
-              _ = if aRoles   /= unchanged then addRolesToClass typesHeap aRoles   t1         else ()
-              _ = if bRoles   /= unchanged then addRolesToClass typesHeap bRoles   t2         else ()
-            in
-            returnType
-
-          Nothing ->
-            returnType
+        returnType
+        -- case opRules |> Utils.findFirst (\((returnTypePred, arg1Pred, arg2Pred), _) -> returnTypePred retRep.val.roles && arg1Pred aRep.val.roles && arg2Pred bRep.val.roles) of
+        --   Just (_, (retRoles, aRoles, bRoles)) ->
+        --     let
+        --       _ = if retRoles /= unchanged then addRolesToClass typesHeap retRoles returnType else ()
+        --       _ = if aRoles   /= unchanged then addRolesToClass typesHeap aRoles   t1         else ()
+        --       _ = if bRoles   /= unchanged then addRolesToClass typesHeap bRoles   t2         else ()
+        --     in
+        --     returnType
+        --
+        --   Nothing ->
+        --     returnType
 
       else
         returnType
