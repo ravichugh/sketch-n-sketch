@@ -334,7 +334,7 @@ type HoverPadding
 
 -- Returns (div, estimated width)
 patAsHTML : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> HoverPadding -> (Html Msg, Int)
-patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding =
+patAsHTML modelRenamingInOutput showRemoverAndReorderers pat associatedShapes associatedFeatures hoverPadding =
   let pid = pat.val.pid in
   let nameCurrentlyInCode = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
   let nameWidth nameStr = 10 + String.length nameStr * 10 in
@@ -367,7 +367,7 @@ patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatu
 
     Nothing ->
       let nameStr = nameCurrentlyInCode in
-      let width = nameWidth nameStr + if showRemover then 10 else 0 in
+      let width = nameWidth nameStr + if showRemoverAndReorderers then 25 else 0 in
       let perhapsHoverPaddingAttr =
         case hoverPadding of
           NoHoverPadding -> []
@@ -389,9 +389,13 @@ patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatu
               ] ++ perhapsHoverPaddingAttr
             ) <|
             [ VirtualDom.text nameStr ] ++
-            if showRemover
-            then [ Html.span [Attr.class "remove-arg", Attr.title <| "Remove arg "  ++ nameStr, onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"] ]
-            else []
+            if showRemoverAndReorderers then
+              [ Html.span [Attr.class "remove-arg", Attr.title <| "Remove arg "  ++ nameStr, onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"]
+              , Html.span [Attr.class "reorder-arg", Attr.title <| "Move arg "  ++ nameStr ++ " leftwards",  onMouseDownAndStop (Controller.msgMoveArgRelative -1 pid)] [VirtualDom.text "◀︎"]
+              , Html.span [Attr.class "reorder-arg", Attr.title <| "Move arg "  ++ nameStr ++ " rightwards", onMouseDownAndStop (Controller.msgMoveArgRelative  2 pid)] [VirtualDom.text "▶"]
+              ]
+            else
+              []
           -- [ attr "font-family" params.mainSection.uiWidgets.font
           -- , attr "font-size" params.mainSection.uiWidgets.fontSize
           -- , attr "text-anchor" "start"
@@ -402,14 +406,14 @@ patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatu
 
 
 patInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> Float -> Float -> HoverPadding -> Svg Msg
-patInOutput modelRenamingInOutput showRemover pat associatedShapes associatedFeatures left top hoverPadding =
-  patsInOutput modelRenamingInOutput showRemover [(pat, associatedShapes, associatedFeatures)] left top hoverPadding
+patInOutput modelRenamingInOutput showRemoverAndReorderers pat associatedShapes associatedFeatures left top hoverPadding =
+  patsInOutput modelRenamingInOutput showRemoverAndReorderers [(pat, associatedShapes, associatedFeatures)] left top hoverPadding
   |> Utils.maybeUnwrap1
   |> Utils.fromJust_ "Canvas.patInOutput expected exactly 1 SVG when giving a single pat to patsInOutput"
 
 
 patsInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> List (Pat, Set NodeId, Set SelectableFeature) -> Float -> Float -> HoverPadding -> List (Svg Msg)
-patsInOutput modelRenamingInOutput showRemover patAndAssociatedSelectables left top hoverPadding =
+patsInOutput modelRenamingInOutput showRemoverAndReorderers patAndAssociatedSelectables left top hoverPadding =
   let paddingBetweenPats = 10 in
   let
     (htmlForeignObjectPats, _) =
@@ -418,7 +422,7 @@ patsInOutput modelRenamingInOutput showRemover patAndAssociatedSelectables left 
           ([], 0)
           (\(pat, associatedShapes, associatedFeatures) (htmlForeignObjectPats, widthSoFar) ->
             let
-              (htmlPat, patWidth) = patAsHTML modelRenamingInOutput showRemover pat associatedShapes associatedFeatures hoverPadding
+              (htmlPat, patWidth) = patAsHTML modelRenamingInOutput showRemoverAndReorderers pat associatedShapes associatedFeatures hoverPadding
 
               htmlForeignObjectPat =
                 flip Svg.foreignObject [htmlPat] <|

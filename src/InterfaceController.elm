@@ -20,7 +20,7 @@ port module InterfaceController exposing
   , msgSetEditingContext, msgClearEditingContext
   , msgSelectList, msgDeselectList
   , msgActivateRenameInOutput, msgUpdateRenameInOutputTextBox, msgDoRename
-  , msgAddArg, msgRemoveArg
+  , msgAddArg, msgRemoveArg, msgMoveArgRelative
   , msgShowTerminationConditionOptions
   , msgAddToOutput
   , msgReorderInList
@@ -2706,6 +2706,36 @@ msgRemoveArg pid = Msg ("Remove Arg PId " ++ toString pid) <| \old ->
       |> List.head
       |> Maybe.map (\result -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp result) })
       |> Maybe.withDefault old
+
+
+msgMoveArgRelative amount pid = Msg ("Move Arg PId " ++ toString pid ++ " by " ++ toString amount) <| \old ->
+  case pidToPathedPatternId old.inputExp pid of
+    Nothing ->
+      let _ = Utils.log <| "Move Arg: could not find PId " ++ toString pid in
+      old
+
+    Just ((funcEId, 1) as scopeId, [argI]) ->
+      case FocusedEditingContext.maybeFocusedExp old.editingContext old.inputExp of
+        Just focusedExp ->
+          case focusedExp.val.e__ of
+            EFun _ argPats _ _ ->
+              let targetPath = [min (max 1 (argI + amount)) (List.length argPats + 1)] in -- Amount of 2 makes rightward motion work. Dunno why. Deadline too close to find out.
+              CodeMotion.reorderFunctionArgs funcEId [[argI]] targetPath old.inputExp
+              |> List.head
+              |> Maybe.map (\result -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp result) })
+              |> Maybe.withDefault old
+
+            _ ->
+              let _ = Utils.log "Move Arg: focused expression is not a function" in
+              old
+
+        Nothing ->
+          let _ = Utils.log "Move Arg: could not find focused function" in
+          old
+
+    Just badPPId ->
+      let _ = Utils.log <| "Unexpected PPId " ++ toString badPPId in
+      old
 
 
 --------------------------------------------------------------------------------
