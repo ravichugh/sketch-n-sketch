@@ -1620,6 +1620,13 @@ msgKeyDown keyCode =
         if keyCode == Keys.keyEsc then
           if Model.anyDialogShown old then
             Model.closeAllDialogBoxes old
+
+          else if noughtSelectedInOutput
+                    && not (deucePopupPanelShown old)
+                    && (old.codeEditorMode == CEDeuceClick || old.codeEditorMode == CETypeInspector)
+                    && not currentKeyDown then
+            { old | codeEditorMode = CEText }
+
           else
             let
               new =
