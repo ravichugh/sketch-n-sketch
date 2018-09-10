@@ -1238,11 +1238,11 @@ showTypeError inputExp typeError =
       items
 
 
-makeDeuceExpTool : Exp -> Exp -> DeuceTransformation
+makeDeuceExpTool : Exp -> Exp -> (() -> List SynthesisResult)
 makeDeuceExpTool = makeDeuceToolForThing Expr unExpr
 
 
-makeDeucePatTool : Exp -> Pat -> DeuceTransformation
+makeDeucePatTool : Exp -> Pat -> (() -> List SynthesisResult)
 makeDeucePatTool = makeDeuceToolForThing Basics.identity Basics.identity
 
 
@@ -1251,7 +1251,7 @@ makeDeuceToolForThing
   -> (a -> WithInfo (WithTypeInfo b))
   -> Exp
   -> a -- thing is a Thing (Exp or Pat or Type)
-  -> DeuceTransformation
+  -> (() -> List SynthesisResult)
 makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
   let
     -- exp =

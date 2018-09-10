@@ -1155,6 +1155,14 @@ mapBoth : (a -> b) -> (a, a) -> (b, b)
 mapBoth f (x, y) =
   (f x, f y)
 
+mapThree : (a -> b) -> (a, a, a) -> (b, b, b)
+mapThree f (x, y, z) =
+  (f x, f y, f z)
+
+mapFour : (a -> b) -> (a, a, a, a) -> (b, b, b, b)
+mapFour f (x1, x2, x3, x4) =
+  (f x1, f x2, f x3, f x4)
+
 fst3 (x,_,_) = x
 snd3 (_,x,_) = x
 thd3 (_,_,x) = x

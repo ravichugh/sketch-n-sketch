@@ -412,8 +412,10 @@ type Type_
   | TParens WS Type WS
   | TWildcard WS
 
-dummyType =
+dummyType0 =
   withDummyRange (TWildcard space0)
+dummyType wsb =
+  withDummyRange (TWildcard wsb)
 
 -- Currently shoving entire type error message and suggested fixes into Deuce.
 -- So every line is a DeuceTypeInfoItem === SynthesisResult.
@@ -677,12 +679,15 @@ type alias DeuceSelections =
   , List PatTargetPosition                    -- pattern target positions
   )
 
-type alias DeuceTransformation =
-  () -> List SynthesisResult
+type DeuceTransformation
+  = InactiveDeuceTransform
+  | NoInputDeuceTransform (() -> List SynthesisResult)
+  | RenameDeuceTransform (String -> List SynthesisResult)
+  | SmartCompleteDeuceTransform (String -> List SynthesisResult)
 
 type alias DeuceTool =
   { name : String
-  , func : Maybe DeuceTransformation
+  , func : DeuceTransformation -- synthesizes several results of ways to change the code
   , reqs : List Predicate -- requirements to run the tool
   , id : String -- unique, unchanging identifier
   }
@@ -2067,6 +2072,7 @@ withDummyExp_Info e__       = WithInfo (exp_ e__) dummyPos dummyPos
 withDummyExpInfo e__        = Expr <| withDummyExp_Info e__
 withDummyPatInfoPId pid p__ = WithInfo (makePat_ p__ pid) dummyPos dummyPos
 withDummyExpInfoEId eid e__ = withDummyRange (makeExp_ e__ eid)
+withDummyBranchInfo b_      = WithInfo b_ dummyPos dummyPos
 
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ (Expr e) e__ = let e_ = e.val in Expr { e | val = { e_ | e__ = e__ } }
@@ -2282,6 +2288,8 @@ eColonType (Expr e) t = withInfo (exp_ <| EColonType space1 (Expr e) space1 t sp
 
 pVar0 a        = withDummyPatInfo <| PVar space0 a noWidgetDecl
 pVar a         = withDummyPatInfo <| PVar space1 a noWidgetDecl
+pWildcard0     = withDummyPatInfo <| PWildcard space0
+pWildcard ps   = withDummyPatInfo <| PWildcard space0
 pList0 ps      = withDummyPatInfo <| PList space0 ps space0 Nothing space0
 pList ps       = withDummyPatInfo <| PList space1 ps space0 Nothing space0
 pAs x p        = withDummyPatInfo <| PAs space0 p space1 (withDummyPatInfo <| PVar space1 x noWidgetDecl)
@@ -2486,6 +2494,8 @@ precedingWhitespace : Exp -> String
 precedingWhitespace exp =
   precedingWhitespaceExp__ (unwrapExp exp)
 
+newlineCount : String -> Int
+newlineCount s = List.length (String.split "\n" s) - 1
 
 extractIndentation : String -> String
 extractIndentation string =
@@ -2499,6 +2509,10 @@ extractIndentation string =
 indentationOf : Exp -> String
 indentationOf exp =
   extractIndentation (precedingWhitespace exp)
+
+indentationOfBranch : Branch -> String
+indentationOfBranch branch =
+  extractIndentation (precedingWhitespaceBranch branch)
 
 -- Given an EId in the program, what is the indentation on the line on which the expression starts?
 indentationAt : EId -> Exp -> String
@@ -2518,6 +2532,11 @@ indentationAt eid program =
 
     Nothing ->
       ""
+
+precedingWhitespaceBranch : Branch -> String
+precedingWhitespaceBranch branch =
+  let (Branch_ wsb _ _ _) = branch.val in
+  wsb.val
 
 precedingWhitespaceDeclarationWithInfo: Declaration -> WS
 precedingWhitespaceDeclarationWithInfo decl = case decl of
@@ -2810,8 +2829,8 @@ ensureNoWhitespacePat pat =
 
 ensureWhitespaceNNewlines : Int -> String -> String
 ensureWhitespaceNNewlines n s =
-  let newlineCount = List.length (String.split "\n" s) - 1 in
-  String.repeat (n - newlineCount) "\n" ++ s
+  let nlCount = newlineCount s in
+  String.repeat (n - nlCount) "\n" ++ s
   |> ensureWhitespace
 
 -- whitespaceTwoNewlines : String -> String
@@ -3452,7 +3471,7 @@ childCodeObjects co =
             PAs _ p1 wsAs p2 ->
               [ P e p1
               -- TODO , PT After wsAs e p1
-              -- TODO ^ does nothing, as withZeroSpace seems to negate wsAs
+              -- TODO ^ does nothing - fix by deleting withZeroSpace
               , PT After (zeroWidthWSAfter p1) e p1
               , P e p2
               ]

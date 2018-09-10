@@ -19,7 +19,8 @@ type alias DeuceState =
       -- but still tracking in case other UI elements depend on knowing
       -- hovered widgets
   , hoveredMenuPath : List Int
-  , renameVarTextBox : String
+  , renameVarText : String
+  , smartCompleteText : String
   }
 
 type DeuceWidget
@@ -135,7 +136,8 @@ emptyDeuceState =
   , mbKeyboardFocusedWidget = Nothing
   , hoveredWidgets = []
   , hoveredMenuPath = []
-  , renameVarTextBox = ""
+  , renameVarText = ""
+  , smartCompleteText = ""
   }
 
 setHoveredMenuPath path m =

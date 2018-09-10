@@ -38,7 +38,7 @@ import OutputCanvas
 import Draw
 import LangTools
 import Sync
-import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..))
+import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..), DeuceTransformation(..))
 import LangSvg
 import Syntax
 import File
@@ -83,6 +83,12 @@ italicizeQuotes quoteString text =
         Html.i [] [ Html.text s ]
   in
     Utils.mapi0 mapper splitString
+
+italicizeQuotesIfRenamer : DeuceTransformation -> String -> List (Html Msg) -> List (Html Msg)
+italicizeQuotesIfRenamer deuceTransformation toItalicize otherwise =
+  case deuceTransformation of
+    RenameDeuceTransform _ -> italicizeQuotes "'" toItalicize
+    _ -> otherwise
 
 --------------------------------------------------------------------------------
 -- Buttons
@@ -365,8 +371,8 @@ relateHoverMenu model resultsKey title onMouseEnter =
 --     onMouseEnter
 --     (groupDisabled disallowSelectedFeatures model)
 
-deuceSynthesisResult : Model -> List Int -> Bool -> SynthesisResult -> Html Msg
-deuceSynthesisResult model path isRenamer (SynthesisResult result) =
+deuceSynthesisResult : Model -> List Int -> DeuceTransformation -> SynthesisResult -> Html Msg
+deuceSynthesisResult model path deuceTransformation (SynthesisResult result) =
   let
     alreadyRun =
       Dict.member path model.deuceToolResultPreviews
@@ -374,42 +380,46 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
     class =
       case Dict.get path model.deuceToolResultPreviews of
         Nothing -> -- tool result Exp has not yet been run and cached
-          if isRenamer then ""
-          else if result.isSafe then "expected-safe"
-          else "expected-unsafe"
-
+          case deuceTransformation of
+            NoInputDeuceTransform _ ->
+              if result.isSafe then "expected-safe" else "expected-unsafe"
+            _ ->
+              ""
         Just (_, class) ->
           class
 
-    renameInput =
-      if isRenamer then
-        [ Html.input
-            [ Attr.type_ "text"
-            , Attr.class "rename-input"
-            , E.onInput Controller.msgUpdateRenameVarTextBox
-            , onClickWithoutPropagation Controller.msgNoop
-            , onKeyDown <|
-                \code ->
-                  if code == enterKeyCode then -- Enter button
-                    Controller.msgChooseDeuceExp result.description result.exp
-                  else
-                    Controller.msgNoop
-            ]
-            []
-        ]
-      else
-        []
-    additionalInputs =
-      renameInput
+    textInput onInput =
+      [ Html.input
+          [ Attr.type_ "text"
+          , Attr.class "deuce-input"
+          , E.onInput onInput
+          , onClickWithoutPropagation Controller.msgNoop
+          , onKeyDown <|
+              \code ->
+                if code == enterKeyCode then -- Enter button
+                  Controller.msgChooseDeuceExp result.description result.exp
+                else
+                  Controller.msgNoop
+          ]
+          []
+      ]
+
+    (additionalInputs, canEval) =
+      case deuceTransformation of
+        RenameDeuceTransform _        -> (textInput Controller.msgUpdateRenameVarTextBox, False)
+        SmartCompleteDeuceTransform _ -> (textInput Controller.msgUpdateSmartCompleteTextBox, True)
+        _                             -> ([], True)
+
     description =
-      if isRenamer then
-        italicizeQuotes "'" result.description
-      else
+      italicizeQuotesIfRenamer
+        deuceTransformation
+        result.description
         [ Html.text <|
             if alreadyRun && indicateWhetherToolIsCached
               then result.description ++ " ✓"
               else result.description
         ]
+
   in
     generalHtmlHoverMenu class
       ( [ Html.span
@@ -417,15 +427,16 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
             description
         ] ++ additionalInputs
       )
-      (Controller.msgHoverDeuceResult isRenamer (SynthesisResult result) path)
+      -- TODO allow renaming to dynamically appear in the code
+      (Controller.msgHoverDeuceResult (not canEval) (SynthesisResult result) path)
       (Controller.msgLeaveDeuceResult (SynthesisResult result) path)
       (Controller.msgChooseDeuceExp result.description result.exp)
       False
       []
 
 deuceSynthesisResults
-  : Model -> List Int -> Bool -> List SynthesisResult -> List (Html Msg)
-deuceSynthesisResults model path isRenamer results =
+  : Model -> List Int -> DeuceTransformation -> List SynthesisResult -> List (Html Msg)
+deuceSynthesisResults model path deuceTransformation results =
   if List.isEmpty results then
     [ generalHtmlHoverMenu "transformation-oops"
         [ Html.span
@@ -441,7 +452,7 @@ deuceSynthesisResults model path isRenamer results =
     ]
   else
     Utils.mapi1
-      (\(i, result) -> deuceSynthesisResult model (path ++ [i]) isRenamer result)
+      (\(i, result) -> deuceSynthesisResult model (path ++ [i]) deuceTransformation result)
       results
 
 deuceHoverMenu : Bool -> Model -> (Int, CachedDeuceTool) -> Html Msg
@@ -454,12 +465,10 @@ deuceHoverMenu alwaysShow model (index, (deuceTool, results, disabled)) =
         ""
     path =
       [ index ]
-    isRenamer =
-      DeuceTools.isRenamer deuceTool
     title =
-      if isRenamer then
-        italicizeQuotes "'" deuceTool.name
-      else
+      italicizeQuotesIfRenamer
+        deuceTool.func
+        deuceTool.name
         [ Html.text deuceTool.name
         ]
   in
@@ -473,7 +482,7 @@ deuceHoverMenu alwaysShow model (index, (deuceTool, results, disabled)) =
       [ Html.div
           [ Attr.class "synthesis-results"
           ] <|
-          deuceSynthesisResults model path isRenamer results
+          deuceSynthesisResults model path deuceTool.func results
       ]
 
 editCodeEntry : Model -> (Int, CachedDeuceTool) -> Html Msg
@@ -481,12 +490,10 @@ editCodeEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
   let
     name =
       deuceTool.name ++ "..."
-    isRenamer =
-      DeuceTools.isRenamer deuceTool
     title =
-      if isRenamer then
-        italicizeQuotes "'" name
-      else
+      italicizeQuotesIfRenamer
+        deuceTool.func
+        name
         [ Html.text name
         ]
     disabled =
@@ -2325,14 +2332,12 @@ deuceRightClickMenuEntry model (_, ((deuceTool, _, _) as cachedDeuceTool)) =
   let
     name =
       deuceTool.name ++ "..."
-    isRenamer =
-      DeuceTools.isRenamer deuceTool
     title =
-      if isRenamer then
-        italicizeQuotes "'" name
-      else
-        [ Html.text name
-        ]
+      italicizeQuotesIfRenamer
+      deuceTool.func
+      name
+      [ Html.text name
+      ]
     disabled =
       List.any Lang.predicateImpossible deuceTool.reqs
   in
@@ -2516,14 +2521,12 @@ editCodePopupPanel model =
           let
             path =
               [ 1 ] -- TODO, maybe?
-            isRenamer =
-              DeuceTools.isRenamer deuceTool
             title =
-              if isRenamer then
-                italicizeQuotes "'" deuceTool.name
-              else
-                [ Html.text deuceTool.name
-                ]
+              italicizeQuotesIfRenamer
+              deuceTool.func
+              deuceTool.name
+              [ Html.text deuceTool.name
+              ]
             content =
               [ Html.h2
                   []
@@ -2561,7 +2564,7 @@ editCodePopupPanel model =
                   , Html.div
                       [ Attr.class "synthesis-results"
                       ] <|
-                      deuceSynthesisResults model path isRenamer results
+                      deuceSynthesisResults model path deuceTool.func results
                   ]
                 else
                   []
