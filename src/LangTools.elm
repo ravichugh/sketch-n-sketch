@@ -560,6 +560,7 @@ newLetFancyWhitespace   insertedLetEId isRec   pat    boundExp expToWrap program
   in
   let expToWrapWithNewWs =
     let wrappedExpIndent = if isLet expToWrap || isTopLevel then "" else "  " in
+    -- TODO both branches of this if do nearly the same thing
     if patHasNewlines pat || expHasNewlines boundExp
     then expToWrap |> ensureWhitespaceNNewlinesExp newlineCountAfterLet |> replaceIndentation wrappedExpIndent
     else expToWrap |> ensureWhitespaceSmartExp newlineCountAfterLet wrappedExpIndent
