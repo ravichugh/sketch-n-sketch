@@ -679,12 +679,15 @@ type alias DeuceSelections =
   , List PatTargetPosition                    -- pattern target positions
   )
 
-type alias DeuceTransformation =
-  () -> List SynthesisResult
+type DeuceTransformation
+  = InactiveDeuceTransform
+  | NoInputDeuceTransform (() -> List SynthesisResult)
+  | RenameDeuceTransform (String -> List SynthesisResult)
+  | SmartCompleteDeuceTransform (String -> List SynthesisResult)
 
 type alias DeuceTool =
   { name : String
-  , func : Maybe DeuceTransformation
+  , func : DeuceTransformation -- synthesizes several results of ways to change the code
   , reqs : List Predicate -- requirements to run the tool
   , id : String -- unique, unchanging identifier
   }

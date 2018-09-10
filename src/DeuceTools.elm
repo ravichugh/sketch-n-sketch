@@ -6,9 +6,7 @@
 module DeuceTools exposing
   ( createToolCache
   , reselectDeuceTool
-  , updateRenameToolsInCache
-  , isActive
-  , isRenamer
+  , updateInputSensitiveToolsInCache
   )
 
 import String
@@ -35,6 +33,8 @@ import Types2
 
 import DeuceWidgets exposing
   ( DeuceWidget(..)
+  , DeuceState
+  , emptyDeuceState
   )
 
 import CodeMotion
@@ -165,12 +165,12 @@ makeReplaceHoleTool   toolID    replDesc  programModifier              model    
   let
     (func, predVal) =
       let
-        impossible = (Nothing, Impossible)
+        impossible = (InactiveDeuceTransform, Impossible)
         root = model.inputExp
       in
       case selections of
         (_, _, [], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
         (_, _, [holeEId], [], [], [], [], []) ->
           let holeExp = LangTools.justFindExpByEId root holeEId in
           case unwrapExp holeExp of
@@ -180,7 +180,7 @@ makeReplaceHoleTool   toolID    replDesc  programModifier              model    
                 Nothing ->
                   impossible
                 Just newProgram ->
-                  (Just <| \() -> [synthesisResult ("Replace with " ++ replDesc) newProgram], FullySatisfied)
+                  (basicDeuceTransform <| [synthesisResult ("Replace with " ++ replDesc) newProgram], FullySatisfied)
             _ ->
               impossible
         _ ->
@@ -490,24 +490,25 @@ makeEqualTool model selections =
   let
     (func, expsPredVal) =
       case selections of
-        (_, _, [], [], [], _, _, _) -> (Nothing, Possible)
-        (_, _, _, _::_, _, _, _, _) -> (Nothing, Impossible) -- no pattern selection allowed (yet)
-        (_, _, _, _, _::_, _, _, _) -> (Nothing, Impossible) -- no equation selection allowed (yet?)
-        (_, _, [_], _, _, _, _, _)  -> (Nothing, Possible)
+        (_, _, [], [], [], _, _, _) -> (InactiveDeuceTransform, Possible)
+        (_, _, _, _::_, _, _, _, _) -> (InactiveDeuceTransform, Impossible) -- no pattern selection allowed (yet)
+        (_, _, _, _, _::_, _, _, _) -> (InactiveDeuceTransform, Impossible) -- no equation selection allowed (yet?)
+        (_, _, [_], _, _, _, _, _)  -> (InactiveDeuceTransform, Possible)
         (_, _, eids, [], [], [], [], []) ->
-          ( CodeMotion.makeEqualTransformation model.inputExp eids Nothing
+          ( CodeMotion.makeEqualTransformation model.inputExp eids Nothing |> mbThunkToTransform
+          -- TODO It seems incorrect to return `Satisfied` if the func is `Nothing` - I think this may be a source of bugs
           , Satisfied
           )
         (_, _, eids, [], [], [], [], [patTarget]) ->
-          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (PatTargetPosition patTarget))
+          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (PatTargetPosition patTarget)) |> mbThunkToTransform
           , Satisfied
           )
         (_, _, eids, [], [], [], [expTarget], []) ->
-          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (ExpTargetPosition expTarget))
+          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (ExpTargetPosition expTarget)) |> mbThunkToTransform
           , Satisfied
           )
         _ ->
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
   in
     { name = "Make Equal with Single Variable"
     , func = func
@@ -545,15 +546,15 @@ flipBooleanTool model selections =
                     newExp =
                       replaceExpNode eId flipped model.inputExp
                   in
-                    (Just <| \() -> oneSafeResult newExp, FullySatisfied)
+                    (basicDeuceTransform <| oneSafeResult newExp, FullySatisfied)
                 _ ->
-                  (Nothing, Impossible)
+                  (InactiveDeuceTransform, Impossible)
             _ ->
-              (Nothing, Impossible)
+              (InactiveDeuceTransform, Impossible)
         ([], [], [], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
         _ ->
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
   in
     { name = "Flip Boolean"
     , func = func
@@ -588,35 +589,27 @@ renameVariableTool model selections =
               |> Maybe.andThen LangTools.patToMaybeIdent -- Rename tool only allowed for PVar and PAs
           of
             Just ident ->
-              let
-                newName =
-                  model.deuceState.renameVarTextBox
-              in
-                ( nameMaker ident
-                , Just <| \() -> CodeMotion.renamePat pathedPatId newName model.inputExp
-                , FullySatisfied
-                )
+              ( nameMaker ident
+              , RenameDeuceTransform <| \newName -> CodeMotion.renamePat pathedPatId newName model.inputExp
+              , FullySatisfied
+              )
             _ ->
-              (disabledName, Nothing, Impossible)
+              (disabledName, InactiveDeuceTransform, Impossible)
         ([], [], [eId], [], [], [], [], []) ->
           case findExpByEId model.inputExp eId of
             Just ePlucked ->
               case (unwrapExp ePlucked) of
                 EVar _ ident ->
-                  let
-                     newName =
-                      model.deuceState.renameVarTextBox
-                  in
-                    ( nameMaker ident
-                    , Just <| \() -> CodeMotion.renameVar eId newName model.inputExp
-                    , FullySatisfied
-                    )
-                _ -> (disabledName, Nothing, Impossible)
-            _ -> (disabledName, Nothing, Impossible)
+                  ( nameMaker ident
+                  , RenameDeuceTransform <| \newName -> CodeMotion.renameVar eId newName model.inputExp
+                  , FullySatisfied
+                  )
+                _ -> (disabledName, InactiveDeuceTransform, Impossible)
+            _ -> (disabledName, InactiveDeuceTransform, Impossible)
         ([], [], [], [], [], [], [], []) ->
-          (disabledName, Nothing, Possible)
+          (disabledName, InactiveDeuceTransform, Possible)
         _ ->
-          (disabledName, Nothing, Impossible)
+          (disabledName, InactiveDeuceTransform, Impossible)
   in
     { name = name
     , func = func
@@ -669,9 +662,9 @@ selectTwoVars toolName toolId makeThunk model selections =
     (func, predVal) =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
         ([], [], [], [_], [], [], [], []) ->
-          (Nothing, Possible) -- could check whether pathedPatId1 is a var
+          (InactiveDeuceTransform, Possible) -- could check whether pathedPatId1 is a var
         ([], [], [], [pathedPatId1, pathedPatId2], [], [], [], []) ->
           let maybeNames =
             [pathedPatId1, pathedPatId2]
@@ -680,13 +673,13 @@ selectTwoVars toolName toolId makeThunk model selections =
           in
           case maybeNames of
             [Just name1, Just name2] ->
-              ( Just (makeThunk (pathedPatId1, name1) (pathedPatId2, name2))
+              ( NoInputDeuceTransform (makeThunk (pathedPatId1, name1) (pathedPatId2, name2))
               , FullySatisfied
               )
             _ ->
-              (Nothing, Impossible)
+              (InactiveDeuceTransform, Impossible)
         _ ->
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
   in
     { name = toolName
     , func = func
@@ -703,12 +696,12 @@ swapExpressionsTool model selections =
   let
     (func, predVal) =
       case selections of
-        (_, _, [], [], [], [], [], [])           -> (Nothing, Possible)
-        (_, _, _, _::_, _, _, _, _)             -> (Nothing, Impossible) -- no pattern selection allowed (yet)
-        (_, _, _, _, _::_, _, _, _)             -> (Nothing, Impossible) -- no equation selection allowed (yet?)
-        (_, _, [_], _, _, [], [], [])            -> (Nothing, Possible)
-        (_, _, [eid1, eid2], [], [], [], [], []) -> (CodeMotion.swapExpressionsTransformation model.syntax model.inputExp eid1 eid2, Satisfied)
-        _                                    -> (Nothing, Impossible)
+        (_, _, [], [], [], [], [], [])           -> (InactiveDeuceTransform, Possible)
+        (_, _, _, _::_, _, _, _, _)             -> (InactiveDeuceTransform, Impossible) -- no pattern selection allowed (yet)
+        (_, _, _, _, _::_, _, _, _)             -> (InactiveDeuceTransform, Impossible) -- no equation selection allowed (yet?)
+        (_, _, [_], _, _, [], [], [])            -> (InactiveDeuceTransform, Possible)
+        (_, _, [eid1, eid2], [], [], [], [], []) -> (CodeMotion.swapExpressionsTransformation model.syntax model.inputExp eid1 eid2 |> mbThunkToTransform, Satisfied)
+        _                                    -> (InactiveDeuceTransform, Impossible)
   in
     { name = "Swap Expressions"
     , func = func
@@ -742,13 +735,25 @@ swapDefinitionsTool model selections =
   let
     (func, predVal) =
       case selections of
-        (_, _, [], [], [], [], [], [])                 -> (Nothing, Possible)
-        (_, _, [], [ppid], [], [], [], [])             -> if ppidIsInLet ppid then (Nothing, Possible) else (Nothing, Impossible)
-        (_, _, [], [], [letEId], [], [], [])           -> (Nothing, Possible)
-        (_, _, [], [ppid1, ppid2], [], [], [], [])     -> (CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool") (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool"), Satisfied)
+        (_, _, [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+        (_, _, [], [ppid], [], [], [], []) ->
+          (InactiveDeuceTransform, if ppidIsInLet ppid then Possible else Impossible)
+        (_, _, [], [], [letEId], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+        (_, _, [], [ppid1, ppid2], [], [], [], []) ->
+          ( CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp
+              (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool")
+              (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool")
+              |> mbThunkToTransform
+          , Satisfied
+          )
         (_, _, [], [], [(letEId1, bn1), (letEId2, bn2)], [], [], []) ->
-                                                      (CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp (letEIdToTopPId letEId1 bn1) (letEIdToTopPId letEId2 bn2), Satisfied)
-        _                                          -> (Nothing, Impossible)
+          ( CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp (letEIdToTopPId letEId1 bn1) (letEIdToTopPId letEId2 bn2) |> mbThunkToTransform
+          , Satisfied
+          )
+        _ ->
+          (InactiveDeuceTransform, Impossible)
   in
     { name = "Swap Definitions"
     , func = func
@@ -775,18 +780,18 @@ inlineDefinitionTool model selections =
     (name, func, predVal) =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         (_, _, _, [], [], _, _, _) ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
         ([], [], [], pathedPatIds, [], [], [], []) ->
           ( Utils.perhapsPluralizeList toolName pathedPatIds
-          , Just <| \() ->
+          , NoInputDeuceTransform <| \() ->
               CodeMotion.inlineDefinitions model.syntax pathedPatIds model.inputExp
           , Satisfied
           )
         ([], [], [], [], letEIds, [], [], []) ->
           ( Utils.perhapsPluralizeList toolName letEIds
-          , Just <| \() ->
+          , NoInputDeuceTransform <| \() ->
               CodeMotion.inlineDefinitions
                 model.syntax
                 (letEIds |> List.map (\letEId -> (letEId, [])))
@@ -794,7 +799,7 @@ inlineDefinitionTool model selections =
           , Satisfied
           )
         _ ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
   in
     { name = name
     , func = func
@@ -821,15 +826,17 @@ introduceVariableTool model selections =
     (name, func, predVal) =
       case Debug.log "selections" selections of
         ([], [], [], [], [], [], [], []) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         (_, _, [], _, _, _, _, _) ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
         (_, _, exps, [], [], [], [], []) ->
           ( Utils.perhapsPluralizeList "Introduce Variable" exps
           , CodeMotion.introduceVarTransformation
               model
               exps
               Nothing
+            |> mbThunkToTransform
+          -- TODO It seems incorrect to return `Satisfied` if there is no func - I think this may be a source of bugs
           , Satisfied
           )
         (_, _, exps, [], [], [], [], [patTarget]) ->
@@ -838,6 +845,7 @@ introduceVariableTool model selections =
               model
               exps
               (Just (PatTargetPosition patTarget))
+            |> mbThunkToTransform
           , Satisfied
           )
         (_, _, exps, [], [], [], [expTarget], []) ->
@@ -846,6 +854,7 @@ introduceVariableTool model selections =
               model
               exps
               (Just (ExpTargetPosition expTarget))
+            |> mbThunkToTransform
           , Satisfied
           )
         (_, _, exps, [], [], [declTarget], [], []) ->
@@ -854,6 +863,7 @@ introduceVariableTool model selections =
               model
               exps
               (Just (DeclarationTargetPosition declTarget))
+            |> mbThunkToTransform
           , Satisfied
           )
         (_, _, exps, [], [decl], [], [], []) ->
@@ -862,10 +872,11 @@ introduceVariableTool model selections =
               model
               exps
               (Just (DeclarationTargetPosition (Before, decl)))
+            |> mbThunkToTransform
           , Satisfied
           )
         _ ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
   in
     { name = name
     , func = func
@@ -888,12 +899,12 @@ copyExpressionTool model selections =
   let
     (func, predVal) =
       case selections of
-        (_, _, [], [], [], [], [], [])   -> (Nothing, Possible)
-        (_, _, _, _::_, _, _, _, _)     -> (Nothing, Impossible) -- no pattern selection allowed (yet)
-        (_, _, _, _, _::_, _, _, _)     -> (Nothing, Impossible) -- no equation selection allowed (yet?)
-        (_, _, [_], _, _,  [], [], [])    -> (Nothing, Possible)
-        (_, _, eids, [], [], [], [], []) -> (CodeMotion.copyExpressionTransformation model.syntax model.inputExp eids, Satisfied)
-        _                            -> (Nothing, Impossible)
+        (_, _, [], [], [], [], [], [])   -> (InactiveDeuceTransform, Possible)
+        (_, _, _, _::_, _, _, _, _)     -> (InactiveDeuceTransform, Impossible) -- no pattern selection allowed (yet)
+        (_, _, _, _, _::_, _, _, _)     -> (InactiveDeuceTransform, Impossible) -- no equation selection allowed (yet?)
+        (_, _, [_], _, _,  [], [], [])    -> (InactiveDeuceTransform, Possible)
+        (_, _, eids, [], [], [], [], []) -> (CodeMotion.copyExpressionTransformation model.syntax model.inputExp eids |> mbThunkToTransform, Satisfied)
+        _                            -> (InactiveDeuceTransform, Impossible)
   in
     { name = "Make Equal by Copying"
     , func = func
@@ -919,15 +930,15 @@ moveDefinitionTool model selections =
     (name, func, predVal) =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         ([], [], [], _::_, [], [], [], []) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         ([], [], [], [], _::_, [], [], []) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         ([], [], [], [], [], [], [_], []) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         ([], [], [], [], [], [], [], [_]) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         {-
         ([], [], [], firstPatId::restPatIds, [], [], [(Before, eId)], []) ->
           let pathedPatIds = firstPatId::restPatIds in
@@ -978,7 +989,7 @@ moveDefinitionTool model selections =
           )-}
         ([], [], [], [], letEIds, [declTarget], [], []) ->
           ( Utils.perhapsPluralizeList toolName letEIds
-          , Just <| \() ->
+          , NoInputDeuceTransform <| \() ->
               CodeMotion.moveDeclarations
                 letEIds
                 declTarget
@@ -987,7 +998,7 @@ moveDefinitionTool model selections =
           )
         ([], [], [], [], letEIds, [], [(Before, eId)], []) ->
           ( Utils.perhapsPluralizeList toolName letEIds
-          , Just <| \() ->
+          , NoInputDeuceTransform <| \() ->
               CodeMotion.moveEquationsBeforeEId
                 model.syntax
                 letEIds
@@ -996,7 +1007,7 @@ moveDefinitionTool model selections =
           , Satisfied
           )
         _ ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
   in
     { name = toolName
     , func = func
@@ -1025,14 +1036,14 @@ duplicateDefinitionTool model selections =
     (name, func, predVal) =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         (_, _, _, [], _, _, _, _) ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
         ([], [], [], pathedPatIds, [], [], [(Before, eId)], []) ->
           let allAreLets = pathedPatIds |> List.all (pathedPatIdToScopeEId >> eidIsLet) in
           if allAreLets then
             ( Utils.perhapsPluralizeList toolName pathedPatIds
-            , Just <| \() ->
+            , NoInputDeuceTransform <| \() ->
                 CodeMotion.duplicateDefinitionsBeforeEId
                   model.syntax
                   pathedPatIds
@@ -1041,7 +1052,7 @@ duplicateDefinitionTool model selections =
             , Satisfied
             )
           else
-            (toolName, Nothing, Impossible)
+            (toolName, InactiveDeuceTransform, Impossible)
 
         ([], [], [], pathedPatIds, [], [], [], [patTarget]) ->
           let
@@ -1054,7 +1065,7 @@ duplicateDefinitionTool model selections =
           in
           if allAreLets then
             ( Utils.perhapsPluralizeList toolName pathedPatIds
-            , Just <| \() ->
+            , NoInputDeuceTransform <| \() ->
                 CodeMotion.duplicateDefinitionsPat
                   model.syntax
                   pathedPatIds
@@ -1063,9 +1074,9 @@ duplicateDefinitionTool model selections =
             , Satisfied
             )
           else
-            (toolName, Nothing, Impossible)
+            (toolName, InactiveDeuceTransform, Impossible)
         _ ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
   in
     { name = toolName
     , func = func
@@ -1140,10 +1151,10 @@ thawFreezeTool model selections =
     (name, func) =
       case mode of
         Nothing ->
-          ("Thaw/Freeze", Nothing)
+          ("Thaw/Freeze", InactiveDeuceTransform)
         Just (toolName, newAnnotation) ->
           ( toolName
-          , Just <| \() ->
+          , NoInputDeuceTransform <| \() ->
               let
                 eSubst =
                   List.foldl
@@ -1215,7 +1226,7 @@ showHideRangeTool model selections =
       case mode of
         Nothing ->
           ( "Show/Hide Sliders"
-          , Nothing
+          , InactiveDeuceTransform
           )
         Just hidden ->
           let
@@ -1231,7 +1242,7 @@ showHideRangeTool model selections =
                   "Hide Sliders"
           in
             ( toolName
-            , Just <| \() ->
+            , NoInputDeuceTransform <| \() ->
                 let
                   eSubst =
                     List.foldl
@@ -1312,7 +1323,7 @@ addRemoveRangeTool model selections =
       case mode of
         Nothing ->
           ( "Add/Remove Sliders"
-          , Nothing
+          , InactiveDeuceTransform
           )
         Just noRanges ->
           let
@@ -1328,7 +1339,7 @@ addRemoveRangeTool model selections =
                   "Remove Sliders"
           in
             ( toolName
-            , Just <| \() ->
+            , NoInputDeuceTransform <| \() ->
                 let
                   eSubst =
                     List.foldl
@@ -1382,25 +1393,25 @@ rewriteOffsetTool model selections =
     (name, func, predVal)  =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (toolName, Nothing, Possible)
+          (toolName, InactiveDeuceTransform, Possible)
         ([], _, _, _, _, _, _, _) ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
         (nums, [], exps, [ppid], [], [], [], []) ->
           case findExpByEId model.inputExp (pathedPatIdToScopeEId ppid) of
             Just scopeExp ->
               if isLet scopeExp && List.length nums == List.length exps then
                 ( Utils.perhapsPluralizeList toolName nums
-                , CodeMotion.rewriteOffsetTransformation model ppid nums
+                , CodeMotion.rewriteOffsetTransformation model ppid nums |> mbThunkToTransform
                 , Satisfied
                 )
               else
-                (toolName, Nothing, Impossible)
+                (toolName, InactiveDeuceTransform, Impossible)
 
             _ ->
-              (toolName, Nothing, Impossible)
+              (toolName, InactiveDeuceTransform, Impossible)
 
         _ ->
-          (toolName, Nothing, Impossible)
+          (toolName, InactiveDeuceTransform, Impossible)
   in
     { name = name
     , func = func
@@ -1427,7 +1438,7 @@ convertColorStringTool model selections =
 
     impossible =
       ( baseName
-      , Nothing
+      , InactiveDeuceTransform
       , Impossible
       )
 
@@ -1435,7 +1446,7 @@ convertColorStringTool model selections =
       case selections of
         ([], [], [], [], [], [], [], []) ->
           ( baseName
-          , Nothing
+          , InactiveDeuceTransform
           , Possible
           )
         ([], literals, exps, [], [], [], [], []) ->
@@ -1497,7 +1508,7 @@ convertColorStringTool model selections =
                             convertedStrings
                       in
                         ( Utils.perhapsPluralizeList baseName literals
-                        , Just <|
+                        , NoInputDeuceTransform <|
                             \() ->
                               [ newExp1
                                   |> synthesisResult "RGBA"
@@ -1529,19 +1540,19 @@ createFunctionTool model selections =
     (func, predVal) =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
         ([], [], [], [pathedPatId], [], [], [], []) ->
           case
             LangTools.findScopeExpAndPatByPathedPatternId pathedPatId model.inputExp
               |> Maybe.map (\((e, id), p) -> (unwrapExp e, id, p.val.p__))
           of
             Just (ELet _ _ _ _ _, id, PVar _ ident _) ->
-              ( Just <| \() ->
+              ( NoInputDeuceTransform <| \() ->
                   CodeMotion.abstractPVar model.syntax pathedPatId [] model.inputExp
               , FullySatisfied
               )
             _ ->
-              (Nothing, Impossible)
+              (InactiveDeuceTransform, Impossible)
         (_, _, [eid], [], [], [], [], []) ->
           let
             maybeExpToAbstract =
@@ -1571,11 +1582,11 @@ createFunctionTool model selections =
                 |> Maybe.withDefault 0
           in
             if parameterCount > 0 && expSize >= 3 then
-              ( Just <| \() -> CodeMotion.abstractExp model.syntax eid model.inputExp
+              ( NoInputDeuceTransform <| \() -> CodeMotion.abstractExp model.syntax eid model.inputExp
               , FullySatisfied
               )
             else
-              (Nothing, Impossible)
+              (InactiveDeuceTransform, Impossible)
         ([], [], [], [], [(letEId, bindingNum)], [], [], []) ->
           case
             LangTools.justFindExpByEId model.inputExp letEId
@@ -1586,7 +1597,7 @@ createFunctionTool model selections =
               |> Maybe.map (.val >> .p__)
           of
             Just (PVar _ _ _) ->
-              ( Just <|
+              ( NoInputDeuceTransform <|
                   \() ->
                     let
                        pathedPatId = ((letEId, 1), [])
@@ -1595,9 +1606,9 @@ createFunctionTool model selections =
               , FullySatisfied
               )
             _ ->
-              (Nothing, Impossible)
+              (InactiveDeuceTransform, Impossible)
         _ ->
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
   in
     { name = "Create Function from Definition"
     , func = func
@@ -1616,7 +1627,7 @@ createFunctionFromArgsTool model selections =
     (func, predVal) =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
         (_, _, eids, ppids, [], [], [], []) ->
           case ppids |> List.map (\ppid -> LangTools.findBoundExpByPathedPatternId ppid model.inputExp) |> Utils.projJusts of
             Just boundExps ->
@@ -1641,18 +1652,18 @@ createFunctionFromArgsTool model selections =
               in
               case enclosingPPIds of
                 [] ->
-                  (Nothing, Impossible)
+                  (InactiveDeuceTransform, Impossible)
 
                 _ ->
-                  ( Just (\() -> enclosingPPIds |> List.concatMap (\ppid -> CodeMotion.abstractPVar model.syntax ppid argEIds model.inputExp))
+                  ( NoInputDeuceTransform (\() -> enclosingPPIds |> List.concatMap (\ppid -> CodeMotion.abstractPVar model.syntax ppid argEIds model.inputExp))
                   , Satisfied
                   )
 
             _ ->
-              (Nothing, Impossible)
+              (InactiveDeuceTransform, Impossible)
 
         _ ->
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
   in
     { name = "Create Function from Arguments"
     , func = func
@@ -1684,22 +1695,22 @@ mergeTool model selections =
               candidateExpFilter minCloneCount 2 model.inputExp
       in
         if mergeResults /= [] then
-          ( Just <| \() -> mergeResults
+          ( NoInputDeuceTransform <| \() -> mergeResults
           , Satisfied
           )
         else
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
 
     (func, predVal) =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
 
         ([], [], [_], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
 
         ([], [], [], [], [_], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
 
         (_, _, [], [], ((letEId1, bind1)::(letEId2, bind2)::restLetEIds) as list, [], [], []) ->
           let boundExpEIds =
@@ -1716,7 +1727,7 @@ mergeTool model selections =
           tryMerge (eid1::eid2::restEIds)
 
         _ ->
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
   in
     { name = "Create Function by Merging Definitions"
     , func = func
@@ -1749,7 +1760,7 @@ addArgumentsTool model selections =
 
     defaultTool predVal =
       { name = toolName
-      , func = Nothing
+      , func = InactiveDeuceTransform
       , reqs = makeReqs predVal
       , id = id
       }
@@ -1795,7 +1806,7 @@ addArgumentsTool model selections =
           ([eid], _::_) ->
             { name = "Add Argument" -- Fowler calls this "Add Parameter"
             , func =
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     targetPPIdsToTry
                     |> List.concatMap (\targetPPId -> CodeMotion.addArg model.syntax eid targetPPId model.inputExp)
@@ -1806,7 +1817,7 @@ addArgumentsTool model selections =
           (_::_::_, _::_) ->
             { name = "Add Arguments" -- Fowler calls this "Add Parameter"
             , func =
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     targetPPIdsToTry
                     |> List.concatMap (\targetPPId -> CodeMotion.addArgs model.syntax eids targetPPId model.inputExp)
@@ -1851,7 +1862,7 @@ addArgumentsTool model selections =
           ([argSourcePathedPatId], _::_, True) ->
             { name = "Add Argument" -- Fowler calls this "Add Parameter"
             , func =
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     targetPPIdsToTry
                     |> List.concatMap (\targetPPId -> CodeMotion.addArgFromPat model.syntax argSourcePathedPatId targetPPId model.inputExp)
@@ -1862,7 +1873,7 @@ addArgumentsTool model selections =
           (_::_::_, _::_, True) ->
             { name = "Add Arguments" -- Fowler calls this "Add Parameter"
             , func =
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     targetPPIdsToTry
                     |> List.concatMap (\targetPPId -> CodeMotion.addArgsFromPats model.syntax argSourcePathedPatIds targetPPId model.inputExp)
@@ -1896,7 +1907,7 @@ removeArgumentsTool model selections =
 
     defaultTool predVal =
       { name = toolName
-      , func = Nothing
+      , func = InactiveDeuceTransform
       , reqs = makeReqs predVal
       , id = id
       }
@@ -1933,7 +1944,7 @@ removeArgumentsTool model selections =
           if isAllArgumentSelected && List.length pathedPatIds == 1 then
             { name = "Remove Argument"
             , func =
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     CodeMotion.removeArg
                       model.syntax
@@ -1945,7 +1956,7 @@ removeArgumentsTool model selections =
           else if isAllArgumentSelected then
             { name = "Remove Arguments"
             , func =
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     CodeMotion.removeArgs
                       model.syntax
@@ -1968,7 +1979,7 @@ removeArgumentsTool model selections =
           Just [argPathedPatId] ->
             { name = "Remove Argument"
             , func =
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     CodeMotion.removeArg
                       model.syntax
@@ -1980,7 +1991,7 @@ removeArgumentsTool model selections =
           Just argPathedPatIds ->
             { name = "Remove Arguments"
             , func =
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     CodeMotion.removeArgs
                       model.syntax
@@ -2013,18 +2024,18 @@ reorderArgumentsTool model selections =
     (func, possibility) =
       case selections of
         (_, _, [], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
 
         (_, _, [], pathedPatIds, [], [], [], []) ->
           let scopeEIds = List.map pathedPatIdToScopeEId pathedPatIds in
           if Utils.allSame scopeEIds && (scopeEIds |> List.all (findExpByEId model.inputExp >> Maybe.map isFunc >> (==) (Just True)))
-          then (Nothing, Possible)
-          else (Nothing, Impossible)
+          then (InactiveDeuceTransform, Possible)
+          else (InactiveDeuceTransform, Impossible)
 
         (_, _, eids, [], [], [], [], []) ->
           case eids |> List.map (LangTools.eidToMaybeCorrespondingArgumentPathedPatId model.inputExp) |> Utils.projJusts of
-            Just _  -> (Nothing, Possible)
-            Nothing -> (Nothing, Impossible)
+            Just _  -> (InactiveDeuceTransform, Possible)
+            Nothing -> (InactiveDeuceTransform, Impossible)
 
         ([], [], [], pathedPatIds, [], [], [], [patTarget]) ->
           let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
@@ -2032,7 +2043,7 @@ reorderArgumentsTool model selections =
           let targetScopeEId    = pathedPatIdToScopeEId targetPathedPatId in
           case (Utils.allSame scopeIds, targetScopeEId |> findExpByEId model.inputExp |> Maybe.map unwrapExp) of
             (True, Just (EFun _ _ _ _)) ->
-              ( Just <|
+              ( NoInputDeuceTransform <|
                   \() ->
                     CodeMotion.reorderFunctionArgs
                         targetScopeEId
@@ -2044,7 +2055,7 @@ reorderArgumentsTool model selections =
               )
 
             _ ->
-                (Nothing, Impossible)
+                (InactiveDeuceTransform, Impossible)
 
         (_, _, eids, [], [], [], [(beforeAfter, eid)], []) ->
           case eid::eids |> List.map (LangTools.eidToMaybeCorrespondingArgumentPathedPatId model.inputExp) |> Utils.projJusts of
@@ -2054,7 +2065,7 @@ reorderArgumentsTool model selections =
               let targetEId = pathedPatIdToScopeEId targetPathedPatId in
               case (Utils.allSame scopeIds, targetEId |> findExpByEId model.inputExp |> Maybe.map unwrapExp) of
                 (True, Just (EFun _ _ _ _)) ->
-                  ( Just <|
+                  ( NoInputDeuceTransform <|
                       \() ->
                         CodeMotion.reorderFunctionArgs
                             targetEId
@@ -2064,11 +2075,11 @@ reorderArgumentsTool model selections =
                   , Satisfied
                   )
                 _ ->
-                (Nothing, Impossible)
+                (InactiveDeuceTransform, Impossible)
             _ ->
-              (Nothing, Impossible)
+              (InactiveDeuceTransform, Impossible)
         _ ->
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
   in
   { name = "Reorder Arguments"
   , func = func
@@ -2083,7 +2094,7 @@ reorderArgumentsTool model selections =
 reorderExpressionsTool : Model -> Selections -> DeuceTool
 reorderExpressionsTool model selections =
   { name = "Reorder Expressions"
-  , func = CodeMotion.reorderExpressionsTransformation model.inputExp selections
+  , func = CodeMotion.reorderExpressionsTransformation model.inputExp selections |> mbThunkToTransform
   , reqs = [] -- TODO reqs
   , id = "reorderExpressions"
   }
@@ -2116,7 +2127,7 @@ makeSingleLineTool model selections =
       in
         case maybeEIdToDeLineAndWhetherToPreservePrecedingWhitespace of
           Nothing ->
-            Nothing
+            InactiveDeuceTransform
           Just (eid, shouldPreservePrecedingWhitespace) ->
             let
               perhapsLeftTrimmer =
@@ -2131,7 +2142,7 @@ makeSingleLineTool model selections =
                   |> perhapsLeftTrimmer
                   |> String.contains "\n"
               then
-                Just <|
+                NoInputDeuceTransform <|
                   \() ->
                     let
                       deLineDecls ((Declarations po tps anns lex) as decls) =
@@ -2275,7 +2286,7 @@ makeSingleLineTool model selections =
                         |> synthesisResult "Make Single Line"
                         |> List.singleton
               else
-                Nothing
+                InactiveDeuceTransform
     , reqs =
         [ { description = "Select one expression or definition"
           , value =
@@ -2317,9 +2328,9 @@ makeMultiLineTool model selections =
                   Utils.listValues es |>
                     List.all (precedingWhitespace >> String.contains "\n")
                 then
-                  Nothing
+                  InactiveDeuceTransform
                 else
-                  Just <|
+                  NoInputDeuceTransform <|
                     \() ->
                       let
                         indentation =
@@ -2349,9 +2360,9 @@ makeMultiLineTool model selections =
                   es |>
                     List.all (precedingWhitespace >> String.contains "\n")
                 then
-                  Nothing
+                  InactiveDeuceTransform
                 else
-                  Just <|
+                  NoInputDeuceTransform <|
                     \() ->
                       let
                         indentation =
@@ -2374,9 +2385,9 @@ makeMultiLineTool model selections =
                           |> synthesisResult "Make Multi-line"
                           |> List.singleton
               _ ->
-                Nothing
+                InactiveDeuceTransform
         _ ->
-          Nothing
+          InactiveDeuceTransform
   , reqs =
       [ { description = "Select one expression"
         , value =
@@ -2417,9 +2428,9 @@ alignExpressionsTool model selections =
                 List.map (\(Expr e) -> e.start.line)
           in
             if lineNums /= Utils.dedup lineNums then
-              Nothing
+              InactiveDeuceTransform
             else
-              Just <|
+              NoInputDeuceTransform <|
                 \() ->
                   let
                     maxCol =
@@ -2446,7 +2457,7 @@ alignExpressionsTool model selections =
                       |> synthesisResult "Align Expressions"
                       |> List.singleton
         _ ->
-          Nothing
+          InactiveDeuceTransform
   , reqs =
       [ { description = "Select two or more expressions"
         , value =
@@ -2474,13 +2485,13 @@ typesTool model selections =
     (func, boolPredVal) =
       case selections of
         ([], [], [], [], [], [], [], []) ->
-          (Nothing, Possible)
+          (InactiveDeuceTransform, Possible)
 
         (_, _, [eId], [], [], [], [], []) ->
           let
             exp = LangTools.justFindExpByEId model.inputExp eId
           in
-          (Just (Types2.makeDeuceExpTool model.inputExp exp), Satisfied)
+          (NoInputDeuceTransform (Types2.makeDeuceExpTool model.inputExp exp), Satisfied)
 
         (_, _, _, [pathedPatId], [], [], [], []) ->
           let
@@ -2488,10 +2499,10 @@ typesTool model selections =
               LangTools.findPatByPathedPatternId pathedPatId model.inputExp
                 |> Utils.fromJust_ "typesTool findPat"
           in
-          (Just (Types2.makeDeucePatTool model.inputExp pat), Satisfied)
+          (NoInputDeuceTransform (Types2.makeDeucePatTool model.inputExp pat), Satisfied)
 
         _ ->
-          (Nothing, Impossible)
+          (InactiveDeuceTransform, Impossible)
   in
     { name = "Type Information"
     , func = func
@@ -2594,11 +2605,7 @@ deuceToolsOf model =
 createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
   deuceToolsOf model |> List.map (
-    List.map (\deuceTool ->
-      case runTool deuceTool of
-        Just results -> (deuceTool, results, False)
-        Nothing      -> (deuceTool, [], True)
-    )
+    List.map (flip runTool emptyDeuceState)
   )
 
 reselectDeuceTool : Model -> Model
@@ -2618,7 +2625,7 @@ reselectDeuceTool model =
   in
     { model | selectedDeuceTool = newSelectedDeuceTool }
 
-updateRenameToolsInCache almostNewModel =
+updateInputSensitiveToolsInCache almostNewModel =
   let
     cachedAndNewDeuceTools =
       Utils.zipWith Utils.zip
@@ -2626,15 +2633,15 @@ updateRenameToolsInCache almostNewModel =
         (deuceToolsOf almostNewModel)
           -- assumes that the new tools computed by deuceTools
           -- are the same as the cached ones
+    reRun newDeuceTool = runTool newDeuceTool almostNewModel.deuceState
   in
   cachedAndNewDeuceTools |> List.map (
-    List.map (\((cachedDeuceTool, cachedResults, cachedBool), newDeuceTool) ->
-      if isRenamer cachedDeuceTool then
-        case runTool newDeuceTool of
-          Just results -> (newDeuceTool, results, False)
-          Nothing      -> (newDeuceTool, [], True)
-      else
-        (cachedDeuceTool, cachedResults, cachedBool)
+    List.map (\((cachedDeuceTool, _, _) as cached, newDeuceTool) ->
+      case cachedDeuceTool.func of
+        InactiveDeuceTransform        -> reRun newDeuceTool
+        NoInputDeuceTransform _       -> cached
+        RenameDeuceTransform _        -> reRun newDeuceTool
+        SmartCompleteDeuceTransform _ -> reRun newDeuceTool
     )
   )
 
@@ -2642,27 +2649,31 @@ updateRenameToolsInCache almostNewModel =
 -- Helpers
 --------------------------------------------------------------------------------
 
--- Run a tool, and maybe get some results back (if it is active)
-runTool : DeuceTool -> Maybe (List SynthesisResult)
-runTool deuceTool =
-  -- let _ = Utils.log <| "running tool " ++ deuceTool.name in
+basicDeuceTransform result =
+  NoInputDeuceTransform <| \() -> result
+
+mbThunkToTransform mbThunk =
+  case mbThunk of
+    Nothing -> InactiveDeuceTransform
+    Just thunk -> NoInputDeuceTransform thunk
+
+-- Run a tool: get results back if it is active, otherwise no results
+runTool : DeuceTool -> DeuceState -> CachedDeuceTool
+runTool deuceTool deuceState =
+  let run thunk =
+    case ImpureGoodies.crashToError thunk of
+      Ok results ->
+        (deuceTool, results, False)
+      Err errMsg ->
+        let _ = Debug.log ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"") (toString errMsg) in
+        (deuceTool, [], True)
+  in
   case deuceTool.func of
-    Just thunk ->
-      case ImpureGoodies.crashToError thunk of
-        Ok results -> Just results
-        Err errMsg ->
-          let _ = Debug.log ("Deuce Tool Crash \"" ++ deuceTool.name ++ "\"") (toString errMsg) in
-          Nothing
-
-    _ ->
-      Nothing
-
--- Check if a tool is active without running it
-isActive : DeuceTool -> Bool
-isActive deuceTool =
-  deuceTool.func /= Nothing
-
--- Check if a given tool is a renaming tool
-isRenamer : DeuceTool -> Bool
-isRenamer =
-  String.startsWith "Rename" << .name
+    InactiveDeuceTransform ->
+      (deuceTool, [], True)
+    NoInputDeuceTransform thunk ->
+      run thunk
+    RenameDeuceTransform renameVarTextToResults ->
+      run <| \() -> renameVarTextToResults deuceState.renameVarText
+    SmartCompleteDeuceTransform smartCompleteTextToResults ->
+      run <| \() -> smartCompleteTextToResults deuceState.smartCompleteText

@@ -49,6 +49,7 @@ port module Controller exposing
   , msgHoverDeuceResult
   , msgLeaveDeuceResult
   , msgUpdateRenameVarTextBox
+  , msgUpdateSmartCompleteTextBox
   , msgClearDrag
   , msgDragDeucePopupPanel
   , msgDragAutoOutputToolsPopupPanel
@@ -3204,16 +3205,13 @@ msgSetGhostsShown shown =
 -- Deuce Tools
 
 msgHoverDeuceResult : Bool -> SynthesisResult -> List Int -> Msg
-msgHoverDeuceResult isRenamer (SynthesisResult result) path =
-  let maybeRunToolAndCachePreview m =
-    case (isRenamer, Dict.get path m.deuceToolResultPreviews) of
-      (True, _) -> -- TODO make renaming dynamically appear in the code
-        m
-
-      (False, Just (preview, _)) -> -- already run and cached
+msgHoverDeuceResult dontEval (SynthesisResult result) path =
+  let evalIfNotCached m =
+    case Dict.get path m.deuceToolResultPreviews of
+      Just (preview, _) -> -- already run and cached
         { m | preview = preview }
 
-      (False, Nothing) -> -- not already run and cached
+      Nothing -> -- not already run and cached
         let
           (preview, class) =
             -- CSS classes from View leak out here. Oh, well.
@@ -3238,7 +3236,7 @@ msgHoverDeuceResult isRenamer (SynthesisResult result) path =
   in
   Msg
     ("Hover Deuce Result \"" ++ result.description ++ "\" " ++ toString path)
-    (setHoveredMenuPath path >> maybeRunToolAndCachePreview)
+    (setHoveredMenuPath path >> Utils.applyIf (not dontEval) evalIfNotCached)
 
 msgLeaveDeuceResult : SynthesisResult -> List Int -> Msg
 msgLeaveDeuceResult (SynthesisResult result) path =
@@ -3257,12 +3255,28 @@ msgUpdateRenameVarTextBox text =
         { model
             | deuceState =
                 { oldDeuceState
-                    | renameVarTextBox =
+                    | renameVarText =
                         Parser.sanitizeVariableName text
                 }
         }
     in
-    resetDeuceCacheAndReselect almostNewModel DeuceTools.updateRenameToolsInCache
+    resetDeuceCacheAndReselect almostNewModel DeuceTools.updateInputSensitiveToolsInCache
+
+msgUpdateSmartCompleteTextBox : String -> Msg
+msgUpdateSmartCompleteTextBox text =
+  Msg ("Update Smart-Complete Text Box: " ++ text) <| \model ->
+    let
+      oldDeuceState =
+        model.deuceState
+      almostNewModel =
+        { model
+            | deuceState =
+                { oldDeuceState
+                    | smartCompleteText = text
+                }
+        }
+    in
+    resetDeuceCacheAndReselect almostNewModel DeuceTools.updateInputSensitiveToolsInCache
 
 --------------------------------------------------------------------------------
 -- Clear Drag
