@@ -2,7 +2,7 @@
  * General                                                                    *
  ******************************************************************************/
 
- *:not(.outputCanvas *) {
+*:not(.outputCanvas *) {
   margin: 0;
   padding: 0;
   -webkit-box-sizing: border-box;
@@ -47,7 +47,9 @@ code {
 }
 
 .text-button:not(.disabled):hover,
-.hover-menu:hover > .hover-menu-title .text-button:not(.disabled) {
+.hover-menu:hover > .hover-menu-title .text-button:not(.disabled),
+.hover-menu.always-show > .hover-menu-title .text-button:not(.disabled)
+{
   background-color: var(--active-text-color);
   background-color: var(--hover-effect-bg-color);
 }
@@ -311,11 +313,14 @@ code {
   border-left: none;
 }
 
-.hover-menu:not(.disabled):hover > .dropdown-content {
+.hover-menu:not(.disabled):hover > .dropdown-content,
+.hover-menu.always-show > .dropdown-content
+{
   display: block;
   left: 100%;
   top: -1px;
 }
+
 
 /* TODO User Study Info (temporary) */
 /* re-using this now for Previous/Next Example buttons */

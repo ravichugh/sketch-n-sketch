@@ -1559,3 +1559,20 @@ orderWithDependencies elements elemToNamesDepsIsrec =
               "\n    |    " ++ nameDisplay) |> String.join "\n    |     |"
            ) ++ "\n    └─────┘\n\nHint: An explicit dependency happens when a variable is not bound by a lambda."
 -}
+
+-- O(n^2)
+removeDuplicates : List a -> List a
+removeDuplicates =
+  let
+    helper result xs =
+      case xs of
+        [] ->
+          result
+
+        hd :: tl ->
+          if List.member hd tl then
+            helper result tl
+          else
+            helper (hd :: result) tl
+  in
+    helper []

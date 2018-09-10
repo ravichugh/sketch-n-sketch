@@ -1525,27 +1525,31 @@ msgMousePosition pos_ =
         (Just _, oldPos_, maybeClickable) ->
           onMouseDrag oldPos_ pos_ { old | mouseState = (Just True, pos_, maybeClickable) }
 
-    deucePopupPanelPositionUpdater old =
+    maybeDeucePopupPanelPositionUpdater old =
       if noCodeWidgetsSelected old then
-        let
-          newDeucePopupPanelPosition =
-            ( pos_.x + deucePopupPanelMouseOffset.x
-            , pos_.y + deucePopupPanelMouseOffset.y
-            )
-
-          oldPopupPanelPositions =
-            old.popupPanelPositions
-
-          newPopupPanelPositions =
-            { oldPopupPanelPositions | deuce = newDeucePopupPanelPosition }
-        in
-          { old | popupPanelPositions = newPopupPanelPositions }
+        deucePopupPanelPositionUpdater pos_ old
       else
         old
   in
     NewModelAndCmd
       ("MousePosition " ++ toString pos_)
-      (mouseStateUpdater >> Tuple.mapFirst deucePopupPanelPositionUpdater)
+      (mouseStateUpdater >> Tuple.mapFirst maybeDeucePopupPanelPositionUpdater)
+
+deucePopupPanelPositionUpdater : Mouse.Position -> Model -> Model
+deucePopupPanelPositionUpdater pos old =
+  let
+    newDeucePopupPanelPosition =
+      ( pos.x + deucePopupPanelMouseOffset.x
+      , pos.y + deucePopupPanelMouseOffset.y
+      )
+
+    oldPopupPanelPositions =
+      old.popupPanelPositions
+
+    newPopupPanelPositions =
+      { oldPopupPanelPositions | deuce = newDeucePopupPanelPosition }
+  in
+    { old | popupPanelPositions = newPopupPanelPositions }
 
 --------------------------------------------------------------------------------
 
@@ -2998,10 +3002,13 @@ toggleDeuceWidget widget model =
       if List.member widget oldSelectedWidgets then
         Utils.removeAsSet widget oldSelectedWidgets
       else
-        oldSelectedWidgets
-        |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w)) -- Remove any overlapping widgets.
-        |> multipleTargetPositionsFilter
-        |> Utils.addAsSet widget
+        if Model.allowOnlySingleSelection model then
+          [ widget ]
+        else
+          oldSelectedWidgets
+          |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w)) -- Remove any overlapping widgets.
+          |> multipleTargetPositionsFilter
+          |> Utils.addAsSet widget
     newSelectedWidgetsEmpty =
       List.isEmpty newSelectedWidgets && oldDeuceState.mbKeyboardFocusedWidget == Nothing
     newDeuceState =
@@ -3025,20 +3032,45 @@ toggleDeuceWidget widget model =
   resetDeuceCacheAndReselect almostNewModel DeuceTools.createToolCache
 
 msgMouseClickDeuceWidget widget =
-  Msg ("msgMouseClickDeuceWidget " ++ toString widget) <| \old ->
-    toggleDeuceWidget widget old
+  let
+    toggler old =
+      toggleDeuceWidget widget old
+
+    positionUpdater old =
+      if old.codeEditorMode == CETypeInspector then
+        deucePopupPanelPositionUpdater (Model.mousePosition old) old
+      else
+        old
+  in
+    Msg
+      ("msgMouseClickDeuceWidget " ++ toString widget)
+      (toggler >> positionUpdater)
 
 msgMouseEnterDeuceWidget widget = Msg ("msgMouseEnterDeuceWidget " ++ toString widget) <| \old ->
-  let deuceState = old.deuceState in
-  { old | deuceState =
-              { deuceState
-              | hoveredWidgets = [widget] } }
+  let
+    oldDeuceState =
+      old.deuceState
+
+    newDeuceState =
+      { oldDeuceState | hoveredWidgets = [widget] }
+
+    newModel =
+      { old | deuceState = newDeuceState }
+  in
+    if newModel.codeEditorMode == CETypeInspector then
+      resetDeuceCacheAndReselect newModel DeuceTools.createToolCache
+    else
+      newModel
 
 msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString widget) <| \old ->
-  let deuceState = old.deuceState in
-  { old | deuceState =
-              { deuceState
-              | hoveredWidgets = [] } }
+  let
+    oldDeuceState =
+      old.deuceState
+
+    newDeuceState =
+      { oldDeuceState | hoveredWidgets = [] }
+  in
+    { old | deuceState = newDeuceState }
 
 msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
   let

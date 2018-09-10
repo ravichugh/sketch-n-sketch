@@ -97,9 +97,7 @@ type CodeToolsMenuMode
 type CodeEditorMode
   = CEText
   | CEDeuceClick
-  | CEDeuceRect
-  | CEDeuceLasso
-  | CEDeuceLine
+  | CETypeInspector
 
 type alias Model =
   { code : Code
@@ -932,22 +930,38 @@ oneSafeResult newExp =
 
 --------------------------------------------------------------------------------
 
-deuceActive : Model -> Bool
-deuceActive model =
+deuceShortcutActive : Model -> Bool
+deuceShortcutActive model =
   let
     shiftDown =
       List.member Keys.keyShift model.keysDown
   in
-    not (needsParse model) &&
-    Utils.or
-      [ Utils.and
-          [ model.enableDeuceBoxSelection
-          , not <| deuceRightClickMenuShown model
-          , shiftDown
-          ]
-      , configurationPanelShown model
-      , model.codeEditorMode == CEDeuceClick
+    Utils.and
+      [ model.codeEditorMode == CEText
+      , model.enableDeuceBoxSelection
+      , not <| deuceRightClickMenuShown model
+      , shiftDown
       ]
+
+deuceActive : Model -> Bool
+deuceActive model =
+  Utils.and
+    [ model.enableDeuceBoxSelection
+    , not <| needsParse model
+    , Utils.or
+        [ deuceShortcutActive model
+        , model.codeEditorMode == CEDeuceClick
+        , model.codeEditorMode == CETypeInspector
+        , configurationPanelShown model
+        ]
+    ]
+
+modeActive : Model -> CodeEditorMode -> Bool
+modeActive model mode =
+  if deuceShortcutActive model then
+    mode == CEDeuceClick
+  else
+    mode == model.codeEditorMode
 
 --------------------------------------------------------------------------------
 
@@ -1155,15 +1169,28 @@ nothingSelectedInOutput model =
   Set.isEmpty model.selectedShapes &&
   Dict.isEmpty model.selectedBlobs
 
+allowOnlySingleSelection : Model -> Bool
+allowOnlySingleSelection model =
+  model.codeEditorMode == CETypeInspector
+
+
 --------------------------------------------------------------------------------
 
 deucePopupPanelShown : Model -> Bool
 deucePopupPanelShown model =
   Utils.and
     [ model.enableDeuceBoxSelection
-    , not <| noCodeWidgetsSelected model
-    , not <| deuceRightClickMenuShown model
-    , not <| configurationPanelShown model
+    , Utils.or
+        [ Utils.and
+            [ not <| noCodeWidgetsSelected model
+            , not <| deuceRightClickMenuShown model
+            , not <| configurationPanelShown model
+            ]
+        , Utils.and
+            [ model.codeEditorMode == CETypeInspector
+            , not <| List.isEmpty model.deuceState.hoveredWidgets
+            ]
+        ]
     ]
 
 autoOutputToolsPopupPanelShown : Model -> Bool

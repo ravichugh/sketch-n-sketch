@@ -444,9 +444,14 @@ deuceSynthesisResults model path isRenamer results =
       (\(i, result) -> deuceSynthesisResult model (path ++ [i]) isRenamer result)
       results
 
-deuceHoverMenu : Model -> (Int, CachedDeuceTool) -> Html Msg
-deuceHoverMenu model (index, (deuceTool, results, disabled)) =
+deuceHoverMenu : Bool -> Model -> (Int, CachedDeuceTool) -> Html Msg
+deuceHoverMenu alwaysShow model (index, (deuceTool, results, disabled)) =
   let
+    showFlag =
+      if alwaysShow then
+        "always-show"
+      else
+        ""
     path =
       [ index ]
     isRenamer =
@@ -459,7 +464,7 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
         ]
   in
     generalHtmlHoverMenu
-      ""
+      showFlag
       title
       Controller.msgNoop
       Controller.msgNoop
@@ -675,7 +680,7 @@ menuBar model =
             CTAll ->
               Just <| editCodeEntry model
             CTActive ->
-              Just <| deuceHoverMenu model
+              Just <| deuceHoverMenu False model
             CTDisabled ->
               Nothing
       in
@@ -1417,19 +1422,16 @@ codePanel model =
     modeIcon mode =
       let
         active =
-          mode ==
-            if Model.deuceActive model then
-              Model.CEDeuceClick
-            else
-              model.codeEditorMode
+          Model.modeActive model mode
+
         caption =
           case mode of
             Model.CEText ->
               "Text"
             Model.CEDeuceClick ->
               "Deuce"
-            _ ->
-              String.dropLeft 2 <| toString mode
+            Model.CETypeInspector ->
+              "Type Inspector"
       in
         Html.div
           [ Attr.classList
@@ -1457,10 +1459,8 @@ codePanel model =
         [ modeIcon Model.CEText
         , modeSeparator
         , modeIcon Model.CEDeuceClick
-        -- TODO: implement lasso selections eventually
-        -- , modeIcon Model.CEDeuceRect
-        -- , modeIcon Model.CEDeuceLasso
-        -- , modeIcon Model.CEDeuceLine
+        , modeSeparator
+        , modeIcon Model.CETypeInspector
         , modeSeparator
         ]
   in
@@ -2470,15 +2470,31 @@ deucePopupPanel model =
           [ let
               activeTools =
                 model.deuceToolsAndResults
-                  |> List.concatMap (List.filter (Utils.fst3 >> DeuceTools.isActive))
-                  |> Utils.mapi1 (deuceHoverMenu model)
+                  |> List.concatMap
+                       ( List.filter
+                           ( \(tool, _, _) ->
+                               DeuceTools.isActive model.codeEditorMode tool
+                           )
+                       )
+
+              alwaysShowFlag =
+                case activeTools of
+                  [(tool, _, _)] ->
+                    model.codeEditorMode == CETypeInspector
+                      && tool.id == DeuceTools.typesToolId
+
+                  _ ->
+                    False
+
+              activeToolHtmls =
+                Utils.mapi1 (deuceHoverMenu alwaysShowFlag model) activeTools
             in
               if List.isEmpty activeTools then
                 noAvailableTools
               else
                 Html.div
-                  []
-                  activeTools
+                  [ Attr.class "deuce-popup-panel-content" ]
+                  activeToolHtmls
           ]
       }
 

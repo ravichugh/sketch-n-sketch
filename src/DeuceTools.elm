@@ -9,6 +9,7 @@ module DeuceTools exposing
   , updateRenameToolsInCache
   , isActive
   , isRenamer
+  , typesToolId
   )
 
 import String
@@ -2122,6 +2123,10 @@ alignExpressionsTool model selections =
 -- Type System Tool
 --------------------------------------------------------------------------------
 
+typesToolId : String
+typesToolId =
+  "typeInfo"
+
 typesTool : Model -> DeuceSelections -> DeuceTool
 typesTool model selections =
   let
@@ -2150,7 +2155,7 @@ typesTool model selections =
     { name = "Type Information"
     , func = func
     , reqs = [ { description = "Select something.", value = boolPredVal } ]
-    , id = "typeInfo"
+    , id = typesToolId
     }
 
 
@@ -2174,6 +2179,14 @@ selectionsTuple program selectedWidgets =
   , selectedEIdTargets selectedWidgets
   , selectedPathedPatIdTargets selectedWidgets
   )
+
+toolNeedsHovers : Model -> String -> Bool
+toolNeedsHovers model toolId =
+  Utils.and
+    [ model.codeEditorMode == Model.CETypeInspector
+    , Model.noCodeWidgetsSelected model
+    , toolId == typesToolId
+    ]
 
 toolList =
   [ [ typesTool
@@ -2226,10 +2239,39 @@ toolList =
 deuceToolsOf : Model -> List (List DeuceTool)
 deuceToolsOf model =
   let
-    selections = selectionsTuple model.inputExp <| Model.getAllSelected model
+    selectedDeuceWidgets =
+      Model.getAllSelected model
+
+    selections =
+      selectionsTuple
+        model.inputExp
+        selectedDeuceWidgets
   in
-  toolList
-  |> List.map (List.map (\tool -> tool model selections))
+    List.map
+      ( List.map
+          ( \tool ->
+              let
+                appliedTool =
+                  tool model selections
+              in
+                if toolNeedsHovers model appliedTool.id then
+                  let
+                    hoveredDeuceWidgets =
+                      model.deuceState.hoveredWidgets
+
+                    selectionsAndHovers =
+                      selectionsTuple
+                        model.inputExp
+                        ( Utils.removeDuplicates <|
+                            selectedDeuceWidgets ++ hoveredDeuceWidgets
+                        )
+                  in
+                    tool model selectionsAndHovers
+                else
+                  appliedTool
+          )
+      )
+      toolList
 
 createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
@@ -2298,9 +2340,10 @@ runTool deuceTool =
       Nothing
 
 -- Check if a tool is active without running it
-isActive : DeuceTool -> Bool
-isActive deuceTool =
+isActive : Model.CodeEditorMode -> DeuceTool -> Bool
+isActive mode deuceTool =
   deuceTool.func /= Nothing
+    && (mode /= Model.CETypeInspector || deuceTool.id == typesToolId)
 
 -- Check if a given tool is a renaming tool
 isRenamer : DeuceTool -> Bool
