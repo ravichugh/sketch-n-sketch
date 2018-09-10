@@ -5,7 +5,6 @@
 
 module DeuceTools exposing
   ( createToolCache
-  , createToolCacheMultipleInterpretations
   , reselectDeuceTool
   , updateRenameToolsInCache
   , isActive
@@ -2234,13 +2233,6 @@ deuceToolsOf model =
 
 createToolCache : Model -> List (List CachedDeuceTool)
 createToolCache model =
-  createToolCache_ model
-  -- ImpureGoodies.logTimedRun "DeuceTools.createToolCachce" (\() ->
-  --   createToolCache_ model
-  -- )
-
-createToolCache_ : Model -> List (List CachedDeuceTool)
-createToolCache_ model =
   deuceToolsOf model |> List.map (
     List.map (\deuceTool ->
       case runTool deuceTool of
@@ -2248,27 +2240,6 @@ createToolCache_ model =
         Nothing      -> (deuceTool, [], True)
     )
   )
-
--- This function is not used.
-createToolCacheMultipleInterpretations : Model -> List (List DeuceWidget)-> List (List CachedDeuceTool)
-createToolCacheMultipleInterpretations model interpretations =
-  let selectionInterpretations =
-    interpretations
-    |> List.map (selectionsTuple model.inputExp)
-  in
-  let toolToCacheResults tool =
-    let
-      toolInterpretations =
-        selectionInterpretations |> List.map (\selections -> tool model selections)
-      toolResults =
-        toolInterpretations |> List.map runTool |> Utils.filterJusts |> List.concat
-      -- I don't think the context-sensitive menu uses any tool properties that vary between intepretations.
-      deuceTool = Utils.head "createToolCacheMultipleInterpretations" toolInterpretations
-    in
-    (deuceTool, toolResults, toolResults == [])
-  in
-  toolList
-  |> List.map (List.map toolToCacheResults)
 
 reselectDeuceTool : Model -> Model
 reselectDeuceTool model =

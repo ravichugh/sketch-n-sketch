@@ -1023,14 +1023,6 @@ handleOutputSelectionChanges oldModel newModel =
   else
     let finalModel = { newModel | synthesisResultsDict = Dict.empty } in
     (finalModel, Cmd.none)
-{-
-    let
-      selectedEIdInterpretations = ShapeWidgets.selectionsProximalDistalEIdInterpretations newModel.inputExp newModel.slate newModel.widgets newModel.selectedFeatures newModel.selectedShapes newModel.selectedBlobs
-      deuceWidgetInterpretations = selectedEIdInterpretations |> List.map (List.map DeuceExp)
-      finalModel = { newModel | deuceToolsAndResults = DeuceTools.createToolCacheMultipleInterpretations newModel deuceWidgetInterpretations }
-    in
-    (finalModel, Cmd.none)
--}
 
 deuceOverlayMsgs : Deuce.Messages Msg
 deuceOverlayMsgs =
