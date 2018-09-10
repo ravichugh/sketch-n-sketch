@@ -3452,7 +3452,7 @@ childCodeObjects co =
             PAs _ p1 wsAs p2 ->
               [ P e p1
               -- TODO , PT After wsAs e p1
-              -- TODO ^ does nothing, as withZeroSpace seems to negate wsAs
+              -- TODO ^ does nothing - fix by deleting withZeroSpace
               , PT After (zeroWidthWSAfter p1) e p1
               , P e p2
               ]
