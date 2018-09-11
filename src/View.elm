@@ -2458,12 +2458,39 @@ deucePopupPanel model =
         "appear-above"
       else
         "appear-below"
+
+    activeTools =
+      model.deuceToolsAndResults
+        |> List.concatMap
+             ( List.filter
+                 ( \(tool, _, _) ->
+                     DeuceTools.isActive model.codeEditorMode tool
+                 )
+             )
+
+    alwaysShowFlag =
+      case activeTools of
+        [(tool, _, _)] ->
+          model.codeEditorMode == CETypeInspector
+            && tool.id == DeuceTools.typesToolId
+
+        _ ->
+          False
+
+    noTools =
+      List.isEmpty activeTools
+
+    activeToolHtmls =
+      Utils.mapi1 (deuceHoverMenu alwaysShowFlag model) activeTools
   in
     popupPanel
       { pos =
           model.popupPanelPositions.deuce
       , disabled =
-          not <| Model.deucePopupPanelShown model
+          Utils.or
+            [ not <| Model.deucePopupPanelShown model
+            , model.codeEditorMode == CETypeInspector && noTools
+            ]
       , dragHandler =
           Controller.msgDragDeucePopupPanel
       , class =
@@ -2472,34 +2499,12 @@ deucePopupPanel model =
           [ Html.text "Code Tools" -- "Deuce Menu"
           ]
       , content =
-          [ let
-              activeTools =
-                model.deuceToolsAndResults
-                  |> List.concatMap
-                       ( List.filter
-                           ( \(tool, _, _) ->
-                               DeuceTools.isActive model.codeEditorMode tool
-                           )
-                       )
-
-              alwaysShowFlag =
-                case activeTools of
-                  [(tool, _, _)] ->
-                    model.codeEditorMode == CETypeInspector
-                      && tool.id == DeuceTools.typesToolId
-
-                  _ ->
-                    False
-
-              activeToolHtmls =
-                Utils.mapi1 (deuceHoverMenu alwaysShowFlag model) activeTools
-            in
-              if List.isEmpty activeTools then
-                noAvailableTools
-              else
-                Html.div
-                  [ Attr.class "deuce-popup-panel-content" ]
-                  activeToolHtmls
+          [ if noTools then
+              noAvailableTools
+            else
+              Html.div
+                [ Attr.class "deuce-popup-panel-content" ]
+                activeToolHtmls
           ]
       }
 
