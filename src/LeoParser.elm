@@ -2779,13 +2779,15 @@ freshenPreserving idsToPreserve initK e =
          ELet ws1 kind (Declarations po tpes ann exps) wsIn body ->
            let (newRevTpes, newK) = Utils.foldLeft ([], k) (elemsOf tpes) <|
              \(revAcc, k) (LetType sp1 spType mbSpAlias pat funPolicy spEq tp) ->
-                let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
-                (LetType sp1 spType mbSpAlias newPat funPolicy spEq tp :: revAcc, newK)
+                let (newPat, newK1) = freshenPatPreserving idsToPreserve (pat, k) in
+                let (newTp,  newK2)= freshenTypePreserving idsToPreserve (tp, k) in
+                (LetType sp1 spType mbSpAlias newPat funPolicy spEq newTp :: revAcc, newK2)
            in
            let (newRevAnn, newK2) = Utils.foldLeft ([], newK) ann <|
-             \(revAcc, k) (LetAnnotation sp1 sp0 pat funPolicy spEq e1) ->
-                let (newPat, newK) = freshenPatPreserving idsToPreserve (pat, k) in
-                (LetAnnotation sp1 sp0 newPat funPolicy spEq e1::revAcc, newK)
+             \(revAcc, k) (LetAnnotation sp1 sp0 pat funPolicy spEq tp) ->
+                let (newPat, newK1) = freshenPatPreserving idsToPreserve (pat, k) in
+                let (newTp,  newK2)= freshenTypePreserving idsToPreserve (tp, k) in
+                (LetAnnotation sp1 sp0 newPat funPolicy spEq newTp :: revAcc, newK2)
            in
            let (newRevExps, newK3) = Utils.foldLeft ([], newK2) (elemsOf exps) <|
              \(revAcc, k)  (LetExp sp1 sp0 p funPolicy spEq e1) ->
@@ -2814,6 +2816,12 @@ freshenPreserving idsToPreserve initK e =
                  ([], k)
            in
            (ECase ws1 scrutinee newBranches ws2, newK)
+         EColonType wsBefore body wsMiddle typ wsEnd ->
+           let
+             (freshTyp, newK) =
+               freshenTypePreserving idsToPreserve (typ, k)
+           in
+             (EColonType wsBefore body wsMiddle freshTyp wsEnd, newK)
          _ ->
            (e__, k)
     in
@@ -2847,13 +2855,42 @@ freshenPatPreserving idsToPreserve (p, initK) =
     else k
   in
   let assignIds pat k =
-    if Set.member pat.val.pid idsToPreserve then
-       (pat, k)
-    else
-       let pid = getId k in
-       (setPId pid pat, pid + 1)
+    let (newP__, newK) =
+      case pat.val.p__ of
+        PColonType wsBefore body wsMiddle typ ->
+          let
+            (freshTyp, newK) =
+              freshenTypePreserving idsToPreserve (typ, k)
+          in
+            (PColonType wsBefore body wsMiddle freshTyp, newK)
+
+        _ ->
+          (pat.val.p__, k)
+    in
+      if Set.member pat.val.pid idsToPreserve then
+         (replaceP__ pat newP__, newK)
+      else
+         let pid = getId k in
+         (WithInfo (makePat_ newP__ pid) pat.start pat.end, pid + 1)
   in
   mapFoldPatTopDown assignIds initK p
+
+-- Reassign any id not in idsToPreserve
+freshenTypePreserving : Set.Set Int -> (Type, Int) -> (Type, Int)
+freshenTypePreserving idsToPreserve (t, initK) =
+  let getId k =
+    if Set.member k idsToPreserve
+    then getId (k+1)
+    else k
+  in
+  let assignIds typ k =
+    if Set.member typ.val.tid idsToPreserve then
+       (typ, k)
+    else
+       let tid = getId k in
+       (setTId tid typ, tid + 1)
+  in
+  mapFoldTypeTopDown assignIds initK t
 
 maxId : Exp -> Int
 maxId exp =
@@ -2867,20 +2904,28 @@ allIds exp = duplicateAndAllIds exp |> Tuple.second
 -- Raw list of all ids
 allIdsRaw : Exp -> List Int
 allIdsRaw exp =
-  let pidsInPat pat   = flattenPatTree pat |> List.map (.val >> .pid) in
-  let pidsInPats pats = pats |> List.concatMap pidsInPat in
+  let pidsInPat pat    = flattenPatTree pat |> List.map (.val >> .pid) in
+  let pidsInPats pats  = pats |> List.concatMap pidsInPat in
+  let tidsInType typ   = flattenTypeTree typ |> List.map (.val >> .tid) in
+  let tidsInTypes typs = typs |> List.concatMap tidsInType in
+
   let flattened = flattenExpTree exp in
   let eids = flattened |> List.map expEId in
+
   let otherIds =
     flattened
     |> List.concatMap
         (\exp ->
-          case (unwrapExp exp) of
+          case unwrapExp exp of
             EConst ws n (locId, frozen, ident) wd -> [locId]
-            ELet _ kind (Declarations _ _ _ decls) _ e2     ->
-              decls |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ e1) -> pidsInPat p)
+            ELet _ kind (Declarations _ letTypes letAnnotations decls) _ e2 ->
+              (decls |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ e1) -> pidsInPat p))
+                ++ (letTypes |> elemsOf |> List.concatMap (\(LetType _ _ _ p _ _ t) -> pidsInPat p ++ tidsInType t))
+                ++ (letAnnotations |> List.concatMap (\(LetAnnotation _ _ p _ _ t) -> pidsInPat p ++ tidsInType t))
+
             EFun ws1 pats body ws2                -> pidsInPats pats
             ECase ws1 scrutinee branches ws2      -> pidsInPats (branchPats branches)
+            EColonType _ _ _ typ _                -> tidsInType typ
             _                                     -> []
         )
   in

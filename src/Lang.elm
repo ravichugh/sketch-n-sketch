@@ -680,6 +680,7 @@ type alias DeuceSelections =
   , List (EId, (WS, EBaseVal))                -- other base value literals
   , List EId                                  -- expressions (including literals)
   , List PathedPatternId                      -- patterns
+  , List TId                                  -- types
   , List (EId, BindingNumber)                 -- binding or declarations
   , List DeclarationTargetPosition            -- declaration target positions
   , List ExpTargetPosition                    -- expression target positions
@@ -1183,6 +1184,73 @@ mapFoldPatTopDown f initAcc p =
     PColonType ws1 pChild ws2 tp ->
       let (newPChild, newAcc2) = recurse newAcc pChild in
       ret (PColonType ws1 newPChild ws2 tp) newAcc2
+
+-- Nodes visited/replaced in top-down, left-to-right order.
+-- Careful, a poorly constructed mapping function can cause this to fail to terminate.
+mapFoldTypeTopDown : (Type -> a -> (Type, a)) -> a -> Type -> (Type, a)
+mapFoldTypeTopDown f initAcc t =
+  let (newT, newAcc) = f t initAcc in
+  let ret t__ acc =
+    (replaceT__ newT t__, acc)
+  in
+  let recurse acc child =
+    mapFoldTypeTopDown f acc child
+  in
+  let recurseAll acc typs =
+    typs
+    |> List.foldl
+        (\typ (newTyps, acc) ->
+          let (newTyp, newAcc) = recurse acc typ in
+          (newTyps ++ [newTyp], newAcc)
+        )
+        ([], acc)
+  in
+  case newT.val.t__ of
+    TNum _ ->
+      (newT, newAcc)
+    TBool _ ->
+      (newT, newAcc)
+    TString _ ->
+      (newT, newAcc)
+    TNull _ ->
+      (newT, newAcc)
+    TList ws1 tChild1 ws2 ->
+      let (newTChild1, newAcc2) = recurse newAcc tChild1 in
+      ret (TList ws1 newTChild1 ws2) newAcc2
+    TDict ws1 tChild1 tChild2 ws2 ->
+      let (newTChild1, newAcc2) = recurse newAcc tChild1 in
+      let (newTChild2, newAcc3) = recurse newAcc2 tChild2 in
+      ret (TDict ws1 newTChild1 newTChild2 ws2) newAcc3
+    TRecord ws1 head entries ws2  ->
+      let (newTsvalues, newAcc2) = recurseAll newAcc (Utils.recordValues entries) in
+      ret (TRecord ws1 head (Utils.recordValuesMake entries newTsvalues) ws2) newAcc2
+    TTuple ws1 ts ws2 Nothing ws3 ->
+      let (newTs, newAcc2) = recurseAll newAcc ts in
+      ret (TTuple ws1 newTs ws2 Nothing ws3) newAcc2
+    TTuple ws1 ts ws2 (Just tTail) ws3 ->
+      let (newTs, newAcc2)  = recurseAll newAcc ts in
+      let (newTTail, newAcc3) = recurse newAcc2 tTail in
+      ret (TTuple ws1 newTs ws2 (Just newTTail) ws3) newAcc3
+    TArrow ws1 ts ws2 ->
+      let (newTs, newAcc2) = recurseAll newAcc ts in
+      ret (TArrow ws1 newTs ws2) newAcc2
+    TUnion ws1 ts ws2 ->
+      let (newTs, newAcc2) = recurseAll newAcc ts in
+      ret (TUnion ws1 newTs ws2) newAcc2
+    TApp ws1 tChild1 ts ws2 ->
+      let (newTChild1, newAcc2) = recurse newAcc tChild1 in
+      let (newTs, newAcc3) = recurseAll newAcc2 ts in
+      ret (TApp ws1 newTChild1 newTs ws2) newAcc3
+    TVar _ _ ->
+      (newT, newAcc)
+    TForall ws1 tpats tChild1 ws2 ->
+      let (newTChild1, newAcc2) = recurse newAcc tChild1 in
+      ret (TForall ws1 tpats newTChild1 ws2) newAcc2
+    TParens ws1 tChild1 ws2 ->
+      let (newTChild1, newAcc2) = recurse newAcc tChild1 in
+      ret (TParens ws1 newTChild1 ws2) newAcc2
+    TWildcard _ ->
+      (newT, newAcc)
 
 startBindingNumLetType _ = 0
 
@@ -2029,6 +2097,45 @@ childPats pat =
     PAs _ p1 _ p2           -> [p1, p2]
     PParens _ p _           -> [p]
 
+flattenTypeTree : Type -> List Type
+flattenTypeTree typ =
+  typ :: List.concatMap flattenTypeTree (childTypes typ)
+
+-- Children left-to-right.
+childTypes : Type -> List Type
+childTypes typ =
+  case typ.val.t__ of
+    TNum _ ->
+      []
+    TBool _ ->
+      []
+    TString _ ->
+      []
+    TNull _ ->
+      []
+    TList _ t _ ->
+      [t]
+    TDict _ key val _ ->
+      [key, val]
+    TRecord _ _ entries _  ->
+      List.map (\(_, _, _, _, t) -> t) entries
+    TTuple _ heads _ maybeTail _ ->
+      heads ++ (Maybe.withDefault [] << Maybe.map List.singleton) maybeTail
+    TArrow _ ts _ ->
+      ts
+    TUnion _ ts _ ->
+      ts
+    TApp _ func args _ ->
+      func :: args
+    TVar _ _ ->
+      []
+    TForall _ _ result _ ->
+      []
+    TParens _ inner _ ->
+      [inner]
+    TWildcard _ ->
+      []
+
 -----------------------------------------------------------------------------
 -- Lang Options
 
@@ -2129,6 +2236,9 @@ setEId eid (Expr e) = let e_ = e.val in Expr { e | val = { e_ | eid = eid } }
 
 setPId : PId -> Pat -> Pat
 setPId pid p = let p_ = p.val in { p | val = { p_ | pid = pid } }
+
+setTId : TId -> Type -> Type
+setTId tid t = let t_ = t.val in { t | val = { t_ | tid = tid } }
 
 clearEId e = setEId -1 e
 clearPId p = setPId -1 p

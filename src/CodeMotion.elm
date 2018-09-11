@@ -2432,8 +2432,8 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
 reorderExpressionsTransformation originalProgram selections =
   case selections of
-    (_, _, [], _, _, _, _, _) -> Nothing
-    (_, _, expIds, [], [], [], [expTarget], []) ->
+    (_, _, [], _, _, _, _, _, _) -> Nothing
+    (_, _, expIds, [], [], [], [], [expTarget], []) ->
       let (beforeAfter, expTargetEId) = expTarget in
       let relevantEIds = expTargetEId::expIds in
       -- tryReorderExps can handle rearrangement of nested tuples, e.g. [a [b c]] to [a b [c]]
