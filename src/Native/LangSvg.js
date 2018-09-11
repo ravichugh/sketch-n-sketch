@@ -250,6 +250,26 @@ var _user$project$Native_LangSvg = {
     } else {
       return _elm_lang$core$Maybe$Nothing;
     }
+  },
+
+  vNodeType : function (vNode) {
+    return vNode.type;
+  },
+
+  vNodeTag : function (vNode) {
+    return vNode.tag;
+  },
+
+  vNodeChildren : function (vNode) {
+    var childrenArray = vNode.children;
+
+    // Found this code somewhere inside Elm's core.
+    var list = _elm_lang$core$Native_List.Nil;
+    for (var i = childrenArray.length; i--; )
+    {
+      list = _elm_lang$core$Native_List.Cons(childrenArray[i], list);
+    }
+    return list;
   }
 
     // randomFloat : function(_) {

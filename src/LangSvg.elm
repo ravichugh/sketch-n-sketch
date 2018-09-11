@@ -15,7 +15,7 @@ module LangSvg exposing
   , desugarShapeAttrs
   , buildSvgSimple
   , evalToSvg
-  , estimatedBounds
+  , estimatedBounds, maybeInlineListOfShapes
   , strAVal
   , aNum, aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPath
@@ -672,6 +672,33 @@ evalToSvg syntax env exp =
 estimatedBounds : Svg.Svg a -> Maybe { left : Float, top : Float, right : Float, bot : Float }
 estimatedBounds svg =
   Native.LangSvg.estimatedBounds svg
+
+
+vNodeType : Svg.Svg a -> String
+vNodeType svg = Native.LangSvg.vNodeType svg
+
+
+vNodeTag : Svg.Svg a -> String
+vNodeTag svg = Native.LangSvg.vNodeTag svg
+
+
+vNodeChildren : Svg.Svg a -> List (Svg.Svg a)
+vNodeChildren svg = Native.LangSvg.vNodeChildren svg
+
+
+maybeSvgChildren : Svg.Svg a -> Maybe (List (Svg.Svg a))
+maybeSvgChildren svg =
+  -- let _ = Debug.log "vNodeType svg" (vNodeType svg) in
+  if vNodeType svg == "node" && vNodeTag svg == "svg" then
+    Just (vNodeChildren svg)
+  else
+    Nothing
+
+maybeInlineListOfShapes : Svg.Svg a -> List (Svg.Svg a)
+maybeInlineListOfShapes svg =
+  svg
+  |> maybeSvgChildren
+  |> Maybe.withDefault [svg]
 
 ------------------------------------------------------------------------------
 -- Misc AVal Helpers

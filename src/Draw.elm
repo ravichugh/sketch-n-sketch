@@ -7,7 +7,7 @@ module Draw exposing
   -- , drawNewEllipse
   , drawNewPolygon
   -- , drawNewPath
-  , drawNewFunction
+  , drawNewFunction, newFunctionCallExp
   , svgXYDot
   -- , newFunctionCallExp
   , boundingBoxOfPoints_
@@ -68,9 +68,9 @@ svgPolygon   = flip Svg.polygon []
 svgPath      = flip Svg.path []
 
 pointZoneStyles =
-  { radius = "6"
+  { radius = 6
   , stroke = "black"
-  , strokeWidth = "2"
+  , strokeWidth = 2
   , fill =
       { shown = "white" -- "silver" -- "rgba(255,0,0,0.5)"
       , selectedShape = "yellow"
@@ -287,12 +287,12 @@ strPt (x,y) = Utils.spaces [toString x, toString y]
 --   redDot ++ yellowDot ++ clearDots ++ pathAndPoints
 
 
-drawNewFunction fName model pt1 pt2 =
+drawNewFunction dotScalingFactor fName model pt1 pt2 =
   let inputPtDots =
     let ((x1, x1Snap), (y1, y1Snap)) = pt1 in
     let ((x2, x2Snap), (y2, y2Snap)) = pt2 in
-    let dot1 = if x1Snap == NoSnap || y1Snap == NoSnap then [svgXYDot (x1, y1) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]] else [] in
-    let dot2 = if x2Snap == NoSnap || y2Snap == NoSnap then [svgXYDot (x2, y2) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]] else [] in
+    let dot1 = if x1Snap == NoSnap || y1Snap == NoSnap then [svgXYDot dotScalingFactor (x1, y1) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]] else [] in
+    let dot2 = if x2Snap == NoSnap || y2Snap == NoSnap then [svgXYDot dotScalingFactor (x2, y2) pointZoneStyles.fill.shown True [ LangSvg.attr "opacity" "0.4" ]] else [] in
     dot1 ++ dot2
   in
   newFunctionCallExp fName model pt1 pt2
@@ -315,18 +315,18 @@ drawNewFunction fName model pt1 pt2 =
           |> Maybe.andThen (\((val, _), _, _) -> (valToMaybePoint val |> Maybe.map List.singleton) |> Utils.orMaybe (vListToMaybeVals val |> Maybe.andThen (List.map valToMaybePoint >> Utils.projJusts)) )
         in
         maybePoints
-        |> Maybe.map (List.map (\(x,y) -> svgXYDot (x, y) pointZoneStyles.fill.shown True []))
+        |> Maybe.map (List.map (\(x,y) -> svgXYDot dotScalingFactor (x, y) pointZoneStyles.fill.shown True []))
       else
         LangSvg.evalToSvg Syntax.Elm Eval.initEnv pseudoProgram
         |> Utils.perhapsLogError "drawNewFunction error"
         |> Result.toMaybe
-        |> Maybe.map List.singleton
+        |> Maybe.map LangSvg.maybeInlineListOfShapes -- So icons don't nest an SVG inside an SVG, which messes up the viewbox.
     )
   |> Maybe.withDefault []
   |> (flip (++) inputPtDots)
 
 
-svgXYDot (x, y) fill isVisible extraAttrs =
+svgXYDot dotScalingFactor (x, y) fill isVisible extraAttrs =
   -- let
   --   x = toFloat x_ - model.outputCanvasInfo.scrollLeft
   --   y = toFloat y_ - model.outputCanvasInfo.scrollTop
@@ -335,10 +335,10 @@ svgXYDot (x, y) fill isVisible extraAttrs =
     [ LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString y)
     , LangSvg.attr "fill" fill
     , LangSvg.attr "stroke" pointZoneStyles.stroke
-    , LangSvg.attr "stroke-width" pointZoneStyles.strokeWidth
+    , LangSvg.attr "stroke-width" (toString <| pointZoneStyles.strokeWidth * dotScalingFactor)
     , LangSvg.attr "r" <|
         if isVisible
-        then pointZoneStyles.radius
+        then (toString <| pointZoneStyles.radius * dotScalingFactor)
         else "0"
     ] ++ extraAttrs
 

@@ -2872,7 +2872,22 @@ loadDrawingToolsAndIcons old =
         if Dict.member funcName model.icons then
           model
         else
-          let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction funcName model ((10, NoSnap), (10, NoSnap)) ((40, NoSnap), (40, NoSnap))) in
+          -- Because of default arguments, some custom drawing functions look really bad drawn in a small space.
+          let biggestNumber =
+            Draw.newFunctionCallExp funcName model ((0, NoSnap), (0, NoSnap)) ((1, NoSnap), (1, NoSnap))
+            |> Maybe.map (\(callExp, _) -> callExp)
+            |> Maybe.withDefault (eConstDummyLoc 10)
+            |> flattenExpTree
+            |> List.filterMap LangTools.expToMaybeNum
+            |> (::) 10
+            |> List.maximum
+            |> Maybe.withDefault 10
+            |> round
+          in
+          let (startX, startY) = (biggestNumber*3, biggestNumber*3) in -- Draw farther from the edge so the SVG doesn't clip off negative regions
+          let (endX,   endY)   = (biggestNumber*6, biggestNumber*6) in -- Draw with a width and height of 2*biggestNumber
+          let dotScalingFactor = (toFloat biggestNumber / 10)^0.7 in -- This seems to work well enough.
+          let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction dotScalingFactor funcName model ((startX, NoSnap), (startY, NoSnap)) ((endX, NoSnap), (endY, NoSnap))) in
           { model | icons = Dict.insert funcName iconHtml model.icons }
       )
 

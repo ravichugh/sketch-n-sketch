@@ -239,14 +239,14 @@ drawNewShape model =
       (PointOrOffset, MouseDrawNew (Offset1D ((x1Int, _), (y1Int, _)) amountSnap (x2Int, y2Int))) -> drawNewPointAndOffset model (amountSnap /= NoSnap) (x1Int, y1Int) (x2Int, y2Int)
       -- (PointOrOffset, MouseDrawNew (TwoPoints ((x1Int, _), (y1Int, _)) ((x1Int, _), (y1Int, _))))      -> drawNewPointAndOffset model False pt1 pt2
       -- (HelperLine,    MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewLine model pt1 pt2
-      (Function fName,    MouseDrawNew (TwoPoints pt1 pt2)) -> Draw.drawNewFunction fName model pt1 pt2
+      (Function fName,    MouseDrawNew (TwoPoints pt1 pt2)) -> Draw.drawNewFunction 1 fName model pt1 pt2
       -- (Text,          MouseDrawNew (TwoPoints pt1 pt2))                            -> Draw.drawNewRect model.keysDown pt1 pt2
       _                                                                            -> []
 
 
 drawNewPointAndOffset model shouldHighlight (x1, y1) (x2, y2) =
   let (axis, sign, amount) = Draw.horizontalVerticalSnap (x1, y1) (x2, y2) in
-  let xyDot = Draw.svgXYDot (x1, y1) pointZoneStyles.fill.shown True [] in
+  let xyDot = Draw.svgXYDot 1 (x1, y1) pointZoneStyles.fill.shown True [] in
   let (arrowParts, _) = svgOffsetWidget1DArrowPartsAndEndPoint model.inputExp Nothing 0 ((toFloat x1, dummyTrace), (toFloat y1, dummyTrace)) axis sign (amount, dummyTrace) dummyVal shouldHighlight [] in
   [xyDot] ++ arrowParts
 
@@ -392,7 +392,7 @@ patAsHTML modelRenamingInOutput showRemoverAndReorderers pat associatedShapes as
             if showRemoverAndReorderers then
               [ Html.span [Attr.class "remove-arg", Attr.title <| "Remove arg "  ++ nameStr, onMouseDownAndStop (Controller.msgRemoveArg pid)] [VirtualDom.text "❌"]
               , Html.span [Attr.class "reorder-arg", Attr.title <| "Move arg "  ++ nameStr ++ " leftwards",  onMouseDownAndStop (Controller.msgMoveArgRelative -1 pid)] [VirtualDom.text "◀︎"]
-              , Html.span [Attr.class "reorder-arg", Attr.title <| "Move arg "  ++ nameStr ++ " rightwards", onMouseDownAndStop (Controller.msgMoveArgRelative  2 pid)] [VirtualDom.text "▶"]
+              , Html.span [Attr.class "reorder-arg", Attr.title <| "Move arg "  ++ nameStr ++ " rightwards", onMouseDownAndStop (Controller.msgMoveArgRelative  2 pid)] [VirtualDom.text "▶"] -- Why is the amount 2? I don't know, that's what works. Deadline crunch, otherwise I would figure out the problem.
               ]
             else
               []
@@ -1301,10 +1301,10 @@ zonePoint model alwaysShow id shapeKind realZone transform (x, y) =
     Just fill ->
       List.singleton <| svgCircle <|
         [ attrNum "cx" x, attrNum "cy" y
-        , attr "r" pointZoneStyles.radius
+        , attr "r" (toString pointZoneStyles.radius)
         , attr "fill" "transparent" -- fill -- was covering up the cross dots that had the correct color for input/output (not sure why we have/need two differentmethods anyway)
         , attr "stroke" "transparent" -- pointZoneStyles.stroke -- was covering up the cross dots that had the correct color for input/output (not sure why we have/need two differentmethods anyway)
-        , attr "stroke-width" pointZoneStyles.strokeWidth
+        , attr "stroke-width" (toString pointZoneStyles.strokeWidth)
         , cursorOfZone realZone "pointer"
         ] ++
         dragZoneEvents id shapeKind realZone ++
@@ -1754,7 +1754,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
         , attr "cx" (toString x) , attr "cy" (toString y)
         , attr "fill" "none"
         , attr "stroke" "black"
-        , attr "stroke-width" pointZoneStyles.strokeWidth
+        , attr "stroke-width" (toString pointZoneStyles.strokeWidth)
         ]
     in
     (backDisc, frontDisc)
@@ -1805,7 +1805,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
             let newModel = if model.mouseMode == MouseNothing then startDrawing model maybeClickable else model in -- maybeClickable for drag drawings
             { newModel | mouseState = (Just False, { x = x, y = y }, maybeClickable) } ] -- maybeClickable for click drawings (poly/path)
     in
-    Draw.svgXYDot (x, y) dotFill isVisible extraAttrs
+    Draw.svgXYDot 1 (x, y) dotFill isVisible extraAttrs
   in
   let perhapsPointPatWidget =
     perhapsPatOrExpInOutput
