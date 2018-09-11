@@ -816,23 +816,17 @@ inlineDefinitionTool model selections =
       case selections of
         ([], [], [], [], [], [], [], [], []) ->
           (toolName, InactiveDeuceTransform, Possible)
-        (_, _, _, [], _, [], _, _, _) ->
+        (_, _, _, _, _, [], _, _, _) ->
           (toolName, InactiveDeuceTransform, Impossible)
-        ([], [], [], pathedPatIds, [], [], [], [], []) ->
-          ( Utils.perhapsPluralizeList toolName pathedPatIds
-          , NoInputDeuceTransform <| \() ->
-              CodeMotion.inlineDefinitions model.syntax pathedPatIds model.inputExp
-          , Satisfied
-          )
         ([], [], [], [], [], letEIds, [], [], []) ->
-          ( Utils.perhapsPluralizeList toolName letEIds
-          , NoInputDeuceTransform <| \() ->
-              CodeMotion.inlineDefinitions
-                model.syntax
-                (letEIds |> List.map (\letEId -> (letEId, [])))
-                model.inputExp
-          , Satisfied
-          )
+          case CodeMotion.inlineDefinitions letEIds model.inputExp of
+            Nothing ->
+              (toolName , InactiveDeuceTransform , Impossible)
+            Just (inlinedIdents, newProgram) ->
+              ( Utils.perhapsPluralizeList toolName letEIds
+              , basicDeuceTransform [synthesisResult ("Inline " ++ toString inlinedIdents) newProgram]
+              , Satisfied
+              )
         _ ->
           (toolName, InactiveDeuceTransform, Impossible)
   in
@@ -2622,7 +2616,7 @@ toolList =
     -}
   , [ moveDefinitionTool
     --, swapDefinitionsTool
-    --, inlineDefinitionTool
+    , inlineDefinitionTool
     --, duplicateDefinitionTool
     ]
  {- , [ reorderExpressionsTool
