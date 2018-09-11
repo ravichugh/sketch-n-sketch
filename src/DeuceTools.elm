@@ -162,8 +162,8 @@ shouldHaveParensOnAccountOfParent root expEId =
       Maybe.map doesChildNeedParens |>
         Maybe.withDefault False
 
-makeReplaceHoleTool : String -> String -> (Exp -> Exp -> Maybe Exp) -> Model -> Selections -> DeuceTool
-makeReplaceHoleTool   toolID    replDesc  programModifier              model    selections =
+genericReplaceHoleTool : String -> String -> (Exp -> Exp -> DeuceTransformation) -> Model -> Selections -> DeuceTool
+genericReplaceHoleTool   toolID    name      transformer                            model    selections =
   let
     (func, predVal) =
       let
@@ -177,18 +177,14 @@ makeReplaceHoleTool   toolID    replDesc  programModifier              model    
           let holeExp = LangTools.justFindExpByEId root holeEId in
           case unwrapExp holeExp of
             EHole _ EEmptyHole ->
-              let mbNewProgram = programModifier root holeExp in
-              case mbNewProgram of
-                Nothing ->
-                  impossible
-                Just newProgram ->
-                  (basicDeuceTransform <| [synthesisResult ("Replace with " ++ replDesc) newProgram], FullySatisfied)
+              let transformation = transformer root holeExp in
+              (transformation, if transformation == InactiveDeuceTransform then Impossible else FullySatisfied)
             _ ->
               impossible
         _ ->
           impossible
   in
-    { name = "Create " ++ replDesc
+    { name = name
     , func = func
     , reqs =
         [ { description =
@@ -199,6 +195,20 @@ makeReplaceHoleTool   toolID    replDesc  programModifier              model    
         ]
     , id = toolID
     }
+
+makeReplaceHoleTool : String -> String -> (Exp -> Exp -> Maybe Exp) -> Model -> Selections -> DeuceTool
+makeReplaceHoleTool   toolID    replDesc  programModifier =
+  genericReplaceHoleTool
+    toolID
+    ("Create " ++ replDesc)
+    (\root holeExp ->
+      let mbNewProgram = programModifier root holeExp in
+      case mbNewProgram of
+        Nothing ->
+          InactiveDeuceTransform
+        Just newProgram ->
+          basicDeuceTransform <| [synthesisResult ("Replace with " ++ replDesc) newProgram]
+    )
 
 makeSimpleReplaceHoleTool : String -> String -> Bool ->         (WS -> Exp__) -> Model -> Selections -> DeuceTool
 makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__ =
@@ -248,7 +258,23 @@ createEmptyStringTool =
     False
     (\wsb -> EBase wsb <| EString defaultQuoteChar "")
 
--- TODO createVarTool once we have autocomplete | EVar WS Ident
+createVarTool =
+  genericReplaceHoleTool
+    "createVarReferenceFromHole"
+    "Create a variable reference"
+    (\root holeExp ->
+      let
+        holeEId = expEId holeExp
+        wsb = precedingWhitespace holeExp |> ws
+        visibleVars = visibleIdents root holeExp |> Utils.fromJust_ "holeExp not found"
+      in
+      SmartCompleteDeuceTransform <| \smartCompleteText ->
+        List.filter (String.startsWith smartCompleteText) visibleVars |>
+          List.map (\vIdent ->
+            replaceExpNode holeEId (Expr <| withDummyExpInfoEId holeEId <| EVar wsb vIdent) root
+            |> synthesisResult vIdent
+          )
+    )
 
 createLambdaTool =
   makeSimpleReplaceHoleTool
@@ -2553,6 +2579,7 @@ toolList =
     , createTrueTool
     , createFalseTool
     , createEmptyStringTool
+    , createVarTool
     , createLambdaTool
     , createApplicationTool
     , createEmptyListTool

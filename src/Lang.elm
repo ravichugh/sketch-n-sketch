@@ -3760,6 +3760,51 @@ expToMaybeIdent exp =
     EVar _ ident -> Just ident
     _            -> Nothing
 
+-- returns the idents declared by the ancestors of e
+-- currently returned in no particular order and with duplicates
+visibleIdents : Exp -> Exp -> Maybe (List Ident)
+visibleIdents root e =
+  expEId e |>
+  findWithAncestorsByEId root |>
+  Maybe.map (\eWithAncestors ->
+    let eAndAncestorEIds = List.map expEId eWithAncestors |> Set.fromList in
+    Utils.removeLastElement eWithAncestors |>
+    List.concatMap (\ancestor ->
+      case unwrapExp ancestor of
+        EFun _ pats _ _ ->
+          identifiersListInPats pats
+        ECase _ _ branches _ ->
+          let mbAncestorBranch =
+            branches |>
+            Utils.findFirst (\branch -> Set.member (branchExp branch |> expEId) eAndAncestorEIds)
+          in
+          case mbAncestorBranch of
+            Nothing             -> []
+            Just ancestorBranch -> branchPat ancestorBranch |> identifiersListInPat
+        ELet _ _ (Declarations _ _ _ groupedExps) _ _ ->
+          let accumulate remainingGroupedExps =
+            case remainingGroupedExps of
+              [] ->
+                []
+              -- TODO this doesn't seem to be working properly with recursive groups:
+              -- are mutually recursive defs being grouped properly?
+              (isRec, letExps) :: rest ->
+                let eIsPartOfThisGroup =
+                  groupBoundExps letExps |>
+                  List.any (\boundExp -> Set.member (expEId boundExp) eAndAncestorEIds)
+                in
+                groupIdentifiers letExps ++
+                ( if eIsPartOfThisGroup then
+                    []
+                  else
+                    accumulate rest
+                )
+          in
+          accumulate groupedExps
+        _ -> []
+    )
+  )
+
 freeVars : Exp -> List Exp
 freeVars exp =
   let removeIntroducedBy pats vars =

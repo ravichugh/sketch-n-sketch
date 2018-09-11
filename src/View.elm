@@ -90,6 +90,17 @@ italicizeQuotesIfRenamer deuceTransformation toItalicize otherwise =
     RenameDeuceTransform _ -> italicizeQuotes "'" toItalicize
     _ -> otherwise
 
+deuceTextInput onInput onKeyDn =
+  [ Html.input
+      [ Attr.type_ "text"
+      , Attr.class "deuce-input"
+      , E.onInput onInput
+      , onClickWithoutPropagation Controller.msgNoop
+      , onKeyDown onKeyDn
+      ]
+      []
+  ]
+
 --------------------------------------------------------------------------------
 -- Buttons
 --------------------------------------------------------------------------------
@@ -388,27 +399,18 @@ deuceSynthesisResult model path deuceTransformation (SynthesisResult result) =
         Just (_, class) ->
           class
 
-    textInput onInput =
-      [ Html.input
-          [ Attr.type_ "text"
-          , Attr.class "deuce-input"
-          , E.onInput onInput
-          , onClickWithoutPropagation Controller.msgNoop
-          , onKeyDown <|
-              \code ->
-                if code == enterKeyCode then -- Enter button
-                  Controller.msgChooseDeuceExp result.description result.exp
-                else
-                  Controller.msgNoop
-          ]
-          []
-      ]
+    onKeyDn code =
+      if code == enterKeyCode then -- Enter button
+        Controller.msgChooseDeuceExp result.description result.exp
+      else
+        Controller.msgNoop
 
-    (additionalInputs, canEval) =
+    (additionalHTML, canEval) =
       case deuceTransformation of
-        RenameDeuceTransform _        -> (textInput Controller.msgUpdateRenameVarTextBox, False)
-        SmartCompleteDeuceTransform _ -> (textInput Controller.msgUpdateSmartCompleteTextBox, True)
-        _                             -> ([], True)
+        RenameDeuceTransform _ ->
+          (deuceTextInput Controller.msgUpdateRenameVarTextBox onKeyDn, False)
+        _ ->
+          ([], True)
 
     description =
       italicizeQuotesIfRenamer
@@ -425,7 +427,7 @@ deuceSynthesisResult model path deuceTransformation (SynthesisResult result) =
       ( [ Html.span
             []
             description
-        ] ++ additionalInputs
+        ] ++ additionalHTML
       )
       -- TODO allow renaming to dynamically appear in the code
       (Controller.msgHoverDeuceResult (not canEval) (SynthesisResult result) path)
@@ -437,23 +439,39 @@ deuceSynthesisResult model path deuceTransformation (SynthesisResult result) =
 deuceSynthesisResults
   : Model -> List Int -> DeuceTransformation -> List SynthesisResult -> List (Html Msg)
 deuceSynthesisResults model path deuceTransformation results =
-  if List.isEmpty results then
-    [ generalHtmlHoverMenu "transformation-oops"
-        [ Html.span
-            []
-            [ Html.text "Oops! Can't apply transformation after all."
-            ]
-        ]
-        Controller.msgNoop
-        Controller.msgNoop
-        Controller.msgNoop
-        True
-        []
-    ]
-  else
-    Utils.mapi1
-      (\(i, result) -> deuceSynthesisResult model (path ++ [i]) deuceTransformation result)
-      results
+  let mapResults () =
+    Utils.mapi1 (\(i, result) -> deuceSynthesisResult model (path ++ [1]) deuceTransformation result) results
+  in
+  case (deuceTransformation, results) of
+    (SmartCompleteDeuceTransform _, _) ->
+      let onKeyDn code =
+        -- Enter button
+        if code == enterKeyCode && not (List.isEmpty results) then
+          let (SynthesisResult firstResult) = Utils.head_ results in
+          Controller.msgChooseDeuceExp firstResult.description firstResult.exp
+        else
+          Controller.msgNoop
+      in
+      deuceTextInput Controller.msgUpdateSmartCompleteTextBox onKeyDn ++
+      [ Html.ul
+          []
+          (mapResults ())
+      ]
+    (_, []) ->
+      [ generalHtmlHoverMenu "transformation-oops"
+          [ Html.span
+              []
+              [ Html.text "Oops! Can't apply transformation after all."
+              ]
+          ]
+          Controller.msgNoop
+          Controller.msgNoop
+          Controller.msgNoop
+          True
+          []
+      ]
+    _ ->
+      mapResults ()
 
 deuceHoverMenu : Bool -> Model -> (Int, CachedDeuceTool) -> Html Msg
 deuceHoverMenu alwaysShow model (index, (deuceTool, results, disabled)) =
