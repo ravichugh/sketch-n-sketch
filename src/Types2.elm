@@ -5,6 +5,7 @@ module Types2 exposing
   , AceTypeInfo
   , aceTypeInfo
   , dummyAceTypeInfo
+  , typeChecks
   )
 
 import Info exposing (WithInfo, withDummyInfo)
@@ -1296,3 +1297,11 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
       [ deuceTypeInfo
       -- , insertAnnotationTool
       ]
+
+typeChecks : Exp -> Bool
+typeChecks =
+  foldExp
+    ( \e acc ->
+        acc && (unExpr e).val.typeError == Nothing
+    )
+    True

@@ -174,21 +174,43 @@ debugLog = Config.debugLog Config.debugController
 
 --------------------------------------------------------------------------------
 
-maybeTypeCheck : Bool -> Exp -> (Exp, Types2.AceTypeInfo)
+-- Returns:
+--   ( Type-checked expression
+--   , Ace type information
+--   , whether or not the expression type-checks
+--   )
+maybeTypeCheck : Bool -> Exp -> (Exp, Types2.AceTypeInfo, Bool)
 maybeTypeCheck doTypeChecking inputExp =
   if doTypeChecking then
-    let newInputExp = Types2.typecheck inputExp in
-    let ati = Types2.aceTypeInfo newInputExp in
-    (newInputExp, ati)
+    let
+      newInputExp =
+        Types2.typecheck inputExp
 
+      aceTypeInfo =
+        Types2.aceTypeInfo newInputExp
+
+      typeChecks =
+        Types2.typeChecks newInputExp
+    in
+      (newInputExp, aceTypeInfo, typeChecks)
   else
-    (inputExp, Types2.dummyAceTypeInfo)
+    (inputExp, Types2.dummyAceTypeInfo, True)
+
+showTypeInspectorIfNecessary : Bool -> Model -> Model
+showTypeInspectorIfNecessary typeChecks model =
+  { model
+      | codeEditorMode =
+          if typeChecks then
+            model.codeEditorMode
+          else
+            CETypeInspector
+  }
 
 msgSetDoTypeChecking : Bool -> Msg
 msgSetDoTypeChecking bool =
   NewModelAndCmd "Toggle Type Checking" <| \model ->
     let
-      (inputExp, aceTypeInfo) =
+      (newInputExp, aceTypeInfo, typeChecks) =
         maybeTypeCheck bool model.inputExp
 
       newModel =
@@ -196,10 +218,11 @@ msgSetDoTypeChecking bool =
             | doTypeChecking =
                 bool
             , inputExp =
-                inputExp
+                newInputExp
             , codeBoxInfo =
                 updateCodeBoxInfo aceTypeInfo model
         }
+          |> showTypeInspectorIfNecessary typeChecks
           |> resetDeuceState
     in
       (newModel, Cmd.none)
@@ -800,7 +823,10 @@ tryRun old =
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok parsedExp ->
-        let (e, aceTypeInfo) = maybeTypeCheck old.doTypeChecking parsedExp in
+        let
+          (e, aceTypeInfo, typeChecks) =
+            maybeTypeCheck old.doTypeChecking parsedExp
+        in
         let resultThunk () =
 
           -- want final environment of top-level definitions when evaluating e,
@@ -860,10 +886,12 @@ tryRun old =
                       , shapeUpdatesViaZones = Dict.empty
                 }
               in
-              resetDeuceState <|
-              { new_ | liveSyncInfo = refreshLiveInfo new_
-                     , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new_
-                     }
+                { new_
+                    | liveSyncInfo = refreshLiveInfo new_
+                    , codeBoxInfo = updateCodeBoxInfo aceTypeInfo new_
+                }
+                  |> showTypeInspectorIfNecessary typeChecks
+                  |> resetDeuceState
             )
           )
         in
@@ -1560,14 +1588,17 @@ refreshInputExp old =
     parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
       Syntax.parser old.syntax old.code
 
-    (newInputExp, newCodeBoxInfo, newLastParsedCode) =
+    (newInputExp, newCodeBoxInfo, newLastParsedCode, typeChecks) =
       case parseResult of
         Ok parsedExp ->
-          let (inputExp, aceTypeInfo) = maybeTypeCheck old.doTypeChecking parsedExp in
-          (inputExp, updateCodeBoxInfo aceTypeInfo old, old.code)
+          let
+            (inputExp, aceTypeInfo, typeChecks) =
+              maybeTypeCheck old.doTypeChecking parsedExp
+          in
+            (inputExp, updateCodeBoxInfo aceTypeInfo old, old.code, typeChecks)
 
         Err _ ->
-          (old.inputExp, old.codeBoxInfo, old.lastParsedCode)
+          (old.inputExp, old.codeBoxInfo, old.lastParsedCode, True)
   in
     { old
         | inputExp =
@@ -1577,6 +1608,7 @@ refreshInputExp old =
         , codeBoxInfo =
             newCodeBoxInfo
     }
+      |> showTypeInspectorIfNecessary typeChecks
 
 --------------------------------------------------------------------------------
 
@@ -2835,7 +2867,10 @@ handleNew template = (\old ->
          Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
          Ok ff -> ff
   in
-  let (inputExp, aceTypeInfo) = maybeTypeCheck old.doTypeChecking e in
+  let
+    (inputExp, aceTypeInfo, typeChecks) =
+      maybeTypeCheck old.doTypeChecking e
+  in
   let so = Sync.syncOptionsOf old.syncOptions inputExp in
   let outputMode =
     Utils.fromOk "SelectExample mkLive" <|
@@ -2901,7 +2936,8 @@ handleNew template = (\old ->
 
                 , doTypeChecking = old.doTypeChecking
 
-                } |> resetDeuceState
+                } |> showTypeInspectorIfNecessary typeChecks
+                  |> resetDeuceState
   ) |> handleError old) >> closeDialogBox New
 
 msgAskNew template = requireSaveAsker (msgNew template)
