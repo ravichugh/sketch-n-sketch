@@ -28,7 +28,7 @@
 
         halfLine =
           line "white" 10 0 200 200 0
-  
+
         main =
           svg [rectangle, fullLine, halfLine]
 
@@ -79,8 +79,7 @@
 
 1. Text edits to get X always moving together.
 
-        (x, y, size) =
-          (10, 10, 200)
+        (x, y, size) = (10, 10, 200)
         
         rectangle =
           rect "gray" x y size size
@@ -96,9 +95,28 @@
 
 1. Text edits to get center point for `halfLine`.
 
+        (x, y, size) = (10, 10, 200)
+
+        (cx, cy) = (x + 0.5*size, y + 0.5*size)
+
+        rectangle =
+          rect "gray" x y size size
+
+        fullLine =
+          line "white" 10 x y (x + size) (y + size)
+
+        halfLine =
+          line "white" 10 x (y + size) cx cy
+
+        main =
+          svg [rectangle, fullLine, halfLine]
+
+1. Select first three equations and **Format**. Should the option
+   that looks like the third (and remaining equations).
+
         (x, y, size) =
           (10, 10, 200)
-        
+
         (cx, cy) =
           (x + 0.5*size, y + 0.5*size)
 
@@ -189,7 +207,6 @@
 1. Select `fill` and after `size` and **Add Argument**.
 
 1. Select `fill` and before `x` and **Reorder Argument**.
-   That way we can do things like partially apply to color.
 
         logo fill x y size =
           let
@@ -226,15 +243,34 @@
         main =
           svg (logo "gray" 10 10 200)
 
+1. Select the let and **Reformat**. Hover the option, just to see,
+   but don't select it.
+
+        logo fill x y size =
+          let (cx, cy) = (x + 0.5*size, y + 0.5*size) in
+            [ rect fill x y size size
+            , line "white" 10 x y (x + size) (y + size)
+            , line "white" 10 x (y + size) cx cy
+            ]
+
+        main =
+          svg (logo "gray" 20 30 200)
+
 
 ## Type Inspector
 
 1. Turn on type checking.
 
+1. Hover around and see a bunch of things got type checked.
+
 1. Currently need annotations on functions, so there's an error.
-   Hover around and see a bunch of things did get analyzed.
+   There's a tool to insert a skeleton annotation.
+
+        logo : ?? -> ?? -> ?? -> ?? -> ??
 
 1. Text-edit to add (buggy) annotation.
+   NICK: This could be a cool place for keyboard-based navigation,
+   if text edits can simply operate on the selected token.
 
         logo : String -> Num -> Num -> Num -> Svg
 
@@ -242,6 +278,10 @@
    annotation. Has an option for fixing the annotation.
 
         logo : String -> Num -> Num -> Num -> List Svg
+
+1. Select `main` and **Type Information**. Option to insert synthesized annotation.
+
+        main : Svg
 
 1. Text-edit a `size` to `sighs`. Look at the nicely formatted
    error in **Type Information**.
@@ -265,7 +305,9 @@
         main =
           svg (logo "gray" {x=10, y=10, size=200})
 
-1. **Convert to Datatype**.
+1. Select record type and **Format** to see a few different options. Keep as-is.
+
+1. Select `Params` type and **Convert to Datatype**.
 
         type Params = Params {x:Num, y:Num, size:Num}
         
@@ -278,8 +320,8 @@
 
 1. **Rename Constructor** to `TopLeft`.
 
-1. **Duplicate Constructor**. Let's have the dummy case just be
-   a hole to start.
+1. **Duplicate Constructor**. Let's have the dummy case just be a hole to
+   start. Click `Params` and **Format** to choose multi-line option.
 
         type Params
           = TopLeft {x:Num, y:Num, size:Num}
@@ -290,7 +332,8 @@
           let
             {x, y, size} =
               case params of
-                TopLeft {x, y, size} -> {x=x, y=y, size=size}
+             -- TopLeft {x, y, size} -> {x=x, y=y, size=size}
+                TopLeft xysize -> xysize
                 Center {x, y, size} -> ??
             ...
 
@@ -302,9 +345,26 @@
 
                 Center {cx, cy, rad} -> {x=??, y=??, size=??}
 
-1. Text edits.
+1. Text edits. NICK: Another nice place for keyboard-nav.
 
                 Center {cx, cy, rad} -> {x=cx-rad, y=cy-rad, size=2*rad}
+
+1. Text edit to add a `Center`-based logo.
+
+        main : Svg
+        main =
+          svg (concat
+            [ logo "gray" (TopLeft {x=20, y=30, size=200})
+            , logo "gray" (Center {cx=300, cy=300, rad=40})
+            ])
+
+1. Select the `svg` call and **Reformat**. Multiple options.
+
+          svg <|
+            concat <|
+              [ logo "gray" (TopLeft {x=20, y=30, size=200})
+              , logo "gray" (Center {cx=300, cy=300, rad=40})
+              ]
 
 1. Final-ish.
 
@@ -317,7 +377,7 @@
           let
             {x, y, size} =
               case params of
-                TopLeft {x, y, size} -> {x=x, y=y, size=size}
+                TopLeft xysize -> xysize
                 Center {cx, cy, rad} -> {x=cx-rad, y=cy-rad, size=2*rad}
                 
             (cx, cy) =
@@ -329,10 +389,11 @@
             ]
   
         main =
-          svg (concat
-            [ logo "gray" (TopLeft {x=10, y=10, size=50})
-            , logo "gray" (Center {cx=100, cy=100, rad=50})
-            ])
+          svg <|
+            concat <|
+              [ logo "gray" (TopLeft {x=20, y=30, size=200})
+              , logo "gray" (Center {cx=300, cy=300, rad=40})
+              ]
 
 
 
