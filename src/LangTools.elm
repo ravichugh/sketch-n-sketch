@@ -575,7 +575,7 @@ newLetFancyWhitespace   insertedLetEId isRec   pat    boundExp expToWrap program
   |> withDummyExpInfoEId insertedLetEId
   |> Expr
   |> replacePrecedingWhitespace (String.repeat newlineCountBeforeLet "\n")
-  |> indent newLetIndentation
+  |> indentExp newLetIndentation
 
 -- e.g. "rect1 x" for (def rect1 (let x = ... in ...) ...)
 locDescription program loc =

@@ -856,7 +856,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                   newLetFancyWhitespace
                       -1 False
                       (pVar funcName)
-                      (eFun (argPats |> setPatListWhitespace "" " ") (funcBody |> unindent |> replacePrecedingWhitespace "\n" |> indent "  "))
+                      (eFun (argPats |> setPatListWhitespace "" " ") (funcBody |> unindent |> replacePrecedingWhitespace "\n" |> indentExp "  "))
                       (justFindExpByEId programWithCall (expEId funcLocation))
                       programWithCall
                 programWithCallAndFunc =

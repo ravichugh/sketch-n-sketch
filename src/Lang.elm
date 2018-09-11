@@ -979,102 +979,15 @@ mapValField f r = { r | val = f r.val }
 -- This lets you use mapFoldExp as a foldr: a simple cons in the accumulator will result in nodes in left-to-right order.
 mapFoldExp : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
 mapFoldExp f initAcc e =
-  let recurse = mapFoldExp f in
-  let wrap e__ = replaceE__ e e__ in
-  let wrapAndMap = f << wrap in
-  -- Make sure exps are left-to-right so they are visited right-to-left.
-  let recurseAll initAcc exps =
-    exps
-    |> List.foldr
-        (\exp (newExps, acc) ->
-          let (newExp, newAcc) = recurse acc exp in
-          (newExp::newExps, newAcc)
-        )
-        ([], initAcc)
-  in
-  let mapFoldDecls acc  (Declarations printOrder tps annots letexps) =
-     (Utils.foldLeft
-        ([],      acc) (List.reverse (elemsOf letexps)) <|
-       \(accDefs, acc)    (LetExp mbc sp0 name funPolicy spEq e1) ->
-          recurse acc e1 |>
-          Tuple.mapFirst (\newE1 -> LetExp mbc sp0 name funPolicy spEq newE1 :: accDefs)
-     ) |> Tuple.mapFirst (\newLetExps ->
-       (Declarations printOrder tps annots (regroup letexps newLetExps))
-     )
-  in
-  case (unwrapExp e) of
-    EConst _ _ _ _ -> f e initAcc
-    EBase _ _      -> f e initAcc
-    EVar _ _       -> f e initAcc
-    EFun ws1 ps e1 ws2 ->
-      let (newE1, newAcc) = recurse initAcc e1 in
-      wrapAndMap (EFun ws1 ps newE1 ws2) newAcc
-
-    EApp ws1 e1 es apptype ws2 ->
-      let (newEs, newAcc)  = recurseAll initAcc es in
-      let (newE1, newAcc2) = recurse newAcc e1 in
-      wrapAndMap (EApp ws1 newE1 newEs apptype ws2) newAcc2
-
-    EOp ws1 wso op es ws2 ->
-      let (newEs, newAcc) = recurseAll initAcc es in
-      wrapAndMap (EOp ws1 wso op newEs ws2) newAcc
-
-    EList ws1 es ws2 Nothing ws3 ->
-      let (newEs, newAcc) = recurseAll initAcc (Utils.listValues es) in
-      wrapAndMap (EList ws1 (Utils.listValuesMake es newEs) ws2 Nothing ws3) newAcc
-
-    EList ws1 es ws2 (Just e1) ws3 ->
-      let (newE1, newAcc)  = recurse initAcc e1 in
-      let (newEs, newAcc2) = recurseAll newAcc (Utils.listValues es) in
-      wrapAndMap (EList ws1 (Utils.listValuesMake es newEs) ws2 (Just newE1) ws3) newAcc2
-
-    ERecord ws1 Nothing decls ws2 ->
-      let (newDecls, newAcc) = mapFoldDecls initAcc decls in
-      wrapAndMap (ERecord ws1 Nothing newDecls ws2) newAcc
-
-    ERecord ws1 (Just (mi, wsi)) decls ws2 ->
-      let (newDecls, newAcc) = mapFoldDecls initAcc decls in
-      let (newMi, newAcc2) = recurse newAcc mi in
-      wrapAndMap (ERecord ws1 (Just (newMi, wsi)) newDecls ws2) newAcc2
-
-    ESelect ws0 e ws1 ws2 s ->
-      let (newE, newAcc) = recurse initAcc e in
-      wrapAndMap (ESelect ws0 newE ws1 ws2 s) newAcc
-
-    EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
-      case recurseAll initAcc [e1, e2, e3] of
-        ([newE1, newE2, newE3], newAcc) -> wrapAndMap (EIf ws1 newE1 ws2 newE2 ws3 newE3 ws4) newAcc
-        _                               -> Debug.crash "I'll buy you a beer if this line of code executes. - Brian"
-
-    ECase ws1 e1 branches ws2 ->
-      let (newBranches, newAcc) =
-        branches
-        |> List.foldr
-            (\branch (newBranches, acc) ->
-              let (Branch_ bws1 p ei bws2) = branch.val in
-              let (newEi, newAcc) = recurse acc ei in
-              ({ branch | val = Branch_ bws1 p newEi bws2 }::newBranches, newAcc)
-            )
-            ([], initAcc)
-      in
-      let (newE1, newAcc2) = recurse newAcc e1 in
-      wrapAndMap (ECase ws1 newE1 newBranches ws2) newAcc2
-
-    ELet ws1 lettype decls spaceBeforeIn body ->
-      let (newBody, newAcc) = recurse initAcc body in
-      let (newDecls, newAcc2) = mapFoldDecls newAcc decls in
-      wrapAndMap (ELet ws1 lettype newDecls spaceBeforeIn newBody) newAcc2
-
-    EColonType ws1 e1 ws2 tipe ws3 ->
-      let (newE1, newAcc) = recurse initAcc e1 in
-      wrapAndMap (EColonType ws1 newE1 ws2 tipe ws3) newAcc
-
-    EParens ws1 e pStyle ws2 ->
-      let (newE, newAcc) = recurse initAcc e in
-      wrapAndMap (EParens ws1 newE pStyle ws2) newAcc
-
-    EHole _ _ -> f e initAcc
-
+  let
+    (children, rebuilder) = childExpsExtractors e
+    (newChildren, accAfterChildren) =
+     Utils.foldLeft ([], initAcc) (List.reverse children) <|
+     \(accChildren, acc) child ->
+       let (newChild, newAcc) = mapFoldExp f acc child in
+       (newChild::accChildren, newAcc)
+    newE = rebuilder newChildren
+  in f newE accAfterChildren
 
 -- Children visited/replaced first. (Post-order traversal.)
 --
@@ -2665,6 +2578,15 @@ precedingWhitespaceDeclarationWithInfo decl = case decl of
   DeclType (LetType _ ws _ _ _ _ _) -> ws
   DeclAnnotation (LetAnnotation _ ws _ _ _ _) -> ws
 
+mapWs: (String -> String) -> WS -> WS
+mapWs f ws = replaceInfo ws (f ws.val)
+
+mapPrecedingWhitespaceDeclaration: (String -> String) -> Declaration -> Declaration
+mapPrecedingWhitespaceDeclaration f decl = case decl of
+  DeclExp (LetExp spc ws p fs spe e1) -> DeclExp <| LetExp spc (mapWs f ws) p fs spe e1
+  DeclType (LetType spc ws spa p fs spe e1) -> DeclType <| LetType spc (mapWs f ws) spa p fs spe e1
+  DeclAnnotation (LetAnnotation spc ws p fs spe e1) -> DeclAnnotation <| LetAnnotation spc (mapWs f ws) p fs spe e1
+
 precedingWhitespacePat : Pat -> String
 precedingWhitespacePat pat = .val <| precedingWhitespaceWithInfoPat pat
 
@@ -2908,6 +2830,11 @@ mapPrecedingWhitespacePatWS mapWs pat =
   in
     replaceP__ pat p__
 
+mapPrecedingWhitespaceType: (String -> String) -> Type -> Type
+mapPrecedingWhitespaceType stringMap tpe =
+  let mapWs s = ws (stringMap s.val) in
+  mapPrecedingWhitespaceTypeWS mapWs tpe
+
 mapPrecedingWhitespaceTypeWS: (WS -> WS) -> Type -> Type
 mapPrecedingWhitespaceTypeWS f tp =
   let t__ =
@@ -2974,9 +2901,11 @@ ensureNNewlines : Int -> String -> String -> String
 ensureNNewlines n indentationIfNoPreviousNewlines ws =
   let previousNewlineCount = List.length (String.split "\n" ws) - 1 in
   if previousNewlineCount == 0 then
-    String.repeat n "\n" ++ indentationIfNoPreviousNewlines
+    String.repeat n "\n" ++ indentationIfNoPreviousNewlines ++ ws
   else if previousNewlineCount < n then
-    String.repeat n "\n" ++ extractIndentation ws
+    String.repeat n "\n" ++
+      indent indentationIfNoPreviousNewlines (removeIndentation
+        (minIndentation maxIndentation ws) ws)
   else
     ws
 
@@ -3050,7 +2979,7 @@ imitateExpListWhitespace_ oldExps nextWs newExps =
     case oldExps of
        first::second::_ -> (precedingWhitespace first, precedingWhitespace second)
        first::[]        -> (precedingWhitespace first, if precedingWhitespace first == "" then " " else precedingWhitespace first)
-       []               -> if String.contains "\n" nextWs then (indentWs "  " nextWs, indentWs "  " nextWs) else ("", " ")
+       []               -> if String.contains "\n" nextWs then (indent "  " nextWs, indent "  " nextWs) else ("", " ")
   in
   case newExps of
     [] ->
@@ -3133,43 +3062,151 @@ applyIndentationDelta delta exp =
 -- Unindents until an expression is flush to the edge, then adds spaces to the indentation.
 replaceIndentation : String -> Exp -> Exp
 replaceIndentation spaces exp =
-  indent spaces (unindent exp)
+  indentExp spaces (unindent exp)
 
+replaceIndentationDeclaration: String -> Declaration -> Declaration
+replaceIndentationDeclaration spaces decl=
+  indentDeclaration spaces (unindentDeclaration decl)
+
+removeTabs: Exp -> Exp
+removeTabs = mapExp (mapPrecedingWhitespace tabsToSpaces)
+
+minString s1 s2 = if String.length s1 < String.length s2 then s1 else s2
+
+minIndentation: String -> String -> String
+minIndentation prevMinIndent ws =
+  Regex.find Regex.All (Regex.regex "\n( *)") ws
+  |> List.map .submatches
+  |> List.concat
+  |> List.foldl (\mba minIndent -> case mba of
+        Nothing -> minIndent
+        Just a -> minString minIndent a
+    ) prevMinIndent
+
+maxIndentation = String.repeat 100 " "
+
+minIndentationExp: String -> Exp -> String
+minIndentationExp prevMinIndent exp =
+  foldExpViaE__
+   (\e__ smallest ->
+     minIndentation smallest (precedingWhitespaceExp__ e__))
+   prevMinIndent exp
+
+minIndentationType: String -> Type -> String
+minIndentationType prevMinIndent tpe =
+  allWhitespacesType_ tpe
+  |> List.foldl (\{val} minIndent -> minIndentation minIndent val) prevMinIndent
+
+minIndentationListMaybeWS: String -> List (Maybe WS) -> String
+minIndentationListMaybeWS prevMinIndent l = case l of
+  [] -> prevMinIndent
+  Just head :: tail -> minIndentationListMaybeWS  (minIndentation prevMinIndent head.val) tail
+  Nothing :: tail -> minIndentationListMaybeWS prevMinIndent tail
+
+minIndentationDeclaration: String -> Declaration -> String
+minIndentationDeclaration prevMinIndent decl =
+  let newPrevMinIndent = minIndentation prevMinIndent (precedingWhitespaceDeclarationWithInfo decl |> .val) in
+  case decl of
+    DeclExp (LetExp sc s _ _ se e1) ->
+      minIndentationExp (minIndentationListMaybeWS newPrevMinIndent [sc, Just s, Just se]) e1
+    DeclAnnotation (LetAnnotation sc s _ _ se t1) ->
+      minIndentationType (minIndentationListMaybeWS newPrevMinIndent [sc, Just s, Just se]) t1
+    DeclType (LetType sc s sa _ _ se t1) ->
+      minIndentationType (minIndentationListMaybeWS newPrevMinIndent [sc, Just s, sa, Just se]) t1
+
+removeIndentation: String -> String -> String
+removeIndentation smallestIndentation ws =
+  ws |> Regex.replace Regex.All (Regex.regex ("\n" ++ smallestIndentation)) (\_ -> "\n")
+
+removeIndentationWS: String -> WS -> WS
+removeIndentationWS smallestIndentation ws = mapWs (removeIndentation smallestIndentation) ws
+
+removeIndentationMaybeWS: String -> Maybe WS -> Maybe WS
+removeIndentationMaybeWS smallestIndentation = Maybe.map (removeIndentationWS smallestIndentation)
+
+removeIndentationExp: String -> Exp -> Exp
+removeIndentationExp smallestIndentation exp =
+  mapExp (mapPrecedingWhitespace (removeIndentation smallestIndentation)) exp
+
+removeIndentationType: String -> Type -> Type
+removeIndentationType smallestIndentation tpe =
+  mapType (mapPrecedingWhitespaceType (removeIndentation smallestIndentation)) tpe
+
+removeIndentationDeclaration: String -> Declaration -> Declaration
+removeIndentationDeclaration si {-smallestIndentation-} decl =
+  case decl of
+    DeclExp (LetExp sc s p fs se e1) ->
+      DeclExp (LetExp (removeIndentationMaybeWS si sc)
+        (removeIndentationWS si s) p fs (removeIndentationWS si se)
+        (removeIndentationExp si e1))
+    DeclAnnotation (LetAnnotation sc s p fs se t1) ->
+      DeclAnnotation (LetAnnotation (removeIndentationMaybeWS si sc)
+        (removeIndentationWS si s)
+        p fs
+        (removeIndentationWS si se)
+        (removeIndentationType si t1))
+    DeclType (LetType sc s sa p fs se t1) ->
+      DeclType (LetType (removeIndentationMaybeWS si sc) (removeIndentationWS si s)
+        (removeIndentationMaybeWS si sa) p fs (removeIndentationWS si se)
+        (removeIndentationType si t1))
 
 -- Finds lowest amount of indentation and then removes it from all expressions.
 unindent : Exp -> Exp
 unindent exp =
-  let expWsAsSpaces = mapExp (mapPrecedingWhitespace tabsToSpaces) exp in
-  let smallestIndentation =
-    expWsAsSpaces
-    |> foldExpViaE__
-        (\e__ smallest ->
-          case Regex.find Regex.All (Regex.regex "\n( *)$") (precedingWhitespaceExp__ e__) |> List.map .submatches |> List.concat of
-            [Just indentation] -> if String.length indentation < String.length smallest then indentation else smallest
-            _                  -> smallest
-        )
-        (String.repeat 100 " ")
-  in
-  let removeIndentation ws =
-    ws |> Regex.replace Regex.All (Regex.regex ("\n" ++ smallestIndentation)) (\_ -> "\n")
-  in
-  mapExp (mapPrecedingWhitespace removeIndentation) expWsAsSpaces
+  let expWsAsSpaces = removeTabs exp in
+  let smallestIndentation = minIndentationExp maxIndentation expWsAsSpaces in
+  removeIndentationExp smallestIndentation expWsAsSpaces
 
-indentWs : String -> String -> String
-indentWs spaces ws =
+unindentDeclaration: Declaration -> Declaration
+unindentDeclaration decl =
+  let smallestIndentation = minIndentationDeclaration maxIndentation decl in
+  removeIndentationDeclaration smallestIndentation decl
+
+indent : String -> String -> String
+indent spaces ws =
   ws |> String.reverse
      |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> spaces ++ "\n")
      |> String.reverse
 
+indentWs : String -> WS -> WS
+indentWs spaces ws =
+  replaceInfo ws (indent spaces ws.val)
+
+indentMaybeWS: String -> Maybe WS -> Maybe WS
+indentMaybeWS spaces = Maybe.map (indentWs spaces)
+
 -- Increases indentation by spaces string.
-indent : String -> Exp -> Exp
-indent spaces e =
-  mapExp (mapPrecedingWhitespace (indentWs spaces)) e
+indentExp : String -> Exp -> Exp
+indentExp spaces e =
+  mapExp (mapPrecedingWhitespaceWS (indentWs spaces)) e
+
+indentType: String -> Type -> Type
+indentType spaces t =
+  mapType (mapPrecedingWhitespaceTypeWS (indentWs spaces)) t
+
+indentDeclaration: String -> Declaration -> Declaration
+indentDeclaration spaces decl =
+  case decl of
+    DeclExp (LetExp sc s p fs se e1) ->
+      DeclExp (LetExp (indentMaybeWS spaces sc)
+        (indentWs spaces s) p fs
+        (indentWs spaces se)
+        (indentExp spaces e1))
+    DeclAnnotation (LetAnnotation sc s p fs se t1) ->
+      DeclAnnotation (LetAnnotation (indentMaybeWS spaces sc)
+        (indentWs spaces s)
+        p fs
+        (indentWs spaces se)
+        (indentType spaces t1))
+    DeclType (LetType sc s sa p fs se t1) ->
+      DeclType (LetType (indentMaybeWS spaces sc) (indentWs spaces s)
+        (indentMaybeWS spaces sa) p fs (indentWs spaces se)
+        (indentType spaces t1))
 
 -- Same as indent, but always push top level exp right even if no newline.
 pushRight : String -> Exp -> Exp
 pushRight spaces e =
-  indent spaces e
+  indentExp spaces e
   |> replacePrecedingWhitespace (precedingWhitespace e ++ spaces)
 
 --------------------------------------------------------------------------------

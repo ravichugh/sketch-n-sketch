@@ -661,6 +661,7 @@ mapHead : (a -> a) -> List a -> List a
 mapHead f list =
   getReplacei0 0 f list
 
+-- mapTail
 changeTail : (List a -> List a) -> List a -> List a
 changeTail f list =
   case list of

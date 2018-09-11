@@ -2536,20 +2536,44 @@ introduceVarTransformation
 
 -- It should insert the declarations before the declaration mentionned in the given index.
 -- It should recompute a dependency analysis as well, maybe we need to reorder the definitions.
-insertInDeclarations: BindingNumber -> List Declaration -> Declarations -> Result String Declarations
-insertInDeclarations bindingNum newDecls decls =
-  let visualDeclarations = getDeclarationsInOrderWithIndex decls in
-  visualDeclarations |> List.concatMap (\(decl, bindingNumber) ->
+insertInVisualDeclarations: (BeforeAfter, BindingNumber) -> List (Declaration, BindingNumber) -> List (Declaration, BindingNumber) -> List (Declaration, BindingNumber)
+insertInVisualDeclarations (beforeAfter, bindingNum) newDecls visualDeclarations  =
+  if visualDeclarations |> List.all (Tuple.second >> ((/=) bindingNum)) then
+    visualDeclarations ++ (List.map (Tuple.mapFirst (mapPrecedingWhitespaceDeclaration
+       (ensureNNewlines 1 (
+        Utils.maybeLast visualDeclarations
+        |> Maybe.map (Tuple.first >> minIndentationDeclaration maxIndentation)
+        |> Maybe.withDefault "")))) newDecls)
+  else
+    visualDeclarations |> List.concatMap (\((decl, bindingNumber) as declIndex) ->
     if bindingNumber == bindingNum then
-      newDecls ++ [decl]
-    else [decl]
-  ) |> (\intermediateDecls ->
-    let finalDecls = if visualDeclarations |> List.all (\(_, bindingNumber) -> bindingNumber /= bindingNum) then
-      intermediateDecls ++ newDecls
-      else
-      intermediateDecls
-    in
-    Parser.reorderDeclarations finalDecls)
+      let indentation = extractIndentation <| .val <| precedingWhitespaceDeclarationWithInfo decl in
+      let newDeclsIndented = List.map (Tuple.mapFirst (replaceIndentationDeclaration indentation)) newDecls in
+      let withInsertedDeclarations = if beforeAfter == Before then
+           -- copy the indentation of the declaration
+           newDeclsIndented ++ [declIndex]
+        else
+           [declIndex] ++ newDeclsIndented
+      in
+      withInsertedDeclarations
+      |> Utils.changeTail (
+          List.map (
+            Tuple.mapFirst (
+              mapPrecedingWhitespaceDeclaration (
+                ensureNNewlines 1 indentation))
+                ))
+    else [declIndex]
+  )
+
+
+-- It should insert the declarations before the declaration mentionned in the given index.
+-- It should recompute a dependency analysis as well, maybe we need to reorder the definitions.
+insertInDeclarations: (BeforeAfter, BindingNumber) -> List Declaration -> Declarations -> Result String Declarations
+insertInDeclarations (beforeAfter, bindingNum) newDecls decls =
+  let visualDeclarations = getDeclarationsInOrderWithIndex decls in
+  insertInVisualDeclarations (beforeAfter, bindingNum) (Utils.zipWithIndex newDecls) visualDeclarations
+  |> List.map Tuple.first
+  |> Parser.reorderDeclarations
 
 insertLetExpsAt: (EId, BindingNumber) -> List LetExp -> Exp -> Result String Exp
 insertLetExpsAt (eid, bindingNum) newLetExps exp =
@@ -2557,17 +2581,17 @@ insertLetExpsAt (eid, bindingNum) newLetExps exp =
         (\exp mbError -> if expEId exp /= eid then (exp, mbError) else
        case unwrapExp exp of
         ELet sp lk decls wsIn body ->
-           case insertInDeclarations bindingNum (newLetExps |> List.map DeclExp) decls of
+           case insertInDeclarations (Before, bindingNum) (newLetExps |> List.map DeclExp) decls of
              Ok newDecls ->
                (replaceE__ exp <| ELet sp lk newDecls wsIn body, mbError)
              Err msg -> (exp,  Just msg)
         ERecord sp mbInit decls sp2 ->
-           case insertInDeclarations bindingNum (newLetExps |> List.map DeclExp) decls of
+           case insertInDeclarations (Before, bindingNum) (newLetExps |> List.map DeclExp) decls of
              Ok newDecls ->
                (replaceE__ exp <| ERecord sp mbInit newDecls sp2, mbError)
              Err msg -> (exp, Just msg)
         x ->
-          case insertInDeclarations 0 (newLetExps |> List.map DeclExp) (Declarations [] [] [] []) of
+          case insertInDeclarations (Before, 0) (newLetExps |> List.map DeclExp) (Declarations [] [] [] []) of
             Ok newDecls ->
               (replaceExpInfo exp <| exp_ <| ELet (precedingWhitespaceWithInfoExp exp) Let newDecls space1 exp, mbError)
             Err msg -> (exp, Just msg)
@@ -2615,7 +2639,7 @@ introduceVarTransformation_
         identsToAbstractOn = freeIdentifiersList exp |>
            List.filter (flip List.member identsDefinedSinceInsertionPoint) |>
            Utils.dedup
-        newBaseVarname = if List.isEmpty identsToAbstractOn then "variable" else "custom"
+        newBaseVarname = expNameForEId m.inputExp (expEId exp)--if List.isEmpty identsToAbstractOn then "variable" else "custom"
         newVarName =
            nonCollidingName newBaseVarname 1 <| Set.fromList <|
             (declarationsToInsert |> List.concatMap (\(LetExp _ _ p _ _ _ ) -> identifiersListInPat p)) ++
@@ -2754,6 +2778,7 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
               if insertionEId /= thisEId then
                 (localDeclsRemaining, insertionPoint)
               else let
+                _ = Debug.log "insertionEId == thisEId" ()
                   -- We need to move declarations within the same let,
                   --so remove them as well before reinserting them again.
                 -- All binding nums in this ELet whose order is going to change.
@@ -2778,7 +2803,7 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
                 -- The insertion point possibly changes, so we recompute it.
                 mbNewBeforeAfterInsertionBindingNum: Maybe (BeforeAfter, BindingNumber)
                 mbNewBeforeAfterInsertionBindingNum =
-                 if List.any (\bindingNum -> bindingNum == insertionBindingNum) removedUntilReinsertion then
+                 if List.any ((==) insertionBindingNum) removedUntilReinsertion then
                    -- The insertion point was one of the removed declarations.
                    -- We need to compute 1) the new insertion point in printing order
                    -- 2) The new insertion point binding number.
@@ -2808,20 +2833,12 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
               in
               case mbNewBeforeAfterInsertionBindingNum of
                 Just ((finalBefore, finalInsertionBindingNum) as finalInsertionPoint) ->
-                   let localDeclsWithInsertions = remaining |>
-                     List.concatMap (\((decl, bindingNum) as declIndex) ->
-                        if bindingNum == finalInsertionBindingNum then
-                         if finalBefore == Before then
-                           toReinsert ++ [declIndex]
-                         else
-                           declIndex :: toReinsert
-                        else [declIndex]
-                     )
+                   let localDeclsWithInsertions =
+                     insertInVisualDeclarations (finalBefore, finalInsertionBindingNum) toReinsert remaining
                    in (localDeclsWithInsertions, finalInsertionPoint)
                 Nothing -> -- All declarations have been removed at this point (toReinsert == all declarations), so we just no nothing.
                   (toReinsert, insertionPoint)
           in
-          -- TODO: We might loose we will loose the insertion point if reordering occurs.
           case Parser.reorderDeclarations (List.map Tuple.first localDeclsRemainingReordered) of
             Err msg -> -- We cannot reorder declarations.
               (exp, (declsToMove, declarationsToInsert, warnings ++ [msg], insertionPoint), scopeIdents)

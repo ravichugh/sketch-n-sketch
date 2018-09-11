@@ -612,7 +612,7 @@ mapAbstractSynthesisResults originalExp =
             let newLineIndent extraIndent exp = replacePrecedingWhitespace ("\n" ++ extraIndent ++ oldIndentation) exp in
             eApp
                 (eVar0 "map")
-                [ replacePrecedingWhitespace " " (indent ("      " ++ oldIndentation) abstractedFunc) -- Put arguments on same line as map call.
+                [ replacePrecedingWhitespace " " (indentExp ("      " ++ oldIndentation) abstractedFunc) -- Put arguments on same line as map call.
                 , newLineIndent "    " (eTuple (setExpListWhitespace "" " " parameterExps))
                 ]
             |> newLineIndent "  "
