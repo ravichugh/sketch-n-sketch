@@ -430,7 +430,7 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
 
   EColonType _ e1 _ t1 _ ->
     -- Pass-through, so don't add provenance.
-    case t1.val of
+    case t1.val.t__ of
       -- using (e : Point) as a "point widget annotation"
       TVar _ "Point" ->
         evalContinue options syntax env bt e1 <| \(((v,ws),env_) as result) ->

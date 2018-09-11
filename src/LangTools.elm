@@ -167,7 +167,7 @@ patsNodeCount pats =
 
 typeNodeCount : Type -> Int
 typeNodeCount tipe =
-  case tipe.val of
+  case tipe.val.t__ of
     TNum _                    -> 1
     TBool _                   -> 1
     TString _                 -> 1

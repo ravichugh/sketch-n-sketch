@@ -1117,7 +1117,7 @@ eAsPoint e =
 
   let e_ =  replacePrecedingWhitespace "" e in
   withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp) space0
+    EColonType space1 e_ space1 (withDummyTypeInfo <| TApp space1 (withDummyTypeInfo <| TVar space0 "Point") [] SpaceApp) space0
 
 
 pAsTight x p =

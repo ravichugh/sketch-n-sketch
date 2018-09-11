@@ -280,7 +280,7 @@ freeVarsType typeVarsInGamma typ =
       helper typeVarsInGamma typ
 
     helper boundTypeVars typ =
-      case typ.val of
+      case typ.val.t__ of
         TVar _ a ->
           if a == "->" then
             []
@@ -327,7 +327,7 @@ type alias ArrowType = (List Ident, List Type, Type)
 
 stripAllOuterTParens : Type -> Type
 stripAllOuterTParens typ =
-  case typ.val of
+  case typ.val.t__ of
     TParens _ innerType _ ->
       stripAllOuterTParens innerType
 
@@ -344,13 +344,13 @@ matchArrow : Type -> Maybe ArrowType
 matchArrow typ =
   let
     result =
-      case (stripAllOuterTParens typ).val of
+      case (stripAllOuterTParens typ).val.t__ of
         TApp ws1 t0 typs InfixApp ->
           let
             typeVars =
               matchTypeVars ws1
           in
-          case (t0.val, typs) of
+          case (t0.val.t__, typs) of
             (TVar _ "->", [argType, retType]) ->
               Just ( typeVars
                    , [stripAllOuterTParens argType]
@@ -410,9 +410,9 @@ matchTypeVars ws =
 --
 rebuildArrow : ArrowType -> Type
 rebuildArrow (typeVars, argTypes, retType) =
-  withDummyInfo <|
+  withDummyTypeInfo <|
     TApp (rebuildTypeVars typeVars)
-         (withDummyInfo (TVar space1 "->"))
+         (withDummyTypeInfo (TVar space1 "->"))
          (argTypes ++ [retType])
          InfixApp
 
@@ -473,13 +473,13 @@ inferType
 inferType gamma stuff thisExp =
   case (unExpr thisExp).val.e__ of
     EConst _ _ _ _ ->
-      { newExp = thisExp |> setType (Just (withDummyInfo (TNum space1))) }
+      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TNum space1))) }
 
     EBase _ (EBool _) ->
-      { newExp = thisExp |> setType (Just (withDummyInfo (TBool space1))) }
+      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TBool space1))) }
 
     EBase _ (EString _ _) ->
-      { newExp = thisExp |> setType (Just (withDummyInfo (TString space1))) }
+      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TString space1))) }
 
     EVar ws x ->
       case lookupVar gamma x of
@@ -585,7 +585,7 @@ inferType gamma stuff thisExp =
       -- Not currently digging into nested EIfs
       let
         result1 =
-          checkType gamma stuff guardExp (withDummyInfo (TBool space1))
+          checkType gamma stuff guardExp (withDummyTypeInfo (TBool space1))
 
         result2 =
           inferType gamma stuff thenExp
@@ -928,7 +928,7 @@ inferType gamma stuff thisExp =
                             , \(newRestListLetExp, fieldMaybeTypes) ->
                                 ( firstLetExp
                                     :: newRestListLetExp
-                                , Just (Lang.ctor (withDummyRange << TVar space0) TupleCtor ename)
+                                , Just (Lang.ctor (withDummyTypeInfo << TVar space0) TupleCtor ename)
                                     :: fieldMaybeTypes
                                 )
                             )
@@ -973,16 +973,16 @@ inferType gamma stuff thisExp =
                     Just fieldTypes ->
                       ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots newLetExps) ws2
                         |> replaceE__ thisExp
-                        |> setType (Just (withDummyInfo (TRecord space0 Nothing fieldTypes space1)))
+                        |> setType (Just (withDummyTypeInfo (TRecord space0 Nothing fieldTypes space1)))
 
                     Nothing ->
                       let
                         fieldError =
-                          (Nothing, space1, "XXX", space1, withDummyInfo (TVar space1 "XXX"))
+                          (Nothing, space1, "XXX", space1, withDummyTypeInfo (TVar space1 "XXX"))
                         fieldTypesWithXXXs =
                           List.map (Maybe.withDefault fieldError) maybeFieldTypes
                         recordTypeWithXXXs =
-                          withDummyInfo (TRecord space0 Nothing fieldTypesWithXXXs space1)
+                          withDummyTypeInfo (TRecord space0 Nothing fieldTypesWithXXXs space1)
                         error =
                           OtherTypeError
                             [ "Some fields are okay, but others are not: "
@@ -1024,7 +1024,7 @@ checkType
    -> { okay: Bool, newExp: Exp }
 checkType gamma stuff thisExp expectedType =
   case ( (unExpr thisExp).val.e__
-       , expectedType.val
+       , expectedType.val.t__
        , matchArrow expectedType
        ) of
 
@@ -1143,7 +1143,7 @@ checkType gamma stuff thisExp expectedType =
     (EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3, _, _) ->
       let
         result1 =
-          checkType gamma stuff guardExp (withDummyInfo (TBool space1))
+          checkType gamma stuff guardExp (withDummyTypeInfo (TBool space1))
 
         result2 =
           checkType gamma stuff thenExp expectedType

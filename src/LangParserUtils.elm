@@ -14,6 +14,8 @@ module LangParserUtils exposing
   , isOnlySpaces
   , mapPat_
   , mapWSPat_
+  , mapType_
+  , mapWSType_
   , mapExp_
   , mapWSExp_
   , mapWSInfo
@@ -271,6 +273,15 @@ mapPat_ = (map << mapInfo) pat_
 mapWSPat_ : ParserI (WS -> Pat__) -> Parser (WS -> Pat)
 mapWSPat_ = (map << mapInfoWS) pat_
 
+--------------------------------------------------------------------------------
+-- Types
+--------------------------------------------------------------------------------
+
+mapType_ : ParserI Type__ -> Parser Type
+mapType_ = (map << mapInfo) type_
+
+mapWSType_ : ParserI (WS -> Type__) -> Parser (WS -> Type)
+mapWSType_ = (map << mapInfoWS) type_
 
 --------------------------------------------------------------------------------
 -- Expressions
@@ -308,4 +319,3 @@ explodeStyleValue content =
 implodeStyleValue: List (String, String) -> String
 implodeStyleValue content =
   content |> List.map (\(name, value) -> name ++ ":" ++ value) |> String.join ";"
-

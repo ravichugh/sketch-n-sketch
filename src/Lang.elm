@@ -241,8 +241,10 @@ type alias Operator =
 
 type alias EId  = Int
 type alias PId  = Int
+type alias TId = Int
 type alias Exp_ = WithTypeInfo { e__ : Exp__, eid : EId }
 type alias Pat_ = WithTypeInfo { p__ : Pat__, pid : PId }
+type alias Type_ = { t__ : Type__, tid: TId }
 
 type alias WithTypeInfo a =
   { a | typ : Maybe Type
@@ -265,6 +267,11 @@ makePat_ p__ pid =
   , typ = Nothing
   , typeError = Nothing
   , extraTypeInfo = Nothing
+  }
+
+makeType_ t__ tid =
+  { t__ = t__
+  , tid = tid
   }
 
 setTypeForThing : Maybe Type -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
@@ -395,7 +402,7 @@ type Hole
   = EEmptyHole
   | ESnapHole Val
 
-type Type_
+type Type__
   = TNum WS
   | TBool WS
   | TString WS
@@ -413,9 +420,9 @@ type Type_
   | TWildcard WS
 
 dummyType0 =
-  withDummyRange (TWildcard space0)
+  withDummyTypeInfo (TWildcard space0)
 dummyType wsb =
-  withDummyRange (TWildcard wsb)
+  withDummyTypeInfo (TWildcard wsb)
 
 -- Currently shoving entire type error message and suggested fixes into Deuce.
 -- So every line is a DeuceTypeInfoItem === SynthesisResult.
@@ -1505,9 +1512,9 @@ replacePatNodePreservingPrecedingWhitespace pid newPat root =
 mapType : (Type -> Type) -> Type -> Type
 mapType f tipe =
   let recurse = mapType f in
-  let wrap: Type_ -> Type
-      wrap t_ = WithInfo t_ tipe.start tipe.end in
-  case tipe.val of
+  let wrap: Type__ -> Type
+      wrap = replaceT__ tipe in
+  case tipe.val.t__ of
     TNum _       -> f tipe
     TBool _      -> f tipe
     TString _    -> f tipe
@@ -1531,7 +1538,7 @@ mapType f tipe =
 foldType : (Type -> a -> a) -> Type -> a -> a
 foldType f tipe acc =
   let foldTypes f tipes acc = List.foldl (\t acc -> foldType f t acc) acc tipes in
-  case tipe.val of
+  case tipe.val.t__ of
     TNum _          -> acc |> f tipe
     TBool _         -> acc |> f tipe
     TString _       -> acc |> f tipe
@@ -2066,6 +2073,9 @@ exp_ e__ = makeExp_ e__ (-1)
 pat_ : Pat__ -> Pat_
 pat_ p__ = makePat_ p__ (-1)
 
+type_ : Type__ -> Type_
+type_ t__ = makeType_ t__ (-1)
+
 withDummyRange x            = WithInfo x dummyPos dummyPos
 withDummyPatInfo p__        = WithInfo (pat_ p__) dummyPos dummyPos
 withDummyExp_Info e__       = WithInfo (exp_ e__) dummyPos dummyPos
@@ -2073,6 +2083,7 @@ withDummyExpInfo e__        = Expr <| withDummyExp_Info e__
 withDummyPatInfoPId pid p__ = WithInfo (makePat_ p__ pid) dummyPos dummyPos
 withDummyExpInfoEId eid e__ = withDummyRange (makeExp_ e__ eid)
 withDummyBranchInfo b_      = WithInfo b_ dummyPos dummyPos
+withDummyTypeInfo t__       = WithInfo (type_ t__) dummyPos dummyPos
 
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ (Expr e) e__ = let e_ = e.val in Expr { e | val = { e_ | e__ = e__ } }
@@ -2092,8 +2103,8 @@ replaceB__ b b_ = { b | val = b_ }
 replaceTB__ : TBranch -> TBranch_ -> TBranch
 replaceTB__ b b_ = { b | val = b_ }
 
-replaceT_: Type -> Type_ -> Type
-replaceT_ t t_ = { t | val = t_ }
+replaceT__: Type -> Type__ -> Type
+replaceT__ t t__ = let t_ = t.val in { t | val = { t_ | t__ = t__ } }
 
 replaceP__PreservingPrecedingWhitespace  : Pat -> Pat__ -> Pat
 replaceP__PreservingPrecedingWhitespace  p p__ =
@@ -2191,7 +2202,7 @@ recordKeys (Declarations _ _ _ exps) =
     List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) letexps
     )
 
-tApp a b c d = withDummyRange <| TApp a b c d
+tApp a b c d = withDummyTypeInfo <| TApp a b c d
 
 desugarEApp e es = case es of
   []      -> Debug.crash "desugarEApp"
@@ -2590,7 +2601,7 @@ precedingWhitespaceWithInfoExp__ e__ =
 
 precedingWhitespaceWithInfoType: Type -> WS
 precedingWhitespaceWithInfoType t =
-  case t.val of
+  case t.val.t__ of
     TNum ws -> ws
     TBool ws -> ws
     TString ws -> ws
@@ -2692,7 +2703,7 @@ allWhitespacesType_ tipe =
     case tpat.val of
        TPatVar ws _ -> [ws]
   in
-    case tipe.val of
+    case tipe.val.t__ of
       TNum ws                             -> [ws]
       TBool ws                            -> [ws]
       TString ws                          -> [ws]
@@ -2789,8 +2800,8 @@ mapPrecedingWhitespacePatWS mapWs pat =
 
 mapPrecedingWhitespaceTypeWS: (WS -> WS) -> Type -> Type
 mapPrecedingWhitespaceTypeWS f tp =
-  let t_ =
-    case tp.val of
+  let t__ =
+    case tp.val.t__ of
        TNum ws -> TNum (f ws)
        TBool ws -> TBool (f ws)
        TString ws -> TString (f ws)
@@ -2807,7 +2818,7 @@ mapPrecedingWhitespaceTypeWS f tp =
        TWildcard ws -> TWildcard (f ws)
        TParens ws a b -> TParens (f ws) a b
   in
-    replaceT_ tp t_
+    replaceT__ tp t__
 
 ensureWhitespace : String -> String
 ensureWhitespace s =
@@ -3487,7 +3498,7 @@ childCodeObjects co =
             _ -> []
       T t ->
         insertPrecedingWhitespaceTargetBeforeEachChild <|
-          case t.val of
+          case t.val.t__ of
             TList _ t1 _ ->
               [ T t1 ]
             TDict _ t1 t2 _ ->
@@ -3837,7 +3848,7 @@ groupBoundExps = List.map (\(LetExp _ _ _ _ _ e) -> e)
 
 isTypeMutuallyRecursive: List LetType -> Bool
 isTypeMutuallyRecursive group = List.length group >= 2 ||
-    List.all (\(LetType _ _ spAlias _ _ _ tp) -> spAlias /= Nothing && (case tp.val of
+    List.all (\(LetType _ _ spAlias _ _ _ tp) -> spAlias /= Nothing && (case tp.val.t__ of
        TForall _ _ _ _  -> True
        _ -> False)
       ) group

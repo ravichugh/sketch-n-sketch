@@ -125,7 +125,7 @@ unparsePatWithUniformWhitespace includeWidgetDecls pat =
 
 unparseType : Type -> String
 unparseType tipe =
-  case tipe.val of
+  case tipe.val.t__ of
     TNum ws                   -> ws.val ++ "Num"
     TBool ws                  -> ws.val ++ "Bool"
     TString ws                -> ws.val ++ "String"
@@ -160,7 +160,7 @@ unparseType tipe =
 unparseTypeWithUniformWhitespace : Type -> String
 unparseTypeWithUniformWhitespace tipe =
   let recurse t = unparseTypeWithUniformWhitespace t in
-  case tipe.val of
+  case tipe.val.t__ of
     TNum _                -> " " ++ "Num"
     TBool _               -> " " ++ "Bool"
     TString _             -> " " ++ "String"

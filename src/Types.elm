@@ -18,8 +18,8 @@ import Syntax
 
 typeToMaybeAliasIdent : Type -> Maybe Ident
 typeToMaybeAliasIdent tipe =
-  case tipe.val of
-    TApp _ tp _ _ -> case tp.val of
+  case tipe.val.t__ of
+    TApp _ tp _ _ -> case tp.val.t__ of
       TVar _ aliasName -> Just aliasName
       _ -> Nothing
     _                  -> Nothing
@@ -27,7 +27,7 @@ typeToMaybeAliasIdent tipe =
 
 typeToMaybeArgTypesAndReturnType : Type -> Maybe (List Type, Type)
 typeToMaybeArgTypesAndReturnType tipe =
-  case tipe.val of
+  case tipe.val.t__ of
     TArrow _ types _ ->
       case (Utils.dropLast 1 types, Utils.maybeLast types) of
         (argTypes, Just returnType) -> Just (argTypes, returnType)
@@ -42,7 +42,7 @@ equal t1 t2 =
 
 -- Do the types match, ignoring type variable names?
 astsMatch t1 t2 =
-  case (t1.val, t2.val) of
+  case (t1.val.t__, t2.val.t__) of
     (TNum _, TNum _)       -> True
     (TBool _, TBool _)     -> True
     (TString _, TString _) -> True
@@ -82,7 +82,7 @@ astsMatch t1 t2 =
 --
 identifiersEquivalent t1 t2 =
  let flatIdents t =
-    case t.val of
+    case t.val.t__ of
       TNum _    -> []
       TBool _   -> []
       TString _ -> []
@@ -115,7 +115,7 @@ valIsType val tipe =
   let unsupported msg =
     Debug.crash <| "typing values against " ++ msg ++ " such as " ++ Syntax.typeUnparser Syntax.Leo tipe++ " is not supported"
   in
-  case (val.v_, tipe.val) of
+  case (val.v_, tipe.val.t__) of
     (VConst _ _, TNum _)             -> True
     (VBase (VBool _), TBool _)       -> True
     (VBase (VString _), TString _)   -> True
@@ -138,7 +138,7 @@ valIsType val tipe =
           List.all
               (\v -> valIsType v restType)
               (List.drop (List.length typeList) vlist)
-    (VList list, TApp _ a [listType] _) -> case a.val of
+    (VList list, TApp _ a [listType] _) -> case a.val.t__ of
       TVar _ "List" -> List.all (\v -> valIsType v listType) list
       _ -> False
     (VConst _ _, TVar _ "Num")           -> True
@@ -201,30 +201,30 @@ sanityChecks = True
 
 -- AST Helpers for Types -----------------------------------------------------
 
-tBool   = withDummyRange (TBool space1)
-tNum    = withDummyRange (TNum space1)
-tString = withDummyRange (TString space1)
-tNull   = withDummyRange (TNull space1)
-tVar x  = withDummyRange (TVar space1 x)
+tBool   = withDummyTypeInfo (TBool space1)
+tNum    = withDummyTypeInfo (TNum space1)
+tString = withDummyTypeInfo (TString space1)
+tNull   = withDummyTypeInfo (TNull space1)
+tVar x  = withDummyTypeInfo (TVar space1 x)
 
-tTupleRest ts tRest = withDummyRange (TTuple space1 ts space0 tRest space0)
+tTupleRest ts tRest = withDummyTypeInfo (TTuple space1 ts space0 tRest space0)
 tTuple ts = tTupleRest ts Nothing
 
-tRecord ts = withDummyRange (TRecord space1 Nothing ts space0)
+tRecord ts = withDummyTypeInfo (TRecord space1 Nothing ts space0)
 
-tList t = withDummyRange (TList space1 t space0)
+tList t = withDummyTypeInfo (TList space1 t space0)
 
-tUnion ts = withDummyRange (TUnion space1 ts space0)
+tUnion ts = withDummyTypeInfo (TUnion space1 ts space0)
 
-tArrow (argTypes, retType) = withDummyRange (TArrow space1 (argTypes ++ [retType]) space0)
+tArrow (argTypes, retType) = withDummyTypeInfo (TArrow space1 (argTypes ++ [retType]) space0)
 tPolyArrow vars arrowType  = tForall vars (tArrow arrowType)
 
 tForall vars t =
   case vars of
     []    -> Debug.crash "tForall: no vars"
-    [a]   -> withDummyRange (TForall space1 [withDummyRange <| TPatVar space1 a] t space0)
+    [a]   -> withDummyTypeInfo (TForall space1 [withDummyRange <| TPatVar space1 a] t space0)
     a::bs -> let typeVars = (withDummyRange <| TPatVar space0 a) :: List.map (\a -> withDummyRange <| TPatVar space1 a) bs in
-             withDummyRange (TForall space1 typeVars t space0)
+             withDummyTypeInfo (TForall space1 typeVars t space0)
 
 eInfoOf : Exp -> EInfo
 eInfoOf (Expr e) = { val = expEId <| Expr e, start = e.start, end = e.end }
@@ -322,7 +322,7 @@ addBindingsOne (p, t) acc =
   let fail s =
     Err <| Utils.spaces [ "addBindings", unparsePat p, unparseType t, s ] in
 
-  case (p.val.p__, t.val) of
+  case (p.val.p__, t.val.t__) of
 
     (PList _ _ _ _ _, TApp _ a _ _) ->
       -- TODO:
@@ -343,7 +343,7 @@ addBindingsOne (p, t) acc =
           (Nothing, Nothing) -> Ok []
 
           (Just pRest, Just tRest) ->
-            case (pRest.val.p__, tRest.val) of
+            case (pRest.val.p__, tRest.val.t__) of
               (PVar _ xRest _, TList _ tInvariant _) -> Ok [HasType xRest tInvariant]
               _                                      -> fail "PList ERROR 1 TODO"
 
@@ -456,7 +456,7 @@ expandTypeAlias typeEnv x =
     case pts of
       [] -> Nothing
       (p,t) :: pts_ ->
-        case (p.val.p__, t.val) of
+        case (p.val.p__, t.val.t__) of
           (PVar _ x_ _, _) ->
             if x == x_ then Just t else check pts_
           (PList _ ps _ Nothing _, TTuple _ ts _ Nothing _) ->
@@ -481,7 +481,7 @@ lookupTypeAlias typeEnv x =
 narrowUnionType : List Type -> Type -> List Type
 narrowUnionType tAfterPreviousCases tThisCase =
   let tThisCase_ =
-    case (tThisCase.val, tAfterPreviousCases) of
+    case (tThisCase.val.t__, tAfterPreviousCases) of
       (TWildcard _, [t1]) -> t1
       (TWildcard _, _)    -> tUnion tAfterPreviousCases
       _                   -> tThisCase
@@ -494,7 +494,7 @@ narrowUnionType tAfterPreviousCases tThisCase =
 
 subtractType : List Type -> Type -> List Type
 subtractType union1 tipe2 =
-  case tipe2.val of
+  case tipe2.val.t__ of
     TUnion _ union2 _ -> List.foldl (flip subtractType) union1 union2
     _                 -> List.foldl
                            (\t1 acc -> if checkEqualType t1 tipe2 then acc else t1::acc)
@@ -539,13 +539,13 @@ type alias ArrowType = (List Type, Type)
 
 stripArrow : Type -> Maybe ArrowType
 stripArrow t =
-  case t.val of
+  case t.val.t__ of
     TArrow _ ts _ -> Just (splitTypesInArrow ts)
     _             -> Nothing
 
 stripPolymorphicArrow : Type -> Maybe (List Ident, ArrowType)
 stripPolymorphicArrow t =
-  case t.val of
+  case t.val.t__ of
     -- requiring all type variables in one TForall
     TForall _ typeVars t0 _ ->
       stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (List.map (tpVarUnapply >> Utils.fromJust_ "Types") typeVars, arrow))
@@ -562,7 +562,7 @@ splitTypesInArrow ts =
 
 isArrowTemplate : Type -> Maybe ArrowType
 isArrowTemplate tipe =
-  case tipe.val of
+  case tipe.val.t__ of
     TArrow _ ts _ -> if Set.isEmpty (constraintVarsOf ts)
                        then Nothing
                        else Just (splitTypesInArrow ts)
@@ -578,7 +578,7 @@ isConstraintVar a =
 constraintVarsOf : List Type -> Set.Set Ident
 constraintVarsOf ts =
   List.foldl (\argType acc ->
-    case argType.val of
+    case argType.val.t__ of
       TVar _ a -> if isConstraintVar a then Set.insert a acc else acc
       _        -> acc
   ) Set.empty ts
@@ -599,21 +599,21 @@ isWellFormed typeEnv tipe =
   False
   {- TODO: Fix this
   let (prenexVars, tipe_) =
-    case tipe.val of
+    case tipe.val.t__ of
        TForall _ vars t _ -> (List.map (tpVarUnapply >> Utils.fromJust_ "Types") vars, t)
        _                             -> ([], tipe)
   in
   let typeEnv_ = List.map TypeVar (List.reverse prenexVars) ++ typeEnv in
   let noNestedForalls =
     foldType (\t acc ->
-       case t.val of
+       case t.val.t__ of
          TForall _ _ _ _ -> False
          _               -> acc
      ) tipe_ True
   in
   let allVarsBound =
     foldType (\t acc ->
-       case t.val of
+       case t.val.t__ of
          TApp _ x _ _ -> acc && lookupTypeAlias typeEnv_ x
          TVar _ x   -> if isConstraintVar x
                          then False
@@ -902,7 +902,7 @@ synthesizeType typeInfo typeEnv (Expr e_) =
       case resultn.result of
         Nothing -> finish.withError "synthesizeType: ESelect 1 ... " resultn.typeInfo
         Just ts ->
-          case ts.val of
+          case ts.val.t__ of
             TRecord _ mb ts _ ->
               case Utils.findLast (\(_, _, k, _, t) -> k == s) ts of
                 Just (_, _, _, _, t) -> finish.withType t resultn.typeInfo
@@ -1082,9 +1082,9 @@ synthesizeType typeInfo typeEnv (Expr e_) =
 -- Computes the intersection of types
 intersect: Type -> Type -> Result String Type
 intersect type1 type2 =
-  case (type1.val, type2.val) of
+  case (type1.val.t__, type2.val.t__) of
     (TRecord _ m ts1 _, TRecord _ m2 ts2 _) ->
-       Ok <| withDummyRange <| TRecord space1 m (Record.mergeLabelValues (\(_, _, k1, _, _) (_, _, k2, _, _) -> k1 == k2)  ts1 ts2) space0
+       Ok <| withDummyTypeInfo <| TRecord space1 m (Record.mergeLabelValues (\(_, _, k1, _, _) (_, _, k2, _, _) -> k1 == k2)  ts1 ts2) space0
       -- Populate the arguments in the order given.
     (_, _) -> Err "Cannnot interect record types with anything else than records."
 
@@ -1307,7 +1307,7 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
   let okConstrain =
     { result = Ok (), typeInfo = addRawConstraints [(tipe1, tipe2)] typeInfo } in
 
-  case (tipe1.val, tipe2.val) of
+  case (tipe1.val.t__, tipe2.val.t__) of
 
     (TNum _, TNum _)       -> ok
     (TBool _, TBool _)     -> ok
@@ -1385,7 +1385,7 @@ checkSubtype typeInfo typeEnv tipe1 tipe2 =
       let n = List.length ts in
       checkSubtypeList typeInfo typeEnv (Utils.zip ts (List.repeat n tInvariant))
     (TTuple _ ts _ (Just tRest) _, TList _ tInvariant _) ->
-      case tRest.val of
+      case tRest.val.t__ of
         TList _ t_ _ ->
           let ts_ = ts ++ [t_] in
           let n = List.length ts_ in
@@ -1434,7 +1434,7 @@ tryCatchAlls err list =
                     Just typeInfo_ -> { result = Ok (), typeInfo = typeInfo_ }
 
 checkSubtypeTVar t okConstrain err =
-  case t.val of
+  case t.val.t__ of
     TVar _ a ->
       if isConstraintVar a then
         let result = okConstrain in
@@ -1445,14 +1445,14 @@ checkSubtypeTVar t okConstrain err =
 
 checkSubtypeUnionRight : TypeInfo -> TypeEnv -> Type -> Type -> Maybe TypeInfo
 checkSubtypeUnionRight typeInfo typeEnv tipe1 tipe2 =
-  case (tipe1.val, tipe2.val) of
+  case (tipe1.val.t__, tipe2.val.t__) of
     (_, TUnion _ ts _) ->
       Utils.bindMaybe Just (checkSubtypeSomeRight typeInfo typeEnv tipe1 ts)
     _ -> Nothing
 
 checkSubtypeUnionLeft : TypeInfo -> TypeEnv -> Type -> Type -> Maybe TypeInfo
 checkSubtypeUnionLeft typeInfo typeEnv tipe1 tipe2 =
-  case (tipe1.val, tipe2.val) of
+  case (tipe1.val.t__, tipe2.val.t__) of
     (TUnion _ ts1 _, _) ->
       let obligations = Utils.zip ts1 (List.repeat (List.length ts1) tipe2) in
       let result = checkSubtypeList typeInfo typeEnv obligations in
@@ -1473,7 +1473,7 @@ checkSubtypeFoldLeft typeInfo typeEnv tipe1 tipe2 =
 
 checkSubtypeSingletonUnion : TypeInfo -> TypeEnv -> Type -> Type -> Maybe TypeInfo
 checkSubtypeSingletonUnion typeInfo typeEnv tipe1 tipe2 =
-  case tipe1.val of
+  case tipe1.val.t__ of
     TUnion _ [t1] _ ->
       let result = checkSubtype typeInfo typeEnv t1 tipe2 in
       case result.result of
@@ -1561,7 +1561,7 @@ bindSubtypeResult f res1 =
 
 coerceTupleToList : Type -> Maybe (Result TypeError Type)
 coerceTupleToList t =
-  case t.val of
+  case t.val.t__ of
     TTuple _ [] _ mtRest _ -> Nothing
     TTuple _ ts _ mtRest _ ->
       case joinManyTypes ts of
@@ -1579,7 +1579,7 @@ coerceTupleToList t =
 {-
 expandType : TypeEnv -> Type -> Maybe Type
 expandType typeEnv t =
-  case t.val of
+  case t.val.t__ of
     TNamed _ a -> expandTypeAlias typeEnv a
     _          -> Nothing
 -}
@@ -1607,7 +1607,7 @@ joinTypes_ t1 t2 =
      Err <| Utils.spaces
        [ "joinTypes failed:", unparseType t1, unparseType t2 ] in
 
-  case (t1.val, t2.val) of
+  case (t1.val.t__, t2.val.t__) of
 
     (TTuple _ [] _ Nothing _, TList _ tInvariant _) -> Ok t2
     (TTuple _ [] _ Nothing _, TTuple _ ts _ mtRest _) ->
@@ -1688,7 +1688,7 @@ unify typeEnv vars accActive accUnifier cs = case cs of
         , String.trim (unparseType t2) ] in
 
     if checkEqualType t1 t2 then recurse accActive accUnifier rest
-    else case (t1.val, t2.val) of
+    else case (t1.val.t__, t2.val.t__) of
 
       (TVar _ a, TVar _ b) ->
         if List.member a vars then
@@ -1806,7 +1806,7 @@ unify typeEnv vars accActive accUnifier cs = case cs of
 -- TODO may need to apply entire unifier left-to-right
 applyUnifier : Unifier -> Type -> Type
 applyUnifier unifier =
-  mapType <| \t -> case t.val of
+  mapType <| \t -> case t.val.t__ of
     TVar _ a ->
       case Utils.maybeFind a unifier of
         Just t_ -> t_

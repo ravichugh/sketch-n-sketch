@@ -1244,11 +1244,12 @@ patternLet spFirst minStartCol = patternGeneral False spFirst minStartCol
 -- Base Types
 --------------------------------------------------------------------------------
 
-baseType : String -> (WS -> Type_) -> String -> Parser (WS -> Type)
+baseType : String -> (WS -> Type__) -> String -> Parser (WS -> Type)
 baseType context combiner token =
-  inContext context <| unwrapInfo <|
-    succeed ( \{start, end} -> withInfo combiner start end )
-    |= trackInfo (keyword token)
+  inContext context <|
+    mapWSType_ <|
+        succeed ( \{start, end} -> withInfo combiner start end )
+        |= trackInfo (keyword token)
 
 nullType : Parser (WS -> Type)
 nullType =
@@ -1272,13 +1273,15 @@ stringType =
 
 variableType : Parser (WS -> Type)
 variableType =
-  inContext "variable type" <| unwrapInfo <|
-    transferInfo (flip TVar) littleIdentifier
+  inContext "variable type" <|
+    mapWSType_ <|
+      transferInfo (flip TVar) littleIdentifier
 
 dataType : Parser (WS -> Type)
 dataType =
-  inContext "data type" <| unwrapInfo <|
-    transferInfo (flip TVar) bigIdentifier
+  inContext "data type" <|
+    mapWSType_ <|
+      transferInfo (flip TVar) bigIdentifier
 
 --------------------------------------------------------------------------------
 -- Tuple Type
@@ -1288,27 +1291,27 @@ tupleType : Parser (WS -> Type)
 tupleType =
   inContext "tuple type" <|
     lazy <| \_ ->
-      mapWSInfo <|
+      mapWSType_ <|
         let t:  { term : Parser Type
                    , tagger : String -> Type
-                   , one : WS -> Type -> WS -> Type_
-                   , record : WS -> List (Maybe WS, WS, Ident, WS, Type) -> WS -> Type_
-                   , implicitFun: Maybe (Ident -> (TPat, Type), WS -> List TPat -> Type_ -> Type_)
+                   , one : WS -> Type -> WS -> Type__
+                   , record : WS -> List (Maybe WS, WS, Ident, WS, Type) -> WS -> Type__
+                   , implicitFun: Maybe (Ident -> (TPat, Type), WS -> List TPat -> Type__ -> Type__)
                    }
-                -> ParserI (WS -> Type_)
+                -> ParserI (WS -> Type__)
             t = genericTuple
         in t
           { term = typ spaces 0
           , tagger = -- TODO: TSingleton
-              withDummyRange << TVar space0
+              withDummyTypeInfo << TVar space0
           , record =
               \ws1 entries ws2 ->
                 TRecord ws1 Nothing entries ws2
           , one =
               \wsBefore innerExpression wsBeforeEnd -> TParens wsBefore innerExpression wsBeforeEnd
           , implicitFun = -- The type (,) is equivalent to forall a b.(a, b)
-              Just (\ident -> (withDummyRange (TPatVar space1 ident), withDummyRange <| TVar space1 ident),
-                \wsBefore pvars body -> TForall wsBefore pvars (withDummyRange body) space0)
+              Just (\ident -> (withDummyRange (TPatVar space1 ident), withDummyTypeInfo <| TVar space1 ident),
+                \wsBefore pvars body -> TForall wsBefore pvars (withDummyTypeInfo body) space0)
           }
 
 
@@ -1316,7 +1319,7 @@ recordType : Parser (WS -> Type)
 recordType =
   inContext "record type" <|
     lazy <| \_ ->
-        unwrapInfo <|
+      mapWSType_ <|
         genericRecord
          { key = identifier
          , equalSign = symbol ":"
@@ -1349,16 +1352,16 @@ forallType minStartCol =
   in
     inContext "forall type" <|
       lazy <| \_ ->
-        unwrapInfo <|
-        parenBlock
-          ( \wsBefore (qs, t) wsEnd ->
-              TForall wsBefore qs t wsEnd
-          )
-          ( succeed (,)
-              |. keywordWithSpace "forall"
-              |= quantifiers
-              |= typ spaces minStartCol
-          )
+        mapWSType_ <|
+          parenBlock
+            ( \wsBefore (qs, t) wsEnd ->
+                TForall wsBefore qs t wsEnd
+            )
+            ( succeed (,)
+                |. keywordWithSpace "forall"
+                |= quantifiers
+                |= typ spaces minStartCol
+            )
 
 --------------------------------------------------------------------------------
 -- Union Type
@@ -1367,7 +1370,7 @@ forallType minStartCol =
 unionType : MinStartCol -> Parser (WS -> Type)
 unionType minStartCol =
   inContext "union type" <|
-      unwrapInfo <|
+    mapWSType_ <|
       parenBlock TUnion <|
         succeed identity
           |. keywordWithSpace "union"
@@ -1380,13 +1383,15 @@ unionType minStartCol =
 wildcardType : Parser (WS -> Type)
 wildcardType =
   inContext "wildcard type" <|
-    succeed (\{val, start, end} wsBefore -> withInfo (TWildcard wsBefore) start end) |= trackInfo (keyword "_")
+    succeed
+      ( \{val, start, end} wsBefore ->
+          mapInfo type_ <| withInfo (TWildcard wsBefore) start end
+      )
+      |= trackInfo (keyword "_")
 
 --------------------------------------------------------------------------------
 -- General Types
 --------------------------------------------------------------------------------
-
-
 
 simpleType : MinStartCol -> Parser (WS -> Type)
 simpleType minStartCol =
@@ -1408,10 +1413,10 @@ simpleType minStartCol =
 simpleTypeWithPossibleArguments : MinStartCol -> Parser (WS -> Type)
 simpleTypeWithPossibleArguments minStartCol =
   inContext "simple type with arguments" <|
-    mapWSInfo <|
+    mapWSType_ <|
     trackInfo <| andThen (\(first, args) ->
         let f = first space0 in
-        case f.val of
+        case f.val.t__ of
           TVar _ "List" -> case args of
             [arg] -> succeed <| \spApp -> TList spApp arg space0
             _ -> fail "List takes exactly one type argument"
@@ -1420,7 +1425,7 @@ simpleTypeWithPossibleArguments minStartCol =
             _ -> fail "Dict takes exactly two type arguments"
           _ ->
             case args of
-              [] -> succeed <| \spApp -> (first spApp).val
+              [] -> succeed <| \spApp -> (first spApp).val.t__
               _  -> succeed <| \spApp -> TApp spApp f args SpaceApp
       ) <|
       (trackInfo (simpleType minStartCol) |> andThen (\wsToMainTypeI ->
@@ -1470,9 +1475,10 @@ typ spFirst minStartCol =
                   (wsBeforeOp, identifier) =
                     operator.val
                 in
-                withInfo
-                  (TApp wsBefore (replaceInfo operator <| TVar space1 identifier) [left, right] InfixApp)
-                    left.start right.end
+                  mapInfo type_ <|
+                    withInfo
+                      (TApp wsBefore (mapInfo type_ <| replaceInfo operator <| TVar space1 identifier) [left, right] InfixApp)
+                        left.start right.end
           }
 
 --==============================================================================
@@ -1965,7 +1971,7 @@ letExpOrAnnotation minStartCol =
                    Ok (binding_, FunArgsAfterEqual)
                 else
                    case parameters |> List.map patToTPat |> Utils.projJusts of
-                    Just tpats -> Ok (withInfo
+                    Just tpats -> Ok (mapInfo type_ <| withInfo
                        (TForall space0 tpats binding_ space0)
                         binding_.start
                         binding_.end
@@ -2567,10 +2573,12 @@ typeDefOrAlias minStartCol =
              if List.isEmpty parameters then
                (binding_, FunArgsAfterEqual)
              else
-               (withInfo
-                 (TForall space0 parameters binding_ space0)
-                 binding_.start
-                 binding_.end, FunArgAsPats)
+               (mapInfo type_ <|
+                 withInfo
+                   (TForall space0 parameters binding_ space0)
+                   binding_.start
+                   binding_.end, FunArgAsPats
+               )
          in
          let (mbSpaceBeforeAlias, spaceBeforePattern) = case mbSpaceAfterAlias of
            Nothing -> (Nothing, spAfterType)

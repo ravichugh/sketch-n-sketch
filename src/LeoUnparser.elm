@@ -74,7 +74,7 @@ patName p =
 
 typeName : Type -> Maybe String
 typeName t =
-  case t.val of
+  case t.val.t__ of
     TVar _ name ->
       Just name
     _ ->
@@ -98,7 +98,7 @@ patArgs p =
 
 typeArgs : Type -> Maybe (List (Maybe WS, WS, Ident, WS, Type))
 typeArgs t =
-  case t.val of
+  case t.val.t__ of
     TRecord _ _ entries _ ->
       Just entries
     _ ->
@@ -317,7 +317,7 @@ unparsePattern p =
 
 unparseType : Type -> String
 unparseType tipe =
-  case tipe.val of
+  case tipe.val.t__ of
     TNum ws                   -> ws.val ++ "Num"
     TBool ws                  -> ws.val ++ "Bool"
     TString ws                -> ws.val ++ "String"
@@ -759,7 +759,7 @@ getParametersBinding funArgStyle binding_  =
 getTypeParametersBinding: FunArgStyle -> Type -> (String, Type)
 getTypeParametersBinding funArgStyle binding_  =
   let (parameters, binding) =
-    case (funArgStyle, binding_.val) of
+    case (funArgStyle, binding_.val.t__) of
        (FunArgAsPats, TForall _ parameters functionBinding _) ->
          let default = (parameters, functionBinding) in
          case parameters of

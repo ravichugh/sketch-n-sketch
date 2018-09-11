@@ -765,9 +765,11 @@ letBindingEquationPolygon msgs codeInfo eid n =
     codeObjectPolygon msgs codeInfo codeObject color
 
 targetPolygon: Messages msg -> CodeInfo -> CodeObject -> List (Svg msg)
-targetPolygon msgs codeInfo codeObject = let
+targetPolygon msgs codeInfo codeObject =
+  let
     color = whitespaceColor codeInfo.displayInfo.colorScheme
-  in codeObjectPolygon msgs codeInfo codeObject color
+  in
+    codeObjectPolygon msgs codeInfo codeObject color
 
 diffpolygons: CodeInfo -> List Exp -> List (Svg msg)
 diffpolygons codeInfo exps =
@@ -795,7 +797,7 @@ polygons msgs codeInfo ast =
               DT _ _ _ _ ->
                 targetPolygon msgs codeInfo codeObject ++ acc
               TT _ _ _ ->
-                acc
+                targetPolygon msgs codeInfo codeObject ++ acc
           --else
           --  blockerPolygon codeInfo codeObject ++ acc
       )

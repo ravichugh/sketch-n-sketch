@@ -491,7 +491,7 @@ addPoint old (x, y) =
     [pointName, xName, yName] ->
       let
         programWithPoint =
-          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) <| Expr (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (tApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp))
+          LangTools.addFirstDef originalProgram (pAs pointName (pList [pVar0 xName, pVar yName])) <| Expr (eColonType (eTuple0 [eConstDummyLoc0 (toFloat x), eConstDummyLoc (toFloat y)]) (tApp space1 (withDummyTypeInfo <| TVar space0 "Point") [] SpaceApp))
       in
       { old | code = Syntax.unparser old.syntax programWithPoint }
 
@@ -564,7 +564,7 @@ addOffsetAndMaybePoint old snap (x1, y1) maybeExistingPoint (x2, y2) =
             programWithOffset =
               LangTools.addFirstDef originalProgram (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, eConstDummyLoc (toFloat offsetAmount)]) |> Parser.freshen
             programWithOffsetAndPoint =
-              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) <| Expr (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (tApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp))
+              LangTools.addFirstDef programWithOffset (pAs pointName (pList [pVar0 xName, pVar yName])) <| Expr (eColonType (eTuple0 [eConstDummyLoc0 x1, eConstDummyLoc y1]) (tApp space1 (withDummyTypeInfo <| TVar space0 "Point") [] SpaceApp))
           in
           { old | code = Syntax.unparser old.syntax programWithOffsetAndPoint }
 
@@ -793,7 +793,7 @@ addStickyPath old keysAndPoints =
 eAsPoint e =
   let e_ = replacePrecedingWhitespace "" e in
   withDummyExpInfo <|
-    EColonType space1 e_ space1 (withDummyRange <| TApp space1 (withDummyRange <| TVar space0 "Point") [] SpaceApp) space1
+    EColonType space1 e_ space1 (withDummyTypeInfo <| TApp space1 (withDummyTypeInfo <| TVar space0 "Point") [] SpaceApp) space1
 
 {-
 addLambda old (_,pt2) (_,pt1) =
@@ -859,7 +859,7 @@ addLambdaAnchor old click2 click1 func =
 addFunction : Ident -> Model -> (KeysDown, (Int, Int)) -> (KeysDown, (Int, Int)) -> Model
 addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
   let fillInArgPrimitive argType =
-    case argType.val of
+    case argType.val.t__ of
        TNum _                         -> Just <| eConstDummyLoc 0
        TBool _                        -> Just <| eFalse
        TString _                      -> Just <| eStr "string"
@@ -870,7 +870,7 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
        TUnion _ (firstType::_) _      -> fillInArgPrimitive firstType
        TVar _ _                       -> Just <| eTuple []
        TWildcard _                    -> Just <| eTuple []
-       TApp _ tFunArg _ _             -> case tFunArg.val of
+       TApp _ tFunArg _ _             -> case tFunArg.val.t__ of
           TVar _ "Color" -> Just <| eConstDummyLoc 0
           TVar _ "Point" -> Just <| eTuple (makeInts [0,0])
           _ -> Nothing
@@ -882,16 +882,16 @@ addFunction fName old (_, (x2, y2)) (_, (x1, y1)) =
         argTypes
         |> List.foldl
             (\argType (ptsRemaining, argMaybeExps) ->
-              case (ptsRemaining, argType.val) of
-                ((x,y)::otherPts, TApp _ tFunArg _ _) -> case tFunArg.val of
+              case (ptsRemaining, argType.val.t__) of
+                ((x,y)::otherPts, TApp _ tFunArg _ _) -> case tFunArg.val.t__ of
                   TVar _ "Point" -> (otherPts,     argMaybeExps ++ [Just (eTuple (makeInts [x,y]))])
                   _ -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
                 _                                   -> (ptsRemaining, argMaybeExps ++ [fillInArgPrimitive argType])
             )
             ([(x1, y1), (x2, y2)], [])
       in
-      case (Utils.projJusts argMaybeExps, returnType.val) of
-        (Just argExps, TApp _ funType _ _) -> case funType.val of
+      case (Utils.projJusts argMaybeExps, returnType.val.t__) of
+        (Just argExps, TApp _ funType _ _) -> case funType.val.t__ of
            TVar _ "Point" -> addToEndOfProgram old fName (eCall fName argExps)
            TVar _ "Shape" -> addShapeToModel   old fName (eCall fName argExps)
            _ -> let _ = Utils.log <| "Could not draw function " ++ fName ++ "!" in old
@@ -1176,11 +1176,11 @@ getDrawableFunctions model =
 -- Point
 isDrawableType : Type -> Bool
 isDrawableType tipe =
-  case tipe.val of
+  case tipe.val.t__ of
     TArrow _ argTypes _ ->
-      case (Utils.maybeLast argTypes |> Maybe.map .val, Utils.dropLast 1 argTypes) of
+      case (Utils.maybeLast argTypes |> Maybe.map (.val >> .t__), Utils.dropLast 1 argTypes) of
         (Just (TApp _ retAliasType _ _), otherArgs) ->
-          case retAliasType.val of
+          case retAliasType.val.t__ of
             TVar _ retAliasName ->
               if retAliasName == "Shape" || retAliasName == "Point" then
                 let aliasArgIdents = List.filterMap Types.typeToMaybeAliasIdent otherArgs in
