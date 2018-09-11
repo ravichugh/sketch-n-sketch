@@ -95,6 +95,8 @@ deuceTextInput onInput onKeyDn =
       [ Attr.type_ "text"
       , Attr.class "deuce-input"
       , E.onInput onInput
+      , E.onFocus <| Controller.msgDeuceTextBoxSetFocus True
+      , E.onBlur <| Controller.msgDeuceTextBoxSetFocus False
       , onClickWithoutPropagation Controller.msgNoop
       , onKeyDown onKeyDn
       ]

@@ -217,6 +217,7 @@ type alias Model =
   , codeEditorMode : CodeEditorMode
   , deuceOverlayCache : Maybe (Html Msg)
   , doTypeChecking : Bool
+  , isDeuceTextBoxFocused : Bool
   }
 
 type OutputMode
@@ -1475,4 +1476,5 @@ initModel =
     , codeEditorMode = CEText
     , deuceOverlayCache = Nothing
     , doTypeChecking = False
+    , isDeuceTextBoxFocused = False
     }

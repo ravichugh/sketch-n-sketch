@@ -46,6 +46,7 @@ port module Controller exposing
   , msgUpdateFontSize
   , msgSetToolMode
   , msgSetGhostsShown
+  , msgDeuceTextBoxSetFocus
   , msgHoverDeuceResult
   , msgLeaveDeuceResult
   , msgUpdateRenameVarTextBox
@@ -1679,7 +1680,7 @@ msgKeyDown keyCode =
           { old | outputMode = Graphics }
 
         else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick && not currentKeyDown &&
-                mbKeyboardFocusedWidget /= Nothing then
+                mbKeyboardFocusedWidget /= Nothing && not old.isDeuceTextBoxFocused then
           handleDeuceHotKey old keyCode <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
 
         else if
@@ -3242,6 +3243,12 @@ msgSetGhostsShown shown =
 
 --------------------------------------------------------------------------------
 -- Deuce Tools
+
+msgDeuceTextBoxSetFocus : Bool -> Msg
+msgDeuceTextBoxSetFocus shouldFocus =
+  Msg
+    ((if shouldFocus then "Focus" else "Unfocus/Blur") ++ " Deuce Text Box")
+    (\old -> { old | isDeuceTextBoxFocused = shouldFocus })
 
 msgHoverDeuceResult : Bool -> SynthesisResult -> List Int -> Msg
 msgHoverDeuceResult dontEval (SynthesisResult result) path =
