@@ -32,29 +32,11 @@
         main =
           svg [rectangle, fullLine, halfLine]
 
-1. **Make Equal with Single Variable** on 2 ``"white"``.
-   Nice variable name.
-   Tightest scope, if possible.
+1. **Make Equal with Single Variable** on 3 ``0``. Names options `x` and `x1`.
 
-        rectangle =
-          rect "gray" 0 0 200 200
+1. **Make Equal with Single Variable** on 3 ``0``. Name options `y` and `y1`.
 
-        stroke = "white"
-
-        fullLine =
-          line stroke 10 0 0 200 200
-
-        halfLine =
-          line stroke 10 0 200 200 0
-  
-        main =
-          svg [rectangle, fullLine, halfLine]
-
-1. **Make Equal with Single Variable** on 3 ``0``.
-
-1. **Make Equal with Single Variable** on 3 ``0``.
-
-1. **Make Equal with Single Variable** on 6 ``200``.
+1. **Make Equal with Single Variable** on 6 ``200``. Name options...
 
         x = 0
         
@@ -65,55 +47,29 @@
         rectangle =
           rect "gray" x y w w
 
-        stroke = "white"
-
         fullLine =
-          line stroke 10 x y w w
+          line "white" 10 x y w w
 
         halfLine =
-          line stroke 10 x w w y
+          line "white" 10 x w w y
   
         main =
           svg [rectangle, fullLine, halfLine]
 
 1. **Rename** `w` to `size`.
 
-1. **Move Definition** `stroke` above `rectangle`.
-
 1. **Move Definitions** `size`, `y` after `x`.
 
         (x, y, size) = (0, 0, 200)
-
-        stroke = "white"
 
         rectangle =
           rect "gray" x y size size
 
         fullLine =
-          line stroke 10 x y size size
+          line "white" 10 x y size size
 
         halfLine =
-          line stroke 10 x size size y
-  
-        main =
-          svg [rectangle, fullLine, halfLine]
-
-1. **Introduce Variable** for `"gray"` before `stroke`.
-
-1. **Make Equal with Single Variable** for 2 `10` after `stroke`.
-
-        (x, y, size) = (0, 0, 200)
-
-        (fill, stroke, strokeWidth) = ("white", "gray", 10)
-
-        rectangle =
-          rect stroke x y size size
-
-        fullLine =
-          line stroke strokeWidth x y size size
-
-        halfLine =
-          line stroke strokeWidth x size size y
+          line "white" 10 x size size y
   
         main =
           svg [rectangle, fullLine, halfLine]
@@ -126,17 +82,14 @@
         (x, y, size) =
           (10, 10, 200)
         
-        (fill, stroke, strokeWidth) =
-          ("gray", "white", 10)
-
         rectangle =
-          rect fill x y size size
+          rect "gray" x y size size
 
         fullLine =
-          line stroke strokeWidth x y (x + size) (y + size)
+          line "white" 10 x y (x + size) (y + size)
 
         halfLine =
-          line stroke strokeWidth x (y + size) (x + size) y
+          line "white" 10 x (y + size) (x + size) y
   
         main =
           svg [rectangle, fullLine, halfLine]
@@ -146,20 +99,17 @@
         (x, y, size) =
           (10, 10, 200)
         
-        (fill, stroke, strokeWidth) =
-          ("gray", "white", 10)
-
         (cx, cy) =
           (x + 0.5*size, y + 0.5*size)
 
         rectangle =
-          rect fill x y size size
+          rect "gray" x y size size
 
         fullLine =
-          line stroke strokeWidth x y (x + size) (y + size)
+          line "white" 10 x y (x + size) (y + size)
 
         halfLine =
-          line stroke strokeWidth x (y + size) cx cy
+          line "white" 10 x (y + size) cx cy
   
         main =
           svg [rectangle, fullLine, halfLine]
@@ -171,20 +121,17 @@
         (x, y, size) =
           (10, 10, 200)
         
-        (fill, stroke, strokeWidth) =
-          ("gray", "white", 10)
-
         (cx, cy) =
           (x + 0.5*size, y + 0.5*size)
 
         rectangle =
-          rect fill x y size size
+          rect "gray" x y size size
 
         fullLine =
-          line stroke strokeWidth x y (x + size) (y + size)
+          line "white" 10 x y (x + size) (y + size)
 
         halfLine =
-          line stroke strokeWidth x (y + size) cx cy
+          line "white" 10 x (y + size) cx cy
           
         logo =
           [rectangle, fullLine, halfLine]
@@ -192,27 +139,24 @@
         main =
           svg logo
 
-1. **Move Definitions** all 6 to before the list literal in `logo`.
+1. **Move Definitions** all 5 to before the list literal in `logo`.
           
         logo =
           let
             (x, y, size) =
               (10, 10, 200)
         
-            (fill, stroke, strokeWidth) =
-              ("gray", "white", 10)
-
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
 
             rectangle =
-              rect fill x y size size
+              rect "gray" x y size size
 
             fullLine =
-              line stroke strokeWidth x y (x + size) (y + size)
+              line "white" 10 x y (x + size) (y + size)
 
             halfLine =
-              line stroke strokWidth x (y + size) cx cy
+              line "white" 10 x (y + size) cx cy
           in
             [rectangle, fullLine, halfLine]
   
@@ -223,56 +167,32 @@
    Could give options to keep tupled-values as tuple arguments.
    Or not, just an option with "flattened" args is fine.
           
-        logo x y size fill stroke strokeWidth =
+        logo x y size =
           let
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
 
             rectangle =
-              rect fill x y size size
+              rect "gray" x y size size
 
             fullLine =
-              line stroke strokeWidth x y (x + size) (y + size)
+              line "white" 10 x y (x + size) (y + size)
 
             halfLine =
-              line stroke strokeWidth x (y + size) cx cy
+              line "white" 10 x (y + size) cx cy
           in
             [rectangle, fullLine, halfLine]
   
         main =
-          svg (logo 10 10 200 "gray" "white" 10)
+          svg (logo 10 10 200)
 
-1. We always like white, 10-wide stripes. Select `stroke` and `strokeWidth`
-   and **Remove Arguments**. Re-define those variables inside body?
-          
-        logo x y size fill =
-          let
-            (stroke, strokeWidth) = ("white", 10)
-            
-            (cx, cy) =
-              (x + 0.5*size, y + 0.5*size)
+1. Select `fill` and after `size` and **Add Argument**.
 
-            rectangle =
-              rect fill x y size size
-
-            fullLine =
-              line stroke strokeWidth x y (x + size) (y + size)
-
-            halfLine =
-              line stroke strokeWidth x (y + size) cx cy
-          in
-            [rectangle, fullLine, halfLine]
-  
-        main =
-          svg (logo 10 10 200 "gray")
-
-1. Select `fill` and before `x` and **Reorder Argument**. That way we
-   can do things like partially apply to color.
+1. Select `fill` and before `x` and **Reorder Argument**.
+   That way we can do things like partially apply to color.
 
         logo fill x y size =
           let
-            (stroke, strokeWidth) = ("white", 10)
-            
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
 
@@ -280,10 +200,10 @@
               rect fill x y size size
 
             fullLine =
-              line stroke strokeWidth x y (x + size) (y + size)
+              line "white" 10 x y (x + size) (y + size)
 
             halfLine =
-              line stroke strokeWidth x (y + size) (x + size) y
+              line "white" 10 x (y + size) cx cy
           in
             [rectangle, fullLine, halfLine]
   
@@ -296,12 +216,11 @@
           
         logo fill x y size =
           let
-            (stroke, strokeWidth) = ("white", 10)
             (cx, cy) = (x + 0.5*size, y + 0.5*size)
           in
             [ rect fill x y size size
-            , line stroke strokeWidth x y (x + size) (y + size)
-            , line stroke strokeWidth x (y + size) cx cy
+            , line "white" 10 x y (x + size) (y + size)
+            , line "white" 10 x (y + size) cx cy
             ]
   
         main =
@@ -401,15 +320,12 @@
                 TopLeft {x, y, size} -> {x=x, y=y, size=size}
                 Center {cx, cy, rad} -> {x=cx-rad, y=cy-rad, size=2*rad}
                 
-            (stroke, strokeWidth) =
-              ("white", 10)
-
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
           in
             [ rect fill x y size size
-            , line stroke strokeWidth x y (x + size) (y + size)
-            , line stroke strokeWidth x (y + size) cx cy
+            , line "white" 10 x y (x + size) (y + size)
+            , line "white" 10 x (y + size) cx cy
             ]
   
         main =
