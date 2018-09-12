@@ -443,7 +443,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
   |> List.map
       (\(merged, sortedExps, parameterExpLists) ->
         let eidsToReplace = sortedExps |> List.map expEId in
-        let commonScope = deepestCommonAncestorWithNewline originalExp (\exp -> List.member (expEId exp) eidsToReplace) in
+        let commonScope = deepestCommonAncestorWithNewlineOrELet originalExp (\exp -> List.member (expEId exp) eidsToReplace) in
         let funcSuggestedName =
           let defaultName = if simpleExpName merged == "INSERT_ARGUMENT_HERE" then "thing" else simpleExpName merged in
           commonNameForEIdsWithDefault defaultName originalExp eidsToReplace

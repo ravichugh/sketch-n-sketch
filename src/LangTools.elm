@@ -1007,11 +1007,11 @@ tryMatchExp pat exp =
         PColonType _ innerPat _ _ ->
           tryMatchExp innerPat exp
 
-deepestCommonAncestorWithNewline : Exp -> (Exp -> Bool) -> Exp
-deepestCommonAncestorWithNewline program pred =
+deepestCommonAncestorWithNewlineOrELet : Exp -> (Exp -> Bool) -> Exp
+deepestCommonAncestorWithNewlineOrELet program pred =
   commonAncestors pred program
   |> List.reverse
-  |> Utils.findFirst (precedingWhitespace >> String.contains "\n")
+  |> Utils.findFirst (\e -> (precedingWhitespace e |> String.contains "\n") || eLetUnapply e /= Nothing)
   |> Maybe.withDefault program
 
 deepestAncestorWithNewline : Exp -> EId -> Exp

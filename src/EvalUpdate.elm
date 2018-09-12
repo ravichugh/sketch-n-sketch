@@ -828,7 +828,7 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
     newName =
       nonCollidingName suggestedName startingNumberForNonCollidingName (visibleIdentifiersAtEIds program (Set.fromList observerEIds))
     eidToWrap =
-      deepestCommonAncestorWithNewline program (\exp -> List.member (expEId exp) observerEIds) |> expEId
+      deepestCommonAncestorWithNewlineOrELet program (\exp -> List.member (expEId exp) observerEIds) |> expEId
     newProgram =
       program
       |> mapExpNode

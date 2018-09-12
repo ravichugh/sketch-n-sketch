@@ -58,7 +58,7 @@ isSubWidget program widget superWidget =
     superLetEId
     |> findExpByEId program
     |> Maybe.andThen LangTools.declarationsOf
-    |> Maybe.map getDeclarationsInOrder
+    |> Maybe.map getDeclarations
     |> Maybe.andThen (flip Utils.nth superBn >> Result.toMaybe)
     |> Maybe.andThen letExpOf
     |> Maybe.map (\(LetExp _ _ _ _ _ superboundExp) -> List.member subEId (allEIds superboundExp))
@@ -67,7 +67,7 @@ isSubWidget program widget superWidget =
   let isSubPPId (subScopeId, subPath) (superScopeId, superPath) =
     subScopeId == superScopeId && Utils.isPrefix superPath subPath
   in
-  case (widget, superWidget) of
+  case (Debug.log "widget" widget, superWidget) of
     (DeuceExpTarget subExpTarget,       DeuceExpTarget superExpTarget)       -> subExpTarget == superExpTarget
     (DeucePatTarget subPatTarget,       DeucePatTarget superPatTarget)       -> subPatTarget == superPatTarget
     (_,                                 DeuceExpTarget _)                    -> False
@@ -86,10 +86,11 @@ isSubWidget program widget superWidget =
     (DeuceExpTarget _,                  DeucePat _)                          -> False
     (DeuceExpTarget (_, subEId),        DeuceLetBindingEquation (superLetEId, bn)) ->
       boundExpContains subEId superLetEId bn
-    (DeucePatTarget (_, subPPId),       DeuceExp superEId)                   -> isSubEId (pathedPatIdToScopeEId subPPId) superEId
-    (DeucePatTarget (_, subPPId),       DeucePat superPPId)                  -> subPPId /= superPPId && isSubPPId subPPId superPPId
-    (DeucePatTarget (_, subPPId),       DeuceLetBindingEquation (superLetEId, bn)) ->
-      pathedPatIdToScopeEId subPPId == superLetEId || boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId bn
+    (DeucePatTarget (_, subPPId, _),    DeuceExp superEId)                   -> isSubEId (pathedPatIdToScopeEId subPPId) superEId
+    (DeucePatTarget (_, subPPId, _),    DeucePat superPPId)                  -> subPPId /= superPPId && isSubPPId subPPId superPPId
+    (DeucePatTarget (_, subPPId, _),    DeuceLetBindingEquation ((superLetEId, bn) as scopeId)) ->
+      (Debug.log "Or1" (pathedPatIdToScopeId subPPId == Debug.log "Or1-1" scopeId)) ||
+      (Debug.log "Or2" (boundExpContains (pathedPatIdToScopeEId subPPId) superLetEId bn))
     (DeuceDeclTarget b1,                DeuceDeclTarget b2)                  -> b1 == b2
     (_,                                 DeuceDeclTarget b2)                 -> False
     (DeuceDeclTarget (_, (subEId, bn)), DeuceExp superEId)                  -> subEId /= superEId && isSubEId subEId superEId
@@ -123,7 +124,7 @@ toDeuceWidget patMap codeObject =
     PT ba _ _ pt ->
       Maybe.map
         ( \ppid ->
-            DeucePatTarget (ba, ppid)
+            DeucePatTarget (ba, ppid, pt.val.pid)
         )
         ( Dict.get pt.val.pid patMap
         )

@@ -734,7 +734,7 @@ type alias PathedPatternId = (ScopeId, List Int)
 
 type BeforeAfter = Before | After
 
-type alias PatTargetPosition = (BeforeAfter, PathedPatternId)
+type alias PatTargetPosition = (BeforeAfter, PathedPatternId, PId)
 
 type alias ExpTargetPosition = (BeforeAfter, EId)
 
@@ -805,7 +805,7 @@ pathAfterElementRemoved removedPath path =
       Debug.crash <| "Lang.pathAfterElementRemoved why did this get called?!" ++ toString (removedPath, path)
 
 patTargetPositionToTargetPathedPatId : PatTargetPosition -> PathedPatternId
-patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId) =
+patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId, _) =
   let
     (referenceScopeId, referencePath) =
       referencePathedPatId
@@ -3666,11 +3666,11 @@ taggedExpPats exp =
     ELet _ _ defs _ _ ->
       List.concatMap (\(def, index) -> case def of
         DeclAnnotation (LetAnnotation _ _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (expEId exp, index + 1)) p0
+          tagSinglePat (rootPathedPatternId (expEId exp, index)) p0
         DeclExp (LetExp _  _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (expEId exp, index + 1)) p0
+          tagSinglePat (rootPathedPatternId (expEId exp, index)) p0
         DeclType (LetType _ _ _ p0 _ _ _) ->
-          tagSinglePat (rootPathedPatternId (expEId exp, index + 1)) p0
+          tagSinglePat (rootPathedPatternId (expEId exp, index)) p0
       ) (getDeclarations defs |> Utils.zipWithIndex)
     _ ->
       []

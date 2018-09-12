@@ -2088,7 +2088,7 @@ reorderArgumentsTool model selections =
         (_, _, eids, [], [], [], [(beforeAfter, eid)], []) ->
           case eid::eids |> List.map (LangTools.eidToMaybeCorrespondingArgumentPathedPatId model.inputExp) |> Utils.projJusts of
             Just (targetReferencePathedPatId::pathedPatIds) ->
-              let targetPathedPatId = patTargetPositionToTargetPathedPatId (beforeAfter, targetReferencePathedPatId) in
+              let targetPathedPatId = patTargetPositionToTargetPathedPatId (beforeAfter, targetReferencePathedPatId, 0) in
               let scopeIds = List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds) in
               let targetEId = pathedPatIdToScopeEId targetPathedPatId in
               case (Utils.allSame scopeIds, targetEId |> findExpByEId model.inputExp |> Maybe.map unwrapExp) of

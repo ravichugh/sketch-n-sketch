@@ -825,7 +825,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                       2
                       (EvalUpdate.visibleIdentifiersAtEIds program (Set.singleton outputEId))
                 funcBody = justFindExpByEId program outputEId
-                funcLocation = deepestCommonAncestorWithNewline program ((==) funcBody) -- Place function just before abstracted expression
+                funcLocation = deepestCommonAncestorWithNewlineOrELet program ((==) funcBody) -- Place function just before abstracted expression
                 expEnv = expEnvAt_ program (expEId funcLocation) -- Skip prelude
                 -- Assumes no renamings between selected pat and extracted expression
                 -- Also assumes selected pat is not part of extracted expression
@@ -883,7 +883,7 @@ deepestCommonAncestorWithNewlineByLocSet exp locset =
       EConst ws n loc wd -> Set.member loc locset
       _                  -> False
   in
-  deepestCommonAncestorWithNewline exp isLocsetNode
+  deepestCommonAncestorWithNewlineOrELet exp isLocsetNode
 
 
 -- Replace consts in targetExp with given variable names

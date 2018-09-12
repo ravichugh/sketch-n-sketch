@@ -596,7 +596,7 @@ liftDependenciesBasedOnUniqueNames program =
             case pluck ((expEId originalDefiningScope, letexpIndex), path) program of
               Nothing -> Nothing
               Just ((pluckedPat, pluckedBoundExp, isRec), programWithoutPlucked) ->
-                let eidToWrap = deepestCommonAncestorWithNewline program (expToMaybeIdent >> (==) (Just identToLift)) |> expEId in
+                let eidToWrap = deepestCommonAncestorWithNewlineOrELet program (expToMaybeIdent >> (==) (Just identToLift)) |> expEId in
                 let insertedLetEId = Parser.maxId program + 1 in
                 let newProgram =
                   programWithoutPlucked
@@ -2497,7 +2497,7 @@ introduceVarTransformation
   case maybeTargetPos of
     Nothing ->
       Just <| \() ->
-          let expToWrap = deepestCommonAncestorWithNewline m.inputExp (\e -> List.member (expEId e) expIds) in
+          let expToWrap = deepestCommonAncestorWithNewlineOrELet m.inputExp (\e -> List.member (expEId e) expIds) in
           introduceVarTransformation_ m expIds (expEId expToWrap, 0 {- Binding number -})
 
     Just (ExpTargetPosition (After, expTargetId)) ->
@@ -3006,6 +3006,7 @@ introduceVarTransformation_
 
 ------------------------------------------------------------------------------
 
+makeEqualTransformation: Exp -> List EId -> Maybe TargetPosition -> Maybe (() -> List SynthesisResult)
 makeEqualTransformation originalProgram eids maybeTargetPosition =
   let insertNewLet insertedLetEId pat boundExp expToWrap program =
     ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
@@ -3020,27 +3021,28 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
   case maybeTargetPosition of
     Nothing ->
       Just <| \() ->
-        let expToWrap = deepestCommonAncestorWithNewline originalProgram (\e -> List.member (expEId e) eids) in
-        makeEqualTransformation_ originalProgram eids (expEId expToWrap) insertNewLet
+        let expToWrap = deepestCommonAncestorWithNewlineOrELet originalProgram (\e -> List.member (expEId e) eids) in
+        makeEqualTransformation_ originalProgram eids (Before, (expEId expToWrap, 0)) insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
     Just (DeclarationTargetPosition (beforeAfter, (expTargetId, bindingNum))) ->
-      Nothing
+      Just <| \() ->
+        makeEqualTransformation_ originalProgram eids (beforeAfter, (expTargetId, bindingNum)) insertNewLet
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
       Just <| \() ->
-        makeEqualTransformation_ originalProgram eids expTargetId insertNewLet
+        makeEqualTransformation_ originalProgram eids (Before, (expTargetId, -1)) insertNewLet
 
-    Just (PatTargetPosition patTarget) ->
+    Just (PatTargetPosition ((beforeAfter, ((eId, bindingNumber), patPath), pid) as patTarget)) ->
       case patTargetPositionToTargetPathedPatId patTarget of
         ((targetId, 1), targetPath) ->
-          case findExpByEId originalProgram targetId of
-            Just scopeExp ->
+          case findScopeExpAndPatByPId originalProgram pid of
+            Just ((scopeExp, bn), pat) ->
               if isLet scopeExp then
                 Just <| \() ->
-                  makeEqualTransformation_ originalProgram eids targetId (addToExistingLet targetPath)
+                  makeEqualTransformation_ originalProgram eids (beforeAfter, (eId, bindingNumber)) (addToExistingLet targetPath)
               else
                 Nothing
 
@@ -3050,8 +3052,8 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
         _ ->
           Nothing
 
-
-makeEqualTransformation_ originalProgram eids newBindingLocationEId makeNewLet =
+makeEqualTransformation_:Exp -> List EId -> (BeforeAfter, (EId, BindingNumber)) -> (EId -> Pat -> Exp -> Exp -> Exp -> (Exp, Maybe (EId, BindingNumber))) -> List SynthesisResult
+makeEqualTransformation_ originalProgram eids (beforeAfter, (newBindingLocationEId, insertionBindingNumber)) makeNewLet =
   let firstEId = Utils.head "CodeMotion.makeEqualTransform expected some eids, got []" eids in
   let potentialNames =
     let
@@ -3146,7 +3148,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
       else
         -- CASE 2: EId already bound, but some viewers are not in its scope. Try to move binding.
         let expToWrap =
-          deepestCommonAncestorWithNewline originalProgramUniqueNames (\e -> Set.member (expEId e) allViewerEIds)
+          deepestCommonAncestorWithNewlineOrELet originalProgramUniqueNames (\e -> Set.member (expEId e) allViewerEIds)
         in
         let maybeProgramAfterMove =
           let bindingLetBoundExp = expToLetBoundExp bindingLet in
@@ -3190,7 +3192,7 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
   let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
   let allViewerEIds = Set.insert mobileEId viewerEIds in
   let expToWrap =
-    deepestCommonAncestorWithNewline originalProgramUniqueNames (\e -> Set.member (expEId e) allViewerEIds)
+    deepestCommonAncestorWithNewlineOrELet originalProgramUniqueNames (\e -> Set.member (expEId e) allViewerEIds)
   in
   let maxId = Parser.maxId originalProgramUniqueNames in
   let (insertedVarEId, newBindingPId) = (maxId + 1, maxId + 2) in
