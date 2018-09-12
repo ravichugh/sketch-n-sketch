@@ -37,6 +37,7 @@ import LocEqn                        -- For twiddling
 import Solver exposing (MathExp(..)) -- For twiddling
 import Sync
 import Syntax exposing (Syntax)
+import LeoParser
 import Utils
 
 import Dict exposing (Dict)
@@ -1624,76 +1625,152 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
 
 ------------------------------------------------------------------------------
 
--- Small bug: if variable to inline is unused and has variables in its boundExp, result will be marked as unsafe.
--- (Because the eids of those usages disappear...if variable is used those usages are inlined with same EIds from
--- the bound exp (on purpose) for the safety check.)
-inlineDefinitions : Syntax -> List PathedPatternId -> Exp -> List SynthesisResult
-inlineDefinitions syntax selectedPathedPatIds originalProgram =
-  let (programUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
-  let namedPathedPatIdsToPluck =
-    selectedPathedPatIds
-    |> Utils.groupBy pathedPatIdToScopeId
-    |> Dict.toList
-    |> List.concatMap
-        (\(scopeId, pathedPatternIds) ->
-          let paths = List.map pathedPatIdToPath pathedPatternIds in
-          case findPatByPathedPatternId (scopeId, []) programUniqueNames of
-            Nothing  -> []
-            Just pat ->
-              identPathsInPat pat
-              |> List.filter (\(ident, path) -> List.any (Utils.isPrefixOf path) paths)
-              |> List.map    (\(ident, path) -> (scopeId, path))
+-- TODO This has some substantial bugs, related to the order in which things are selected
+-- If things are selected "out of order", then the wrong bindings wind up getting deleted!
+inlineDefinitions : List (EId, BindingNumber) -> Exp -> Maybe (List Ident, Exp)
+inlineDefinitions selectedLetEIds originalProgram =
+  let mbLetExpAndE root eId bindingNum =
+    findExpByEId root eId |> Maybe.andThen (\e ->
+    findLetexpByBindingNumber e bindingNum |> Maybe.map (\letExp ->
+    (letExp, e)))
+  in
+  selectedLetEIds |>
+  List.map (\(eId, bn) ->
+    mbLetExpAndE originalProgram eId bn |> Maybe.andThen (
+    Tuple.first >> patOfLetExp >> pVarUnapply >> Maybe.map (
+    (,,) eId bn))
+  ) |>
+  Utils.projJusts |> Maybe.map (\replacementInfos ->
+    let replaceIdents origLetEId identToReplace origSubstExpEId substExp subRoot =
+      let
+        replace = replaceIdents origLetEId identToReplace origSubstExpEId substExp
+        map e__ = Expr <| replaceInfo (unExpr subRoot) <| makeExp_ e__ <| expEId subRoot
+        shadowsP pats = List.member identToReplace <| identifiersListInPats pats
+        shadowsI idents = List.member identToReplace idents
+        maybeReplaceLetExps shouldReplace letExps =
+          Utils.applyIf shouldReplace
+            (List.map (\(LetExp ocs wsb pat funArgStyle ws1 bound) ->
+              LetExp ocs wsb pat funArgStyle ws1 (replace bound)
+            ))
+            letExps
+      in
+      case unwrapExp subRoot of
+        EVar wsb ident ->
+          if ident == identToReplace then
+            replacePrecedingWhitespace wsb.val substExp
+          else
+            subRoot
+        EFun wsb pats body ws1 ->
+          if shadowsP pats then
+            subRoot
+          else
+            map <| EFun wsb pats (replace body) ws1
+        EApp wsb f args appType ws2 ->
+          map <| EApp wsb (replace f) (List.map replace args) appType ws2
+        EOp wsb ws1 op args ws2 ->
+          map <| EOp wsb ws1 op (List.map replace args) ws2
+        EList wsb children ws1 m ws2 ->
+          map <| EList wsb (List.map (Tuple.mapSecond replace) children) ws1 (Maybe.map replace m) ws2
+        EIf wsb cond ws1 true ws2 false ws3 ->
+          map <| EIf wsb (replace cond) ws1 (replace true) ws2 (replace false) ws3
+        ECase wsb scrutinee branches ws1 ->
+          let newBranches =
+            branches |> List.map (\branch ->
+              let (Branch_ wsb bPat bExp ws1) = branch.val in
+              if shadowsP [bPat] then
+                branch
+              else
+                replaceInfo branch <| Branch_ wsb bPat (replace bExp) ws1
+            )
+          in
+          map <| ECase wsb (replace scrutinee) newBranches ws1
+        ELet wsb letKind (Declarations po lt la groupedExps) ws1 body ->
+          let
+            (newGroupedExps, dontReplaceBody) =
+              groupedExps |>
+              List.foldl
+                (\(isRec, letExps) (resultReversed, dontReplaceCurrent) ->
+                  let
+                    currentGroupContainsTarget =
+                      groupBoundExps letExps |>
+                      List.map expEId |>
+                      List.member origSubstExpEId
+                    currentGroupShadows = shadowsI <| groupIdentifiers letExps
+                    shouldReplaceCurrent =
+                      not (dontReplaceCurrent || currentGroupShadows)
+                    -- If this is group contains the target binding, then we turn
+                    -- replacement back on for subsequent groups. Otherwise, we
+                    -- turn replacement off if a pattern in this group shadows the
+                    -- target identifier.
+                    dontReplaceNext =
+                      not currentGroupContainsTarget &&
+                      (dontReplaceCurrent || currentGroupShadows)
+                    newLetExps =
+                      letExps |>
+                      maybeReplaceLetExps shouldReplaceCurrent |>
+                      List.filter (\(LetExp _ _ _ _ _ e) ->
+                        expEId e /= origSubstExpEId
+                      )
+                  in
+                  ( if List.isEmpty newLetExps then
+                      resultReversed
+                    else
+                      (isRec, newLetExps) :: resultReversed
+                  , dontReplaceNext
+                  )
+                )
+                -- Don't do replacement in the bound exps of the bindings that
+                -- are part of the same ELet as the target binding but which appear
+                -- before it.
+                ([], expEId subRoot == origLetEId)
+              |> Tuple.mapFirst List.reverse
+            newBody = Utils.applyIf (not dontReplaceBody) replace body
+            newDecls = Declarations po lt la newGroupedExps
+          in
+          if List.isEmpty newGroupedExps then
+            newBody
+          else
+            map <| ELet wsb letKind newDecls ws1 newBody
+        EColonType wsb e ws1 typ ws2 ->
+          map <| EColonType wsb (replace e) ws1 typ ws2
+        EParens wsb e parensStyle ws1 ->
+          map <| EParens wsb (replace e) parensStyle ws1
+        ERecord wsb m (Declarations po lt la groupedExps) ws1 ->
+          let
+            newGroupedExps =
+              groupedExps |>
+              List.map (\(isRec, letExps) ->
+                ( isRec
+                , maybeReplaceLetExps
+                    (not <| shadowsI <| groupIdentifiers letExps)
+                    letExps
+                )
+              )
+            newDecls = Declarations po lt la newGroupedExps
+          in
+          map <| ERecord wsb (Maybe.map (Tuple.mapFirst replace) m) newDecls ws1
+        ESelect wsb e ws1 ws2 ident ->
+          map <| ESelect wsb (replace e) ws1 ws2 ident
+        _ -> subRoot -- For leaves, just return the leaf as is
+    in
+    ( List.map Utils.thd3 replacementInfos
+    , List.foldl
+        (\(subRootEId, bn, ident) root ->
+          case mbLetExpAndE root subRootEId bn of
+            Just (letExp, subRoot) ->
+              let
+                boundExp = bindingOfLetExp letExp
+                boundExpEId = expEId boundExp
+                subst = LeoParser.clearAllIds boundExp
+              in
+              replaceExpNode subRootEId (replaceIdents subRootEId ident boundExpEId subst subRoot) root
+              |> LeoParser.freshen
+            _ -> root -- This case should be impossible
         )
-  in
-  let (pluckedPatAndBoundExpAndIsRecs, programWithoutPlucked) =
-    pluckAll namedPathedPatIdsToPluck programUniqueNames
-  in
-  let (pluckedPats, pluckedBoundExps, isRecs) = Utils.unzip3 pluckedPatAndBoundExpAndIsRecs in
-  if pluckedPatAndBoundExpAndIsRecs == [] then
-    Debug.log "could not pluck anything" []
-  else if Utils.maybeConsensus isRecs /= Just False then
-    Debug.log "Can't inline recursive definitions" []
-  else
-    let pluckedPathedPatIdentifiersUnique    = Utils.unionAll <| List.map identifiersSetInPat pluckedPats in
-    let pluckedBoundExpFreeIdentifiersUnique = Utils.unionAll <| List.map freeIdentifiers pluckedBoundExps in
-    let namesUniqueExplicitlyTouched = Set.union pluckedPathedPatIdentifiersUnique pluckedBoundExpFreeIdentifiersUnique in
-    let uniqueIdentToExp =
-      pluckedPatAndBoundExpAndIsRecs
-      |> List.map
-          (\(pat, boundExp, _) ->
-            case patToMaybeIdent pat of
-              Just ident -> (ident, boundExp)
-              _          -> Debug.crash <| "CodeMotion.inlineDefinitions: should only have PVar or PAs here, got: " ++ toString (pat, boundExp)
-          )
-      |> Dict.fromList
-    in
-    let (newProgramUniqueNames, varEIdsRemoved) =
-      programWithoutPlucked
-      |> LangSimplify.simplifyAssignments
-      |> mapFoldExp
-          (\exp varEIdsRemoved ->
-            case expToMaybeIdent exp |> Maybe.andThen (\ident -> Dict.get ident uniqueIdentToExp) of
-              Just newExp -> (copyPrecedingWhitespace exp newExp, (expEId exp)::varEIdsRemoved)
-              Nothing     -> (exp, varEIdsRemoved)
-          )
-          []
-    in
-    let inlinedThingsStr =
-      pluckedPats
-      |> List.map (renameIdentifiersInPat uniqueNameToOldName >> Syntax.patternUnparser syntax >> Utils.squish)
-      |> Utils.toSentence
-    in
-    programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
-        ("Inline " ++ inlinedThingsStr)
-        uniqueNameToOldName
-        Nothing -- maybeNewScopeEId
-        ("touched", "untouched")
-        namesUniqueExplicitlyTouched -- namesUniqueTouched
-        varEIdsRemoved -- varEIdsPreviouslyDeliberatelyRemoved
-        Dict.empty -- insertedVarEIdToBindingPId
-        programUniqueNames
-        newProgramUniqueNames
-
+        originalProgram
+        replacementInfos
+    )
+  )
 
 ------------------------------------------------------------------------------
 
@@ -2432,8 +2509,8 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
 reorderExpressionsTransformation originalProgram selections =
   case selections of
-    (_, _, [], _, _, _, _, _) -> Nothing
-    (_, _, expIds, [], [], [], [expTarget], []) ->
+    (_, _, [], _, _, _, _, _, _) -> Nothing
+    (_, _, expIds, [], [], [], [], [expTarget], []) ->
       let (beforeAfter, expTargetEId) = expTarget in
       let relevantEIds = expTargetEId::expIds in
       -- tryReorderExps can handle rearrangement of nested tuples, e.g. [a [b c]] to [a b [c]]

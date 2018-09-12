@@ -1172,8 +1172,6 @@ mapFst3 f (x,y,z) = (f x, y, z)
 mapSnd3 f (x,y,z) = (x, f y, z)
 mapThd3 f (x,y,z) = (x, y, f z)
 
-fourth4 (_,_,_,x) = x
-
 flip (a, b) = (b, a)
 
 bindResult : Result a b -> (b -> Result a b_) -> Result a b_
