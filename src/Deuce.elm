@@ -536,8 +536,8 @@ keyboardFocusedColor colorScheme =
 typeColor : ColorScheme -> Color
 typeColor colorScheme =
   case colorScheme of
-    Light -> { r = 255, g = 192, b = 203 }
-    Dark  -> { r = 255, g = 192, b = 203 }
+    Light -> { r = 220, g = 60, b = 255 }
+    Dark  -> { r = 220, g = 60, b = 255 }
 
 whitespaceColor : ColorScheme -> Color
 whitespaceColor colorScheme =
