@@ -1652,13 +1652,11 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
 inlineDefinitions : List (EId, BindingNumber) -> Exp -> Maybe (List Ident, Exp)
 inlineDefinitions selectedLetEIds originalProgram =
   let
-    retainInfo e eId e__ = Expr <| replaceInfo (unExpr e) <| makeExp_ e__ eId
-
     replaceIdents origLetEId identToReplace origSubstExpEId substExp subRoot =
       let
         replace = replaceIdents origLetEId identToReplace origSubstExpEId substExp
         subRootEId = expEId subRoot
-        map = retainInfo subRoot subRootEId
+        map = replaceE__ subRoot
         shadowsP pats = List.member identToReplace <| identifiersListInPats pats
         shadowsI idents = List.member identToReplace idents
         maybeReplaceLetExps shouldReplace letExps =
@@ -1822,7 +1820,7 @@ inlineDefinitions selectedLetEIds originalProgram =
                     in
                     mbNewDecls |>
                     Maybe.map (\newDecls ->
-                    retainInfo let_ letEId
+                    replaceE__ let_
                       <| ELet wsb lk newDecls ws1 body
                     )
                   )
