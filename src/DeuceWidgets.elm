@@ -31,7 +31,7 @@ type DeuceWidget
   | DeuceExpTarget ExpTargetPosition
   | DeucePatTarget PatTargetPosition
   | DeuceType TId
-
+  | DeuceTypeTarget TId
 
 isTargetPosition : DeuceWidget -> Bool
 isTargetPosition widget =
@@ -43,6 +43,7 @@ isTargetPosition widget =
     DeuceExpTarget _          -> True
     DeucePatTarget _          -> True
     DeuceDeclTarget _         -> True
+    DeuceTypeTarget _         -> True
 
 -- TODO: This is not totally correct because of DeuceLetBindingEquation which now has (EId, BindingNumber)
 -- It appears that this function returns true if both widgets are the same
@@ -96,9 +97,11 @@ isSubWidget program widget superWidget =
     (DeuceDeclTarget (_, (subEId, bn)), DeuceExp superEId)                  -> subEId /= superEId && isSubEId subEId superEId
     (DeuceDeclTarget (_, (subEId, bn)), _)                                  -> False
     -- TODO
-    (DeuceType subTId,                  DeuceType superTId)                  -> subTId == superTId
+    (DeuceType subTId,                 DeuceType superTId)                   -> subTId == superTId
     (_,                                DeuceType _)                          -> False
     (DeuceType _,                      _)                                    -> False
+    (_,                                DeuceTypeTarget _)                    -> False
+    (DeuceTypeTarget _,                _)                                    -> False
 
 toDeuceWidget : Dict PId PathedPatternId -> CodeObject -> Maybe DeuceWidget
 toDeuceWidget patMap codeObject =
@@ -128,8 +131,9 @@ toDeuceWidget patMap codeObject =
         )
         ( Dict.get pt.val.pid patMap
         )
-    TT _ _ _ ->
-      Nothing
+    TT _ _ tt ->
+      Just <|
+        DeuceTypeTarget tt.val.tid
 
 emptyDeuceState : DeuceState
 emptyDeuceState =

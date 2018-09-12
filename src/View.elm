@@ -442,7 +442,7 @@ deuceSynthesisResults
   : Model -> List Int -> DeuceTransformation -> List SynthesisResult -> List (Html Msg)
 deuceSynthesisResults model path deuceTransformation results =
   let mapResults () =
-    Utils.mapi1 (\(i, result) -> deuceSynthesisResult model (path ++ [1]) deuceTransformation result) results
+    Utils.mapi1 (\(i, result) -> deuceSynthesisResult model (path ++ [i]) deuceTransformation result) results
   in
   case (deuceTransformation, results) of
     (SmartCompleteDeuceTransform _, _) ->
