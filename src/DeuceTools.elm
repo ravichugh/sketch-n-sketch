@@ -2544,6 +2544,82 @@ typesTool model selections =
     }
 
 
+--------------------------------------------------------------------------------
+-- Format Tool
+--------------------------------------------------------------------------------
+
+formatTool : Model -> DeuceSelections -> DeuceTool
+formatTool model selections =
+  let
+    (func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+
+        (_, _, [eId], [], [], [], [], [], []) ->
+          let
+            exp =
+              LangTools.justFindExpByEId model.inputExp eId
+          in
+            case (unExpr exp).val.e__ of
+              EList ws1 wsExps ws2 maybeTail ws3 ->
+                let
+                  rebuild wsExps ws3 =
+                    replaceExpNode eId
+                      (EList ws1 wsExps ws2 maybeTail ws3 |> replaceE__ exp)
+                      model.inputExp
+
+                  simpleSingleLine =
+                    let
+                      newWsExps =
+                        wsExps
+                          |> Utils.mapi0 (\(i, (_, e_i)) ->
+                               let ws_i = if i == 0 then "" else " " in
+                               ( space0
+                               , replacePrecedingWhitespace ws_i e_i
+                               )
+                             )
+                    in
+                      rebuild newWsExps space0
+
+                  simpleMultiLine =
+                    let
+                      startCol =
+                        (unExpr exp).start.col
+
+                      breakAndIndent =
+                        "\n" ++ String.repeat (startCol - 1) " "
+
+                      newWsExps =
+                        wsExps
+                          |> Utils.mapi0 (\(i, (_, e_i)) ->
+                               ( ws <| if i == 0 then " " else breakAndIndent
+                               , replacePrecedingWhitespace " " e_i
+                               )
+                             )
+                    in
+                      rebuild newWsExps (ws breakAndIndent)
+
+                  func () =
+                    [ synthesisResult "Single-Line" simpleSingleLine
+                    , synthesisResult "Multi-Line" simpleMultiLine
+                    ]
+                in
+                  (NoInputDeuceTransform func, Satisfied)
+
+              _ ->
+                (InactiveDeuceTransform, Impossible)
+
+        _ ->
+          (InactiveDeuceTransform, Impossible)
+  in
+    { name = "Format"
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "format"
+    }
+
+
 --==============================================================================
 --= EXPORTS
 --==============================================================================
@@ -2635,6 +2711,8 @@ toolList =
   , [ flipBooleanTool
     ]
 -}
+  , [ formatTool
+    ]
   ]
 
 deuceToolsOf : Model -> List (List DeuceTool)
