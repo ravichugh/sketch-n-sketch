@@ -1455,8 +1455,8 @@ setPatName ((scopeEId, branchI), path) newName exp =
     case Maybe.map unwrapExp maybeScopeExp of
        Just (ELet ws1 letKind decls ws3 body)->
           let newDecls = decls |>
-            mapDeclarations (\index1 def ->
-               if index1 == branchI then
+            mapDeclarations (\index def ->
+               if index == branchI then
                 case def of
                   DeclExp (LetExp wsc wsb pat fs wse boundExp) ->
                     let newPat = setPatNameInPat path newName pat in
@@ -1714,23 +1714,21 @@ findBoundExpByPathedPatternId ((scopeEId, subScopeIndex), targetPath) exp =
     Nothing ->
       Nothing
 
--- Careful: The index provided is the one computed for run-time, it can differ from the one listed at display time.
 findDeclaration: (Int -> Declaration -> Bool) -> Declarations -> Maybe Declaration
 findDeclaration callback decls =
   getDeclarations decls
   |> Utils.zipWithIndex
   |> Utils.mapFirstSuccess (\(def, index) ->
-    if callback (index + 1) def then Just def else Nothing)
+    if callback index def then Just def else Nothing)
 
--- Careful: The index provided is the one computed for run-time, it can differ from the one listed at display time.
 nthDeclaration: Int -> Declarations -> Maybe Declaration
 nthDeclaration i decls =
-  findDeclaration (\index1 d -> index1 == i) decls |> Debug.log ("Declaration " ++ toString i)
+  findDeclaration (\index d -> index == i) decls |> Debug.log ("Declaration " ++ toString i)
 
 mapDeclarations: (Int -> Declaration -> Declaration) -> Declarations -> Declarations
 mapDeclarations callback decls =
   let (ds, dBuilder) = getDeclarationsExtractors decls in
-  ds |> List.indexedMap (\index def -> callback (index + 1) def) |> dBuilder
+  ds |> List.indexedMap (\index def -> callback index def) |> dBuilder
 
 findScopeExpAndPatByPathedPatternId : PathedPatternId -> Exp -> Maybe ((Exp, Int), Pat)
 findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
