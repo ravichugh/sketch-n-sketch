@@ -1651,35 +1651,31 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
 -- If things are selected "out of order", then the wrong bindings wind up getting deleted!
 inlineDefinitions : List (EId, BindingNumber) -> Exp -> Maybe (List Ident, Exp)
 inlineDefinitions selectedLetEIds originalProgram =
-  let mbLetExpAndE root eId bindingNum =
-    findExpByEId root eId |> Maybe.andThen (\e ->
-    findLetexpByBindingNumber e bindingNum |> Maybe.map (\letExp ->
-    (letExp, e)))
-  in
-  selectedLetEIds |>
-  List.map (\(eId, bn) ->
-    mbLetExpAndE originalProgram eId bn |> Maybe.andThen (
-    Tuple.first >> patOfLetExp >> pVarUnapply >> Maybe.map (
-    (,,) eId bn))
-  ) |>
-  Utils.projJusts |> Maybe.map (\replacementInfos ->
-   let replaceIdents origLetEId identToReplace origSubstExpEId substExp subRoot =
+  let
+    retainInfo e eId e__ = Expr <| replaceInfo (unExpr e) <| makeExp_ e__ eId
+
+    replaceIdents origLetEId identToReplace origSubstExpEId substExp subRoot =
       let
-         replace = replaceIdents origLetEId identToReplace origSubstExpEId substExp
-         map e__ = Expr <| replaceInfo (unExpr subRoot) <| makeExp_ e__ <| expEId subRoot
-         shadowsP pats = List.member identToReplace <| identifiersListInPats pats
-         shadowsI idents = List.member identToReplace idents
-         maybeReplaceLetExps shouldReplace letExps =
-           Utils.applyIf shouldReplace
-             (List.map (\(LetExp ocs wsb pat funArgStyle ws1 bound) ->
-               LetExp ocs wsb pat funArgStyle ws1 (replace bound)
-             ))
-             letExps
+        replace = replaceIdents origLetEId identToReplace origSubstExpEId substExp
+        subRootEId = expEId subRoot
+        map = retainInfo subRoot subRootEId
+        shadowsP pats = List.member identToReplace <| identifiersListInPats pats
+        shadowsI idents = List.member identToReplace idents
+        maybeReplaceLetExps shouldReplace letExps =
+          Utils.applyIf shouldReplace
+            (List.map (\(LetExp ocs wsb pat funArgStyle ws1 bound) ->
+              LetExp ocs wsb pat funArgStyle ws1 (replace bound)
+            ))
+            letExps
       in
       case unwrapExp subRoot of
         EVar wsb ident ->
           if ident == identToReplace then
             replacePrecedingWhitespace wsb.val substExp
+            -- substExp has had all its ids cleared, but we need to make sure that at the
+            -- top level it retains the same eId as the replaced var, in case it is the
+            -- bound exp of some other identifer that is yet to be replaced
+            |> setEId subRootEId
           else
             subRoot
         EFun wsb pats body ws1 ->
@@ -1727,32 +1723,19 @@ inlineDefinitions selectedLetEIds originalProgram =
                     dontReplaceNext =
                       not currentGroupContainsTarget &&
                       (dontReplaceCurrent || currentGroupShadows)
-                    newLetExps =
-                      letExps |>
-                      maybeReplaceLetExps shouldReplaceCurrent |>
-                      List.filter (\(LetExp _ _ _ _ _ e) ->
-                        expEId e /= origSubstExpEId
-                      )
+                    newLetExps = maybeReplaceLetExps shouldReplaceCurrent letExps
                   in
-                  ( if List.isEmpty newLetExps then
-                      resultReversed
-                    else
-                      (isRec, newLetExps) :: resultReversed
-                  , dontReplaceNext
-                  )
+                  ((isRec, newLetExps) :: resultReversed, dontReplaceNext)
                 )
                 -- Don't do replacement in the bound exps of the bindings that
                 -- are part of the same ELet as the target binding but which appear
                 -- before it.
-                ([], expEId subRoot == origLetEId)
+                ([], subRootEId == origLetEId)
               |> Tuple.mapFirst List.reverse
             newBody = Utils.applyIf (not dontReplaceBody) replace body
             newDecls = Declarations po lt la newGroupedExps
           in
-          if List.isEmpty newGroupedExps then
-            newBody
-          else
-            map <| ELet wsb letKind newDecls ws1 newBody
+          map <| ELet wsb letKind newDecls ws1 newBody
         EColonType wsb e ws1 typ ws2 ->
           map <| EColonType wsb (replace e) ws1 typ ws2
         EParens wsb e parensStyle ws1 ->
@@ -1774,25 +1757,90 @@ inlineDefinitions selectedLetEIds originalProgram =
         ESelect wsb e ws1 ws2 ident ->
           map <| ESelect wsb (replace e) ws1 ws2 ident
         _ -> subRoot -- For leaves, just return the leaf as is
-   in
-   ( List.map Utils.thd3 replacementInfos
-   , List.foldl
-        (\(subRootEId, bn, ident) root ->
-          case mbLetExpAndE root subRootEId bn of
-            Just (letExp, subRoot) ->
-              let
-                boundExp = bindingOfLetExp letExp
-                boundExpEId = expEId boundExp
-                subst = LeoParser.clearAllIds boundExp
-              in
-              replaceExpNode subRootEId (replaceIdents subRootEId ident boundExpEId subst subRoot) root
-              |> LeoParser.freshen
-            _ -> root -- This case should be impossible
-        )
-        originalProgram
-        replacementInfos
-    )
-  )
+
+    mbReplacementInfos =
+      selectedLetEIds |>
+      List.map (\(letEId, bn) ->
+        findExpByEId originalProgram letEId  |> Maybe.andThen (\let_ ->
+        findLetexpByBindingNumber let_ bn    |> Maybe.andThen (\letExp ->
+        bindingOfLetExp letExp |> expEId     |>               (\boundExpEId ->
+        letExp |> patOfLetExp |> pVarUnapply |> Maybe.map     (\ident ->
+        (letEId, boundExpEId, ident)))))
+      ) |>
+      Utils.projJusts
+
+    mbIdentsToReplace =
+      Maybe.map (List.map Utils.thd3) mbReplacementInfos
+
+    foldlReplacementInfos f mbRoot =
+      mbReplacementInfos |> Maybe.andThen (
+      mbRoot |>
+      List.foldl (\(letEId, boundExpEId, ident) -> Maybe.andThen (\root ->
+        f root ident letEId boundExpEId
+      )))
+
+    mbProgramAfterSubstitutions =
+      Just originalProgram |>
+      foldlReplacementInfos (\root ident letEId boundExpEId ->
+        findExpByEId root letEId       |> Maybe.andThen (\let_ ->
+        findExpByEId root boundExpEId  |> Maybe.map     (\boundExp ->
+        LeoParser.clearAllIds boundExp |>               (\subst ->
+        replaceExpNode
+          letEId
+          (replaceIdents letEId ident boundExpEId subst let_)
+          root
+        )))
+      )
+
+    mbProgramAfterBindingRemoval =
+      mbProgramAfterSubstitutions |>
+      foldlReplacementInfos (\root ident letEId boundExpEId ->
+        case findExpByEId root letEId of
+          Nothing ->
+            -- The let must have been inside a prior bound exp
+            -- that was deleted, so we can just move on
+            Just root
+          Just let_ ->
+            let mbNewLet =
+              case unwrapExp let_ of
+                ELet wsb lk decls ws1 body ->
+                  getDeclarations decls |>
+                  List.filter (\decl ->
+                    case decl of
+                      DeclExp letExp ->
+                        boundExpEId /= (expEId <| bindingOfLetExp letExp)
+                      _ ->
+                        True
+                  ) |> (\newDeclsUnordered ->
+                  if List.isEmpty newDeclsUnordered then
+                    Just <| replacePrecedingWhitespace wsb.val body
+                  else
+                    let
+                      mbNewDecls =
+                        LeoParser.reorderDeclarations newDeclsUnordered |>
+                        Result.toMaybe
+                    in
+                    mbNewDecls |>
+                    Maybe.map (\newDecls ->
+                    retainInfo let_ letEId
+                      <| ELet wsb lk newDecls ws1 body
+                    )
+                  )
+                _ ->
+                  Nothing
+            in
+            mbNewLet |> Maybe.map (\newLet ->
+            replaceExpNode letEId newLet root)
+      )
+
+    mbFinalProgram =
+      Maybe.map LeoParser.freshen mbProgramAfterBindingRemoval
+  in
+  case (mbIdentsToReplace, mbFinalProgram) of
+    (Just identsToReplace, Just finalProgram) ->
+      Just (identsToReplace, finalProgram)
+    _ ->
+      Nothing
 
 ------------------------------------------------------------------------------
 
