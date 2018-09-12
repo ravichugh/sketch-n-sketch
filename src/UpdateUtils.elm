@@ -1530,6 +1530,13 @@ defaultVDiffs original modified =
 
 defaultVDiffsRec: Bool -> (Val -> Val -> Results String (Maybe VDiffs)) -> Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffsRec testEquality recurse original modified =
+  {-(\result ->
+    case result of
+      Err msg -> result
+      Ok ll ->
+        let _ = Debug.log ("Number of diffs for " ++ valToString original ++ "\nvs.\n" ++ valToString modified) (ll |> LazyList.toList |> List.length) in
+        result
+  ) <|-}
   case (original.v_, modified.v_) of
     (VList originals, VList modifieds) ->
       defaultListDiffs valToString (\v -> getDatatypeName v |> Utils.maybeOrElseLazy (\() -> getViewDatatypeName v))

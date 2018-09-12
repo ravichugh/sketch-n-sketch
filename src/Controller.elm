@@ -99,7 +99,7 @@ import UpdateUtils
 import UpdateStack
 import EvalUpdate
 import Results exposing (Results)
-import LazyList
+import LazyList exposing (LazyList)
 import Utils
 import Keys
 import Model exposing (..)
@@ -168,6 +168,8 @@ import PageVisibility exposing (Visibility(..))
 import UpdatedEnv
 
 import Json.Decode as JSDecode
+
+import Lazy
 
 --------------------------------------------------------------------------------
 
@@ -1741,7 +1743,7 @@ msgKeyUp keyCode = Msg ("Key Up " ++ toString keyCode) <| \old ->
 
 --------------------------------------------------------------------------------
 
-cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, children}) =
+cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, children, nextLazy}) =
   SynthesisResult <|
     { description = description ++ " → Cleaned"
     , exp         = LangSimplify.cleanCode exp
@@ -1749,6 +1751,7 @@ cleanSynthesisResult (SynthesisResult {description, exp, isSafe, sortKey, childr
     , isSafe      = isSafe
     , sortKey     = sortKey
     , children    = children
+    , nextLazy    = nextLazy
     }
 
 cleanDedupSortSynthesisResults model synthesisResults =
@@ -2283,13 +2286,13 @@ doCallUpdate m =
   --let _ = Debug.log "I'll find the value" () in
   let updatedValResult =
     if htmlEditorNeedsCallUpdate m then
-      Result.fromMaybe "No new HTML updated value available" m.htmlEditorString |>
-        Result.andThen Update.buildUpdatedValueFromHtmlString
+       Result.fromMaybe "No new HTML updated value available" m.htmlEditorString |>
+         Result.andThen Update.buildUpdatedValueFromHtmlString
     else if domEditorNeedsCallUpdate m then
-      Result.fromMaybe "No new updated value available" m.updatedValue |> Result.andThen (\i -> i)
+       Result.fromMaybe "No new updated value available" m.updatedValue |> Result.andThen (\i -> i)
     else
-       m.valueEditorString
-         |> Update.buildUpdatedValueFromEditorString m.syntax
+        m.valueEditorString
+          |> Update.buildUpdatedValueFromEditorString m.syntax
   -- TODO updated value may be back to original, so may want to
   -- detect this and write a caption that says so.
   in
@@ -2306,7 +2309,7 @@ doCallUpdate m =
     -- isn't correctly re-running and replacing the dirty slate.
     -- here's a temporary workaround: add a second dummy option.
     let results_ =
-      results
+       results
 {-
        case results of
          [_] ->
@@ -2360,24 +2363,33 @@ doCallUpdate m =
         LazyList.Cons _ _ ->
           let filteredResults =
             solutionsNotModifyingEnv
-              |> LazyList.toList
-              |> (\x -> let _ = Debug.log "Finished to obtain the list of solutions" () in x)
-              |> List.filter (\(_,newCodeExp) -> not <| Utils.maybeIsEmpty newCodeExp.changes)
-              |> (\x -> let _ = Debug.log "Finished to filter the list of solutions" () in x)
-              |> Utils.mapi1 (\(i,(_,newCodeExp)) ->
+              --|> (\x -> let _ = Debug.log "Finished to obtain the list of solutions" () in x)
+              |> LazyList.filter (\(_,newCodeExp) -> not <| Utils.maybeIsEmpty newCodeExp.changes)
+              --|> (\x -> let _ = Debug.log "Finished to filter the list of solutions" () in x)
+              |> LazyList.map (\(_,newCodeExp) ->
                    --synthesisResult ("Program Update " ++ toString i) newCodeExp
                    --let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.diffExpWithPositions" <| \_ -> UpdateUtils.diffExpWithPositions m.inputExp newCodeExp in
                    let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.updatedExpToString" <| \_ -> UpdateStack.updatedExpToStringWithPositions m.inputExp newCodeExp in -- TODO: Incorporate positions.
-                   --synthesisResult diffResult newCodeExp.val
-                   synthesisResultDiffs (String.trim diffResult) newCodeExp.val diffs
+                   (String.trim diffResult, newCodeExp.val, diffs, newCodeExp.changes)
+                   --synthesisResult diffResult newCodeExp.val diffs
                  )
-              |> (\x -> let _ = Debug.log "Finished to diff the solutions" () in x)
+              --|> (\x -> let _ = Debug.log "Finished to diff the solutions" () in x)
           in
-          case filteredResults of
-            [] ->
+          let aux: LazyList (String, Exp, List Exp, Maybe EDiffs) -> Maybe EDiffs -> Maybe SynthesisResult
+              aux ll prevChanges = case ll of
+            LazyList.Nil -> Nothing
+            LazyList.Cons (diffResult, newCode, diffs, changes) lazyTail ->
+              if changes == prevChanges then -- remove duplicates
+                aux (Lazy.force lazyTail) prevChanges
+              else
+                Just <| synthesisResultDiffsLazy diffResult newCode diffs <| \_ ->
+                  aux (Lazy.force lazyTail) changes
+          in
+          case aux filteredResults Nothing of
+            Nothing ->
               showSolutions [revertChanges "Only Solution is Original Program"]
-            _ ->
-              showSolutions (filteredResults ++ [revertChanges "Revert to Original Program"])
+            Just synthesisResult ->
+              showSolutions ([synthesisResult, revertChanges "Revert to Original Program"])
 decodeStyles : JSDecode.Decoder Val
 decodeStyles =
   JSDecode.lazy <| \_ ->
@@ -2538,32 +2550,51 @@ doHoverSynthesisResult: String -> List Int -> Model -> Model
 doHoverSynthesisResult resultsKey pathByIndices old =
   let maybeFindResult path results =
     case path of
-      []    -> Nothing
-      [i]   -> Utils.maybeGeti0 i results
-      i::is -> Utils.maybeGeti0 i results |> Maybe.andThen (\(SynthesisResult {children}) -> children |> Maybe.andThen (maybeFindResult is))
+       []    -> Nothing
+       [i]   -> Utils.maybeGeti0 i results
+       i::is -> Utils.maybeGeti0 i results |> Maybe.andThen (\(SynthesisResult {children}) -> children |> Maybe.andThen (maybeFindResult is))
   in
   let setResultChildren path childResults oldResults =
     case path of
-      []    -> oldResults
-      [i]   -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just childResults})
-      i::is -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) -> SynthesisResult { attrs | children = Just (setResultChildren is childResults (attrs.children |> Maybe.withDefault []))})
+       []    -> oldResults
+       [i]   -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) ->
+         SynthesisResult { attrs | children = Just childResults})
+       i::is -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) ->
+         SynthesisResult { attrs | children = Just (setResultChildren is childResults (attrs.children |> Maybe.withDefault []))})
+  in
+  let insertResultSibling path newMbSynthesisResult oldResults =
+    case path of
+       [] -> oldResults
+       [i] -> Utils.zipWithIndex oldResults |> List.concatMap (\((SynthesisResult attrs), j) ->
+           if i == j then [SynthesisResult { attrs | nextLazy = Nothing}] ++ (newMbSynthesisResult |> Maybe.map (\x -> [x]) |> Maybe.withDefault [])
+           else [SynthesisResult attrs]
+         )
+       i::is -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) ->
+          SynthesisResult { attrs | children = Just (insertResultSibling is newMbSynthesisResult (attrs.children |> Maybe.withDefault []))})
   in
   let oldResults = Utils.getWithDefault resultsKey [] old.synthesisResultsDict in
   case maybeFindResult pathByIndices oldResults of
-    Just (SynthesisResult {description, exp, diffs, sortKey, children}) ->
-      let newModel = { old | hoveredSynthesisResultPathByIndices = pathByIndices } in
-      let newModel2 =
-        case (old.autoSynthesis, children) of
-          (_, Just _)  -> newModel -- Children already computed.
-          (False, _)   -> newModel -- Don't compute children if auto-synth off
-          _            ->
-            -- Compute child results.
-            let childResults = cleanDedupSortSynthesisResults newModel (ETransform.passiveSynthesisSearch newModel exp) in
-            let newTopLevelResults = Dict.insert resultsKey (setResultChildren pathByIndices childResults oldResults) old.synthesisResultsDict in
-            { newModel | synthesisResultsDict = newTopLevelResults
-                       , hoveredSynthesisResultPathByIndices = pathByIndices }
-      in
-      showExpPreview newModel2 exp diffs
+    Just (SynthesisResult {description, exp, diffs, sortKey, children, nextLazy}) ->
+      case nextLazy of
+        Just compute ->
+          let newMbSynthesisResult = compute () in
+          { old | synthesisResultsDict =
+              Dict.insert resultsKey
+                (insertResultSibling pathByIndices newMbSynthesisResult oldResults) old.synthesisResultsDict }
+        Nothing ->
+          let newModel = { old | hoveredSynthesisResultPathByIndices = pathByIndices } in
+          let newModel2 =
+            case (old.autoSynthesis, children) of
+               (_, Just _)  -> newModel -- Children already computed.
+               (False, _)   -> newModel -- Don't compute children if auto-synth off
+               _            ->
+                 -- Compute child results.
+                 let childResults = cleanDedupSortSynthesisResults newModel (ETransform.passiveSynthesisSearch newModel exp) in
+                 let newTopLevelResults = Dict.insert resultsKey (setResultChildren pathByIndices childResults oldResults) old.synthesisResultsDict in
+                 { newModel | synthesisResultsDict = newTopLevelResults
+                            , hoveredSynthesisResultPathByIndices = pathByIndices }
+          in
+          showExpPreview newModel2 exp diffs
 
     Nothing ->
       { old | preview = Nothing

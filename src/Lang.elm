@@ -586,6 +586,7 @@ type SynthesisResult =
                   , isSafe      : Bool -- Is this transformation considered "safe"?
                   , sortKey     : List Float -- For custom sorting criteria. Sorts ascending.
                   , children    : Maybe (List SynthesisResult) -- Nothing means not calculated yet.
+                  , nextLazy    : Maybe (() -> Maybe SynthesisResult) -- Nothing means not calculated yet When hovered, will try to compute siblings and add them lazily.
                   }
 
 synthesisResult description exp =
@@ -596,6 +597,7 @@ synthesisResult description exp =
     , isSafe      = True
     , sortKey     = []
     , children    = Nothing
+    , nextLazy    = Nothing
     }
 
 

@@ -299,6 +299,7 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
               , diffs       = []
               , sortKey     = [distanceScore]
               , children    = Nothing
+              , nextLazy    = Nothing
               }
           )
 
@@ -382,6 +383,7 @@ rankComparedTo originalExp synthesisResults =
           , diffs       = []
           , sortKey     = [removedLocDistance] ++ (locLineNums |> List.map negate |> List.reverse)
           , children    = Nothing
+          , nextLazy    = Nothing
           }
       )
 

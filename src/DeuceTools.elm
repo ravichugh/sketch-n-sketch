@@ -542,6 +542,10 @@ makeEqualTool model selections =
           ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (ExpTargetPosition expTarget)) |> mbThunkToTransform
           , Satisfied
           )
+        (_, _, eids, [], [], [], [declTarget], [], []) ->
+          ( CodeMotion.makeEqualTransformation model.inputExp eids (Just (DeclarationTargetPosition declTarget)) |> mbThunkToTransform
+          , Satisfied
+          )
         _ ->
           (InactiveDeuceTransform, Impossible)
   in
@@ -2695,10 +2699,9 @@ toolList =
     , swapNamesAndUsagesTool
     , swapUsagesTool
     ]
-  , [ makeEqualTool
-    , copyExpressionTool
+-}  , [ makeEqualTool
+    --, copyExpressionTool
     ]
-    -}
   , [ moveDefinitionTool
     --, swapDefinitionsTool
     , inlineDefinitionTool

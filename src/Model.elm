@@ -433,6 +433,17 @@ synthesisResultDiffs description exp diffs =
       , isSafe      = True
       , sortKey     = []
       , children    = Nothing
+      , nextLazy    = Nothing
+      }
+synthesisResultDiffsLazy description exp diffs sibling =
+  SynthesisResult <|
+      { description = description
+      , exp         = exp
+      , diffs       = diffs
+      , isSafe      = True
+      , sortKey     = []
+      , children    = Nothing
+      , nextLazy    = Just sibling
       }
 
 synthesisResultsNotEmpty : Model -> String -> Bool

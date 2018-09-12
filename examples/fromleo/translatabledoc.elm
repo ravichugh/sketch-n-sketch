@@ -49,7 +49,7 @@ translations =
     ,("translation3", "Enlever le papier bourré, fermer le couvercle")])
   ]
 
-languages = ["English", "French"]
+languages = List.map Tuple.first translations
 languageIndex = 0
 language = nth languages languageIndex
 highlighttranslations = True
@@ -119,7 +119,7 @@ main =
             r.deleteContents();
             r.insertNode(document.createTextNode("{" + t + "}"))"""
           contenteditable="false">Translatable</button>
-        <br>
+        <br><hr>
         @(content
           |> translate {highlighttranslations = highlighttranslations} language translations
           |> Html.parse)
