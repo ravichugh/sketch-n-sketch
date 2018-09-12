@@ -3039,6 +3039,28 @@ msgAskImportCode = requireSaveAsker msgImportCode
 --------------------------------------------------------------------------------
 -- Deuce Interactions
 
+chooseDeuceExp : Model -> Exp -> Model
+chooseDeuceExp m exp =
+  let
+    modifiedHistory =
+      modelModify m.code m.deuceState.selectedWidgets m.deuceState.mbKeyboardFocusedWidget m.history
+    modelWithCorrectHistory =
+      case modifiedHistory of
+        Just h ->
+          { m | history = h }
+
+        Nothing ->
+          m
+  in
+    -- TODO version of tryRun/upstateRun starting with parsed expression
+    upstateRun ( { modelWithCorrectHistory | code = Syntax.unparser m.syntax exp })
+
+maybeChooseDeuceExp : Model -> Maybe Exp -> Model
+maybeChooseDeuceExp m mbExp =
+  case mbExp of
+    Nothing  -> m
+    Just exp -> chooseDeuceExp m exp
+
 resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
   { m | deuceState = emptyDeuceState
@@ -3155,19 +3177,7 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
     { old | deuceState = newDeuceState }
 
 msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
-  let
-    modifiedHistory =
-      modelModify m.code m.deuceState.selectedWidgets m.deuceState.mbKeyboardFocusedWidget m.history
-    modelWithCorrectHistory =
-      case modifiedHistory of
-        Just h ->
-          { m | history = h }
-
-        Nothing ->
-          m
-  in
-    -- TODO version of tryRun/upstateRun starting with parsed expression
-    upstateRun ( { modelWithCorrectHistory | code = Syntax.unparser m.syntax exp })
+  chooseDeuceExp m exp
 
 --------------------------------------------------------------------------------
 -- Deuce Keyboard Interactions
@@ -3199,12 +3209,19 @@ handleDeuceMoveHorizontal_ old selected isLeftMove =
 
 handleDeuceHotKey : Model -> Char.KeyCode -> DeuceWidget -> Model
 handleDeuceHotKey old keyCode selected =
+
+  -- Movement
   if List.member keyCode [Keys.keyLeft, Keys.keyH] then
     handleDeuceLeft old selected
   else if List.member keyCode [Keys.keyRight, Keys.keyL] then
     handleDeuceRight old selected
   else if keyCode == Keys.keySpace then
     handleDeuceSpace old selected
+
+  -- Deuce tools
+  else if keyCode == Keys.keyS then
+    DeuceTools.renameVariableViaHotkey old selected |> maybeChooseDeuceExp old
+
   else
     old
 

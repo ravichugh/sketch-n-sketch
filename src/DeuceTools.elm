@@ -9,6 +9,8 @@ module DeuceTools exposing
   , reselectDeuceTool
   , updateInputSensitiveToolsInCache
   , isActive
+  -- Hotkey exposure
+  , renameVariableViaHotkey
   )
 
 import String
@@ -662,6 +664,9 @@ renameVariableTool model selections =
         ]
     , id = "renameVariable"
     }
+
+renameVariableViaHotkey : Model -> DeuceWidget -> Maybe Exp
+renameVariableViaHotkey = runToolViaHotkey renameVariableTool
 
 --------------------------------------------------------------------------------
 -- Swap Names and Usages
@@ -2961,6 +2966,38 @@ mbThunkToTransform mbThunk =
   case mbThunk of
     Nothing -> InactiveDeuceTransform
     Just thunk -> NoInputDeuceTransform thunk
+
+runToolViaHotkey : (Model -> Selections -> DeuceTool) -> Model -> DeuceWidget -> Maybe Exp
+runToolViaHotkey toolBuilder old selectedWidget =
+  let
+    deuceTool = toolBuilder old <| selectionsTuple old.inputExp [selectedWidget]
+    run thunk =
+      case ImpureGoodies.crashToError thunk of
+        Ok [SynthesisResult singleResult] ->
+          Just singleResult.exp
+        Ok results ->
+          let _ =
+            Debug.log <| "Deuce Tool Via Hotkey too many results: " ++ toString results
+          in
+          Nothing
+        Err errMsg ->
+          let _ =
+            Debug.log ("Deuce Tool Via Hotkey Crash '" ++ deuceTool.name ++ "'") (toString errMsg)
+          in
+          Nothing
+  in
+  case deuceTool.func of
+    InactiveDeuceTransform ->
+      Nothing
+    NoInputDeuceTransform thunk ->
+      run thunk
+    RenameDeuceTransform renameVarTextToResults ->
+      -- TODO enable hotkeys that require input
+      -- TODO run <| \() -> renameVarTextToResults deuceState.renameVarText
+      Nothing
+    SmartCompleteDeuceTransform smartCompleteTextToResults ->
+      -- TODO run <| \() -> smartCompleteTextToResults deuceState.smartCompleteText
+      Nothing
 
 -- Run a tool: get results back if it is active, otherwise no results
 runTool : DeuceTool -> DeuceState -> CachedDeuceTool
