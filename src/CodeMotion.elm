@@ -1685,31 +1685,6 @@ inlineDefinitions selectedLetEIds originalProgram =
           in
           map <| ECase wsb (replace scrutinee) newBranches ws1
         ELet wsb letKind (Declarations po lt la groupedExps) ws1 body ->
-            {- TODO
-            (unaffectedGroupedExps, affectedGroupedExps) =
-              if expEId subRoot == origLetEId then
-                let
-                  orderedDecls = getDeclarationsInOrder decls
-                  (beforeTarget, includingAndAfterTarget) =
-                    Utils.split origLetBindingNum orderedDecls
-                  target = List.take 1 includingAndAfterTarget
-                in
-                (beforeTarget ++ target, List.drop 1 includingAndAfterTarget)
-                |> Utils.mapBoth (List.filter (\decl ->
-                  case decl of
-                    DeclExp _ -> True
-                    _ -> False
-                ))
-              else
-                ([], groupedExps)
-            newGroupedExps =
-              unaffectedGroupedExps ++
-              (affectedGroupedExps |>
-              List.foldl (\(isRec, letExps) (newGroupedExpsReversed, patAcc) ->
-              -- TODO current
-              )
-              |> Tuple.first |> List.reverse)
-            -}
           let
             (newGroupedExps, dontReplaceBody) =
               groupedExps |>
