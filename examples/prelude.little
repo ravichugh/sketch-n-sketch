@@ -1648,72 +1648,13 @@
   (let vec (vec2DMinus pt2 pt1)
   (vec2DPlus pt1 (vec2DScalarMult ratio vec)))))
 
-; === Basic Replicate ===
+; Point on perpendicular line, at `ratio` location.
+(typ onPerpendicularLine (-> Point Point Ratio Point))
+(def onPerpendicularLine (\(centerOfRotation pt ratio)
+  (let [dx dy] (vec2DMinus pt centerOfRotation)
+  (vec2DPlus centerOfRotation (vec2DScalarMult ratio [dy (- 0 dx)])))))
 
-(def horizontalArray (\(n sep func [x y])
-  (let _ ; draw point widget to control anchor
-    ([x y] : Point)
-  (let draw_i (\i
-    (let xi (+ x (* i sep))
-    (func [xi y])))
-  (concat (map draw_i (zeroTo n)))
-))))
 
-(def linearArrayFromTo (\(n func [xStart yStart] [xEnd yEnd])
-  (let xsep (/ (- xEnd xStart) (- n 1))
-  (let ysep (/ (- yEnd yStart) (- n 1))
-  (let draw_i (\i
-    (let xi (+ xStart (* i xsep))
-    (let yi (+ yStart (* i ysep))
-    (func [xi yi]))))
-  (concat (map draw_i (zeroTo n)))
-)))))
-
-; To reduce size of resulting trace,
-; could subtract up to M>1 at a time.
-;
-(defrec floorAndLocalFreeze (\n
-  (if (le n 1) 0
-  ;else
-    (+ 1 (floorAndLocalFreeze (- n 1))))))
-
-  ; (let _ ; draw point widget to control anchor
-  ;   ([cx cy] : Point)
-(def radialArray (\(n radius rot func [cx cy])
-  (let center ; draw ghost circle to control anchor
-              ; not using point widget, since it's not selectable
-    (ghost (circle 'orange' cx cy 20))
-  (let _ ; draw point widget to control radius
-    (let xWidget (floorAndLocalFreeze cx)
-    (let yWidget (- (floorAndLocalFreeze cy) radius)
-      ([xWidget yWidget] : Point)))
-  (let endpoints (nPointsOnCircle n rot cx cy radius)
-  (let bounds
-    [(- cx radius) (- cy radius) (+ cx radius) (+ cy radius)]
-  [(group bounds (cons center (concat (map func endpoints))))]
-))))))
-
-(def offsetAnchor (\(dx dy f)
-  (\[x y] (f [(+ x dx) (+ y dy)]))
-))
-
-(def horizontalArrayByBounds (\(n sep func [left_0 top right_0 bot])
-  (let w_i     (- right_0 left_0)
-  (let left_i  (\i (+ left_0 (* i (+ w_i sep))))
-  (let right_i (\i (+ (left_i i) w_i))
-  (let draw_i  (\i (func [(left_i i) top (right_i i) bot]))
-  (let bounds  [left_0 top (right_i (- n 1)) bot]
-    [(groupWithPad 30 bounds (concat (map draw_i (zeroTo n))))]
-)))))))
-
-(def repeatInsideBounds (\(n sep func bounds@[left top right bot])
-  (let w_i (/ (- (- right left) (* sep (- n 1))) n)
-  (let draw_i (\i
-    (let left_i (+ left (* i (+ w_i sep)))
-    (let right_i (+ left_i w_i)
-    (func [left_i top right_i bot]))))
-  [(groupWithPad 30 bounds (concat (map draw_i (zeroTo n))))]
-))))
 
 
 (typ draw (-> (List SVG) SVG))
