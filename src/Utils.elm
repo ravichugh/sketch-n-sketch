@@ -1030,6 +1030,10 @@ foldLeft: b -> List a -> (b -> a -> b) -> b
 foldLeft acc list fold =
   List.foldl (Basics.flip fold) acc list
 
+foldRight: List a -> b -> (a -> b -> b) -> b
+foldRight list acc fold =
+  List.foldl fold acc (List.reverse list)
+
 foldLeftWithIndex: b -> List a -> (b -> Int -> a -> b) -> b
 foldLeftWithIndex acc list fold =
   List.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first

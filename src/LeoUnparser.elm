@@ -110,36 +110,24 @@ tryUnparseTuple
   -> WS -> List (Maybe WS, WS, String, WS, t) -> WS
   -> Maybe String
 tryUnparseTuple unparseTerm wsBefore keyValues wsBeforeEnd =
-  if recordEntriesToCtorKind keyValues == Just TupleCtor
-  then
-    let
-      inside =
-          keyValues
-          |> List.filter
-               ( \(_, _, elName, _, _) ->
-                   String.startsWith "_" elName
-               )
-          |> List.sortBy
-               ( \(_, _, elName, _, _) ->
-                   elName
-                     |> String.dropLeft 1
-                     |> String.toInt
-                     |> Result.withDefault -1
-               )
-          |> Utils.mapHead (\(spc, spn, n, f, e) -> (Nothing, spn, n, f, e))
-          |> List.map
-               (\(wsBeforeComma, wsBeforeName, _, _, elBinding) ->
-                 (wsBeforeComma |> Maybe.map .val |> Maybe.withDefault "") ++ wsBeforeName.val ++ unparseTerm elBinding
-               )
-          |> String.join ","
-    in
-      Just <|
-        wsBefore.val
-          ++ "("
-          ++ inside
-          ++ wsBeforeEnd.val
-          ++ ")"
-  else Nothing
+  case tupleEncodingUnapply keyValues of
+    Nothing -> Nothing
+    Just insideValues ->
+      let
+        inside =
+            insideValues
+            |> List.map
+                 (\(wsBeforeComma, elBinding) ->
+                   (wsBeforeComma |> Maybe.map (\spc -> spc.val ++ ",") |> Maybe.withDefault "") ++ unparseTerm elBinding
+                 )
+            |> String.join ""
+      in
+        Just <|
+          wsBefore.val
+            ++ "("
+            ++ inside
+            ++ wsBeforeEnd.val
+            ++ ")"
 
 getKeyValuesFromDecls: Declarations -> Maybe (List (String, Exp))
 getKeyValuesFromDecls (Declarations po _ _ letexpsGroups) =

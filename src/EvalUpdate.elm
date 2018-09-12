@@ -784,12 +784,12 @@ visibleIdentifiersAtEIds program eids =
   Set.union programIdents preludeIdentifiers
 
 
-visibleIdentifiersAtEIdBindingNum: Exp -> (EId, BindingNumber) -> List Ident
-visibleIdentifiersAtEIdBindingNum  program (eid, bn) =
-  visibleIdentifiersAtEIdBindingNumNoPrelude program (eid, bn) ++ preludeIdentifiersList
+visibleIdentifiersAtEIdBindingNum: Exp -> (InsertionMethod, (EId, BindingNumber)) -> List Ident
+visibleIdentifiersAtEIdBindingNum  program insertionPosition =
+  visibleIdentifiersAtEIdBindingNumNoPrelude program insertionPosition ++ preludeIdentifiersList
 
-visibleIdentifiersAtEIdBindingNumNoPrelude: Exp -> (EId, BindingNumber) -> List Ident
-visibleIdentifiersAtEIdBindingNumNoPrelude  program (eid, bn) =
+visibleIdentifiersAtEIdBindingNumNoPrelude: Exp -> (InsertionMethod, (EId, BindingNumber)) -> List Ident
+visibleIdentifiersAtEIdBindingNumNoPrelude  program (insertionMethod, (eid, bn)) =
   let f: (Exp -> List Ident -> List Ident -> List Ident)
        -> (Exp -> IsRec -> List LetExp -> BindingNumber -> List Ident -> List Ident -> (List Ident, List Ident))
        -> (Exp -> List Ident -> List Ident)
@@ -807,7 +807,7 @@ visibleIdentifiersAtEIdBindingNumNoPrelude  program (eid, bn) =
       let newGlobalIdents: List Ident
           newGlobalIdents =
             if expEId exp == eid && bindingNumber == bn then
-               if isRec then newScope else currentScope
+               if insertionMethod == InsertDeclarationLevel After then newScope else currentScope
             else globalIdents
       in (newGlobalIdents, newScope)
     )

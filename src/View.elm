@@ -1344,6 +1344,9 @@ codePanel model =
         future =
           History.next model.history
         attributes =
+          if not <| List.member Keys.keyShift model.keysDown then
+            []
+          else
           case future of
             Just snapshot ->
               [ E.onMouseEnter <| Controller.msgPreview (Right snapshot.code)

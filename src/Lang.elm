@@ -735,6 +735,10 @@ type alias PathedPatternId = (ScopeId, List Int)
 
 type BeforeAfter = Before | After
 
+type InsertionMethod =
+    InsertDeclarationLevel BeforeAfter
+  | InsertPatternLevel BeforeAfter (List Int {-path to pattern-})
+
 type alias PatTargetPosition = (BeforeAfter, PathedPatternId, PId)
 
 type alias ExpTargetPosition = (BeforeAfter, EId)
@@ -2294,6 +2298,17 @@ eRecord__ wsBefore mbInit keyValues wsBeforeEnd =
     (List.map (\(mbComma, spBefore,key,spEq,value) ->
       (isBodyPossiblyRecursive value, [LetExp mbComma spBefore (pVar key) FunArgAsPats spEq value])) keyValues)) wsBeforeEnd
 
+eRecord__Unapply e__ = case e__ of
+  ERecord wsBefore mbInit (Declarations po [] [] letexps) wsBeforeEnd ->
+    letexps |> List.map (\(isRec, group) -> case group of
+          [LetExp mbComma spBefore p FunArgAsPats spEq value] ->
+            case pVarUnapply p of
+              Just key -> Just (mbComma, spBefore, key, spEq, value)
+              Nothing -> Nothing
+          _ -> Nothing
+      ) |> Utils.projJusts |> Maybe.map (\x -> (wsBefore, x, wsBeforeEnd))
+  _ -> Nothing
+
 eTypeAlias__ ws1 pat t rest wsEnd =
     ELet newline1 Def (Declarations [0]
       ([(False, [LetType Nothing ws1 (Just space1) pat FunArgAsPats space1 t])]) [] []) space1 rest
@@ -2311,8 +2326,6 @@ eConstDummyLoc a  = withDummyExpInfo <| EConst space1 a dummyLoc noWidgetDecl
 eList0 a b        = withDummyExpInfo <| EList space0 (List.map ((,) space0) a) space0 b space0
 eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) space0 b space0
 eListWs a b       = withDummyExpInfo <| EList space1 a space0 b space0
-eTuple0 a         = eList0 a Nothing
-eTuple a          = eList a Nothing
 eSnapHoleVal0 v   = withDummyExpInfo <| EHole space0 (ESnapHole v)
 eSnapHoleVal v    = withDummyExpInfo <| EHole space1 (ESnapHole v)
 eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 EEmptyHole
@@ -2327,6 +2340,84 @@ pWildcard ps   = withDummyPatInfo <| PWildcard space0
 pList0 ps      = withDummyPatInfo <| PList space0 ps space0 Nothing space0
 pList ps       = withDummyPatInfo <| PList space1 ps space0 Nothing space0
 pAs x p        = withDummyPatInfo <| PAs space0 p space1 (withDummyPatInfo <| PVar space1 x noWidgetDecl)
+
+pTuple: WS -> List (Maybe WS, Pat) -> WS -> Pat
+pTuple spBeforeOpenParen keyValues spBeforeCloseParen =
+  withDummyPatInfo <| pTuple__ spBeforeOpenParen keyValues spBeforeCloseParen
+
+tupleEncodingApply: (String -> t) -> List (Maybe WS, t) -> List (Maybe WS, WS, Ident, WS, t)
+tupleEncodingApply ctorEncoding values =
+  ((ctorVal
+    ((,) Nothing << ctorEncoding)
+    TupleCtor (ctorTupleName (List.length values))
+  )::(Utils.indexedMapFrom 1 numericalValEntry values)) |>
+      List.map (\(key, (space, pat)) ->
+        (space, space0, key, space0, pat)
+      )
+
+pTuple__: WS -> List (Maybe WS, Pat) -> WS -> Pat__
+pTuple__ spBeforeOpenParen keyValues spBeforeCloseParen =
+  case keyValues of
+    [(spHead, head)] -> PParens spBeforeOpenParen head spBeforeCloseParen
+    _ ->
+      let patternList = tupleEncodingApply (withDummyPatInfo << PBase space0 << EString "\"") keyValues in
+      PRecord spBeforeOpenParen patternList  spBeforeCloseParen
+
+tupleEncodingUnapply: List (Maybe WS, WS, Ident, WS, t) -> Maybe (List (Maybe WS, t))
+tupleEncodingUnapply keyValues =
+  if recordEntriesToCtorKind keyValues == Just TupleCtor then
+    keyValues
+    |> List.filter
+         ( \(_, _, elName, _, _) ->
+             String.startsWith "_" elName
+         )
+    |> List.sortBy
+         ( \(_, _, elName, _, _) ->
+             elName
+               |> String.dropLeft 1
+               |> String.toInt
+               |> Result.withDefault -1
+         )
+    |> List.map (\(spc, spn, n, spe, e) -> (spc, e))
+    |> Utils.mapHead (\(spc, e) -> (Nothing, e))
+    |> Just
+  else Nothing
+
+pTupleUnapply: Pat -> Maybe (WS, List (Maybe WS, Pat), WS)
+pTupleUnapply pat =
+  case pat.val.p__ of
+    PParens spBeforeOpenParen head spBeforeCloseParen -> Just (spBeforeOpenParen, [(Nothing, head)], spBeforeCloseParen)
+    PRecord spBeforeOpenParen keyValues spBeforeCloseParen ->
+      case tupleEncodingUnapply keyValues of
+        Nothing -> Nothing
+        Just values -> Just (spBeforeOpenParen, values, spBeforeCloseParen)
+    _ -> Nothing
+
+eTuple0 a         = withDummyExpInfo <| eTuple__ space0 (
+  List.indexedMap (\i x -> (if i == 0 then Nothing else Just space0, x)) a) space0
+eTuple a          = withDummyExpInfo <| eTuple__ space1 (
+  List.indexedMap (\i x -> (if i == 0 then Nothing else Just space0, x)) a) space0
+
+eTuple__: WS -> List (Maybe WS, Exp) -> WS -> Exp__
+eTuple__ spBeforeOpenParen keyValues spBeforeCloseParen =
+  case keyValues of
+    [(spHead, head)] -> EParens spBeforeOpenParen head Parens spBeforeCloseParen
+    _ ->
+      let elemList = tupleEncodingApply (withDummyExpInfo << EBase space0 << EString "\"") keyValues in
+      eRecord__ spBeforeOpenParen Nothing elemList  spBeforeCloseParen
+
+eTupleUnapply: Exp -> Maybe (WS, List (Maybe WS, Exp), WS)
+eTupleUnapply e =
+ case unwrapExp e of
+    EParens spBeforeOpenParen head Parens spBeforeCloseParen -> Just (spBeforeOpenParen, [(Nothing, head)], spBeforeCloseParen)
+    (ERecord _ Nothing _ _)  as e__->
+      case eRecord__Unapply e__ of
+        Just (spBeforeOpenParen, keyValues, spBeforeCloseParens) ->
+          case tupleEncodingUnapply keyValues of
+            Just values -> Just (spBeforeOpenParen, values, spBeforeCloseParens)
+            Nothing -> Nothing
+        Nothing ->  Nothing
+    _ -> Nothing
 
 pListOfPVars names = pList (listOfPVars names)
 

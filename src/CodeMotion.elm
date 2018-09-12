@@ -1182,7 +1182,9 @@ insertNewLetFromPlucked eidToWrap pluckedPatAndBoundExpAndIsRecs programToModify
 -- Returns (newProgram, letEId)
 insertPluckedIntoPat : PathedPatternId -> List PatBoundExpIsRec -> Exp -> (Exp, EId)
 insertPluckedIntoPat targetPathedPatId pluckedPatAndBoundExpAndIsRecs program =
-  let ((targetLetEId, _), targetPath) = targetPathedPatId in
+  let _ = Debug.log "insertPluckedIntoPat not supporting the new ELets" () in
+  (program, 0)
+  {-let ((targetLetEId, _), targetPath) = targetPathedPatId in
   let newProgram =
     program
     |> mapExpNode
@@ -1192,12 +1194,12 @@ insertPluckedIntoPat targetPathedPatId pluckedPatAndBoundExpAndIsRecs program =
           |> List.foldr
               (\(pluckedPat, pluckedBoundExp, isRec) newScopeExp ->
                 -- If moving a recursive definition to a non-recursive let, safety check should warn.
-                insertPat_ (pluckedPat, pluckedBoundExp) targetPath newScopeExp
+                insertPat_ (pluckedPat, pluckedBoundExp) targetPath newScopeExp |> Result.withDefault newScopeExp
               )
               newScopeExp
         )
   in
-  (newProgram, targetLetEId)
+  (newProgram, targetLetEId)-}
 
 
 -- Moving a definition is safe if all identifiers resolve to the same bindings.
@@ -1346,63 +1348,71 @@ duplicateDefinitionsPat syntax sourcePathedPatIds targetPathedPatId originalProg
 
 
 -- You should only insert non-rec bindings.
-insertPat_ : (Pat, Exp) ->         List Int -> Exp -> Exp
-insertPat_ (patToInsert, boundExp) targetPath  exp =
-  case unwrapExp exp of
-    ELet ws1 letKind decls ws3 e2 ->
-      let _ = Debug.log "TODO: CodeMotion.insertPat_ should take into account the new ELet's declarations" () in
-      exp
-    {-ELet ws1 letKind rec p ws2 e1 ws3 e2 ws4 ->
-      case insertPat__ (patToInsert, boundExp) p e1 targetPath of
-        Just (newPat, newBoundExp) ->
-          replaceE__ exp (ELet ws1 letKind rec newPat ws2 newBoundExp ws3 e2 ws4)
+insertPat_ : (Pat, Exp) ->         List Int -> LetExp -> Result String LetExp
+insertPat_ (patToInsert, boundExp) targetPath  (LetExp  spc spp p fs spe e1 as letexp) =
+   insertPat__ (patToInsert, boundExp) p e1 targetPath
+   |> Result.map (\(newPat, newBoundExp) ->
+     LetExp spc spp newPat fs spe newBoundExp
+   )
 
-        Nothing ->
-          let _ = Debug.log "insertPat_: pattern, path " (p.val.p__, targetPath) in
-          exp
-    -}
-    _ ->
-      let _ = Debug.log "insertPat_: not ELet" (unwrapExp exp) in
-      exp
+toTupleList: List a -> List (Maybe WS, a)
+toTupleList l = List.indexedMap (\i a -> (if i == 0 then Nothing else Just space0, a)) l
+
+fixTupleList: ((String -> String) -> a -> a) -> List (Maybe WS, a) -> List (Maybe WS, a)
+fixTupleList mapPrecedingWhitespace l = List.indexedMap
+  (\i (mbc, a) -> (
+    if i == 0 then Nothing else
+    if mbc == Nothing && i > 0 then
+    Just space0 else mbc, mapPrecedingWhitespace (\s ->
+      if i == 0 && newlineCount s == 0 then ""
+      else if i > 0 && s == "" then " "
+      else s) a)) l
+
+insertInTuple mapPrecedingWhitespace i toInsert values =
+  ((Utils.inserti i (if i == 1 then (Nothing, toInsert) else (Just space0, toInsert)) values) |> fixTupleList mapPrecedingWhitespace)
 
 
-insertPat__ : (Pat, Exp) -> Pat -> Exp -> List Int -> Maybe (Pat, Exp)
+insertPat__ : (Pat, Exp) -> Pat -> Exp -> List Int -> Result String (Pat, Exp)
 insertPat__ (patToInsert, boundExp) p e1 path =
-  let maybeNewP_E__Pair =
-    case (p.val.p__, (unwrapExp e1), path) of
-      (PVar pws1 _ _, _, [i]) ->
-        Just ( PList pws1                            (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") space0 Nothing space0
-             , EList (ws <| precedingWhitespace e1)  (List.map ((,) space0) (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ")) space0 Nothing space0 )
+  let
+    maybeNewP_E__Pair =
+     case (p.val.p__, (unwrapExp e1), path) of
+      (PVar pws1 _ _, _, path) ->
+        let i = List.head path |> Maybe.withDefault 2 in
+        Ok ( pTuple__ pws1                            (insertInTuple mapPrecedingWhitespacePat i patToInsert [(Nothing, p)]) space0
+           , eTuple__ (ws <| precedingWhitespace e1)  (insertInTuple mapPrecedingWhitespace i boundExp [(Nothing, e1)]) space0 )
 
-      (PAs pws1 _ _ _, _, [i]) ->
-        Just ( PList pws1                            (Utils.inserti i patToInsert [p] |> setPatListWhitespace "" " ") space0 Nothing space0
-             , EList (ws <| precedingWhitespace e1)  (List.map ((,) space0) (Utils.inserti i boundExp [e1]   |> setExpListWhitespace "" " ")) space0 Nothing space0 )
+      (PAs pws1 p1 spAs p2, _, 1::is) ->
+        insertPat__ (patToInsert, boundExp) p1 e1 is
+        |> Result.map (\(newP1, newE1) ->
+          (PAs pws1 newP1 spAs p2, unwrapExp newE1)
+        )
 
-      (PAs pws1 _ _ _, _, i::is) ->
-        -- TODO: allow but mark unsafe if as-pattern is used
-        let _ = Debug.log "can't insert into as-pattern yet (unsafe)" () in
-        Nothing
+      (PAs pws1 p1 spAs p2, _, _::is) -> -- should be 2
+        insertPat__ (patToInsert, boundExp) p2 e1 is
+        |> Result.map (\(newP2, newE1) ->
+           (PAs pws1 p1 spAs (newP2), unwrapExp newE1)
+        )
 
       ( PList pws1 ps pws2 maybePTail pws3
-      , EList ews1 es ews2 maybeETail ews3
-      , [i]
-      ) ->
+       , EList ews1 es ews2 maybeETail ews3
+       , [i]
+       ) ->
         if List.length ps + 1 >= i && List.length es + 1 >= i then
-          Just ( PList pws1 (Utils.inserti i patToInsert ps |> imitatePatListWhitespace ps) pws2 Nothing pws3
+          Ok ( PList pws1 (Utils.inserti i patToInsert ps |> imitatePatListWhitespace ps) pws2 Nothing pws3
                , EList ews1 (List.map ((,) space0) (Utils.inserti i boundExp (Utils.listValues es)    |> imitateExpListWhitespace (Utils.listValues es))) ews2 Nothing ews3 )
                -- TODO whitespace before commas
         else
-          let _ = Debug.log "can't insert into this list (note: cannot insert on list tail)" (Syntax.patternUnparser Syntax.Leo p, Syntax.unparser Syntax.Leo e1, path) in
-          Nothing
+          Err "can't insert into this list (note: cannot insert on list tail)" -- (Syntax.patternUnparser Syntax.Leo p, Syntax.unparser Syntax.Leo e1, path) in
 
       ( PList pws1 ps pws2 maybePTail pws3
-      , EList ews1 es ews2 maybeETail ews3
-      , i::is
-      ) ->
+       , EList ews1 es ews2 maybeETail ews3
+       , i::is
+       ) ->
         if List.length ps >= i && List.length es >= i then
           let (pi, ei) = (Utils.geti i ps, Utils.geti i (Utils.listValues es)) in
           insertPat__ (patToInsert, boundExp) pi ei is
-          |> Maybe.map
+          |> Result.map
               (\(newPat, newBoundExp) ->
                 let (newPs, newEs) =
                   ( Utils.replacei i newPat ps      |> imitatePatListWhitespace ps
@@ -1419,25 +1429,26 @@ insertPat__ (patToInsert, boundExp) p e1 path =
           let pi = Utils.fromJust_ "CodeMotion3" maybePTail in
           let ei = Utils.fromJust_ "CodeMotion4" maybeETail in
           insertPat__ (patToInsert, boundExp) pi ei is
-          |> Maybe.map
+          |> Result.map
               (\(newPat, newBoundExp) ->
                 (PList pws1 ps pws2 (Just newPat) pws3,
                  EList ews1 es ews2 (Just newBoundExp) ews3)
               )
         else
-          let _ = Debug.log "can't insert into this list (note: cannot insert on list tail)" (Syntax.patternUnparser Syntax.Leo p, Syntax.unparser Syntax.Leo e1, path) in
-          Nothing
+          Err "can't insert into this list (note: cannot insert on list tail)" -- (Syntax.patternUnparser Syntax.Leo p, Syntax.unparser Syntax.Leo e1, path) in
 
-      _ ->
-        let _ = Debug.log "insertPat__: pattern, path " (p.val.p__, path) in
-        Nothing
+      (p__, e__, path) ->
+        case (pTupleUnapply p, eTupleUnapply e1, path) of
+          (Nothing, _, _) -> Err <| "Can't insert into this pattern, only into lists, tuples or next to variables. Path =" ++ toString path
+          (_, Nothing, _) -> Err <| "Can't insert into this tuple pattern, the right-hand side is not a tuple. Path =" ++ toString path
+          (Just (pBefore, values, pAfter), Just (eBefore, eValues, eAfter), path) ->
+            let iTuple = (List.head path |> Maybe.withDefault (List.length values + 1)) in
+            Ok ( pTuple__ pBefore (insertInTuple mapPrecedingWhitespacePat iTuple patToInsert values) pAfter
+               , eTuple__ eBefore (insertInTuple mapPrecedingWhitespace iTuple boundExp eValues) eAfter )
   in
-  case maybeNewP_E__Pair of
-    Just (newP_, newE__) ->
-      Just (replaceP__ p newP_, replaceE__ e1 newE__) -- Hmm this will produce duplicate EIds in the boundExp when PVar or PAs are expanded into PList
-
-    Nothing ->
-      Nothing
+  maybeNewP_E__Pair
+  |> Result.map (\(newP_, newE__) ->
+      (replaceP__ p newP_, replaceE__ e1 newE__))-- Hmm this will produce duplicate EIds in the boundExp when PVar or PAs are expanded into PList
 
 
 addPatToPats : Pat -> List Int -> List Pat -> Maybe (List Pat)
@@ -2575,100 +2586,119 @@ introduceVarTransformation
     Nothing ->
       Just <| \() ->
           let expToWrap = deepestCommonAncestorWithNewlineOrELet m.inputExp (\e -> List.member (expEId e) expIds) in
-          introduceVarTransformation_ m expIds (expEId expToWrap, 0 {- Binding number -})
+          introduceVarTransformation_ m expIds (InsertDeclarationLevel After, (expEId expToWrap, 0 {- Binding number -}))
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
     Just (DeclarationTargetPosition (After, (expTargetId, bindingNumber))) ->
       Just <| \() ->
-        introduceVarTransformation_ m expIds (expTargetId, bindingNumber + 1 {- Binding number -})
+        introduceVarTransformation_ m expIds (InsertDeclarationLevel Before, (expTargetId, bindingNumber + 1 {- Binding number -}))
 
     Just (DeclarationTargetPosition (Before, (expTargetId, bindingNumber))) ->
       Just <| \() ->
-          introduceVarTransformation_ m expIds (expTargetId, bindingNumber)
+          introduceVarTransformation_ m expIds (InsertDeclarationLevel Before, (expTargetId, bindingNumber))
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
       Just <|
         \() ->
-          introduceVarTransformation_ m expIds (expTargetId, 0)
+          introduceVarTransformation_ m expIds (InsertDeclarationLevel Before, (expTargetId, 0))
 
-    Just (PatTargetPosition patTarget) ->
-      case patTargetPositionToTargetPathedPatId patTarget of
-        ((targetId, 1), targetPath) ->
-          case findExpByEId m.inputExp targetId of
-            Just scopeExp ->
-              if isLet scopeExp then
-                Just <|
-                  \() ->
-                    introduceVarTransformation_ m expIds (targetId, 0)
-              else
-                Nothing
-
-            _ ->
-              Nothing
+    Just (PatTargetPosition ((beforeAfter, ((eId, bn), path), pid) as patTarget)) ->
+      case findExpByEId m.inputExp eId of
+        Just scopeExp ->
+          if isLet scopeExp then
+            Just <|
+              \() ->
+                introduceVarTransformation_ m expIds (InsertPatternLevel beforeAfter path, (eId, bn))
+          else
+            Nothing
 
         _ ->
           Nothing
 
--- It should insert the declarations before the declaration mentionned in the given index.
--- It should recompute a dependency analysis as well, maybe we need to reorder the definitions.
-insertInVisualDeclarations: (BeforeAfter, BindingNumber) -> List (Declaration, BindingNumber) -> List (Declaration, BindingNumber) -> List (Declaration, BindingNumber)
-insertInVisualDeclarations (beforeAfter, bindingNum) newDecls visualDeclarations  =
+-- We combine declarations that can be combined, but we return the remaining that cannot.
+insertDeclarationIn: List (Declaration, BindingNumber) -> BeforeAfter -> List Int -> (Declaration, BindingNumber) -> Result String ((Declaration, BindingNumber), List (Declaration, BindingNumber))
+insertDeclarationIn newDecls beforeAfter pathPattern (declaration, bn) =
+  Result.map (Tuple.mapFirst (flip (,) bn)) <|
+  case declaration of
+    DeclExp (LetExp spc spp p fs spe e1 as originalLetExp) ->
+      Result.map (Tuple.mapFirst DeclExp) <|
+      Utils.foldLeft (Ok (originalLetExp, [])) newDecls  <| \accRes newDecl ->
+        Result.andThen (\(letexp, nonCompatible) ->
+          case Tuple.first newDecl of
+            DeclExp (LetExp spc2 spp2 p2 fs2 spe2 e2) ->
+              insertPat_ (p2, e2) pathPattern letexp
+              |> Result.map (flip (,) nonCompatible)
+            _ ->
+              Ok (letexp, nonCompatible ++ [newDecl])
+        ) accRes
+    _ -> Ok (declaration, newDecls)
+
+-- It should insert the declarations before or after the declaration mentionned in the given index,
+-- or merge them in the given declaration.
+insertInVisualDeclarations: (InsertionMethod, BindingNumber) -> List (Declaration, BindingNumber) -> List (Declaration, BindingNumber) -> Result String (List (Declaration, BindingNumber))
+insertInVisualDeclarations (insertionMethod, bindingNum) newDecls visualDeclarations  =
   if visualDeclarations |> List.all (Tuple.second >> ((/=) bindingNum)) then
-    visualDeclarations ++ (List.map (Tuple.mapFirst (mapPrecedingWhitespaceDeclaration
+    Ok <| visualDeclarations ++ (List.map (Tuple.mapFirst (mapPrecedingWhitespaceDeclaration
        (ensureNNewlines 1 (
         Utils.maybeLast visualDeclarations
         |> Maybe.map (Tuple.first >> minIndentationDeclaration maxIndentation)
         |> Maybe.withDefault "")))) newDecls)
   else
-    visualDeclarations |> List.concatMap (\((decl, bindingNumber) as declIndex) ->
+    visualDeclarations |> List.map (\((decl, bindingNumber) as declIndex) ->
     if bindingNumber == bindingNum then
       let indentation = extractIndentation <| .val <| precedingWhitespaceDeclarationWithInfo decl in
       let newDeclsIndented = List.map (Tuple.mapFirst (replaceIndentationDeclaration indentation)) newDecls in
-      let withInsertedDeclarations = if beforeAfter == Before then
+      let withInsertedDeclarations = case insertionMethod of
+        InsertDeclarationLevel Before ->
            -- copy the indentation of the declaration
-           newDeclsIndented ++ [declIndex]
-        else
-           [declIndex] ++ newDeclsIndented
+           Ok (newDeclsIndented ++ [declIndex])
+        InsertDeclarationLevel After ->
+           Ok ([declIndex] ++ newDeclsIndented)
+        InsertPatternLevel beforeAFter pathPattern ->
+           case insertDeclarationIn newDecls beforeAFter pathPattern declIndex of
+             Ok (newDecl, remainingDecls) ->
+               Ok (newDecl :: remainingDecls)
+             Err msg -> Err msg
       in
       withInsertedDeclarations
-      |> Utils.changeTail (
+      |> Result.map (Utils.changeTail (
           List.map (
             Tuple.mapFirst (
               mapPrecedingWhitespaceDeclaration (
                 ensureNNewlines 1 indentation))
-                ))
-    else [declIndex]
-  )
+                )))
+    else Ok [declIndex]
+  ) |> Utils.projOk |> Result.map (List.concatMap identity)
 
 
 -- It should insert the declarations before the declaration mentionned in the given index.
 -- It should recompute a dependency analysis as well, maybe we need to reorder the definitions.
-insertInDeclarations: (BeforeAfter, BindingNumber) -> List Declaration -> Declarations -> Result String Declarations
-insertInDeclarations (beforeAfter, bindingNum) newDecls decls =
+insertInDeclarations: (InsertionMethod, BindingNumber) -> List Declaration -> Declarations -> Result String Declarations
+insertInDeclarations (insertionMethod, bindingNum) newDecls decls =
   let visualDeclarations = getDeclarationsInOrderWithIndex decls in
-  insertInVisualDeclarations (beforeAfter, bindingNum) (Utils.zipWithIndex newDecls) visualDeclarations
-  |> List.map Tuple.first
-  |> Parser.reorderDeclarations
+  insertInVisualDeclarations (insertionMethod, bindingNum) (Utils.zipWithIndex newDecls) visualDeclarations
+  |> Result.map (List.map Tuple.first)
+  |> Result.andThen Parser.reorderDeclarations
 
-insertLetExpsAt: (EId, BindingNumber) -> List LetExp -> Exp -> Result String Exp
-insertLetExpsAt (eid, bindingNum) newLetExps exp =
+insertLetExpsAt: (InsertionMethod, (EId, BindingNumber)) -> List LetExp -> Exp -> Result String Exp
+insertLetExpsAt (insertionMethod, (eid, bindingNum)) newLetExps exp =
   let (newExp, mbError) = mapFoldExp
         (\exp mbError -> if expEId exp /= eid then (exp, mbError) else
        case unwrapExp exp of
         ELet sp lk decls wsIn body ->
-           case insertInDeclarations (Before, bindingNum) (newLetExps |> List.map DeclExp) decls of
+           case insertInDeclarations (insertionMethod, bindingNum) (newLetExps |> List.map DeclExp) decls of
              Ok newDecls ->
                (replaceE__ exp <| ELet sp lk newDecls wsIn body, mbError)
              Err msg -> (exp,  Just msg)
         ERecord sp mbInit decls sp2 ->
-           case insertInDeclarations (Before, bindingNum) (newLetExps |> List.map DeclExp) decls of
+           case insertInDeclarations (insertionMethod, bindingNum) (newLetExps |> List.map DeclExp) decls of
              Ok newDecls ->
                (replaceE__ exp <| ERecord sp mbInit newDecls sp2, mbError)
              Err msg -> (exp, Just msg)
         x ->
-          case insertInDeclarations (Before, 0) (newLetExps |> List.map DeclExp) (Declarations [] [] [] []) of
+          case insertInDeclarations (insertionMethod, 0) (newLetExps |> List.map DeclExp) (Declarations [] [] [] []) of
             Ok newDecls ->
               (replaceExpInfo exp <| exp_ <| ELet (precedingWhitespaceWithInfoExp exp) Let newDecls space1 exp, mbError)
             Err msg -> (exp, Just msg)
@@ -2689,11 +2719,11 @@ isHtmlNode exp = case eListUnapply exp of
   _ -> False
 
 introduceVarTransformation_:
-  Model -> List Int ->   (EId, BindingNumber) -> List SynthesisResult
+  Model -> List Int ->   (InsertionMethod, (EId, BindingNumber)) -> List SynthesisResult
 introduceVarTransformation_
-  m        eidsToExtract insertionPosition =
+  m        eidsToExtract ((insertionMethod, insertionPosition) as insertionPoint) =
   let
-    identsAtInsertionPoint = EvalUpdate.visibleIdentifiersAtEIdBindingNum m.inputExp insertionPosition
+    identsAtInsertionPoint = EvalUpdate.visibleIdentifiersAtEIdBindingNum m.inputExp insertionPoint
 
     folder: Exp -> (List LetExp, Warnings) -> (List Ident, ParensStyle) -> (Exp, (List LetExp, Warnings), (List Ident, ParensStyle))
     folder exp ((declarationsToInsert, warnings) as globalAcc) ((scopeIdents, renderingStyle) as pathAcc) =
@@ -2780,7 +2810,7 @@ introduceVarTransformation_
 
     resNewExp = if definitionsToInline |> List.isEmpty then
         Err "No definition to inline found"
-      else insertLetExpsAt insertionPosition definitionsToInline expWithFunctions
+      else insertLetExpsAt insertionPoint definitionsToInline expWithFunctions
 
     (msg, isSafe) =
       if not <| List.isEmpty warnings then
@@ -2807,16 +2837,16 @@ introduceVarTransformation_
     Err msg ->
       [synthesisResult msg m.inputExp]
 
-moveDeclarations: List (EId, Int) -> (BeforeAfter, (EId, BindingNumber)) -> Exp -> List SynthesisResult
-moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) as insertionPosition) originalProgram =
+moveDeclarations: List (EId, Int) -> (InsertionMethod, (EId, BindingNumber)) -> Exp -> List SynthesisResult
+moveDeclarations declsToMove ((insertionMethod, (insertionEId, insertionBindingNum) as insertionPosition) as insertionPoint) originalProgram =
   let
-    identsAtInsertionPoint = EvalUpdate.visibleIdentifiersAtEIdBindingNum originalProgram insertionPosition
+    identsAtInsertionPoint = EvalUpdate.visibleIdentifiersAtEIdBindingNum originalProgram insertionPoint
 
     -- Removes the declarations and return them, unless they are in the same ELet
     -- Returns the insertion place in case it changed.
-    folder: Exp -> (List (EId, Int), List Declaration, Warnings, (BeforeAfter, BindingNumber)) -> List Ident ->
-           (Exp,   (List (EId, Int), List Declaration, Warnings, (BeforeAfter, BindingNumber)), List Ident)
-    folder exp ((declsToMove, declarationsToInsert, warnings, (beforeAfter, insertionBindingNum) as insertionPoint) as globalAcc) (scopeIdents as pathAcc) =
+    folder: Exp -> (List (EId, Int), List Declaration, Warnings, (InsertionMethod, BindingNumber)) -> List Ident ->
+           (Exp,   (List (EId, Int), List Declaration, Warnings, (InsertionMethod, BindingNumber)), List Ident)
+    folder exp ((declsToMove, declarationsToInsert, warnings, (insertionMethod, insertionBindingNum) as insertionPoint) as globalAcc) (scopeIdents as pathAcc) =
       let thisEId = expEId exp in
       if not <| List.any (\(eid, i) -> eid == thisEId) declsToMove then (exp, globalAcc, scopeIdents)
       else case unwrapExp exp of
@@ -2849,11 +2879,11 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
 
             -- If some declarations needs to be moved inside this ELet (sameELet), let's do so.
             --localDeclsRemainingReordered: List (Declaration, BindingNumber)
-            -- updatedBeforeAfter: beforeAfter
+            -- updatedBeforeAfter: insertionPoint
             -- updatedBindingNum: BindingNum
-            (localDeclsRemainingReordered, (updatedInsertionBeforeAfter, updatedInsertionBindingNum)) =
+            (resLocalDeclsRemainingReordered, (updatedInsertionBeforeAfter, updatedInsertionBindingNum)) =
               if insertionEId /= thisEId then
-                (localDeclsRemaining, insertionPoint)
+                (Ok localDeclsRemaining, insertionPoint)
               else let
                 _ = Debug.log "insertionEId == thisEId" ()
                   -- We need to move declarations within the same let,
@@ -2878,7 +2908,7 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
                   ) localDeclsRemaining
 
                 -- The insertion point possibly changes, so we recompute it.
-                mbNewBeforeAfterInsertionBindingNum: Maybe (BeforeAfter, BindingNumber)
+                mbNewBeforeAfterInsertionBindingNum: Maybe (InsertionMethod, BindingNumber)
                 mbNewBeforeAfterInsertionBindingNum =
                  if List.any ((==) insertionBindingNum) removedUntilReinsertion then
                    -- The insertion point was one of the removed declarations.
@@ -2891,22 +2921,22 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
                          Just x -> (mbNewBeforeAFterInsertionBindingNum, (beforeNext, lastNotRemoved))
                          Nothing ->
                           if bindingNum == insertionBindingNum then
-                            if beforeAfter == Before then
+                            if insertionMethod == InsertDeclarationLevel Before then
                               case lastNotRemoved of
-                                Just n -> (Just (Before, n), (False, Nothing))
+                                Just n -> (Just (InsertDeclarationLevel Before, n), (False, Nothing))
                                 Nothing -> (Nothing, (True, Nothing))
                             else
                               (Nothing, (True, Nothing))
                           else if isRemovedBindingNum bindingNum then
                             (Nothing, (False, lastNotRemoved))
                           else if beforeNext then
-                            (Just (Before, bindingNum), (False, Nothing))
+                            (Just (InsertDeclarationLevel Before, bindingNum), (False, Nothing))
                           else
                             (Nothing, (False, Just bindingNum))
                    in
                    mbNewBeforeAFterInsertionBindingNum
                  else
-                   Just (beforeAfter, insertionBindingNum)
+                   Just (insertionMethod, insertionBindingNum)
               in
               case mbNewBeforeAfterInsertionBindingNum of
                 Just ((finalBefore, finalInsertionBindingNum) as finalInsertionPoint) ->
@@ -2914,8 +2944,12 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
                      insertInVisualDeclarations (finalBefore, finalInsertionBindingNum) toReinsert remaining
                    in (localDeclsWithInsertions, finalInsertionPoint)
                 Nothing -> -- All declarations have been removed at this point (toReinsert == all declarations), so we just no nothing.
-                  (toReinsert, insertionPoint)
+                  (Ok toReinsert, insertionPoint)
           in
+          case resLocalDeclsRemainingReordered  of
+            Err msg ->
+              (exp, (declsToMove, declarationsToInsert, warnings ++ [msg], insertionPoint), scopeIdents)
+            Ok localDeclsRemainingReordered ->
           case Parser.reorderDeclarations (List.map Tuple.first localDeclsRemainingReordered) of
             Err msg -> -- We cannot reorder declarations.
               (exp, (declsToMove, declarationsToInsert, warnings ++ [msg], insertionPoint), scopeIdents)
@@ -2946,8 +2980,8 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
         _ ->  (exp, globalAcc, scopeIdents)
 
     handleLetExp: Exp -> IsRec -> List LetExp -> BindingNumber ->
-       (List (EId, Int), List Declaration, Warnings, (BeforeAfter, BindingNumber )) -> List Ident ->
-      ((List (EId, Int), List Declaration, Warnings, (BeforeAfter, BindingNumber )), List Ident) -- handleLetExp
+       (List (EId, Int), List Declaration, Warnings, (InsertionMethod, BindingNumber )) -> List Ident ->
+      ((List (EId, Int), List Declaration, Warnings, (InsertionMethod, BindingNumber )), List Ident) -- handleLetExp
     handleLetExp e isRec group bindingNumber declarationsToInsert scopeIdents =
       scopeIdents
       |> Utils.reverseInsert
@@ -2972,8 +3006,8 @@ moveDeclarations declsToMove (beforeAfter, (insertionEId, insertionBindingNum) a
 
     -- consumes the declarations to move, and returns the List of declarations to insert
     -- that were not in the same scope as the insertion point.
-    initGlobal: (List (EId, Int), List Declaration, Warnings, ( BeforeAfter, BindingNumber ))
-    initGlobal = (declsToMove, [], [], (beforeAfter, insertionBindingNum))
+    initGlobal: (List (EId, Int), List Declaration, Warnings, ( InsertionMethod, BindingNumber ))
+    initGlobal = (declsToMove, [], [], (insertionMethod, insertionBindingNum))
 
     initScope: List Ident
     initScope = EvalUpdate.preludeEnv |> List.map Tuple.first
@@ -3085,32 +3119,39 @@ introduceVarTransformation_
 
 makeEqualTransformation: Exp -> List EId -> Maybe TargetPosition -> Maybe (() -> List SynthesisResult)
 makeEqualTransformation originalProgram eids maybeTargetPosition =
-  let insertNewLet insertedLetEId pat boundExp expToWrap program =
-    ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
+  --- TODO: We also want to insert directly inside declarations.
+  let insertNewLet insertedLetEId pat boundExp expToWrap (insertMethod, insertionBindingNumber) program =
+    Ok <|  ( newLetFancyWhitespace insertedLetEId False pat boundExp expToWrap program
     , Just (insertedLetEId, 1)
     )
   in
-  let addToExistingLet targetPath _ pat boundExp letExpToInsertInto _ =
-    ( insertPat_ (pat, boundExp) targetPath letExpToInsertInto
-    , Nothing
-    )
+  let addToExistingLet targetPath insertedLetEId pat boundExp exptoInsertInto (insertMethod, insertionBindingNumber) program =
+    case unwrapExp exptoInsertInto of
+       ELet spLet letKind decls spIn body ->
+         let declsToInsert = [DeclExp (LetExp Nothing (ws "\n") pat FunArgAsPats space1 boundExp)] in
+         case insertInDeclarations (insertMethod, insertionBindingNumber) declsToInsert decls of
+           Err msg -> Err msg
+           Ok newDeclarations ->
+             Ok <| (replaceE__ exptoInsertInto <| ELet spLet letKind newDeclarations spIn body, Nothing)
+       _ -> -- Create a ELet there.
+         Err "makeEqualTransformation - Can't create a let expression yet, implement me"
   in
   case maybeTargetPosition of
     Nothing ->
       Just <| \() ->
         let expToWrap = deepestCommonAncestorWithNewlineOrELet originalProgram (\e -> List.member (expEId e) eids) in
-        makeEqualTransformation_ originalProgram eids (Before, (expEId expToWrap, 0)) insertNewLet
+        makeEqualTransformation_ originalProgram eids (InsertDeclarationLevel Before, (expEId expToWrap, 0)) insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing
 
     Just (DeclarationTargetPosition (beforeAfter, (expTargetId, bindingNum))) ->
       Just <| \() ->
-        makeEqualTransformation_ originalProgram eids (beforeAfter, (expTargetId, bindingNum)) insertNewLet
+        makeEqualTransformation_ originalProgram eids (InsertDeclarationLevel beforeAfter, (expTargetId, bindingNum)) insertNewLet
 
     Just (ExpTargetPosition (Before, expTargetId)) ->
       Just <| \() ->
-        makeEqualTransformation_ originalProgram eids (Before, (expTargetId, -1)) insertNewLet
+        makeEqualTransformation_ originalProgram eids (InsertDeclarationLevel Before, (expTargetId, -1)) insertNewLet
 
     Just (PatTargetPosition ((beforeAfter, ((eId, bindingNumber), patPath), pid) as patTarget)) ->
       case patTargetPositionToTargetPathedPatId patTarget of
@@ -3119,7 +3160,7 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
             Just ((scopeExp, bn), pat) ->
               if isLet scopeExp then
                 Just <| \() ->
-                  makeEqualTransformation_ originalProgram eids (beforeAfter, (eId, bindingNumber)) (addToExistingLet targetPath)
+                  makeEqualTransformation_ originalProgram eids (InsertDeclarationLevel beforeAfter, (eId, bindingNumber)) (addToExistingLet targetPath)
               else
                 Nothing
 
@@ -3129,15 +3170,18 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
         _ ->
           Nothing
 
-makeEqualTransformation_:Exp -> List EId -> (BeforeAfter, (EId, BindingNumber)) -> (EId -> Pat -> Exp -> Exp -> Exp -> (Exp, Maybe (EId, BindingNumber))) -> List SynthesisResult
-makeEqualTransformation_ originalProgram eids (beforeAfter, (newBindingLocationEId, insertionBindingNumber)) makeNewLet =
+makeEqualTransformation_:Exp -> List EId -> (InsertionMethod, (EId, BindingNumber)) ->
+  (EId -> Pat -> Exp -> Exp -> (InsertionMethod, BindingNumber) -> Exp ->
+     Result String (Exp, Maybe (EId, BindingNumber))) -> List SynthesisResult
+makeEqualTransformation_ originalProgram eids (insertMethod, (newBindingLocationEId, insertionBindingNumber))
+   makeNewLet =
   let firstEId = Utils.head "CodeMotion.makeEqualTransform expected some eids, got []" eids in
   let potentialNames =
     let
-      names = Utils.dedup (List.map (expNameForEId originalProgram) eids)
-      joinedName = String.join "_" names
-      commonName = commonNameForEIdsWithDefault joinedName originalProgram eids
-      namesToAvoid = visibleIdentifiersAtEIds originalProgram (Set.fromList (newBindingLocationEId::eids))
+       names = Utils.dedup (List.map (expNameForEId originalProgram) eids)
+       joinedName = String.join "_" names
+       commonName = commonNameForEIdsWithDefault joinedName originalProgram eids
+       namesToAvoid = visibleIdentifiersAtEIds originalProgram (Set.fromList (newBindingLocationEId::eids))
     in
     commonName :: joinedName :: names
     |> List.map (\name -> nonCollidingName name 1 namesToAvoid)
@@ -3153,28 +3197,29 @@ makeEqualTransformation_ originalProgram eids (beforeAfter, (newBindingLocationE
   -- are trying to equalize. This is an odd case because you can't produce a
   -- sane program, but at least it won't crash.
   let newBoundExp = justFindExpByEId originalProgramUniqueNames firstEId in
-  let (newLet, maybeNewScopeEId) =
     -- makeNewLet will either insert the variable into an existing let at
     -- newBindingLocationEId or introduce a new let around newBindingLocationEId
-    makeNewLet
+  case  makeNewLet
         insertedLetEId
         (pVar varTempName |> setPId newBindingPId)
         (newBoundExp |> setEId dummyBoundExpEId) -- newLetFancyWhitespace will set the correct whitespace for boundExp, but we don't want the expSubst below to destroy the boundExp
         (justFindExpByEId originalProgramUniqueNames newBindingLocationEId)
-        originalProgramUniqueNames
-  in
+        (insertMethod, insertionBindingNumber)
+        originalProgramUniqueNames of
+    Err msg -> [synthesisResult msg originalProgram |> setResultSafe True]
+    Ok (newLet, maybeNewScopeEId) ->
   let newProgramUniqueNames =
-    let expSubst = eids |> List.map (\eid -> (eid, eVar varTempName |> setEId insertedVarsEId)) |> Dict.fromList in
-    originalProgramUniqueNames
-    |> replaceExpNode newBindingLocationEId newLet
-    |> replaceExpNodesPreservingPrecedingWhitespace expSubst
-    |> mapExpNode dummyBoundExpEId (setEId (expEId newBoundExp))
+     let expSubst = eids |> List.map (\eid -> (eid, eVar varTempName |> setEId insertedVarsEId)) |> Dict.fromList in
+     originalProgramUniqueNames
+     |> replaceExpNode newBindingLocationEId newLet
+     |> replaceExpNodesPreservingPrecedingWhitespace expSubst
+     |> mapExpNode dummyBoundExpEId (setEId (expEId newBoundExp))
   in
   let varEIdsPreviouslyDeliberatelyRemoved =
-    eids
-    |> List.drop 1
-    |> List.concatMap (\eid -> justFindExpByEId originalProgramUniqueNames eid |> allVars)
-    |> List.map expEId
+     eids
+     |> List.drop 1
+     |> List.concatMap (\eid -> justFindExpByEId originalProgramUniqueNames eid |> allVars)
+     |> List.map expEId
   in
   let namesUniqueTouched = Set.insert varTempName (identifiersSet newBoundExp) in
   potentialNames

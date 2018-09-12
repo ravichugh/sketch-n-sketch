@@ -67,7 +67,7 @@ isSubWidget program widget superWidget =
   let isSubPPId (subScopeId, subPath) (superScopeId, superPath) =
     subScopeId == superScopeId && Utils.isPrefix superPath subPath
   in
-  case (Debug.log "widget" widget, superWidget) of
+  case (widget, superWidget) of
     (DeuceExpTarget subExpTarget,       DeuceExpTarget superExpTarget)       -> subExpTarget == superExpTarget
     (DeucePatTarget subPatTarget,       DeucePatTarget superPatTarget)       -> subPatTarget == superPatTarget
     (_,                                 DeuceExpTarget _)                    -> False

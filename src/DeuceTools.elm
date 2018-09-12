@@ -1021,20 +1021,28 @@ moveDefinitionTool model selections =
           , NoInputDeuceTransform <| \() ->
               CodeMotion.moveDeclarations
                 letEIds
-                declTarget
+                (Tuple.mapFirst InsertDeclarationLevel declTarget)
                 model.inputExp
           , Satisfied
           )
         ([], [], [], [], [], letEIds, [], [(Before, eId)], []) ->
           ( Utils.perhapsPluralizeList toolName letEIds
           , NoInputDeuceTransform <| \() ->
-              CodeMotion.moveEquationsBeforeEId
-                model.syntax
+              CodeMotion.moveDeclarations
                 letEIds
-                eId
+                (InsertDeclarationLevel Before, (eId, 0))
                 model.inputExp
           , Satisfied
           )
+        ([], [], [], [], [], letEIds, [], [], [(beforeAfter, (insertionPosition, path), pId)]) ->
+               ( Utils.perhapsPluralizeList toolName letEIds
+               , NoInputDeuceTransform <| \() ->
+                   CodeMotion.moveDeclarations
+                     letEIds
+                     (InsertPatternLevel beforeAfter path, insertionPosition)
+                     model.inputExp
+               , Satisfied
+               )
         _ ->
           (toolName, InactiveDeuceTransform, Impossible)
   in
