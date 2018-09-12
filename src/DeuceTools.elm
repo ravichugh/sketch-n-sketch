@@ -2527,12 +2527,13 @@ typesTool model selections =
           (NoInputDeuceTransform (Types2.makeDeuceExpTool model.inputExp exp), Satisfied)
 
         (_, _, _, [pathedPatId], [], [], [], [], []) ->
-          let
-            pat =
-              LangTools.findPatByPathedPatternId pathedPatId model.inputExp
-                |> Utils.fromJust_ "typesTool findPat"
-          in
-          (NoInputDeuceTransform (Types2.makeDeucePatTool model.inputExp pat), Satisfied)
+          -- TODO ensure this works?
+          case LangTools.findPatByPathedPatternId pathedPatId model.inputExp of
+            Nothing ->
+              (InactiveDeuceTransform, Impossible)
+
+            Just pat ->
+              (NoInputDeuceTransform (Types2.makeDeucePatTool model.inputExp pat), Satisfied)
 
         _ ->
           (InactiveDeuceTransform, Impossible)
