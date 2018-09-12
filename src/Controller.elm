@@ -2575,26 +2575,28 @@ doHoverSynthesisResult resultsKey pathByIndices old =
   let oldResults = Utils.getWithDefault resultsKey [] old.synthesisResultsDict in
   case maybeFindResult pathByIndices oldResults of
     Just (SynthesisResult {description, exp, diffs, sortKey, children, nextLazy}) ->
-      case nextLazy of
+      let old1 = case nextLazy of
         Just compute ->
-          let newMbSynthesisResult = compute () in
-          { old | synthesisResultsDict =
+           let newMbSynthesisResult = compute () in
+           { old | synthesisResultsDict =
               Dict.insert resultsKey
                 (insertResultSibling pathByIndices newMbSynthesisResult oldResults) old.synthesisResultsDict }
         Nothing ->
-          let newModel = { old | hoveredSynthesisResultPathByIndices = pathByIndices } in
-          let newModel2 =
-            case (old.autoSynthesis, children) of
-               (_, Just _)  -> newModel -- Children already computed.
-               (False, _)   -> newModel -- Don't compute children if auto-synth off
-               _            ->
-                 -- Compute child results.
-                 let childResults = cleanDedupSortSynthesisResults newModel (ETransform.passiveSynthesisSearch newModel exp) in
-                 let newTopLevelResults = Dict.insert resultsKey (setResultChildren pathByIndices childResults oldResults) old.synthesisResultsDict in
-                 { newModel | synthesisResultsDict = newTopLevelResults
-                            , hoveredSynthesisResultPathByIndices = pathByIndices }
-          in
-          showExpPreview newModel2 exp diffs
+           old
+      in
+      let newModel = { old1 | hoveredSynthesisResultPathByIndices = pathByIndices } in
+      let newModel2 =
+        case (old.autoSynthesis, children) of
+           (_, Just _)  -> newModel -- Children already computed.
+           (False, _)   -> newModel -- Don't compute children if auto-synth off
+           _            ->
+             -- Compute child results.
+             let childResults = cleanDedupSortSynthesisResults newModel (ETransform.passiveSynthesisSearch newModel exp) in
+             let newTopLevelResults = Dict.insert resultsKey (setResultChildren pathByIndices childResults oldResults) old.synthesisResultsDict in
+             { newModel | synthesisResultsDict = newTopLevelResults
+                        , hoveredSynthesisResultPathByIndices = pathByIndices }
+      in
+      showExpPreview newModel2 exp diffs
 
     Nothing ->
       { old | preview = Nothing
