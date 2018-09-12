@@ -2881,14 +2881,14 @@ introduceVarTransformation_
         _ -> False
       ) |> List.length in
       let variables = List.length definitionsToInline - functions in
-      ("Replace with " ++
-        (if functions == 0 then "" else
-        if functions  == 1 then " a function call" else
-        " " ++ toString functions ++ " function calls") ++
-        (if functions > 0 && variables > 0 then " and" else "") ++
-        (if variables == 0 then "" else
-         if variables  == 1 then " a variable" else
-         " " ++ toString variables ++ " variables"))
+      let name = (if functions == 0 then "" else
+         if functions  == 1 then " function" else " functions") ++
+         (if functions > 0 && variables > 0 then " and" else "") ++
+         (if variables == 0 then "" else
+           if variables  == 1 then " variable" else " variables")
+      in
+      ("New"++ name ++ ": " ++ (definitionsToInline |> List.map (DeclExp >> patOfDecl) |> List.map (Syntax.patternUnparser Syntax.Leo) |> String.join ", "))
+
   in
   case resNewExp of
     Ok newExp ->

@@ -902,6 +902,12 @@ letExpOf decl = case decl of
   DeclExp x -> Just x
   _ -> Nothing
 
+patOfDecl: Declaration -> Pat
+patOfDecl decl = case decl of
+  DeclExp (LetExp _ _ p _ _ _) -> p
+  DeclAnnotation (LetAnnotation _ _ p _ _ _) -> p
+  DeclType (LetType _ _ _ p _ _ _) -> p
+
 -- CAREFUL: This is non-breaking space (used in LangSVG.printHTML and also removed from parsing in THMLValParser)
 tab k = String.repeat k "  "
 
