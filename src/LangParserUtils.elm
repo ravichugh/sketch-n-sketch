@@ -31,6 +31,7 @@ module LangParserUtils exposing
   , SpaceConstraint(..)
   , spaceSameLineOrNextAfter
   , spaceSameLineOrNextAfterOrTwoLines
+  , removeComments
   )
 
 import Parser exposing (..)
@@ -105,6 +106,8 @@ spacesRaw =
         nestableComment "{-" "-}" |> andThen (\_ -> spacesRaw),
         succeed ()
       ])
+
+removeComments whitespace = Regex.replace Regex.All (Regex.regex "\\S") (\_ -> "") whitespace
 
 type alias MinStartCol = Int
 type SpaceConstraint = NoSpace | MinIndentSpace

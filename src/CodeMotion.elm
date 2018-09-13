@@ -45,6 +45,7 @@ import Regex
 import Set exposing (Set)
 import EvalUpdate exposing (assignUniqueNames, visibleIdentifiersAtEIds, preludeIdentifiers, identifiersSetPlusPrelude)
 import Info exposing (replaceInfo)
+import LangParserUtils
 
 type alias PatBoundExpIsRec = (Pat, Exp, Bool)
 
@@ -2718,15 +2719,34 @@ insertInVisualDeclarations (insertionMethod, bindingNum) newDecls visualDeclarat
         |> Maybe.withDefault "")))) newDecls)
   else
     visualDeclarations |> List.map (\((decl, bindingNumber) as declIndex) ->
+    let mbDeclAfter (declTarget, bnTarget)= Tuple.second <|
+      Utils.foldLeft (False, Nothing) visualDeclarations <|
+         \(lastWasTarget, acc) (d, bn)-> case acc of
+          Nothing ->
+            if lastWasTarget then (True, Just (d, bn)) else
+            if bn == bnTarget then (True, Nothing) else (False, Nothing)
+          _ -> (lastWasTarget, acc)
+    in
+    let copyWhitespaceFrom declIndex =
+      Tuple.mapFirst <| mapPrecedingWhitespaceDeclaration (\_ ->
+         LangParserUtils.removeComments <| .val <| precedingWhitespaceDeclarationWithInfo <| Tuple.first declIndex)
+    in
     if bindingNumber == bindingNum then
       let indentation = extractIndentation <| .val <| precedingWhitespaceDeclarationWithInfo decl in
       let newDeclsIndented = List.map (Tuple.mapFirst (replaceIndentationDeclaration indentation)) newDecls in
       let withInsertedDeclarations = case insertionMethod of
         InsertDeclarationLevel Before ->
            -- copy the indentation of the declaration
-           Ok (newDeclsIndented ++ [declIndex])
+           Ok (newDeclsIndented ++ [declIndex]
+               |> Utils.mapHead (copyWhitespaceFrom declIndex)
+               |> (case mbDeclAfter declIndex of
+                 Nothing -> identity
+                 Just declAfter ->
+                   Utils.mapTail (List.map (copyWhitespaceFrom declAfter))))
         InsertDeclarationLevel After ->
-           Ok ([declIndex] ++ newDeclsIndented)
+           Ok ([declIndex] ++ (case mbDeclAfter declIndex of
+             Nothing -> identity
+             Just declAfter -> List.map (copyWhitespaceFrom declAfter)) newDeclsIndented)
         InsertPatternLevel beforeAFter pathPattern ->
            case insertDeclarationIn newDecls beforeAFter pathPattern declIndex of
              Ok (newDecl, remainingDecls) ->
@@ -3213,7 +3233,10 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
     Nothing ->
       Just <| \() ->
         let expToWrap = deepestCommonAncestorWithNewlineOrELet originalProgram (\e -> List.member (expEId e) eids) in
-        makeEqualTransformation_ originalProgram eids (InsertDeclarationLevel Before, (expEId expToWrap, 0)) insertNewLet
+        if isLet expToWrap then
+          makeEqualTransformation_ originalProgram eids (InsertDeclarationLevel Before, (expEId expToWrap, 0)) (addToExistingLet [])
+        else
+          makeEqualTransformation_ originalProgram eids (InsertDeclarationLevel Before, (expEId expToWrap, 0)) insertNewLet
 
     Just (ExpTargetPosition (After, expTargetId)) ->
       Nothing

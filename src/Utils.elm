@@ -668,6 +668,8 @@ changeTail f list =
     []    -> []
     x::xs -> x :: f xs
 
+mapTail = changeTail
+
 mapLast : (a -> a) -> List a -> List a
 mapLast f list =
   getReplacei0 (List.length list - 1) f list

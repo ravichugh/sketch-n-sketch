@@ -546,6 +546,8 @@ getProperIndentationIfBody root e =
 -- Note: the isRec flag is ignored
 newLetFancyWhitespace : EId ->         Bool -> Pat -> Exp ->   Exp ->    Exp -> Exp
 newLetFancyWhitespace   insertedLetEId isRec   pat    boundExp expToWrap program =
+--newLetFancyWhitespace : EId ->         Bool -> List (Pat, Exp) ->   Exp ->    Exp -> Exp
+--newLetFancyWhitespace   insertedLetEId isRec   patBoundExps         expToWrap program =
   let toWrapEId = expEId expToWrap in
   let isTopLevel = isTopLevelEId toWrapEId program in
   let letOrDef = if isTopLevel then Def else Let in
