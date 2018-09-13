@@ -2630,11 +2630,9 @@ formatTool model selections =
                   mapEachLetExp f =
                     letExps |> List.map (Tuple.mapSecond (List.map f))
 
-                  rebuild : Bool -> Bool -> Maybe Int -> Maybe String -> Maybe String -> Exp
+                  rebuild : Bool -> Maybe Int -> Maybe String -> Maybe String -> Exp
 
-                  -- TODO: this BeforeBeforePat business is not quite right.
                   rebuild removeWsBeforeBeforeEachPat   -- Bool
-                          removeWsBeforeEachPat         -- Bool
                           maybePadWsBeforeEachEqualsTo  -- Maybe Int
                           maybeNewWsBeforeEachExp       -- Maybe String
                           maybeNewWsBeforeIn =          -- Maybe String
@@ -2644,15 +2642,13 @@ formatTool model selections =
                           let
                             newWsBeforeBeforePat =
                               if removeWsBeforeBeforeEachPat then
-                                space0
+                                space1
                               else
                                 wsBeforeBeforePat
 
                             newPat =
-                              if removeWsBeforeEachPat then
-                                replacePrecedingWhitespacePat " " pat
-                              else
-                                pat
+                              -- there shouldn't be any whitespace before pat anyway
+                              pat
 
                             newWsBeforeEquals =
                               maybePadWsBeforeEachEqualsTo
@@ -2692,7 +2688,7 @@ formatTool model selections =
 
                   makeSingleLine =
                     synthesisResult "Single Line"
-                      (rebuild True True Nothing (Just " ") (Just " "))
+                      (rebuild True Nothing (Just " ") (Just " "))
 
                   alignEqualsSigns =
                     let
@@ -2701,7 +2697,7 @@ formatTool model selections =
                           |> Utils.fromJust_ "maxEqualsSignCol"
                     in
                       synthesisResult "Remove Line Breaks and Align Equals Signs"
-                        (rebuild False False (Just maxEqualsSignCol) (Just " ") Nothing)
+                        (rebuild False (Just maxEqualsSignCol) (Just " ") Nothing)
 
                   alignAllToSome =
                     listWsBeforeExp
@@ -2713,7 +2709,7 @@ formatTool model selections =
                                "Remove Line Breaks"
                            in
                              synthesisResult caption
-                               (rebuild False False Nothing (Just s) Nothing)
+                               (rebuild False Nothing (Just s) Nothing)
                          )
 
                   numLetExp =
