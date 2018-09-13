@@ -3040,20 +3040,47 @@ msgAskImportCode = requireSaveAsker msgImportCode
 -- Deuce Interactions
 
 chooseDeuceExp : Model -> Exp -> Model
-chooseDeuceExp m exp =
+chooseDeuceExp old newRoot =
   let
+    oldRoot = old.inputExp
+    mbKeyboardFocusedWidget = old.deuceState.mbKeyboardFocusedWidget
+    mbKeyboardFocusedWithAncestors =
+      case mbKeyboardFocusedWidget of
+        Just (DeuceExp eId) ->
+          findWithAncestorsByEId oldRoot eId
+        _ ->
+          Nothing
+    mbKeyboardFocusedAncestorEIds =
+      mbKeyboardFocusedWithAncestors |> Maybe.map (
+      List.map expEId)
+    mbClosestNewAncestorId =
+      mbKeyboardFocusedAncestorEIds |> Maybe.andThen (
+      Utils.findLast <| findExpByEId newRoot >> Utils.maybeToBool)
+    mbKeyboardFocusedWidgetForNewExp =
+      Maybe.map DeuceExp mbClosestNewAncestorId
+
     modifiedHistory =
-      modelModify m.code m.deuceState.selectedWidgets m.deuceState.mbKeyboardFocusedWidget m.history
+      modelModify
+        old.code
+        old.deuceState.selectedWidgets
+        old.deuceState.mbKeyboardFocusedWidget
+        old.history
     modelWithCorrectHistory =
       case modifiedHistory of
         Just h ->
-          { m | history = h }
-
+          { old | history = h }
         Nothing ->
-          m
-  in
+          old
+
     -- TODO version of tryRun/upstateRun starting with parsed expression
-    upstateRun ( { modelWithCorrectHistory | code = Syntax.unparser m.syntax exp })
+    new =
+      upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
+
+    newDeuceState = new.deuceState
+    extraNewDeuceState =
+      { newDeuceState | mbKeyboardFocusedWidget = mbKeyboardFocusedWidgetForNewExp}
+  in
+  { new | deuceState = extraNewDeuceState }
 
 maybeChooseDeuceExp : Model -> Maybe Exp -> Model
 maybeChooseDeuceExp m mbExp =
