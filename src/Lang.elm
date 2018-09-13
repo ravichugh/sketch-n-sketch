@@ -2718,7 +2718,8 @@ precedingWhitespaceWithInfoExp__ e__ =
     EConst     ws n l wd                        -> ws
     EVar       ws x                             -> ws
     EFun       ws1 ps e1 ws2                    -> ws1
-    EApp       ws1 e1 es apptype  ws2           -> ws1
+    -- The "before" whitespace on EApps goes to the argument
+    EApp       ws1 e1 es apptype  ws2           -> precedingWhitespaceWithInfoExp e1
     EList      ws1 es ws2 rest ws3              -> ws1
     ERecord    ws1 mi es ws2                    -> ws1
     ESelect    ws1 e ws2 ws3 s                  -> ws1
@@ -2893,7 +2894,8 @@ mapPrecedingWhitespaceWS mapWs exp =
         EConst     ws n l wd                        -> EConst     (mapWs ws) n l wd
         EVar       ws x                             -> EVar       (mapWs ws) x
         EFun       ws1 ps e1 ws2                    -> EFun       (mapWs ws1) ps e1 ws2
-        EApp       ws1 e1 es apptype ws2            -> EApp       (mapWs ws1) e1 es apptype ws2
+        -- The "before" whitespace on EApps goes to the argument
+        EApp       ws1 e1 es apptype ws2            -> EApp       ws1 (mapPrecedingWhitespaceWS mapWs e1) es apptype ws2
         EList      ws1 es ws2 rest ws3              -> EList      (mapWs ws1) es ws2 rest ws3
         ERecord    ws1 mi es ws2                    -> ERecord    (mapWs ws1) mi es ws2
         ESelect    ws1 e ws2 ws3 s                  -> ESelect    (mapWs ws1) e ws2 ws3 s
@@ -4077,12 +4079,19 @@ freeVars exp =
         |> List.concatMap (\(bPat, bExp) -> freeVars bExp |> removeIntroducedBy [bPat])
       in
       freeVars scrutinee ++ freeInEachBranch
-    ELet _ _ (Declarations _ _ _ grouppedExps) _ body ->
-      foldRightGroup grouppedExps (freeVars body) <|
-       \expGroup isRec indents ->
-         let (pats, freeVarsBoundExps) = expGroup |> List.map (\(LetExp _ _ pat _ _ boundExp) -> (pat, freeVars boundExp)) |> List.unzip in
-         let freeVarsBoundExpsFlat = List.concatMap identity freeVarsBoundExps in
-         (indents |> removeIntroducedBy pats) ++
+    ELet _ _ (Declarations _ _ _ groupedExps) _ body ->
+      foldRightGroup groupedExps (freeVars body) <|
+       \expGroup isRec subsequentFreeVars ->
+         let
+           (pats, freeVarsBoundExps) =
+             expGroup |>
+             List.map (\(LetExp _ _ pat _ _ boundExp) ->
+               (pat, freeVars boundExp |> removeIntroducedBy [pat])
+             ) |>
+             List.unzip
+           freeVarsBoundExpsFlat = List.concat freeVarsBoundExps
+         in
+         (subsequentFreeVars |> removeIntroducedBy pats) ++
               (if isRec then freeVarsBoundExpsFlat |> removeIntroducedBy pats else freeVarsBoundExpsFlat)
     _ -> childExps exp |> List.concatMap freeVars
 

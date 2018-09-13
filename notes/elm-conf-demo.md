@@ -111,36 +111,13 @@
         main =
           svg [rectangle, fullLine, halfLine]
 
-1. Select first three equations and **Format**. Should the option
-   that looks like the third (and remaining equations).
-
-        (x, y, size) =
-          (10, 10, 200)
-
-        (cx, cy) =
-          (x + 0.5*size, y + 0.5*size)
-
-        rectangle =
-          rect "gray" x y size size
-
-        fullLine =
-          line "white" 10 x y (x + size) (y + size)
-
-        halfLine =
-          line "white" 10 x (y + size) cx cy
-  
-        main =
-          svg [rectangle, fullLine, halfLine]
-
 1. **Introduce Variable** for shape list. Nice default name `shapes`.
 
 1. **Rename** to `logo`.
 
-        (x, y, size) =
-          (10, 10, 200)
+        (x, y, size) = (10, 10, 200)
         
-        (cx, cy) =
-          (x + 0.5*size, y + 0.5*size)
+        (cx, cy) = (x + 0.5*size, y + 0.5*size)
 
         rectangle =
           rect "gray" x y size size
@@ -161,11 +138,9 @@
           
         logo =
           let
-            (x, y, size) =
-              (10, 10, 200)
+            (x, y, size) = (10, 10, 200)
         
-            (cx, cy) =
-              (x + 0.5*size, y + 0.5*size)
+            (cx, cy) = (x + 0.5*size, y + 0.5*size)
 
             rectangle =
               rect "gray" x y size size
@@ -178,6 +153,30 @@
           in
             [rectangle, fullLine, halfLine]
   
+        main =
+          svg logo
+
+1. Select the `let` **Format**. Choose the option that looks like:
+
+        logo =
+          let
+            (x, y, size) =
+              (0, 0, 200)
+
+            (cx, cy) =
+              (x + 0.5*size, y + 0.5*size)
+
+            rectangle =
+              rect "gray" x y (x + size) (y + size)
+
+            fullLine =
+              line "white" 10 x y (x + size) (y + size)
+
+            halfLine =
+              line "white" 10 x (y + size) cx cy
+          in
+            [rectangle, fullLine, halfLine]
+
         main =
           svg logo
 

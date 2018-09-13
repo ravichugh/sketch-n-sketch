@@ -1652,13 +1652,11 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
 inlineDefinitions : List (EId, BindingNumber) -> Exp -> Maybe (List Ident, Exp)
 inlineDefinitions selectedLetEIds originalProgram =
   let
-    retainInfo e eId e__ = Expr <| replaceInfo (unExpr e) <| makeExp_ e__ eId
-
     replaceIdents origLetEId identToReplace origSubstExpEId substExp subRoot =
       let
         replace = replaceIdents origLetEId identToReplace origSubstExpEId substExp
         subRootEId = expEId subRoot
-        map = retainInfo subRoot subRootEId
+        map = replaceE__ subRoot
         shadowsP pats = List.member identToReplace <| identifiersListInPats pats
         shadowsI idents = List.member identToReplace idents
         maybeReplaceLetExps shouldReplace letExps =
@@ -1822,7 +1820,7 @@ inlineDefinitions selectedLetEIds originalProgram =
                     in
                     mbNewDecls |>
                     Maybe.map (\newDecls ->
-                    retainInfo let_ letEId
+                    replaceE__ let_
                       <| ELet wsb lk newDecls ws1 body
                     )
                   )
@@ -2049,19 +2047,13 @@ abstractExp syntax eidToAbstract originalProgram =
 addArg_ : Syntax -> PathedPatternId ->     (Exp -> Exp -> Maybe (Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
 addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
   let ((funcEId, _), path) = pathedPatId in
-  case findLetAndIdentBindingExp funcEId originalProgram of
-    Just (letExp, funcName) ->
+  case (findLetAndIdentBindingExp funcEId originalProgram, findExpByEId originalProgram funcEId) of
+    (Just (letExp, funcName), Just func) ->
       case (unwrapExp letExp) of
         ELet ws1 letKind decls ws3 letBody ->
-          let _ = Debug.log "TODO: CodeMotion.addArg_ should take into account the new ELet's declarations. Returning nothing" () in
-          []
-        {-
-        ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
           -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
           let funcVarUsageEIds =
-            if isRec
-            then identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
-            else identifierUsageEIds funcName letBody |> Set.fromList
+            identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
           in
           case (unwrapExp func) of
             EFun fws1 fpats fbody fws2 ->
@@ -2126,7 +2118,10 @@ addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNe
                         && noDuplicateNamesInPat
                       in
                       let caption =
-                        let baseCaption = "Insert Argument " ++ (patToInsert |> Syntax.patternUnparser syntax |> Utils.squish) in
+                        let baseCaption =
+                          "Insert Argument " ++
+                          (patToInsert |> identifiersListInPat |> List.head |> Utils.fromJust_ "Impsbl")
+                        in
                         let intoFuncString =
                           originalProgram
                           |> findLetAndIdentBindingExp (expEId func)
@@ -2139,11 +2134,10 @@ addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNe
 
             _ ->
               Debug.crash <| "CodeMotion.addArg_ should've had an EFun here"
-        -}
         _ ->
           Debug.crash <| "CodeMotion.addArg_ expected findLetAndIdentBindingExp to return ELet"
 
-    Nothing ->
+    _ ->
       -- Can't find a name for this function. Arg addition probably unsafe.
       []
 
