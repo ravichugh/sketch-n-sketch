@@ -2561,6 +2561,9 @@ typesTool model selections =
 -- Format Tool
 --------------------------------------------------------------------------------
 
+-- Not currently factoring and composing the formatting of different
+-- kinds of Exp nodes.
+
 formatTool : Model -> DeuceSelections -> DeuceTool
 formatTool model selections =
   let
@@ -2573,14 +2576,16 @@ formatTool model selections =
           let
             exp =
               LangTools.justFindExpByEId model.inputExp eId
+
+            replaceThisExp__ newE__ =
+              replaceExpNode eId (replaceE__ exp newE__) model.inputExp
           in
             case (unExpr exp).val.e__ of
               EList ws1 wsExps ws2 maybeTail ws3 ->
                 let
                   rebuild wsExps ws3 =
-                    replaceExpNode eId
-                      (EList ws1 wsExps ws2 maybeTail ws3 |> replaceE__ exp)
-                      model.inputExp
+                    EList ws1 wsExps ws2 maybeTail ws3
+                      |> replaceThisExp__
 
                   simpleSingleLine =
                     let
@@ -2619,6 +2624,144 @@ formatTool model selections =
                     ]
                 in
                   (NoInputDeuceTransform func, Satisfied)
+
+              ELet wsBeforeLet letKind (Declarations po letTypes letAnnots letExps) wsBeforeIn body ->
+                let
+                  mapEachLetExp f =
+                    letExps |> List.map (Tuple.mapSecond (List.map f))
+
+                  rebuild : Bool -> Bool -> Maybe Int -> Maybe String -> Maybe String -> Exp
+
+                  -- TODO: this BeforeBeforePat business is not quite right.
+                  rebuild removeWsBeforeBeforeEachPat   -- Bool
+                          removeWsBeforeEachPat         -- Bool
+                          maybePadWsBeforeEachEqualsTo  -- Maybe Int
+                          maybeNewWsBeforeEachExp       -- Maybe String
+                          maybeNewWsBeforeIn =          -- Maybe String
+                    let
+                      newLetExps =
+                        mapEachLetExp (\(LetExp ws0 wsBeforeBeforePat pat fas ws2 expEquation) ->
+                          let
+                            newWsBeforeBeforePat =
+                              if removeWsBeforeBeforeEachPat then
+                                space0
+                              else
+                                wsBeforeBeforePat
+
+                            newPat =
+                              if removeWsBeforeEachPat then
+                                replacePrecedingWhitespacePat " " pat
+                              else
+                                pat
+
+                            newWsBeforeEquals =
+                              maybePadWsBeforeEachEqualsTo
+                                |> Maybe.map (\maxCol -> ws (String.repeat (1 + maxCol - ws2.start.col) " "))
+                                |> Maybe.withDefault ws2
+
+                            newWsBeforeExp =
+                              maybeNewWsBeforeEachExp
+                                |> Maybe.withDefault (precedingWhitespace expEquation)
+
+                            newExpEquation =
+                              replacePrecedingWhitespace newWsBeforeExp expEquation
+                          in
+                            LetExp ws0 newWsBeforeBeforePat newPat fas newWsBeforeEquals newExpEquation
+                        )
+
+                      newWsBeforeIn =
+                        maybeNewWsBeforeIn
+                          |> Maybe.map ws
+                          |> Maybe.withDefault wsBeforeIn
+
+                      newDecls =
+                        Declarations po letTypes letAnnots newLetExps
+                    in
+                      ELet wsBeforeLet letKind newDecls newWsBeforeIn body
+                        |> replaceThisExp__
+
+                  (listEqualsSignCol, listWsBeforeExp) =
+                    letExps
+                      |> List.map Tuple.second
+                      |> List.concat
+                      |> List.map (\(LetExp _ _ _ _ wsBeforeEquals e) ->
+                           (wsBeforeEquals.start.col, precedingWhitespace e)
+                         )
+                      |> List.unzip
+                      |> Tuple.mapSecond Utils.dedup
+
+                  makeSingleLine =
+                    synthesisResult "Single Line"
+                      (rebuild True True Nothing (Just " ") (Just " "))
+
+                  alignEqualsSigns =
+                    let
+                      maxEqualsSignCol =
+                        List.maximum listEqualsSignCol
+                          |> Utils.fromJust_ "maxEqualsSignCol"
+                    in
+                      synthesisResult "Remove Line Breaks and Align Equals Signs"
+                        (rebuild False False (Just maxEqualsSignCol) (Just " ") Nothing)
+
+                  alignAllToSome =
+                    listWsBeforeExp
+                      |> List.map (\s ->
+                           let caption =
+                             if String.contains "\n" s then
+                               "Match Indentation"
+                             else
+                               "Remove Line Breaks"
+                           in
+                             synthesisResult caption
+                               (rebuild False False Nothing (Just s) Nothing)
+                         )
+
+                  numLetExp =
+                    letExps
+                      |> List.map Tuple.second
+                      |> List.concat
+                      |> List.length
+
+                  func () =
+                    if numLetExp == 1 then
+                      [makeSingleLine]
+                    else
+                      alignAllToSome ++ [alignEqualsSigns]
+                in
+                (NoInputDeuceTransform func, Satisfied)
+
+              _ ->
+                (InactiveDeuceTransform, Impossible)
+
+        (_, _, [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Impossible)
+
+        (_, _, [], [], [], [_], [], [], []) ->
+          (InactiveDeuceTransform, Impossible)
+
+        (_, _, [], [], [], equations, [], [], []) ->
+          let
+            (eIds, bindingNums) =
+              List.unzip equations
+          in
+            case Utils.dedup eIds of
+              [eId] ->
+                let
+                  expLet =
+                    findExpByEId model.inputExp eId
+                      |> Utils.fromJust_ "DeuceTools Format findExpByEId"
+
+                  listLetExp : List LetExp
+                  listLetExp =
+                    bindingNums
+                      |> List.map (findLetexpByBindingNumber expLet)
+                      |> List.map (Utils.fromJust_ "DeuceTools Format findLetexpByBindingNumber")
+
+                  -- Too much work for now to support individual BindingNums
+                  -- of an ELet. Just use the version that formats every LetExp
+                  -- in an ELet.
+                in
+                (InactiveDeuceTransform, Impossible)
 
               _ ->
                 (InactiveDeuceTransform, Impossible)
