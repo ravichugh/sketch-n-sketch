@@ -2893,7 +2893,8 @@ mapPrecedingWhitespaceWS mapWs exp =
         EConst     ws n l wd                        -> EConst     (mapWs ws) n l wd
         EVar       ws x                             -> EVar       (mapWs ws) x
         EFun       ws1 ps e1 ws2                    -> EFun       (mapWs ws1) ps e1 ws2
-        EApp       ws1 e1 es apptype ws2            -> EApp       (mapWs ws1) e1 es apptype ws2
+        -- The "before" whitespace on EApps goes to the argument
+        EApp       ws1 e1 es apptype ws2            -> EApp       ws1 (mapPrecedingWhitespaceWS mapWs e1) es apptype ws2
         EList      ws1 es ws2 rest ws3              -> EList      (mapWs ws1) es ws2 rest ws3
         ERecord    ws1 mi es ws2                    -> ERecord    (mapWs ws1) mi es ws2
         ESelect    ws1 e ws2 ws3 s                  -> ESelect    (mapWs ws1) e ws2 ws3 s
