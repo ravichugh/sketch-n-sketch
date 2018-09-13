@@ -3859,7 +3859,7 @@ tagBranchList eid =
       ( \index branch ->
           case branch.val of
             Branch_ _ p _ _ ->
-              tagSinglePat (rootPathedPatternId (eid, index + 1)) p
+              tagSinglePat (rootPathedPatternId (eid, index)) p
       )
 
 -- Return the tags of the patterns of this current expression (not the children)
@@ -3869,7 +3869,7 @@ taggedExpPats exp =
     EFun _ ps _ _ ->
       ps |>
       List.indexedMap (\i p ->
-        tagSinglePat (rootPathedPatternId (expEId exp, i + 1)) p
+        tagSinglePat (rootPathedPatternId (expEId exp, i)) p
       ) |>
       List.concatMap identity
     ECase _ _ branches _ ->

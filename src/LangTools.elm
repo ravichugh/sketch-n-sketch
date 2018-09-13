@@ -1468,7 +1468,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
           Just <| makeNewScope (ELet ws1 letKind newDecls ws3 body)
 
        Just (EFun ws1 pats body ws2) ->
-        Utils.maybeGeti1 branchI pats
+        Utils.maybeGeti0 branchI pats
         |> Maybe.map
             (\pat ->
               let newPat = setPatNameInPat path newName pat in
@@ -1476,7 +1476,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
             )
 
        Just (ECase ws1 scrutinee branches ws2) ->
-        Utils.maybeGeti1 branchI branches
+        Utils.maybeGeti0 branchI branches
         |> Maybe.map
             (\branch ->
               let (Branch_ ws1 pat exp ws2) = branch.val in
@@ -1550,7 +1550,8 @@ findScopeAreas : ScopeId -> Exp -> List Exp
 findScopeAreas (scopeEId, branchI) exp  =
   let maybeScopeExp = findExpByEId exp scopeEId in
   case Maybe.map unwrapExp maybeScopeExp of
-    Just (ELet _ _ (Declarations _ _ _ exps) _ body) ->
+    Just (ELet _ _ (Declarations _ _ _ exps as decls) _ body) ->
+      let offset = Lang.startBindingNumLetExp decls in
       let (res, _, found) = foldLeftGroup ([], 0, False) exps <|
         \(acc, declsBefore, canSeeBoundVariables) group isRec ->
            let newDeclsBefore = declsBefore + List.length group in
@@ -1558,7 +1559,7 @@ findScopeAreas (scopeEId, branchI) exp  =
              (acc ++ groupBoundExps group, newDeclsBefore, True)
            else
            let idents = groupIdentifiers group in
-           if declsBefore < branchI && branchI <= newDeclsBefore then
+           if declsBefore <= (branchI - offset) && (branchI - offset) < newDeclsBefore then
              if isRec then
                (acc ++ groupBoundExps group, newDeclsBefore, True)
              else
@@ -1572,11 +1573,11 @@ findScopeAreas (scopeEId, branchI) exp  =
       [body]
 
     Just (ECase _ _ branches _) ->
-      Utils.maybeGeti1 branchI (branchExps branches)
+      Utils.maybeGeti0 branchI (branchExps branches)
       |> Maybe.map (\branch -> [branch])
       |> Maybe.withDefault []
 
-    _ ->
+    x ->
       []
 
 
@@ -1723,7 +1724,7 @@ findDeclaration callback decls =
 
 nthDeclaration: Int -> Declarations -> Maybe Declaration
 nthDeclaration i decls =
-  findDeclaration (\index d -> index == i) decls |> Debug.log ("Declaration " ++ toString i)
+  findDeclaration (\index d -> index == i) decls-- |> Debug.log ("Declaration " ++ toString i)
 
 mapDeclarations: (Int -> Declaration -> Declaration) -> Declarations -> Declarations
 mapDeclarations callback decls =
@@ -1747,11 +1748,11 @@ findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
             )
 
        Just (EFun _ pats _ _) ->
-        Utils.maybeGeti1 branchI pats
+        Utils.maybeGeti0 branchI pats
         |> Maybe.andThen (\pat -> followPathInPat path pat)
 
        Just (ECase _ _ branches _) ->
-        Utils.maybeGeti1 branchI (branchPats branches)
+        Utils.maybeGeti0 branchI (branchPats branches)
         |> Maybe.andThen (\pat -> followPathInPat path pat)
 
        _ ->
@@ -1869,17 +1870,17 @@ identPatsInPat pat =
       )
 
 
-tryMatchExpsPatsToPathsAtFunctionCall : List Pat -> List Exp -> List (List Int, Exp)
+tryMatchExpsPatsToPathsAtFunctionCall : List Pat -> List Exp -> List (Int, List Int, Exp)
 tryMatchExpsPatsToPathsAtFunctionCall pats exps =
   -- Allow partial application
   Utils.zip pats exps
   -- Not simply making a dummy pList/eList and sending that to
   -- tryMatchExpPatToPaths b/c want if we do then we will get
   -- a extra ([], dummyEList) result, which we don't want.
-  |> Utils.mapi1
-    (\(i, (p, e)) ->
+  |> List.indexedMap
+    (\i (p, e) ->
       tryMatchExpPatToPaths_ p e
-      |> Maybe.map (\pathAndExps -> List.map (\(path, e) -> (i::path, e)) pathAndExps)
+      |> Maybe.map (\pathAndExps -> List.map (\(path, e) -> (i, path, e)) pathAndExps)
     )
   |> Utils.projJusts
   |> Maybe.withDefault []
@@ -2219,11 +2220,12 @@ renameVarUntilBound oldName newName exp =
 -- Preserves EIds (for Brainstorm)
 renameVarsUntilBound : Dict Ident Ident -> Exp -> Exp
 renameVarsUntilBound renamings exp =
-  let renamer newName e =
+  let renamer: String -> Exp -> Exp
+      renamer newName    e =
     -- let _ = Debug.log ("Renaming " ++ newName ++ " on") e in
     case (unwrapExp e) of
-      EVar ws oldName -> replaceE__ e (EVar ws newName)
-      _               -> Debug.crash <| "LangTools.renameVarsUntilBound: renamer should only be passed an EVar, but given: " ++ toString e
+       EVar ws oldName -> replaceE__ e (EVar ws newName)
+       _               -> Debug.crash <| "LangTools.renameVarsUntilBound: renamer should only be passed an EVar, but given: " ++ toString e
   in
   let fnSubst =
     renamings
@@ -2238,7 +2240,7 @@ removeIntroducedIdents introducedIdents subst =
        subst
        introducedIdents
 
-transformVarsUntilBoundDecls: Dict Ident (Exp -> Exp) -> Declarations -> Declarations
+transformVarsUntilBoundDecls: Dict Ident (Exp -> Exp) -> Declarations -> (Dict Ident (Exp -> Exp), Declarations)
 transformVarsUntilBoundDecls subst (Declarations po types anns grouppedExps) =
   let (revLetExps, newSubst) = foldLeftGroup ([], subst) grouppedExps <|
     \(revAcc, subst) group isRec ->
@@ -2251,12 +2253,12 @@ transformVarsUntilBoundDecls subst (Declarations po types anns grouppedExps) =
        , newSubst)
   in
   let newLetExps = List.reverse revLetExps in
-  Declarations po types anns (regroup grouppedExps newLetExps)
+  (newSubst, Declarations po types anns (regroup grouppedExps newLetExps))
 
 -- Transforms only free variables.
 -- Preserves EIds (for Brainstorm)
 -- Might be able to rewrite using freeVars or mapFoldExpTopDownWithScope
-transformVarsUntilBound : Dict Ident (Exp -> Exp) -> Exp -> Exp
+transformVarsUntilBound : Dict Ident (Exp {-EVars only-} -> Exp) -> Exp -> Exp
 transformVarsUntilBound subst exp =
   let recurse e = transformVarsUntilBound subst e in
   let recurseWithout introducedIdents e =
@@ -2278,7 +2280,7 @@ transformVarsUntilBound subst exp =
     EOp ws1 wsi op es ws2       -> replaceE__ exp (EOp ws1 wsi op (List.map recurse es) ws2)
     EList ws1 es ws2 m ws3      -> replaceE__ exp (EList ws1 (Utils.listValuesMap recurse es) ws2 (Maybe.map recurse m) ws3)
     ERecord ws1 mb decls ws2    ->
-      replaceE__ exp <| ERecord ws1 (Maybe.map (\(t1, t2) -> (recurse t1, t2)) mb) (transformVarsUntilBoundDecls subst decls) ws2
+      replaceE__ exp <| ERecord ws1 (Maybe.map (\(t1, t2) -> (recurse t1, t2)) mb) (Tuple.second <| transformVarsUntilBoundDecls subst decls) ws2
     ESelect ws0 e1 ws1 ws2 s    -> replaceE__ exp (ESelect ws0 (recurse e1) ws1 ws2 s)
     EIf ws1 e1 ws2 e2 ws3 e3 ws4 -> replaceE__ exp (EIf ws1 (recurse e1) ws2 (recurse e2) ws3 (recurse e3) ws4)
     ECase ws1 e1 bs ws2         ->
@@ -2294,7 +2296,8 @@ transformVarsUntilBound subst exp =
 
     EApp ws1 e1 es appType ws2      -> replaceE__ exp (EApp ws1 (recurse e1) (List.map recurse es) appType ws2)
     ELet ws1 kind decls wsIn e2 ->
-      replaceE__ exp <| ELet ws1 kind (transformVarsUntilBoundDecls subst decls) wsIn e2
+      let (newSubst, newDecls) = transformVarsUntilBoundDecls subst decls in
+      replaceE__ exp <| ELet ws1 kind newDecls wsIn (transformVarsUntilBound newSubst e2)
 
     EColonType ws1 e ws2 tipe ws3   -> replaceE__ exp (EColonType ws1 (recurse e) ws2 tipe ws3)
     EParens ws1 e pStyle ws2        -> replaceE__ exp (EParens ws1 (recurse e) pStyle ws2)
@@ -2407,15 +2410,16 @@ bindingPathedPatternIdFor varExp program =
 
 bindingPathedPatternIdForIdentAtEId : Ident -> EId -> Exp -> Maybe PathedPatternId
 bindingPathedPatternIdForIdentAtEId targetName targetEId program =
-  let predMap exp maybeCurrentBindingPathedPatternId =
+  let predMap: Exp -> Maybe PathedPatternId -> Maybe (Maybe PathedPatternId)
+      predMap exp maybeCurrentBindingPathedPatternId =
     case (unwrapExp exp) of
-      EVar _ _ ->
+       EVar _ _ ->
         if (expEId exp) == targetEId then
           Just maybeCurrentBindingPathedPatternId
         else
           Nothing
 
-      _ ->
+       _ ->
         Nothing
   in
   bindingPathedPatternIdFor_ Nothing targetName predMap program
@@ -2546,6 +2550,7 @@ allVarEIdsToBindingPatsBasedOnUniqueName program =
 -- presumably the pathedPatternId that bound the identifier as seen from the usage site (Nothing means free)
 bindingPathedPatternIdFor_ : Maybe PathedPatternId -> Ident -> (Exp -> Maybe PathedPatternId -> Maybe a) -> Exp -> Maybe a
 bindingPathedPatternIdFor_ currentBindingPathedPatternId targetName predicateMap exp =
+  let _ = Debug.log "bindingPathedPatternIdFor_" (currentBindingPathedPatternId, targetName, expEId exp) in
   let recurse pathedPatternId e = bindingPathedPatternIdFor_ pathedPatternId targetName predicateMap e in
   let maybeNewBindingForRecursion pat branchI pathPrefix =
     pathForIdentInPat targetName pat
@@ -2558,37 +2563,37 @@ bindingPathedPatternIdFor_ currentBindingPathedPatternId targetName predicateMap
         EFun _ pats body _ ->
           let newBindingPathedPatternId =
             pats
-            |> Utils.zipi1
-            |> Utils.mapFirstSuccess (\(i, pat) -> maybeNewBindingForRecursion pat 1 [i])
+            |> Utils.zipWithIndex
+            |> Utils.mapFirstSuccess (\(pat, i) -> maybeNewBindingForRecursion pat i [])
             |> Maybe.withDefault currentBindingPathedPatternId
           in
           recurse newBindingPathedPatternId body
 
-        ELet _ _ (Declarations _ _ _ letexpsGroups) _ body ->
-          let aux:  Maybe PathedPatternId ->  Maybe PathedPatternId -> GroupsOf LetExp -> Maybe a
-              aux currentBindingPathedPatternId newBindingPathedPatternId groups = case groups of
+        ELet _ _ (Declarations _ _ _ letexpsGroups as decls) _ body ->
+          let aux: BindingNumber -> Maybe PathedPatternId ->  Maybe PathedPatternId -> GroupsOf LetExp -> Maybe a
+              aux  bn               currentBindingPathedPatternId newBindingPathedPatternId groups = case groups of
             (_, []) :: (((newIsRec, newGroup) as newHead)::newTail) ->
                let nextBindingPathedPatternId =
                  Utils.foldLeft newBindingPathedPatternId newGroup <|
                  \currentBindingPathedPatternId (LetExp _ _ pat _ _ _) ->
-                    maybeNewBindingForRecursion pat 1 []
+                    maybeNewBindingForRecursion pat bn []
                     |> Maybe.withDefault currentBindingPathedPatternId
                in
-               aux newBindingPathedPatternId nextBindingPathedPatternId (newHead::newTail)
+               aux (bn + 1) newBindingPathedPatternId nextBindingPathedPatternId (newHead::newTail)
             (isRec, (LetExp _ _ pat _ _ boundExp)::groupTail) :: tail ->
                let pathedPatternIdForBoundExp = if isRec then newBindingPathedPatternId else currentBindingPathedPatternId in
                Utils.firstOrLazySecond
                  (recurse pathedPatternIdForBoundExp boundExp)
-                 (\() -> aux currentBindingPathedPatternId newBindingPathedPatternId ((isRec, groupTail)::tail))
+                 (\() -> aux (bn + 1) currentBindingPathedPatternId newBindingPathedPatternId ((isRec, groupTail)::tail))
             _ ->
                recurse newBindingPathedPatternId body
-          in aux currentBindingPathedPatternId currentBindingPathedPatternId ((False, [])::letexpsGroups)-- isRecursive pat _ boundExp _ body
+          in aux (startBindingNumLetExp decls) currentBindingPathedPatternId currentBindingPathedPatternId ((False, [])::letexpsGroups)-- isRecursive pat _ boundExp _ body
 
         ECase _ _ branches _ ->
           branchPatExps branches
-          |> Utils.zipi1
+          |> Utils.zipWithIndex
           |> Utils.mapFirstSuccess
-              (\(i, (pat, branchExp)) ->
+              (\((pat, branchExp), i) ->
                 let newBindingPathedPatternId =
                   maybeNewBindingForRecursion pat i []
                   |> Maybe.withDefault currentBindingPathedPatternId
@@ -2736,9 +2741,9 @@ eidToMaybeCorrespondingArgumentPathedPatId program targetEId =
                         -- Allow partial application
                         tryMatchExpsPatsToPathsAtFunctionCall fpats argExps
                         |> Utils.mapFirstSuccess
-                            (\(path, correspondingExp) ->
+                            (\(bn, path, correspondingExp) ->
                               if (expEId correspondingExp) == targetEId
-                              then Just (((expEId funcExp), 1), path)
+                              then Just (((expEId funcExp), bn), path)
                               else Nothing
                             )
 
