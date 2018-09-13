@@ -2718,7 +2718,8 @@ precedingWhitespaceWithInfoExp__ e__ =
     EConst     ws n l wd                        -> ws
     EVar       ws x                             -> ws
     EFun       ws1 ps e1 ws2                    -> ws1
-    EApp       ws1 e1 es apptype  ws2           -> ws1
+    -- The "before" whitespace on EApps goes to the argument
+    EApp       ws1 e1 es apptype  ws2           -> precedingWhitespaceWithInfoExp e1
     EList      ws1 es ws2 rest ws3              -> ws1
     ERecord    ws1 mi es ws2                    -> ws1
     ESelect    ws1 e ws2 ws3 s                  -> ws1
