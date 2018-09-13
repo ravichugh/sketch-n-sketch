@@ -11,6 +11,7 @@ module DeuceTools exposing
   , isActive
   -- Hotkey exposure
   , renameVariableViaHotkey
+  , expandFormatViaHotkey
   )
 
 import String
@@ -2778,6 +2779,34 @@ formatTool model selections =
     , id = "format"
     }
 
+expandFormatViaHotkey : Model -> DeuceWidget -> Maybe Exp
+expandFormatViaHotkey = runFunctionViaHotkey expandFormat
+
+expandFormat old selections =
+  case selections of
+    (_, _, [eId], [], [], [], [], [], []) ->
+      let exp = LangTools.justFindExpByEId old.inputExp eId in
+      case unwrapExp exp of
+        EList ws1 wsExps ws2 maybeTail ws3 ->
+          let
+            startCol = (unExpr exp).start.col
+            breakAndIndent = "\n" ++ String.repeat (startCol - 1) " "
+            newWsExps =
+              wsExps
+                |> Utils.mapi0 (\(i, (_, e_i)) ->
+                     ( ws <| if i == 0 then " " else breakAndIndent
+                     , replacePrecedingWhitespace " " e_i
+                     )
+                   )
+          in
+          replaceExpNode eId
+            (EList ws1 newWsExps ws2 maybeTail (ws breakAndIndent) |> replaceE__ exp)
+            old.inputExp
+          |> Just
+        _ ->
+          Nothing
+    _ ->
+      Nothing
 
 --==============================================================================
 --= EXPORTS
@@ -2966,6 +2995,20 @@ mbThunkToTransform mbThunk =
   case mbThunk of
     Nothing -> InactiveDeuceTransform
     Just thunk -> NoInputDeuceTransform thunk
+
+runFunctionViaHotkey : (Model -> Selections -> Maybe Exp) -> Model -> DeuceWidget -> Maybe Exp
+runFunctionViaHotkey function old selectedWidget =
+  let thunk () =
+    function old <| selectionsTuple old.inputExp [selectedWidget]
+  in
+  case ImpureGoodies.crashToError thunk of
+    Ok exp ->
+      exp
+    Err errMsg ->
+      let _ =
+        Debug.log <| "Deuce Function Via Hotkey Crash :" ++ toString errMsg
+      in
+      Nothing
 
 runToolViaHotkey : (Model -> Selections -> DeuceTool) -> Model -> DeuceWidget -> Maybe Exp
 runToolViaHotkey toolBuilder old selectedWidget =

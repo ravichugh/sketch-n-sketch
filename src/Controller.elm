@@ -3248,6 +3248,8 @@ handleDeuceHotKey old keyCode selected =
   -- Deuce tools
   else if keyCode == Keys.keyS then
     DeuceTools.renameVariableViaHotkey old selected |> maybeChooseDeuceExp old
+  else if keyCode == Keys.keyE then
+    DeuceTools.expandFormatViaHotkey old selected |> maybeChooseDeuceExp old
 
   else
     old
