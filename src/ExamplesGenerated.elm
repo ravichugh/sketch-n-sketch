@@ -6893,7 +6893,9 @@ Html.span [] [] <| html ((freeze markdown) original)
 """
 
 fromleo_conference_budgetting =
- """-- Use of 'exactly' and 'notBelow X' to specify how values can(not) be changed.
+ """-- Use of 'exactly' and 'notBelow X'
+-- to specify how values can(not) be
+-- changed.
 
 days =  exactly 3
 venue = exactly 10000 * days
@@ -6908,17 +6910,16 @@ income   = exactly participants * fee + sponsors
 
 surplus = income - expenses
 
-
--- Change surplus to 0, it changes the lunch but will stop at 20, so the surplus will be negative.
--- Change surplus to 0 again, it changes the registration fee.
-main =
-  <div style=\"margin:20px\">Current surplus of conference:
-    <br><h3 id=\"surplus\">@(toString surplus)</h3>
-    @(if surplus /= 0 then
-       <button onclick=\"document.getElementById('surplus').innerText = '0'\">Set to zero</button>
-      else
-       <span>Hurray, the budget is coherent!</span>)
-    </div>
+-- Change surplus to 0 twice
+main = <div style=\"margin:20px\">
+Current surplus of conference:<br>
+<h3 id=\"surplus\">@(toString surplus)</h3>
+@(if surplus /= 0 then
+  <button onclick=
+ \"document.getElementById('surplus').innerText = '0'\"
+ >Set to zero</button> else
+  <span>Hurray, the budget is coherent!</span>)
+</div>
 
 
 
@@ -6926,14 +6927,17 @@ main =
 
 exactly x = freeze x
 
-notBelow bound x = {
+notBelow bound = Update.lens {
   apply x = x
   update {input, outputNew} =
     if outputNew <= bound &&
-       input     >  bound     then Ok (Inputs [bound])
-    else if outputNew > bound then Ok (Inputs [outputNew])
-    else                           Ok (Inputs [])
-  }.apply x
+       input     >  bound     then
+     Ok (Inputs [bound])
+    else if outputNew > bound then
+     Ok (Inputs [outputNew])
+    else
+     Ok (Inputs [])
+  }
 """
 
 fromleo_recipe =

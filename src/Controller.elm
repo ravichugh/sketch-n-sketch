@@ -2380,7 +2380,8 @@ doCallUpdate m =
             LazyList.Nil -> Nothing
             LazyList.Cons (diffResult, newCode, diffs, changes) lazyTail ->
               if changes == prevChanges then -- remove duplicates
-                aux (Lazy.force lazyTail) prevChanges
+                Just <| synthesisResultDiffsLazy "Hover for more solutions..." m.inputExp [] <| \_ ->
+                  aux (Lazy.force lazyTail) prevChanges
               else
                 Just <| synthesisResultDiffsLazy diffResult newCode diffs <| \_ ->
                   aux (Lazy.force lazyTail) changes
@@ -2390,6 +2391,7 @@ doCallUpdate m =
               showSolutions [revertChanges "Only Solution is Original Program"]
             Just synthesisResult ->
               showSolutions ([synthesisResult, revertChanges "Revert to Original Program"])
+
 decodeStyles : JSDecode.Decoder Val
 decodeStyles =
   JSDecode.lazy <| \_ ->
@@ -2566,7 +2568,9 @@ doHoverSynthesisResult resultsKey pathByIndices old =
     case path of
        [] -> oldResults
        [i] -> Utils.zipWithIndex oldResults |> List.concatMap (\((SynthesisResult attrs), j) ->
-           if i == j then [SynthesisResult { attrs | nextLazy = Nothing}] ++ (newMbSynthesisResult |> Maybe.map (\x -> [x]) |> Maybe.withDefault [])
+           if i == j
+           then (if attrs.diffs == [] then [] else [SynthesisResult { attrs | nextLazy = Nothing}]) ++
+                (newMbSynthesisResult |> Maybe.map (\x -> [x]) |> Maybe.withDefault [])
            else [SynthesisResult attrs]
          )
        i::is -> oldResults |> Utils.getReplacei0 i (\(SynthesisResult attrs) ->

@@ -1514,7 +1514,7 @@ tupleDiffsToDiffs t = case t of
 -- Invoke this only if strictly necessary.
 defaultVDiffs: Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffs original modified =
-  --let _ = Debug.log ("defaultVDiffs " ++ valToString original ++ "\n" ++ valToString modified) () in
+  let _ = Debug.log ("defaultVDiffs " ++ valToString original ++ "\n" ++ valToString modified) () in
   {--
    (\x ->
     let diffs=  Results.toList x in
@@ -1534,7 +1534,9 @@ defaultVDiffsRec testEquality recurse original modified =
     case result of
       Err msg -> result
       Ok ll ->
-        let _ = Debug.log ("Number of diffs for " ++ valToString original ++ "\nvs.\n" ++ valToString modified) (ll |> LazyList.toList |> List.length) in
+        let x = ll |> LazyList.toList |> List.length in
+        let _ = if x > 1 then
+          Debug.log ("Number of diffs for " ++ valToString original ++ "\nvs.\n" ++ valToString modified) x else x in
         result
   ) <|-}
   case (original.v_, modified.v_) of
@@ -1636,6 +1638,11 @@ alignRecordDatatypes datatypeNameOf removed added difftail =
 defaultListDiffs: (a -> String) -> (a -> Maybe String) -> (a -> a -> Results String (Maybe b)) -> List a -> List a -> Results String (Maybe (ListDiffs b))
 defaultListDiffs keyOf datatypeNameOf defaultElemModif elems1 elems2 =
   alldiffs keyOf elems1 elems2 |> Results.andThen (\difference ->
+  {-let _ = Debug.log ("Processing list difference: " ++ String.join "," (List.map (\d -> case d of
+    DiffEqual elems -> "DiffEqual " ++ toString (List.length elems)
+    DiffRemoved elems -> "DiffRemoved " ++ toString (List.length elems)
+    DiffAdded elems -> "DiffAdded " ++ toString (List.length elems)
+      ) difference)) () in-}
   let aux: Int -> List (Int, ListElemDiff b) -> List (DiffChunk (List a)) -> Results String (Maybe (ListDiffs b))
       aux i accDiffs diffs = case diffs of
         [] -> case List.reverse accDiffs of

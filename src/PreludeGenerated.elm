@@ -2701,6 +2701,12 @@ Update =
          aux (offset + String.length newInserted - (end - start)) dtail
        in
        aux 0 (strDiffToConcreteDiff modifiedStr diffs) modifiedStr
+
+    onUpdate callback = lens {
+        apply = identity
+        update {outputNew} = Ok (Inputs [callback outputNew])
+    }
+
     debug msg x =
          { apply x = x, update { input, newOutput, oldOutput, diffs} =
            let _ = Debug.log (\"\"\"@msg:
@@ -4269,6 +4275,18 @@ Html =
             ([node], acc)-> (node, acc)
             r -> r
   in
+  let
+    isEmptyText = case of
+        [\"TEXT\", x] -> Regex.matchIn \"^\\\\s*$\" x
+        _ -> False
+
+    filter pred elemList =
+        List.concatMap (case of
+          [tagName, attrs, children] as elem ->
+            if pred elem then [[tagName, attrs, filter pred children]]
+            else []
+          elem -> if pred elem then [elem] else []) elemList
+  in
   { textNode = textNode
     p = textElementHelper \"p\"
     th = textElementHelper \"th\"
@@ -4301,6 +4319,8 @@ Html =
     replace = replace
     find = find
     foldAndReplace = foldAndReplace
+    filter = filter
+    isEmptyText = isEmptyText
     onClickCallback = onClickCallback
 
     scriptFindEnclosing tagName varnameWhatToDo = \"\"\"
