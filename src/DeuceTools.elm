@@ -2830,7 +2830,9 @@ toolList =
     , createFunctionFromArgsTool
     , mergeTool
     ]
-  , [ addArgumentsTool
+-}
+  , [ addArgumentsTool ]
+{-
     , removeArgumentsTool
     , reorderArgumentsTool
     ]

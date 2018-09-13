@@ -2091,7 +2091,7 @@ declarations minStartCol =
 genericLetBinding : Parser Exp -> Parser (WS -> WithInfo Exp_)
 genericLetBinding bodyParser =
   lazy <| \_ ->
-    delayedCommitMap (\startPos (decls, wsBeforeIn, endPos, body) wsBefore ->
+    delayedCommitMap (\startPos (decls, wsBeforeIn, body, endPos) wsBefore ->
        withInfo (exp_ <| ELet wsBefore Let decls wsBeforeIn body) startPos endPos
     )
     getPos
@@ -2100,8 +2100,8 @@ genericLetBinding bodyParser =
     |= (getPos |> andThen (\pos -> declarations (pos.col - 3)))
     |= spaces
     |. keywordWithSpace "in"
-    |= getPos
     |= bodyParser
+    |= getPos
     )
 
 
