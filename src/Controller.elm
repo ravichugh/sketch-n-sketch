@@ -1908,7 +1908,7 @@ deleteInOutput old =
             case LangTools.findLetAndPatMatchingExpLoose (expEId expToDelete) program of
                Just (letExp, patBindingExpToDelete) ->
                  let identsToDelete = identifiersListInPat patBindingExpToDelete in
-                 let scopeAreas = LangTools.findScopeAreas ((expEId letExp), 1) letExp in
+                 let scopeAreas = LangTools.findScopeAreas ((expEId letExp), 0) letExp "" in
                  let varUses = scopeAreas |> List.concatMap (LangTools.identifierSetUses (Set.fromList identsToDelete)) in
                  let deleteVarUses program =
                    varUses

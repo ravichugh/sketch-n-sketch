@@ -646,6 +646,12 @@ expNameForExpWithDefault default program exp =
     _ ->
       simpleExpNameWithDefault default exp
 
+renamePatVar: String -> String -> Pat -> Pat
+renamePatVar oldName newName pat =
+  mapPat (\p -> case p.val.p__ of
+    PVar ws0 name c ->
+      if name == oldName then replaceP__ p <| PVar ws0 newName c else p
+    _ -> p) pat
 
 commonNameForEIds : Exp -> List EId -> String
 commonNameForEIds program eids =
@@ -1546,22 +1552,24 @@ patToExp pat =
 
 -- Return the first expression(s) that can see the bound variables.
 -- Returns [] if cannot find scope; recursive definitions returns the bound expressions as well.
-findScopeAreas : ScopeId -> Exp -> List Exp
-findScopeAreas (scopeEId, branchI) exp  =
+findScopeAreas : ScopeId -> Exp -> String -> List Exp
+findScopeAreas (scopeEId, branchI) exp oldName =
   let maybeScopeExp = findExpByEId exp scopeEId in
   case Maybe.map unwrapExp maybeScopeExp of
     Just (ELet _ _ (Declarations _ _ _ exps as decls) _ body) ->
       let offset = Lang.startBindingNumLetExp decls in
       let (res, _, found) = foldLeftGroup ([], 0, False) exps <|
         \(acc, declsBefore, canSeeBoundVariables) group isRec ->
+           let maybeShadowingIdentifiers = groupIdentifiers group in
+           let isShadowing = List.member oldName maybeShadowingIdentifiers in
            let newDeclsBefore = declsBefore + List.length group in
            if canSeeBoundVariables then
-             (acc ++ groupBoundExps group, newDeclsBefore, True)
+             (if not isShadowing || not isRec then acc ++ groupBoundExps group else acc, newDeclsBefore, not isShadowing)
            else
            let idents = groupIdentifiers group in
            if declsBefore <= (branchI - offset) && (branchI - offset) < newDeclsBefore then
              if isRec then
-               (acc ++ groupBoundExps group, newDeclsBefore, True)
+               (if not isShadowing || not isRec then acc ++ groupBoundExps group else acc, newDeclsBefore, True)
              else
                (acc, newDeclsBefore, True)
            else

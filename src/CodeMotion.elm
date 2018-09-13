@@ -136,6 +136,22 @@ renamePatByPId pid newName program =
   |> Maybe.map (\ppid -> renamePat ppid newName program)
   |> Maybe.withDefault []
 
+renameAnnotations: String -> String -> Exp -> Exp
+renameAnnotations oldName newName exp =
+  case unwrapExp exp of
+    ERecord ws1 mbInit (Declarations po types anns letexps) ws2 ->
+      let newAnns =
+        anns |> List.map (\(LetAnnotation spc spp p fs se t) ->
+           LetAnnotation spc spp (LangTools.renamePatVar oldName newName p) fs se t)
+      in
+      replaceE__ exp <| ERecord ws1 mbInit (Declarations po types newAnns letexps) ws2
+    ELet ws1 lk (Declarations po types anns letexps) spIn e2 ->
+      let newAnns =
+        anns |> List.map (\(LetAnnotation spc spp p fs se t) ->
+           LetAnnotation spc spp (LangTools.renamePatVar oldName newName p) fs se t)
+      in
+      replaceE__ exp <| ELet ws1 lk (Declarations po types newAnns letexps) spIn e2
+    _ -> exp
 
 renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
 renamePat (scopeId, path) newName program =
@@ -143,7 +159,7 @@ renamePat (scopeId, path) newName program =
     Just ((scopeExp, branchNumber), pat) ->
       case LangTools.patToMaybeIdent pat of
         Just oldName ->
-          let scopeAreas = LangTools.findScopeAreas scopeId scopeExp in -- ScopeAreas are the outermost exp in which the variable might appear.
+          let scopeAreas = LangTools.findScopeAreas scopeId scopeExp oldName in -- ScopeAreas are the outermost exp in which the variable might appear.
           --let _ = Debug.log ("scopeAreas where to rename:" ++ (List.map (Syntax.unparser Syntax.Leo) scopeAreas |> String.join "\n;\n")) () in
           let oldUseEIds = List.concatMap (LangTools.identifierUses oldName) scopeAreas |> List.map expEId in
           let newScopeAreas = List.map (LangTools.renameVarUntilBound oldName newName) scopeAreas in
@@ -160,7 +176,9 @@ renamePat (scopeId, path) newName program =
             in
             LangTools.setPatName (scopeId, path) newName scopeAreasReplaced
           in
-          let newProgram = replaceExpNode (expEId newScopeExp) newScopeExp program in
+          let newScopeExp2 =
+            newScopeExp |> renameAnnotations oldName newName in
+          let newProgram = replaceExpNode (expEId newScopeExp2) newScopeExp2 program in
           let result =
             let
                descriptionStart =
@@ -2207,7 +2225,7 @@ addArgFromPat_ syntax postProcessFBody argSourcePathedPatId targetPathedPatId or
 
       Just ((newArgPat, newArgVal, False), fbodyWithoutPlucked) ->
         let varUsagesSame =
-          let oldScopeAreas = findScopeAreas (pathedPatIdToScopeId argSourcePathedPatId) fbody in
+          let oldScopeAreas = findScopeAreas (pathedPatIdToScopeId argSourcePathedPatId) fbody "" in
           identifiersListInPat newArgPat
           |> List.all
               (\ident ->
