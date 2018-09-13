@@ -13,6 +13,7 @@ module DeuceTools exposing
 
 import String
 import Dict
+import Regex
 
 import Either exposing (..)
 import Utils
@@ -2630,21 +2631,19 @@ formatTool model selections =
                   mapEachLetExp f =
                     letExps |> List.map (Tuple.mapSecond (List.map f))
 
-                  rebuild : Bool -> Maybe Int -> Maybe String -> Maybe String -> Exp
+                  rebuild : (String -> String) -> Maybe Int -> Maybe String -> Maybe String -> Exp
 
-                  rebuild removeWsBeforeBeforeEachPat   -- Bool
-                          maybePadWsBeforeEachEqualsTo  -- Maybe Int
-                          maybeNewWsBeforeEachExp       -- Maybe String
-                          maybeNewWsBeforeIn =          -- Maybe String
+                  rebuild transformWsBeforeBeforeEachPat -- (String -> String)
+                          maybePadWsBeforeEachEqualsTo   -- Maybe Int
+                          maybeNewWsBeforeEachExp        -- Maybe String
+                          maybeNewWsBeforeIn =           -- Maybe String
                     let
                       newLetExps =
                         mapEachLetExp (\(LetExp ws0 wsBeforeBeforePat pat fas ws2 expEquation) ->
                           let
                             newWsBeforeBeforePat =
-                              if removeWsBeforeBeforeEachPat then
-                                space1
-                              else
-                                wsBeforeBeforePat
+                              wsBeforeBeforePat
+                                |> mapWs transformWsBeforeBeforeEachPat
 
                             newPat =
                               -- there shouldn't be any whitespace before pat anyway
@@ -2688,7 +2687,7 @@ formatTool model selections =
 
                   makeSingleLine =
                     synthesisResult "Single Line"
-                      (rebuild True Nothing (Just " ") (Just " "))
+                      (rebuild (always space1.val) Nothing (Just space1.val) (Just space1.val))
 
                   alignEqualsSigns =
                     let
@@ -2697,7 +2696,10 @@ formatTool model selections =
                           |> Utils.fromJust_ "maxEqualsSignCol"
                     in
                       synthesisResult "Remove Line Breaks and Align Equals Signs"
-                        (rebuild False (Just maxEqualsSignCol) (Just " ") Nothing)
+                        (rebuild (Regex.replace Regex.All (Regex.regex "(\\n)*\\n") (always "\n"))
+                                 (Just maxEqualsSignCol)
+                                 (Just space1.val)
+                                 Nothing)
 
                   alignAllToSome =
                     listWsBeforeExp
@@ -2709,7 +2711,7 @@ formatTool model selections =
                                "Remove Line Breaks"
                            in
                              synthesisResult caption
-                               (rebuild False Nothing (Just s) Nothing)
+                               (rebuild identity Nothing (Just s) Nothing)
                          )
 
                   numLetExp =
