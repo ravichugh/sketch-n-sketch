@@ -2780,13 +2780,13 @@ freshenPreserving idsToPreserve initK e =
            let (newRevTpes, newK) = Utils.foldLeft ([], k) (elemsOf tpes) <|
              \(revAcc, k) (LetType sp1 spType mbSpAlias pat funPolicy spEq tp) ->
                 let (newPat, newK1) = freshenPatPreserving idsToPreserve (pat, k) in
-                let (newTp,  newK2)= freshenTypePreserving idsToPreserve (tp, k) in
+                let (newTp,  newK2)= freshenTypePreserving idsToPreserve (tp, newK1) in
                 (LetType sp1 spType mbSpAlias newPat funPolicy spEq newTp :: revAcc, newK2)
            in
            let (newRevAnn, newK2) = Utils.foldLeft ([], newK) ann <|
              \(revAcc, k) (LetAnnotation sp1 sp0 pat funPolicy spEq tp) ->
                 let (newPat, newK1) = freshenPatPreserving idsToPreserve (pat, k) in
-                let (newTp,  newK2)= freshenTypePreserving idsToPreserve (tp, k) in
+                let (newTp,  newK2)= freshenTypePreserving idsToPreserve (tp, newK1) in
                 (LetAnnotation sp1 sp0 newPat funPolicy spEq newTp :: revAcc, newK2)
            in
            let (newRevExps, newK3) = Utils.foldLeft ([], newK2) (elemsOf exps) <|
