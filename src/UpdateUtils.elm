@@ -1514,7 +1514,7 @@ tupleDiffsToDiffs t = case t of
 -- Invoke this only if strictly necessary.
 defaultVDiffs: Val -> Val -> Results String (Maybe VDiffs)
 defaultVDiffs original modified =
-  let _ = Debug.log ("defaultVDiffs " ++ valToString original ++ "\n" ++ valToString modified) () in
+  --let _ = Debug.log ("defaultVDiffs " ++ valToString original ++ "\n" ++ valToString modified) () in
   {--
    (\x ->
     let diffs=  Results.toList x in
