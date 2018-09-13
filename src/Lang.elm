@@ -4078,12 +4078,19 @@ freeVars exp =
         |> List.concatMap (\(bPat, bExp) -> freeVars bExp |> removeIntroducedBy [bPat])
       in
       freeVars scrutinee ++ freeInEachBranch
-    ELet _ _ (Declarations _ _ _ grouppedExps) _ body ->
-      foldRightGroup grouppedExps (freeVars body) <|
-       \expGroup isRec indents ->
-         let (pats, freeVarsBoundExps) = expGroup |> List.map (\(LetExp _ _ pat _ _ boundExp) -> (pat, freeVars boundExp)) |> List.unzip in
-         let freeVarsBoundExpsFlat = List.concatMap identity freeVarsBoundExps in
-         (indents |> removeIntroducedBy pats) ++
+    ELet _ _ (Declarations _ _ _ groupedExps) _ body ->
+      foldRightGroup groupedExps (freeVars body) <|
+       \expGroup isRec subsequentFreeVars ->
+         let
+           (pats, freeVarsBoundExps) =
+             expGroup |>
+             List.map (\(LetExp _ _ pat _ _ boundExp) ->
+               (pat, freeVars boundExp |> removeIntroducedBy [pat])
+             ) |>
+             List.unzip
+           freeVarsBoundExpsFlat = List.concat freeVarsBoundExps
+         in
+         (subsequentFreeVars |> removeIntroducedBy pats) ++
               (if isRec then freeVarsBoundExpsFlat |> removeIntroducedBy pats else freeVarsBoundExpsFlat)
     _ -> childExps exp |> List.concatMap freeVars
 
