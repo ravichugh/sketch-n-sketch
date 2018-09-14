@@ -60,25 +60,30 @@ replaceExpInfo (Expr e) e_ = Expr <| replaceInfo e e_
 -- Composition of Transformations
 --------------------------------------------------------------------------------
 
-composeTransformations : String -> List (Exp -> List SynthesisResult) -> Exp -> List SynthesisResult
+composeTransformations : String -> List (Exp -> List TransformationResult) -> Exp -> List TransformationResult
 composeTransformations finalCaption transformations originalProgram =
   transformations
-  |> List.foldl
-      (\transformation results ->
-        results
-        |> List.concatMap
-            (\(SynthesisResult result) ->
-              transformation (Parser.freshen result.exp) |> List.map (mapResultSafe ((&&) result.isSafe))
-            )
-      )
-      [ synthesisResult "Original" originalProgram ]
-  |> List.map (setResultDescription finalCaption)
+    |> List.foldl
+         ( \transformation results ->
+             results
+             |> synthesisResults
+             |> List.concatMap
+                 ( \(SynthesisResult result) ->
+                     transformation (Parser.freshen result.exp)
+                       |> List.map
+                            ( mapSynthesisResult <|
+                                mapResultSafe ((&&) result.isSafe)
+                            )
+                 )
+         )
+         [ basicTransformationResult "Original" originalProgram ]
+    |> List.map (mapSynthesisResult <| setResultDescription finalCaption)
 
 --------------------------------------------------------------------------------
 -- Swapping Usages
 --------------------------------------------------------------------------------
 
-swapUsages : PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+swapUsages : PathedPatternId -> PathedPatternId -> Exp -> List TransformationResult
 swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
   case (LangTools.findScopeExpAndPatByPathedPatternId (scopeId1, path1) originalProgram, LangTools.findScopeExpAndPatByPathedPatternId (scopeId2, path2) originalProgram) of
     (Just (scopeExp1, pat1), Just (scopeExp2, pat2)) ->
@@ -119,7 +124,7 @@ swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
             LangTools.allVarEIdsToBindingPId newProgram == expectedVarEIdsToBindingPId
           in
           let result =
-            synthesisResult ("Swap usages of " ++ name1 ++ " and " ++ name2) newProgram |> setResultSafe isSafe
+            basicTransformationResult ("Swap usages of " ++ name1 ++ " and " ++ name2) newProgram |> mapSynthesisResult (setResultSafe isSafe)
           in
           [result]
 
@@ -131,7 +136,7 @@ swapUsages (scopeId1, path1) (scopeId2, path2) originalProgram =
 -- Renaming
 --------------------------------------------------------------------------------
 
-renamePatByPId : PId -> String -> Exp -> List SynthesisResult
+renamePatByPId : PId -> String -> Exp -> List TransformationResult
 renamePatByPId pid newName program =
   pidToPathedPatternId program pid
   |> Maybe.map (\ppid -> renamePat ppid newName program)
@@ -154,7 +159,7 @@ renameAnnotations oldName newName exp =
       replaceE__ exp <| ELet ws1 lk (Declarations po types newAnns letexps) spIn e2
     _ -> exp
 
-renamePat : PathedPatternId -> String -> Exp -> List SynthesisResult
+renamePat : PathedPatternId -> String -> Exp -> List TransformationResult
 renamePat (scopeId, path) newName program =
   case LangTools.findScopeExpAndPatByPathedPatternId (scopeId, path) program of
     Just ((scopeExp, branchNumber), pat) ->
@@ -192,7 +197,7 @@ renamePat (scopeId, path) newName program =
                description =
                  descriptionStart ++ descriptionEnd
             in
-            synthesisResult description newProgram |> setResultSafe isSafe
+            basicTransformationResult description newProgram |> mapSynthesisResult (setResultSafe isSafe)
           in
           [result]
 
@@ -202,7 +207,7 @@ renamePat (scopeId, path) newName program =
     Nothing ->
       []
 
-renameVar : EId -> String -> Exp -> List SynthesisResult
+renameVar : EId -> String -> Exp -> List TransformationResult
 renameVar varEId newName program =
   let varExp = LangTools.justFindExpByEId program varEId in
   let oldName = LangTools.expToIdent varExp in
@@ -500,13 +505,22 @@ pluckExpByPath path exp =
 
 ------------------------------------------------------------------------------
 
-removeNoopResults : Exp -> List SynthesisResult -> List SynthesisResult
-removeNoopResults originalProgram results =
-  let originalUnparsed = unparseWithUniformWhitespace True True originalProgram in
-  results
-  |> List.filter -- Ignore results equivalent to original program.
-      (\(SynthesisResult result) ->
-        originalUnparsed /= unparseWithUniformWhitespace True True result.exp
+removeNoopResults : Exp -> List TransformationResult -> List TransformationResult
+removeNoopResults originalProgram =
+  let
+    originalUnparsed =
+      unparseWithUniformWhitespace True True originalProgram
+  in
+    List.filter -- Ignore results equivalent to original program.
+      ( \result ->
+          result
+            |> transformationToSynthesisResult
+            |> Maybe.map
+                 ( \(SynthesisResult {exp}) ->
+                     originalUnparsed
+                       /= unparseWithUniformWhitespace True True exp
+                 )
+            |> Maybe.withDefault True
       )
 
 ------------------------------------------------------------------------------
@@ -521,7 +535,7 @@ programOriginalNamesAndMaybeRenamedLiftedTwiddledResults:
   Dict EId (Maybe PId) ->
   Exp ->
   Exp ->
-  List SynthesisResult
+  List TransformationResult
 programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
     baseDescription
     uniqueNameToOldName
@@ -533,37 +547,56 @@ programOriginalNamesAndMaybeRenamedLiftedTwiddledResults
     originalProgramUniqueNames
     newProgramUniqueNames
   =
-  let newProgramOriginalNamesResult =
-    let newProgramOriginalNames = renameIdentifiers uniqueNameToOldName newProgramUniqueNames in
-    [ makeResult
-          baseDescription
-          uniqueNameToOldName
-          [] [] [] [] -- renamings liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled
-          varEIdsPreviouslyDeliberatelyRemoved
-          insertedVarEIdToBindingPId
-          originalProgramUniqueNames
-          newProgramOriginalNames
-    ]
+  let
+    newProgramOriginalNamesResult =
+      let
+        newProgramOriginalNames =
+          renameIdentifiers uniqueNameToOldName newProgramUniqueNames
+      in
+        [ makeResult
+            baseDescription
+            uniqueNameToOldName
+            [] [] [] [] -- renamings liftedUniqueIdents identsInvalidlyFreeRewritten identsWithInvalidlyFreeVarsHandled
+            varEIdsPreviouslyDeliberatelyRemoved
+            insertedVarEIdToBindingPId
+            originalProgramUniqueNames
+            newProgramOriginalNames
+        ]
+
+    newProgramMaybeRenamedLiftedTwiddledResults =
+      if
+        newProgramOriginalNamesResult
+          |> Utils.head "CodeMotion.programOriginalNamesAndMaybeRenamedLiftedTwiddledResults"
+          |> extractSynthesisResultWith isResultSafe
+          |> Maybe.withDefault False
+      then
+         []
+      else
+         tryResolvingProblemsAfterTransform
+            baseDescription
+            uniqueNameToOldName
+            maybeNewScopeEId
+            (touchedAdjective, untouchedAdjective)
+            namesUniqueTouched
+            varEIdsPreviouslyDeliberatelyRemoved
+            insertedVarEIdToBindingPId
+            originalProgramUniqueNames
+            newProgramUniqueNames
+
+    results =
+      newProgramOriginalNamesResult
+        ++ newProgramMaybeRenamedLiftedTwiddledResults
+
+    originalProgram =
+      renameIdentifiers uniqueNameToOldName originalProgramUniqueNames
   in
-  let newProgramMaybeRenamedLiftedTwiddledResults =
-    if isResultSafe (Utils.head "CodeMotion.programOriginalNamesAndMaybeRenamedLiftedTwiddledResults" newProgramOriginalNamesResult) then
-       []
-    else
-       tryResolvingProblemsAfterTransform
-          baseDescription
-          uniqueNameToOldName
-          maybeNewScopeEId
-          (touchedAdjective, untouchedAdjective)
-          namesUniqueTouched
-          varEIdsPreviouslyDeliberatelyRemoved
-          insertedVarEIdToBindingPId
-          originalProgramUniqueNames
-          newProgramUniqueNames
-  in
-  let originalProgram = renameIdentifiers uniqueNameToOldName originalProgramUniqueNames in
-  newProgramOriginalNamesResult ++ newProgramMaybeRenamedLiftedTwiddledResults
-  |> Utils.dedupBy (\(SynthesisResult {exp}) -> unparseWithUniformWhitespace False False exp)
-  |> removeNoopResults originalProgram
+    results
+      |> Utils.dedupByMaybe
+           ( extractSynthesisResultWith <|
+               \(SynthesisResult {exp}) ->
+                 unparseWithUniformWhitespace False False exp
+           )
+      |> removeNoopResults originalProgram
 
 
 -- Precondition: program has been run through assignUniqueNames
@@ -900,7 +933,7 @@ makeResult
     -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
-    -> SynthesisResult
+    -> TransformationResult
 makeResult
     baseDescription
     uniqueNameToOldName
@@ -974,7 +1007,7 @@ makeResult
   in
   -- let _ = Debug.log caption () in
   let result =
-    synthesisResult caption newProgram |> setResultSafe isSafe
+    basicTransformationResult caption newProgram |> mapSynthesisResult (setResultSafe isSafe)
   in
   result
 
@@ -989,7 +1022,7 @@ tryResolvingProblemsAfterTransform
     -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
-    -> List SynthesisResult
+    -> List TransformationResult
 tryResolvingProblemsAfterTransform
     baseDescription
     uniqueNameToOldName
@@ -1023,7 +1056,7 @@ tryResolvingProblemsAfterTransformNoTwiddling
     -> Dict EId (Maybe PId)
     -> Exp
     -> Exp
-    -> List SynthesisResult
+    -> List TransformationResult
 tryResolvingProblemsAfterTransformNoTwiddling
     baseDescription
     uniqueNameToOldName
@@ -1058,7 +1091,7 @@ tryResolvingProblemsAfterTransform_
     -> Exp
     -> Exp
     -> Bool
-    -> List SynthesisResult
+    -> List TransformationResult
 tryResolvingProblemsAfterTransform_
     baseDescription
     uniqueNameToOldName
@@ -1239,7 +1272,7 @@ insertPluckedIntoPat targetPathedPatId pluckedPatAndBoundExpAndIsRecs program =
 --   - All previous references to the moved identifier still resolve to that identifer
 --   - All other variables uses of the same name do not resolve to the moved identifier
 --
-moveDefinitions_ : Syntax -> (List PatBoundExpIsRec -> Exp -> (Exp, EId)) -> List PathedPatternId -> Exp -> List SynthesisResult
+moveDefinitions_ : Syntax -> (List PatBoundExpIsRec -> Exp -> (Exp, EId)) -> List PathedPatternId -> Exp -> List TransformationResult
 moveDefinitions_ syntax makeNewProgram sourcePathedPatIds program =
   let (programUniqueNames, uniqueNameToOldName) = assignUniqueNames program in
   let (pluckedPatAndBoundExpAndIsRecs, programWithoutPlucked) =
@@ -1273,7 +1306,7 @@ moveDefinitions_ syntax makeNewProgram sourcePathedPatIds program =
       newProgramUniqueNames
 
 
-moveDefinitionsBeforeEId : Syntax -> List PathedPatternId -> EId -> Exp -> List SynthesisResult
+moveDefinitionsBeforeEId : Syntax -> List PathedPatternId -> EId -> Exp -> List TransformationResult
 moveDefinitionsBeforeEId syntax sourcePathedPatIds targetEId program =
   -- let _ = Debug.log ("moving " ++ toString sourcePathedPatIds ++ " before " ++ toString targetEId ++ " in " ++ unparseWithIds program) () in
   let makeNewProgram pluckedPatAndBoundExpAndIsRecs programWithoutPluckedUniqueNames =
@@ -1286,7 +1319,7 @@ moveDefinitionsBeforeEId syntax sourcePathedPatIds targetEId program =
   moveDefinitions_ syntax makeNewProgram sourcePathedPatIds program
 
 
-moveDefinitionsPat : Syntax -> List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+moveDefinitionsPat : Syntax -> List PathedPatternId -> PathedPatternId -> Exp -> List TransformationResult
 moveDefinitionsPat syntax sourcePathedPatIds targetPathedPatId program =
   let makeNewProgram pluckedPatAndBoundExpAndIsRecs programWithoutPluckedUniqueNames =
     insertPluckedIntoPat targetPathedPatId pluckedPatAndBoundExpAndIsRecs programWithoutPluckedUniqueNames
@@ -1340,12 +1373,12 @@ makeDuplicateResults_ syntax newScopeEId pluckedPatAndBoundExpAndIsRecs newProgr
     ++ Utils.toSentence patStrs
   in
   let result =
-    synthesisResult caption newProgram |> setResultSafe isSafe
+    basicTransformationResult caption newProgram |> mapSynthesisResult (setResultSafe isSafe)
   in
   [ result ]
 
 
-duplicateDefinitionsBeforeEId : Syntax -> List PathedPatternId -> EId -> Exp -> List SynthesisResult
+duplicateDefinitionsBeforeEId : Syntax -> List PathedPatternId -> EId -> Exp -> List TransformationResult
 duplicateDefinitionsBeforeEId syntax sourcePathedPatIds targetEId originalProgram =
   let (pluckedPatAndBoundExpAndIsRecs, _) =
     pluckAll sourcePathedPatIds originalProgram
@@ -1361,7 +1394,7 @@ duplicateDefinitionsBeforeEId syntax sourcePathedPatIds targetEId originalProgra
   makeDuplicateResults_ syntax insertedLetEId pluckedPatAndBoundExpAndIsRecs newProgram originalProgram
 
 
-duplicateDefinitionsPat : Syntax -> List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+duplicateDefinitionsPat : Syntax -> List PathedPatternId -> PathedPatternId -> Exp -> List TransformationResult
 duplicateDefinitionsPat syntax sourcePathedPatIds targetPathedPatId originalProgram =
   let (pluckedPatAndBoundExpAndIsRecs, _) =
     pluckAll sourcePathedPatIds originalProgram
@@ -1571,7 +1604,7 @@ addExpToExpByPath expToInsert path exp =
 
 -- Duplicate lets to new position, remove old lets, check for safety/resolve any dependency problems.
 -- Dup/remove workflow cleanly handles edge cases e.g. moving definition before itself.
-moveEquationsBeforeEId : Syntax -> List (EId, Int) -> EId -> Exp -> List SynthesisResult
+moveEquationsBeforeEId : Syntax -> List (EId, Int) -> EId -> Exp -> List TransformationResult
 moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
   Debug.log "CodeMotion TODO: update moveEquationBeforeEId with new Let syntax" []
   {-
@@ -1959,7 +1992,7 @@ shouldBeParameterIsNamedUnfrozenConstant exp originalProgram =
     _ -> False
 
 
-abstractPVar : Syntax -> PathedPatternId -> List EId -> Exp -> List SynthesisResult
+abstractPVar : Syntax -> PathedPatternId -> List EId -> Exp -> List TransformationResult
 abstractPVar syntax pathedPatId perhapsArgEIds originalProgram =
   case pluck pathedPatId originalProgram of
     Nothing ->
@@ -1997,11 +2030,11 @@ abstractPVar syntax pathedPatId perhapsArgEIds originalProgram =
             [] ->
               let abstractedOverAllConstantsResult =
                 let (newProgram, _) = doAbstract shouldBeParameterIsConstant in
-                synthesisResult ("Abstract " ++ ident ++ " over its constants") newProgram
+                basicTransformationResult ("Abstract " ++ ident ++ " over its constants") newProgram
               in
               let abstractedOverNamedUnfrozenConstantsResult =
                 let (newProgram, _) = doAbstract shouldBeParameterIsNamedUnfrozenConstant in
-                synthesisResult ("Abstract " ++ ident ++ " over its named constants") newProgram
+                basicTransformationResult ("Abstract " ++ ident ++ " over its named constants") newProgram
               in
               [ abstractedOverAllConstantsResult
               , abstractedOverNamedUnfrozenConstantsResult
@@ -2012,7 +2045,7 @@ abstractPVar syntax pathedPatId perhapsArgEIds originalProgram =
               let (newProgram, argPats) = doAbstract shouldBeParameter in
               -- A little bit conservative here.
               let isSafe = argEIds |> List.all (findExpByEId originalProgram >> Maybe.map isLiteral >> (==) (Just True)) in
-              [ synthesisResult ("Abstract " ++ ident ++ " over " ++ (argPats |> List.map (Syntax.patternUnparser syntax >> Utils.squish) |> Utils.toSentence)) newProgram |> setResultSafe isSafe ]
+              [ basicTransformationResult ("Abstract " ++ ident ++ " over " ++ (argPats |> List.map (Syntax.patternUnparser syntax >> Utils.squish) |> Utils.toSentence)) newProgram |> mapSynthesisResult (setResultSafe isSafe) ]
 
         _ ->
           Debug.log "Can only abstract a PVar" []
@@ -2021,7 +2054,7 @@ abstractPVar syntax pathedPatId perhapsArgEIds originalProgram =
       Debug.log "Cannot abstract a recursive definition" []
 
 
-abstractExp : Syntax -> EId -> Exp -> List SynthesisResult
+abstractExp : Syntax -> EId -> Exp -> List TransformationResult
 abstractExp syntax eidToAbstract originalProgram =
   let expToAbstract = justFindExpByEId originalProgram eidToAbstract in
   let doAbstract shouldBeParameter =
@@ -2047,11 +2080,11 @@ abstractExp syntax eidToAbstract originalProgram =
   in
   let abstractedOverAllConstantsResult =
     let newProgram = doAbstract shouldBeParameterIsConstant in
-    synthesisResult ("Abstract " ++ (expToAbstract |> Syntax.unparser syntax |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its constants") newProgram
+    basicTransformationResult ("Abstract " ++ (expToAbstract |> Syntax.unparser syntax |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its constants") newProgram
   in
   let abstractedOverNamedUnfrozenConstantsResult =
     let newProgram = doAbstract shouldBeParameterIsNamedUnfrozenConstant in
-    synthesisResult ("Abstract " ++ (expToAbstract |> Syntax.unparser syntax |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its named constants") newProgram
+    basicTransformationResult ("Abstract " ++ (expToAbstract |> Syntax.unparser syntax |> Utils.squish |> Utils.niceTruncateString 20 "...") ++ " over its named constants") newProgram
   in
   [ abstractedOverAllConstantsResult
   , abstractedOverNamedUnfrozenConstantsResult
@@ -2063,7 +2096,7 @@ abstractExp syntax eidToAbstract originalProgram =
 -- TODO: relax addArg/removeArg/reorderArgs to allow (unsafe) addition/removal from anonymous functions (right now, written as if function must be named).
 
 -- Try to remove a declaration/binding and put it in the argument of the selected function
-addArg_ : Syntax -> PathedPatternId ->     (Exp -> Exp -> Maybe (Bool, Pat, Exp, Exp)) -> Exp -> List SynthesisResult
+addArg_ : Syntax -> PathedPatternId ->     (Exp -> Exp -> Maybe (Bool, Pat, Exp, Exp)) -> Exp -> List TransformationResult
 addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram =
   let ((funcEId, _), path) = pathedPatId in
   case (findLetAndIdentBindingExp funcEId originalProgram, findExpByEId originalProgram funcEId) of
@@ -2149,7 +2182,7 @@ addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNe
                         in
                         baseCaption ++ intoFuncString
                       in
-                      [ synthesisResult caption newProgram |> setResultSafe isSafe ]
+                      [ basicTransformationResult caption newProgram |> mapSynthesisResult (setResultSafe isSafe) ]
 
             _ ->
               Debug.crash <| "CodeMotion.addArg_ should've had an EFun here"
@@ -2161,28 +2194,40 @@ addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNe
       []
 
 
-addArgs : Syntax -> List EId -> PathedPatternId -> Exp -> List SynthesisResult
+addArgs : Syntax -> List EId -> PathedPatternId -> Exp -> List TransformationResult
 addArgs syntax argSourceEIds pathedPatId originalProgram =
   let (maybeNewProgram, resultDescs, isSafe) =
     argSourceEIds
-    |> List.sortBy (locationInProgram originalProgram)
-    |> List.foldr
-        (\argSourceEId (maybePriorProgram, resultDescs, safeSoFar) ->
-          case maybePriorProgram |> Maybe.map (addArg syntax argSourceEId pathedPatId) of
-            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, newResult.description::resultDescs, safeSoFar && newResult.isSafe)
-            _                                     -> (Nothing, resultDescs, False)
-        )
-        (Just originalProgram, [], True)
+      |> List.sortBy (locationInProgram originalProgram)
+      |> List.foldr
+           ( \argSourceEId (maybePriorProgram, resultDescs, safeSoFar) ->
+               case
+                 maybePriorProgram
+                   |> Maybe.map
+                        ( addArg syntax argSourceEId pathedPatId
+                            >> synthesisResults
+                        )
+               of
+                 Just (SynthesisResult newResult :: _) ->
+                   ( Just newResult.exp
+                   , newResult.description::resultDescs
+                   , safeSoFar && newResult.isSafe
+                   )
+
+                 _ ->
+                   (Nothing, resultDescs, False)
+           )
+           (Just originalProgram, [], True)
   in
   case maybeNewProgram of
     Just newProgram ->
       let caption = Utils.mergeStrings resultDescs |> Utils.stringReplace "Argument " "Arguments " in
-      [ synthesisResult caption newProgram |> setResultSafe isSafe ]
+      [ basicTransformationResult caption newProgram |> mapSynthesisResult (setResultSafe isSafe) ]
 
     Nothing ->
       []
 
-addArgsFromPats : Syntax -> List PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+addArgsFromPats : Syntax -> List PathedPatternId -> PathedPatternId -> Exp -> List TransformationResult
 addArgsFromPats syntax argSourcePathedPatIds pathedPatId originalProgram =
   let (maybeNewProgram, resultDescs, isSafe) =
     argSourcePathedPatIds
@@ -2190,7 +2235,10 @@ addArgsFromPats syntax argSourcePathedPatIds pathedPatId originalProgram =
     |> List.foldr
         (\argSourcePathedPatId (maybePriorProgram, resultDescs, safeSoFar) ->
           -- Identity for post-processing fbody -- when adding multiple patterns, can't simplify assignments until the very end.
-          case maybePriorProgram |> Maybe.map (addArgFromPat_ syntax identity argSourcePathedPatId pathedPatId) of
+          case
+            maybePriorProgram
+              |> Maybe.map (addArgFromPat_ syntax identity argSourcePathedPatId pathedPatId >> synthesisResults)
+          of
             Just (SynthesisResult newResult :: _) -> (Just newResult.exp, newResult.description::resultDescs, safeSoFar && newResult.isSafe)
             _                                     -> (Nothing, resultDescs, False)
         )
@@ -2205,18 +2253,18 @@ addArgsFromPats syntax argSourcePathedPatIds pathedPatId originalProgram =
             LangSimplify.simplifyAssignments
       in
       let caption = Utils.mergeStrings resultDescs |> Utils.stringReplace "Argument " "Arguments " in
-      [ synthesisResult caption newProgramWithAssignmentsSimplified |> setResultSafe isSafe ]
+      [ basicTransformationResult caption newProgramWithAssignmentsSimplified |> mapSynthesisResult (setResultSafe isSafe) ]
 
     Nothing ->
       []
 
 
-addArgFromPat : Syntax -> PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+addArgFromPat : Syntax -> PathedPatternId -> PathedPatternId -> Exp -> List TransformationResult
 addArgFromPat syntax argSourcePathedPatId targetPathedPatId originalProgram =
   addArgFromPat_ syntax LangSimplify.simplifyAssignments argSourcePathedPatId targetPathedPatId originalProgram
 
 
-addArgFromPat_ : Syntax -> (Exp -> Exp) -> PathedPatternId -> PathedPatternId -> Exp -> List SynthesisResult
+addArgFromPat_ : Syntax -> (Exp -> Exp) -> PathedPatternId -> PathedPatternId -> Exp -> List TransformationResult
 addArgFromPat_ syntax postProcessFBody argSourcePathedPatId targetPathedPatId originalProgram =
  let funcToIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
     case pluck argSourcePathedPatId fbody of
@@ -2248,7 +2296,7 @@ addArgFromPat_ syntax postProcessFBody argSourcePathedPatId targetPathedPatId or
  addArg_ syntax targetPathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
 
 
-addArg : Syntax -> EId -> PathedPatternId -> Exp -> List SynthesisResult
+addArg : Syntax -> EId -> PathedPatternId -> Exp -> List TransformationResult
 addArg syntax argSourceEId pathedPatId originalProgram =
  let funcToIsSafePatToInsertArgValExpAndNewFuncBody func fbody =
     case findExpByEId fbody argSourceEId of
@@ -2272,27 +2320,36 @@ addArg syntax argSourceEId pathedPatId originalProgram =
  addArg_ syntax pathedPatId funcToIsSafePatToInsertArgValExpAndNewFuncBody originalProgram
 
 
-removeArgs : Syntax -> List PathedPatternId -> Exp -> List SynthesisResult
+removeArgs : Syntax -> List PathedPatternId -> Exp -> List TransformationResult
 removeArgs syntax pathedPatIds originalProgram =
   let (maybeNewProgram, isSafe) =
     pathedPatIds
-    |> List.sort
-    |> List.foldr
-        (\pathedPatId (maybePriorProgram, safeSoFar) ->
-          case maybePriorProgram |> Maybe.map (removeArg syntax pathedPatId) of
-            Just (SynthesisResult newResult :: _) -> (Just newResult.exp, safeSoFar && newResult.isSafe)
-            _                                     -> (Nothing, False)
-        )
-        (Just originalProgram, True)
+      |> List.sort
+      |> List.foldr
+           ( \pathedPatId (maybePriorProgram, safeSoFar) ->
+               case
+                 maybePriorProgram
+                   |> Maybe.map
+                        ( removeArg syntax pathedPatId
+                            >> synthesisResults
+                        )
+               of
+                 Just (SynthesisResult newResult :: _) ->
+                   (Just newResult.exp, safeSoFar && newResult.isSafe)
+
+                 _ ->
+                   (Nothing, False)
+           )
+           (Just originalProgram, True)
   in
-  case maybeNewProgram of
-    Just newProgram ->
-      [ synthesisResult "Remove Arguments" newProgram |> setResultSafe isSafe ]
+    case maybeNewProgram of
+      Just newProgram ->
+        [ basicTransformationResult "Remove Arguments" newProgram |> mapSynthesisResult (setResultSafe isSafe) ]
 
-    Nothing ->
-      []
+      Nothing ->
+        []
 
-removeArg : Syntax -> PathedPatternId -> Exp -> List SynthesisResult
+removeArg : Syntax -> PathedPatternId -> Exp -> List TransformationResult
 removeArg syntax pathedPatId originalProgram =
   let ((funcEId, _), path) = pathedPatId in
   case findLetAndIdentBindingExp funcEId originalProgram of
@@ -2407,7 +2464,7 @@ removeArg syntax pathedPatId originalProgram =
                         in
                         allCallsitesTransformed && argReplacementSafe
                       in
-                      [ synthesisResult ("Remove Argument " ++ (pluckedPat |> Syntax.patternUnparser syntax |> Utils.squish)) newProgram |> setResultSafe isSafe ]
+                      [ basicTransformationResult ("Remove Argument " ++ (pluckedPat |> Syntax.patternUnparser syntax |> Utils.squish)) newProgram |> mapSynthesisResult (setResultSafe isSafe) ]
 
                     _ ->
                       let _ = Debug.log "no uses to provide arg replacement value" transformedApplicationsWithRemovedCallsiteArgument in
@@ -2489,7 +2546,7 @@ tryReorderExps pathsToMove insertPath pathsToRemove exps =
 -- This is way nastier than I want it to be, but not sure how to make it
 -- nicer and still support e.g. moving all of the variables outside of a
 -- list and removing the empty list.
-reorderFunctionArgs : EId -> List (List Int) -> List Int -> Exp -> List SynthesisResult
+reorderFunctionArgs : EId -> List (List Int) -> List Int -> Exp -> List TransformationResult
 reorderFunctionArgs funcEId paths targetPath originalProgram =
   case findLetAndIdentBindingExp funcEId originalProgram of -- Return LetExp and a way to rebuild the Let in the original program.
     Just (letExp, funcName) ->
@@ -2576,7 +2633,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
                       let isSafe =
                         funcVarUsageEIds == funcVarUsagesTransformed
                       in
-                      [ synthesisResult "Reorder Arguments" newProgram |> setResultSafe isSafe ]
+                      [ basicTransformationResult "Reorder Arguments" newProgram |> mapSynthesisResult (setResultSafe isSafe) ]
 
             _ ->
               Debug.crash <| "CodeMotion.reorderFunctionArgs should've had an EFun here"
@@ -2628,7 +2685,7 @@ reorderExpressionsTransformation originalProgram selections =
             in
               Just <|
                 \() ->
-                  [synthesisResult "Reorder Expressions" newProgram]
+                  [basicTransformationResult "Reorder Expressions" newProgram]
       in
       case maybeSharedAncestor of
         Just sharedAncestor ->
@@ -2651,7 +2708,7 @@ reorderExpressionsTransformation originalProgram selections =
 -- all extraction locations, while introduceVarTransformation inserts several variables
 -- for all extraction locations.
 introduceVarTransformation:
-  Model -> List Int -> Maybe TargetPosition -> Maybe (() -> List SynthesisResult)
+  Model -> List Int -> Maybe TargetPosition -> Maybe (() -> List TransformationResult)
 introduceVarTransformation
   m        expIds      maybeTargetPos =
   case maybeTargetPos of
@@ -2811,7 +2868,7 @@ isHtmlNode exp = case eListUnapply exp of
   _ -> False
 
 introduceVarTransformation_:
-  Model -> List Int ->   (InsertionMethod, (EId, BindingNumber)) -> List SynthesisResult
+  Model -> List Int ->   (InsertionMethod, (EId, BindingNumber)) -> List TransformationResult
 introduceVarTransformation_
   m        eidsToExtract ((insertionMethod, insertionPosition) as insertionPoint) =
   let
@@ -2925,11 +2982,11 @@ introduceVarTransformation_
   in
   case resNewExp of
     Ok newExp ->
-      [synthesisResult msg newExp |> setResultSafe isSafe]
+      [basicTransformationResult msg newExp |> mapSynthesisResult (setResultSafe isSafe)]
     Err msg ->
-      [synthesisResult msg m.inputExp]
+      [basicTransformationResult msg m.inputExp]
 
-moveDeclarations: List (EId, Int) -> (InsertionMethod, (EId, BindingNumber)) -> Exp -> List SynthesisResult
+moveDeclarations: List (EId, Int) -> (InsertionMethod, (EId, BindingNumber)) -> Exp -> List TransformationResult
 moveDeclarations declsToMove ((insertionMethod, (insertionEId, insertionBindingNum) as insertionPosition) as insertionPoint) originalProgram =
   let
     identsAtInsertionPoint = EvalUpdate.visibleIdentifiersAtEIdBindingNum originalProgram insertionPoint
@@ -3115,14 +3172,14 @@ moveDeclarations declsToMove ((insertionMethod, (insertionEId, insertionBindingN
           else ("[Internal error] Could not find declarations " ++ toString declsToMoveRemaining, False)
   in
   if List.isEmpty declarationsToInline then
-    [synthesisResult msg expRewritten |> setResultSafe isSafe]
+    [basicTransformationResult msg expRewritten |> mapSynthesisResult (setResultSafe isSafe)]
   else
     [] -- For now, later we need to insert.
 
 -- Small bug: can't introduce var directly in front of expression being extracted.
 {-
 introduceVarTransformation_:
-  Model -> List Int ->   (EId,                BindingNumber) -> (EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)) -> List SynthesisResult
+  Model -> List Int ->   (EId,                BindingNumber) -> (EId -> Pat -> Exp -> BindingNumber -> Exp -> Exp -> (Exp, Maybe Int)) -> List TransformationResult
 introduceVarTransformation_
   m        eidsToExtract (addNewVarsAtThisId, addNewVarAtThisBindingNumber) makeNewLet =
   let toolName =
@@ -3209,7 +3266,7 @@ introduceVarTransformation_
 
 ------------------------------------------------------------------------------
 
-makeEqualTransformation: Exp -> List EId -> Maybe TargetPosition -> Maybe (() -> List SynthesisResult)
+makeEqualTransformation: Exp -> List EId -> Maybe TargetPosition -> Maybe (() -> List TransformationResult)
 makeEqualTransformation originalProgram eids maybeTargetPosition =
   let _ = Debug.log "makeEqualTransformation" (eids, maybeTargetPosition) in
   --- TODO: We also want to insert directly inside declarations.
@@ -3265,7 +3322,7 @@ makeEqualTransformation originalProgram eids maybeTargetPosition =
 
 makeEqualTransformation_:Exp -> List EId -> (InsertionMethod, (EId, BindingNumber)) ->
   (EId -> Pat -> Exp -> Exp -> (InsertionMethod, BindingNumber) -> Exp ->
-     Result String (Exp, Maybe (EId, BindingNumber))) -> List SynthesisResult
+     Result String (Exp, Maybe (EId, BindingNumber))) -> List TransformationResult
 makeEqualTransformation_ originalProgram eids (insertMethod, (newBindingLocationEId, insertionBindingNumber))
    makeNewLet =
   let firstEId = Utils.head "CodeMotion.makeEqualTransform expected some eids, got []" eids in
@@ -3299,7 +3356,7 @@ makeEqualTransformation_ originalProgram eids (insertMethod, (newBindingLocation
         (justFindExpByEId originalProgramUniqueNames newBindingLocationEId)
         (insertMethod, insertionBindingNumber)
         originalProgramUniqueNames of
-    Err msg -> [synthesisResult msg originalProgram |> setResultSafe False]
+    Err msg -> [basicTransformationResult msg originalProgram |> mapSynthesisResult (setResultSafe False)]
     Ok (newLet, maybeNewScopeEId) ->
   let newProgramUniqueNames =
      let expSubst = eids |> List.map (\eid -> (eid, eVar varTempName |> setEId insertedVarsEId)) |> Dict.fromList in
@@ -3372,12 +3429,14 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
           if List.member bindingLet (topLevelExps expToWrap) && List.all (
               \var -> List.member var freeVarsAtNewLocation) (List.concatMap freeVars bindingLetBoundExp) then
              moveEquationsBeforeEId Syntax.Leo [(expEId bindingLet, 0)] (expEId expToWrap) originalProgram -- Syntax only used for generating description, which we throw away
+             |> synthesisResults
              |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
              |> Maybe.map (\(SynthesisResult {exp}) -> exp)
           else
              -- Case 2.2: Move just the definition needed.
              let pathedPatId = bindingPathedPatternIdForUniqueName mobileUniqueName bindingLet |> Utils.fromJust_ "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames" in
              moveDefinitionsBeforeEId Syntax.Leo [pathedPatId] (expEId expToWrap) originalProgram -- Syntax only used for generating description, which we throw away
+             |> synthesisResults
              |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
              |> Maybe.map (\(SynthesisResult {exp}) -> exp)
         in
@@ -3431,6 +3490,7 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
         (Dict.singleton insertedVarEId (Just newBindingPId)) -- insertedVarEIdToBindingPId
         originalProgramUniqueNames
         newProgramUniqueNames
+    |> synthesisResults
     |> Utils.findFirst isResultSafe
     |> Maybe.map (\(SynthesisResult {exp}) -> Parser.freshen exp)
   in
@@ -3640,6 +3700,11 @@ swapDefinitionsTransformation syntax originalProgram pid1 pid2 =
 
 ------------------------------------------------------------------------------
 
+rewriteOffsetTransformation :
+  Model
+    -> PathedPatternId
+    -> List (LocId, (WS, Num, Loc, WidgetDecl))
+    -> Maybe (() -> List TransformationResult)
 rewriteOffsetTransformation m ppid nums =
   let eids = List.map Tuple.first nums in
   let isSafe = True in -- TODO

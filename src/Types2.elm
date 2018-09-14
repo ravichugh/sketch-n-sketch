@@ -1279,15 +1279,15 @@ checkType gamma stuff thisExp expectedType =
 -- Currently shoving entire type error message and suggested fixes into Deuce.
 -- So every line is a DeuceTypeInfoItem === SynthesisResult.
 
-deuceShow : Exp -> String -> DeuceTypeInfoItem
+deuceShow : Exp -> String -> TransformationResult
 deuceShow inputExp s =
   -- TODO: everything is a SynthesisResult, so pass in inputExp as dummy...
-  synthesisResult s inputExp
+  basicTransformationResult s inputExp
 
 
-deuceTool : String -> Exp -> DeuceTypeInfoItem
+deuceTool : String -> Exp -> TransformationResult
 deuceTool =
-  synthesisResult
+  basicTransformationResult
 
 
 -- TODO: remove inputExp when TypeError interface is worked out
@@ -1316,11 +1316,11 @@ expectedButGot inputExp expectedType maybeActualType =
     ]
 
 
-makeDeuceExpTool : Exp -> Exp -> (() -> List SynthesisResult)
+makeDeuceExpTool : Exp -> Exp -> (() -> List TransformationResult)
 makeDeuceExpTool = makeDeuceToolForThing Expr unExpr
 
 
-makeDeucePatTool : Exp -> Pat -> (() -> List SynthesisResult)
+makeDeucePatTool : Exp -> Pat -> (() -> List TransformationResult)
 makeDeucePatTool = makeDeuceToolForThing Basics.identity Basics.identity
 
 
@@ -1329,7 +1329,7 @@ makeDeuceToolForThing
   -> (a -> WithInfo (WithTypeInfo b))
   -> Exp
   -> a -- thing is a Thing (Exp or Pat or Type)
-  -> (() -> List SynthesisResult)
+  -> (() -> List TransformationResult)
 makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
   let
     -- exp =

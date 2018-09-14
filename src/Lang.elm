@@ -432,10 +432,9 @@ dummyType wsb =
 --
 -- TODO: Update Deuce UI with API for "Functional Types" info and errors.
 --
-type alias DeuceTypeInfoItem = SynthesisResult
 
 type TypeError
-  = TypeError (List DeuceTypeInfoItem)
+  = TypeError (List TransformationResult)
 
 -- Information for an expression that is relevant to
 -- other expressions that have above TypeErrors
@@ -572,7 +571,6 @@ valEId val = valExp val |> expEId
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
 
-
 --------------------------------------------------------------------------------
 -- Synthesis Results (for DeuceTools and OutputTools)
 --------------------------------------------------------------------------------
@@ -587,6 +585,7 @@ type SynthesisResult =
                   , nextLazy    : Maybe (() -> Maybe SynthesisResult) -- Nothing means not calculated yet When hovered, will try to compute siblings and add them lazily.
                   }
 
+synthesisResult : String -> Exp -> SynthesisResult
 synthesisResult description exp =
   SynthesisResult <|
     { description = description
@@ -598,6 +597,74 @@ synthesisResult description exp =
     , nextLazy    = Nothing
     }
 
+--------------------------------------------------------------------------------
+-- Transformation Results
+--------------------------------------------------------------------------------
+
+type ResultText
+  = PlainText String
+  | HeaderText String
+  | CodeText String
+  | TypeText String
+  | HintText String
+
+type TransformationResult
+  = -- Old behavior, just uses description
+    Basic SynthesisResult
+    -- Uses ResultText instead of description
+  | Fancy SynthesisResult ResultText
+    -- Just a ResultText without an associated transformation
+  | Label ResultText
+
+basicTransformationResult : String -> Exp -> TransformationResult
+basicTransformationResult description exp =
+  Basic <|
+    synthesisResult description exp
+
+transformationToSynthesisResult : TransformationResult -> Maybe SynthesisResult
+transformationToSynthesisResult tr =
+  case tr of
+    Basic sr ->
+      Just sr
+
+    Fancy sr _ ->
+      Just sr
+
+    Label _ ->
+      Nothing
+
+synthesisResults : List TransformationResult -> List SynthesisResult
+synthesisResults =
+  List.map transformationToSynthesisResult
+    >> Utils.filterJusts
+
+mapSynthesisResult : (SynthesisResult -> SynthesisResult) -> TransformationResult -> TransformationResult
+mapSynthesisResult f tr =
+  case tr of
+    Basic sr ->
+      Basic (f sr)
+
+    Fancy sr rt ->
+      Fancy (f sr) rt
+
+    Label rt ->
+      Label rt
+
+extractSynthesisResultWith : (SynthesisResult -> a) -> TransformationResult -> Maybe a
+extractSynthesisResultWith f tr =
+  case tr of
+    Basic sr ->
+      Just (f sr)
+
+    Fancy sr _ ->
+      Just (f sr)
+
+    Label _ ->
+      Nothing
+
+extractSynthesisResult : TransformationResult -> Maybe SynthesisResult
+extractSynthesisResult =
+  extractSynthesisResultWith identity
 
 --------------------------------------------------------------------------------
 -- Predicates (for DeuceTools and OutputTools)
@@ -689,9 +756,9 @@ type alias DeuceSelections =
 
 type DeuceTransformation
   = InactiveDeuceTransform
-  | NoInputDeuceTransform (() -> List SynthesisResult)
-  | RenameDeuceTransform (String -> List SynthesisResult)
-  | SmartCompleteDeuceTransform (String -> List SynthesisResult)
+  | NoInputDeuceTransform (() -> List TransformationResult)
+  | RenameDeuceTransform (String -> List TransformationResult)
+  | SmartCompleteDeuceTransform (String -> List TransformationResult)
 
 type alias DeuceTool =
   { name : String
@@ -699,7 +766,6 @@ type alias DeuceTool =
   , reqs : List Predicate -- requirements to run the tool
   , id : String -- unique, unchanging identifier
   }
-
 
 ------------------------------------------------------------------------------
 
