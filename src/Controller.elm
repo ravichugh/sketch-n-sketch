@@ -50,6 +50,7 @@ port module Controller exposing
   , msgHoverDeuceResult
   , msgLeaveDeuceResult
   , msgUpdateRenameVarTextBox
+  , msgUpdateDeuceKeyboardTextBox
   , msgUpdateSmartCompleteTextBox
   , msgClearDrag
   , msgDragDeucePopupPanel
@@ -1003,6 +1004,7 @@ hooks =
   , handleOutputSelectionChanges
   , handleDeuceCache
   , focusJustShownRenameBox
+  , focusAsNeeded
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -1084,6 +1086,16 @@ focusJustShownRenameBox oldModel newModel =
     (newModel, doFocusJustShownRenameBox ())
   else
     (newModel, Cmd.none)
+
+port doFocusAsNeeded : String -> Cmd msg
+
+focusAsNeeded : Model -> Model -> (Model, Cmd Msg)
+focusAsNeeded oldModel newModel =
+  case newModel.needsToFocusOn of
+    Nothing ->
+      (newModel, Cmd.none)
+    Just id ->
+      ( { newModel | needsToFocusOn = Nothing }, doFocusAsNeeded id )
 
 debugModel : (Model -> a) -> Model -> Model -> (Model, Cmd Msg)
 debugModel get old new =
@@ -1668,6 +1680,7 @@ msgKeyDown keyCode =
                 { old | renamingInOutput = Nothing }
                   |> Model.hideDeuceRightClickMenu
                   |> resetDeuceState
+                  |> resetDeuceKeyboardInfo
                   |> \m -> { m | deucePopupPanelAbove = True }
             in
               case (old.tool, old.mouseMode) of
@@ -1715,7 +1728,7 @@ msgKeyDown keyCode =
 
         else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick && not currentKeyDown &&
                 mbKeyboardFocusedWidget /= Nothing && not old.isDeuceTextBoxFocused then
-          handleDeuceHotKey old keyCode <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
+          handleDeuceHotKey old (keyCode :: old.keysDown |> List.sort) <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
 
         else if
           not currentKeyDown &&
@@ -2640,9 +2653,9 @@ msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
       if renamingPId == pid then
         let newProgram =
           CodeMotion.renamePatByPId pid newName old.inputExp
-          |> List.filter isResultSafe
+          |> List.filter (extractSynthesisResultWith isResultSafe >> Utils.maybeToBool)
           |> List.head
-          |> Maybe.map resultExp
+          |> Maybe.andThen (extractSynthesisResultWith resultExp)
           |> Maybe.withDefault old.inputExp
         in
         { old | code             = Syntax.unparser old.syntax newProgram
@@ -2705,8 +2718,9 @@ msgAddArg funcBody = Msg "Add Arg to Function in Output" <| \old ->
             (\eid ->
               let (line, col) = LangTools.locationInProgram old.inputExp eid in
               CodeMotion.addArg old.syntax eid targetPPId old.inputExp
-              |> List.map (setResultSortKey [toFloat line, toFloat col])
+              |> List.map (mapSynthesisResult <| setResultSortKey [toFloat line, toFloat col])
             )
+        |> synthesisResults
         |> List.sortBy (\(SynthesisResult result) -> (if result.isSafe then 0 else 1, result.sortKey))
       in
       case results of
@@ -2724,6 +2738,7 @@ msgRemoveArg pid = Msg ("Remove Arg PId " ++ toString pid) <| \old ->
     Nothing              -> old
     Just pathedPatternId ->
       CodeMotion.removeArg old.syntax pathedPatternId old.inputExp
+      |> synthesisResults
       |> List.head
       |> Maybe.map (\result -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp result) })
       |> Maybe.withDefault old
@@ -3039,8 +3054,36 @@ msgAskImportCode = requireSaveAsker msgImportCode
 --------------------------------------------------------------------------------
 -- Deuce Interactions
 
+chooseDeuceExp : Model -> Exp -> Model
+chooseDeuceExp old newRoot =
+  let
+    modifiedHistory =
+      modelModify
+        old.code
+        old.deuceState.selectedWidgets
+        old.deuceState.mbKeyboardFocusedWidget
+        old.history
+    modelWithCorrectHistory =
+      case modifiedHistory of
+        Just h ->
+          { old | history = h }
+        Nothing ->
+          old
+  in
+  -- TODO version of tryRun/upstateRun starting with parsed expression
+  upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
+  |> resetDeuceKeyboardInfo
+  |> refreshInputExp
+
+maybeChooseDeuceExp : Model -> Maybe Exp -> Model
+maybeChooseDeuceExp m mbExp =
+  case mbExp of
+    Nothing  -> m
+    Just exp -> chooseDeuceExp m exp
+
 resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
+  resetDeuceKeyboardInfo <|
   { m | deuceState = emptyDeuceState
       , deuceToolsAndResults = DeuceTools.createToolCache initModel
       , deuceToolResultPreviews = Dict.empty
@@ -3155,22 +3198,14 @@ msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString w
     { old | deuceState = newDeuceState }
 
 msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m ->
-  let
-    modifiedHistory =
-      modelModify m.code m.deuceState.selectedWidgets m.deuceState.mbKeyboardFocusedWidget m.history
-    modelWithCorrectHistory =
-      case modifiedHistory of
-        Just h ->
-          { m | history = h }
-
-        Nothing ->
-          m
-  in
-    -- TODO version of tryRun/upstateRun starting with parsed expression
-    upstateRun ( { modelWithCorrectHistory | code = Syntax.unparser m.syntax exp })
+  chooseDeuceExp m exp
 
 --------------------------------------------------------------------------------
 -- Deuce Keyboard Interactions
+
+resetDeuceKeyboardInfo : Model -> Model
+resetDeuceKeyboardInfo old =
+  { old | mbDeuceKeyboardInfo = Nothing }
 
 deuceMove : DeuceWidget -> Model -> Model
 deuceMove destWidget old =
@@ -3180,6 +3215,22 @@ deuceMove destWidget old =
   in
   { old | deuceState = newDS } |>
   flip resetDeuceCacheAndReselect DeuceTools.createToolCache
+
+deuceChooserUI : Model -> (String, String -> List TransformationResult) -> Model
+deuceChooserUI old titleAndTextToTransformationResults =
+  let
+    (title, textToTransformationResults) = titleAndTextToTransformationResults
+    oldReset = resetDeuceKeyboardInfo old
+  in
+  { oldReset
+    | mbDeuceKeyboardInfo =
+        Just <|
+        { title = title
+        , text = ""
+        , textToTransformationResults = textToTransformationResults
+        }
+    , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
+  }
 
 handleDeuceMoveHorizontal_ old selected isLeftMove =
   let
@@ -3197,14 +3248,43 @@ handleDeuceMoveHorizontal_ old selected isLeftMove =
     Maybe.map (flip deuceMove old) |>
       Maybe.withDefault old
 
-handleDeuceHotKey : Model -> Char.KeyCode -> DeuceWidget -> Model
-handleDeuceHotKey old keyCode selected =
-  if List.member keyCode [Keys.keyLeft, Keys.keyH] then
+handleDeuceHotKey : Model -> List Char.KeyCode -> DeuceWidget -> Model
+handleDeuceHotKey oldModel keysDown selected =
+  let old = resetDeuceKeyboardInfo oldModel in
+
+  -- Movement
+  if List.member keysDown [[Keys.keyLeft], [Keys.keyH]] then
     handleDeuceLeft old selected
-  else if List.member keyCode [Keys.keyRight, Keys.keyL] then
+  else if List.member keysDown [[Keys.keyRight], [Keys.keyL]] then
     handleDeuceRight old selected
-  else if keyCode == Keys.keySpace then
-    handleDeuceSpace old selected
+  -- TODO revive with some alternative hotkey
+  -- else if keysDown == [Keys.keySpace] then
+  --   handleDeuceSpace old selected
+
+  -- Deuce tools
+  else if keysDown == [Keys.keyI] then
+    DeuceTools.smartCompleteHole old selected |> deuceChooserUI old
+  else if keysDown == [Keys.keyS] then
+    DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old
+  else if List.member keysDown [[Keys.keyShift, Keys.keyDown], [Keys.keyShift, Keys.keyJ]] then
+    DeuceTools.expandFormatViaHotkey old selected |> maybeChooseDeuceExp old
+  else if keysDown == Keys.openParen then
+    DeuceTools.replaceWithParens old selected |> maybeChooseDeuceExp old
+  else if keysDown == Keys.openBrace then
+    DeuceTools.replaceWithList old selected |> maybeChooseDeuceExp old
+  else if keysDown == Keys.openCurly then
+    DeuceTools.replaceWithRecord old selected |> maybeChooseDeuceExp old
+  else if keysDown == Keys.backslash then
+    DeuceTools.replaceWithLambda old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keySpace] then
+    DeuceTools.replaceWithApp old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyE] then
+    DeuceTools.replaceWithCase old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyD] then
+    DeuceTools.replaceWithLet old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyC] then
+    DeuceTools.replaceWithCond old selected |> maybeChooseDeuceExp old
+
   else
     old
 
@@ -3396,6 +3476,16 @@ msgUpdateSmartCompleteTextBox text =
         }
     in
     resetDeuceCacheAndReselect almostNewModel DeuceTools.updateInputSensitiveToolsInCache
+
+msgUpdateDeuceKeyboardTextBox : String -> Msg
+msgUpdateDeuceKeyboardTextBox text =
+  Msg ("Update Deuce Keyboard Text Box: " ++ text) <| \old ->
+    { old
+        | mbDeuceKeyboardInfo =
+            old.mbDeuceKeyboardInfo
+            |> Maybe.map
+              (\deuceKeyboardInfo -> { deuceKeyboardInfo | text = text })
+    }
 
 --------------------------------------------------------------------------------
 -- Clear Drag

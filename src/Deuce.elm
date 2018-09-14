@@ -2,7 +2,7 @@
 -- This modules provides the Deuce overlay for the View.
 --------------------------------------------------------------------------------
 
-module Deuce exposing (Messages, overlay, diffOverlay)
+module Deuce exposing (Messages, overlay, diffOverlay, c2a)
 
 import List
 import String
@@ -602,13 +602,13 @@ codeObjectPolygon msgs codeInfo codeObject color =
         codeObjectHasTypeError =
           case (codeInfo.needsParse, codeObject) of
             (False, E e) ->
-              case (unExpr e).val.typeError of
-                Just _  -> True
-                Nothing -> False
+              case (unExpr e).val.typ of
+                Nothing -> True
+                Just _  -> False
             (False, P _ p) ->
-              case p.val.typeError of
-                Just _  -> True
-                Nothing -> False
+              case p.val.typ of
+                Nothing -> True
+                Just _  -> False
             _ ->
               False
 

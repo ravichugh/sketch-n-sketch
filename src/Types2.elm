@@ -444,31 +444,28 @@ matchLambda exp =
     _ ->
       0
 
+
 -- Don't feel like figuring out how to insert a LetAnnotation and update
 -- BindingNums and PrintOrder correctly. So, just going through Strings.
 --
-insertDummyAnnotation : Pat -> Int -> Exp -> Exp
-insertDummyAnnotation pat numArgs exp =
+insertStrAnnotation pat strType exp =
   let
     {line, col} =
       pat.start
+
+    strAnnotation =
+      indent ++ name ++ " : " ++ String.trim strType
 
     indent =
       String.repeat (col - 1) " "
 
     name =
       unparsePattern pat
-
-    wildcards =
-      String.join " -> " (List.repeat (numArgs + 1) "_")
-
-    dummyAnnotation =
-      indent ++ name ++ " : " ++ wildcards
   in
     exp
       |> unparse
       |> String.lines
-      |> Utils.inserti line dummyAnnotation
+      |> Utils.inserti line strAnnotation
       |> String.join "\n"
       |> parse
       |> Result.withDefault (eStr "Bad dummy annotation. Bad editor. Bad")
@@ -860,17 +857,28 @@ inferType gamma stuff thisExp =
                              case (unExpr result.newExp).val.typ of
                                Just inferredType ->
                                  pat |> setPatType (Just inferredType)
+                                        -- TODO: Not an error, rename TypeError...
+                                     |> setPatTypeError (TypeError
+                                          [ deuceTool "Add inferred annotation"
+                                              (insertStrAnnotation pat (unparseType inferredType) stuff.inputExp)
+                                          ]
+                                        )
+
                                Nothing ->
                                  case matchLambda expEquation of
                                    0 ->
                                      pat |> setPatTypeError (otherTypeError stuff.inputExp ["type error"])
 
                                    numArgs ->
+                                     let
+                                       wildcards =
+                                         String.join " -> " (List.repeat (numArgs + 1) "_")
+                                     in
                                      pat |> setPatTypeError (TypeError
                                        [ deuceShow stuff.inputExp
                                            "Currently, functions need annotations"
                                        , deuceTool "Add dummy type annotation"
-                                           (insertDummyAnnotation pat numArgs stuff.inputExp)
+                                           (insertStrAnnotation pat wildcards stuff.inputExp)
                                        ]
                                      )
                          in
@@ -1271,15 +1279,15 @@ checkType gamma stuff thisExp expectedType =
 -- Currently shoving entire type error message and suggested fixes into Deuce.
 -- So every line is a DeuceTypeInfoItem === SynthesisResult.
 
-deuceShow : Exp -> String -> DeuceTypeInfoItem
+deuceShow : Exp -> String -> TransformationResult
 deuceShow inputExp s =
   -- TODO: everything is a SynthesisResult, so pass in inputExp as dummy...
-  synthesisResult s inputExp
+  basicTransformationResult s inputExp
 
 
-deuceTool : String -> Exp -> DeuceTypeInfoItem
+deuceTool : String -> Exp -> TransformationResult
 deuceTool =
-  synthesisResult
+  basicTransformationResult
 
 
 -- TODO: remove inputExp when TypeError interface is worked out
@@ -1308,11 +1316,11 @@ expectedButGot inputExp expectedType maybeActualType =
     ]
 
 
-makeDeuceExpTool : Exp -> Exp -> (() -> List SynthesisResult)
+makeDeuceExpTool : Exp -> Exp -> (() -> List TransformationResult)
 makeDeuceExpTool = makeDeuceToolForThing Expr unExpr
 
 
-makeDeucePatTool : Exp -> Pat -> (() -> List SynthesisResult)
+makeDeucePatTool : Exp -> Pat -> (() -> List TransformationResult)
 makeDeucePatTool = makeDeuceToolForThing Basics.identity Basics.identity
 
 
@@ -1321,7 +1329,7 @@ makeDeuceToolForThing
   -> (a -> WithInfo (WithTypeInfo b))
   -> Exp
   -> a -- thing is a Thing (Exp or Pat or Type)
-  -> (() -> List SynthesisResult)
+  -> (() -> List TransformationResult)
 makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
   let
     -- exp =

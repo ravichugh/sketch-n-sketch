@@ -298,8 +298,8 @@
 
         logo : String -> Num -> Num -> Num -> List Svg
 
-1. <span style="color:red;">**TODO-Ravi:**</span>
-   Select `main` and **Type Information**. Option to insert synthesized annotation.
+1. <span style="color:green;">**OK:**</span>
+   Select `main`, **Type Information**, **Add inferred annotation**.
 
         main : Svg
 

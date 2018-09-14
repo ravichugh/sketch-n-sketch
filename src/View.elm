@@ -38,7 +38,7 @@ import OutputCanvas
 import Draw
 import LangTools
 import Sync
-import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..), DeuceTransformation(..))
+import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..), ResultText(..), TransformationResult(..), DeuceTransformation(..))
 import LangSvg
 import Syntax
 import File
@@ -90,17 +90,23 @@ italicizeQuotesIfRenamer deuceTransformation toItalicize otherwise =
     RenameDeuceTransform _ -> italicizeQuotes "'" toItalicize
     _ -> otherwise
 
-deuceTextInput onInput onKeyDn =
+deuceTextInput onInput onKeyDn mbValue mbId =
   [ Html.input
+    (
       [ Attr.type_ "text"
       , Attr.class "deuce-input"
-      , E.onInput onInput
+      ] ++
+      -- Id is apparently necessary if we wish to give automatic focus
+      (Maybe.map Attr.id mbId |> flip Utils.maybeCons []) ++
+      (Maybe.map Attr.value mbValue |> flip Utils.maybeCons []) ++
+      [ E.onInput onInput
       , E.onFocus <| Controller.msgDeuceTextBoxSetFocus True
       , E.onBlur <| Controller.msgDeuceTextBoxSetFocus False
       , onClickWithoutPropagation Controller.msgNoop
       , onKeyDown onKeyDn
       ]
-      []
+    )
+    []
   ]
 
 --------------------------------------------------------------------------------
@@ -384,65 +390,146 @@ relateHoverMenu model resultsKey title onMouseEnter =
 --     onMouseEnter
 --     (groupDisabled disallowSelectedFeatures model)
 
-deuceSynthesisResult : Model -> List Int -> DeuceTransformation -> SynthesisResult -> Html Msg
-deuceSynthesisResult model path deuceTransformation (SynthesisResult result) =
+deuceSynthesisResultInfo :
+  Model -> List Int -> DeuceTransformation -> SynthesisResult
+    -> { alreadyRun : Bool
+       , class : String
+       , additionalHTML : List (Html Msg)
+       , onMouseEnter : Msg
+       , onMouseLeave : Msg
+       , onClick : Msg
+       }
+deuceSynthesisResultInfo
+  model path deuceTransformation (SynthesisResult result) =
+    let
+      onKeyDn code =
+        if code == enterKeyCode then -- Enter button
+          Controller.msgChooseDeuceExp result.description result.exp
+        else
+          Controller.msgNoop
+
+      (additionalHTML, canEval) =
+        case deuceTransformation of
+          RenameDeuceTransform _ ->
+            ( deuceTextInput
+                Controller.msgUpdateRenameVarTextBox onKeyDn Nothing Nothing
+            , False
+            )
+          _ ->
+            ([], True)
+    in
+      { alreadyRun =
+          Dict.member path model.deuceToolResultPreviews
+      , class =
+          case Dict.get path model.deuceToolResultPreviews of
+            Nothing -> -- tool result Exp has not yet been run and cached
+              case deuceTransformation of
+                NoInputDeuceTransform _ ->
+                  if result.isSafe then "expected-safe" else "expected-unsafe"
+                _ ->
+                  ""
+            Just (_, class) ->
+              class
+      , additionalHTML =
+          additionalHTML
+      , onMouseEnter =
+          Controller.msgHoverDeuceResult
+            (not canEval) (SynthesisResult result) path
+      , onMouseLeave =
+          Controller.msgLeaveDeuceResult
+            (SynthesisResult result) path
+      , onClick =
+          Controller.msgChooseDeuceExp
+            result.description result.exp
+      }
+
+viewResultText : ResultText -> Html Msg
+viewResultText rt =
+  case rt of
+    PlainText s ->
+      Html.span [] [Html.text s]
+    HeaderText s ->
+      Html.h1 [] [Html.text s]
+    CodeText s ->
+      Html.code [] [Html.text s]
+    TypeText s ->
+      Html.code [] [Html.text s]
+    HintText s ->
+      Html.i [] [Html.text s]
+
+deuceTransformationResult :
+  Model -> List Int -> DeuceTransformation -> TransformationResult -> Html Msg
+deuceTransformationResult model path deuceTransformation transformationResult =
   let
-    alreadyRun =
-      Dict.member path model.deuceToolResultPreviews
+    (maybeSynthesisInfo, description) =
+      case transformationResult of
+        Basic synthesisResult ->
+          let
+            (SynthesisResult result) =
+              synthesisResult
 
-    class =
-      case Dict.get path model.deuceToolResultPreviews of
-        Nothing -> -- tool result Exp has not yet been run and cached
-          case deuceTransformation of
-            NoInputDeuceTransform _ ->
-              if result.isSafe then "expected-safe" else "expected-unsafe"
-            _ ->
-              ""
-        Just (_, class) ->
-          class
+            info =
+              deuceSynthesisResultInfo
+                model path deuceTransformation synthesisResult
+          in
+            ( Just info
+            , italicizeQuotesIfRenamer
+                deuceTransformation
+                result.description
+                [ Html.text <|
+                    if info.alreadyRun && indicateWhetherToolIsCached
+                      then result.description ++ " ✓"
+                      else result.description
+                ]
+            )
 
-    onKeyDn code =
-      if code == enterKeyCode then -- Enter button
-        Controller.msgChooseDeuceExp result.description result.exp
-      else
-        Controller.msgNoop
+        Fancy synthesisResult resultText ->
+          ( Just <|
+              deuceSynthesisResultInfo
+                model path deuceTransformation synthesisResult
+          , [ viewResultText resultText ]
+          )
 
-    (additionalHTML, canEval) =
-      case deuceTransformation of
-        RenameDeuceTransform _ ->
-          (deuceTextInput Controller.msgUpdateRenameVarTextBox onKeyDn, False)
-        _ ->
-          ([], True)
-
-    description =
-      italicizeQuotesIfRenamer
-        deuceTransformation
-        result.description
-        [ Html.text <|
-            if alreadyRun && indicateWhetherToolIsCached
-              then result.description ++ " ✓"
-              else result.description
-        ]
-
+        Label resultText ->
+          ( Nothing
+          , [ viewResultText resultText ]
+          )
   in
-    generalHtmlHoverMenu class
-      ( [ Html.span
-            []
-            description
-        ] ++ additionalHTML
-      )
-      -- TODO allow renaming to dynamically appear in the code
-      (Controller.msgHoverDeuceResult (not canEval) (SynthesisResult result) path)
-      (Controller.msgLeaveDeuceResult (SynthesisResult result) path)
-      (Controller.msgChooseDeuceExp result.description result.exp)
-      False
-      []
+    case maybeSynthesisInfo of
+      Nothing ->
+        Html.div [] description
 
-deuceSynthesisResults
-  : Model -> List Int -> DeuceTransformation -> List SynthesisResult -> List (Html Msg)
-deuceSynthesisResults model path deuceTransformation results =
-  let mapResults () =
-    Utils.mapi1 (\(i, result) -> deuceSynthesisResult model (path ++ [i]) deuceTransformation result) results
+      Just synthesisInfo ->
+        generalHtmlHoverMenu
+          synthesisInfo.class
+          ( [ Html.span
+                []
+                description
+            ] ++ synthesisInfo.additionalHTML
+          )
+          synthesisInfo.onMouseEnter
+          synthesisInfo.onMouseLeave
+          synthesisInfo.onClick
+          False
+          []
+
+deuceTransformationResults
+  : Model -> List Int -> DeuceTransformation -> List TransformationResult -> List (Html Msg)
+deuceTransformationResults model path deuceTransformation transformationResults =
+  let
+    mapResults () =
+      Utils.mapi1
+        ( \(i, result) ->
+            deuceTransformationResult
+            model
+            (path ++ [i])
+            deuceTransformation
+            result
+        )
+        transformationResults
+
+    results =
+      Lang.synthesisResults transformationResults
   in
   case (deuceTransformation, results) of
     (SmartCompleteDeuceTransform _, _) ->
@@ -454,7 +541,7 @@ deuceSynthesisResults model path deuceTransformation results =
         else
           Controller.msgNoop
       in
-      deuceTextInput Controller.msgUpdateSmartCompleteTextBox onKeyDn ++
+      deuceTextInput Controller.msgUpdateSmartCompleteTextBox onKeyDn Nothing Nothing ++
       [ Html.ul
           []
           (mapResults ())
@@ -502,7 +589,7 @@ deuceHoverMenu alwaysShow model (index, (deuceTool, results, disabled)) =
       [ Html.div
           [ Attr.class "synthesis-results"
           ] <|
-          deuceSynthesisResults model path deuceTool.func results
+          deuceTransformationResults model path deuceTool.func results
       ]
 
 editCodeEntry : Model -> (Int, CachedDeuceTool) -> Html Msg
@@ -2470,6 +2557,89 @@ noAvailableTools =
     ]
 
 --------------------------------------------------------------------------------
+-- Deuce Popup Panel For Hotkeys
+--------------------------------------------------------------------------------
+
+deuceKeyboardPopupPanel : Model -> Html Msg
+deuceKeyboardPopupPanel model =
+  let
+    {title, text, textToTransformationResults} =
+      model.mbDeuceKeyboardInfo |>
+      Maybe.withDefault
+        { title = "Totally broken!"
+        , text = ""
+        , textToTransformationResults = always []
+        }
+
+    transformationResults = textToTransformationResults text
+    synthesisResults = Lang.synthesisResults transformationResults
+
+    resultItem (SynthesisResult result) =
+      generalHtmlHoverMenu "expected-safe"
+        ( [ Html.span
+              []
+              [ Html.text result.description ]
+          ]
+        )
+        Controller.msgNoop
+        Controller.msgNoop
+        (Controller.msgChooseDeuceExp result.description result.exp)
+        False
+        []
+
+    onKeyDn code =
+      -- Enter button
+      if code == enterKeyCode && not (List.isEmpty synthesisResults) then
+        let (SynthesisResult firstResult) = Utils.head_ synthesisResults in
+        Controller.msgChooseDeuceExp firstResult.description firstResult.exp
+      else
+        Controller.msgNoop
+
+    root = model.inputExp
+    displayInfo =
+      { lineHeight =
+          model.codeBoxInfo.lineHeight
+      , characterWidth =
+          model.codeBoxInfo.characterWidth
+      , colorScheme =
+          model.colorScheme
+      }
+    toPos =
+      Maybe.map (\withInfo -> (withInfo.start.col + 6, withInfo.start.line + 6))
+      >> Maybe.withDefault (0, 0)
+      >> Deuce.c2a displayInfo
+      >> Utils.mapBoth floor
+    pos =
+      case model.deuceState.mbKeyboardFocusedWidget of
+        Just (DeuceExp eId) ->
+          Lang.findExpByEId root eId |> Maybe.map Lang.unExpr |> toPos
+        Just (DeucePat ppid) ->
+          LangTools.findPatByPathedPatternId ppid root |> toPos
+        _ ->
+          toPos Nothing
+
+    id = Just deuceKeyboardPopupPanelTextBoxId
+    value = Just text
+  in
+  popupPanel
+    { pos = pos
+    , disabled = not <| Model.deuceKeyboardPopupPanelShown model
+    , dragHandler = Controller.msgNoop
+    , class = "deuce-popup-panel appear-above"
+    , title = [ Html.text title ]
+    , content =
+        [ Html.div
+            [ Attr.class "deuce-popup-panel-content" ]
+            ( [ Html.ul
+                [ Attr.class "synthesis-results" ]
+                (List.map resultItem synthesisResults)
+              ] ++
+              deuceTextInput Controller.msgUpdateDeuceKeyboardTextBox onKeyDn value id
+            )
+        ]
+    }
+
+--------------------------------------------------------------------------------
 -- Deuce Popup Panel
 --------------------------------------------------------------------------------
 
@@ -2592,7 +2762,7 @@ editCodePopupPanel model =
                   , Html.div
                       [ Attr.class "synthesis-results"
                       ] <|
-                      deuceSynthesisResults model path deuceTool.func results
+                      deuceTransformationResults model path deuceTool.func results
                   ]
                 else
                   []
@@ -2664,6 +2834,7 @@ autoOutputToolsPopupPanel model =
 popupPanels : Model -> List (Html Msg)
 popupPanels model =
   [ deucePopupPanel model
+  , deuceKeyboardPopupPanel model
   , editCodePopupPanel model
   , autoOutputToolsPopupPanel model
   ]

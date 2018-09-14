@@ -9,6 +9,18 @@ module DeuceTools exposing
   , reselectDeuceTool
   , updateInputSensitiveToolsInCache
   , isActive
+  -- Hotkey exposure
+  , renameVariableViaHotkey
+  , expandFormatViaHotkey
+  , smartCompleteHole
+  , replaceWithParens
+  , replaceWithList
+  , replaceWithRecord
+  , replaceWithLambda
+  , replaceWithApp
+  , replaceWithCase
+  , replaceWithLet
+  , replaceWithCond
   )
 
 import String
@@ -215,7 +227,7 @@ makeReplaceHoleTool   toolID    replDesc  programModifier =
         Nothing ->
           InactiveDeuceTransform
         Just newProgram ->
-          basicDeuceTransform <| [synthesisResult ("Replace with " ++ replDesc) newProgram]
+          basicDeuceTransform <| [basicTransformationResult ("Replace with " ++ replDesc) newProgram]
     )
 
 makeSimpleReplaceHoleTool : String -> String -> Bool ->         (WS -> Exp__) -> Model -> Selections -> DeuceTool
@@ -230,9 +242,9 @@ makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__ =
         then
           Expr <|
             withDummyExpInfoEId nextID <|
-              EParens wsb (Expr <| withDummyExpInfoEId (nextID + 1) <| wsToExp__ space0) Parens space0
+              EParens wsb (Expr <| withDummyExpInfoEId holeEId <| wsToExp__ space0) Parens space0
         else
-          Expr <| withDummyExpInfoEId nextID <| wsToExp__ wsb
+          Expr <| withDummyExpInfoEId holeEId <| wsToExp__ wsb
     in
     Just <| replaceExpNode holeEId newExp root
   )
@@ -280,7 +292,7 @@ createVarTool =
         List.filter (String.startsWith smartCompleteText) visibleVars |>
           List.map (\vIdent ->
             replaceExpNode holeEId (Expr <| withDummyExpInfoEId holeEId <| EVar wsb vIdent) root
-            |> synthesisResult vIdent
+            |> basicTransformationResult vIdent
           )
     )
 
@@ -414,8 +426,8 @@ createCaseTool =
         holeEId = expEId holeExp
         wsb = precedingWhitespace holeExp
         maxID = LeoParser.maxId oldRoot
-        (caseID, ofID, patID) = Utils.mapThree ((+) maxID) (1, 2, 3)
-        ofExp = Expr <| withDummyExpInfoEId ofID <| EHole space1 EEmptyHole
+        (caseID, patID) = Utils.mapBoth ((+) maxID) (1, 2)
+        ofExp = Expr <| withDummyExpInfoEId holeEId <| EHole space1 EEmptyHole
         pat = withDummyPatInfoPId patID <| PWildcard space0
         holeExpWithOneSpace = replacePrecedingWhitespace " " holeExp
         caseExp wsBeforeCase wsBeforeBranch =
@@ -468,10 +480,10 @@ createLetTool =
         holeEId = expEId holeExp
         wsb = ws <| precedingWhitespace holeExp
         maxID = LeoParser.maxId oldRoot
-        (letID, patID, boundID, parensID) = Utils.mapFour ((+) maxID) (1, 2, 3, 4)
+        (letID, patID, parensID) = Utils.mapThree ((+) maxID) (1, 2, 3)
         isTopLevel = LangTools.isTopLevelEId holeEId oldRoot
         pat = withDummyPatInfoPId patID <| PWildcard <| if isTopLevel then space0 else space1
-        boundExp = Expr <| withDummyExpInfoEId boundID <| EHole space1 EEmptyHole
+        boundExp = Expr <| withDummyExpInfoEId holeEId <| EHole space1 EEmptyHole
         newExp =
           let
             letOrDef = if isTopLevel then Def else Let
@@ -514,6 +526,33 @@ createRecordTool =
     "record"
     False
     (\wsb -> ERecord wsb Nothing (Declarations [] [] [] []) space0)
+
+smartCompleteHole : Model -> DeuceWidget -> (String, String -> List TransformationResult)
+smartCompleteHole = runInputBasedToolViaHotkey createVarTool
+
+replaceWithParens : Model -> DeuceWidget -> Maybe Exp
+replaceWithParens = runToolViaHotkey createParenthesizedTool
+
+replaceWithList : Model -> DeuceWidget -> Maybe Exp
+replaceWithList = runToolViaHotkey createEmptyListTool
+
+replaceWithRecord : Model -> DeuceWidget -> Maybe Exp
+replaceWithRecord = runToolViaHotkey createRecordTool
+
+replaceWithLambda : Model -> DeuceWidget -> Maybe Exp
+replaceWithLambda = runToolViaHotkey createLambdaTool
+
+replaceWithApp : Model -> DeuceWidget -> Maybe Exp
+replaceWithApp = runToolViaHotkey createApplicationTool
+
+replaceWithCase : Model -> DeuceWidget -> Maybe Exp
+replaceWithCase = runToolViaHotkey createCaseTool
+
+replaceWithLet : Model -> DeuceWidget -> Maybe Exp
+replaceWithLet = runToolViaHotkey createLetTool
+
+replaceWithCond : Model -> DeuceWidget -> Maybe Exp
+replaceWithCond = runToolViaHotkey createCondTool
 
 --------------------------------------------------------------------------------
 -- Make Equal
@@ -662,6 +701,9 @@ renameVariableTool model selections =
         ]
     , id = "renameVariable"
     }
+
+renameVariableViaHotkey : Model -> DeuceWidget -> (String, String -> List TransformationResult)
+renameVariableViaHotkey = runInputBasedToolViaHotkey renameVariableTool
 
 --------------------------------------------------------------------------------
 -- Swap Names and Usages
@@ -829,7 +871,7 @@ inlineDefinitionTool model selections =
               (toolName , InactiveDeuceTransform , Impossible)
             Just (inlinedIdents, newProgram) ->
               ( Utils.perhapsPluralizeList toolName letEIds
-              , basicDeuceTransform [synthesisResult ("Inline " ++ toString inlinedIdents) newProgram]
+              , basicDeuceTransform [basicTransformationResult ("Inline " ++ toString inlinedIdents) newProgram]
               , Satisfied
               )
         _ ->
@@ -1209,7 +1251,7 @@ thawFreezeTool model selections =
                     Dict.empty
                     nums
               in
-                [ synthesisResult
+                [ basicTransformationResult
                     toolName
                     (applyESubst eSubst model.inputExp)
                 ]
@@ -1307,7 +1349,7 @@ showHideRangeTool model selections =
                       Dict.empty
                       nums
                 in
-                  [ synthesisResult
+                  [ basicTransformationResult
                       toolName
                       (applyESubst eSubst model.inputExp)
                   ]
@@ -1411,7 +1453,7 @@ addRemoveRangeTool model selections =
                       Dict.empty
                       nums
                 in
-                  [ synthesisResult
+                  [ basicTransformationResult
                       toolName
                       (applyESubst eSubst model.inputExp)
                   ]
@@ -1553,10 +1595,10 @@ convertColorStringTool model selections =
                         , NoInputDeuceTransform <|
                             \() ->
                               [ newExp1
-                                  |> synthesisResult "RGBA"
+                                  |> basicTransformationResult "RGBA"
                               , newExp2
-                                  |> synthesisResult "Color Number (Hue Only)"
-                                  |> setResultSafe False
+                                  |> basicTransformationResult "Color Number (Hue Only)"
+                                  |> mapSynthesisResult (setResultSafe False)
                               ]
                         , Satisfied
                         )
@@ -1733,8 +1775,9 @@ mergeTool model selections =
             minCloneCount =
               List.length eids
           in
-            ExpressionBasedTransform.cloneEliminationSythesisResults
-              candidateExpFilter minCloneCount 2 model.inputExp
+            List.map Basic <|
+              ExpressionBasedTransform.cloneEliminationSythesisResults
+                candidateExpFilter minCloneCount 2 model.inputExp
       in
         if mergeResults /= [] then
           ( NoInputDeuceTransform <| \() -> mergeResults
@@ -2325,7 +2368,7 @@ makeSingleLineTool model selections =
                                           replacePrecedingWhitespace " "
                                       )
                              )
-                        |> synthesisResult "Make Single Line"
+                        |> basicTransformationResult "Make Single Line"
                         |> List.singleton
               else
                 InactiveDeuceTransform
@@ -2395,7 +2438,7 @@ makeMultiLineTool model selections =
                                    Nothing
                                    ( ws <| "\n" ++ indentation )
                                )
-                          |> synthesisResult "Make Multi-line"
+                          |> basicTransformationResult "Make Multi-line"
                           |> List.singleton
               EApp ws1 (Expr e) es appType ws2 ->
                 if
@@ -2424,7 +2467,7 @@ makeMultiLineTool model selections =
                                    appType
                                    space0
                                )
-                          |> synthesisResult "Make Multi-line"
+                          |> basicTransformationResult "Make Multi-line"
                           |> List.singleton
               _ ->
                 InactiveDeuceTransform
@@ -2496,7 +2539,7 @@ alignExpressionsTool model selections =
                               else
                                 e
                           )
-                      |> synthesisResult "Align Expressions"
+                      |> basicTransformationResult "Align Expressions"
                       |> List.singleton
         _ ->
           InactiveDeuceTransform
@@ -2620,8 +2663,8 @@ formatTool model selections =
                       rebuild newWsExps (ws breakAndIndent)
 
                   func () =
-                    [ synthesisResult "Single-Line" simpleSingleLine
-                    , synthesisResult "Multi-Line" simpleMultiLine
+                    [ basicTransformationResult "Single-Line" simpleSingleLine
+                    , basicTransformationResult "Multi-Line" simpleMultiLine
                     ]
                 in
                   (NoInputDeuceTransform func, Satisfied)
@@ -2686,7 +2729,7 @@ formatTool model selections =
                       |> Tuple.mapSecond Utils.dedup
 
                   makeSingleLine =
-                    synthesisResult "Single Line"
+                    basicTransformationResult "Single Line"
                       (rebuild (always space1.val) Nothing (Just space1.val) (Just space1.val))
 
                   alignEqualsSigns =
@@ -2695,7 +2738,7 @@ formatTool model selections =
                         List.maximum listEqualsSignCol
                           |> Utils.fromJust_ "maxEqualsSignCol"
                     in
-                      synthesisResult "Remove Line Breaks and Align Equals Signs"
+                      basicTransformationResult "Remove Line Breaks and Align Equals Signs"
                         (rebuild (Regex.replace Regex.All (Regex.regex "(\\n)*\\n") (always "\n"))
                                  (Just maxEqualsSignCol)
                                  (Just space1.val)
@@ -2710,7 +2753,7 @@ formatTool model selections =
                              else
                                "Remove Line Breaks"
                            in
-                             synthesisResult caption
+                             basicTransformationResult caption
                                (rebuild identity Nothing (Just s) Nothing)
                          )
 
@@ -2773,6 +2816,34 @@ formatTool model selections =
     , id = "format"
     }
 
+expandFormatViaHotkey : Model -> DeuceWidget -> Maybe Exp
+expandFormatViaHotkey = runFunctionViaHotkey expandFormat
+
+expandFormat old selections =
+  case selections of
+    (_, _, [eId], [], [], [], [], [], []) ->
+      let exp = LangTools.justFindExpByEId old.inputExp eId in
+      case unwrapExp exp of
+        EList ws1 wsExps ws2 maybeTail ws3 ->
+          let
+            startCol = (unExpr exp).start.col
+            breakAndIndent = "\n" ++ String.repeat (startCol - 1) " "
+            newWsExps =
+              wsExps
+                |> Utils.mapi0 (\(i, (_, e_i)) ->
+                     ( ws <| if i == 0 then " " else breakAndIndent
+                     , replacePrecedingWhitespace " " e_i
+                     )
+                   )
+          in
+          replaceExpNode eId
+            (EList ws1 newWsExps ws2 maybeTail (ws breakAndIndent) |> replaceE__ exp)
+            old.inputExp
+          |> Just
+        _ ->
+          Nothing
+    _ ->
+      Nothing
 
 --==============================================================================
 --= EXPORTS
@@ -2807,11 +2878,10 @@ toolNeedsHovers model toolId =
 toolList =
   [ [ typesTool
     ]
-  , [ createNumTool
-    , createTrueTool
+  , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
+    [ createTrueTool
     , createFalseTool
     , createEmptyStringTool
-    , createVarTool
     , createLambdaTool
     , createApplicationTool
     , createEmptyListTool
@@ -2821,7 +2891,9 @@ toolList =
     , createTypeAscriptionTool
     , createParenthesizedTool
     , createRecordTool
-    ]
+    ]) ::
+    [ createVarTool ]
+
 -- TODO: get Deuce tools to work with the ELet AST
 {-
   [ [ createFunctionTool
@@ -2954,13 +3026,119 @@ updateInputSensitiveToolsInCache almostNewModel =
 -- Helpers
 --------------------------------------------------------------------------------
 
+basicDeuceTransform : List TransformationResult -> DeuceTransformation
 basicDeuceTransform result =
   NoInputDeuceTransform <| \() -> result
 
+mbThunkToTransform : Maybe (() -> List TransformationResult) -> DeuceTransformation
 mbThunkToTransform mbThunk =
   case mbThunk of
     Nothing -> InactiveDeuceTransform
     Just thunk -> NoInputDeuceTransform thunk
+
+mergeTools : String -> String -> String -> List (Model -> Selections -> DeuceTool) -> Model -> Selections -> DeuceTool
+mergeTools id name description toolBuilders model selections =
+  let (func, predVal) =
+    List.foldl (\toolBuilder (thunkAcc, predValAcc) ->
+        let
+          {func, reqs} = toolBuilder model selections
+          req = Utils.head_ reqs
+          predValCur = req.value
+          isSatisfied val =
+            List.member val [Satisfied, FullySatisfied]
+          mbThunkCur = case func of
+            NoInputDeuceTransform thunk -> Just thunk
+            _                           -> Nothing
+          combineThunks a b () =
+            a () ++ b ()
+        in
+        if not <| isSatisfied predValCur || isSatisfied predValAcc then
+          if predValCur == Possible || predValAcc == Possible then
+            (thunkAcc, Possible)
+          else
+            (thunkAcc, Impossible)
+        else case (mbThunkCur, predValCur, predValAcc) of
+          (Nothing, _, _) ->
+            (thunkAcc, predValAcc)
+          (Just thunkCur, FullySatisfied, FullySatisfied) ->
+            (combineThunks thunkAcc thunkCur, FullySatisfied)
+          (Just thunkCur, _, _) ->
+            (combineThunks thunkAcc thunkCur, Satisfied)
+      ) (always [], Impossible) toolBuilders
+    |> Tuple.mapFirst NoInputDeuceTransform
+  in
+  { name = name
+  , func = func
+  , reqs = [ { description = description, value = predVal } ]
+  , id = id
+  }
+
+runFunctionViaHotkey : (Model -> Selections -> Maybe Exp) -> Model -> DeuceWidget -> Maybe Exp
+runFunctionViaHotkey function old selectedWidget =
+  let thunk () =
+    function old <| selectionsTuple old.inputExp [selectedWidget]
+  in
+  case ImpureGoodies.crashToError thunk of
+    Ok exp ->
+      exp
+    Err errMsg ->
+      let _ =
+        Debug.log <| "Deuce Function Via Hotkey Crash :" ++ toString errMsg
+      in
+      Nothing
+
+runInputBasedToolViaHotkey :
+  (Model -> Selections -> DeuceTool) -> Model -> DeuceWidget -> (String, String -> List TransformationResult)
+runInputBasedToolViaHotkey toolBuilder old selectedWidget =
+  let
+    deuceTool = toolBuilder old <| selectionsTuple old.inputExp [selectedWidget]
+    textToResults =
+      case deuceTool.func of
+        RenameDeuceTransform renameVarTextToResults ->
+          renameVarTextToResults
+        SmartCompleteDeuceTransform smartCompleteTextToResults ->
+          smartCompleteTextToResults
+        _ ->
+          always []
+  in
+  ( deuceTool.name
+  , (\text ->
+      case ImpureGoodies.crashToError (\() -> textToResults text) of
+        Ok results ->
+          results
+        Err errMsg ->
+          let _ =
+            Debug.log ("Deuce Input Based Tool Via Hotkey Crash '" ++ deuceTool.name ++ "'") (toString errMsg)
+          in
+          []
+    )
+  )
+
+runToolViaHotkey : (Model -> Selections -> DeuceTool) -> Model -> DeuceWidget -> Maybe Exp
+runToolViaHotkey toolBuilder old selectedWidget =
+  let
+    deuceTool : DeuceTool
+    deuceTool = toolBuilder old <| selectionsTuple old.inputExp [selectedWidget]
+
+    run : (() -> List TransformationResult) -> Maybe Exp
+    run thunk =
+      case ImpureGoodies.crashToError thunk of
+        Ok [singleResult] ->
+          extractSynthesisResultWith Model.resultExp singleResult
+        Ok results ->
+          let _ =
+            Debug.log <| "Deuce Tool Via Hotkey too many results: " ++ toString results
+          in
+          Nothing
+        Err errMsg ->
+          let _ =
+            Debug.log ("Deuce Tool Via Hotkey Crash '" ++ deuceTool.name ++ "'") (toString errMsg)
+          in
+          Nothing
+  in
+  case deuceTool.func of
+    NoInputDeuceTransform thunk -> run thunk
+    _                           -> Nothing
 
 -- Run a tool: get results back if it is active, otherwise no results
 runTool : DeuceTool -> DeuceState -> CachedDeuceTool
