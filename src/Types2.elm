@@ -533,19 +533,23 @@ inferType gamma stuff thisExp =
 
         Nothing ->
           let
-            message =
-              deuceShow stuff.inputExp <| "Cannot find variable `" ++ x ++ "`"
+            messages =
+              [ deuceShow stuff.inputExp
+                  "-- NAMING ERROR -------------------------------------------------------"
+              , deuceShow stuff.inputExp <|
+                  "Cannot find variable `" ++ x ++ "`"
+              ]
             suggestions =
               List.map
                 (\y -> (y, EVar ws y |> replaceE__ thisExp))
                 (varNotFoundSuggestions x gamma)
             items =
               if List.length suggestions == 0 then
-                [ message ]
+                messages
               else
-                message
-                  :: deuceShow stuff.inputExp "Maybe you want one of the following?"
-                  :: List.map
+                messages
+                  ++ [ deuceShow stuff.inputExp "Maybe you want one of the following?" ]
+                  ++ List.map
                        (\(y, ey) -> deuceTool y (replaceExpNode (unExpr thisExp).val.eid ey stuff.inputExp))
                        suggestions
           in
@@ -653,10 +657,15 @@ inferType gamma stuff thisExp =
                   addErrorAndInfo (eid1, type1) (eid2, type2) branchExp =
                     branchExp
                       |> setTypeError (otherTypeError stuff.inputExp
-                           [ "This red branch has type"
+                           [ "-- TYPE MISMATCH ------------------------------------------------------"
+                           , "The branches of this `if` produce different types of values."
+                           , "This branch has type"
                            , unparseType type1
                            , "but the other green branch has type"
                            , unparseType type2
+                           , """Hint: These need to match so that no matter which
+                                branch we take, we always get
+                                back the same type of value."""
                            ])
                       |> setExtraTypeInfo (HighlightWhenSelected eid2)
 
@@ -1283,14 +1292,19 @@ otherTypeError inputExp strings =
 -- TODO: remove inputExp when TypeError interface is worked out
 expectedButGot inputExp expectedType maybeActualType =
   TypeError
-    [ deuceShow inputExp <|
-        "Expected: " ++ unparseType expectedType
+    [ deuceShow inputExp
+        "-- TYPE MISMATCH ------------------------------------------------------"
     , deuceShow inputExp <|
-        "Got: " ++ Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
+        "The expected type is"
     , deuceShow inputExp <|
-        "Will eventually insert hole around this expression with expected type..."
+        unparseType expectedType
     , deuceShow inputExp <|
-        "Maybe an option to change expected type..."
+        "But this is a"
+    , deuceShow inputExp <|
+        Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
+    , deuceTool
+        ("TODO-Ravi Maybe an option to change expected type if it's annotation...")
+        inputExp
     ]
 
 
