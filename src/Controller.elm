@@ -2653,9 +2653,9 @@ msgDoRename pid = Msg ("Rename PId " ++ toString pid) <| \old ->
       if renamingPId == pid then
         let newProgram =
           CodeMotion.renamePatByPId pid newName old.inputExp
-          |> List.filter isResultSafe
+          |> List.filter (extractSynthesisResultWith isResultSafe >> Utils.maybeToBool)
           |> List.head
-          |> Maybe.map resultExp
+          |> Maybe.andThen (extractSynthesisResultWith resultExp)
           |> Maybe.withDefault old.inputExp
         in
         { old | code             = Syntax.unparser old.syntax newProgram
@@ -2718,8 +2718,9 @@ msgAddArg funcBody = Msg "Add Arg to Function in Output" <| \old ->
             (\eid ->
               let (line, col) = LangTools.locationInProgram old.inputExp eid in
               CodeMotion.addArg old.syntax eid targetPPId old.inputExp
-              |> List.map (setResultSortKey [toFloat line, toFloat col])
+              |> List.map (mapSynthesisResult <| setResultSortKey [toFloat line, toFloat col])
             )
+        |> synthesisResults
         |> List.sortBy (\(SynthesisResult result) -> (if result.isSafe then 0 else 1, result.sortKey))
       in
       case results of
@@ -2737,6 +2738,7 @@ msgRemoveArg pid = Msg ("Remove Arg PId " ++ toString pid) <| \old ->
     Nothing              -> old
     Just pathedPatternId ->
       CodeMotion.removeArg old.syntax pathedPatternId old.inputExp
+      |> synthesisResults
       |> List.head
       |> Maybe.map (\result -> upstateRun { old | code = Syntax.unparser old.syntax (resultExp result) })
       |> Maybe.withDefault old
@@ -3214,10 +3216,10 @@ deuceMove destWidget old =
   { old | deuceState = newDS } |>
   flip resetDeuceCacheAndReselect DeuceTools.createToolCache
 
-deuceChooserUI : Model -> (String, String -> List SynthesisResult) -> Model
-deuceChooserUI old titleAndTextToSynthesisResults =
+deuceChooserUI : Model -> (String, String -> List TransformationResult) -> Model
+deuceChooserUI old titleAndTextToTransformationResults =
   let
-    (title, textToSynthesisResults) = titleAndTextToSynthesisResults
+    (title, textToTransformationResults) = titleAndTextToTransformationResults
     oldReset = resetDeuceKeyboardInfo old
   in
   { oldReset
@@ -3225,7 +3227,7 @@ deuceChooserUI old titleAndTextToSynthesisResults =
         Just <|
         { title = title
         , text = ""
-        , textToSynthesisResults = textToSynthesisResults
+        , textToTransformationResults = textToTransformationResults
         }
     , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
   }

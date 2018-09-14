@@ -251,13 +251,34 @@ dedup xs = dedupBy identity xs
 -- Dedups based on a provided function (first seen element for each key is preserved)
 dedupBy : (a -> b) -> List a -> List a
 dedupBy f xs =
-  let (deduped, _) =
-    List.foldl (\x (dd, seen) ->
-        let key = f x in
-        if Set.member key seen then (dd, seen) else (dd ++ [x], Set.insert key seen)
-      ) ([], Set.empty) xs
+  dedupByMaybe (Just << f) xs
+
+-- Preserves original list order
+-- Dedups based on a provided function (first seen element for each key is preserved)
+-- ...unless f returns Nothing; then, the element is always kept
+dedupByMaybe : (a -> Maybe b) -> List a -> List a
+dedupByMaybe f xs =
+  let
+    (dedupedReversed, _) =
+      List.foldl
+        ( \x (dd, seen) ->
+            case f x of
+              Just key ->
+                if Set.member key seen then
+                  -- Already seen
+                  (dd, seen)
+                else
+                  -- Haven't yet seen, add to list and seen elements
+                  (x :: dd, Set.insert key seen)
+
+              Nothing ->
+                -- Doesn't matter whether we've seen, add to list
+                (x :: dd, seen)
+        )
+        ([], Set.empty)
+        xs
   in
-  deduped
+    List.reverse dedupedReversed
 
 -- -- O(n^2). Elements do not need to be comparable.
 -- Shouldn't need now that sets can hold anything.

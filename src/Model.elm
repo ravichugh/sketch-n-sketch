@@ -81,7 +81,7 @@ type DeuceRightClickMenuMode =
 type alias DeuceKeyboardPopupInfo =
   { title : String
   , text : String
-  , textToSynthesisResults : String -> List SynthesisResult
+  , textToTransformationResults : String -> List TransformationResult
   }
 
 type alias PopupPanelPositions =
@@ -750,7 +750,7 @@ type alias DeuceTool =
 -}
 
 type alias CachedDeuceTool =
-  (DeuceTool, List SynthesisResult, Bool)
+  (DeuceTool, List TransformationResult, Bool)
 
 type alias DeuceToolResultPreviews =
   Dict
@@ -944,9 +944,10 @@ domEditorNeedsCallUpdate model =
 
 --------------------------------------------------------------------------------
 
+oneSafeResult : Exp -> List TransformationResult
 oneSafeResult newExp =
   List.singleton <|
-    synthesisResult ("NO DESCRIPTION B/C SELECTED AUTOMATICALLY") newExp
+    basicTransformationResult ("NO DESCRIPTION B/C SELECTED AUTOMATICALLY") newExp
 
 --------------------------------------------------------------------------------
 
