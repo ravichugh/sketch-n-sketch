@@ -1,4 +1,4 @@
-module DrawAddShape exposing (addShape, maybeShapeCountAndListItemCountInContextOutput, perhapsPrepareRecursiveFunction)
+module DrawAddShape exposing (addShape, maybeShapeCountAndListItemCountInContextOutput)
 
 -- The "addShape" function that does the heavy lifting of adding some binding into the drawing context
 -- and adding the new variable into the shape list / return list.
@@ -187,7 +187,7 @@ addShape
           case maybeNewShapeName of
             Just newShapeName ->
               let (varName, programWithNewDef) = LangTools.newVariableVisibleTo -1 newShapeName 1 newShapeExp [listExp.val.eid] originalProgram in
-              (eVar varName, programWithNewDef |> perhapsPrepareRecursiveFunction contextExp.val.eid)
+              (eVar varName, programWithNewDef)
             Nothing ->
               (newShapeExp, originalProgram)
 
@@ -195,20 +195,15 @@ addShape
         newListFlat    = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [newListItemExp]))) ws2 maybeTail ws3
         newProgramFlat = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newListFlat
         newCandidates =
-          let newListSingleton    = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [removePrecedingWhitespace newListItemExp]]))) ws2 maybeTail ws3 in
-          let newProgramSingleton = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
-          let newConcat             = eCall "concat" [eTuple [removePrecedingWhitespace listExp, newListItemExp]] |> copyPrecedingWhitespace listExp in
-          let newProgramConcatAdded = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newConcat in
-          [newProgramFlat, newProgramSingleton, newProgramConcatAdded]
-          -- if incomingExpShouldBeInlined then
-          --   -- In case new item is actually a list of new items instead of a single, may need to change listExp to a concat.
-          --   let newConcat             = eCall "concat" [eTuple [removePrecedingWhitespace listExp, newListItemExp]] |> copyPrecedingWhitespace listExp in
-          --   let newProgramConcatAdded = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newConcat in
-          --   [newProgramFlat, newProgramConcatAdded]
-          -- else
-          --   let newListSingleton    = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [removePrecedingWhitespace newListItemExp]]))) ws2 maybeTail ws3 in
-          --   let newProgramSingleton = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
-          --   [newProgramFlat, newProgramSingleton]
+          if incomingExpShouldBeInlined then
+            -- In case new item is actually a list of new items instead of a single, may need to change listExp to a concat.
+            let newConcat             = eCall "concat" [eTuple [removePrecedingWhitespace listExp, newListItemExp]] |> copyPrecedingWhitespace listExp in
+            let newProgramConcatAdded = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newConcat in
+            [newProgramFlat, newProgramConcatAdded]
+          else
+            let newListSingleton    = replaceE__ listExp <| EList ws1 (List.map ((,) space0) (imitateExpListWhitespace_ heads ws3.val (heads ++ [eTuple [removePrecedingWhitespace newListItemExp]]))) ws2 maybeTail ws3 in
+            let newProgramSingleton = programPerhapsWithNewDef |> replaceExpNode listExp.val.eid newListSingleton in
+            [newProgramFlat, newProgramSingleton]
       in
       -- 3. Resolve value holes.
       newCandidates
@@ -231,8 +226,6 @@ addShape
             areCrashingProgramsOkay ||
             case maybeShapeCountAndListItemCountInContextOutput model newProgram of
               Just (newShapeCount, newListItemsCount) ->
-                let _ = Debug.log "(newShapeCount, newListItemsCount)" (newShapeCount, newListItemsCount) in
-                let _ = Debug.log "(maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected)" (maybeReallyNumberOfNewShapesExpected, maybeReallyNumberOfNewListItemsExpected) in
                 let
                   shapeCountOkay =
                     case maybeReallyNumberOfNewShapesExpected of
@@ -282,97 +275,3 @@ addShape
 
   in
   bestProgram
-
-
--- Call this after drawing into a function to perhaps set up a recursive skeleton.
-perhapsPrepareRecursiveFunction : EId -> Exp -> Exp
-perhapsPrepareRecursiveFunction someEIdAtTopLevelOfFunction program =
-  let
-    funcBody     = LangTools.outerSameValueExp program (LangTools.justFindExpByEId program someEIdAtTopLevelOfFunction)
-    maybeFuncEId = parentByEId program funcBody.val.eid |> Maybe.withDefault Nothing |> Maybe.map (.val >> .eid)
-  in
-  case maybeFuncEId of
-    Just funcEId ->
-      case LangTools.findLetAndIdentBindingExpLoose funcEId program of
-        Just (letExp, funcName) ->
-          if LangTools.expToLetRec letExp then
-            case (expEffectiveExp funcBody).val.e__ of
-              EIf _ _ _ _ _ _ _ -> program
-              ECase _ _ _ _     -> program
-              ETypeCase _ _ _ _ -> program
-              _                 ->
-                if Set.member funcName (LangTools.freeIdentifiers funcBody) then
-                  let
-                    freshenedProgram = FastParser.freshen program -- Ensure everything has an EId. EId of func should not change b/c it shouldn't have been duplicated.
-                    dependencies  = StaticAnalysis.grossDependencies freshenedProgram
-                    freshFuncBody = LangTools.justFindExpByEId freshenedProgram funcBody.val.eid
-                    recursiveVars = LangTools.freeVars freshFuncBody |> List.filter (LangTools.expToIdent >> (==) funcName)
-
-                    -- From after a certain cutoff, put all remaining lets into the recursive case.
-                    findExpToWrap e =
-                      case (LangTools.expToMaybeLetBoundExp e, LangTools.maybeSameLevelChild e) of
-                        (Just boundExp, Just body) ->
-                          if [] /= Utils.intersectAsSet (flattenExpTree boundExp) recursiveVars
-                          then e
-                          else findExpToWrap body
-                        (_, Just body) -> findExpToWrap body
-                        (_, Nothing)   -> e
-
-                    expToWrap = findExpToWrap freshFuncBody
-
-                    -- If original return expression not dependent on anything in only the recursive case, put it in a variable outside the recursive case.
-                    originalRetExp = freshFuncBody |> LangTools.lastSameLevelExp
-                    retExpDependsOnAnythingInRecursiveCase =
-                      Utils.anyOverlapListSet
-                        (Utils.diffAsSet (allEIds expToWrap) (allEIds originalRetExp))
-                        (StaticAnalysis.eidDependencies dependencies originalRetExp.val.eid)
-
-
-                    indentationAtLet = indentationAt letExp.val.eid program
-                    newFuncBody =
-                      unindent freshFuncBody
-                      |> mapExpNode
-                          expToWrap.val.eid
-                          (\expToWrap ->
-                            if retExpDependsOnAnythingInRecursiveCase then
-                              -- newLetFancyWhitespace insertedLetEId isRec newPat newBoundExp expToWrap programToModify
-                              eIf
-                                  (eHoleNamed "terminationCondition")
-                                  (eTuple [] |> replacePrecedingWhitespace "\n  ")
-                                  (expToWrap |> replaceIndentation "  " |> replacePrecedingWhitespace "\n  ")
-                              |> replacePrecedingWhitespace "\n"
-                            else if not (containsNode isApp originalRetExp) && Utils.isSublistAsSet (LangTools.freeVars originalRetExp) (LangTools.freeVars expToWrap) then
-                              eIf
-                                  (eHoleNamed "terminationCondition")
-                                  (originalRetExp |> replacePrecedingWhitespace "\n  " |> FastParser.clearAllIds) -- For DrawAddShape so it adds to the recursive case
-                                  (expToWrap |> replaceIndentation "  " |> replacePrecedingWhitespace "\n  ")
-                              |> replacePrecedingWhitespace "\n"
-                            else
-                              let
-                                suggestedName = LangTools.expNameForEId freshFuncBody originalRetExp.val.eid
-                                nameForRetExp = LangTools.nonCollidingName suggestedName 2 <| LangTools.visibleIdentifiersAtEIds program (Set.singleton (LangTools.lastExp funcBody).val.eid)
-                              in
-                              eLet [(nameForRetExp, LangTools.reflowBoundExpWhitespace originalRetExp)]
-                                (
-                                  eIf
-                                      (eHoleNamed "terminationCondition")
-                                      (eVar nameForRetExp |> replacePrecedingWhitespace "\n  ")
-                                      (expToWrap |> replaceIndentation "  " |> replaceExpNodePreservingPrecedingWhitespace originalRetExp.val.eid (eVar nameForRetExp) |> replacePrecedingWhitespace "\n  ")
-                                  |> replacePrecedingWhitespace "\n"
-                                )
-                          )
-                      |> indent (indentationAtLet ++ "  ")
-
-                  in
-                  program
-                  |> replaceExpNode funcBody.val.eid newFuncBody
-                else
-                  program
-          else
-            program
-
-        Nothing ->
-          program
-
-    Nothing ->
-      program
