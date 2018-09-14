@@ -1728,7 +1728,7 @@ msgKeyDown keyCode =
 
         else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick && not currentKeyDown &&
                 mbKeyboardFocusedWidget /= Nothing && not old.isDeuceTextBoxFocused then
-          handleDeuceHotKey old keyCode old.keysDown <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
+          handleDeuceHotKey old (keyCode :: old.keysDown |> List.sort) <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
 
         else if
           not currentKeyDown &&
@@ -3246,27 +3246,42 @@ handleDeuceMoveHorizontal_ old selected isLeftMove =
     Maybe.map (flip deuceMove old) |>
       Maybe.withDefault old
 
-handleDeuceHotKey : Model -> Char.KeyCode -> List Char.KeyCode -> DeuceWidget -> Model
-handleDeuceHotKey oldModel keyCode keysDown selected =
+handleDeuceHotKey : Model -> List Char.KeyCode -> DeuceWidget -> Model
+handleDeuceHotKey oldModel keysDown selected =
   let old = resetDeuceKeyboardInfo oldModel in
 
   -- Movement
-  if List.member keyCode [Keys.keyLeft, Keys.keyH] then
+  if List.member keysDown [[Keys.keyLeft], [Keys.keyH]] then
     handleDeuceLeft old selected
-  else if List.member keyCode [Keys.keyRight, Keys.keyL] then
+  else if List.member keysDown [[Keys.keyRight], [Keys.keyL]] then
     handleDeuceRight old selected
-  else if keyCode == Keys.keySpace then
-    handleDeuceSpace old selected
+  -- TODO revive with some alternative hotkey
+  -- else if keysDown == [Keys.keySpace] then
+  --   handleDeuceSpace old selected
 
   -- Deuce tools
-  else if keyCode == Keys.keyI then
+  else if keysDown == [Keys.keyI] then
     DeuceTools.smartCompleteHole old selected |> deuceChooserUI old
-  else if keyCode == Keys.keyS then
+  else if keysDown == [Keys.keyS] then
     DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old
-  else if keyCode == Keys.keyE then
+  else if List.member keysDown [[Keys.keyShift, Keys.keyDown], [Keys.keyShift, Keys.keyJ]] then
     DeuceTools.expandFormatViaHotkey old selected |> maybeChooseDeuceExp old
   else if keysDown == Keys.openParen then
     DeuceTools.replaceWithParens old selected |> maybeChooseDeuceExp old
+  else if keysDown == Keys.openBrace then
+    DeuceTools.replaceWithList old selected |> maybeChooseDeuceExp old
+  else if keysDown == Keys.openCurly then
+    DeuceTools.replaceWithRecord old selected |> maybeChooseDeuceExp old
+  else if keysDown == Keys.backslash then
+    DeuceTools.replaceWithLambda old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keySpace] then
+    DeuceTools.replaceWithApp old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyE] then
+    DeuceTools.replaceWithCase old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyD] then
+    DeuceTools.replaceWithLet old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyC] then
+    DeuceTools.replaceWithCond old selected |> maybeChooseDeuceExp old
 
   else
     old

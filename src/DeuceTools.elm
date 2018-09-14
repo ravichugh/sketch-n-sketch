@@ -14,6 +14,13 @@ module DeuceTools exposing
   , expandFormatViaHotkey
   , smartCompleteHole
   , replaceWithParens
+  , replaceWithList
+  , replaceWithRecord
+  , replaceWithLambda
+  , replaceWithApp
+  , replaceWithCase
+  , replaceWithLet
+  , replaceWithCond
   )
 
 import String
@@ -525,6 +532,27 @@ smartCompleteHole = runInputBasedToolViaHotkey createVarTool
 
 replaceWithParens : Model -> DeuceWidget -> Maybe Exp
 replaceWithParens = runToolViaHotkey createParenthesizedTool
+
+replaceWithList : Model -> DeuceWidget -> Maybe Exp
+replaceWithList = runToolViaHotkey createEmptyListTool
+
+replaceWithRecord : Model -> DeuceWidget -> Maybe Exp
+replaceWithRecord = runToolViaHotkey createRecordTool
+
+replaceWithLambda : Model -> DeuceWidget -> Maybe Exp
+replaceWithLambda = runToolViaHotkey createLambdaTool
+
+replaceWithApp : Model -> DeuceWidget -> Maybe Exp
+replaceWithApp = runToolViaHotkey createApplicationTool
+
+replaceWithCase : Model -> DeuceWidget -> Maybe Exp
+replaceWithCase = runToolViaHotkey createCaseTool
+
+replaceWithLet : Model -> DeuceWidget -> Maybe Exp
+replaceWithLet = runToolViaHotkey createLetTool
+
+replaceWithCond : Model -> DeuceWidget -> Maybe Exp
+replaceWithCond = runToolViaHotkey createCondTool
 
 --------------------------------------------------------------------------------
 -- Make Equal
