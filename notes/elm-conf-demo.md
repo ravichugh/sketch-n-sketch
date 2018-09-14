@@ -18,7 +18,8 @@
         main =
           svg [rectangle, line1, line2]
 
-1. **Rename**, twice.
+1. <span style="color:green;">**OK:**</span>
+   **Rename**, twice.
 
         rectangle =
           rect "gray" 0 0 200 200
@@ -32,11 +33,14 @@
         main =
           svg [rectangle, fullLine, halfLine]
 
-1. **Make Equal with Single Variable** on 3 ``0``. Names options `x` and `x1`.
+1. <span style="color:green;">**OK:**</span>
+   **Make Equal with Single Variable** on 3 ``0``. Names options `x` and `x1`.
 
-1. **Make Equal with Single Variable** on 3 ``0``. Name options `y` and `y1`.
+1. <span style="color:green;">**OK:**</span>
+   **Make Equal with Single Variable** on 3 ``0``. Name options `y` and `y1`.
 
-1. **Make Equal with Single Variable** on 6 ``200``. Name options...
+1. <span style="color:green;">**OK:**</span>
+   **Make Equal with Single Variable** on 6 ``200``. Name options...
 
         x = 0
         
@@ -56,9 +60,11 @@
         main =
           svg [rectangle, fullLine, halfLine]
 
-1. **Rename** `w` to `size`.
+1. <span style="color:green;">**OK:**</span>
+   **Rename** `w` to `size`.
 
-1. **Move Definitions** `size`, `y` after `x`.
+1. <span style="color:green;">**OK:**</span>
+   **Move Definition** `y` after `x`, then `size` after `y`.
 
         (x, y, size) = (0, 0, 200)
 
@@ -74,7 +80,8 @@
         main =
           svg [rectangle, fullLine, halfLine]
 
-1. Live Sync, to show that bottom right corner isn't right yet.
+1. <span style="color:red;">**TODO-Ravi:**</span>
+   Live Sync, to show that bottom right corner isn't right yet.
    Output Sync > Live (Traces / Triggers) has stopped working...
 
 1. Text edits to get X always moving together.
@@ -111,9 +118,12 @@
         main =
           svg [rectangle, fullLine, halfLine]
 
-1. **Introduce Variable** for shape list. Nice default name `shapes`.
+1. <span style="color:green;">**OK:**</span>
+   **Introduce Variable** for shape list. Nice default name `shapes`.
+   Text edit to add line break.
 
-1. **Rename** to `logo`.
+1. <span style="color:green;">**OK:**</span>
+   **Rename** to `logo`.
 
         (x, y, size) = (10, 10, 200)
         
@@ -134,7 +144,8 @@
         main =
           svg logo
 
-1. **Move Definitions** all 5 to before the list literal in `logo`.
+1. <span style="color:red;">**TODO:**</span>
+   **Move Definitions** all 5 to before the list literal in `logo`.
           
         logo =
           let
@@ -156,7 +167,8 @@
         main =
           svg logo
 
-1. Select the `let` **Format**. Choose the option that looks like:
+1. <span style="color:green;">**OK:**</span>
+   Select the `let` **Format**. Choose the option that looks like:
 
         logo =
           let
@@ -180,7 +192,8 @@
         main =
           svg logo
 
-1. Select `logo` and **Create Function from Definition**.
+1. <span style="color:red;">**TODO:**</span>
+   Select `logo` and **Create Function from Definition**.
    Could give options to keep tupled-values as tuple arguments.
    Or not, just an option with "flattened" args is fine.
           
@@ -203,9 +216,11 @@
         main =
           svg (logo 10 10 200)
 
-1. Select `fill` and after `size` and **Add Argument**.
+1. <span style="color:red;">**TODO: Need to rewrite the call.**</span>
+   Select `"gray"` and **Add Argument** adds to end of argument list.
 
-1. Select `fill` and before `x` and **Reorder Argument**.
+1. <span style="color:orange;">**TODO: Could do without this if necessary.**</span>
+   Select `fill` and before `x` and **Reorder Argument**.
 
         logo fill x y size =
           let
@@ -226,9 +241,11 @@
         main =
           svg (logo "gray" 10 10 200)
 
-1. Select three shapes and **Inline Definitions**.
+1. <span style="color:green;">**OK:**</span>
+   Select three shapes and **Inline Definitions**.
 
-1. Select the shape list and **Reformat**.
+1. <span style="color:green;">**OK:**</span>
+   Select the shape list and **Reformat**.
           
         logo fill x y size =
           let
@@ -242,7 +259,8 @@
         main =
           svg (logo "gray" 10 10 200)
 
-1. Select the let and **Reformat**. Hover the option, just to see,
+1. <span style="color:orange;">**OK/TODO-Ravi: Could add another option, or not.**</span>
+   Select the let and **Reformat**. Hover the option, just to see,
    but don't select it.
 
         logo fill x y size =
@@ -262,38 +280,45 @@
 
 1. Hover around and see a bunch of things got type checked.
 
-1. Currently need annotations on functions, so there's an error.
-   There's a tool to insert a skeleton annotation.
+1. <span style="color:green;">**OK:**</span>
+   Currently need annotations on functions, so there's an error.
+   There's a tool to **Add dummy type annotation**.
 
-        logo : ?? -> ?? -> ?? -> ?? -> ??
+        logo : _ -> _ -> _ -> _ -> _
 
-1. Text-edit to add (buggy) annotation.
-   NICK: This could be a cool place for keyboard-based navigation,
-   if text edits can simply operate on the selected token.
+1. <span style="color:orange;">**TODO-Nick: This could be a cool place for keyboard-based navigation,
+   if text edits can simply operate on the selected token.**</span>
+   Text-edit to add (buggy) annotation.
 
         logo : String -> Num -> Num -> Num -> Svg
 
-1. **Type Information** tool says return type doesn't match
-   annotation. Has an option for fixing the annotation.
+1. <span style="color:red;">**TODO-Ravi:**</span>
+   **Type Information** tool says return type doesn't match
+   annotation. Has an option to **Change annotation for return value**.
 
         logo : String -> Num -> Num -> Num -> List Svg
 
-1. Select `main` and **Type Information**. Option to insert synthesized annotation.
+1. <span style="color:red;">**TODO-Ravi:**</span>
+   Select `main` and **Type Information**. Option to insert synthesized annotation.
 
         main : Svg
 
-1. Text-edit a `size` to `sighs`. Look at the nicely formatted
+1. <span style="color:red;">**TODO: Need to design nice view for type errors and fixes.**</span>
+   Text-edit a `size` to `width`. Look at the nicely formatted
    error in **Type Information**.
 
-1. Text-edit the `sighs` to `siz`. Close enough, so error suggests a fix.
+1. <span style="color:orange;">**TODO: Ditto render. Fix is suggested.**</span>
+   Text-edit the `width` to `sighs`. Close enough, so error suggests a fix.
 
 
 ## Type-Based Code Tools + Holes
 
-1. Select three `Num`s and **Introduce Type Alias**. One option
+1. <span style="color:red;">**TODO:**</span>
+   Select three `Num`s and **Introduce Type Alias**. One option
    with tuple type, one with record type.
 
-1. **Rename Type**.
+1. <span style="color:red;">**TODO:**</span>
+   **Rename Type**.
 
         type alias Params = {x:Num, y:Num, size:Num}
         
@@ -304,9 +329,11 @@
         main =
           svg (logo "gray" {x=10, y=10, size=200})
 
-1. Select record type and **Format** to see a few different options. Keep as-is.
+1. <span style="color:red;">**TODO:**</span>
+   Select record type and **Format** to see a few different options. Keep as-is.
 
-1. Select `Params` type and **Convert to Datatype**.
+1. <span style="color:red;">**TODO:**</span>
+   Select `Params` type and **Convert to Datatype**.
 
         type Params = Params {x:Num, y:Num, size:Num}
         
@@ -317,9 +344,11 @@
         main =
           svg (logo "gray" (Params {x=10, y=10, size=200}))
 
-1. **Rename Constructor** to `TopLeft`.
+1. <span style="color:red;">**TODO:**</span>
+   **Rename Constructor** to `TopLeft`.
 
-1. **Duplicate Constructor**. Let's have the dummy case just be a hole to
+1. <span style="color:red;">**TODO:**</span>
+   **Duplicate Constructor**. Let's have the dummy case just be a hole to
    start. Click `Params` and **Format** to choose multi-line option.
 
         type Params
@@ -336,15 +365,18 @@
                 Center {x, y, size} -> ??
             ...
 
-1. **Rename** to `Center`. **Rename** fields to `cx`, `cy`, and `rad`.
+1. <span style="color:red;">**TODO:**</span>
+   **Rename** to `Center`. **Rename** fields to `cx`, `cy`, and `rad`.
 
-1. **Type Information** shows error between branches. Because one
+1. <span style="color:red;">**TODO:**</span>
+   **Type Information** shows error between branches. Because one
    branch synthesized, one fix for the hole is to convert to record
    of holes.
 
                 Center {cx, cy, rad} -> {x=??, y=??, size=??}
 
-1. Text edits. NICK: Another nice place for keyboard-nav.
+1. <span style="color:orange;">**TODO-Nick: Another nice place for keyboard-nav.**</span>
+   Text edits.
 
                 Center {cx, cy, rad} -> {x=cx-rad, y=cy-rad, size=2*rad}
 
@@ -357,7 +389,8 @@
             , logo "gray" (Center {cx=300, cy=300, rad=40})
             ])
 
-1. Select the `svg` call and **Reformat**. Multiple options.
+1. <span style="color:red;">**TODO:**</span>
+   Select the `svg` call and **Reformat**. Multiple options.
 
           svg <|
             concat <|
