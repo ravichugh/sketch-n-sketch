@@ -3382,6 +3382,12 @@ List =
   let concatMap =
     concatMap
   in
+  let indexedConcatMap f l =
+    let aux i l = case l of
+      [] -> []
+      head :: tail -> f i head ++ aux (i + 1) tail
+    in aux 0 l
+  in
   let cartesianProductWith f xs ys =
     concatMap (\\x -> map (\\y -> f x y) ys) xs
   in
@@ -3579,6 +3585,13 @@ List =
     let (before, after) = split index elements in
     before ++ [newElem] ++ after
   in
+  let removeAt index elements =
+    let (before, after) = split index elements in
+    case after of
+      [] -> Nothing
+      elem::afterTail ->
+        Just (elem, before ++ afterTail)
+  in
   let -- Given two converters cA and cB, a list and a target, finds an element
       -- of the list that, converted using cA, equals target. Returns cB of this element.
       -- In the reverse direction, it finds the cB of the new output and returns the cA.
@@ -3618,6 +3631,7 @@ List =
     length = length
     nth = nth
     indexedMap = indexedMap
+    indexedConcatMap = indexedConcatMap
     concatMap = concatMap
     concatMap_ = concatMap_
     cartesianProductWith = cartesianProductWith
@@ -3647,6 +3661,7 @@ List =
     singleton = singleton
     repeat = repeat
     insertAt = insertAt
+    removeAt = removeAt
     last = LensLess.List.last
   }
 
@@ -4343,6 +4358,82 @@ Html =
           \"\"\"@(v).remove()\"\"\"))
       @attrs>@children</button>
   }
+
+--------------------------------------------------------------------------------
+-- Javascript
+
+jsCode = {
+  -- create a tuple of a list of strings. Uses v as intermediate variable.
+  -- calling __jsEval__ (\"var a = 1\\n\" ++ tupleOf \"x\" [\"a\", \"2\", \"a\"]) == (1, 2, 1)
+  tupleOf: String -> List String -> String
+  tupleOf v list =
+    \"\"\"(function() { var @v = {@(List.indexedMap (\\i x -> \"\"\"_@(i+1): @x\"\"\") list |> String.join \",\")}; @v['$t_ctor']='Tuple@(List.length list)'; return @v})()\"\"\"
+}
+
+-- Because we base decisions on random numbers,
+-- to update, it is essential that these random numbers are deterministically computed.
+random = {
+  -- Unsafe: it will not evaluate deterministically
+  jsNum = __jsEval__ \"\"\"Math.random()\"\"\"
+
+  type alias Seed = (Int, Int, Int, Int)
+  -- Builds a seed for a generator
+  seedOf: Int -> Seed
+  seedOf num = (num, num* -320161540, 320161540+num, 941627624 * num)
+
+  -- A random number generator that takes a seed and exposes a bunch of methods.
+  generator: Seed -> Generator
+  generator (a, b, c, d) = {
+    self () = generator (a, b, c, d)
+
+    -- Continuation version of randomFloat
+    randomFloat_: (Generator -> Float -> a) -> a
+    randomFloat_ withNewGeneratorResult =
+      let (newABCD, result) =
+        __jsEval__ \"\"\"
+        var a = @a, b = @b, c = @c, d = @d;
+        var t = b << 9, r = a * 5; r = (r << 7 | r >>> 25) * 9;
+        c ^= a; d ^= b;
+        b ^= c; a ^= d; c ^= t;
+        d = d << 11 | d >>> 21;
+        @(jsCode.tupleOf \"x\" [jsCode.tupleOf \"y\" [\"a\", \"b\", \"c\", \"d\"], \"(r >>> 0) / 4294967296\"]);\"\"\"
+      in
+      withNewGeneratorResult (generator (Debug.log \"newABCD\" <| newABCD)) result
+
+    randomFloat: () -> (Generator, Float)
+    randomFloat () = randomFloat_ (,)
+
+    randomInt_: Int -> Int -> (Generator -> Int -> a) -> a
+    randomInt_ minInclusive maxExclusive withNewGeneratorInt =
+      randomFloat_ <| \\newGenerator float ->
+        withNewGeneratorInt newGenerator <|
+          floor (float * (maxExclusive - minInclusive)) + minInclusive
+
+    randomInt: Int -> Int -> (Generator, Int)
+    randomInt minInclusive maxExclusive = generateInt_ minInclusive maxExclusive (,)
+
+    -- Extract a random sublist of elements, but not in order
+    randomSublist_: Int -> List a -> (Generator -> List a -> b) -> b
+    randomSublist_ count list continuation =
+      if list == [] && count > 0 then continuation (self ()) list
+      else if count <= 0 then continuation (self ()) []
+      else randomInt_ 0 (List.length list) <| \\g n ->
+        case List.removeAt n list of
+          Nothing -> (g, []) -- Don't know why it would happen.
+          Just (head, remainingList) ->
+            g.randomSublist_ (count - 1) remainingList <| \\g2 tail ->
+            continuation g2 <| head::tail
+
+    randomSublist: Int -> List a -> (Generator, List a)
+    randomSublist count list = randomSublist_ count list (,)
+
+    shuffleList_: List a -> (Generator -> List a -> b) -> b
+    shuffleList_ list  continuation = randomSublist_ (List.length list) list continuation
+
+    shuffleList: List a -> (Generator, List a)
+    shuffleList list = shuffleList_ list (,)
+  }
+}
 
 -- TODO remove this; add as imports as needed in examples
 {textNode, p, th, td, h1, h2, h3, tr, table} = Html
