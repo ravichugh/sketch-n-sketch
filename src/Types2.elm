@@ -444,31 +444,28 @@ matchLambda exp =
     _ ->
       0
 
+
 -- Don't feel like figuring out how to insert a LetAnnotation and update
 -- BindingNums and PrintOrder correctly. So, just going through Strings.
 --
-insertDummyAnnotation : Pat -> Int -> Exp -> Exp
-insertDummyAnnotation pat numArgs exp =
+insertStrAnnotation pat strType exp =
   let
     {line, col} =
       pat.start
+
+    strAnnotation =
+      indent ++ name ++ " : " ++ String.trim strType
 
     indent =
       String.repeat (col - 1) " "
 
     name =
       unparsePattern pat
-
-    wildcards =
-      String.join " -> " (List.repeat (numArgs + 1) "_")
-
-    dummyAnnotation =
-      indent ++ name ++ " : " ++ wildcards
   in
     exp
       |> unparse
       |> String.lines
-      |> Utils.inserti line dummyAnnotation
+      |> Utils.inserti line strAnnotation
       |> String.join "\n"
       |> parse
       |> Result.withDefault (eStr "Bad dummy annotation. Bad editor. Bad")
@@ -860,17 +857,28 @@ inferType gamma stuff thisExp =
                              case (unExpr result.newExp).val.typ of
                                Just inferredType ->
                                  pat |> setPatType (Just inferredType)
+                                        -- TODO: Not an error, rename TypeError...
+                                     |> setPatTypeError (TypeError
+                                          [ deuceTool "Add inferred annotation"
+                                              (insertStrAnnotation pat (unparseType inferredType) stuff.inputExp)
+                                          ]
+                                        )
+
                                Nothing ->
                                  case matchLambda expEquation of
                                    0 ->
                                      pat |> setPatTypeError (otherTypeError stuff.inputExp ["type error"])
 
                                    numArgs ->
+                                     let
+                                       wildcards =
+                                         String.join " -> " (List.repeat (numArgs + 1) "_")
+                                     in
                                      pat |> setPatTypeError (TypeError
                                        [ deuceShow stuff.inputExp
                                            "Currently, functions need annotations"
                                        , deuceTool "Add dummy type annotation"
-                                           (insertDummyAnnotation pat numArgs stuff.inputExp)
+                                           (insertStrAnnotation pat wildcards stuff.inputExp)
                                        ]
                                      )
                          in
