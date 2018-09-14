@@ -435,9 +435,7 @@ dummyType wsb =
 type alias DeuceTypeInfoItem = SynthesisResult
 
 type TypeError
-  = ExpectedButGot Type (Maybe Type)
-  | VarNotFound Ident (List DeuceTypeInfoItem)
-  | OtherTypeError (List String)
+  = TypeError (List DeuceTypeInfoItem)
 
 -- Information for an expression that is relevant to
 -- other expressions that have above TypeErrors
@@ -3568,8 +3566,14 @@ declarationsCodeObjects e declarations =
             (Maybe.map (\spc -> [DT After spc e (index - 1)]) mbSpColon |> Maybe.withDefault []) ++
             (spAfterPreviousDecl |> Maybe.map (\sp -> [DT After sp e (index - 1)]) |> Maybe.withDefault []) ++
             [ DT Before spBeforeThisDecl e index
-            , D (withInfo (expEId e) p1.start e1.end) index
-            , P (e, index) p1
+            ] ++
+            -- TODO Temporary fix for extra datatype code objects
+            ( if p1.start /= dummyPos then
+                [D (withInfo (expEId e) p1.start e1.end) index]
+              else
+                []
+            ) ++
+            [ P (e, index) p1
             , PT After ws2 (e, index) p1
             ]
         ) ++
