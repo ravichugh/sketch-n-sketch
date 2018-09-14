@@ -50,6 +50,7 @@ port module Controller exposing
   , msgHoverDeuceResult
   , msgLeaveDeuceResult
   , msgUpdateRenameVarTextBox
+  , msgUpdateDeuceKeyboardTextBox
   , msgUpdateSmartCompleteTextBox
   , msgClearDrag
   , msgDragDeucePopupPanel
@@ -1003,6 +1004,7 @@ hooks =
   , handleOutputSelectionChanges
   , handleDeuceCache
   , focusJustShownRenameBox
+  , focusAsNeeded
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -1084,6 +1086,16 @@ focusJustShownRenameBox oldModel newModel =
     (newModel, doFocusJustShownRenameBox ())
   else
     (newModel, Cmd.none)
+
+port doFocusAsNeeded : String -> Cmd msg
+
+focusAsNeeded : Model -> Model -> (Model, Cmd Msg)
+focusAsNeeded oldModel newModel =
+  case newModel.needsToFocusOn of
+    Nothing ->
+      (newModel, Cmd.none)
+    Just id ->
+      ( { newModel | needsToFocusOn = Nothing }, doFocusAsNeeded id )
 
 debugModel : (Model -> a) -> Model -> Model -> (Model, Cmd Msg)
 debugModel get old new =
@@ -1668,6 +1680,7 @@ msgKeyDown keyCode =
                 { old | renamingInOutput = Nothing }
                   |> Model.hideDeuceRightClickMenu
                   |> resetDeuceState
+                  |> resetDeuceKeyboardInfo
                   |> \m -> { m | deucePopupPanelAbove = True }
             in
               case (old.tool, old.mouseMode) of
@@ -1715,7 +1728,7 @@ msgKeyDown keyCode =
 
         else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick && not currentKeyDown &&
                 mbKeyboardFocusedWidget /= Nothing && not old.isDeuceTextBoxFocused then
-          handleDeuceHotKey old keyCode <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
+          handleDeuceHotKey old keyCode old.keysDown <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
 
         else if
           not currentKeyDown &&
@@ -3042,23 +3055,6 @@ msgAskImportCode = requireSaveAsker msgImportCode
 chooseDeuceExp : Model -> Exp -> Model
 chooseDeuceExp old newRoot =
   let
-    oldRoot = old.inputExp
-    mbKeyboardFocusedWidget = old.deuceState.mbKeyboardFocusedWidget
-    mbKeyboardFocusedWithAncestors =
-      case mbKeyboardFocusedWidget of
-        Just (DeuceExp eId) ->
-          findWithAncestorsByEId oldRoot eId
-        _ ->
-          Nothing
-    mbKeyboardFocusedAncestorEIds =
-      mbKeyboardFocusedWithAncestors |> Maybe.map (
-      List.map expEId)
-    mbClosestNewAncestorId =
-      mbKeyboardFocusedAncestorEIds |> Maybe.andThen (
-      Utils.findLast <| findExpByEId newRoot >> Utils.maybeToBool)
-    mbKeyboardFocusedWidgetForNewExp =
-      Maybe.map DeuceExp mbClosestNewAncestorId
-
     modifiedHistory =
       modelModify
         old.code
@@ -3071,16 +3067,11 @@ chooseDeuceExp old newRoot =
           { old | history = h }
         Nothing ->
           old
-
-    -- TODO version of tryRun/upstateRun starting with parsed expression
-    new =
-      upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
-
-    newDeuceState = new.deuceState
-    extraNewDeuceState =
-      { newDeuceState | mbKeyboardFocusedWidget = mbKeyboardFocusedWidgetForNewExp}
   in
-  { new | deuceState = extraNewDeuceState }
+  -- TODO version of tryRun/upstateRun starting with parsed expression
+  upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
+  |> resetDeuceKeyboardInfo
+  |> refreshInputExp
 
 maybeChooseDeuceExp : Model -> Maybe Exp -> Model
 maybeChooseDeuceExp m mbExp =
@@ -3090,6 +3081,7 @@ maybeChooseDeuceExp m mbExp =
 
 resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
+  resetDeuceKeyboardInfo <|
   { m | deuceState = emptyDeuceState
       , deuceToolsAndResults = DeuceTools.createToolCache initModel
       , deuceToolResultPreviews = Dict.empty
@@ -3209,6 +3201,10 @@ msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m -
 --------------------------------------------------------------------------------
 -- Deuce Keyboard Interactions
 
+resetDeuceKeyboardInfo : Model -> Model
+resetDeuceKeyboardInfo old =
+  { old | mbDeuceKeyboardInfo = Nothing }
+
 deuceMove : DeuceWidget -> Model -> Model
 deuceMove destWidget old =
   let
@@ -3217,6 +3213,22 @@ deuceMove destWidget old =
   in
   { old | deuceState = newDS } |>
   flip resetDeuceCacheAndReselect DeuceTools.createToolCache
+
+deuceChooserUI : Model -> (String, String -> List SynthesisResult) -> Model
+deuceChooserUI old titleAndTextToSynthesisResults =
+  let
+    (title, textToSynthesisResults) = titleAndTextToSynthesisResults
+    oldReset = resetDeuceKeyboardInfo old
+  in
+  { oldReset
+    | mbDeuceKeyboardInfo =
+        Just <|
+        { title = title
+        , text = ""
+        , textToSynthesisResults = textToSynthesisResults
+        }
+    , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
+  }
 
 handleDeuceMoveHorizontal_ old selected isLeftMove =
   let
@@ -3234,8 +3246,9 @@ handleDeuceMoveHorizontal_ old selected isLeftMove =
     Maybe.map (flip deuceMove old) |>
       Maybe.withDefault old
 
-handleDeuceHotKey : Model -> Char.KeyCode -> DeuceWidget -> Model
-handleDeuceHotKey old keyCode selected =
+handleDeuceHotKey : Model -> Char.KeyCode -> List Char.KeyCode -> DeuceWidget -> Model
+handleDeuceHotKey oldModel keyCode keysDown selected =
+  let old = resetDeuceKeyboardInfo oldModel in
 
   -- Movement
   if List.member keyCode [Keys.keyLeft, Keys.keyH] then
@@ -3246,10 +3259,14 @@ handleDeuceHotKey old keyCode selected =
     handleDeuceSpace old selected
 
   -- Deuce tools
+  else if keyCode == Keys.keyI then
+    DeuceTools.smartCompleteHole old selected |> deuceChooserUI old
   else if keyCode == Keys.keyS then
-    DeuceTools.renameVariableViaHotkey old selected |> maybeChooseDeuceExp old
+    DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old
   else if keyCode == Keys.keyE then
     DeuceTools.expandFormatViaHotkey old selected |> maybeChooseDeuceExp old
+  else if keysDown == Keys.openParen then
+    DeuceTools.replaceWithParens old selected |> maybeChooseDeuceExp old
 
   else
     old
@@ -3442,6 +3459,16 @@ msgUpdateSmartCompleteTextBox text =
         }
     in
     resetDeuceCacheAndReselect almostNewModel DeuceTools.updateInputSensitiveToolsInCache
+
+msgUpdateDeuceKeyboardTextBox : String -> Msg
+msgUpdateDeuceKeyboardTextBox text =
+  Msg ("Update Deuce Keyboard Text Box: " ++ text) <| \old ->
+    { old
+        | mbDeuceKeyboardInfo =
+            old.mbDeuceKeyboardInfo
+            |> Maybe.map
+              (\deuceKeyboardInfo -> { deuceKeyboardInfo | text = text })
+    }
 
 --------------------------------------------------------------------------------
 -- Clear Drag

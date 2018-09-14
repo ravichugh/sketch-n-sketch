@@ -2,7 +2,7 @@
 -- This modules provides the Deuce overlay for the View.
 --------------------------------------------------------------------------------
 
-module Deuce exposing (Messages, overlay, diffOverlay)
+module Deuce exposing (Messages, overlay, diffOverlay, c2a)
 
 import List
 import String

@@ -90,17 +90,23 @@ italicizeQuotesIfRenamer deuceTransformation toItalicize otherwise =
     RenameDeuceTransform _ -> italicizeQuotes "'" toItalicize
     _ -> otherwise
 
-deuceTextInput onInput onKeyDn =
+deuceTextInput onInput onKeyDn mbValue mbId =
   [ Html.input
+    (
       [ Attr.type_ "text"
       , Attr.class "deuce-input"
-      , E.onInput onInput
+      ] ++
+      -- Id is apparently necessary if we wish to give automatic focus
+      (Maybe.map Attr.id mbId |> flip Utils.maybeCons []) ++
+      (Maybe.map Attr.value mbValue |> flip Utils.maybeCons []) ++
+      [ E.onInput onInput
       , E.onFocus <| Controller.msgDeuceTextBoxSetFocus True
       , E.onBlur <| Controller.msgDeuceTextBoxSetFocus False
       , onClickWithoutPropagation Controller.msgNoop
       , onKeyDown onKeyDn
       ]
-      []
+    )
+    []
   ]
 
 --------------------------------------------------------------------------------
@@ -410,7 +416,9 @@ deuceSynthesisResult model path deuceTransformation (SynthesisResult result) =
     (additionalHTML, canEval) =
       case deuceTransformation of
         RenameDeuceTransform _ ->
-          (deuceTextInput Controller.msgUpdateRenameVarTextBox onKeyDn, False)
+          ( deuceTextInput Controller.msgUpdateRenameVarTextBox onKeyDn Nothing Nothing
+          , False
+          )
         _ ->
           ([], True)
 
@@ -454,7 +462,7 @@ deuceSynthesisResults model path deuceTransformation results =
         else
           Controller.msgNoop
       in
-      deuceTextInput Controller.msgUpdateSmartCompleteTextBox onKeyDn ++
+      deuceTextInput Controller.msgUpdateSmartCompleteTextBox onKeyDn Nothing Nothing ++
       [ Html.ul
           []
           (mapResults ())
@@ -2470,6 +2478,88 @@ noAvailableTools =
     ]
 
 --------------------------------------------------------------------------------
+-- Deuce Popup Panel For Hotkeys
+--------------------------------------------------------------------------------
+
+deuceKeyboardPopupPanel : Model -> Html Msg
+deuceKeyboardPopupPanel model =
+  let
+    {title, text, textToSynthesisResults} =
+      model.mbDeuceKeyboardInfo |>
+      Maybe.withDefault
+        { title = "Totally broken!"
+        , text = ""
+        , textToSynthesisResults = always []
+        }
+
+    synthesisResults = textToSynthesisResults text
+
+    resultItem (SynthesisResult result) =
+      generalHtmlHoverMenu "expected-safe"
+        ( [ Html.span
+              []
+              [ Html.text result.description ]
+          ]
+        )
+        Controller.msgNoop
+        Controller.msgNoop
+        (Controller.msgChooseDeuceExp result.description result.exp)
+        False
+        []
+
+    onKeyDn code =
+      -- Enter button
+      if code == enterKeyCode && not (List.isEmpty synthesisResults) then
+        let (SynthesisResult firstResult) = Utils.head_ synthesisResults in
+        Controller.msgChooseDeuceExp firstResult.description firstResult.exp
+      else
+        Controller.msgNoop
+
+    root = model.inputExp
+    displayInfo =
+      { lineHeight =
+          model.codeBoxInfo.lineHeight
+      , characterWidth =
+          model.codeBoxInfo.characterWidth
+      , colorScheme =
+          model.colorScheme
+      }
+    toPos =
+      Maybe.map (\withInfo -> (withInfo.start.col + 6, withInfo.start.line + 6))
+      >> Maybe.withDefault (0, 0)
+      >> Deuce.c2a displayInfo
+      >> Utils.mapBoth floor
+    pos =
+      case model.deuceState.mbKeyboardFocusedWidget of
+        Just (DeuceExp eId) ->
+          Lang.findExpByEId root eId |> Maybe.map Lang.unExpr |> toPos
+        Just (DeucePat ppid) ->
+          LangTools.findPatByPathedPatternId ppid root |> toPos
+        _ ->
+          toPos Nothing
+
+    id = Just deuceKeyboardPopupPanelTextBoxId
+    value = Just text
+  in
+  popupPanel
+    { pos = pos
+    , disabled = not <| Model.deuceKeyboardPopupPanelShown model
+    , dragHandler = Controller.msgNoop
+    , class = "deuce-popup-panel appear-above"
+    , title = [ Html.text title ]
+    , content =
+        [ Html.div
+            [ Attr.class "deuce-popup-panel-content" ]
+            ( [ Html.ul
+                [ Attr.class "synthesis-results" ]
+                (List.map resultItem synthesisResults)
+              ] ++
+              deuceTextInput Controller.msgUpdateDeuceKeyboardTextBox onKeyDn value id
+            )
+        ]
+    }
+
+--------------------------------------------------------------------------------
 -- Deuce Popup Panel
 --------------------------------------------------------------------------------
 
@@ -2664,6 +2754,7 @@ autoOutputToolsPopupPanel model =
 popupPanels : Model -> List (Html Msg)
 popupPanels model =
   [ deucePopupPanel model
+  , deuceKeyboardPopupPanel model
   , editCodePopupPanel model
   , autoOutputToolsPopupPanel model
   ]

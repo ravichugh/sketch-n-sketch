@@ -12,6 +12,8 @@ module DeuceTools exposing
   -- Hotkey exposure
   , renameVariableViaHotkey
   , expandFormatViaHotkey
+  , smartCompleteHole
+  , replaceWithParens
   )
 
 import String
@@ -233,9 +235,9 @@ makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__ =
         then
           Expr <|
             withDummyExpInfoEId nextID <|
-              EParens wsb (Expr <| withDummyExpInfoEId (nextID + 1) <| wsToExp__ space0) Parens space0
+              EParens wsb (Expr <| withDummyExpInfoEId holeEId <| wsToExp__ space0) Parens space0
         else
-          Expr <| withDummyExpInfoEId nextID <| wsToExp__ wsb
+          Expr <| withDummyExpInfoEId holeEId <| wsToExp__ wsb
     in
     Just <| replaceExpNode holeEId newExp root
   )
@@ -417,8 +419,8 @@ createCaseTool =
         holeEId = expEId holeExp
         wsb = precedingWhitespace holeExp
         maxID = LeoParser.maxId oldRoot
-        (caseID, ofID, patID) = Utils.mapThree ((+) maxID) (1, 2, 3)
-        ofExp = Expr <| withDummyExpInfoEId ofID <| EHole space1 EEmptyHole
+        (caseID, patID) = Utils.mapBoth ((+) maxID) (1, 2)
+        ofExp = Expr <| withDummyExpInfoEId holeEId <| EHole space1 EEmptyHole
         pat = withDummyPatInfoPId patID <| PWildcard space0
         holeExpWithOneSpace = replacePrecedingWhitespace " " holeExp
         caseExp wsBeforeCase wsBeforeBranch =
@@ -471,10 +473,10 @@ createLetTool =
         holeEId = expEId holeExp
         wsb = ws <| precedingWhitespace holeExp
         maxID = LeoParser.maxId oldRoot
-        (letID, patID, boundID, parensID) = Utils.mapFour ((+) maxID) (1, 2, 3, 4)
+        (letID, patID, parensID) = Utils.mapThree ((+) maxID) (1, 2, 3)
         isTopLevel = LangTools.isTopLevelEId holeEId oldRoot
         pat = withDummyPatInfoPId patID <| PWildcard <| if isTopLevel then space0 else space1
-        boundExp = Expr <| withDummyExpInfoEId boundID <| EHole space1 EEmptyHole
+        boundExp = Expr <| withDummyExpInfoEId holeEId <| EHole space1 EEmptyHole
         newExp =
           let
             letOrDef = if isTopLevel then Def else Let
@@ -517,6 +519,12 @@ createRecordTool =
     "record"
     False
     (\wsb -> ERecord wsb Nothing (Declarations [] [] [] []) space0)
+
+smartCompleteHole : Model -> DeuceWidget -> (String, String -> List SynthesisResult)
+smartCompleteHole = runInputBasedToolViaHotkey createVarTool
+
+replaceWithParens : Model -> DeuceWidget -> Maybe Exp
+replaceWithParens = runToolViaHotkey createParenthesizedTool
 
 --------------------------------------------------------------------------------
 -- Make Equal
@@ -666,8 +674,8 @@ renameVariableTool model selections =
     , id = "renameVariable"
     }
 
-renameVariableViaHotkey : Model -> DeuceWidget -> Maybe Exp
-renameVariableViaHotkey = runToolViaHotkey renameVariableTool
+renameVariableViaHotkey : Model -> DeuceWidget -> (String, String -> List SynthesisResult)
+renameVariableViaHotkey = runInputBasedToolViaHotkey renameVariableTool
 
 --------------------------------------------------------------------------------
 -- Swap Names and Usages
@@ -2841,11 +2849,10 @@ toolNeedsHovers model toolId =
 toolList =
   [ [ typesTool
     ]
-  , [ createNumTool
-    , createTrueTool
+  , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
+    [ createTrueTool
     , createFalseTool
     , createEmptyStringTool
-    , createVarTool
     , createLambdaTool
     , createApplicationTool
     , createEmptyListTool
@@ -2855,7 +2862,9 @@ toolList =
     , createTypeAscriptionTool
     , createParenthesizedTool
     , createRecordTool
-    ]
+    ]) ::
+    [ createVarTool ]
+
 -- TODO: get Deuce tools to work with the ELet AST
 {-
   [ [ createFunctionTool
@@ -2996,6 +3005,43 @@ mbThunkToTransform mbThunk =
     Nothing -> InactiveDeuceTransform
     Just thunk -> NoInputDeuceTransform thunk
 
+mergeTools : String -> String -> String -> List (Model -> Selections -> DeuceTool) -> Model -> Selections -> DeuceTool
+mergeTools id name description toolBuilders model selections =
+  let (func, predVal) =
+    List.foldl (\toolBuilder (thunkAcc, predValAcc) ->
+        let
+          {func, reqs} = toolBuilder model selections
+          req = Utils.head_ reqs
+          predValCur = req.value
+          isSatisfied val =
+            List.member val [Satisfied, FullySatisfied]
+          mbThunkCur = case func of
+            NoInputDeuceTransform thunk -> Just thunk
+            _                           -> Nothing
+          combineThunks a b () =
+            a () ++ b ()
+        in
+        if not <| isSatisfied predValCur || isSatisfied predValAcc then
+          if predValCur == Possible || predValAcc == Possible then
+            (thunkAcc, Possible)
+          else
+            (thunkAcc, Impossible)
+        else case (mbThunkCur, predValCur, predValAcc) of
+          (Nothing, _, _) ->
+            (thunkAcc, predValAcc)
+          (Just thunkCur, FullySatisfied, FullySatisfied) ->
+            (combineThunks thunkAcc thunkCur, FullySatisfied)
+          (Just thunkCur, _, _) ->
+            (combineThunks thunkAcc thunkCur, Satisfied)
+      ) (always [], Impossible) toolBuilders
+    |> Tuple.mapFirst NoInputDeuceTransform
+  in
+  { name = name
+  , func = func
+  , reqs = [ { description = description, value = predVal } ]
+  , id = id
+  }
+
 runFunctionViaHotkey : (Model -> Selections -> Maybe Exp) -> Model -> DeuceWidget -> Maybe Exp
 runFunctionViaHotkey function old selectedWidget =
   let thunk () =
@@ -3009,6 +3055,33 @@ runFunctionViaHotkey function old selectedWidget =
         Debug.log <| "Deuce Function Via Hotkey Crash :" ++ toString errMsg
       in
       Nothing
+
+runInputBasedToolViaHotkey :
+  (Model -> Selections -> DeuceTool) -> Model -> DeuceWidget -> (String, String -> List SynthesisResult)
+runInputBasedToolViaHotkey toolBuilder old selectedWidget =
+  let
+    deuceTool = toolBuilder old <| selectionsTuple old.inputExp [selectedWidget]
+    textToResults =
+      case deuceTool.func of
+        RenameDeuceTransform renameVarTextToResults ->
+          renameVarTextToResults
+        SmartCompleteDeuceTransform smartCompleteTextToResults ->
+          smartCompleteTextToResults
+        _ ->
+          always []
+  in
+  ( deuceTool.name
+  , (\text ->
+      case ImpureGoodies.crashToError (\() -> textToResults text) of
+        Ok results ->
+          results
+        Err errMsg ->
+          let _ =
+            Debug.log ("Deuce Input Based Tool Via Hotkey Crash '" ++ deuceTool.name ++ "'") (toString errMsg)
+          in
+          []
+    )
+  )
 
 runToolViaHotkey : (Model -> Selections -> DeuceTool) -> Model -> DeuceWidget -> Maybe Exp
 runToolViaHotkey toolBuilder old selectedWidget =
@@ -3030,17 +3103,8 @@ runToolViaHotkey toolBuilder old selectedWidget =
           Nothing
   in
   case deuceTool.func of
-    InactiveDeuceTransform ->
-      Nothing
-    NoInputDeuceTransform thunk ->
-      run thunk
-    RenameDeuceTransform renameVarTextToResults ->
-      -- TODO enable hotkeys that require input
-      -- TODO run <| \() -> renameVarTextToResults deuceState.renameVarText
-      Nothing
-    SmartCompleteDeuceTransform smartCompleteTextToResults ->
-      -- TODO run <| \() -> smartCompleteTextToResults deuceState.smartCompleteText
-      Nothing
+    NoInputDeuceTransform thunk -> run thunk
+    _                           -> Nothing
 
 -- Run a tool: get results back if it is active, otherwise no results
 runTool : DeuceTool -> DeuceState -> CachedDeuceTool
