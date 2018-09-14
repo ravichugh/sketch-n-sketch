@@ -1484,13 +1484,13 @@ orderWithDependencies elements elemToNamesDepsIsrec =
   -- Group elements with the names they define, the dependencies they need, and if they can be recursive.
   let elemsWithDefs: List (a, NamesDepsIsRecFirst)
       elemsWithDefs =
-      let aux definedNames elements revAcc = case elements of
-        [] -> List.reverse revAcc
-        a :: tailElems ->
-          let ((names, deps, isRec) as abst) = elemToNamesDepsIsrec a in
-          (a, (names, deps, {isRec= isRec, isFirst= Set.intersect names definedNames |> Set.isEmpty}))::revAcc |>
-          aux (Set.union definedNames names) tailElems
-      in aux Set.empty elements []
+       let aux definedNames elements revAcc = case elements of
+         [] -> List.reverse revAcc
+         a :: tailElems ->
+            let ((names, deps, isRec) as abst) = elemToNamesDepsIsrec a in
+            (a, (names, deps, {isRec= isRec, isFirst= Set.intersect names definedNames |> Set.isEmpty}))::revAcc |>
+            aux (Set.union definedNames names) tailElems
+       in aux Set.empty elements []
   in
   let dependenciesToConsider =
     elemsWithDefs |> List.concatMap (\(_, (names, _, _)) -> Set.toList names) |> Set.fromList in
@@ -1499,9 +1499,9 @@ orderWithDependencies elements elemToNamesDepsIsrec =
        -- Given a set of definitions, returns its set of external dependencies which are not yet in definedNames
        let finalDependencies (names, deps, isRecFirst) =
          Set.diff (Set.intersect dependenciesToConsider deps) <|
-           if isRecFirst.isRec then Set.union names definedNames else
-           if isRecFirst.isFirst then Set.union names definedNames else
-           definedNames
+            if isRecFirst.isRec then Set.union names definedNames else
+            if isRecFirst.isFirst then Set.union names definedNames else
+            definedNames
        in
        -- Are there any waiting definitions whose dependencies are all satisfied?
        -- If yes, we can output them right now (next step)

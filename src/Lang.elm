@@ -3176,7 +3176,7 @@ minString s1 s2 = if String.length s1 < String.length s2 then s1 else s2
 
 minIndentation: String -> String -> String
 minIndentation prevMinIndent ws =
-  Regex.find Regex.All (Regex.regex "\n( *)") ws
+  Regex.find Regex.All (Regex.regex "\n( *)(?=$|\\S)") ws
   |> List.map .submatches
   |> List.concat
   |> List.foldl (\mba minIndent -> case mba of
@@ -4079,6 +4079,20 @@ freeVars exp =
         |> List.concatMap (\(bPat, bExp) -> freeVars bExp |> removeIntroducedBy [bPat])
       in
       freeVars scrutinee ++ freeInEachBranch
+    ERecord _ _ (Declarations _ _ _ groupedExps) _ ->
+      foldRightGroup groupedExps [] <|
+      \expGroup isRec subsequentFreeVars ->
+        let
+          (pats, freeVarsBoundExps) =
+            expGroup |>
+            List.map (\(LetExp _ _ pat _ _ boundExp) ->
+              (pat, freeVars boundExp |> removeIntroducedBy [pat])
+            ) |>
+            List.unzip
+          freeVarsBoundExpsFlat = List.concat freeVarsBoundExps
+        in
+        (subsequentFreeVars |> removeIntroducedBy pats) ++
+             (if isRec then freeVarsBoundExpsFlat |> removeIntroducedBy pats else freeVarsBoundExpsFlat)
     ELet _ _ (Declarations _ _ _ groupedExps) _ body ->
       foldRightGroup groupedExps (freeVars body) <|
        \expGroup isRec subsequentFreeVars ->

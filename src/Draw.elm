@@ -1211,7 +1211,7 @@ getDrawableFunctions_ program viewerEId =
   |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"
   |> List.filterMap
       (\exp ->
-        let _ = Debug.log "TODO: Draw.getDrawableFunctions_ is expected ETyp but they are now moved as ELet's Declarationss' ELetAnnotation" () in
+        --let _ = Debug.log "TODO: Draw.getDrawableFunctions_ is expected ETyp but they are now moved as ELet's Declarationss' ELetAnnotation" () in
         case (unwrapExp exp) of
           {-ETyp _ typePat tipe body _ -> -- Only single types at a time for now.
             if isDrawableType tipe then

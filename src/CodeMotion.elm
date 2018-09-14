@@ -2728,8 +2728,9 @@ insertInVisualDeclarations (insertionMethod, bindingNum) newDecls visualDeclarat
           _ -> (lastWasTarget, acc)
     in
     let copyWhitespaceFrom declIndex =
-      Tuple.mapFirst <| mapPrecedingWhitespaceDeclaration (\_ ->
-         LangParserUtils.removeComments <| .val <| precedingWhitespaceDeclarationWithInfo <| Tuple.first declIndex)
+      let newSpace = LangParserUtils.removeComments <| .val <| precedingWhitespaceDeclarationWithInfo <| Tuple.first declIndex in
+      Tuple.mapFirst <| mapPrecedingWhitespaceDeclaration (
+         LangParserUtils.putbackComments newSpace)
     in
     if bindingNumber == bindingNum then
       let indentation = extractIndentation <| .val <| precedingWhitespaceDeclarationWithInfo decl in

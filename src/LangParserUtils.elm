@@ -32,6 +32,7 @@ module LangParserUtils exposing
   , spaceSameLineOrNextAfter
   , spaceSameLineOrNextAfterOrTwoLines
   , removeComments
+  , putbackComments
   )
 
 import Parser exposing (..)
@@ -99,15 +100,54 @@ spacesCustom {spaceCheck, msgBuilder} =
 
 spacesRaw: Parser ()
 spacesRaw =
-  ignore zeroOrMore isSpace |>
-    andThen (\_ ->
-      oneOf [
-        lineComment |> andThen (\_ -> spacesRaw),
-        nestableComment "{-" "-}" |> andThen (\_ -> spacesRaw),
-        succeed ()
-      ])
+  parseWhitespace []
+  |> map (\_ -> ())
 
-removeComments whitespace = Regex.replace Regex.All (Regex.regex "\\S") (\_ -> "") whitespace
+type WhitespaceToken = White String | MultilineComment String | LineComment String
+parseWhitespace: List WhitespaceToken -> Parser (List WhitespaceToken)
+parseWhitespace lReverse =
+  keep zeroOrMore isSpace |>
+      andThen (\firstSpaces ->
+        oneOf [
+          lineComment |> andThen (\comment -> parseWhitespace (LineComment comment :: White firstSpaces :: lReverse)),
+          nestableComment "{-" "-}" |> andThen (\comment -> parseWhitespace  (MultilineComment comment :: White firstSpaces :: lReverse)),
+          succeed (List.reverse (White firstSpaces::lReverse))
+        ])
+
+removeComments: String -> String
+removeComments whitespace =
+  case Parser.run (parseWhitespace []) whitespace of
+    Err msg -> ""
+    Ok l -> l |> List.map (\t -> case t of
+      White s -> s
+      LineComment _ -> "linecomment"
+      MultilineComment _ -> "multilinecomment")
+      |> String.join ""
+      |> Regex.replace Regex.All (Regex.regex (" *linecomment")) (\_ -> "")
+      |> Regex.replace Regex.All (Regex.regex ("multilinecomment")) (\_ -> "")
+
+putbackComments: String -> String -> String
+putbackComments newWhitespace oldWhitespace =
+  case Parser.run (parseWhitespace []) oldWhitespace of
+    Err msg -> newWhitespace
+    Ok l ->
+      let indentation_ = Lang.minIndentation Lang.maxIndentation newWhitespace
+          indentation = if indentation_ == Lang.maxIndentation then "" else indentation_ in
+      let allComments = l |> List.concatMap (\t -> case t of
+        White s -> []
+        LineComment s -> [indentation ++ s]
+        MultilineComment s -> [indentation ++ s]) |> String.join "\n"
+      in
+      if allComments /= "" then
+        if Regex.contains (Regex.regex "\n") newWhitespace then -- We insert all comments before the newline
+          newWhitespace
+          |> String.reverse
+          |> Regex.replace (Regex.AtMost 1) (Regex.regex "\n") (\_ -> "\n" ++ String.reverse allComments)
+          |> String.reverse
+        else
+          indentation ++ allComments ++ "\n" ++ newWhitespace
+      else
+        newWhitespace
 
 type alias MinStartCol = Int
 type SpaceConstraint = NoSpace | MinIndentSpace
@@ -137,17 +177,18 @@ spacesNotBetweenDefs =  spacesCustom <| minIndentation "at this place" 1
 spacesWithoutNewline: Parser WS
 spacesWithoutNewline = spacesCustom <| withoutNewline "at this place"
 
-lineComment: Parser ()
+lineComment: Parser String
 lineComment =
-  (symbol "--"
-   |. ignore zeroOrMore (\c -> c /= '\n')
-   |. oneOf [ symbol "\n", end ])
+  (succeed (++)
+   |= source (symbol "--")
+   |= keep zeroOrMore (\c -> c /= '\n' && c /= '\r')
+   |. oneOf [ symbol "\r\n", symbol "\n", end ])
 
 nestableIgnore : Parser ignore -> Parser keep -> Parser keep
 nestableIgnore ignoreParser keepParser =
   map2 (\a b -> b) ignoreParser keepParser
 
-nestableComment : String -> String -> Parser ()
+nestableComment : String -> String -> Parser String
 nestableComment start end =
   case (String.uncons start, String.uncons end) of
     (Nothing, _) ->
@@ -160,9 +201,9 @@ nestableComment start end =
       let
         isNotRelevant char =
           char /= startChar && char /= endChar
-      in
-        symbol start
-          |. nestableCommentHelp isNotRelevant start end 1
+      in  source (
+          symbol start
+          |. nestableCommentHelp isNotRelevant start end 1)
 
 
 nestableCommentHelp : (Char -> Bool) -> String -> String -> Int -> Parser ()
