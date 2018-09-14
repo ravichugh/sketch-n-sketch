@@ -435,9 +435,7 @@ dummyType wsb =
 type alias DeuceTypeInfoItem = SynthesisResult
 
 type TypeError
-  = ExpectedButGot Type (Maybe Type)
-  | VarNotFound Ident (List DeuceTypeInfoItem)
-  | OtherTypeError (List String)
+  = TypeError (List DeuceTypeInfoItem)
 
 -- Information for an expression that is relevant to
 -- other expressions that have above TypeErrors

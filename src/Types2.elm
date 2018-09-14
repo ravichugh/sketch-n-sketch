@@ -12,6 +12,7 @@ import Info exposing (WithInfo, withDummyInfo)
 import Lang exposing (..)
 import LangTools
 import LangUtils
+import LeoParser exposing (parse)
 import LeoUnparser exposing (unparse, unparsePattern, unparseType)
 import Ace
 -- can't depend on Model, since ExamplesGenerated depends on Types2
@@ -504,7 +505,7 @@ inferType gamma stuff thisExp =
                        (\(y, ey) -> deuceTool y (replaceExpNode (unExpr thisExp).val.eid ey stuff.inputExp))
                        suggestions
           in
-          { newExp = thisExp |> setTypeError (VarNotFound x items) }
+          { newExp = thisExp |> setTypeError (TypeError items) }
 
     EParens ws1 innerExp parensStyle ws2 ->
       let
@@ -553,7 +554,7 @@ inferType gamma stuff thisExp =
             newExp =
               thisExp
                 |> setTypeError
-                     (OtherTypeError
+                     (otherTypeError stuff.inputExp
                         [ "ill-formed type annotation"
                         , "unbound: " ++ String.join " " unboundTypeVars
                         ])
@@ -578,7 +579,7 @@ inferType gamma stuff thisExp =
       { newExp =
           thisExp
             |> setTypeError
-                 (OtherTypeError ["trying to synthesize unannotated..."])
+                 (otherTypeError stuff.inputExp ["trying to synthesize unannotated..."])
       }
 
     EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3 ->
@@ -607,7 +608,7 @@ inferType gamma stuff thisExp =
                 let
                   addErrorAndInfo (eid1, type1) (eid2, type2) branchExp =
                     branchExp
-                      |> setTypeError (OtherTypeError
+                      |> setTypeError (otherTypeError stuff.inputExp
                            [ "This red branch has type"
                            , unparseType type1
                            , "but the other green branch has type"
@@ -710,13 +711,13 @@ inferType gamma stuff thisExp =
                   )
 
                 else
-                  ( pat |> setPatTypeError (OtherTypeError errors)
+                  ( pat |> setPatTypeError (otherTypeError stuff.inputExp errors)
                   , accTable
                   )
 
             _ ->
               ( pat |> setPatTypeError
-                  (OtherTypeError ["this kind of type annotation is currently unsupported"])
+                  (otherTypeError stuff.inputExp ["this kind of type annotation is currently unsupported"])
               , accTable
               )
 
@@ -736,7 +737,7 @@ inferType gamma stuff thisExp =
                        if List.member x varsDefinedInThisELet then
                          p
                        else
-                         p |> setPatTypeError (OtherTypeError ["this name is not defined"])
+                         p |> setPatTypeError (otherTypeError stuff.inputExp ["this name is not defined"])
                      _ ->
                        p
                 )
@@ -771,7 +772,7 @@ inferType gamma stuff thisExp =
                          let
                            newPat =
                              pat |> setPatTypeError
-                               (OtherTypeError ["pattern not yet supported by type checker"])
+                               (otherTypeError stuff.inputExp ["pattern not yet supported by type checker"])
                          in
                            (LetExp ws0 ws1 newPat fas ws2 expEquation, Nothing)
                    )
@@ -807,7 +808,7 @@ inferType gamma stuff thisExp =
                                Just inferredType ->
                                  pat |> setPatType (Just inferredType)
                                Nothing ->
-                                 pat |> setPatTypeError (OtherTypeError ["type error"])
+                                 pat |> setPatTypeError (otherTypeError stuff.inputExp ["type error"])
                          in
                          LetExp ws0 ws1 newPat fas ws2 result.newExp
 
@@ -820,8 +821,7 @@ inferType gamma stuff thisExp =
                              if result.okay then
                                pat |> setPatType (Just annotatedType)
                              else
-                               pat |> setPatTypeError (OtherTypeError ["type error"])
-
+                               pat |> setPatTypeError (otherTypeError stuff.inputExp ["type error"])
                            -- TODO: add tool option to change annotation if result.okay == False
                            newExpEquation =
                              result.newExp
@@ -870,7 +870,7 @@ inferType gamma stuff thisExp =
       { newExp =
           thisExp
             |> setTypeError
-                 (OtherTypeError ["not yet supporting type definitions..."])
+                 (otherTypeError stuff.inputExp ["not yet supporting type definitions..."])
       }
 
     ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots letExps) ws2 ->
@@ -878,7 +878,7 @@ inferType gamma stuff thisExp =
         eRecordError s =
           { newExp =
               thisExp
-                |> setTypeError (OtherTypeError ["not supported in records: " ++ s])
+                |> setTypeError (otherTypeError stuff.inputExp ["not supported in records: " ++ s])
           }
       in
       case (maybeExpWs, letTypes, letAnnots, letExps) of
@@ -984,7 +984,7 @@ inferType gamma stuff thisExp =
                         recordTypeWithXXXs =
                           withDummyTypeInfo (TRecord space0 Nothing fieldTypesWithXXXs space1)
                         error =
-                          OtherTypeError
+                          otherTypeError stuff.inputExp
                             [ "Some fields are okay, but others are not: "
                             , unparseType recordTypeWithXXXs
                             ]
@@ -1058,7 +1058,7 @@ checkType gamma stuff thisExp expectedType =
         , newExp =
             thisExp
               |> setTypeError
-                   (OtherTypeError <|
+                   (otherTypeError stuff.inputExp <|
                       "TODO List.length pats < List.length argTypes"
                         :: List.map unparsePattern pats
                         ++ List.map unparseType argTypes)
@@ -1137,7 +1137,7 @@ checkType gamma stuff thisExp expectedType =
             , newExp =
                 EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
-                  |> setTypeError (ExpectedButGot expectedType maybeActualType)
+                  |> setTypeError (expectedButGot stuff.inputExp expectedType maybeActualType)
             }
 
     (EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3, _, _) ->
@@ -1198,7 +1198,7 @@ checkType gamma stuff thisExp expectedType =
               { okay = False
               , newExp =
                   result.newExp
-                    |> setTypeError (ExpectedButGot expectedType (Just inferredType))
+                    |> setTypeError (expectedButGot stuff.inputExp expectedType (Just inferredType))
               }
 
 
@@ -1218,25 +1218,25 @@ deuceTool =
   synthesisResult
 
 
-showTypeError : Exp -> TypeError -> List DeuceTypeInfoItem
-showTypeError inputExp typeError =
-  case typeError of
-    OtherTypeError strings ->
-      List.map (deuceShow inputExp) strings
+-- TODO: remove inputExp when TypeError interface is worked out
+otherTypeError : Exp -> List String -> TypeError
+otherTypeError inputExp strings =
+  TypeError
+    (List.map (deuceShow inputExp) strings)
 
-    ExpectedButGot expectedType maybeActualType ->
-      [ deuceShow inputExp <|
-          "Expected: " ++ unparseType expectedType
-      , deuceShow inputExp <|
-          "Got: " ++ Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
-      , deuceShow inputExp <|
-          "Will eventually insert hole around this expression with expected type..."
-      , deuceShow inputExp <|
-          "Maybe an option to change expected type..."
-      ]
 
-    VarNotFound x items ->
-      items
+-- TODO: remove inputExp when TypeError interface is worked out
+expectedButGot inputExp expectedType maybeActualType =
+  TypeError
+    [ deuceShow inputExp <|
+        "Expected: " ++ unparseType expectedType
+    , deuceShow inputExp <|
+        "Got: " ++ Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
+    , deuceShow inputExp <|
+        "Will eventually insert hole around this expression with expected type..."
+    , deuceShow inputExp <|
+        "Maybe an option to change expected type..."
+    ]
 
 
 makeDeuceExpTool : Exp -> Exp -> (() -> List SynthesisResult)
@@ -1274,8 +1274,8 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
         (Just t, Nothing) ->
           [ deuceShow inputExp <| "Type: " ++ unparseType t ]
 
-        (_, Just typeError) ->
-          showTypeError inputExp typeError
+        (_, Just (TypeError items)) ->
+          items
 
 {-
     insertAnnotationTool =
