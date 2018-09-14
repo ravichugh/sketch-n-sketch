@@ -661,7 +661,7 @@ inferType gamma stuff thisExp =
                            , "The branches of this `if` produce different types of values."
                            , "This branch has type"
                            , unparseType type1
-                           , "but the other green branch has type"
+                           , "But the other branch has type"
                            , unparseType type2
                            , """Hint: These need to match so that no matter which
                                 branch we take, we always get
