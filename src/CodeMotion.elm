@@ -2715,7 +2715,7 @@ insertInVisualDeclarations (insertionMethod, bindingNum) newDecls visualDeclarat
     Ok <| visualDeclarations ++ (List.map (Tuple.mapFirst (mapPrecedingWhitespaceDeclaration
        (ensureNNewlines 1 (
         Utils.maybeLast visualDeclarations
-        |> Maybe.map (Tuple.first >> minIndentationDeclaration maxIndentation)
+        |> Maybe.andThen (Tuple.first >> minIndentationDeclaration Nothing)
         |> Maybe.withDefault "")))) newDecls)
   else
     visualDeclarations |> List.map (\((decl, bindingNumber) as declIndex) ->
@@ -2774,25 +2774,32 @@ insertInDeclarations (insertionMethod, bindingNum) newDecls decls =
   |> Result.map (List.map Tuple.first)
   |> Result.andThen Parser.reorderDeclarations
 
-insertLetExpsAt: (InsertionMethod, (EId, BindingNumber)) -> List LetExp -> Exp -> Result String Exp
-insertLetExpsAt (insertionMethod, (eid, bindingNum)) newLetExps exp =
+insertDeclarationsAt: (InsertionMethod, (EId, BindingNumber)) -> List Declaration -> Exp -> Result String Exp
+insertDeclarationsAt (insertionMethod, (eid, bindingNum)) declarations exp =
   let (newExp, mbError) = mapFoldExp
         (\exp mbError -> if expEId exp /= eid then (exp, mbError) else
        case unwrapExp exp of
         ELet sp lk decls wsIn body ->
-           case insertInDeclarations (insertionMethod, bindingNum) (newLetExps |> List.map DeclExp) decls of
+           case insertInDeclarations (insertionMethod, bindingNum) declarations decls of
              Ok newDecls ->
                (replaceE__ exp <| ELet sp lk newDecls wsIn body, mbError)
              Err msg -> (exp,  Just msg)
         ERecord sp mbInit decls sp2 ->
-           case insertInDeclarations (insertionMethod, bindingNum) (newLetExps |> List.map DeclExp) decls of
+           case insertInDeclarations (insertionMethod, bindingNum) declarations decls of
              Ok newDecls ->
                (replaceE__ exp <| ERecord sp mbInit newDecls sp2, mbError)
              Err msg -> (exp, Just msg)
         x ->
-          case insertInDeclarations (insertionMethod, 0) (newLetExps |> List.map DeclExp) (Declarations [] [] [] []) of
+          -- TODO: Deal with whitespace
+          case insertInDeclarations (insertionMethod, 0) declarations (Declarations [] [] [] []) of
             Ok newDecls ->
-              (replaceExpInfo exp <| exp_ <| ELet (precedingWhitespaceWithInfoExp exp) Let newDecls space1 exp, mbError)
+              let indentation = Lang.minIndentationExp Nothing exp |> Maybe.withDefault "" in
+              let indentedDecls = mapDeclarations (\_ decl ->
+                decl |> unindentDeclaration
+                |> indentDeclaration (indentation ++ "  ")) newDecls in
+              (replaceExpInfo exp <| exp_ <|
+                ELet (precedingWhitespaceWithInfoExp exp) Let indentedDecls (ws <| "\n" ++ indentation)
+                  (mapPrecedingWhitespace (\s -> if s == "" then " " else s) exp), mbError)
             Err msg -> (exp, Just msg)
        ) Nothing exp
   in
@@ -2902,7 +2909,7 @@ introduceVarTransformation_
 
     resNewExp = if definitionsToInline |> List.isEmpty then
         Err "No definition to inline found"
-      else insertLetExpsAt insertionPoint definitionsToInline expWithFunctions
+      else insertDeclarationsAt insertionPoint (definitionsToInline |> List.map DeclExp) expWithFunctions
 
     (msg, isSafe) =
       if not <| List.isEmpty warnings then
@@ -3104,7 +3111,7 @@ moveDeclarations declsToMove ((insertionMethod, (insertionEId, insertionBindingN
     initScope: List Ident
     initScope = EvalUpdate.preludeEnv |> List.map Tuple.first
 
-    (expRewritten, (declsToMoveRemaining, declarationsToInline, warnings, finalInsertionPoint)) =
+    (expRewritten, (declsToMoveRemaining, declarationsToInline, warnings, (finalInsertionMethod, finalBindingNumber))) =
       mapFoldExpTopDownWithScope folder handleLetExp handleEFun handleCaseBranch initGlobal initScope originalProgram
 
     (msg, isSafe) =
@@ -3117,7 +3124,10 @@ moveDeclarations declsToMove ((insertionMethod, (insertionEId, insertionBindingN
   if List.isEmpty declarationsToInline then
     [synthesisResult msg expRewritten |> setResultSafe isSafe]
   else
-    [] -- For now, later we need to insert.
+    case insertDeclarationsAt (finalInsertionMethod, (insertionEId, finalBindingNumber)) declarationsToInline expRewritten of
+      Err msg -> [synthesisResult msg originalProgram |> setResultSafe False]
+      Ok newExpRewritten ->
+       [synthesisResult msg newExpRewritten |> setResultSafe isSafe]
 
 -- Small bug: can't introduce var directly in front of expression being extracted.
 {-

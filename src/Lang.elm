@@ -2893,7 +2893,7 @@ mapPrecedingWhitespaceWS mapWs exp =
         EVar       ws x                             -> EVar       (mapWs ws) x
         EFun       ws1 ps e1 ws2                    -> EFun       (mapWs ws1) ps e1 ws2
         -- The "before" whitespace on EApps goes to the argument
-        EApp       ws1 e1 es apptype ws2            -> EApp       ws1 (mapPrecedingWhitespaceWS mapWs e1) es apptype ws2
+        EApp       ws1 e1 es apptype ws2            -> EApp       (mapWs ws1) e1 es apptype ws2
         EList      ws1 es ws2 rest ws3              -> EList      (mapWs ws1) es ws2 rest ws3
         ERecord    ws1 mi es ws2                    -> ERecord    (mapWs ws1) mi es ws2
         ESelect    ws1 e ws2 ws3 s                  -> ESelect    (mapWs ws1) e ws2 ws3 s
@@ -3004,7 +3004,7 @@ ensureNNewlines n indentationIfNoPreviousNewlines ws =
   else if previousNewlineCount < n then
     String.repeat n "\n" ++
       indent indentationIfNoPreviousNewlines (removeIndentation
-        (minIndentation maxIndentation ws) ws)
+        (minIndentation Nothing ws |> Maybe.withDefault "") ws)
   else
     ws
 
@@ -3172,37 +3172,37 @@ removeTabs = mapExp (mapPrecedingWhitespace tabsToSpaces)
 
 minString s1 s2 = if String.length s1 < String.length s2 then s1 else s2
 
-minIndentation: String -> String -> String
+minIndentation: Maybe String -> String -> Maybe String
 minIndentation prevMinIndent ws =
   Regex.find Regex.All (Regex.regex "\n( *)(?=$|\\S)") ws
   |> List.map .submatches
   |> List.concat
   |> List.foldl (\mba minIndent -> case mba of
         Nothing -> minIndent
-        Just a -> minString minIndent a
+        Just a -> case minIndent of
+          Just m -> Just <| minString m a
+          _ -> Just a
     ) prevMinIndent
 
-maxIndentation = String.repeat 100 " "
-
-minIndentationExp: String -> Exp -> String
+minIndentationExp: Maybe String -> Exp -> Maybe String
 minIndentationExp prevMinIndent exp =
   foldExpViaE__
    (\e__ smallest ->
      minIndentation smallest (precedingWhitespaceExp__ e__))
    prevMinIndent exp
 
-minIndentationType: String -> Type -> String
+minIndentationType: Maybe String -> Type -> Maybe String
 minIndentationType prevMinIndent tpe =
   allWhitespacesType_ tpe
   |> List.foldl (\{val} minIndent -> minIndentation minIndent val) prevMinIndent
 
-minIndentationListMaybeWS: String -> List (Maybe WS) -> String
+minIndentationListMaybeWS: Maybe String -> List (Maybe WS) -> Maybe String
 minIndentationListMaybeWS prevMinIndent l = case l of
   [] -> prevMinIndent
   Just head :: tail -> minIndentationListMaybeWS  (minIndentation prevMinIndent head.val) tail
   Nothing :: tail -> minIndentationListMaybeWS prevMinIndent tail
 
-minIndentationDeclaration: String -> Declaration -> String
+minIndentationDeclaration: Maybe String -> Declaration -> Maybe String
 minIndentationDeclaration prevMinIndent decl =
   let newPrevMinIndent = minIndentation prevMinIndent (precedingWhitespaceDeclarationWithInfo decl |> .val) in
   case decl of
@@ -3225,7 +3225,7 @@ removeIndentationMaybeWS smallestIndentation = Maybe.map (removeIndentationWS sm
 
 removeIndentationExp: String -> Exp -> Exp
 removeIndentationExp smallestIndentation exp =
-  mapExp (mapPrecedingWhitespace (removeIndentation smallestIndentation)) exp
+    mapExp (mapPrecedingWhitespace (removeIndentation smallestIndentation)) exp
 
 removeIndentationType: String -> Type -> Type
 removeIndentationType smallestIndentation tpe =
@@ -3253,13 +3253,17 @@ removeIndentationDeclaration si {-smallestIndentation-} decl =
 unindent : Exp -> Exp
 unindent exp =
   let expWsAsSpaces = removeTabs exp in
-  let smallestIndentation = minIndentationExp maxIndentation expWsAsSpaces in
-  removeIndentationExp smallestIndentation expWsAsSpaces
+  case minIndentationExp Nothing expWsAsSpaces of
+    Nothing -> exp
+    Just smallestIndentation ->
+       removeIndentationExp smallestIndentation expWsAsSpaces
 
 unindentDeclaration: Declaration -> Declaration
 unindentDeclaration decl =
-  let smallestIndentation = minIndentationDeclaration maxIndentation decl in
-  removeIndentationDeclaration smallestIndentation decl
+  case minIndentationDeclaration Nothing decl of
+    Nothing -> decl
+    Just smallestIndentation ->
+       removeIndentationDeclaration smallestIndentation decl
 
 indent : String -> String -> String
 indent spaces ws =
@@ -3277,7 +3281,7 @@ indentMaybeWS spaces = Maybe.map (indentWs spaces)
 -- Increases indentation by spaces string.
 indentExp : String -> Exp -> Exp
 indentExp spaces e =
-  mapExp (mapPrecedingWhitespaceWS (indentWs spaces)) e
+  mapExp (mapPrecedingWhitespaceWS (\ws -> Debug.log ("before: " ++ toString ws ++ ", after") <| indentWs spaces ws)) e
 
 indentType: String -> Type -> Type
 indentType spaces t =

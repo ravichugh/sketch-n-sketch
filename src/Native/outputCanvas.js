@@ -181,7 +181,7 @@ function listenForUpdatesToOutputValues() {
   }
 
   function isAttributeIgnored(name) {
-    return name.startsWith("ignore-");
+    return name.startsWith("ignore-") || name == "value";
   }
   
   function encodeAttributes(attrs, node) {

@@ -4208,6 +4208,9 @@ Html =
   let button name title model controller =
     <button title=title onclick=(onClickCallback model controller)>@name</button>
   in
+  let input tpe value =
+    <input type=tpe value=value v=value onchange=\"this.setAttribute('v', this.value)\">
+  in
   let observeCopyValueToAttribute query attribute =
     <script>
       function handleMutation(mutations) {
@@ -4329,6 +4332,7 @@ Html =
     select = select
     checkbox = checkbox
     button = button
+    input = input
     observeCopyValueToAttribute = observeCopyValueToAttribute
     onChangeAttribute = onChangeAttribute
     replace = replace

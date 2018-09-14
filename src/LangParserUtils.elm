@@ -131,8 +131,7 @@ putbackComments newWhitespace oldWhitespace =
   case Parser.run (parseWhitespace []) oldWhitespace of
     Err msg -> newWhitespace
     Ok l ->
-      let indentation_ = Lang.minIndentation Lang.maxIndentation newWhitespace
-          indentation = if indentation_ == Lang.maxIndentation then "" else indentation_ in
+      let indentation = Lang.minIndentation Nothing newWhitespace |> Maybe.withDefault "" in
       let allComments = l |> List.concatMap (\t -> case t of
         White s -> []
         LineComment s -> [indentation ++ s]
