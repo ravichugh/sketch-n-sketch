@@ -432,6 +432,50 @@ rebuildTypeVars typeVars =
 
 --------------------------------------------------------------------------------
 
+matchLambda : Exp -> Int
+matchLambda exp =
+  case (unExpr exp).val.e__ of
+    EFun _ pats body _ ->
+      List.length pats + matchLambda body
+
+    EParens _ innerExp _ _ ->
+      matchLambda innerExp
+
+    _ ->
+      0
+
+-- Don't feel like figuring out how to insert a LetAnnotation and update
+-- BindingNums and PrintOrder correctly. So, just going through Strings.
+--
+insertDummyAnnotation : Pat -> Int -> Exp -> Exp
+insertDummyAnnotation pat numArgs exp =
+  let
+    {line, col} =
+      pat.start
+
+    indent =
+      String.repeat (col - 1) " "
+
+    name =
+      unparsePattern pat
+
+    wildcards =
+      String.join " -> " (List.repeat (numArgs + 1) "_")
+
+    dummyAnnotation =
+      indent ++ name ++ " : " ++ wildcards
+  in
+    exp
+      |> unparse
+      |> String.lines
+      |> Utils.inserti line dummyAnnotation
+      |> String.join "\n"
+      |> parse
+      |> Result.withDefault (eStr "Bad dummy annotation. Bad editor. Bad")
+
+
+--------------------------------------------------------------------------------
+
 copyTypeInfoFrom : Exp -> Exp -> Exp
 copyTypeInfoFrom fromExp toExp =
   let
@@ -808,7 +852,18 @@ inferType gamma stuff thisExp =
                                Just inferredType ->
                                  pat |> setPatType (Just inferredType)
                                Nothing ->
-                                 pat |> setPatTypeError (otherTypeError stuff.inputExp ["type error"])
+                                 case matchLambda expEquation of
+                                   0 ->
+                                     pat |> setPatTypeError (otherTypeError stuff.inputExp ["type error"])
+
+                                   numArgs ->
+                                     pat |> setPatTypeError (TypeError
+                                       [ deuceShow stuff.inputExp
+                                           "Currently, functions need annotations"
+                                       , deuceTool "Add dummy type annotation"
+                                           (insertDummyAnnotation pat numArgs stuff.inputExp)
+                                       ]
+                                     )
                          in
                          LetExp ws0 ws1 newPat fas ws2 result.newExp
 
