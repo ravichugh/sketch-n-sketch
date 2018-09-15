@@ -194,10 +194,9 @@
         main =
           svg logo
 
-1. <span style="color:red;">**TODO:**</span>
-   Select `logo` and **Create Function from Definition**.
-   Could give options to keep tupled-values as tuple arguments.
-   Or not, just an option with "flattened" args is fine.
+1. <span style="color:orange;">**TODO: Remove extra temporaries.**</span>
+   Select `x`, `y`, and `size` constants and **Create Function from Arguments**.
+   (Instead of Select `logo` and **Create Function from Definition**.)
           
         logo x y size =
           let

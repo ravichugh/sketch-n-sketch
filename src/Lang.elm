@@ -424,15 +424,6 @@ dummyType0 =
 dummyType wsb =
   withDummyTypeInfo (TWildcard wsb)
 
--- Currently shoving entire type error message and suggested fixes into Deuce.
--- So every line is a DeuceTypeInfoItem === SynthesisResult.
---
--- TODO: Any benefit of explicit TypeError datatype? Could just do
---   type alias TypeError = SynthesisResult (for now)
---
--- TODO: Update Deuce UI with API for "Functional Types" info and errors.
---
-
 type TypeError
   = TypeError (List TransformationResult)
 
