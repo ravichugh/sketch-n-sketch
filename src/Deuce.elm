@@ -192,6 +192,7 @@ type alias CodeInfo =
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
   , needsParse : Bool
+  , doTypeChecking : Bool
   }
 
 --==============================================================================
@@ -600,12 +601,12 @@ codeObjectPolygon msgs codeInfo codeObject color =
         isKeyboardFocused = codeInfo.mbKeyboardFocusedWidget == Just deuceWidget
 
         codeObjectHasTypeError =
-          case (codeInfo.needsParse, codeObject) of
-            (False, E e) ->
+          case (codeInfo.doTypeChecking, codeInfo.needsParse, codeObject) of
+            (True, False, E e) ->
               case (unExpr e).val.typ of
                 Nothing -> True
                 Just _  -> False
-            (False, P _ p) ->
+            (True, False, P _ p) ->
               case p.val.typ of
                 Nothing -> True
                 Just _  -> False
@@ -618,8 +619,8 @@ codeObjectPolygon msgs codeInfo codeObject color =
           codeInfo.mbKeyboardFocusedWidget == Nothing
 
         highlightInfo =
-          case (codeInfo.needsParse, codeObject) of
-            (False, E e) ->
+          case (codeInfo.doTypeChecking, codeInfo.needsParse, codeObject) of
+            (True, False, E e) ->
               case (unExpr e).val.extraTypeInfo of
                 Just (HighlightWhenSelected eId) ->
                   Utils.maybeCons
@@ -848,6 +849,8 @@ overlay msgs model =
           maxLineLength
       , needsParse =
           Model.needsParse model
+      , doTypeChecking =
+          model.doTypeChecking
       }
     leftShift =
       model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
@@ -889,6 +892,8 @@ diffOverlay model exps =
           maxLineLength
       , needsParse =
           Model.needsParse model
+      , doTypeChecking =
+          model.doTypeChecking
       }
     leftShift =
       model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
