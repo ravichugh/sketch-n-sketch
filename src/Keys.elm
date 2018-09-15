@@ -66,5 +66,6 @@ keyI                = Char.toCode 'I'
 keyJ                = Char.toCode 'J'
 keyL                = Char.toCode 'L'
 keyS                = Char.toCode 'S'
+keyT                = Char.toCode 'T'
 keyZ                = 90
 keyPlusEqual        = 187

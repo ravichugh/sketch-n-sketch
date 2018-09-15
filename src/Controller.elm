@@ -3280,7 +3280,7 @@ handleDeuceHotKey oldModel keysDown selected =
     DeuceTools.replaceWithApp old selected |> maybeChooseDeuceExp old
   else if keysDown == [Keys.keyE] then
     DeuceTools.replaceWithCase old selected |> maybeChooseDeuceExp old
-  else if keysDown == [Keys.keyD] then
+  else if keysDown == [Keys.keyT] then
     DeuceTools.replaceWithLet old selected |> maybeChooseDeuceExp old
   else if keysDown == [Keys.keyC] then
     DeuceTools.replaceWithCond old selected |> maybeChooseDeuceExp old
