@@ -2022,6 +2022,24 @@ abstractPVar syntax ppid perhapsArgEIds originalProgram =
                EApp space0 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") SpaceApp space0
                |> withDummyExpInfo
                |> replaceIdentAfterBinding eLet boundExpEId ident
+               |> (\eLet_ ->
+                 case unwrapExp eLet_ of
+                   ELet wsb lk (Declarations po lt la groupedLetExps) ws2 body ->
+                     groupedLetExps
+                     |> List.map (
+                          List.map (\(LetExp ocs wsb p oldArgsStyle wsa boundExp) ->
+                            let newArgStyle =
+                              if eidIs boundExpEId boundExp then FunArgAsPats else oldArgsStyle
+                            in
+                            LetExp ocs wsb p newArgStyle wsa boundExp
+                          )
+                          |> Tuple.mapSecond
+                        )
+                     |> (\newLetExps -> ELet wsb lk (Declarations po lt la newLetExps) ws2 body
+                     |> replaceE__PreservingPrecedingWhitespace eLet_)
+                   _ ->
+                     Debug.crash "Life is tragedy"
+               )
                |> replaceExpNode (expEId boundExp) abstractedFuncExp
             in
             let newProgram =
