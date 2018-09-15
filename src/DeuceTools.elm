@@ -3038,14 +3038,15 @@ mbThunkToTransform mbThunk =
 
 mergeTools : String -> String -> String -> List (Model -> Selections -> DeuceTool) -> Model -> Selections -> DeuceTool
 mergeTools id name description toolBuilders model selections =
-  let (func, predVal) =
-    List.foldl (\toolBuilder (thunkAcc, predValAcc) ->
+  let
+    isSatisfied val =
+      List.member val [Satisfied, FullySatisfied]
+    (thunk, predVal) =
+      List.foldl (\toolBuilder (thunkAcc, predValAcc) ->
         let
           {func, reqs} = toolBuilder model selections
           req = Utils.head_ reqs
           predValCur = req.value
-          isSatisfied val =
-            List.member val [Satisfied, FullySatisfied]
           mbThunkCur = case func of
             NoInputDeuceTransform thunk -> Just thunk
             _                           -> Nothing
@@ -3065,7 +3066,11 @@ mergeTools id name description toolBuilders model selections =
           (Just thunkCur, _, _) ->
             (combineThunks thunkAcc thunkCur, Satisfied)
       ) (always [], Impossible) toolBuilders
-    |> Tuple.mapFirst NoInputDeuceTransform
+    func =
+      if isSatisfied predVal then
+        NoInputDeuceTransform thunk
+      else
+        InactiveDeuceTransform
   in
   { name = name
   , func = func
