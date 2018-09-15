@@ -144,9 +144,11 @@
         main =
           svg logo
 
-1. <span style="color:red;">**TODO:**</span>
+1. <span style="color:green;">**OK:**</span>
    **Move Definitions** all 5 to before the list literal in `logo`.
           
+        -- blank line
+        -- blank line
         logo =
           let
             (x, y, size) = (10, 10, 200)
@@ -162,7 +164,7 @@
             halfLine =
               line "white" 10 x (y + size) cx cy
           in
-            [rectangle, fullLine, halfLine]
+          [rectangle, fullLine, halfLine]
   
         main =
           svg logo
@@ -187,7 +189,7 @@
             halfLine =
               line "white" 10 x (y + size) cx cy
           in
-            [rectangle, fullLine, halfLine]
+          [rectangle, fullLine, halfLine]
 
         main =
           svg logo
@@ -211,7 +213,7 @@
             halfLine =
               line "white" 10 x (y + size) cx cy
           in
-            [rectangle, fullLine, halfLine]
+          [rectangle, fullLine, halfLine]
   
         main =
           svg (logo 10 10 200)
@@ -236,7 +238,7 @@
             halfLine =
               line "white" 10 x (y + size) cx cy
           in
-            [rectangle, fullLine, halfLine]
+          [rectangle, fullLine, halfLine]
   
         main =
           svg (logo "gray" 10 10 200)
@@ -245,22 +247,22 @@
    Select three shapes and **Inline Definitions**.
 
 1. <span style="color:green;">**OK:**</span>
-   Select the shape list and **Reformat**.
+   Select the shape list and **Format**.
           
         logo fill x y size =
           let
             (cx, cy) = (x + 0.5*size, y + 0.5*size)
           in
-            [ rect fill x y size size
-            , line "white" 10 x y (x + size) (y + size)
-            , line "white" 10 x (y + size) cx cy
-            ]
+          [ rect fill x y size size
+          , line "white" 10 x y (x + size) (y + size)
+          , line "white" 10 x (y + size) cx cy
+          ]
   
         main =
           svg (logo "gray" 10 10 200)
 
 1. <span style="color:orange;">**OK/TODO-Ravi: Could add another option, or not.**</span>
-   Select the let and **Reformat**. Hover the option, just to see,
+   Select the let and **Format**. Hover the option, just to see,
    but don't select it.
 
         logo fill x y size =
@@ -295,6 +297,7 @@
 1. <span style="color:red;">**TODO-Ravi:**</span>
    **Type Information** tool says return type doesn't match
    annotation. Has an option to **Change annotation for return value**.
+   <span style="color:orange;">TODO: And perhaps **Insert call to `svgConcat`**.</span>
 
         logo : String -> Num -> Num -> Num -> List Svg
 
@@ -360,9 +363,11 @@
           let
             {x, y, size} =
               case params of
-             -- TopLeft {x, y, size} -> {x=x, y=y, size=size}
-                TopLeft xysize -> xysize
-                Center {x, y, size} -> ??
+                TopLeft xysize ->
+                  xysize
+
+                NewConstructor {x, y, size} ->
+                  ??
             ...
 
 1. <span style="color:red;">**TODO:**</span>
@@ -373,30 +378,31 @@
    branch synthesized, one fix for the hole is to convert to record
    of holes.
 
-                Center {cx, cy, rad} -> {x=??, y=??, size=??}
+                Center {cx, cy, rad} ->
+                  {x=??, y=??, size=??}
 
 1. <span style="color:orange;">**TODO-Nick: Another nice place for keyboard-nav.**</span>
    Text edits.
 
-                Center {cx, cy, rad} -> {x=cx-rad, y=cy-rad, size=2*rad}
+                Center {cx, cy, rad} ->
+                  {x=cx-rad, y=cy-rad, size=2*rad}
 
-1. Text edit to add a `Center`-based logo.
+1. Text edit to `Center`-based logo.
 
         main : Svg
         main =
-          svg (concat
-            [ logo "gray" (TopLeft {x=20, y=30, size=200})
-            , logo "gray" (Center {cx=300, cy=300, rad=40})
-            ])
+          svg (logo "gray" (Center {cx=300, cy=300, rad=40}))
 
 1. <span style="color:red;">**TODO:**</span>
-   Select the `svg` call and **Reformat**. Multiple options.
+   Select the `svg` call and **Format**. Multiple options, such as
 
-          svg <|
-            concat <|
-              [ logo "gray" (TopLeft {x=20, y=30, size=200})
-              , logo "gray" (Center {cx=300, cy=300, rad=40})
-              ]
+          svg <| logo "gray" <| Center {cx=300, cy=300, rad=40}
+
+            and
+
+          Center {cx=300, cy=300, rad=40}
+            |> logo "gray"
+            |> svg
 
 1. Final-ish.
 
@@ -409,23 +415,22 @@
           let
             {x, y, size} =
               case params of
-                TopLeft xysize -> xysize
-                Center {cx, cy, rad} -> {x=cx-rad, y=cy-rad, size=2*rad}
+                TopLeft xysize ->
+                  xysize
+
+                Center {cx, cy, rad} ->
+                  {x=cx-rad, y=cy-rad, size=2*rad}
                 
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
           in
-            [ rect fill x y size size
-            , line "white" 10 x y (x + size) (y + size)
-            , line "white" 10 x (y + size) cx cy
-            ]
+          [ rect fill x y size size
+          , line "white" 10 x y (x + size) (y + size)
+          , line "white" 10 x (y + size) cx cy
+          ]
   
         main =
-          svg <|
-            concat <|
-              [ logo "gray" (TopLeft {x=20, y=30, size=200})
-              , logo "gray" (Center {cx=300, cy=300, rad=40})
-              ]
+          svg (logo "gray" (Center {cx=300, cy=300, rad=40}))
 
 
 
