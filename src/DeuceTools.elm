@@ -1722,10 +1722,19 @@ createFunctionFromArgsTool model selections =
                 ancestors
                 |> List.concatMap (\e -> case unwrapExp e of
                    ELet _ _ (Declarations _ _ _ letexps) _ _ ->
-                     elemsOf letexps |> List.filter (\(LetExp _ _ p _ _ _ ) ->
-                       p |> LangTools.patToMaybePVarIdent |> (/=) (Just "main")
-                     ) |> List.map ((,) e)
+                     elemsOf letexps |> List.filterMap (\(LetExp _ _ p _ _ boundExp) ->
+                       let shouldKeep =
+                         (p |> LangTools.patToMaybePVarIdent |> flip List.member [Nothing, Just "main"] >> not) &&
+                         (not <| isFunc boundExp) &&
+                         List.member (expEId boundExp) ancestorEIds
+                       in
+                       if shouldKeep then
+                         Just p
+                       else
+                         Nothing
+                     ) |> List.filterMap (.val >> .pid >> pidToPathedPatternId model.inputExp)
                    _ -> [])
+                {- TODO the matching stuff likely needs to be updated in light of declarations
                 |> List.concatMap
                     (\(letExp, LetExp _ _ p _ _ e1) ->
                       LangTools.tryMatchExpPatToPaths p e1
@@ -1733,6 +1742,7 @@ createFunctionFromArgsTool model selections =
                       |> List.filter (\(path, boundExp) -> List.member (expEId boundExp) ancestorEIds) -- Incidentally, this also filters out trivial abstractions (e.g. (let x 5) -> (let x (\n -> n))) b/c boundExp must be ancestor of an arg, not an arg itself.
                       |> List.map    (\(path, boundExp) -> (((expEId letExp), 1), path))
                     )
+                -}
               in
               case enclosingPPIds of
                 [] ->
@@ -2895,12 +2905,10 @@ toolList =
     [ createVarTool ]
 
 -- TODO: get Deuce tools to work with the ELet AST
-{-
-  [ [ createFunctionTool
+  , [ createFunctionTool
     , createFunctionFromArgsTool
-    , mergeTool
+    -- , mergeTool
     ]
--}
   , [ addArgumentsTool ]
 {-
     , removeArgumentsTool

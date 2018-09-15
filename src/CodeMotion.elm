@@ -1699,115 +1699,130 @@ moveEquationsBeforeEId syntax letEIds targetEId originalProgram =
 
 ------------------------------------------------------------------------------
 
--- TODO This has some substantial bugs, related to the order in which things are selected
--- If things are selected "out of order", then the wrong bindings wind up getting deleted!
+-- TODO This should be rewritten to use freeVars or transformVarsUntilBound
+-- the substituted var retains the same EId
+replaceIdentAfterBinding : Exp -> EId -> Ident -> Exp -> Exp
+replaceIdentAfterBinding eLet boundExpEId identToReplace expToSubst =
+  case unwrapExp eLet of
+    ELet _ _ (Declarations _ _ _ groupedLetExps) _ _ ->
+      let
+        isBindingInELet =
+          elemsOf groupedLetExps |> List.any (bindingOfLetExp >> eidIs boundExpEId)
+        substWithClearedIDs = LeoParser.clearAllIds expToSubst
+      in
+      if isBindingInELet then
+        replaceIdentAfterBinding_ (expEId eLet) identToReplace boundExpEId substWithClearedIDs eLet
+      else
+        Debug.crash
+          "replaceIdentAfterBinding must be called with a binding that is in the specified ELet"
+    _ ->
+      Debug.crash <| "replaceIdentAfterBinding must only be used on an ELet!"
+
+replaceIdentAfterBinding_ origLetEId identToReplace origSubstExpEId expToSubst subRoot =
+  let
+    replace = replaceIdentAfterBinding_ origLetEId identToReplace origSubstExpEId expToSubst
+    subRootEId = expEId subRoot
+    map = replaceE__ subRoot
+    shadowsP pats = List.member identToReplace <| identifiersListInPats pats
+    shadowsI idents = List.member identToReplace idents
+    maybeReplaceLetExps shouldReplace letExps =
+      Utils.applyIf shouldReplace
+        (List.map (\(LetExp ocs wsb pat funArgStyle ws1 bound) ->
+          LetExp ocs wsb pat funArgStyle ws1 (replace bound)
+        ))
+        letExps
+  in
+  case unwrapExp subRoot of
+    EVar wsb ident ->
+      if ident == identToReplace then
+        replacePrecedingWhitespace wsb.val expToSubst
+        |> setEId subRootEId
+      else
+        subRoot
+    EFun wsb pats body ws1 ->
+      if shadowsP pats then
+        subRoot
+      else
+        map <| EFun wsb pats (replace body) ws1
+    EApp wsb f args appType ws2 ->
+      map <| EApp wsb (replace f) (List.map replace args) appType ws2
+    EOp wsb ws1 op args ws2 ->
+      map <| EOp wsb ws1 op (List.map replace args) ws2
+    EList wsb children ws1 m ws2 ->
+      map <| EList wsb (List.map (Tuple.mapSecond replace) children) ws1 (Maybe.map replace m) ws2
+    EIf wsb cond ws1 true ws2 false ws3 ->
+      map <| EIf wsb (replace cond) ws1 (replace true) ws2 (replace false) ws3
+    ECase wsb scrutinee branches ws1 ->
+      let newBranches =
+        branches |> List.map (\branch ->
+           let (Branch_ wsb bPat bExp ws1) = branch.val in
+           if shadowsP [bPat] then
+             branch
+           else
+             replaceInfo branch <| Branch_ wsb bPat (replace bExp) ws1
+        )
+      in
+      map <| ECase wsb (replace scrutinee) newBranches ws1
+    ELet wsb letKind (Declarations po lt la groupedExps) ws1 body ->
+      let
+        (newGroupedExps, dontReplaceBody) =
+          groupedExps |>
+          List.foldl
+            (\(isRec, letExps) (resultReversed, dontReplaceCurrent) ->
+              let
+                currentGroupContainsTarget =
+                  groupBoundExps letExps |>
+                  List.map expEId |>
+                  List.member origSubstExpEId
+                currentGroupShadows = shadowsI <| groupIdentifiers letExps
+                shouldReplaceCurrent =
+                  not (dontReplaceCurrent || currentGroupShadows)
+                -- If this is group contains the target binding, then we turn
+                -- replacement back on for subsequent groups. Otherwise, we
+                -- turn replacement off if a pattern in this group shadows the
+                -- target identifier.
+                dontReplaceNext =
+                  not currentGroupContainsTarget &&
+                  (dontReplaceCurrent || currentGroupShadows)
+                newLetExps = maybeReplaceLetExps shouldReplaceCurrent letExps
+              in
+              ((isRec, newLetExps) :: resultReversed, dontReplaceNext)
+            )
+            -- Don't do replacement in the bound exps of the bindings that
+            -- are part of the same ELet as the target binding but which appear
+            -- before it.
+            ([], subRootEId == origLetEId)
+          |> Tuple.mapFirst List.reverse
+        newBody = Utils.applyIf (not dontReplaceBody) replace body
+        newDecls = Declarations po lt la newGroupedExps
+      in
+      map <| ELet wsb letKind newDecls ws1 newBody
+    EColonType wsb e ws1 typ ws2 ->
+      map <| EColonType wsb (replace e) ws1 typ ws2
+    EParens wsb e parensStyle ws1 ->
+      map <| EParens wsb (replace e) parensStyle ws1
+    ERecord wsb m (Declarations po lt la groupedExps) ws1 ->
+      let
+        newGroupedExps =
+          groupedExps |>
+          List.map (\(isRec, letExps) ->
+            ( isRec
+            , maybeReplaceLetExps
+                (not <| shadowsI <| groupIdentifiers letExps)
+                letExps
+            )
+          )
+        newDecls = Declarations po lt la newGroupedExps
+      in
+      map <| ERecord wsb (Maybe.map (Tuple.mapFirst replace) m) newDecls ws1
+    ESelect wsb e ws1 ws2 ident ->
+      map <| ESelect wsb (replace e) ws1 ws2 ident
+    _ -> subRoot -- For leaves, just return the leaf as is
+
+-- TODO This should be rewritten to use freeVars or transformVarsUntilBound
 inlineDefinitions : List (EId, BindingNumber) -> Exp -> Maybe (List Ident, Exp)
 inlineDefinitions selectedLetEIds originalProgram =
   let
-    replaceIdents origLetEId identToReplace origSubstExpEId substExp subRoot =
-      let
-        replace = replaceIdents origLetEId identToReplace origSubstExpEId substExp
-        subRootEId = expEId subRoot
-        map = replaceE__ subRoot
-        shadowsP pats = List.member identToReplace <| identifiersListInPats pats
-        shadowsI idents = List.member identToReplace idents
-        maybeReplaceLetExps shouldReplace letExps =
-          Utils.applyIf shouldReplace
-            (List.map (\(LetExp ocs wsb pat funArgStyle ws1 bound) ->
-              LetExp ocs wsb pat funArgStyle ws1 (replace bound)
-            ))
-            letExps
-      in
-      case unwrapExp subRoot of
-        EVar wsb ident ->
-          if ident == identToReplace then
-            replacePrecedingWhitespace wsb.val substExp
-            -- substExp has had all its ids cleared, but we need to make sure that at the
-            -- top level it retains the same eId as the replaced var, in case it is the
-            -- bound exp of some other identifer that is yet to be replaced
-            |> setEId subRootEId
-          else
-            subRoot
-        EFun wsb pats body ws1 ->
-          if shadowsP pats then
-            subRoot
-          else
-            map <| EFun wsb pats (replace body) ws1
-        EApp wsb f args appType ws2 ->
-          map <| EApp wsb (replace f) (List.map replace args) appType ws2
-        EOp wsb ws1 op args ws2 ->
-          map <| EOp wsb ws1 op (List.map replace args) ws2
-        EList wsb children ws1 m ws2 ->
-          map <| EList wsb (List.map (Tuple.mapSecond replace) children) ws1 (Maybe.map replace m) ws2
-        EIf wsb cond ws1 true ws2 false ws3 ->
-          map <| EIf wsb (replace cond) ws1 (replace true) ws2 (replace false) ws3
-        ECase wsb scrutinee branches ws1 ->
-          let newBranches =
-            branches |> List.map (\branch ->
-               let (Branch_ wsb bPat bExp ws1) = branch.val in
-               if shadowsP [bPat] then
-                 branch
-               else
-                 replaceInfo branch <| Branch_ wsb bPat (replace bExp) ws1
-            )
-          in
-          map <| ECase wsb (replace scrutinee) newBranches ws1
-        ELet wsb letKind (Declarations po lt la groupedExps) ws1 body ->
-          let
-            (newGroupedExps, dontReplaceBody) =
-              groupedExps |>
-              List.foldl
-                (\(isRec, letExps) (resultReversed, dontReplaceCurrent) ->
-                  let
-                    currentGroupContainsTarget =
-                      groupBoundExps letExps |>
-                      List.map expEId |>
-                      List.member origSubstExpEId
-                    currentGroupShadows = shadowsI <| groupIdentifiers letExps
-                    shouldReplaceCurrent =
-                      not (dontReplaceCurrent || currentGroupShadows)
-                    -- If this is group contains the target binding, then we turn
-                    -- replacement back on for subsequent groups. Otherwise, we
-                    -- turn replacement off if a pattern in this group shadows the
-                    -- target identifier.
-                    dontReplaceNext =
-                      not currentGroupContainsTarget &&
-                      (dontReplaceCurrent || currentGroupShadows)
-                    newLetExps = maybeReplaceLetExps shouldReplaceCurrent letExps
-                  in
-                  ((isRec, newLetExps) :: resultReversed, dontReplaceNext)
-                )
-                -- Don't do replacement in the bound exps of the bindings that
-                -- are part of the same ELet as the target binding but which appear
-                -- before it.
-                ([], subRootEId == origLetEId)
-              |> Tuple.mapFirst List.reverse
-            newBody = Utils.applyIf (not dontReplaceBody) replace body
-            newDecls = Declarations po lt la newGroupedExps
-          in
-          map <| ELet wsb letKind newDecls ws1 newBody
-        EColonType wsb e ws1 typ ws2 ->
-          map <| EColonType wsb (replace e) ws1 typ ws2
-        EParens wsb e parensStyle ws1 ->
-          map <| EParens wsb (replace e) parensStyle ws1
-        ERecord wsb m (Declarations po lt la groupedExps) ws1 ->
-          let
-            newGroupedExps =
-              groupedExps |>
-              List.map (\(isRec, letExps) ->
-                ( isRec
-                , maybeReplaceLetExps
-                    (not <| shadowsI <| groupIdentifiers letExps)
-                    letExps
-                )
-              )
-            newDecls = Declarations po lt la newGroupedExps
-          in
-          map <| ERecord wsb (Maybe.map (Tuple.mapFirst replace) m) newDecls ws1
-        ESelect wsb e ws1 ws2 ident ->
-          map <| ESelect wsb (replace e) ws1 ws2 ident
-        _ -> subRoot -- For leaves, just return the leaf as is
-
     mbReplacementInfos =
       selectedLetEIds |>
       List.map (\(letEId, bn) ->
@@ -1833,14 +1848,12 @@ inlineDefinitions selectedLetEIds originalProgram =
       Just originalProgram |>
       foldlReplacementInfos (\root ident letEId boundExpEId ->
         findExpByEId root letEId       |> Maybe.andThen (\let_ ->
-        findExpByEId root boundExpEId  |> Maybe.map     (\boundExp ->
-        LeoParser.clearAllIds boundExp |>               (\subst ->
+        findExpByEId root boundExpEId  |> Maybe.map     (\subst ->
         replaceExpNode
           letEId
-          (replaceIdents letEId ident boundExpEId subst let_)
+          (replaceIdentAfterBinding let_ boundExpEId ident subst)
           root
         )))
-      )
 
     mbProgramAfterBindingRemoval =
       mbProgramAfterSubstitutions |>
@@ -1993,38 +2006,29 @@ shouldBeParameterIsNamedUnfrozenConstant exp originalProgram =
 
 
 abstractPVar : Syntax -> PathedPatternId -> List EId -> Exp -> List TransformationResult
-abstractPVar syntax pathedPatId perhapsArgEIds originalProgram =
-  case pluck pathedPatId originalProgram of
-    Nothing ->
-      Debug.log ("abstractPVar Could not find pathedPatternId " ++ toString pathedPatId ++ " in program\n" ++ unparseWithIds originalProgram) []
-
-    Just ((pluckedPat, pluckedBoundExp, False), _) ->
-      case pluckedPat.val.p__ of
+abstractPVar syntax ppid perhapsArgEIds originalProgram =
+  case (findPatByPathedPatternId ppid originalProgram, findBoundExpByPathedPatternId ppid originalProgram) of
+    (Just pat, Just boundExp) ->
+      case pat.val.p__ of
         PVar _ ident _ ->
           let doAbstract shouldBeParameter =
-            let ((scopeEId, _), _) = pathedPatId in
-            let scopeExp = justFindExpByEId originalProgram scopeEId in
-            let scopeBody = scopeExp |> expToLetBody in
+            let ((scopeEId, _), _) = ppid in
+            let boundExpEId = expEId boundExp in
+            let eLet = justFindExpByEId originalProgram scopeEId in
             let (argumentsForCallSite, abstractedFuncExp) =
-               abstract (expEId pluckedBoundExp) shouldBeParameter originalProgram
+               abstract boundExpEId shouldBeParameter originalProgram
             in
-            let abstractedFuncExpNiceWs =
-               abstractedFuncExp
-               |> replacePrecedingWhitespace " "
-               |> replaceIndentation (indentationOf scopeExp ++ "  ")
-            in
-            let newScopeBody =
-               let varToApp varExp =
-                 replaceE__PreservingPrecedingWhitespace varExp (EApp space0 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") SpaceApp space0)
-               in
-               transformVarsUntilBound (Dict.singleton ident varToApp) scopeBody
+            let modifiedLet =
+               EApp space0 (eVar0 ident) (argumentsForCallSite |> setExpListWhitespace " " " ") SpaceApp space0
+               |> withDummyExpInfo
+               |> replaceIdentAfterBinding eLet boundExpEId ident
+               |> replaceExpNode (expEId boundExp) abstractedFuncExp
             in
             let newProgram =
                originalProgram
-               |> replaceExpNode (expEId scopeBody) newScopeBody
-               |> replaceExpNode (expEId pluckedBoundExp) abstractedFuncExpNiceWs
+               |> replaceExpNode scopeEId modifiedLet
             in
-            (newProgram, expToFuncPats abstractedFuncExpNiceWs)
+            (newProgram, expToFuncPats abstractedFuncExp)
           in
           case perhapsArgEIds of
             [] ->
@@ -2049,9 +2053,8 @@ abstractPVar syntax pathedPatId perhapsArgEIds originalProgram =
 
         _ ->
           Debug.log "Can only abstract a PVar" []
-
     _ ->
-      Debug.log "Cannot abstract a recursive definition" []
+      Debug.log ("abstractPVar Could not find pathedPatternId " ++ toString ppid ++ " in program\n" ++ unparseWithIds originalProgram) []
 
 
 abstractExp : Syntax -> EId -> Exp -> List TransformationResult
