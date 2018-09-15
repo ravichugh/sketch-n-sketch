@@ -2341,7 +2341,7 @@ identifierUsesAfterDefiningPat ident exp =
   findScopeAreasByIdent ident exp
   |> List.concatMap (\scopeAreaExp -> identifierUses ident scopeAreaExp)
 
-  
+
 visibleIdentifiersAtPredicateNoPrelude : Exp -> (Exp -> Bool) -> Set.Set Ident
 visibleIdentifiersAtPredicateNoPrelude exp pred =
   visibleIdentifiersAtPredicate_ Set.empty exp pred
@@ -2413,7 +2413,7 @@ visibleIdentifiersAtPredicate_ idents exp pred =
 --
 -- Returns Nothing if free in program or not in program
 bindingPathedPatternIdFor : Exp -> Exp -> Maybe PathedPatternId
-bindingPathedPatternIdFor varExp program = 
+bindingPathedPatternIdFor varExp program =
   let targetName = expToIdent varExp in
   let targetEId  = (expEId varExp) in
   bindingPathedPatternIdForIdentAtEId targetName targetEId program
