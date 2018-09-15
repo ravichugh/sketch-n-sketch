@@ -546,6 +546,7 @@ deuceTransformationResults model path deuceTransformation transformationResults 
           []
           (mapResults ())
       ]
+{-
     (_, []) ->
       [ generalHtmlHoverMenu "transformation-oops"
           [ Html.span
@@ -559,6 +560,7 @@ deuceTransformationResults model path deuceTransformation transformationResults 
           True
           []
       ]
+-}
     _ ->
       mapResults ()
 
