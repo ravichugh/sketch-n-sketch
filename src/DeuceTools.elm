@@ -2832,8 +2832,31 @@ expandFormatViaHotkey = runFunctionViaHotkey expandFormat
 expandFormat old selections =
   case selections of
     (_, _, [eId], [], [], [], [], [], []) ->
-      let exp = LangTools.justFindExpByEId old.inputExp eId in
+      let
+        oldRoot = old.inputExp
+        exp = LangTools.justFindExpByEId oldRoot eId
+        naturalIndent =
+          LangTools.getProperIndentationIfBody oldRoot exp
+          |> Maybe.withDefault (indentationAt eId oldRoot ++ "  ")
+        naturalIndentNewLine = "\n" ++ naturalIndent
+        return e__ = replaceExpNode eId (replaceE__ exp e__) oldRoot |> Just
+      in
       case unwrapExp exp of
+        EFun wsb ps body wsa ->
+          EFun wsb ps (replacePrecedingWhitespace naturalIndentNewLine body) wsa
+          |> return
+        ELet _ lk decls wsIn body ->
+          replacePrecedingWhitespace naturalIndentNewLine exp
+          |> Just
+        EIf wsb cond wsBeforeThen t wsBeforeElse f wsa ->
+          let
+            elseIndent = "\n" ++ indentationAt eId oldRoot
+            childIndent = elseIndent ++ "  "
+            newTrue = replacePrecedingWhitespace childIndent t
+            newFalse = replacePrecedingWhitespace childIndent f
+          in
+          EIf wsb cond wsBeforeThen newTrue (ws elseIndent) newFalse wsa
+          |> return
         EList ws1 wsExps ws2 maybeTail ws3 ->
           let
             startCol = (unExpr exp).start.col
@@ -2846,10 +2869,8 @@ expandFormat old selections =
                      )
                    )
           in
-          replaceExpNode eId
-            (EList ws1 newWsExps ws2 maybeTail (ws breakAndIndent) |> replaceE__ exp)
-            old.inputExp
-          |> Just
+          EList ws1 newWsExps ws2 maybeTail (ws breakAndIndent)
+          |> return
         _ ->
           Nothing
     _ ->
