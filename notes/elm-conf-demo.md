@@ -246,7 +246,7 @@
 1. <span style="color:green;">**OK:**</span>
    Select three shapes and **Inline Definitions**.
 
-1. <span style="color:green;">**OK:**</span>
+1. <span style="color:red;">**TODO: Need to revisit WS before EApp.**</span>
    Select the shape list and **Format**.
           
         logo fill x y size =
