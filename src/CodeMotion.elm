@@ -3182,9 +3182,9 @@ moveDeclarations declsToMove ((insertionMethod, (insertionEId, insertionBindingN
     [basicTransformationResult msg expRewritten |> mapSynthesisResult (setResultSafe isSafe)]
   else
     case insertDeclarationsAt (finalInsertionMethod, (insertionEId, finalBindingNumber)) declarationsToInline expRewritten of
-      Err msg -> [synthesisResult msg originalProgram |> setResultSafe False]
+      Err msg -> [basicTransformationResult msg originalProgram |> mapSynthesisResult (setResultSafe False)]
       Ok newExpRewritten ->
-       [synthesisResult msg newExpRewritten |> setResultSafe isSafe]
+       [basicTransformationResult msg newExpRewritten |> mapSynthesisResult (setResultSafe isSafe)]
 
 -- Small bug: can't introduce var directly in front of expression being extracted.
 {-
