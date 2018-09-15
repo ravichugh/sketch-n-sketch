@@ -1046,15 +1046,88 @@ mapValField f r = { r | val = f r.val }
 -- This lets you use mapFoldExp as a foldr: a simple cons in the accumulator will result in nodes in left-to-right order.
 mapFoldExp : (Exp -> a -> (Exp, a)) -> a -> Exp -> (Exp, a)
 mapFoldExp f initAcc e =
-  let
-    (children, rebuilder) = childExpsExtractors e
-    (newChildren, accAfterChildren) =
-     Utils.foldLeft ([], initAcc) (List.reverse children) <|
-     \(accChildren, acc) child ->
-       let (newChild, newAcc) = mapFoldExp f acc child in
-       (newChild::accChildren, newAcc)
-    newE = rebuilder newChildren
-  in f newE accAfterChildren
+  let recurse = mapFoldExp f in
+  let wrap e__ = replaceE__ e e__ in
+  let wrapAndMap = f << wrap in
+  -- Make sure exps are left-to-right so they are visited right-to-left.
+  let recurseAll initAcc exps =
+    exps
+    |> List.foldr
+        (\exp (newExps, acc) ->
+          let (newExp, newAcc) = recurse acc exp in
+          (newExp::newExps, newAcc)
+        )
+        ([], initAcc)
+  in
+  let mapFoldDecls acc  (Declarations printOrder tps annots letexps) =
+     (Utils.foldLeft
+        ([],      acc) (List.reverse (elemsOf letexps)) <|
+       \(accDefs, acc)    (LetExp mbc sp0 name funPolicy spEq e1) ->
+          recurse acc e1 |>
+          Tuple.mapFirst (\newE1 -> LetExp mbc sp0 name funPolicy spEq newE1 :: accDefs)
+     ) |> Tuple.mapFirst (\newLetExps ->
+       (Declarations printOrder tps annots (regroup letexps newLetExps))
+     )
+  in
+  case (unwrapExp e) of
+    EConst _ _ _ _ -> f e initAcc
+    EBase _ _      -> f e initAcc
+    EVar _ _       -> f e initAcc
+    EFun ws1 ps e1 ws2 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (EFun ws1 ps newE1 ws2) newAcc
+    EApp ws1 e1 es apptype ws2 ->
+      let (newEs, newAcc)  = recurseAll initAcc es in
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      wrapAndMap (EApp ws1 newE1 newEs apptype ws2) newAcc2
+    EOp ws1 wso op es ws2 ->
+      let (newEs, newAcc) = recurseAll initAcc es in
+      wrapAndMap (EOp ws1 wso op newEs ws2) newAcc
+    EList ws1 es ws2 Nothing ws3 ->
+      let (newEs, newAcc) = recurseAll initAcc (Utils.listValues es) in
+      wrapAndMap (EList ws1 (Utils.listValuesMake es newEs) ws2 Nothing ws3) newAcc
+    EList ws1 es ws2 (Just e1) ws3 ->
+      let (newE1, newAcc)  = recurse initAcc e1 in
+      let (newEs, newAcc2) = recurseAll newAcc (Utils.listValues es) in
+      wrapAndMap (EList ws1 (Utils.listValuesMake es newEs) ws2 (Just newE1) ws3) newAcc2
+    ERecord ws1 Nothing decls ws2 ->
+      let (newDecls, newAcc) = mapFoldDecls initAcc decls in
+      wrapAndMap (ERecord ws1 Nothing newDecls ws2) newAcc
+    ERecord ws1 (Just (mi, wsi)) decls ws2 ->
+      let (newDecls, newAcc) = mapFoldDecls initAcc decls in
+      let (newMi, newAcc2) = recurse newAcc mi in
+      wrapAndMap (ERecord ws1 (Just (newMi, wsi)) newDecls ws2) newAcc2
+    ESelect ws0 e ws1 ws2 s ->
+      let (newE, newAcc) = recurse initAcc e in
+      wrapAndMap (ESelect ws0 newE ws1 ws2 s) newAcc
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
+      case recurseAll initAcc [e1, e2, e3] of
+        ([newE1, newE2, newE3], newAcc) -> wrapAndMap (EIf ws1 newE1 ws2 newE2 ws3 newE3 ws4) newAcc
+        _                               -> Debug.crash "I'll buy you a beer if this line of code executes. - Brian"
+    ECase ws1 e1 branches ws2 ->
+      let (newBranches, newAcc) =
+        branches
+        |> List.foldr
+            (\branch (newBranches, acc) ->
+              let (Branch_ bws1 p ei bws2) = branch.val in
+              let (newEi, newAcc) = recurse acc ei in
+              ({ branch | val = Branch_ bws1 p newEi bws2 }::newBranches, newAcc)
+            )
+            ([], initAcc)
+      in
+      let (newE1, newAcc2) = recurse newAcc e1 in
+      wrapAndMap (ECase ws1 newE1 newBranches ws2) newAcc2
+    ELet ws1 lettype decls spaceBeforeIn body ->
+      let (newBody, newAcc) = recurse initAcc body in
+      let (newDecls, newAcc2) = mapFoldDecls newAcc decls in
+      wrapAndMap (ELet ws1 lettype newDecls spaceBeforeIn newBody) newAcc2
+    EColonType ws1 e1 ws2 tipe ws3 ->
+      let (newE1, newAcc) = recurse initAcc e1 in
+      wrapAndMap (EColonType ws1 newE1 ws2 tipe ws3) newAcc
+    EParens ws1 e pStyle ws2 ->
+      let (newE, newAcc) = recurse initAcc e in
+      wrapAndMap (EParens ws1 newE pStyle ws2) newAcc
+    EHole _ _ -> f e initAcc
 
 -- Children visited/replaced first. (Post-order traversal.)
 --
