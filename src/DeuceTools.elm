@@ -12,6 +12,7 @@ module DeuceTools exposing
   -- Hotkey exposure
   , renameVariableViaHotkey
   , expandFormatViaHotkey
+  , addToEndViaHotkey
   , smartCompleteHole
   , replaceWithParens
   , replaceWithList
@@ -181,6 +182,55 @@ shouldHaveParensOnAccountOfParent root expEId =
     Utils.fromJust_ "Couldn't find hole EId" |>
       Maybe.map doesChildNeedParens |>
         Maybe.withDefault False
+
+addToEnd : Model -> Selections -> Maybe Exp
+addToEnd model selections =
+  let mbExp =
+    case selections of
+      (_, _, [eId], [], [], [], [], [], []) ->
+        findExpByEId model.inputExp eId
+      (_, _, [], [ppid], [], [], [], [], []) ->
+        LangTools.findScopeExpAndPatByPathedPatternId ppid model.inputExp
+        |> Maybe.map Tuple.first |> Maybe.map Tuple.first
+      _ ->
+        Nothing
+  in
+  Maybe.andThen (addToEnd_ model True) mbExp
+
+addToEnd_ model tryParent exp =
+  let
+    root = model.inputExp
+    eId = expEId exp
+    return e__ = replaceExpNode eId (replaceE__ exp e__) root |> Just
+    wsOfLast wsGetter l =
+      ws <|
+      case Utils.maybeLast l of
+        Nothing   -> ""
+        Just last -> wsGetter last |> ensureWhitespace
+  in
+  case unwrapExp exp of
+    EApp wsb f args appType ws1 ->
+      let
+        argWsb = wsOfLast precedingWhitespace args
+        newArg = EHole argWsb EEmptyHole |> withDummyExpInfo
+      in
+      EApp wsb f (args ++ [newArg]) appType ws1
+      |> return
+    EFun wsb pats body ws1 ->
+      let
+        patWsb = wsOfLast precedingWhitespacePat pats
+        -- TODO this should probably actually be a PWildcard
+        newPat =
+          withDummyPatInfo <| PVar patWsb "_" <| Info.withDummyInfo NoWidgetDecl
+      in
+      EFun wsb (pats ++ [newPat]) body ws1
+      |> return
+    _ ->
+      if tryParent then
+        parentByEId root eId |>
+        Maybe.andThen (Maybe.andThen <| addToEnd_ model False)
+      else
+        Nothing
 
 genericReplaceHoleTool : String -> String -> (Exp -> Exp -> DeuceTransformation) -> Model -> Selections -> DeuceTool
 genericReplaceHoleTool   toolID    name      transformer                            model    selections =
@@ -526,6 +576,9 @@ createRecordTool =
     "record"
     False
     (\wsb -> ERecord wsb Nothing (Declarations [] [] [] []) space0)
+
+addToEndViaHotkey : Model -> DeuceWidget -> Maybe Exp
+addToEndViaHotkey = runFunctionViaHotkey addToEnd
 
 smartCompleteHole : Model -> DeuceWidget -> (String, String -> List TransformationResult)
 smartCompleteHole = runInputBasedToolViaHotkey createVarTool

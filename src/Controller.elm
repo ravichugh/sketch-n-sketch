@@ -3268,6 +3268,9 @@ handleDeuceHotKey oldModel keysDown selected =
     DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old
   else if List.member keysDown [[Keys.keyShift, Keys.keyDown], [Keys.keyShift, Keys.keyJ]] then
     DeuceTools.expandFormatViaHotkey old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyShift, Keys.keyA] then
+    DeuceTools.addToEndViaHotkey old selected |> maybeChooseDeuceExp old
+
   else if keysDown == Keys.openParen then
     DeuceTools.replaceWithParens old selected |> maybeChooseDeuceExp old
   else if keysDown == Keys.openBrace then
