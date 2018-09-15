@@ -646,6 +646,10 @@ findi_ i p xs = case xs of
 geti : Int -> List a -> a
 geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 
+-- 0-based
+replacei0 : Int -> a -> List a -> List a
+replacei0 i xi_ xs = replacei (i+1) xi_ xs
+
 -- 1-based
 replacei : Int -> a -> List a -> List a
 replacei i xi_ xs = List.take (i-1) xs ++ [xi_] ++ List.drop i xs

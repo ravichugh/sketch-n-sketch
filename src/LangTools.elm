@@ -1480,7 +1480,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
         |> Maybe.map
             (\pat ->
               let newPat = setPatNameInPat path newName pat in
-              makeNewScope (EFun ws1 (Utils.replacei branchI newPat pats) body ws2)
+              makeNewScope (EFun ws1 (Utils.replacei0 branchI newPat pats) body ws2)
             )
 
        Just (ECase ws1 scrutinee branches ws2) ->
@@ -1490,7 +1490,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
               let (Branch_ ws1 pat exp ws2) = branch.val in
               let newPat = setPatNameInPat path newName pat in
               let newBranch = { branch | val = Branch_ ws1 newPat exp ws2 } in
-              makeNewScope (ECase ws1 scrutinee (Utils.replacei branchI newBranch branches) ws2)
+              makeNewScope (ECase ws1 scrutinee (Utils.replacei0 branchI newBranch branches) ws2)
             )
 
        _ ->
