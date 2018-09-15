@@ -248,8 +248,8 @@ type alias Type_ = { t__ : Type__, tid: TId }
 
 type alias WithTypeInfo a =
   { a | typ : Maybe Type
-      , typeError : Maybe TypeError
-      , extraTypeInfo : Maybe ExtraTypeInfo
+      , deuceTypeInfo : Maybe DeuceTypeInfo
+      , extraDeuceTypeInfo : Maybe ExtraDeuceTypeInfo
   }
 
 -- because Exp_ is defined via WithTypeInfo, no constructor called Exp_
@@ -257,16 +257,16 @@ makeExp_ e__ eid =
   { e__ = e__
   , eid = eid
   , typ = Nothing
-  , typeError = Nothing
-  , extraTypeInfo = Nothing
+  , deuceTypeInfo = Nothing
+  , extraDeuceTypeInfo = Nothing
   }
 
 makePat_ p__ pid =
   { p__ = p__
   , pid = pid
   , typ = Nothing
-  , typeError = Nothing
-  , extraTypeInfo = Nothing
+  , deuceTypeInfo = Nothing
+  , extraDeuceTypeInfo = Nothing
   }
 
 makeType_ t__ tid =
@@ -279,36 +279,36 @@ setTypeForThing typ thing =
   let thing_ = thing.val in
   { thing | val = { thing_ | typ = typ } }
 
-setTypeErrorForThing : TypeError -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
-setTypeErrorForThing error thing =
+setDeuceTypeInfoForThing : DeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setDeuceTypeInfoForThing info thing =
   let thing_ = thing.val in
-  { thing | val = { thing_ | typeError = Just error } }
+  { thing | val = { thing_ | deuceTypeInfo = Just info } }
 
-setExtraTypeInfoForThing : ExtraTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
-setExtraTypeInfoForThing info thing =
+setExtraDeuceTypeInfoForThing : ExtraDeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setExtraDeuceTypeInfoForThing info thing =
   let thing_ = thing.val in
-  { thing | val = { thing_ | extraTypeInfo = Just info } }
+  { thing | val = { thing_ | extraDeuceTypeInfo = Just info } }
 
 setType : Maybe Type -> Exp -> Exp
 setType typ =
   unExpr >> setTypeForThing typ >> Expr
 
-setTypeError : TypeError -> Exp -> Exp
-setTypeError error =
-  unExpr >> setTypeErrorForThing error >> Expr
+setDeuceTypeInfo : DeuceTypeInfo -> Exp -> Exp
+setDeuceTypeInfo info =
+  unExpr >> setDeuceTypeInfoForThing info >> Expr
 
-setExtraTypeInfo : ExtraTypeInfo -> Exp -> Exp
-setExtraTypeInfo info =
-  unExpr >> setExtraTypeInfoForThing info >> Expr
+setExtraDeuceTypeInfo : ExtraDeuceTypeInfo -> Exp -> Exp
+setExtraDeuceTypeInfo info =
+  unExpr >> setExtraDeuceTypeInfoForThing info >> Expr
 
 setPatType : Maybe Type -> Pat -> Pat
 setPatType = setTypeForThing
 
-setPatTypeError : TypeError -> Pat -> Pat
-setPatTypeError = setTypeErrorForThing
+setPatDeuceTypeInfo : DeuceTypeInfo -> Pat -> Pat
+setPatDeuceTypeInfo = setDeuceTypeInfoForThing
 
-setPatExtraTypeInfo : ExtraTypeInfo -> Pat -> Pat
-setPatExtraTypeInfo = setExtraTypeInfoForThing
+setPatExtraDeuceTypeInfo : ExtraDeuceTypeInfo -> Pat -> Pat
+setPatExtraDeuceTypeInfo = setExtraDeuceTypeInfoForThing
 
 
 --------------------------------------------------------------------------------
@@ -424,12 +424,12 @@ dummyType0 =
 dummyType wsb =
   withDummyTypeInfo (TWildcard wsb)
 
-type TypeError
-  = TypeError (List TransformationResult)
+type DeuceTypeInfo
+  = DeuceTypeInfo (List TransformationResult)
 
 -- Information for an expression that is relevant to
--- other expressions that have above TypeErrors
-type ExtraTypeInfo
+-- other expressions that have above DeuceTypeInfos
+type ExtraDeuceTypeInfo
   = HighlightWhenSelected EId
 
 type alias TPat = WithInfo TPat_

@@ -38,8 +38,7 @@ import Lang exposing
   , PathedPatternId
   , CodeObject(..)
   , Type
-  , TypeError(..)
-  , ExtraTypeInfo(..)
+  , ExtraDeuceTypeInfo(..)
   , extractInfoFromCodeObject
   , isTarget
   , foldCode
@@ -621,7 +620,7 @@ codeObjectPolygon msgs codeInfo codeObject color =
         highlightInfo =
           case (codeInfo.doTypeChecking, codeInfo.needsParse, codeObject) of
             (True, False, E e) ->
-              case (unExpr e).val.extraTypeInfo of
+              case (unExpr e).val.extraDeuceTypeInfo of
                 Just (HighlightWhenSelected eId) ->
                   Utils.maybeCons
                     codeInfo.mbKeyboardFocusedWidget

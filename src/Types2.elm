@@ -47,7 +47,7 @@ aceTypeInfo exp =
       let
         -- ept is "e" or "p" or "t"
         processThing ept thing toId thingToString =
-          case (thing.val.typ, thing.val.typeError) of
+          case (thing.val.typ, thing.val.deuceTypeInfo) of
             (Just _, Nothing) ->
               []
             _ ->
@@ -480,17 +480,17 @@ copyTypeInfoFrom fromExp toExp =
     copyTypeFrom fromExp toExp =
       toExp |> setType (unExpr fromExp).val.typ
 
-    copyTypeErrorFrom : Exp -> Exp -> Exp
-    copyTypeErrorFrom fromExp toExp =
-      case (unExpr fromExp).val.typeError of
-        Just typeError ->
-          toExp |> setTypeError typeError
+    copyDeuceTypeInfoFrom : Exp -> Exp -> Exp
+    copyDeuceTypeInfoFrom fromExp toExp =
+      case (unExpr fromExp).val.deuceTypeInfo of
+        Just deuceTypeInfo ->
+          toExp |> setDeuceTypeInfo deuceTypeInfo
         Nothing ->
           toExp
   in
   toExp
     |> copyTypeFrom fromExp
-    |> copyTypeErrorFrom fromExp
+    |> copyDeuceTypeInfoFrom fromExp
 
 
 --------------------------------------------------------------------------------
@@ -550,7 +550,7 @@ inferType gamma stuff thisExp =
                        (\(y, ey) -> deuceTool y (replaceExpNode (unExpr thisExp).val.eid ey stuff.inputExp))
                        suggestions
           in
-          { newExp = thisExp |> setTypeError (TypeError items) }
+          { newExp = thisExp |> setDeuceTypeInfo (DeuceTypeInfo items) }
 
     EParens ws1 innerExp parensStyle ws2 ->
       let
@@ -577,11 +577,11 @@ inferType gamma stuff thisExp =
 
               else
                 -- the call to checkType calls:
-                -- setTypeError (ExpectedButGot annotatedType typ)
+                -- setDeuceTypeInfo (ExpectedButGot annotatedType typ)
                 --
                 -- here, adding extra breadcrumb about the solicitorExp.
                 --
-                (result.newExp, setExtraTypeInfo (HighlightWhenSelected (unExpr innerExp).val.eid))
+                (result.newExp, setExtraDeuceTypeInfo (HighlightWhenSelected (unExpr innerExp).val.eid))
 
             newExp =
               EColonType ws1 newInnerExp ws2 annotatedType ws3
@@ -598,7 +598,7 @@ inferType gamma stuff thisExp =
           let
             newExp =
               thisExp
-                |> setTypeError
+                |> setDeuceTypeInfo
                      (deucePlainLabels
                         [ "ill-formed type annotation"
                         , "unbound: " ++ String.join " " unboundTypeVars
@@ -623,7 +623,7 @@ inferType gamma stuff thisExp =
     EFun ws1 pats body ws2 ->
       { newExp =
           thisExp
-            |> setTypeError
+            |> setDeuceTypeInfo
                  (deucePlainLabels ["trying to synthesize unannotated..."])
       }
 
@@ -653,7 +653,7 @@ inferType gamma stuff thisExp =
                 let
                   addErrorAndInfo (eid1, type1) (eid2, type2) branchExp =
                     branchExp
-                      |> setTypeError (deucePlainLabels
+                      |> setDeuceTypeInfo (deucePlainLabels
                            [ "-- TYPE MISMATCH ------------------------------------------------------"
                            , "The branches of this `if` produce different types of values."
                            , "This branch has type"
@@ -664,7 +664,7 @@ inferType gamma stuff thisExp =
                                 branch we take, we always get
                                 back the same type of value."""
                            ])
-                      |> setExtraTypeInfo (HighlightWhenSelected eid2)
+                      |> setExtraDeuceTypeInfo (HighlightWhenSelected eid2)
 
                   (thenExpId, elseExpId) =
                      ((unExpr thenExp).val.eid, (unExpr elseExp).val.eid)
@@ -761,12 +761,12 @@ inferType gamma stuff thisExp =
                   )
 
                 else
-                  ( pat |> setPatTypeError (deucePlainLabels errors)
+                  ( pat |> setPatDeuceTypeInfo (deucePlainLabels errors)
                   , accTable
                   )
 
             _ ->
-              ( pat |> setPatTypeError
+              ( pat |> setPatDeuceTypeInfo
                   (deucePlainLabels ["this kind of type annotation is currently unsupported"])
               , accTable
               )
@@ -787,7 +787,7 @@ inferType gamma stuff thisExp =
                        if List.member x varsDefinedInThisELet then
                          p
                        else
-                         p |> setPatTypeError (deucePlainLabels ["this name is not defined"])
+                         p |> setPatDeuceTypeInfo (deucePlainLabels ["this name is not defined"])
                      _ ->
                        p
                 )
@@ -821,7 +821,7 @@ inferType gamma stuff thisExp =
                        _ ->
                          let
                            newPat =
-                             pat |> setPatTypeError
+                             pat |> setPatDeuceTypeInfo
                                (deucePlainLabels ["pattern not yet supported by type checker"])
                          in
                            (LetExp ws0 ws1 newPat fas ws2 expEquation, Nothing)
@@ -857,8 +857,8 @@ inferType gamma stuff thisExp =
                              case (unExpr result.newExp).val.typ of
                                Just inferredType ->
                                  pat |> setPatType (Just inferredType)
-                                        -- TODO: Not an error, rename TypeError...
-                                     |> setPatTypeError (TypeError
+                                        -- TODO: Not an error, rename DeuceTypeInfo...
+                                     |> setPatDeuceTypeInfo (DeuceTypeInfo
                                           [ deuceTool "Add inferred annotation"
                                               (insertStrAnnotation pat (unparseType inferredType) stuff.inputExp)
                                           ]
@@ -867,14 +867,14 @@ inferType gamma stuff thisExp =
                                Nothing ->
                                  case matchLambda expEquation of
                                    0 ->
-                                     pat |> setPatTypeError (deucePlainLabels ["type error"])
+                                     pat |> setPatDeuceTypeInfo (deucePlainLabels ["type error"])
 
                                    numArgs ->
                                      let
                                        wildcards =
                                          String.join " -> " (List.repeat (numArgs + 1) "_")
                                      in
-                                     pat |> setPatTypeError (TypeError
+                                     pat |> setPatDeuceTypeInfo (DeuceTypeInfo
                                        [ deuceLabel <| PlainText <|
                                            "Currently, functions need annotations"
                                        , deuceTool "Add dummy type annotation"
@@ -893,7 +893,7 @@ inferType gamma stuff thisExp =
                              if result.okay then
                                pat |> setPatType (Just annotatedType)
                              else
-                               pat |> setPatTypeError (deucePlainLabels ["type error"])
+                               pat |> setPatDeuceTypeInfo (deucePlainLabels ["type error"])
                            -- TODO: add tool option to change annotation if result.okay == False
                            newExpEquation =
                              result.newExp
@@ -941,7 +941,7 @@ inferType gamma stuff thisExp =
     ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
       { newExp =
           thisExp
-            |> setTypeError
+            |> setDeuceTypeInfo
                  (deucePlainLabels ["not yet supporting type definitions..."])
       }
 
@@ -950,7 +950,7 @@ inferType gamma stuff thisExp =
         eRecordError s =
           { newExp =
               thisExp
-                |> setTypeError (deucePlainLabels ["not supported in records: " ++ s])
+                |> setDeuceTypeInfo (deucePlainLabels ["not supported in records: " ++ s])
           }
       in
       case (maybeExpWs, letTypes, letAnnots, letExps) of
@@ -1063,7 +1063,7 @@ inferType gamma stuff thisExp =
                       in
                         ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots newLetExps) ws2
                           |> replaceE__ thisExp
-                          |> setTypeError error
+                          |> setDeuceTypeInfo error
               in
                 { newExp = newExp }
 
@@ -1129,7 +1129,7 @@ checkType gamma stuff thisExp expectedType =
         { okay = False
         , newExp =
             thisExp
-              |> setTypeError
+              |> setDeuceTypeInfo
                    (deucePlainLabels <|
                       "TODO List.length pats < List.length argTypes"
                         :: List.map unparsePattern pats
@@ -1209,7 +1209,7 @@ checkType gamma stuff thisExp expectedType =
             , newExp =
                 EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
-                  |> setTypeError (expectedButGot expectedType maybeActualType)
+                  |> setDeuceTypeInfo (expectedButGot expectedType maybeActualType)
             }
 
     (EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3, _, _) ->
@@ -1256,7 +1256,7 @@ checkType gamma stuff thisExp expectedType =
                 result.newExp
                 -- Don't want to overwrite existing error...
                 --
-                -- |> setTypeError (ExpectedButGot expectedType
+                -- |> setDeuceTypeInfo (ExpectedButGot expectedType
                 --                                 (unExpr result.newExp).val.typ)
             }
 
@@ -1270,7 +1270,7 @@ checkType gamma stuff thisExp expectedType =
               { okay = False
               , newExp =
                   result.newExp
-                    |> setTypeError (expectedButGot expectedType (Just inferredType))
+                    |> setDeuceTypeInfo (expectedButGot expectedType (Just inferredType))
               }
 
 
@@ -1281,9 +1281,9 @@ deuceLabel =
   Label
 
 
-deucePlainLabels : List String -> TypeError
+deucePlainLabels : List String -> DeuceTypeInfo
 deucePlainLabels strings =
-  TypeError
+  DeuceTypeInfo
     (List.map (deuceLabel << PlainText) strings)
 
 
@@ -1293,7 +1293,7 @@ deuceTool str exp =
 
 
 expectedButGot expectedType maybeActualType =
-  TypeError
+  DeuceTypeInfo
     [ deuceLabel <| HeaderText <|
         "TYPE MISMATCH"
     , deuceLabel <| PlainText <|
@@ -1333,7 +1333,7 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
     --   ]
 
     deuceTypeInfo =
-      case ((unwrap thing).val.typ, (unwrap thing).val.typeError) of
+      case ((unwrap thing).val.typ, (unwrap thing).val.deuceTypeInfo) of
         (Nothing, Nothing) ->
           [ deuceLabel <| PlainText <|
               "This expression wasn't processed by the typechecker..."
@@ -1344,7 +1344,7 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
         (Just t, Nothing) ->
           [ deuceLabel <| TypeText <| unparseType t ]
 
-        (_, Just (TypeError items)) ->
+        (_, Just (DeuceTypeInfo items)) ->
           items
 
 {-
@@ -1372,6 +1372,6 @@ typeChecks : Exp -> Bool
 typeChecks =
   foldExp
     ( \e acc ->
-        acc && (unExpr e).val.typeError == Nothing
+        acc && (unExpr e).val.typ /= Nothing
     )
     True
