@@ -2,7 +2,7 @@
  * General                                                                    *
  ******************************************************************************/
 
-*:not(.outputCanvas *) {
+* {
   margin: 0;
   padding: 0;
   -webkit-box-sizing: border-box;
@@ -26,7 +26,7 @@ body {
   user-select: none;
 }
 
-a:not(.outputCanvas a) {
+a {
   color: inherit;
   text-decoration: none;
 }
@@ -680,6 +680,45 @@ code {
   overflow: auto;
   position: relative;
   font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+
+/* Output Canvas children styles */
+/* TODO perhaps temporary until we figure out how to handle this best? */
+
+#outputCanvas h1,
+#outputCanvas h2,
+#outputCanvas h3,
+#outputCanvas h4,
+#outputCanvas h5,
+#outputCanvas h6,
+#outputCanvas ul,
+#outputCanvas ol,
+#outputCanvas p
+{
+  margin: 0.75em 0;
+}
+
+#outputCanvas a {
+  color: blue;
+  text-decoration: underline;
+}
+
+#outputCanvas a:active {
+  color: red;
+}
+
+#outputCanvas a:visited {
+  color: purple;
+}
+
+#outputCanvas button {
+  padding: 1px 7px 2px;
+}
+
+#outputCanvas ul,
+#outputCanvas ol
+{
+  padding-inline-start: 40px;
 }
 
 #svgWidgetsLayer {

@@ -7332,7 +7332,7 @@ view =
   margin-bottom: 10px;
 }
 .calculator input {
-  height: 58px;
+  height: 63.5px;
   font-size: 20px;
   margin-bottom: 10px;
 }
@@ -7340,6 +7340,7 @@ view =
 </div>
 
 main = view
+
 """
 
 fromleo_linkedtexteditor =
@@ -8244,6 +8245,9 @@ function @(id.addAnotherPlayerBet)() {
   .normallyVisible[transient-visible=\"false\"] {
     display: none;
   }
+  th {
+    padding: 0 5px;
+  }
   </style
   ><span id=id.foranotherplayer class=\"normallyNotVisible\">
     <button onclick=\"\"\"@id.addAnotherPlayerBet()\"\"\" title=\"Let another player place a bet on this screen\">Place another bet</button>
@@ -8359,6 +8363,7 @@ playerIndexFromName name =
   </div>)
   </span>
 </div>
+
 """
 
 christmas_song_3_after_translation =
@@ -8669,6 +8674,10 @@ pre {
 .columnadder:hover {
   opacity: 1;
 }
+a {
+  display: block;
+  margin-top: 1em;
+}
 \"\"\"
 
 participants = [
@@ -8804,6 +8813,7 @@ The Dream Team
   <br>
   <pre style=\"white-space:pre-wrap\">@sms</pre>
 </div>
+
 """
 
 fromleo_universal_number =

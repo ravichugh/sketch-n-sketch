@@ -141,6 +141,10 @@ pre {
 .columnadder:hover {
   opacity: 1;
 }
+a {
+  display: block;
+  margin-top: 1em;
+}
 """
 
 participants = [

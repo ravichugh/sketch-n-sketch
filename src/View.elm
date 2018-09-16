@@ -447,15 +447,35 @@ viewResultText : ResultText -> Html Msg
 viewResultText rt =
   case rt of
     PlainText s ->
-      Html.span [] [Html.text s]
+      Html.p
+        [ Attr.class "result-text-plain"
+        ]
+        [ Html.text s
+        ]
     HeaderText s ->
-      Html.h1 [] [Html.text s]
+      Html.h1
+        [ Attr.class "result-text-header"
+        ]
+        [ Html.text s
+        ]
     CodeText s ->
-      Html.code [] [Html.text s]
+      Html.code
+        [ Attr.class "result-text-code"
+        ]
+        [ Html.text s
+        ]
     TypeText s ->
-      Html.code [] [Html.text s]
+      Html.code
+        [ Attr.class "result-text-type"
+        ]
+        [ Html.text s
+        ]
     HintText s ->
-      Html.i [] [Html.text s]
+      Html.p
+        [ Attr.class "result-text-hint"
+        ]
+        [ Html.text s
+        ]
 
 deuceTransformationResult :
   Model -> List Int -> DeuceTransformation -> TransformationResult -> Html Msg

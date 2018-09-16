@@ -88,7 +88,7 @@ view =
   margin-bottom: 10px;
 }
 .calculator input {
-  height: 58px;
+  height: 63.5px;
   font-size: 20px;
   margin-bottom: 10px;
 }
