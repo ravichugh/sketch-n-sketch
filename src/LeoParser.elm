@@ -2698,7 +2698,8 @@ sanitizeVariableName unsafeName =
   unsafeName
   |> String.toList
   |> Utils.dropWhile (not << (Char.toLower >> validVariableIdentifierFirstChar))
-  |> Utils.mapHead Char.toLower
+  -- Dropping this, because want to rename types and data constructors, too.
+  -- |> Utils.mapHead Char.toLower
   |> Utils.changeTail (List.filter validIdentifierRestChar)
   |> String.fromList
 

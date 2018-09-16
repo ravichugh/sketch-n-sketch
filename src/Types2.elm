@@ -1693,11 +1693,7 @@ renameTypeTool inputExp selections =
           in
           maybeTypeName |> Maybe.andThen (\typeName ->
           let
-            newTypeName =
-              -- TODO: placeholder
-              "NewName_" ++ typeName
-
-            rewriteType =
+            rewriteType newTypeName =
               mapType <| \t ->
                 -- HACK
                 if String.trim (unparseType t) == typeName then
@@ -1706,7 +1702,7 @@ renameTypeTool inputExp selections =
                 else
                   t
 
-            rewriteExp =
+            rewriteExp newTypeName =
               mapExpViaExp__ <| \e__ ->
                 case e__ of
                   ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
@@ -1731,28 +1727,26 @@ renameTypeTool inputExp selections =
                       newLetAnnots =
                         letAnnots
                           |> List.map (\(LetAnnotation mws0 ws1 pat fas ws2 typAnnot) ->
-                               LetAnnotation mws0 ws1 pat fas ws2 (rewriteType typAnnot)
+                               LetAnnotation mws0 ws1 pat fas ws2 (rewriteType newTypeName typAnnot)
                              )
                     in
                     ELet ws1 letKind (Declarations po newLetTypes newLetAnnots letExps) ws2 body
 
                   EColonType ws1 e1 ws2 typ ws3 ->
-                    EColonType ws1 e1 ws2 (rewriteType typ) ws3
+                    EColonType ws1 e1 ws2 (rewriteType newTypeName typ) ws3
 
                   _ ->
                     e__
 
-            newProgram =
-              inputExp
-                |> rewriteExp
-
-            transformationResults () =
+            transformationResults newTypeName =
               [ -- Label <| PlainText <| typeName
               -- , Label <| PlainText <| newTypeName
-                Fancy (synthesisResult "DUMMY" newProgram) (PlainText "Rename")
+                Fancy
+                  (synthesisResult "DUMMY" (rewriteExp newTypeName inputExp))
+                  (PlainText "Rename")
               ]
           in
-          Just (NoInputDeuceTransform transformationResults, Satisfied)
+          Just (RenameDeuceTransform transformationResults, Satisfied)
 
           ))
 

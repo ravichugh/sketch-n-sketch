@@ -317,13 +317,12 @@
    Select three `Num`s and **Introduce Type Alias from Args**.
    One option ~~with tuple type, one~~ with record type called `NumNumNum`.
 
-1. <span style="color:red;">**TODO: Basic version implemented with
-   default choice for new name.**</span>
+1. <span style="color:green;">**OK:**</span>
    **Rename Type**.
 
-        type alias Params = {x:Num, y:Num, size:Num}
+        type alias LogoParams = {x:Num, y:Num, size:Num}
         
-        logo : String -> Params -> Svg
+        logo : String -> LogoParams -> Svg
         logo fill {x, y, size} =
           ...
 
@@ -339,16 +338,16 @@
      -->
 
 1. <span style="color:red;">**TODO:**</span>
-   Select `Params` type and **Convert to Datatype**.
+   Select `LogoParams` type and **Convert to Datatype**.
 
-        type Params = Params {x:Num, y:Num, size:Num}
+        type LogoParams = LogoParams {x:Num, y:Num, size:Num}
         
-        logo : String -> Params -> Svg
-        logo fill params =
+        logo : String -> LogoParams -> Svg
+        logo fill logoParams =
           let
             {x, y, size} =
-              case params of
-                Params xysize -> xysize
+              case logoParams of
+                LogoParams xysize -> xysize
 
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
@@ -360,24 +359,24 @@
 
         main : Svg
         main =
-          svg (logo "gray" (Params {x=10, y=10, size=200}))
+          svg (logo "gray" (LogoParams {x=10, y=10, size=200}))
 
 1. <span style="color:red;">**TODO:**</span>
    **Rename Constructor** to `TopLeft`.
 
 1. <span style="color:red;">**TODO:**</span>
    **Duplicate Constructor**. Let's have the dummy case just be a hole to
-   start. Click `Params` and **Format** to choose multi-line option.
+   start. Click `LogoParams` and **Format** to choose multi-line option.
 
-        type Params
+        type LogoParams
           = TopLeft {x:Num, y:Num, size:Num}
           | NewConstructor {x:Num, y:Num, size:Num}
         
-        logo : String -> Params -> Svg
-        logo fill params =
+        logo : String -> LogoParams -> Svg
+        logo fill logoParams =
           let
             {x, y, size} =
-              case params of
+              case logoParams of
                 TopLeft xysize ->
                   xysize
 
@@ -386,7 +385,7 @@
             ...
 
 1. <span style="color:red;">**TODO:**</span>
-   **Rename** to `Center`. **Rename** fields to `cx`, `cy`, and `rad`.
+   **Rename Constructor** to `Center`. **Rename Fields** to `cx`, `cy`, and `rad`.
 
 1. <span style="color:red;">**TODO:**</span>
    **Type Information** shows error between branches. Because one
@@ -421,15 +420,15 @@
 
 1. Final-ish.
 
-        type Params
+        type LogoParams
           = TopLeft {x:Num, y:Num, size:Num}
           | Center {cx:Num, cy:Num, rad:Num}
         
-        logo : String -> Params -> Svg
-        logo fill params =
+        logo : String -> LogoParams -> Svg
+        logo fill logoParams =
           let
             {x, y, size} =
-              case params of
+              case logoParams of
                 TopLeft xysize ->
                   xysize
 
