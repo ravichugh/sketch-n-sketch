@@ -1819,6 +1819,46 @@ replaceIdentAfterBinding_ origLetEId identToReplace origSubstExpEId expToSubst s
       map <| ESelect wsb (replace e) ws1 ws2 ident
     _ -> subRoot -- For leaves, just return the leaf as is
 
+ungroupTupleBinding : EId -> BindingNumber -> Exp -> Maybe (Exp, List BindingNumber)
+ungroupTupleBinding letEId tupleBindingNumber originalProgram =
+  findExpByEId originalProgram letEId               |> Maybe.andThen  (\let_ ->
+  findLetexpByBindingNumber let_ tupleBindingNumber |> Maybe.andThen  (\letExp ->
+  patOfLetExp letExp |> pTupleUnapply               |> Maybe.andThen  (\(_, patsWithWs, _) ->
+  bindingOfLetExp letExp |> eTupleUnapply           |> Maybe.andThen  (\(_, expsWithWs, _) ->
+  List.map Tuple.second patsWithWs                  |>                (\pats ->
+  List.map Tuple.second expsWithWs                  |>                (\boundExps ->
+  List.map pVarUnapply pats |> Utils.projJusts      |> Maybe.andThen  (\idents ->
+  Utils.maybeZip idents boundExps                   |> Maybe.andThen  (\identsAndBoundExps ->
+  case unwrapExp let_ of
+    ELet wsb lk decls wsIn body ->
+      getDeclarationsInOrderWithIndex decls
+      |> List.concatMap (\(decl, index) ->
+        if index == tupleBindingNumber then
+          let declWsb = precedingWhitespaceDeclarationWithInfo decl in
+          identsAndBoundExps |> List.map (\(ident, boundExp) ->
+            DeclExp <| LetExp Nothing declWsb (pVar0 ident) FunArgAsPats space1 boundExp
+          )
+        else
+          [decl]
+      )
+      |> Parser.reorderDeclarations |> Result.toMaybe      |> Maybe.map (\newDecls ->
+         ELet wsb lk newDecls wsIn body |> replaceE__ let_ |>           (\newLet ->
+         getDeclarationsInOrderWithIndex newDecls
+         |> List.filter (\(newDecl, index) ->
+              case newDecl of
+                DeclExp (LetExp _ _ _ _ _ boundExp) ->
+                  List.map expEId boundExps
+                  |> List.member (expEId boundExp)
+                _ ->
+                  False
+            )
+         |> List.map Tuple.second                          |>           (\newBindingNums ->
+         (replaceExpNode letEId newLet originalProgram, newBindingNums)
+      )))
+    _ ->
+      Nothing
+  ))))))))
+
 -- TODO This should be rewritten to use freeVars or transformVarsUntilBound
 inlineDefinitions : List (EId, BindingNumber) -> Exp -> Maybe (List Ident, Exp)
 inlineDefinitions selectedLetEIds originalProgram =
@@ -1908,6 +1948,7 @@ inlineDefinitions selectedLetEIds originalProgram =
 ------------------------------------------------------------------------------
 
 -- Takes EId of expression to abstract, a predicate on exp and program to choose which expressions should become parameters
+-- Also attempts to eliminate trivial bindings (e.g., `v1 = v2` or `(v1, v2) = (v3, v4)`) that are created as a result
 abstract : EId -> (Exp -> Exp -> Bool) -> Exp -> (List Exp, Exp)
 abstract eid shouldBeParameter originalProgram =
   let expToAbstact = justFindExpByEId originalProgram eid in
@@ -1937,7 +1978,8 @@ abstract eid shouldBeParameter originalProgram =
             let naiveName = expNameForEIdWithDefault "arg" originalProgram (expEId e) ++ "_ARRRG!!!" in
             let name = nonCollidingName naiveName 2 namesToAvoid in
             let namesToAvoid_ = Set.insert name namesToAvoid in
-            (copyPrecedingWhitespace e (eVar name), (namesToAvoid_, name::paramNamesARRRGTagged, (Parser.clearAllIds e)::paramExps))
+            let newVar = eVar name |> setEId (expEId e) in
+            (copyPrecedingWhitespace e newVar, (namesToAvoid_, name::paramNamesARRRGTagged, (Parser.clearAllIds e)::paramExps))
           else
             (e, (namesToAvoid, paramNamesARRRGTagged, paramExps))
         )
@@ -1945,11 +1987,70 @@ abstract eid shouldBeParameter originalProgram =
   in
   let (abstractionBodySimplified, _, paramNames) =
     -- Simplify (\x_ARRRG!!! -> let x = x_ARRRG!!! in ...) to (\x -> ...)
-    let abstractionBodySimplifiedARRRGTags =
-       abstractionBody
-       |> LangSimplify.changeRenamedVarsToOuter
-       |> LangSimplify.removeUnusedLetPats
-       |> ensureWhitespaceExp
+    let
+      degroupAsNecessary let_ =
+        case unwrapExp let_ of
+          ELet _ _ decls _ _ ->
+            getDeclarationsInOrderWithIndex decls
+            |> Utils.mapFirstSuccess (\(decl, index) ->
+              case decl of
+                DeclExp (LetExp _ _ _ _ _ boundExp) ->
+                  eTupleUnapply boundExp |> Maybe.andThen (\(_, boundExpsWithWs, _) ->
+                  boundExpsWithWs |> List.map (Tuple.second >> expEId) |> (\boundExpEIds ->
+                  if List.any (flip Set.member eidsToParameterize) boundExpEIds then
+                    Just (expEId let_, index)
+                  else
+                    Nothing
+                  ))
+                _ ->
+                  Nothing
+            )
+            |> Maybe.andThen (\(eid, bn) ->
+                 ungroupTupleBinding eid bn let_ |> Maybe.map (
+                 Tuple.first >> degroupAsNecessary))
+            |> Maybe.withDefault let_
+          _ ->
+            let_
+      (abstractionBodyAfterDegrouping, bindingsToInline) =
+        mapFoldExp (\e bindingsAcc ->
+          case unwrapExp e of
+            ELet _ _ _ _ _ ->
+              let
+                newE = degroupAsNecessary e
+                newBindings =
+                  case unwrapExp newE of
+                    ELet _ _ decls _ _ ->
+                      getDeclarationsInOrderWithIndex decls |> List.filterMap (\(decl, index) ->
+                        case decl of
+                          DeclExp (LetExp _ _ _ _ _ boundExp) ->
+                            if Set.member (expEId boundExp) eidsToParameterize then
+                              Just (expEId newE, index)
+                            else
+                              Nothing
+                          _ ->
+                            Nothing
+                      )
+                    _ ->
+                      []
+              in
+              (newE, newBindings ++ bindingsAcc)
+            _ ->
+              (e, bindingsAcc)
+        )
+        []
+        abstractionBody
+      abstractionBodySimplifiedARRRGTags =
+        -- TODO currently changeRenamedVarsToOuter is inert
+        -- abstractionBody
+        -- |> LangSimplify.changeRenamedVarsToOuter
+        -- |> LangSimplify.removeUnusedLetPats
+        -- |> ensureWhitespaceExp
+        -- use the following instead
+        abstractionBodyAfterDegrouping
+        |> inlineDefinitions bindingsToInline
+        |> Maybe.map Tuple.second
+        |> Maybe.withDefault abstractionBody
+        |> ensureWhitespaceExp
     in
     let arrrgTagRegex = Regex.regex "_ARRRG!!!\\d*$" in
     let removeARRRGTag name = Regex.replace (Regex.AtMost 1) arrrgTagRegex (\_ -> "") name in
