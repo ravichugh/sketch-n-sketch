@@ -531,7 +531,7 @@ deuceTransformationResults model path deuceTransformation transformationResults 
     results =
       Lang.synthesisResults transformationResults
   in
-  case (deuceTransformation, results) of
+  case (deuceTransformation, transformationResults) of
     (SmartCompleteDeuceTransform _, _) ->
       let onKeyDn code =
         -- Enter button
@@ -546,7 +546,7 @@ deuceTransformationResults model path deuceTransformation transformationResults 
           []
           (mapResults ())
       ]
-{-
+
     (_, []) ->
       [ generalHtmlHoverMenu "transformation-oops"
           [ Html.span
@@ -560,7 +560,7 @@ deuceTransformationResults model path deuceTransformation transformationResults 
           True
           []
       ]
--}
+
     _ ->
       mapResults ()
 
