@@ -1586,14 +1586,14 @@ codePanel model =
         active =
           Model.modeActive model mode
 
-        caption =
+        (modeName, imageName) =
           case mode of
             Model.CEText ->
-              "Text"
+              ("Text", "Text")
             Model.CEDeuceClick ->
-              "Deuce"
+              ("Deuce", "Deuce")
             Model.CETypeInspector ->
-              "Type Inspector"
+              ("Type Inspector", "TypeInspector")
       in
         Html.div
           [ Attr.classList
@@ -1606,7 +1606,20 @@ codePanel model =
               []
           , Html.div
               [ Attr.class "mode-icon" ]
-              [ simpleTextButton caption (Controller.msgSetCodeEditorMode mode)
+              [ textButton
+                  { defaultTb
+                      | content =
+                          [ Html.img
+                              [ Attr.src <|
+                                  "img/mode-icons/" ++ imageName ++ ".svg"
+                              , Attr.title <|
+                                  modeName ++ " Mode"
+                              ]
+                              []
+                          ]
+                      , onClick =
+                          Controller.msgSetCodeEditorMode mode
+                  }
               ]
           ]
     modeSeparator =

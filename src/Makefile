@@ -13,7 +13,7 @@ html: elm-stuff/packages
 	cd ../ace-builds/src && cp $(out_from_ace-builds) ../../build/out/
 	cp ../viz.js/viz.js ../build/out/
 	mkdir -p ../build/out/img
-	cp ../img/* ../build/out/img/
+	cp -r ../img/* ../build/out/img/
 	# sed -i '' 's/var Elm = {};/var Elm = {};\nElm["EvalUpdate"] = Elm["EvalUpdate"] || {};\nElm["EvalUpdate"].api = _user$$project$$EvalUpdate$$api;/g' ../build/out/sns.js
 
 all: elm-stuff/packages prelude examples html
