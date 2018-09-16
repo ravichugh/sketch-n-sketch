@@ -336,13 +336,21 @@ stripAllOuterTParens typ =
       typ
 
 
--- This currently does not recurse into retType, so the argTypes list
+-- This version does not recurse into retType, so the argTypes list
 -- always has length one.
 --
--- This strips TParens off the outer type and off the arg and ret types.
---
 matchArrow : Type -> Maybe ArrowType
-matchArrow typ =
+matchArrow = matchArrowMaybeRecurse False
+
+
+matchArrowRecurse : Type -> Maybe ArrowType
+matchArrowRecurse = matchArrowMaybeRecurse True
+
+
+-- Strips TParens off the outer type and off the arg and ret types.
+-- Choose whether to recurse into retType.
+--
+matchArrowMaybeRecurse recurse typ =
   let
     result =
       case (stripAllOuterTParens typ).val.t__ of
@@ -353,10 +361,30 @@ matchArrow typ =
           in
           case (t0.val.t__, typs) of
             (TVar _ "->", [argType, retType]) ->
-              Just ( typeVars
-                   , [stripAllOuterTParens argType]
-                   , stripAllOuterTParens retType
-                   )
+              let
+                done =
+                  Just ( typeVars
+                       , [stripAllOuterTParens argType]
+                       , stripAllOuterTParens retType
+                       )
+              in
+               if recurse == False then
+                 done
+
+               else
+                 case matchArrowMaybeRecurse recurse retType of
+                   Nothing ->
+                     done
+
+                   Just ([], moreArgs, finalRetType) ->
+                     Just ( typeVars
+                          , [stripAllOuterTParens argType] ++ moreArgs
+                          , finalRetType
+                          )
+
+                   Just _ ->
+                     Debug.crash "Types2.matchArrow: non-prenex forall types"
+
             _ ->
               Nothing
         _ ->
@@ -408,14 +436,25 @@ matchTypeVars ws =
 
 
 -- This is currently not taking prior whitespace into account.
---
 rebuildArrow : ArrowType -> Type
 rebuildArrow (typeVars, argTypes, retType) =
   withDummyTypeInfo <|
-    TApp (rebuildTypeVars typeVars)
-         (withDummyTypeInfo (TVar space1 "->"))
-         (argTypes ++ [retType])
-         InfixApp
+    let
+      (argType, finalRetType) =
+        case argTypes of
+          [] ->
+            Debug.crash "rebuildArrow"
+
+          [argType] ->
+            (argType, retType)
+
+          argType :: moreArgTypes ->
+            (argType, rebuildArrow ([], moreArgTypes, retType))
+    in
+      TApp (rebuildTypeVars typeVars)
+           (withDummyTypeInfo (TVar space1 "->"))
+           ([argType, finalRetType])
+           InfixApp
 
 
 -- This is currently not taking prior whitespace into account.
@@ -424,7 +463,8 @@ rebuildTypeVars : List Ident -> WS
 rebuildTypeVars typeVars =
   case typeVars of
     [] ->
-      space0
+      -- space0
+      space1
     _  ->
       withDummyInfo <|
         "{- forall " ++ String.join " " typeVars ++ " -} "
@@ -1367,6 +1407,9 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
       [ deuceTypeInfo
       -- , insertAnnotationTool
       ]
+
+
+--------------------------------------------------------------------------------
 
 typeChecks : Exp -> Bool
 typeChecks =
