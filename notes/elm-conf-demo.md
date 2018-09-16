@@ -250,7 +250,8 @@
           
         logo fill x y size =
           let
-            (cx, cy) = (x + 0.5*size, y + 0.5*size)
+            (cx, cy) =
+              (x + 0.5*size, y + 0.5*size)
           in
           [ rect fill x y size size
           , line "white" 10 x y (x + size) (y + size)
@@ -259,20 +260,6 @@
   
         main =
           svg (logo "gray" 10 10 200)
-
-1. <span style="color:orange;">**OK/TODO-Ravi: Could add another option, or not.**</span>
-   Select the let and **Format**. Hover the option, just to see,
-   but don't select it.
-
-        logo fill x y size =
-          let (cx, cy) = (x + 0.5*size, y + 0.5*size) in
-            [ rect fill x y size size
-            , line "white" 10 x y (x + size) (y + size)
-            , line "white" 10 x (y + size) cx cy
-            ]
-
-        main =
-          svg (logo "gray" 20 30 200)
 
 
 ## Type Inspector
@@ -299,6 +286,18 @@
    <span style="color:orange;">TODO: And perhaps **Insert call to `svgConcat`**.</span>
 
         logo : String -> Num -> Num -> Num -> List Svg
+        logo fill x y size =
+          let
+            (cx, cy) =
+              (x + 0.5*size, y + 0.5*size)
+          in
+          [ rect fill x y size size
+          , line "white" 10 x y (x + size) (y + size)
+          , line "white" 10 x (y + size) cx cy
+          ]
+
+        main =
+          svg (logo "gray" 10 10 200)
 
 1. <span style="color:green;">**OK:**</span>
    Select `main`, **Type Information**, **Add inferred annotation**.
@@ -315,9 +314,9 @@
 
 ## Type-Based Code Tools + Holes
 
-1. <span style="color:red;">**TODO:**</span>
-   Select three `Num`s and **Introduce Type Alias**. One option
-   with tuple type, one with record type.
+1. <span style="color:green;">**OK:**</span>
+   Select three `Num`s and **Introduce Type Alias from Args**.
+   One option ~~with tuple type, one~~ with record type.
 
 1. <span style="color:red;">**TODO:**</span>
    **Rename Type**.
@@ -328,6 +327,7 @@
         logo fill {x, y, size} =
           ...
 
+        main : Svg
         main =
           svg (logo "gray" {x=10, y=10, size=200})
 
@@ -340,9 +340,21 @@
         type Params = Params {x:Num, y:Num, size:Num}
         
         logo : String -> Params -> Svg
-        logo fill (Params {x, y, size}) =
-          ...
+        logo fill params =
+          let
+            {x, y, size} =
+              case params of
+                Params xysize -> xysize
 
+            (cx, cy) =
+              (x + 0.5*size, y + 0.5*size)
+          in
+          [ rect fill x y size size
+          , line "white" 10 x y (x + size) (y + size)
+          , line "white" 10 x (y + size) cx cy
+          ]
+
+        main : Svg
         main =
           svg (logo "gray" (Params {x=10, y=10, size=200}))
 
@@ -428,6 +440,7 @@
           , line "white" 10 x (y + size) cx cy
           ]
   
+        main : Svg
         main =
           svg (logo "gray" (Center {cx=300, cy=300, rad=40}))
 

@@ -2639,13 +2639,15 @@ typesTool model selections =
         ([], [], [], [], [], [], [], [], []) ->
           (InactiveDeuceTransform, Possible)
 
+        -- single expression, nothing else
         (_, _, [eId], [], [], [], [], [], []) ->
           let
             exp = LangTools.justFindExpByEId model.inputExp eId
           in
           (NoInputDeuceTransform (Types2.makeDeuceExpTool model.inputExp exp), Satisfied)
 
-        (_, _, _, [pathedPatId], [], [], [], [], []) ->
+        -- snigle pattern, nothing else
+        (_, _, [], [pathedPatId], [], [], [], [], []) ->
           -- TODO ensure this works?
           case LangTools.findPatByPathedPatternId pathedPatId model.inputExp of
             Nothing ->
@@ -2961,6 +2963,7 @@ toolNeedsHovers model toolId =
 
 toolList =
   [ [ typesTool
+    , (\model selections -> Types2.introduceTypeAliasTool model.inputExp selections)
     ]
   , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
     [ createTrueTool

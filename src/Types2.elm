@@ -6,6 +6,7 @@ module Types2 exposing
   , aceTypeInfo
   , dummyAceTypeInfo
   , typeChecks
+  , introduceTypeAliasTool
   )
 
 import Info exposing (WithInfo, withDummyInfo)
@@ -1418,3 +1419,242 @@ typeChecks =
         acc && (unExpr e).val.typ /= Nothing
     )
     True
+
+
+--------------------------------------------------------------------------------
+-- Type-Based Code Tools
+
+introduceTypeAliasTool : Exp -> DeuceSelections -> DeuceTool
+introduceTypeAliasTool inputExp selections =
+  let
+    (func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+
+        ([], [], [], [_], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+
+        -- two or more patterns, nothing else
+        ([], [], [], pathedPatIds, [], [], [], [], []) ->
+          let
+            (eIds, indices) =
+              pathedPatIds
+                |> List.map Tuple.first  -- assuming each List Int == []
+                |> List.unzip
+
+            maybeSameEId =
+              case Utils.dedup (List.sort eIds) of
+                [eId] -> Just eId
+                _     -> Nothing
+
+            maybeArgIndexRange =
+              let
+                min = Utils.fromJust_ "introduceTypeAliasTool" <| List.minimum indices
+                max = Utils.fromJust_ "introduceTypeAliasTool" <| List.maximum indices
+              in
+                if List.range min max == List.sort indices then
+                  Just (min, max)
+                else
+                  Nothing
+          in
+          maybeSameEId |> Maybe.andThen (\eId ->
+          maybeArgIndexRange |> Maybe.andThen (\(minIndex, maxIndex) ->
+          let
+            exp =
+              LangTools.justFindExpByEId inputExp eId
+
+            maybeEFun__ =
+              case (unExpr exp).val.e__ of
+                EFun ws1 pats body ws2 ->
+                  Just (ws1, pats, body, ws2)
+                _ ->
+                  Nothing
+
+            splitListIntoThreeParts list =
+              list
+                |> Utils.split minIndex
+                |> Tuple.mapSecond (Utils.split (maxIndex - minIndex + 1))
+                |> (\(a,(b,c)) -> (a, b, c))
+          in
+          maybeEFun__ |> Maybe.andThen (\(ws1, pats, body, ws2) ->
+          let
+            maybeFuncName =
+              foldExp (\e acc ->
+                case (unExpr e).val.e__ of
+                  ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+                    letExps
+                      |> List.map Tuple.second
+                      |> List.concat
+                      |> List.foldl (\(LetExp mws0 ws1 p fas ws2 expEquation) acc ->
+                           case (p.val.p__, (unExpr expEquation).val.eid == eId) of
+                             (PVar _ funcName _, True) ->
+                               Just funcName
+                             _ ->
+                               acc
+                         ) acc
+                  _ ->
+                    acc
+              ) Nothing inputExp
+          in
+          maybeFuncName |> Maybe.andThen (\funcName ->
+          let
+            (prefixPats, selectedPats, suffixPats) =
+              pats
+                |> splitListIntoThreeParts
+
+            pRecordFields =
+              selectedPats
+                |> Utils.mapi0 (\(i, p) ->
+                     let
+                       (mws0, ws1) =
+                         if i == 0 then
+                           (Nothing, space0)
+                         else
+                           (Just space0, space1)
+                     in
+                     -- Assuming p is a PVar.
+                     -- I think using p in both places leads to Elm-style record patterns...
+                     (mws0, ws1, String.trim (unparsePattern p), space0, p)
+                   )
+
+            tRecordFields =
+              pRecordFields
+                |> List.map (\(mws0, ws1, field, ws2, pat) ->
+                     (mws0, ws1, field, ws2, Maybe.withDefault dummyType0 pat.val.typ)
+                   )
+
+            newRecordType =
+              withDummyTypeInfo <|
+                TRecord space1 Nothing tRecordFields space0
+
+            newTypeAliasName =
+              "Params"
+
+            newRecordPat =
+              withDummyPatInfo <|
+                PRecord space1 pRecordFields space0
+
+            newEFun__ =
+              EFun ws1 (prefixPats ++ [newRecordPat] ++ suffixPats) body ws2
+
+            rewriteCalls =
+              mapExpViaExp__ <| \e__ ->
+                case e__ of
+                  EApp ws1 eFunc eArgs appType ws2 ->
+                    case (unExpr eFunc).val.e__ of
+                      EVar wsVar varFunc ->
+                        if varFunc == funcName then
+                          let
+                            (prefixArgs, selectedArgs, suffixArgs) =
+                              eArgs
+                                |> splitListIntoThreeParts
+
+                            eRecordFields =
+                              Utils.zip selectedPats selectedArgs
+                                |> Utils.mapi0 (\(i, (pat, arg)) ->
+                                     let
+                                       -- Assuming pat is PVar
+                                       field = String.trim (unparsePattern pat)
+                                     in
+                                       if i == 0 then
+                                         (Nothing, space0, field, space1, arg)
+                                       else
+                                         (Just space0, space0, field, space1, arg)
+                                   )
+
+                            newRecordArg =
+                              withDummyExpInfo <|
+                                eRecord__ space1 Nothing eRecordFields space1
+
+                            newEArgs =
+                              prefixArgs ++ [newRecordArg] ++ suffixArgs
+                          in
+                            EApp ws1 eFunc newEArgs appType ws2
+
+                        else
+                          e__
+                      _ ->
+                        e__
+                  _ ->
+                    e__
+
+            rewriteLetAnnots =
+              mapExpViaExp__ <| \e__ ->
+                case e__ of
+                  ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+                    let
+                      newLetAnnots =
+                        letAnnots |> List.map (\(LetAnnotation mws0 ws1 pat fas ws2 typAnnot) ->
+                          let
+                            newTypAnnot =
+                              if String.trim (unparsePattern pat) == funcName then
+                                matchArrowRecurse typAnnot
+                                  |> Maybe.map (\(typeVars, argTypes, retType) ->
+                                       let
+                                         (prefixTypes, _, suffixTypes) =
+                                           argTypes
+                                             |> splitListIntoThreeParts
+
+                                         newArgTypes =
+                                           prefixTypes
+                                             ++ [withDummyTypeInfo (TVar space0 newTypeAliasName)]
+                                             ++ suffixTypes
+                                       in
+                                         rebuildArrow (typeVars, newArgTypes, retType)
+                                  )
+                                  |> Maybe.withDefault typAnnot
+
+                              else
+                                typAnnot
+                          in
+                          LetAnnotation mws0 ws1 pat fas ws2 newTypAnnot
+                        )
+                    in
+                    ELet ws1 letKind (Declarations po letTypes newLetAnnots letExps) ws2 body
+
+                  _ ->
+                    e__
+
+            rewriteWithNewTypeAlias e =
+              let
+                strNewTypeAlias =
+                  "type alias " ++ newTypeAliasName ++ " = "
+                    ++ String.trim (unparseType newRecordType) ++ "\n"
+              in
+                e |> unparse
+                  |> String.lines
+                  |> Utils.inserti 0 strNewTypeAlias
+                  |> String.join "\n"
+                  |> parse
+                  |> Result.withDefault (eStr "Bad new alias. Bad editor. Bad")
+
+            newProgram =
+              inputExp
+                |> replaceExpNode eId (replaceE__ exp newEFun__)
+                |> rewriteCalls
+                |> rewriteLetAnnots
+                |> rewriteWithNewTypeAlias
+
+            transformationResults =
+              [ -- Label <| PlainText <| toString (eId, minIndex, maxIndex)
+                Fancy
+                  (synthesisResult "DUMMY" newProgram)
+                  (CodeText <|
+                     newTypeAliasName ++ " = " ++ String.trim (unparseType newRecordType))
+              ]
+          in
+          Just (NoInputDeuceTransform (\() -> transformationResults), Satisfied)
+
+          ))))
+
+          |> Maybe.withDefault (InactiveDeuceTransform, Impossible)
+
+        _ ->
+          (InactiveDeuceTransform, Impossible)
+  in
+    { name = "Introduce Type Alias from Args"
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "introduceTypeAlias"
+    }
