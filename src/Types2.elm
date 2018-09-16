@@ -1529,7 +1529,11 @@ introduceTypeAliasTool inputExp selections =
                 TRecord space1 Nothing tRecordFields space0
 
             newTypeAliasName =
-              "Params"
+              tRecordFields
+                |> List.map (\(_,_,_,_,t) -> unparseType t)
+                |> String.concat
+                |> String.words
+                |> String.concat
 
             newRecordPat =
               withDummyPatInfo <|
