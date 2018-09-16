@@ -7,6 +7,7 @@ module Types2 exposing
   , dummyAceTypeInfo
   , typeChecks
   , introduceTypeAliasTool
+  , renameTypeTool
   )
 
 import Info exposing (WithInfo, withDummyInfo)
@@ -1661,4 +1662,107 @@ introduceTypeAliasTool inputExp selections =
     , func = func
     , reqs = [ { description = "Select something.", value = boolPredVal } ]
     , id = "introduceTypeAlias"
+    }
+
+
+renameTypeTool : Exp -> DeuceSelections -> DeuceTool
+renameTypeTool inputExp selections =
+  let
+    (func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+
+        -- single pattern, nothing else
+        (_, _, [], [pathedPatId], [], [], [], [], []) ->
+          let
+            -- TODO ensure this works?
+            maybePat =
+              LangTools.findPatByPathedPatternId pathedPatId inputExp
+          in
+          maybePat |> Maybe.andThen (\pat ->
+          let
+            maybeTypeName =
+              case pat.val.p__ of
+                -- type / type alias encoded as PRecord.
+                -- HACK: just assuming it doesn't have any type args...
+                PRecord _ _ _ ->
+                  Just (String.trim (unparsePattern pat))
+                _ ->
+                  Nothing
+          in
+          maybeTypeName |> Maybe.andThen (\typeName ->
+          let
+            newTypeName =
+              -- TODO: placeholder
+              "NewName_" ++ typeName
+
+            rewriteType =
+              mapType <| \t ->
+                -- HACK
+                if String.trim (unparseType t) == typeName then
+                  -- HACK: stuffing into TVar instead of encoding as TRecord
+                  withDummyTypeInfo <| TVar space0 newTypeName
+                else
+                  t
+
+            rewriteExp =
+              mapExpViaExp__ <| \e__ ->
+                case e__ of
+                  ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+                    let
+                      newLetTypes =
+                        letTypes
+                          |> List.map (Tuple.mapSecond
+                               (List.map (\(LetType mws0 ws1 aliasSpace pat fas ws2 t) ->
+                                 let
+                                   newPat =
+                                     -- HACK
+                                     if String.trim (unparsePattern pat) == typeName then
+                                       -- HACK: stuffing into PVar instead of encoding as PRecord
+                                       withDummyPatInfo <| PVar space1 newTypeName noWidgetDecl
+                                     else
+                                       pat
+                                 in
+                                 LetType mws0 ws1 aliasSpace newPat fas ws2 t -- rewrite t
+                               ))
+                             )
+
+                      newLetAnnots =
+                        letAnnots
+                          |> List.map (\(LetAnnotation mws0 ws1 pat fas ws2 typAnnot) ->
+                               LetAnnotation mws0 ws1 pat fas ws2 (rewriteType typAnnot)
+                             )
+                    in
+                    ELet ws1 letKind (Declarations po newLetTypes newLetAnnots letExps) ws2 body
+
+                  EColonType ws1 e1 ws2 typ ws3 ->
+                    EColonType ws1 e1 ws2 (rewriteType typ) ws3
+
+                  _ ->
+                    e__
+
+            newProgram =
+              inputExp
+                |> rewriteExp
+
+            transformationResults () =
+              [ -- Label <| PlainText <| typeName
+              -- , Label <| PlainText <| newTypeName
+                Fancy (synthesisResult "DUMMY" newProgram) (PlainText "Rename")
+              ]
+          in
+          Just (NoInputDeuceTransform transformationResults, Satisfied)
+
+          ))
+
+          |> Maybe.withDefault (InactiveDeuceTransform, Impossible)
+
+        _ ->
+          (InactiveDeuceTransform, Impossible)
+  in
+    { name = "Rename Type"
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "renameType"
     }

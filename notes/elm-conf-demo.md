@@ -194,7 +194,7 @@
         main =
           svg logo
 
-1. <span style="color:orange;">**TODO: Remove extra temporaries.**</span>
+1. <span style="color:orange;">**TODO-Nick: Remove extra temporaries.**</span>
    Select `x`, `y`, and `size` constants and **Create Function from Arguments**.
    (Instead of Select `logo` and **Create Function from Definition**.)
           
@@ -217,10 +217,10 @@
         main =
           svg (logo 10 10 200)
 
-1. <span style="color:red;">**TODO: Need to rewrite the call.**</span>
+1. <span style="color:red;">**TODO-Nick: Need to rewrite the call.**</span>
    Select `"gray"` and **Add Argument** adds to end of argument list.
 
-1. <span style="color:orange;">**TODO: Could do without this if necessary.**</span>
+1. <span style="color:orange;">**TODO-Nick: Could do without this if necessary.**</span>
    Select `fill` and before `x` and **Reorder Argument**.
 
         logo fill x y size =
@@ -245,7 +245,7 @@
 1. <span style="color:green;">**OK:**</span>
    Select three shapes and **Inline Definitions**.
 
-1. <span style="color:red;">**TODO: Need to revisit WS before EApp.**</span>
+1. <span style="color:red;">**TODO-Ravi: Need to revisit WS before EApp.**</span>
    Select the shape list and **Format**.
           
         logo fill x y size =
@@ -304,21 +304,21 @@
 
         main : Svg
 
-1. <span style="color:red;">**TODO: Need to design nice view for type errors and fixes.**</span>
+1. <span style="color:red;">**TODO-Justin: Need to design nice view for type errors and fixes.**</span>
    Text-edit a `size` to `width`. Look at the nicely formatted
    error in **Type Information**.
 
-1. <span style="color:orange;">**TODO: Ditto render. Fix is suggested.**</span>
-   Text-edit the `width` to `sighs`. Close enough, so error suggests a fix.
+1.  Text-edit the `width` to `sighs`. Close enough, so error suggests a fix.
 
 
 ## Type-Based Code Tools + Holes
 
 1. <span style="color:green;">**OK:**</span>
    Select three `Num`s and **Introduce Type Alias from Args**.
-   One option ~~with tuple type, one~~ with record type.
+   One option ~~with tuple type, one~~ with record type called `NumNumNum`.
 
-1. <span style="color:red;">**TODO:**</span>
+1. <span style="color:red;">**TODO: Basic version implemented with
+   default choice for new name.**</span>
    **Rename Type**.
 
         type alias Params = {x:Num, y:Num, size:Num}
@@ -331,8 +331,12 @@
         main =
           svg (logo "gray" {x=10, y=10, size=200})
 
-1. <span style="color:red;">**TODO:**</span>
-   Select record type and **Format** to see a few different options. Keep as-is.
+     <!--
+     
+     1. <span style="color:red;">**TODO:**</span>
+        Select record type and **Format** to see a few different options. Keep as-is.
+     
+     -->
 
 1. <span style="color:red;">**TODO:**</span>
    Select `Params` type and **Convert to Datatype**.
