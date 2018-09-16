@@ -595,6 +595,7 @@ synthesisResult description exp =
 type ResultText
   = PlainText String
   | HeaderText String
+  | ErrorHeaderText String
   | CodeText String
   | TypeText String
   | HintText String

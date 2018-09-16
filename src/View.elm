@@ -445,37 +445,57 @@ deuceSynthesisResultInfo
 
 viewResultText : ResultText -> Html Msg
 viewResultText rt =
-  case rt of
-    PlainText s ->
-      Html.p
-        [ Attr.class "result-text-plain"
+  let
+    content t =
+      Html.span
+        [ Attr.class "result-text-content"
         ]
-        [ Html.text s
+        [ Html.text t
         ]
-    HeaderText s ->
-      Html.h1
-        [ Attr.class "result-text-header"
-        ]
-        [ Html.text s
-        ]
-    CodeText s ->
-      Html.code
-        [ Attr.class "result-text-code"
-        ]
-        [ Html.text s
-        ]
-    TypeText s ->
-      Html.code
-        [ Attr.class "result-text-type"
-        ]
-        [ Html.text s
-        ]
-    HintText s ->
-      Html.p
-        [ Attr.class "result-text-hint"
-        ]
-        [ Html.text s
-        ]
+  in
+    case rt of
+      PlainText t ->
+        Html.p
+          [ Attr.class "result-text-plain"
+          ]
+          [ content t
+          ]
+      HeaderText t ->
+        Html.h1
+          [ Attr.class "result-text-header"
+          ]
+          [ content t
+          ]
+      ErrorHeaderText t ->
+        Html.h1
+          [ Attr.class "result-text-header error"
+          ]
+          [ content t
+          ]
+      CodeText t ->
+        Html.code
+          [ Attr.class "result-text-code"
+          ]
+          [ content t
+          ]
+      TypeText t ->
+        Html.code
+          [ Attr.class "result-text-type"
+          ]
+          [ content t
+          ]
+      HintText t ->
+        Html.p
+          [ Attr.class "result-text-hint"
+          ]
+          [ Html.span
+              [ Attr.class "result-text-hint-annotation"
+              ]
+              [ Html.text "Hint"
+              ]
+          , Html.text ": "
+          , content t
+          ]
 
 deuceTransformationResult :
   Model -> List Int -> DeuceTransformation -> TransformationResult -> Html Msg
@@ -517,7 +537,10 @@ deuceTransformationResult model path deuceTransformation transformationResult =
   in
     case maybeSynthesisInfo of
       Nothing ->
-        Html.div [] description
+        Html.div
+          [ Attr.class "just-description"
+          ]
+          description
 
       Just synthesisInfo ->
         generalHtmlHoverMenu

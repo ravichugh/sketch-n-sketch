@@ -691,7 +691,6 @@ code {
 }
 
 /* Output Canvas children styles */
-/* TODO perhaps temporary until we figure out how to handle this best? */
 
 #outputCanvas h1,
 #outputCanvas h2,
@@ -1005,12 +1004,27 @@ code {
  * Synthesis Menu                                                             *
  ******************************************************************************/
 
-.synthesis-results .hover-menu .text-button {
+.synthesis-results .hover-menu .text-button,
+.synthesis-results .just-description
+{
+  display: block;
   width: 450px;
   height: auto;
-  padding: 7px;
   line-height: 1.4em;
   white-space: normal;
+  position: relative;
+}
+
+.synthesis-results .hover-menu .text-button {
+  padding: 7px;
+}
+
+.synthesis-results .just-description {
+  margin: 7px 0;
+  padding: 0 7px;
+}
+
+.synthesis-results .hover-menu .text-button {
   border-bottom: 1px solid var(--subtle-border-color);
 }
 
@@ -1024,6 +1038,65 @@ code {
 
 .synthesis-results .hover-menu-indicator {
   display: none;
+}
+
+/******************************************************************************
+ * Result Text                                                                *
+ ******************************************************************************/
+
+.result-text-plain {
+}
+
+.result-text-header {
+  font-size: 1em;
+  position: relative;
+  z-index: 1;
+}
+
+.result-text-header:before {
+  content: "";
+  display: block;
+
+  border-bottom: 1px dashed var(--main-border-color);
+
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  z-index: -1;
+}
+
+.result-text-header .result-text-content {
+  background-color: var(--panel-bg-color);
+  margin-left: 20px;
+  padding: 0 5px;
+}
+
+.result-text-header.error {
+  color: var(--alert-warning-text-color);
+}
+
+.result-text-code,
+.result-text-type
+{
+  margin: 0 15px;
+  padding: 5px 10px;
+  border: 1px dashed var(--main-border-color);
+  border-radius: 5px;
+  display: block;
+}
+
+.result-text-code {
+}
+
+.result-text-type {
+}
+
+.result-text-hint {
+}
+
+.result-text-hint-annotation {
+  text-decoration: underline;
 }
 
 /******************************************************************************

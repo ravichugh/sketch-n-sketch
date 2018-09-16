@@ -573,10 +573,12 @@ inferType gamma stuff thisExp =
         Nothing ->
           let
             messages =
-              [ deuceLabel <| HeaderText <|
-                  "NAMING ERROR"
+              [ deuceLabel <| ErrorHeaderText <|
+                  "Naming Error"
               , deuceLabel <| PlainText <|
-                  "Cannot find variable `" ++ x ++ "`"
+                  "Cannot find variable"
+              , deuceLabel <| CodeText <|
+                  x
               ]
             suggestions =
               List.map
@@ -587,9 +589,11 @@ inferType gamma stuff thisExp =
                 messages
               else
                 messages
-                  ++ [ deuceLabel <| PlainText <| "Maybe you want one of the following?" ]
+                  ++ [ deuceLabel <| PlainText <|
+                         "Maybe you want one of the following?"
+                     ]
                   ++ List.map
-                       (\(y, ey) -> deuceTool y (replaceExpNode (unExpr thisExp).val.eid ey stuff.inputExp))
+                       (\(y, ey) -> deuceTool (CodeText y) (replaceExpNode (unExpr thisExp).val.eid ey stuff.inputExp))
                        suggestions
           in
           { newExp = thisExp |> setDeuceTypeInfo (DeuceTypeInfo items) }
@@ -695,17 +699,26 @@ inferType gamma stuff thisExp =
                 let
                   addErrorAndInfo (eid1, type1) (eid2, type2) branchExp =
                     branchExp
-                      |> setDeuceTypeInfo (deucePlainLabels
-                           [ "-- TYPE MISMATCH ------------------------------------------------------"
-                           , "The branches of this `if` produce different types of values."
-                           , "This branch has type"
-                           , unparseType type1
-                           , "But the other branch has type"
-                           , unparseType type2
-                           , """Hint: These need to match so that no matter which
-                                branch we take, we always get
-                                back the same type of value."""
-                           ])
+                      |> setDeuceTypeInfo
+                           ( DeuceTypeInfo
+                               [ deuceLabel <| ErrorHeaderText <|
+                                   "Type Mismatch"
+                               , deuceLabel <| PlainText <|
+                                   "The branches of this `if` produce different types of values."
+                               , deuceLabel <| PlainText <|
+                                   "This branch has type"
+                               , deuceLabel <| TypeText <|
+                                   unparseType type1
+                               , deuceLabel <| PlainText <|
+                                   "But the other branch has type"
+                               , deuceLabel <| TypeText <|
+                                   unparseType type2
+                               , deuceLabel <| PlainText <|
+                                   "TODO-Ravi Maybe an option to change expected type if it's annotation..."
+                               , deuceLabel <| HintText
+                                   "These need to match so that no matter which branch we take, we always get back the same type of value."
+                               ]
+                           )
                       |> setExtraDeuceTypeInfo (HighlightWhenSelected eid2)
 
                   (thenExpId, elseExpId) =
@@ -901,7 +914,7 @@ inferType gamma stuff thisExp =
                                  pat |> setPatType (Just inferredType)
                                         -- TODO: Not an error, rename DeuceTypeInfo...
                                      |> setPatDeuceTypeInfo (DeuceTypeInfo
-                                          [ deuceTool "Add inferred annotation"
+                                          [ deuceTool (PlainText "Add inferred annotation")
                                               (insertStrAnnotation pat (unparseType inferredType) stuff.inputExp)
                                           ]
                                         )
@@ -919,7 +932,7 @@ inferType gamma stuff thisExp =
                                      pat |> setPatDeuceTypeInfo (DeuceTypeInfo
                                        [ deuceLabel <| PlainText <|
                                            "Currently, functions need annotations"
-                                       , deuceTool "Add dummy type annotation"
+                                       , deuceTool (PlainText "Add dummy type annotation")
                                            (insertStrAnnotation pat wildcards stuff.inputExp)
                                        ]
                                      )
@@ -1329,15 +1342,14 @@ deucePlainLabels strings =
     (List.map (deuceLabel << PlainText) strings)
 
 
-deuceTool : String -> Exp -> TransformationResult
-deuceTool str exp =
-  Fancy (synthesisResult "Types2 DUMMY DESCRIPTION" exp) (PlainText str)
-
+deuceTool : ResultText -> Exp -> TransformationResult
+deuceTool rt exp =
+  Fancy (synthesisResult "Types2 DUMMY DESCRIPTION" exp) rt
 
 expectedButGot expectedType maybeActualType =
   DeuceTypeInfo
-    [ deuceLabel <| HeaderText <|
-        "TYPE MISMATCH"
+    [ deuceLabel <| ErrorHeaderText <|
+        "Type Mismatch"
     , deuceLabel <| PlainText <|
         "The expected type is"
     , deuceLabel <| TypeText <|
@@ -1384,7 +1396,12 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
           ]
 
         (Just t, Nothing) ->
-          [ deuceLabel <| TypeText <| unparseType t ]
+          [ deuceLabel <| HeaderText <|
+              "Type Inspector"
+          , deuceLabel <| PlainText <|
+              "The type of this is"
+          , deuceLabel <| TypeText <| unparseType t
+          ]
 
         (_, Just (DeuceTypeInfo items)) ->
           items
