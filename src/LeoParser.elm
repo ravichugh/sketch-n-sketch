@@ -475,8 +475,17 @@ keywords =
     , "then"
     , "else"
     , "type"
+    , "alias"
     , "True"
     , "False"
+    ]
+
+moreKeywords =
+  Set.fromList
+    [ "Null"
+    , "Num"
+    , "Bool"
+    , "String"
     ]
 
 identifier : Parser Ident
@@ -504,7 +513,7 @@ bigIdentifier =
     LK.variable
       Char.isUpper
       isRestChar
-      keywords
+      (Set.union keywords moreKeywords) -- keywords
 
 symbolIdentifier : ParserI Ident
 symbolIdentifier =
@@ -1398,12 +1407,11 @@ simpleType minStartCol =
   inContext "type" <|
     lazy <| \_ ->
       (oneOf
-        [ nullType
+        [ dataType
         , numType
         , boolType
         , stringType
         , variableType
-        , dataType
         , wildcardType
         , lazy <| \_ -> tupleType
         , lazy <| \_ -> recordType
