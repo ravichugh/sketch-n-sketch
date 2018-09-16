@@ -152,7 +152,7 @@ getDatatypeName v = vRecordUnapplyField ctorDataType v |> Maybe.andThen vStringU
 
 getViewDatatypeName: Val -> Maybe String
 getViewDatatypeName v = case vListUnapply v of
-  Just [head,attrs,children] -> 
+  Just [head,attrs,children] ->
     let isAttrCorrect = (case attrs.v_ of
          VList _ -> True
          _ -> False
@@ -231,6 +231,40 @@ maybeEvalMathOp op_ operands =
     (Sqrt,    [n])   -> Just <| sqrt n
     (Pi,      [])    -> Just <| pi
     _                -> Nothing
+
+opArity : Op -> Int
+opArity op =
+  case op.val of
+    Pi                  -> 0
+    DictEmpty           -> 0
+    CurrentEnv          -> 0
+    DictFromList        -> 1
+    Cos                 -> 1
+    Sin                 -> 1
+    ArcCos              -> 1
+    ArcSin              -> 1
+    Floor               -> 1
+    Ceil                -> 1
+    Round               -> 1
+    ToStr               -> 1
+    ToStrExceptStr      -> 1
+    Sqrt                -> 1
+    Explode             -> 1
+    DebugLog            -> 1
+    NoWidgets           -> 1
+    Plus                -> 2
+    Minus               -> 2
+    Mult                -> 2
+    Div                 -> 2
+    Lt                  -> 2
+    Eq                  -> 2
+    Mod                 -> 2
+    Pow                 -> 2
+    ArcTan2             -> 2
+    DictGet             -> 2
+    DictRemove          -> 2
+    DictInsert          -> 3
+    RegexExtractFirstIn -> 3
 
 type alias Operator =
   (WS, Ident)

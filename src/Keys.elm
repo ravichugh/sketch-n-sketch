@@ -44,6 +44,8 @@ delete              = List.sort [keyDelete]
 -- Note: Ctrl is also 17, so this catches cmd and ctrl.
 isCommandKey code   = List.member code [17, 91, 93, 224]
 
+keyDigit digit      = key0 + digit
+
 keyEnter            = 13
 keyEsc              = 27
 keyCtrl             = 17
@@ -68,4 +70,9 @@ keyL                = Char.toCode 'L'
 keyS                = Char.toCode 'S'
 keyT                = Char.toCode 'T'
 keyZ                = 90
+key0                = Char.toCode '0'
 keyPlusEqual        = 187
+keyComma            = 188
+keyMinus            = 189
+keyPeriod           = 190
+keyForwardSlash     = 191

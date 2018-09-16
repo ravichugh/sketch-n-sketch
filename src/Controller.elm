@@ -3217,8 +3217,8 @@ deuceMove destWidget old =
   { old | deuceState = newDS } |>
   flip resetDeuceCacheAndReselect DeuceTools.createToolCache
 
-deuceChooserUI : Model -> (String, String -> List TransformationResult) -> Model
-deuceChooserUI old titleAndTextToTransformationResults =
+deuceChooserUI : Model -> String -> (String, String -> List TransformationResult) -> Model
+deuceChooserUI old initText titleAndTextToTransformationResults =
   let
     (title, textToTransformationResults) = titleAndTextToTransformationResults
     oldReset = resetDeuceKeyboardInfo old
@@ -3227,7 +3227,7 @@ deuceChooserUI old titleAndTextToTransformationResults =
     | mbDeuceKeyboardInfo =
         Just <|
         { title = title
-        , text = ""
+        , text = initText
         , textToTransformationResults = textToTransformationResults
         }
     , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
@@ -3251,9 +3251,36 @@ handleDeuceMoveHorizontal_ old selected isLeftMove =
 
 handleDeuceHotKey : Model -> List Char.KeyCode -> DeuceWidget -> Model
 handleDeuceHotKey oldModel keysDown selected =
-  let old = resetDeuceKeyboardInfo oldModel in
+  let
+    old = resetDeuceKeyboardInfo oldModel
+    -- TODO although difficult to avoid, this is way too hard-coded
+    mbPrefixOfNumberOrOp keyCodes =
+      if List.length keyCodes == 1
+         && Utils.head_ keyCodes >= Keys.keyDigit 0
+         && Utils.head_ keyCodes <= Keys.keyDigit 9 then
+        Just <| toString <| Utils.head_ keyCodes - Keys.keyDigit 0
+      else if keyCodes == [Keys.keyPeriod] then
+        Just "."
+      else if keyCodes == [Keys.keyShift, Keys.keyPlusEqual] then
+        Just "+"
+      else if keyCodes == [Keys.keyMinus] then
+        Just "-"
+      else if keyCodes == [Keys.keyShift, Keys.keyDigit 8] then
+        Just "*"
+      else if keyCodes == [Keys.keyForwardSlash] then
+        Just "/"
+      else if keyCodes == [Keys.keyShift, Keys.keyComma] then
+        Just "<"
+      else if keyCodes == [Keys.keyPlusEqual] then
+        Just "="
+      else if keyCodes == [Keys.keyShift, Keys.keyDigit 6] then
+        Just "^"
+      else
+        Nothing
+  in
 
   -- Movement
+
   if List.member keysDown [[Keys.keyLeft], [Keys.keyH]] then
     handleDeuceLeft old selected
   else if List.member keysDown [[Keys.keyRight], [Keys.keyL]] then
@@ -3263,10 +3290,15 @@ handleDeuceHotKey oldModel keysDown selected =
   --   handleDeuceSpace old selected
 
   -- Deuce tools
+
   else if keysDown == [Keys.keyI] then
-    DeuceTools.smartCompleteHole old selected |> deuceChooserUI old
+    DeuceTools.smartCompleteHoleViaHotkey old selected |> deuceChooserUI old ""
+  else if mbPrefixOfNumberOrOp keysDown /= Nothing then
+    DeuceTools.smartCompleteHoleViaHotkey old selected
+    |> deuceChooserUI old (mbPrefixOfNumberOrOp keysDown |> Utils.fromJust_ "bad num/op")
+
   else if keysDown == [Keys.keyS] then
-    DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old
+    DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old ""
   else if List.member keysDown [[Keys.keyShift, Keys.keyDown], [Keys.keyShift, Keys.keyJ]] then
     DeuceTools.expandFormatViaHotkey old selected |> maybeChooseDeuceExp old
   else if keysDown == [Keys.keyShift, Keys.keyA] then
