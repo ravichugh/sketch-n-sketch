@@ -164,7 +164,7 @@
             halfLine =
               line "white" 10 x (y + size) cx cy
           in
-          [rectangle, fullLine, halfLine]
+            [rectangle, fullLine, halfLine]
   
         main =
           svg logo
@@ -189,7 +189,7 @@
             halfLine =
               line "white" 10 x (y + size) cx cy
           in
-          [rectangle, fullLine, halfLine]
+            [rectangle, fullLine, halfLine]
 
         main =
           svg logo
@@ -212,12 +212,12 @@
             halfLine =
               line "white" 10 x (y + size) cx cy
           in
-          [rectangle, fullLine, halfLine]
+            [rectangle, fullLine, halfLine]
   
         main =
           svg (logo 10 10 200)
 
-1. <span style="color:red;">**TODO-Nick: Need to rewrite the call.**</span>
+1. <span style="color:green;">**OK:**</span>
    Select `"gray"` and **Add Argument** adds to end of argument list.
 
 1. <span style="color:orange;">**TODO-Nick: Could do without this if necessary.**</span>
@@ -237,7 +237,7 @@
             halfLine =
               line "white" 10 x (y + size) cx cy
           in
-          [rectangle, fullLine, halfLine]
+            [rectangle, fullLine, halfLine]
   
         main =
           svg (logo "gray" 10 10 200)
@@ -245,7 +245,7 @@
 1. <span style="color:green;">**OK:**</span>
    Select three shapes and **Inline Definitions**.
 
-1. <span style="color:red;">**TODO-Ravi: Need to revisit WS before EApp.**</span>
+1. <span style="color:green;">**OK: **</span>
    Select the shape list and **Format**.
           
         logo fill x y size =
@@ -253,10 +253,10 @@
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
           in
-          [ rect fill x y size size
-          , line "white" 10 x y (x + size) (y + size)
-          , line "white" 10 x (y + size) cx cy
-          ]
+            [ rect fill x y size size
+            , line "white" 10 x y (x + size) (y + size)
+            , line "white" 10 x (y + size) cx cy
+            ]
   
         main =
           svg (logo "gray" 10 10 200)
@@ -291,10 +291,10 @@
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
           in
-          [ rect fill x y size size
-          , line "white" 10 x y (x + size) (y + size)
-          , line "white" 10 x (y + size) cx cy
-          ]
+            [ rect fill x y size size
+            , line "white" 10 x y (x + size) (y + size)
+            , line "white" 10 x (y + size) cx cy
+            ]
 
         main =
           svg (logo "gray" 10 10 200)
@@ -352,17 +352,16 @@
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
           in
-          [ rect fill x y size size
-          , line "white" 10 x y (x + size) (y + size)
-          , line "white" 10 x (y + size) cx cy
-          ]
+            [ rect fill x y size size
+            , line "white" 10 x y (x + size) (y + size)
+            , line "white" 10 x (y + size) cx cy
+            ]
 
         main : Svg
         main =
           svg (logo "gray" (LogoParams {x=10, y=10, size=200}))
 
-1. <span style="color:red;">**TODO-???: Need to be able to select data con.
-   TODO-Ravi: Implement tool.**</span>
+1. <span style="color:red;">**TODO-Ravi:**</span>
    **Rename Constructor** to `TopLeft`.
 
 1. <span style="color:red;">**TODO-Ravi:**</span>
@@ -441,10 +440,10 @@
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
           in
-          [ rect fill x y size size
-          , line "white" 10 x y (x + size) (y + size)
-          , line "white" 10 x (y + size) cx cy
-          ]
+            [ rect fill x y size size
+            , line "white" 10 x y (x + size) (y + size)
+            , line "white" 10 x (y + size) cx cy
+            ]
   
         main : Svg
         main =
