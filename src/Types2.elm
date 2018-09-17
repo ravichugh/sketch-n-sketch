@@ -940,7 +940,7 @@ inferType gamma stuff thisExp =
                                      pat |> setPatDeuceTypeInfo (DeuceTypeInfo
                                        [ deuceLabel <| PlainText <|
                                            "Currently, functions need annotations"
-                                       , deuceTool (PlainText "Add dummy type annotation")
+                                       , deuceTool (PlainText "Add skeleton type annotation")
                                            (insertStrAnnotation pat wildcards stuff.inputExp)
                                        ]
                                      )

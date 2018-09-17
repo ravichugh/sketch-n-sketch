@@ -265,12 +265,11 @@
 ## Type Inspector
 
 1. Turn on type checking.
-
-1. Hover around and see a bunch of things got type checked.
+   Hover around and see a bunch of things got type checked.
 
 1. <span style="color:green;">**OK:**</span>
    Currently need annotations on functions, so there's an error.
-   There's a tool to **Add dummy type annotation**.
+   There's a tool to **Add skeleton type annotation**.
 
         logo : _ -> _ -> _ -> _ -> _
 
@@ -303,12 +302,6 @@
    Select `main`, **Type Information**, **Add inferred annotation**.
 
         main : Svg
-
-1. <span style="color:ok;">**OK:**</span>
-   Text-edit a `size` to `width`. Look at the nicely formatted
-   error in **Type Information**.
-
-1.  Text-edit the `width` to `sighs`. Close enough, so error suggests a fix.
 
 
 ## Type-Based Code Tools + Holes
@@ -398,7 +391,7 @@
                   {x=??, y=??, size=??}
 
 1. <span style="color:orange;">**TODO-Nick: Another nice place for keyboard-nav.**</span>
-   Text edits.
+   Text edits. Naming errors `x` and `y`, fixes suggested.
 
                 Center {cx, cy, rad} ->
                   {x=cx-rad, y=cy-rad, size=2*rad}
