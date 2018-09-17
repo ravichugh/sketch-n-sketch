@@ -194,7 +194,7 @@
         main =
           svg logo
 
-1. <span style="color:orange;">**TODO-Nick: Remove extra temporaries.**</span>
+1. <span style="color:orange;">**TODO-Nick: Keep nicer names.**</span>
    Select `x`, `y`, and `size` constants and **Create Function from Arguments**.
    (Instead of Select `logo` and **Create Function from Definition**.)
           
@@ -304,7 +304,7 @@
 
         main : Svg
 
-1. <span style="color:red;">**TODO-Justin: Need to design nice view for type errors and fixes.**</span>
+1. <span style="color:ok;">**OK:**</span>
    Text-edit a `size` to `width`. Look at the nicely formatted
    error in **Type Information**.
 
@@ -337,7 +337,7 @@
      
      -->
 
-1. <span style="color:red;">**TODO:**</span>
+1. <span style="color:green;">**OK:**</span>
    Select `LogoParams` type and **Convert to Datatype**.
 
         type LogoParams = LogoParams {x:Num, y:Num, size:Num}
@@ -361,10 +361,11 @@
         main =
           svg (logo "gray" (LogoParams {x=10, y=10, size=200}))
 
-1. <span style="color:red;">**TODO:**</span>
+1. <span style="color:red;">**TODO-???: Need to be able to select data con.
+   TODO-Ravi: Implement tool.**</span>
    **Rename Constructor** to `TopLeft`.
 
-1. <span style="color:red;">**TODO:**</span>
+1. <span style="color:red;">**TODO-Ravi:**</span>
    **Duplicate Constructor**. Let's have the dummy case just be a hole to
    start. Click `LogoParams` and **Format** to choose multi-line option.
 
@@ -384,10 +385,12 @@
                   ??
             ...
 
-1. <span style="color:red;">**TODO:**</span>
-   **Rename Constructor** to `Center`. **Rename Fields** to `cx`, `cy`, and `rad`.
+1. <span style="color:red;">**TODO-Ravi:**</span>
+   **Rename Constructor** to `Center`.
 
-1. <span style="color:red;">**TODO:**</span>
+1. Rename fields (with text-edits, for now) to `cx`, `cy`, and `rad`.
+
+1. <span style="color:red;">**TODO-Ravi:**</span>
    **Type Information** shows error between branches. Because one
    branch synthesized, one fix for the hole is to convert to record
    of holes.
@@ -407,7 +410,7 @@
         main =
           svg (logo "gray" (Center {cx=300, cy=300, rad=40}))
 
-1. <span style="color:red;">**TODO:**</span>
+1. <span style="color:red;">**TODO-Ravi:**</span>
    Select the `svg` call and **Format**. Multiple options, such as
 
           svg <| logo "gray" <| Center {cx=300, cy=300, rad=40}
