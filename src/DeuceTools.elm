@@ -2646,7 +2646,7 @@ typesTool model selections =
           in
           (NoInputDeuceTransform (Types2.makeDeuceExpTool model.inputExp exp), Satisfied)
 
-        -- snigle pattern, nothing else
+        -- single pattern, nothing else
         (_, _, [], [pathedPatId], [], [], [], [], []) ->
           -- TODO ensure this works?
           case LangTools.findPatByPathedPatternId pathedPatId model.inputExp of
@@ -2655,6 +2655,17 @@ typesTool model selections =
 
             Just pat ->
               (NoInputDeuceTransform (Types2.makeDeucePatTool model.inputExp pat), Satisfied)
+
+        -- single type, nothing else
+        (_, _, [], [], [tId], [], [], [], []) ->
+          -- let
+          --   transformationResults () =
+          --     [ Label <| PlainText <| toString tId
+          --     ]
+          -- in
+          -- (NoInputDeuceTransform transformationResults, Satisfied)
+          --
+          (InactiveDeuceTransform, Impossible)
 
         _ ->
           (InactiveDeuceTransform, Impossible)
