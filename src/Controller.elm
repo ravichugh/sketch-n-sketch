@@ -204,7 +204,8 @@ showTypeInspectorIfNecessary : Bool -> Model -> Model
 showTypeInspectorIfNecessary typeChecks model =
   { model
       | codeEditorMode =
-          if typeChecks then
+          -- if typeChecks then
+          if True then
             model.codeEditorMode
           else
             CETypeInspector
