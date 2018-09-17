@@ -119,12 +119,16 @@ menuBarTotalHeight =
 --------------------------------------------------------------------------------
 
 iconButton =
-  { width  = 49
-  , height = 49
+  { iconWidth = 29
+  , iconHeight = 29
+  }
+
+toolButton =
+  { width = 170
   }
 
 toolPanel =
-  { width = 2 * iconButton.width
+  { width = toolButton.width
   , right = spacing.width
   , marginLeft = spacing.width
   }
@@ -235,7 +239,7 @@ defaultMainResizerX : Model -> Int
 defaultMainResizerX model =
   let
     ratio =
-      0.6
+      0.4
     spaceToDivide =
       toFloat <|
         dynamicContentWidth model - mainResizerWidth

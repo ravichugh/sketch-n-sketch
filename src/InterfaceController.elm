@@ -2855,9 +2855,9 @@ wrapIconWithSvg computeViewBox svgElements =
   in
   Svg.svg
     ([ Svg.Attributes.width <|
-        (SleekLayout.px << subPadding << .width) SleekLayout.iconButton
+        (SleekLayout.px << subPadding << .iconWidth) SleekLayout.iconButton
     , Svg.Attributes.height <|
-        (SleekLayout.px << subPadding << .height) SleekLayout.iconButton
+        (SleekLayout.px << subPadding << .iconHeight) SleekLayout.iconButton
     ] ++ viewBoxAttrs)
     svgElements
 

@@ -1517,9 +1517,7 @@ iconButtonExtraAttrs model iconName maybeTitle extraAttrs onClickHandler btnKind
     [ Attr.disabled disabled
     , Attr.class "icon-button"
     , Attr.style
-        [ ("width", (px << .width) SleekLayout.iconButton)
-        , ("height", (px << ((+) 25) << .height) SleekLayout.iconButton)
-        , ("word-wrap", "break-word")
+        [ ("word-wrap", "break-word")
         , ("background", color)
         , ("overflow", "hidden")
         ]
@@ -1532,7 +1530,13 @@ iconButtonExtraAttrs model iconName maybeTitle extraAttrs onClickHandler btnKind
       , Attr.title (Maybe.withDefault iconName maybeTitle)
       ] ++
       extraAttrs)
-    [ iconHtml, Html.text iconName ]
+    [ iconHtml
+    , Html.span
+        [ Attr.class "icon-button-label"
+        ]
+        [ Html.text iconName
+        ]
+    ]
 
 toolButton model tool =
   let
@@ -1562,7 +1566,6 @@ toolButton model tool =
   in
     Html.div
       [ Attr.class "tool"
-      , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
       ]
       [ iconButton
           model cap Nothing (Msg cap (\m -> { m | mouseMode = MouseNothing, tool = tool })) btnKind False
@@ -1575,7 +1578,6 @@ functionTools model =
       (\(funcName, funcType) ->
         Html.div
           [ Attr.class "tool"
-          , Attr.style [ ("width", (px << .width) SleekLayout.iconButton) ]
           ]
           [ iconButton model funcName (Just <| funcName ++ " : " ++ Syntax.typeWithRolesUnparser Syntax.Elm funcType)
               (Msg (funcName ++ " Function Tool") (\m -> { m | tool = Function funcName }))
@@ -1593,15 +1595,13 @@ toolPanel model =
         []
   in
     Html.div
-      [ Attr.class "panel tool-panel"
+      [ Attr.class "panel outlined tool-panel"
       , Attr.style
           [ ("width", (px << .width) SleekLayout.toolPanel)
-          , ("height", (px << .height) (SleekLayout.outputCanvas model))
+          -- +35 for height of context bar
+          , ("maxHeight", (px << (+) 35 << .height) (SleekLayout.outputCanvas model))
           , ("right", (px << .right) SleekLayout.toolPanel)
           , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
-          , ("display", "flex")
-          , ("flex-direction", "column")
-          , ("flex-wrap", "wrap")
           ]
       ]
       ( [ toolButton model Cursor

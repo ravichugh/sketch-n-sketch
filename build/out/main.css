@@ -40,22 +40,6 @@ code {
   box-shadow: 0 0 7px 0 var(--shadow-color);
 }
 
-/* Put the box-shadow under adjacent elements https://blog.dudak.me/2014/css-shadows-under-adjacent-elements/ */
-.tool {
-  position: relative;
-}
-
-.tool:before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: -1;
-  box-shadow: 0 0 7px 0 var(--shadow-color);
-}
-
 /******************************************************************************
  * Buttons                                                                    *
  ******************************************************************************/
@@ -671,32 +655,39 @@ code {
 
 .tool-panel {
   /* width: DYNAMIC */
-/*  background-color: var(--panel-bg-color);*/
+  /* max-height: DYNAMIC */
   /* margin-left: DYNAMIC */
 
   position: absolute;
   /* right: DYNAMIC */
+
+  display: flex;
+  flex-direction: column;
+  overflow-y: scroll;
+}
+
+.tool-panel .tool {
+  width: 100%;
+}
+
+.tool-panel .icon-button {
+  width: 100%;
+  padding: 2px;
+
+  display: flex;
+  align-items: center;
+}
+
+.tool-panel .icon-button > svg {
+  flex-shrink: 0;
+}
+
+.tool-panel .icon-button-label {
+  margin-left: 0.75em;
 }
 
 .tool-separator {
   height: 5px;
-}
-
-.tool-mode-indicator {
-/*  background-color: var(--panel-bg-color);*/
-  text-align: center;
-  font-size: 0.5em;
-  line-height: 1.4em;
-  padding: 5px 0;
-}
-
-.tool-mode-indicator .tool-mode {
-  color: var(--subtle-text-color);
-  cursor: pointer;
-}
-
-.tool-mode-indicator .tool-mode.active {
-  color: var(--active-text-color);
 }
 
 /******************************************************************************
