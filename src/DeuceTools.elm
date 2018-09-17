@@ -1051,6 +1051,15 @@ copyExpressionTool model selections =
 -- Move Definition
 --------------------------------------------------------------------------------
 
+patIdToEIdBindingNum: Exp -> PathedPatternId -> Maybe (EId, BindingNumber)
+patIdToEIdBindingNum originalExp ((eid, bindingNum), path) =
+  if path /= [] then Nothing
+  else
+    if    findExpByEId originalExp eid
+       |> Maybe.map isLet
+       |> Maybe.withDefault False then Just (eid, bindingNum)
+    else Nothing
+
 moveDefinitionTool : Model -> Selections -> DeuceTool
 moveDefinitionTool model selections =
   let
@@ -1116,33 +1125,45 @@ moveDefinitionTool model selections =
                 model.inputExp
           , Satisfied
           )-}
-        ([], [], [], [], [], letEIds, [declTarget], [], []) ->
-          ( Utils.perhapsPluralizeList toolName letEIds
-          , NoInputDeuceTransform <| \() ->
-              CodeMotion.moveDeclarations
-                letEIds
-                (Tuple.mapFirst InsertDeclarationLevel declTarget)
-                model.inputExp
-          , Satisfied
-          )
-        ([], [], [], [], [], letEIds, [], [(Before, eId)], []) ->
-          ( Utils.perhapsPluralizeList toolName letEIds
-          , NoInputDeuceTransform <| \() ->
-              CodeMotion.moveDeclarations
-                letEIds
-                (InsertDeclarationLevel Before, (eId, 0))
-                model.inputExp
-          , Satisfied
-          )
-        ([], [], [], [], [], letEIds, [], [], [(beforeAfter, (insertionPosition, path), pId)]) ->
-               ( Utils.perhapsPluralizeList toolName letEIds
-               , NoInputDeuceTransform <| \() ->
-                   CodeMotion.moveDeclarations
-                     letEIds
-                     (InsertPatternLevel beforeAfter path, insertionPosition)
-                     model.inputExp
-               , Satisfied
-               )
+        ([], [], [], patIds, [], letEIds, declTargets, eTargets, patTargets) ->
+          let mbAllLetIds = patIds
+                |> List.map (patIdToEIdBindingNum model.inputExp)
+                |> Utils.projJusts
+                |> Maybe.map (flip (++) letEIds) in
+          case mbAllLetIds of
+            Nothing -> (toolName, InactiveDeuceTransform, Impossible)
+            Just [] -> (toolName, InactiveDeuceTransform, Impossible)
+            Just allLetEIds ->
+               case (declTargets, eTargets, patTargets) of
+                ([declTarget], [], []) ->
+                   ( Utils.perhapsPluralizeList toolName allLetEIds
+                   , NoInputDeuceTransform <| \() ->
+                       CodeMotion.moveDeclarations
+                         allLetEIds
+                         (Tuple.mapFirst InsertDeclarationLevel declTarget)
+                         model.inputExp
+                   , Satisfied
+                   )
+                ([], [(Before, eId)], []) ->
+                  ( Utils.perhapsPluralizeList toolName allLetEIds
+                  , NoInputDeuceTransform <| \() ->
+                      CodeMotion.moveDeclarations
+                        allLetEIds
+                        (InsertDeclarationLevel Before, (eId, 0))
+                        model.inputExp
+                  , Satisfied
+                  )
+                ([], [], [(beforeAfter, (insertionPosition, path), pId)]) ->
+                       ( Utils.perhapsPluralizeList toolName allLetEIds
+                       , NoInputDeuceTransform <| \() ->
+                           CodeMotion.moveDeclarations
+                             allLetEIds
+                             (InsertPatternLevel beforeAfter path, insertionPosition)
+                             model.inputExp
+                       , Satisfied
+                       )
+                _ ->
+                  (toolName, InactiveDeuceTransform, Impossible)
         _ ->
           (toolName, InactiveDeuceTransform, Impossible)
   in
