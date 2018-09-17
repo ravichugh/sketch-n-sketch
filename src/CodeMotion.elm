@@ -2225,9 +2225,33 @@ addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNe
     (Just (letExp, funcName), Just func) ->
       case (unwrapExp letExp) of
         ELet ws1 letKind decls ws3 letBody ->
-          -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
-          let funcVarUsageEIds =
-            identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
+          let
+            funcVarUsageEIdsInsideSiblingBindingsAndSelf =
+              -- TODO consolidate this logic with freeVars
+              getDeclarationsInOrder decls |>
+              List.foldl
+                (\decl (idUsageEIds, shouldIgnore) ->
+                   case decl of
+                     DeclExp (LetExp _ _ p _ _ boundExp) ->
+                       let usagesFromBoundExp () =
+                         (identifierUsageEIds funcName boundExp ++ idUsageEIds, False)
+                       in
+                       if eidIs funcEId boundExp then
+                         usagesFromBoundExp ()
+                       else if shouldIgnore || List.member funcName (identifiersListInPat p) then
+                         (idUsageEIds, True)
+                       else
+                         usagesFromBoundExp ()
+                     _ ->
+                       (idUsageEIds, shouldIgnore)
+                )
+                ([], True)
+              |> Tuple.first
+            -- If func is passed to itself as an arg, this probably breaks. (is fixable though)
+            funcVarUsageEIds =
+              identifierUsageEIds funcName letBody ++
+              funcVarUsageEIdsInsideSiblingBindingsAndSelf
+              |> Set.fromList
           in
           case (unwrapExp func) of
             EFun fws1 fpats fbody fws2 ->
