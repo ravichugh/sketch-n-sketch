@@ -7,6 +7,7 @@ module Types2 exposing
   , dummyAceTypeInfo
   , typeChecks
   , introduceTypeAliasTool
+  , convertToDataTypeTool
   , renameTypeTool
   )
 
@@ -14,12 +15,13 @@ import Info exposing (WithInfo, withDummyInfo)
 import Lang exposing (..)
 import LangTools
 import LangUtils
-import LeoParser exposing (parse)
+import LeoParser exposing (parse, reorderDeclarations)
 import LeoUnparser exposing (unparse, unparsePattern, unparseType)
 import Ace
 -- can't depend on Model, since ExamplesGenerated depends on Types2
 import Utils
 
+import Char
 import Regex
 import EditDistance
 
@@ -751,8 +753,14 @@ inferType gamma stuff thisExp =
       in
         { newExp = newExp }
 
-    ELet ws1 letKind (Declarations po [] letAnnots letExps) ws2 body ->
+    ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
       let
+        -- Process LetTypes ----------------------------------------------------
+
+        newLetTypes =
+          -- TODO: Not processing these yet.
+          letTypes
+
         -- Process LetAnnotations ----------------------------------------------
 
         -- type alias AnnotationTable = List (Ident, Type)
@@ -987,18 +995,11 @@ inferType gamma stuff thisExp =
         -- Rebuild -------------------------------------------------------------
 
         newExp =
-          ELet ws1 letKind (Declarations po [] newLetAnnots newLetExps) ws2 newBody
+          ELet ws1 letKind (Declarations po newLetTypes newLetAnnots newLetExps) ws2 newBody
             |> replaceE__ thisExp
             |> copyTypeInfoFrom newBody
       in
         { newExp = newExp }
-
-    ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
-      { newExp =
-          thisExp
-            |> setDeuceTypeInfo
-                 (deucePlainLabels ["not yet supporting type definitions..."])
-      }
 
     ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots letExps) ws2 ->
       let
@@ -1442,6 +1443,8 @@ typeChecks =
 --------------------------------------------------------------------------------
 -- Type-Based Code Tools
 
+--------------------------------------------------------------------------------
+
 introduceTypeAliasTool : Exp -> DeuceSelections -> DeuceTool
 introduceTypeAliasTool inputExp selections =
   let
@@ -1682,6 +1685,8 @@ introduceTypeAliasTool inputExp selections =
     }
 
 
+--------------------------------------------------------------------------------
+
 renameTypeTool : Exp -> DeuceSelections -> DeuceTool
 renameTypeTool inputExp selections =
   let
@@ -1693,7 +1698,6 @@ renameTypeTool inputExp selections =
         -- single pattern, nothing else
         (_, _, [], [pathedPatId], [], [], [], [], []) ->
           let
-            -- TODO ensure this works?
             maybePat =
               LangTools.findPatByPathedPatternId pathedPatId inputExp
           in
@@ -1777,3 +1781,246 @@ renameTypeTool inputExp selections =
     , reqs = [ { description = "Select something.", value = boolPredVal } ]
     , id = "renameType"
     }
+
+
+--------------------------------------------------------------------------------
+
+convertToDataTypeTool : Exp -> DeuceSelections -> DeuceTool
+convertToDataTypeTool inputExp selections =
+  let
+    (func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+
+        -- single pattern, nothing else
+        (_, _, [], [pathedPatId], [], [], [], [], []) ->
+          let
+            maybePat =
+              LangTools.findPatByPathedPatternId pathedPatId inputExp
+          in
+          maybePat |> Maybe.andThen (\pat ->
+          let
+            maybeTypeName =
+              case pat.val.p__ of
+                -- type / type alias encoded as PRecord.
+                -- HACK: just assuming it doesn't have any type args...
+                PRecord _ _ _ ->
+                  Just (String.trim (unparsePattern pat))
+                _ ->
+                  Nothing
+          in
+          maybeTypeName |> Maybe.andThen (\typeName ->
+          let
+            -- e.g. [ ("logo", [1]) ]
+            rewriteArgsToFunc : List (Ident, List Int)
+            rewriteArgsToFunc =
+              foldExp (\e acc ->
+                case (unExpr e).val.e__ of
+                  ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+                    List.foldl (\(LetAnnotation mws0 ws1 pat fas ws2 typAnnot) acc ->
+                      case (pat.val.p__, matchArrowRecurse typAnnot)  of
+                        (PVar _ funcName _, Just (_, argTypes, _)) ->
+                          let
+                            rewriteArgsForThisFunc =
+                              List.foldr (\(argType, i) acc ->
+                                -- HACK
+                                if String.trim (unparseType argType) == typeName then
+                                  i :: acc
+                                else
+                                  acc
+                              ) [] (Utils.zipWithIndex argTypes)
+                          in
+                            case rewriteArgsForThisFunc of
+                              [] -> acc
+                              _  -> (funcName, rewriteArgsForThisFunc) :: acc
+
+                        _ ->
+                          acc
+
+                    ) acc letAnnots
+
+                  _ ->
+                    acc
+              ) [] inputExp
+
+            rewriteExp =
+              mapExpViaExp__ <| \e__ ->
+                case e__ of
+                  ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+                    let
+                      newLetTypes =
+                        letTypes |> List.map (Tuple.mapSecond
+                          (List.map (\(LetType mws0 ws1 aliasSpace pat fas ws2 t) ->
+                            let
+                              newDataConstructor =
+                                withDummyTypeInfo <|
+                                  TVar space0 typeName
+                              newTyp =
+                                withDummyTypeInfo <|
+                                  TApp space1 newDataConstructor [t] SpaceApp
+                            in
+                            LetType mws0 ws1 Nothing pat fas ws2 newTyp
+                          ))
+                        )
+
+                      newLetExps =
+                        letExps |> List.map (Tuple.mapSecond
+                          (List.map (\(LetExp ws0 ws1 pat fas ws2 expEquation) ->
+                            let
+                              newExpEquation =
+                                case (pat.val.p__, (unExpr expEquation).val.e__) of
+                                  (PVar _ name _, EFun eFunWs1 eFunPats eFunBody eFunWs2) ->
+                                    case Utils.maybeFind name rewriteArgsToFunc of
+                                      Nothing ->
+                                        expEquation
+
+                                      Just argsToRewrite ->
+                                        let
+                                          (newFunPats, oldPatsNewNames) =
+                                            eFunPats |> Utils.mapi0 (\(i, oldPat) ->
+                                              if List.member i argsToRewrite then
+                                                let
+                                                  newName =
+                                                    typeName ++ toString i
+                                                      |> String.toList
+                                                      |> Utils.mapHead Char.toLower
+                                                      |> String.fromList
+
+                                                  newPat =
+                                                    PVar space1 newName noWidgetDecl
+                                                      |> replaceP__ pat
+                                                in
+                                                (newPat, [(oldPat, newName, typeName)])
+
+                                              else
+                                                (oldPat, [])
+                                            )
+                                            |> List.unzip
+                                            |> Tuple.mapSecond List.concat
+
+                                          newFunBody =
+                                            addInitialCaseExpressionsFor oldPatsNewNames eFunBody
+                                        in
+                                        EFun eFunWs1 newFunPats newFunBody eFunWs2
+                                          |> replaceE__ expEquation
+                                  _ ->
+                                    expEquation
+                            in
+                            LetExp ws0 ws1 pat fas ws2 newExpEquation
+                          ))
+                        )
+                    in
+                    ELet ws1 letKind (Declarations po newLetTypes letAnnots newLetExps) ws2 body
+
+                  EApp ws1 eFunc eArgs apptype ws2 ->
+                    case (unExpr eFunc).val.e__ of
+                      EVar _ funcName ->
+                        case Utils.maybeFind funcName rewriteArgsToFunc of
+                          Nothing ->
+                            e__
+
+                          Just argsToRewrite ->
+                            let
+                              newArgs =
+                                eArgs |> Utils.mapi0 (\(i, arg) ->
+                                  if List.member i argsToRewrite then
+                                    -- HACK: stuffing into EVar instead of encoding as ERecord
+                                    eCall typeName [arg]
+                                  else
+                                    arg
+                                )
+                            in
+                            EApp ws1 eFunc newArgs apptype ws2
+
+                      _ ->
+                        e__
+
+                  _ ->
+                    e__
+
+            newProgram =
+              inputExp
+                |> rewriteExp
+                -- because of EVar/PVar/TVar hacks, unparse and re-parse
+                |> unparse
+                |> parse
+                |> Result.withDefault (eStr "Bad initial case. Bad editor. Bad")
+
+            transformationResults () =
+              [ Fancy
+                  (synthesisResult "DUMMY" newProgram)
+                  (PlainText "Single data constructor")
+              ]
+          in
+          Just (NoInputDeuceTransform transformationResults, Satisfied)
+
+          ))
+
+          |> Maybe.withDefault (InactiveDeuceTransform, Impossible)
+
+        _ ->
+          (InactiveDeuceTransform, Impossible)
+  in
+    { name = "Convert to Data Type"
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "convertToDataType"
+    }
+
+addInitialCaseExpressionsFor : List (Pat, Ident, Ident) -> Exp -> Exp
+addInitialCaseExpressionsFor oldPatsNewNames eFunBody =
+  let
+    startCol =
+      (unExpr eFunBody).start.col
+
+    lineBreakAndIndent k =
+      "\n" ++ String.repeat (startCol-1) " " ++ String.repeat k "  "
+
+    newListLetExp : List LetExp
+    newListLetExp =
+      oldPatsNewNames |> List.map (\(oldPat, newName, newDataCon) ->
+        LetExp
+          Nothing space0
+          (replacePrecedingWhitespacePat (lineBreakAndIndent 1) oldPat)
+          FunArgsAfterEqual space1
+          ( withDummyExpInfo <|
+              ECase ( ws (lineBreakAndIndent 2) )
+                    ( withDummyExpInfo <|
+                        EVar space1 newName
+                    )
+                    [ withDummyInfo <|
+                        Branch_ ( ws (lineBreakAndIndent 3) )
+                                ( withDummyPatInfo <|
+                                    -- HACK: stuffing "D data" into PVar
+                                    PVar space0 (newDataCon ++ " data") noWidgetDecl
+                                )
+                                ( withDummyExpInfo <|
+                                    EVar space1 "data"
+                                )
+                                space1
+                    ]
+                    space1
+          )
+      )
+
+    newFunBody =
+      case (unExpr eFunBody).val.e__ of
+        ELet ws1 letKind decls ws2 body ->
+          let
+            resultNewDecls =
+              decls
+                |> getDeclarations
+                |> ((++) (List.map DeclExp newListLetExp))
+                |> reorderDeclarations
+          in
+          resultNewDecls |> Result.map (\newDecls ->
+            ELet ws1 letKind newDecls ws2 body |> replaceE__ eFunBody
+          )
+
+          |> Result.withDefault eFunBody
+
+        _ ->
+          eStr "TODO: addInitialCaseExpressionsFor: handle non-ELet case"
+  in
+    newFunBody

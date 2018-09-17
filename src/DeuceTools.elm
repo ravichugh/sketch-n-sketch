@@ -2965,6 +2965,7 @@ toolList =
   [ [ typesTool
     , (\model selections -> Types2.introduceTypeAliasTool model.inputExp selections)
     , (\model selections -> Types2.renameTypeTool model.inputExp selections)
+    , (\model selections -> Types2.convertToDataTypeTool model.inputExp selections)
     ]
   , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
     [ createTrueTool
