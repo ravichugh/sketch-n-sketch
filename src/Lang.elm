@@ -3411,7 +3411,7 @@ indentMaybeWS spaces = Maybe.map (indentWs spaces)
 -- Increases indentation by spaces string.
 indentExp : String -> Exp -> Exp
 indentExp spaces e =
-  mapExp (mapPrecedingWhitespaceWS (\ws -> Debug.log ("before: " ++ toString ws ++ ", after") <| indentWs spaces ws)) e
+  mapExp (mapPrecedingWhitespaceWS (indentWs spaces)) e
 
 indentType: String -> Type -> Type
 indentType spaces t =

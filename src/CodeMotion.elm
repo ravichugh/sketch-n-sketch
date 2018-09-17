@@ -2967,6 +2967,19 @@ insertInVisualDeclarations (insertionMethod, bindingNum) newDecls visualDeclarat
     else Ok [declIndex]
   ) |> Utils.projOk |> Result.map (List.concatMap identity)
 
+removeDuplicateNewlinesBeforeFirstDeclaration: Declarations -> Declarations
+removeDuplicateNewlinesBeforeFirstDeclaration (Declarations printOrder types anns letexps as decls) =
+  let removeTwoEmptyLines s =
+    Debug.log ("removeTwoEmptyLines " ++ toString s) <|
+    Regex.replace Regex.All (Regex.regex "(\r?\n)(?:[ \t]*\r?\n)+") (\m -> m.submatches |> List.map (Maybe.withDefault "") |> String.concat) s in
+  case printOrder of
+    [] -> decls
+    firstBn::_ ->
+       mapDeclarations (\bindingNumber decl ->
+         if bindingNumber == firstBn then
+           mapPrecedingWhitespaceDeclaration removeTwoEmptyLines decl
+         else decl
+       ) decls
 
 -- It should insert the declarations before the declaration mentionned in the given index.
 -- It should recompute a dependency analysis as well, maybe we need to reorder the definitions.
@@ -2976,6 +2989,7 @@ insertInDeclarations (insertionMethod, bindingNum) newDecls decls =
   insertInVisualDeclarations (insertionMethod, bindingNum) (Utils.zipWithIndex newDecls) visualDeclarations
   |> Result.map (List.map Tuple.first)
   |> Result.andThen Parser.reorderDeclarations
+  |> Result.map removeDuplicateNewlinesBeforeFirstDeclaration
 
 insertDeclarationsAt: (InsertionMethod, (EId, BindingNumber)) -> List Declaration -> Exp -> Result String Exp
 insertDeclarationsAt (insertionMethod, (eid, bindingNum)) declarations exp =
@@ -2998,9 +3012,11 @@ insertDeclarationsAt (insertionMethod, (eid, bindingNum)) declarations exp =
             Ok newDecls ->
               let indentation = Lang.minIndentationExp Nothing exp |> Maybe.withDefault "" in
               let subIndentation = indentation ++ "  " in
-              let indentedDecls = mapDeclarations (\_ decl ->
-                decl |> unindentDeclaration
-                |> indentDeclaration subIndentation) newDecls in
+              let indentedDecls = newDecls
+                 |> mapDeclarations (\_ ->
+                   unindentDeclaration
+                   >> indentDeclaration subIndentation)
+              in
               (replaceExpInfo exp <| exp_ <|
                 ELet (precedingWhitespaceWithInfoExp exp) Let indentedDecls (ws <| "\n" ++ indentation)
                   (exp |> ensureNNewlinesExp 1 subIndentation |> unindent |> indentExp subIndentation), mbError)
@@ -3273,7 +3289,7 @@ moveDeclarations declsToMove ((insertionMethod, (insertionEId, insertionBindingN
                        )
                      )
                 newExp = if List.isEmpty localDeclsRemainingReordered then eBody else replaceE__ exp <|
-                    ELet ws lk newDecls spIn eBody
+                    ELet ws lk (removeDuplicateNewlinesBeforeFirstDeclaration newDecls) spIn eBody
               in
               (newExp,
                 (declsToMoveRemaining,
