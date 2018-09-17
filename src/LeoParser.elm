@@ -1485,7 +1485,7 @@ typ spFirst minStartCol =
                 in
                   mapInfo type_ <|
                     withInfo
-                      (TApp wsBefore (mapInfo type_ <| replaceInfo operator <| TVar space1 identifier) [left, right] InfixApp)
+                      (TApp wsBefore (mapInfo type_ <| replaceInfo operator <| TVar wsBeforeOp identifier) [left, right] InfixApp)
                         left.start right.end
           }
 
