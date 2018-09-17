@@ -318,7 +318,14 @@
         
         logo : String -> LogoParams -> Svg
         logo fill {x, y, size} =
-          ...
+          let
+            (cx, cy) =
+              (x + 0.5*size, y + 0.5*size)
+          in
+            [ rect fill x y size size
+            , line "white" 10 x y (x + size) (y + size)
+            , line "white" 10 x (y + size) cx cy
+            ]
 
         main : Svg
         main =
@@ -342,7 +349,8 @@
           let
             {x, y, size} =
               case logoParams of
-                LogoParams xysize -> xysize
+                LogoParams data ->
+                  data
 
             (cx, cy) =
               (x + 0.5*size, y + 0.5*size)
@@ -359,7 +367,7 @@
 1. <span style="color:green;">**OK:**</span>
    **Rename Data Constructor** to `TopLeft`.
 
-1. <span style="color:red;">**TODO-Ravi:**</span>
+1. <span style="color:green;">**OK:**</span>
    **Duplicate Data Constructor**. Let's have the dummy case just be a hole to
    start. Click `LogoParams` and **Format** to choose multi-line option.
 
@@ -372,10 +380,9 @@
           let
             {x, y, size} =
               case logoParams of
-                TopLeft xysize ->
-                  xysize
-
-                NewConstructor {x, y, size} ->
+                TopLeft data ->
+                  data
+                NewConstructor data ->
                   ??
             ...
 
@@ -426,9 +433,8 @@
           let
             {x, y, size} =
               case logoParams of
-                TopLeft xysize ->
-                  xysize
-
+                TopLeft data ->
+                  data
                 Center {cx, cy, rad} ->
                   {x=cx-rad, y=cy-rad, size=2*rad}
                 
