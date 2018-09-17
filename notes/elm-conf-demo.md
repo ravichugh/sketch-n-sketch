@@ -356,11 +356,11 @@
         main =
           svg (logo "gray" (LogoParams {x=10, y=10, size=200}))
 
-1. <span style="color:red;">**TODO-Ravi:**</span>
-   **Rename Constructor** to `TopLeft`.
+1. <span style="color:green;">**OK:**</span>
+   **Rename Data Constructor** to `TopLeft`.
 
 1. <span style="color:red;">**TODO-Ravi:**</span>
-   **Duplicate Constructor**. Let's have the dummy case just be a hole to
+   **Duplicate Data Constructor**. Let's have the dummy case just be a hole to
    start. Click `LogoParams` and **Format** to choose multi-line option.
 
         type LogoParams
@@ -379,8 +379,8 @@
                   ??
             ...
 
-1. <span style="color:red;">**TODO-Ravi:**</span>
-   **Rename Constructor** to `Center`.
+1. <span style="color:green;">**OK:**</span>
+   **Rename Data Constructor** to `Center`.
 
 1. Rename fields (with text-edits, for now) to `cx`, `cy`, and `rad`.
 
