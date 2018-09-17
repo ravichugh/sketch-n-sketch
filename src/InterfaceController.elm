@@ -3153,11 +3153,12 @@ msgMouseClickDeuceWidget widget =
   Msg ("msgMouseClickDeuceWidget " ++ toString widget) <| \old ->
     toggleDeuceWidget widget old
 
+-- NOTE: hover widgets ONLY SET from output canvas!
 msgMouseEnterDeuceWidget widget = Msg ("msgMouseEnterDeuceWidget " ++ toString widget) <| \old ->
   let deuceState = old.deuceState in
   { old | deuceState =
               { deuceState
-              | hoveredWidgets = [widget] } }
+              | hoveredWidgets = [] } } -- NOT [widget]!
 
 msgMouseLeaveDeuceWidget widget = Msg ("msgMouseLeaveDeuceWidget " ++ toString widget) <| \old ->
   let deuceState = old.deuceState in

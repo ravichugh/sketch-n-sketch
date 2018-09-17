@@ -1177,7 +1177,7 @@ code {
 }
 
 .code-object-polygon:hover,
-.code-object-polygon.selected {
+.code-object-polygon.highlight {
   opacity: 1;
   cursor: pointer;
 }

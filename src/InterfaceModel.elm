@@ -1055,6 +1055,7 @@ type alias DeuceCacheTriggerValues =
   { code : String
   , inputExp : Exp
   , selectedWidgets : List DeuceWidgets.DeuceWidget
+  , hoveredWidgets : List DeuceWidgets.DeuceWidget
   , colorScheme : ColorScheme
   , lineHeight : Float
   , characterWidth : Float
@@ -1066,6 +1067,7 @@ deuceCacheTriggerValues m =
   { code = m.code
   , inputExp = m.inputExp
   , selectedWidgets = m.deuceState.selectedWidgets
+  , hoveredWidgets = m.deuceState.hoveredWidgets
   , colorScheme = m.colorScheme
   , lineHeight = m.codeBoxInfo.lineHeight
   , characterWidth = m.codeBoxInfo.characterWidth

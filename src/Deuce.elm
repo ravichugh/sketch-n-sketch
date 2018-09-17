@@ -183,6 +183,7 @@ type alias CodeInfo =
   , untrimmedLineHulls : LineHulls
   , trimmedLineHulls : LineHulls
   , selectedWidgets : List DeuceWidget
+  , hoveredWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
   , maxLineLength : Int
   }
@@ -656,13 +657,16 @@ codeObjectPolygon msgs codeInfo codeObject color =
           msgs.onClick deuceWidget
         selected =
           List.member deuceWidget codeInfo.selectedWidgets
-        selectedClass =
-          if selected then
-            " selected"
+        -- This is only for hovering from the output canvas
+        hovered =
+          List.member deuceWidget codeInfo.hoveredWidgets
+        highlightClass =
+          if selected || hovered then
+            " highlight"
           else
             ""
         class =
-          "code-object-polygon" ++ selectedClass
+          "code-object-polygon" ++ highlightClass
       in
         [ Svg.g
             [ SAttr.class class
@@ -810,6 +814,8 @@ overlay msgs model =
           trimmedLineHulls
       , selectedWidgets =
           model.deuceState.selectedWidgets
+      , hoveredWidgets =
+          model.deuceState.hoveredWidgets
       , patMap =
           patMap
       , maxLineLength =
