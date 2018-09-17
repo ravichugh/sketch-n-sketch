@@ -1644,8 +1644,8 @@ introduceTypeAliasTool inputExp selections =
             rewriteWithNewTypeAlias e =
               let
                 strNewTypeAlias =
-                  "type alias " ++ newTypeAliasName ++ " = "
-                    ++ String.trim (unparseType newRecordType) ++ "\n"
+                  "type alias " ++ newTypeAliasName ++ "\n"
+                    ++ "  = " ++ String.trim (unparseType newRecordType) ++ "\n"
               in
                 e |> unparse
                   |> String.lines

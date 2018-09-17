@@ -313,7 +313,8 @@
 1. <span style="color:green;">**OK:**</span>
    **Rename Type**.
 
-        type alias LogoParams = {x:Num, y:Num, size:Num}
+        type alias LogoParams
+          = {x:Num, y:Num, size:Num}
         
         logo : String -> LogoParams -> Svg
         logo fill {x, y, size} =
@@ -333,7 +334,8 @@
 1. <span style="color:green;">**OK:**</span>
    Select `LogoParams` type and **Convert to Datatype**.
 
-        type LogoParams = LogoParams {x:Num, y:Num, size:Num}
+        type LogoParams
+          = LogoParams {x:Num, y:Num, size:Num}
         
         logo : String -> LogoParams -> Svg
         logo fill logoParams =
