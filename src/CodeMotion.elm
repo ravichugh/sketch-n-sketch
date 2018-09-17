@@ -2997,12 +2997,13 @@ insertDeclarationsAt (insertionMethod, (eid, bindingNum)) declarations exp =
           case insertInDeclarations (insertionMethod, 0) declarations (Declarations [] [] [] []) of
             Ok newDecls ->
               let indentation = Lang.minIndentationExp Nothing exp |> Maybe.withDefault "" in
+              let subIndentation = indentation ++ "  " in
               let indentedDecls = mapDeclarations (\_ decl ->
                 decl |> unindentDeclaration
-                |> indentDeclaration (indentation ++ "  ")) newDecls in
+                |> indentDeclaration subIndentation) newDecls in
               (replaceExpInfo exp <| exp_ <|
                 ELet (precedingWhitespaceWithInfoExp exp) Let indentedDecls (ws <| "\n" ++ indentation)
-                  (mapPrecedingWhitespace (\s -> if s == "" then " " else s) exp), mbError)
+                  (exp |> ensureNNewlinesExp 1 subIndentation |> unindent |> indentExp subIndentation), mbError)
             Err msg -> (exp, Just msg)
        ) Nothing exp
   in

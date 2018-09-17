@@ -2248,12 +2248,14 @@ maybeConvertToOp0 (Expr exp_) =
     _ ->
       exp
 
+
+-- rest is guaranteed not to be empty
 maybeConvertToOpN : Exp -> List Exp -> Exp__
-maybeConvertToOpN (Expr first_) rest =
-  let first = Expr first_ in
+maybeConvertToOpN (Expr first_ as first) rest =
   let
     default =
-      EApp space0 first (List.map maybeConvertToOp0 rest) SpaceApp space0
+      EApp (precedingWhitespaceWithInfoExp first) (mapPrecedingWhitespace (\_ -> "") first)
+        (List.map maybeConvertToOp0 rest) SpaceApp space0
   in
     case unwrapExp first of
       EVar wsBefore identifier ->
@@ -2279,11 +2281,11 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
   let
     combine : (WS -> Exp) -> List Exp -> WS -> Exp
     combine wsToFirst rest wsBefore =
-      let (Expr first) = wsToFirst wsBefore in
+      let ((Expr first) as eFirst) = wsToFirst wsBefore in
       let
         constructedRest =
-          flip List.map rest <| \(Expr e) ->
-            case (unwrapExp <| Expr e) of
+          flip List.map rest <| \((Expr e) as eExpr) ->
+            case unwrapExp eExpr of
               EVar wsBefore identifier ->
                 -- Datatypes desugar to records
                 if isDataConstructor identifier then
@@ -2317,13 +2319,13 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
                         e.start
                         e.end
                 else
-                  Expr e
+                  eExpr
               _ ->
-                Expr e
+                eExpr
 
         -- Some special cases
         maybeSpecial =
-          case (unwrapExp <| Expr first) of
+          case unwrapExp eFirst of
             EVar wsBefore identifier ->
               -- Datatypes desugar to records
               if isDataConstructor identifier then
@@ -2381,12 +2383,12 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
             case Utils.maybeLast constructedRest of
               -- rest is empty
               Nothing ->
-                maybeConvertToOp0 <| Expr first
+                maybeConvertToOp0 eFirst
 
               -- rest is non-empty
               Just (Expr last) ->
                 let
-                  e_ = exp_ (maybeConvertToOpN (Expr first) constructedRest)
+                  e_ = exp_ (maybeConvertToOpN eFirst constructedRest)
                 in
                   Expr <| withInfo e_ first.start last.end
   in
@@ -2394,7 +2396,7 @@ simpleExpressionWithPossibleArguments minStartCol spConstraint =
       ( trackInfo (wsExp_ParserToWsExpParser <| oneOf [simpleExpression minStartCol spConstraint, implicitOp])
       |> andThen (\wsToMainExp ->
         let appargSpace = spaceSameLineOrNextAfter (min minStartCol wsToMainExp.start.col) spConstraint in
-        map (combine <| wsToMainExp.val) <|
+        map (combine wsToMainExp.val) <|
           repeat zeroOrMore (delayedCommitMap (\ws wsExp -> wsExp ws)
           (appargSpace |> andThen (\sp ->
             if sp.val == "" then
