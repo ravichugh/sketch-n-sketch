@@ -672,18 +672,17 @@ code {
 
 .tool-panel .icon-button {
   width: 100%;
-  padding: 2px;
-
   display: flex;
   align-items: center;
 }
 
 .tool-panel .icon-button > svg {
   flex-shrink: 0;
+  margin: 2px;
 }
 
 .tool-panel .icon-button-label {
-  margin-left: 0.75em;
+  margin-left: 5px;
 }
 
 .tool-separator {
