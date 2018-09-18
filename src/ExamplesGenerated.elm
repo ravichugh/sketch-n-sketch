@@ -9688,9 +9688,11 @@ Html.forceRefresh  <div id=\"content\" style=\"margin:20px;cursor:text\">
 """
 
 tutorialStudentGrades =
- """options = {production = True}
+ """t = tutorialUtils
 
-main = htmlpass <| markdown <|
+options = {production=True}
+
+main = t.htmlpass options <| t.markdown <|
 <div class=\"outer\"><div class=\"inner\" contenteditable=(toString (not options.production))>
 # Sketch-n-sketch Tutorial - Fair grades
 <i>This tutorial assumes that you have
@@ -9703,26 +9705,26 @@ They provided you with a list of student names and their average grade over 100.
 How to fairly map these grades to letters, such as A+, A, A-, B+... until E?
 
 To start, replace the program in the Sketch-n-sketch editor by selecting everything and pasting the following code on the left pane of the Sketch-n-sketch editor:
-@newcode<|\"\"\"@(placeholder 1)
+@t.newcode<|\"\"\"@(placeholder 1)
 
 -- Displays the interface
 main = <span><h1>Fair grades</h1>
   We want to give a grade to our students.<br><br>
   @graphicsPlaceholder
   </span>\"\"\"
-@displaycode
+@t.displaycode
 After clicking on \"Run\", you should have the result below on the right.
 Note that the <code>main = </code> is optional, if the program ends with an expression, it will automatically insert <code>main = </code> in front of it.
-@displayproductionevalcode
+@t.displayevalcode
 
 ## Update basics
 Sketch-n-sketch not only displays the webpage, it allows you to modify it.  
 In the right panel,
-<ul><li>type \"student\" inside \"Fair grades\" so that it becomes \"Fair student grades\".@hiddenreplacepath(\"Fair grades\")(\"Fair student grades\")@displayproductionevalcode</li>
+<ul><li>type \"student\" inside \"Fair grades\" so that it becomes \"Fair student grades\".@t.hiddenreplace(\"Fair grades\")(\"Fair student grades\")@t.displayevalcode</li>
 <li>A pop-up menu \"Output Editor\" appears on the left panel.</li>
 <li>Hover over \"Update program\".</li>
 <li>Hover over the first solution.</li>
-<li>You see that the code is updated accordingly:@displaycode</li>
+<li>You see that the code is updated accordingly:@t.displaycode</li>
 <li>Click on the first solution to accept the change.</li></ul>
 For your information, right next to the right panel, a button labelled \"Auto Sync\" enables the propagation of non-ambiguous changes automatically, if activated. We are not using it in this tutorial.
 
@@ -9731,7 +9733,7 @@ Out of the spreadsheet that your assistants provided you with,
 you managed to export a comma-separated value file containing on each line a name and a grade.
 Fortunately, sketch-n-sketch can handle raw strings by enclosing them in triple quotes <code>\"\"\"</code>.
 Let us assign this string data to the variable <code>@var_input_data</code>  
-@replacepath(placeholder 1)<|\"\"\"@var_input_data = @(q3)Alice,64.7
+@t.replace(placeholder 1)<|\"\"\"@var_input_data = @(q3)Alice,64.7
 Bob,78.5
 Eve,57.9
 Seya,100
@@ -9764,7 +9766,7 @@ Rafael,86.6@(q3)
 @(placeholder 2)\"\"\"## Convert student data
 If you want to display this data, you could simply insert in the <code>main</code> the code <code>@@@var_input_data</code>, but that would only display the string, which would not be very helpful.  
 First, we convert this data to a list of datatypes like <code>Student \"Alice\" 64.7</code> and store it to a variable <code>@var_studentsGrades</code>.  
-@replacepath(placeholder 2)<|\"\"\"type Student = Student String Num
+@t.replace(placeholder 2)<|\"\"\"type Student = Student String Num
 
 @var_studentsGrades = 
   @var_input_data
@@ -9784,7 +9786,7 @@ Note that we also add <code>Update.freeze</code> to make sure we will never modi
 We need to define associations between letters and minimum grades to obtain them.
 We suppose that we have a first guess (e.g. from previous year, or a linear guess).
 
-@replacepath(placeholder 3)<|\"\"\"type CutOff = Student String Num
+@t.replace(placeholder 3)<|\"\"\"type CutOff = Student String Num
 
 cutoffs = [
   CutOff \"A+\" 96.8,
@@ -9801,15 +9803,15 @@ cutoffs = [
 
 @(placeholder 4)\"\"\"## Example: get students in each group
 Just as an exercise, if we wanted to display how many students obtained a letter given \"B-\" and \"A+\", we could insert the following code next to <code>@graphicsPlaceholder</code> in <code>main</code>:
-@displaylocalcode(example1)
+@t.displaylocalcode(example1)
 You would end up with the following output on the right-hand side.
-@displayevalcodeLocalReplace(graphicsPlaceholder)(example1)
+@t.displayevalcodeLocalReplace(graphicsPlaceholder)(example1)
 This is just an example to illustrate general-purpose computing techniques (such as recursion, pattern matching, list construction and deconstruction), but for now you can discard this code snippet.
 ## Display cut-offs and grades as SVG
 We display cut-offs as horizontal lines, and the grades as bars,
 to \"see\" where the cuts are. To make it meaningful, we sort students by grade.
 
-@replacepath(placeholder 4)<|\"\"\"sortedGrades =
+@t.replace(placeholder 4)<|\"\"\"sortedGrades =
   @var_studentsGrades
   |> sortBy (\\(Student _ n1) (Student _ n2) -> n1 > n2) 
 
@@ -9846,7 +9848,7 @@ height = 389
 chart = barChart 50 0 width height
 
 @(placeholder 5)\"\"\"
-@replacepath(graphicsPlaceholder)<|\"\"\"<span contenteditable=\"false\">
+@t.replace(graphicsPlaceholder)<|\"\"\"<span contenteditable=\"false\">
 <svg width=toString(width + 100)
      height=toString(height)>@@chart</svg></span><br>
 
@@ -9854,30 +9856,30 @@ chart = barChart 50 0 width height
 \"\"\"
 
 You should obtain the following result, after running the program.
-@displayproductionevalcode
+@t.displayevalcode
 
 Thanks to SVG editing capabilities, we can now move the horizontal lines up and down to change cut-offs.
 
-Make sure the line @lineof(\"\"\"CutOff \"B\"\"\"\") is visible in the code editor (in the left panel).
+Make sure the line @t.lineof(\"\"\"CutOff \"B\"\"\"\") is visible in the code editor (in the left panel).
 
 Your task is now to move the cut-off of the letter B (in the right panel) to accept one more student (by dragging it slowly below).
 A pop-up \"Output Editor\" appears. Hover over \"Update program\", it then takes 1 second to find where to change the cut-off. Click on the solution to accept it.
 You should obtain something like the following on the right-hand side.  
-@displayproductionevalcodeLocalReplace(\"CutOff \\\"B\\\"  76\")<|\"CutOff \\\"B\\\"  72.7\"
+@t.displayevalcodeLocalReplace(\"CutOff \\\"B\\\"  76\")<|\"CutOff \\\"B\\\"  72.7\"
 
 ## First lens: 1-digit cut-offs
 After this update, the cut-off number for the letter B might start to have a lot of decimals.
 However, only one is necessary.
 To avoid this, we add a lens to modify how the cut-off is updated.
 
-@replacepath(placeholder 5)<|\"\"\"updateDecimal = Update.lens {
+@t.replace(placeholder 5)<|\"\"\"updateDecimal = Update.lens {
   apply cutOff = cutOff
   update {input=oldCutOff,outputNew=newCutOff} =
     Ok (Inputs [round (newCutOff * 10) / 10])
 }
 
 @(placeholder 6)\"\"\"
-@replacepath(\"freeze 100! - cutoff\")<|\"freeze 100! - updateDecimal cutoff\"
+@t.replace(\"freeze 100! - cutoff\")<|\"freeze 100! - updateDecimal cutoff\"
 A lens is a pair of two functions (here <code>apply</code> and <code>update</code>),
 such that the first contains the logic to compute forward, and the second the logic to back-propagate an updated value.
 In our case, this function takes the new output and round it to the nearest multiple of 0.1.
@@ -9890,7 +9892,7 @@ You will observe that, on update, the cut-off contains only once decimal in the 
 At this point, we hope that our cut-offs are well placed.
 We now want to know how many students there are in each category.
 
-@replacepath(placeholder 6)<|\"\"\"assignLetter avg = 
+@t.replace(placeholder 6)<|\"\"\"assignLetter avg = 
   List.find (\\CutOff letter cutoff -> avg >= cutoff) cutoffs |>
   case of
     Nothing -> error <|
@@ -9936,10 +9938,10 @@ displayBuckets =
 </table>
 
 @(placeholder 7)\"\"\"
-@replacepath(tablePlaceholder)<|\"\"\"<h2>Grade by category</h2>
+@t.replace(tablePlaceholder)<|\"\"\"<h2>Grade by category</h2>
 @@displayBuckets\"\"\"
 You should see the following table appear below the graph in the output view:
-@displayproductionevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
+@t.displayevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
   @@displayBuckets
 </span>
 notmain = \"\"\"
@@ -9952,7 +9954,7 @@ but they have been assigned different letters.
 To avoid being contested, it is better to make sure there is no possibly unfair letter attribution.
 We compute and display this information in the table.
 
-@replacepath(placeholder 7)<|\"\"\"ifunfair i =
+@t.replace(placeholder 7)<|\"\"\"ifunfair i =
   if i == 0 then \"\" else let
   epsilon = 0.5{0-1.9}
   (CutOff nameA cutoffA, studentsAbove) = nth buckets (i - 1)
@@ -9969,9 +9971,9 @@ We compute and display this information in the table.
 
 @(placeholder 8)
 \"\"\"
-@replacepath(\"<th>Cut-offs</th>\")<|\"\"\"<th>Cut-offs</th><th>Status</th>\"\"\"
-@replacepath(\"<td>@cutoff</td>\")<|\"\"\"<td>@@cutoff</td><td>@@ifunfair(i)</td>\"\"\"
-@displayproductionevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
+@t.replace(\"<th>Cut-offs</th>\")<|\"\"\"<th>Cut-offs</th><th>Status</th>\"\"\"
+@t.replace(\"<td>@cutoff</td>\")<|\"\"\"<td>@@cutoff</td><td>@@ifunfair(i)</td>\"\"\"
+@t.displayevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
   @@displayBuckets
 </span>
 notmain = \"\"\"
@@ -9986,7 +9988,7 @@ This behavior can be locally defined with the following trick:
 When we click a button, it modifies a property using JavaScript that is supposed to contain the cut-off, with a new cut-off.
 
 Let us focus on the function \"ifunfair\" for this task.  
-@replacepath(\"was assigned @nameA</span>\")<|\"\"\"was assigned @@nameA.
+@t.replace(\"assigned @nameA</span>\")<|\"\"\"assigned @@nameA.
 <button onclick=@(q3)this.setAttribute('v', '@@(gradeB - 0.1)')@(q3)
  v=toString(updateDecimal cutoffA)>Give @@nameA to @@envier
 </button>
@@ -9994,7 +9996,7 @@ Let us focus on the function \"ifunfair\" for this task.
  v=toString(updateDecimal cutoffA)>Give @@nameB to @@enviee
 </button>
 </span>\"\"\"
-@displayproductionevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
+@t.displayevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
   @@displayBuckets
 </span>
 notmain = \"\"\"
@@ -10007,7 +10009,7 @@ In usual interfaces it is impossible, but in Sketch-n-Sketch
 we can add a lens applied to the displayed number of students.
 This lens takes care of modifying the cut-offs in the backward direction.
 Note that we never change the count itself.  
-@replacepath(placeholder 8)<|\"\"\"updateGroupCount bucketNum cutoff numStudents =
+@t.replace(placeholder 8)<|\"\"\"updateGroupCount bucketNum cutoff numStudents =
   Update.lens2 {
   apply (cutoff, count) = count
   update {input=(cutoff, prevCount), outputNew=newCount} =
@@ -10026,19 +10028,19 @@ Note that we never change the count itself.
       Student _ belowCutoff = hd declassed
       in Ok (Inputs [(belowCutoff + 0.1, prevCount)])
   } cutoff numStudents\"\"\"
-@replacepath(\"@List.length(students)\")<|\"\"\"@@updateGroupCount(i)(cutoff)<|
+@t.replace(\"@List.length(students)\")<|\"\"\"@@updateGroupCount(i)(cutoff)<|
         List.length(students)\"\"\"
 
 Try now to change the number of students in one group to see the cut-offs change appropriately.
 For example, you can decrease to 4 the number of students in B+ (downgrade Kellee) or increase to 6 the number of students in B+ (upgrade Loida).
-@displayproductionevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
+@t.displayevalcodeLocalReplace(\"main = \")<|\"\"\"main = <span><h2>Grade by category</h2>
   @@displayBuckets
 </span>
 notmain = \"\"\"
 
 ## Final code
 You can compare your code with the code used by this tutorial:
-@displaycode
+@t.displaycode
 
 ## Enhancements
 What else do you want to try?
@@ -10135,72 +10137,96 @@ example1 = \"\"\"@@(let
   |> String.join \", \") ++ \" are above B-\"
 )\"\"\"
 
-newcode code = <newcode code=code></newcode>
-replacepath path code = <replacepath path=path code=code class=\"snippet\"></replacepath>
-hiddenreplacepath path code = <hiddenreplacepath path=path code=code></hiddenreplacepath>
-displaycode = <displaycode class=\"snippet\"></displaycode>
-displaylocalcode code = <displaylocalcode code=code class=\"snippet\"></displaylocalcode>
-displayevalcode = <displayevalcode></displayevalcode>
-displayproductionevalcode = <displayproductionevalcode></displayproductionevalcode>
+tutorialUtils = {
+  -- Perform basic markdown replacement (titles, newlines, italics)
+  -- Do this step BEFORE the htmlpass, so that the code is not parsed.
+  markdown =
+    Html.replace (\"(?:^|\\n)(#+)\\\\s(.+)\") (\\match ->
+      [<@(\"h\" + toString (String.length (nth match.group 1)))>@(nth match.group 2)</@>]
+    ) >>
+    Html.replace (\"_(?=\\\\S)(.*?)_\") (\\match ->
+      [<i>@(nth match.group 1)</i>]) >>
+    Html.replace \"(\\r?\\n|  )\\r?\\n\" (\\_ -> [<br>])
 
-displayevalcodeLocalReplace regex replacement = <displayevalcode replace=regex by=replacement></displayevalcode>
-displayproductionevalcodeLocalReplace regex replacement = <displayproductionevalcode replace=regex by=replacement></displayproductionevalcode>
+  ------ Functions to call during the construction of the document. ------
+  ------ After the document is constructed, pass it to `htmlpass`   ------
+  ------ to compute the code snippets, the line numbers, etc.       ------
+  type alias Instruction = HtmlNode
+  type alias Options = {production: Bool}
 
-lineof snippet = <lineof snippet=snippet></lineof>
+  -- Sets the current code to 'code'. Not visible in the final document.
+  newcode: String -> Instruction
+  newcode code = <newcode code=code></newcode>
+  
+  -- Replaces the 'placeHolder' by 'code' in the current code. In the final document,
+  -- In the final document, displays a message \"Replace [placeHolder] (line XXX) by \"
+  replace: String -> String -> Instruction
+  replace placeHolder code = <replace placeHolder=placeHolder code=code class=\"snippet\"></replace>
 
-displayintermediateresult display src =
-  if display then
-    case __evaluate__ (__CurrentEnv__) src of
-      Err msg -> <code class=\"error\">@msg</code>
-      Ok evalNode ->
-        <div class=\"outputwrapper\">@evalNode</div>
-  else
-    <div class=\"intermediateresult\">options.production is off. <button onclick=\"this.setAttribute('v', 'True')\" v=(toString options.production)>Turn it on</button> to display the intermediate result there.</div>
+  -- Replaces the 'placeHolder' by 'code' in the current code. Not visible in the final document
+  -- Can be useful to replace the code if we gave instructions to replace it from the output.
+  hiddenreplace: String -> String -> Instruction
+  hiddenreplace placeHolder code = <hiddenreplace placeHolder=placeHolder code=code></hiddenreplace>
+  
+  -- Display the current code. You will use this perhaps only at the beginning and the end,
+  -- or for checkpoints.
+  displaycode: Instruction
+  displaycode = <displaycode class=\"snippet\"></displaycode>
+  
+  -- Displays the given code snippet without touching the current code
+  displaylocalcode: String -> Instruction
+  displaylocalcode code = <displaylocalcode code=code class=\"snippet\"></displaylocalcode>
+  
+  -- Evaluates the current code and display its result.
+  displayevalcode: String -> Instruction
+  displayevalcode = <displayevalcode></displayevalcode>
+  
+  -- Performs a regex replacement on the current code and display its result,
+  -- but does not modify the current code.
+  displayevalcodeLocalReplace: String -> String -> Instruction
+  displayevalcodeLocalReplace regex replacement = <displayevalcode replace=regex by=replacement></displayevalcode>
+  
+  -- Displays the line of the given snippet as it appears in the current code.
+  lineof: String -> Instruction
+  lineof snippet = <lineof snippet=snippet></lineof>
+
+  -- Interpret all 'newcode', 'displaycode', 'displaylocalcode', 'displayevalcode',
+  -- 'displayevalcodeLocalReplace', 'lineof' in the given Html node.
+  htmlpass: Options -> HtmlNode -> HtmlNode
+  htmlpass options =
+  let
+    displayintermediateresult display src =
+      if display then
+        case __evaluate__ (__CurrentEnv__) src of
+          Err msg -> <code class=\"error\">@msg</code>
+          Ok evalNode ->
+            <div class=\"outputwrapper\">@evalNode</div>
+      else
+        <div class=\"intermediateresult\">options.production is off. <button onclick=\"this.setAttribute('v', 'True')\" v=(toString options.production)>Turn it on</button> to display the intermediate result there.</div>
     
-markdown =
-  Html.replace (\"(?:^|\\n)(#+)\\\\s(.+)\") (\\match ->
-    [<@(\"h\" + toString (String.length (nth match.group 1)))>@(nth match.group 2)</@>]
-  ) >>
-  Html.replace (\"_(?=\\\\S)(.*?)_\") (\\match ->
-    [<i>@(nth match.group 1)</i>]) >>
-  Html.replace \"(\\r?\\n|  )\\r?\\n\" (\\_ -> [<br>])
-
-localReplace src attrs = case attrs of
-  [\"replace\", regex]::[\"by\", replacement]::attrs ->
-    localReplace (Regex.replace (escape regex) (\\_ -> replacement) src) attrs
-  attrs -> (src, attrs)
-
-escape = Regex.replace \"\"\"\\(|\\)\"\"\" (\\m -> if m.match == \"(\" then \"\"\"\\(\"\"\" else \"\"\"\\)\"\"\")
-
-positionOf path code =
-  case Regex.extract \"\"\"^([\\s\\S]*?)@(escape path)([\\s\\S]*)$\"\"\" code of
-    Just [before, after] ->
-      let line = Regex.split \"\\r?\\n\" before |> List.length |> toString in
-      \"\"\"line @line\"\"\"
-    _ -> \"position unknown\"
-
-htmlpass htmlnode = 
+    localReplace src attrs = case attrs of
+      [\"replace\", regex]::[\"by\", replacement]::attrs ->
+        localReplace (Regex.replace (escape regex) (\\_ -> replacement) src) attrs
+      attrs -> (src, attrs)
+  in \\htmlnode ->
   let aux src htmlnode = case htmlnode of
     [\"newcode\", [\"code\", code]::attrs, []] ->
       (code, htmlnode)
-    [\"hiddenreplacepath\", [\"path\", path]::[\"code\", code]::attrs, []] ->
-      let newSrc = Regex.replace (escape path) (\\_ -> code) src in
+    [\"hiddenreplace\", [\"placeHolder\", placeHolder]::[\"code\", code]::attrs, []] ->
+      let newSrc = Regex.replace (escape placeHolder) (\\_ -> code) src in
       (newSrc, htmlnode)
-    [\"replacepath\", [\"path\", path]::[\"code\", code]::attrs, []] ->
-      let newSrc = Regex.replace (escape path) (\\_ -> code) src in
-      (newSrc, <span>Replace the code <code>@path</code> (@(positionOf path src)) by<code @attrs>@code</code></span>)
+    [\"replace\", [\"placeHolder\", placeHolder]::[\"code\", code]::attrs, []] ->
+      let newSrc = Regex.replace (escape placeHolder) (\\_ -> code) src in
+      (newSrc, <span>Replace the code <code>@placeHolder</code> (@(positionOf placeHolder src)) by<code @attrs>@code</code></span>)
     [\"lineof\", [\"snippet\", snippet]::attrs, []] ->
       (src, <span>@(positionOf snippet src)</span>)
     [\"displaylocalcode\", [\"code\", code]::attrs, []] ->
       (src, [\"code\", attrs, [[\"TEXT\", code]]])
     [\"displaycode\", attrs, []] ->
       (src, [\"code\", attrs, [[\"TEXT\", src]]])
-    [\"displayproductionevalcode\", attrs, []] ->
-      let (localSrc, localAttrs) = localReplace src attrs in
-      (src, displayintermediateresult options.production <| localSrc + \"\\n\\nmain\")
     [\"displayevalcode\", attrs, []] ->
       let (localSrc, localAttrs) = localReplace src attrs in
-      (src, displayintermediateresult True <| localSrc + \"\\n\\nmain\")
+      (src, displayintermediateresult options.production <| localSrc + \"\\n\\nmain\")
     [tag, attrs, children] ->
       let (newSrc, newRevChildren) =
         List.foldl (\\child (tmpSrc, revChildren) ->
@@ -10211,6 +10237,22 @@ htmlpass htmlnode =
       (newSrc, [tag, attrs, List.reverse newRevChildren])
     _ -> (src, htmlnode)
   in Tuple.second <| aux \"\" htmlnode
+  
+  -- Escapes a string so that we can search it using regexes.
+  escape = Regex.replace \"\"\"\\\\|\\{|\\}|\\[|\\]|\\$|\\.|\\?|\\+|\\(|\\)\"\"\" (\\m -> \"\\\\\" + m.match) 
+  
+  -- Computes the line position of a placeholder inside a string.
+  positionOf: String -> String -> String
+  positionOf placeHolder code =
+    case Regex.extract \"\"\"^([\\s\\S]*?)@(escape placeHolder)([\\s\\S]*)$\"\"\" code of
+      Just [before, after] ->
+        let line = Regex.split \"\\r?\\n\" before |> List.length |> toString in
+        \"\"\"line @line\"\"\"
+      _ -> \"position unknown\"
+}
+
+
+
 
 q3 = \"\\\"\\\"\\\"\"
 """
