@@ -622,6 +622,37 @@ expNameForEId program targetEId =
 
 expNameForEIdWithDefault : String -> Exp -> EId -> String
 expNameForEIdWithDefault default program targetEId =
+  -- if the target is part of a tuple binding, get the name it's bound to
+  let getParent eId = parentByEId program eId |> Maybe.withDefault Nothing in
+  getParent targetEId
+                             |> Maybe.andThen (\parentExp ->
+  expEId parentExp
+                             |>               (\parentEId ->
+  eTupleUnapply parentExp
+                             |> Maybe.andThen (\(_, tupleChildrenWithWS, _) ->
+  getParent parentEId
+                             |> Maybe.andThen (\grandParentExp ->
+  eLetUnapply grandParentExp
+                             |> Maybe.andThen (\(_, _, (Declarations _ _ _ letExps), _, _) ->
+  Utils.findFirst
+    (bindingOfLetExp >> eidIs parentEId)
+    (elemsOf letExps)
+                             |> Maybe.andThen (\letExp ->
+  patOfLetExp letExp
+  |> pTupleUnapply
+                             |> Maybe.andThen (\(_, patsWithWS, _) ->
+  Utils.maybeZip
+    (List.map Tuple.second patsWithWS)
+    (List.map Tuple.second tupleChildrenWithWS)
+                             |> Maybe.andThen (\patsWithExps ->
+  Utils.findFirst
+    (Tuple.second >> eidIs targetEId)
+    patsWithExps
+                             |> Maybe.andThen (\(pat, _) ->
+  pVarUnapply pat
+
+  -- else
+  ))))))))) |> Maybe.withDefault (
   case expDescriptionParts program targetEId |> Utils.takeLast 1 of
     [name] ->
       name
@@ -632,6 +663,7 @@ expNameForEIdWithDefault default program targetEId =
       findExpByEId program targetEId
       |> Maybe.map (simpleExpNameWithDefault default)
       |> Maybe.withDefault default
+  )
 
 
 -- Suggest a name for the expression exp in program
