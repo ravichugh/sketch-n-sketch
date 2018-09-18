@@ -13,6 +13,7 @@ module DeuceTools exposing
   , renameVariableViaHotkey
   , expandFormatViaHotkey
   , addToEndViaHotkey
+  , deleteViaHotkey
   , smartCompleteHoleViaHotkey
   , replaceWithParens
   , replaceWithList
@@ -218,6 +219,20 @@ shouldHaveParensOnAccountOfParent root expEId =
     Utils.fromJust_ "Couldn't find hole EId" |>
       Maybe.map doesChildNeedParens |>
         Maybe.withDefault False
+
+deleteToHole : Model -> Selections -> Maybe Exp
+deleteToHole model selections =
+  let root = model.inputExp in
+  case selections of
+    (_, _, [eId], [], [], [], [], [], []) ->
+      findExpByEId root eId |> Maybe.map (\origExp ->
+      replaceExpNode
+        eId
+        (eEmptyHoleVal |> setEId eId |> copyPrecedingWhitespace origExp)
+        root
+      )
+    _ ->
+      Nothing
 
 addToEnd : Model -> Selections -> Maybe Exp
 addToEnd model selections =
@@ -592,6 +607,9 @@ createRecordTool =
     "record"
     False
     (\wsb -> ERecord wsb Nothing (Declarations [] [] [] []) space0)
+
+deleteViaHotkey : Model -> DeuceWidget -> Maybe Exp
+deleteViaHotkey = runFunctionViaHotkey deleteToHole
 
 addToEndViaHotkey : Model -> DeuceWidget -> Maybe Exp
 addToEndViaHotkey = runFunctionViaHotkey addToEnd

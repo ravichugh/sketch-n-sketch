@@ -3554,6 +3554,8 @@ handleDeuceHotKey oldModel keysDown selected =
     DeuceTools.expandFormatViaHotkey old selected |> maybeChooseDeuceExp old
   else if keysDown == [Keys.keyShift, Keys.keyA] then
     DeuceTools.addToEndViaHotkey old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyD] then
+    DeuceTools.deleteViaHotkey old selected |> maybeChooseDeuceExp old
 
   else if keysDown == Keys.openParen then
     DeuceTools.replaceWithParens old selected |> maybeChooseDeuceExp old
