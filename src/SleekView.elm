@@ -1405,14 +1405,19 @@ textOutput text =
 outputPanel : Model -> Html Msg
 outputPanel model =
   let
+    contextLabel =
+      Html.b
+        []
+        [ Html.text "Context: "
+        ]
     canvasDim =
       SleekLayout.outputCanvas model
     contextBreadCrumbs =
       case model.editingContext of
-        Nothing       -> [ Html.text <| "Context: Program" ]
+        Nothing       -> [ contextLabel, Html.text "Program" ]
         Just (eid, _) ->
           let breadCrumbs = "Program" :: LangTools.expDescriptionParts model.inputExp eid in
-          [ Html.text <| "Context: " ++ String.join " > " breadCrumbs ]
+          [ contextLabel, Html.text <| String.join " > " breadCrumbs ]
     output =
       case (model.errorBox, model.outputMode, model.preview) of
         (_, _, Just (_, Err errorMsg)) ->

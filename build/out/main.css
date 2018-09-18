@@ -592,7 +592,7 @@ code {
   /* width: DYNAMIC */
   /* height: DYNAMIC */
 
-  background-color: #FFFFFF;
+  background-color: var(--panel-bg-color);
 
   position: absolute;
   /* top: DYNAMIC */
@@ -604,13 +604,12 @@ code {
   line-height: 35px;
   padding: 0 15px;
   border-bottom: 1px solid var(--subtle-border-color);
-/*  overflow: hidden;*/
-/*  position: relative;*/
 }
 
 #outputCanvas {
   /* width: DYNAMIC */
   /* height: DYNAMIC */
+  background-color: #FFFFFF;
   cursor: default;
   overflow: auto;
   position: relative;
