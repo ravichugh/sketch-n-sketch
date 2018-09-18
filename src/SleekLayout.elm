@@ -239,7 +239,7 @@ defaultMainResizerX : Model -> Int
 defaultMainResizerX model =
   let
     ratio =
-      0.4
+      0.5
     spaceToDivide =
       toFloat <|
         dynamicContentWidth model - mainResizerWidth
