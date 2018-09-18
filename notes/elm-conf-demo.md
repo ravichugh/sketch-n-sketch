@@ -411,7 +411,7 @@
         main =
           svg (logo "gray" (Center {cx=300, cy=300, rad=40}))
 
-1. <span style="color:red;">**TODO-Ravi:**</span>
+1. <span style="color:green;">**OK:**</span>
    Select the `svg` call and **Format**. Multiple options, such as
 
           svg <| logo "gray" <| Center {cx=300, cy=300, rad=40}
