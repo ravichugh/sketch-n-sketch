@@ -262,7 +262,7 @@ addShape
             let
               -- For Koch curve example, don't seem to need to prefer programs that don't produce a type error at the return location(s). So let's skip this check for simplicity and speed.
               sortKey =
-                ( if listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId) then 0 else 1
+                ( listEIds |> List.map (\otherListEId -> if StaticAnalysis.isDependentOn grossDependencies otherListEId listEId then 1 else 0) |> List.sum
                 , LangTools.nodeCount candidateProgram
                 )
               -- _ = Utils.log (Syntax.unparser Syntax.Elm candidateProgram)
