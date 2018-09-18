@@ -80,6 +80,7 @@ port module Controller exposing
   )
 
 import Updatable exposing (Updatable)
+import Info
 import Lang exposing (..) --For access to what makes up the Vals
 import Types2
 import Ace
@@ -1598,6 +1599,236 @@ deucePopupPanelPositionUpdater pos old =
 
 --------------------------------------------------------------------------------
 
+tryPreserveListIds_ : (Int -> a -> a -> Maybe (a, Int)) -> Int -> List a -> List a -> Maybe (List a, Int)
+tryPreserveListIds_ preserver nextAvailId oldList newList =
+  Utils.maybeZip oldList newList |> Maybe.andThen (
+  Utils.foldlMaybe (\(old, new) (reversedAcc, updatedAvailId) ->
+    preserver updatedAvailId old new
+    |> Maybe.map (Tuple.mapFirst <| flip (::) reversedAcc)
+  )
+  (Just ([], nextAvailId))       >> Maybe.map (
+  Tuple.mapFirst List.reverse))
+
+tryPreserveDecl_ nextAvailId oldDecl newDecl =
+  case (oldDecl, newDecl) of
+    (DeclExp (LetExp _ _ oldP _ _ oldE), DeclExp (LetExp ocs wsb newP fas ws1 newE)) ->
+      tryPreservePIds_ oldP newP            |> Maybe.andThen (\preservedP ->
+      tryPreserveIDs_ nextAvailId oldE newE |> Maybe.map (\(preservedE, nextAvailId) ->
+        (DeclExp <| LetExp ocs wsb preservedP fas ws1 preservedE, nextAvailId)
+      ))
+    (DeclType (LetType _ _ _ oldP _ _ oldT), DeclType (LetType ocs wsb aS newP fas ws1 newT)) ->
+      tryPreservePIds_ oldP newP |> Maybe.andThen (\preservedP ->
+      tryPreserveTIds_ oldT newT |> Maybe.map (\preservedT ->
+        (DeclType <| LetType ocs wsb aS preservedP fas ws1 preservedT, nextAvailId)
+      ))
+    (DeclAnnotation (LetAnnotation _ _ oldP _ _ oldT), DeclAnnotation (LetAnnotation ocs wsb newP fas ws1 newT)) ->
+      tryPreservePIds_ oldP newP |> Maybe.andThen (\preservedP ->
+      tryPreserveTIds_ oldT newT |> Maybe.map (\preservedT ->
+        (DeclAnnotation <| LetAnnotation ocs wsb preservedP fas ws1 preservedT, nextAvailId)
+      ))
+    _ ->
+      Nothing
+
+tryPreserveDecls_ nextAvailId oldDecls newDecls =
+  let
+    oldDeclsOrdered = getDeclarationsInOrder oldDecls
+    newDeclsOrdered = getDeclarationsInOrder newDecls
+  in
+  tryPreserveListIds_ tryPreserveDecl_ nextAvailId oldDeclsOrdered newDeclsOrdered
+  |> Maybe.andThen (\(preservedDeclsFlat, nextAvailId) ->
+  Parser.reorderDeclarations preservedDeclsFlat |> Result.toMaybe
+  |> Maybe.map (\preservedDecls ->
+  (preservedDecls, nextAvailId)
+  ))
+
+tryPreservePIds_ : Pat -> Pat -> Maybe Pat
+-- TODO implement properly
+tryPreservePIds_ oldPat newPat = Just newPat
+
+tryPreserveTIds_ : Type -> Type -> Maybe Type
+-- TODO implement properly
+tryPreserveTIds_ oldType newType = Just newType
+
+tryPreservePatsIds_ : List Pat -> List Pat -> Maybe (List Pat)
+tryPreservePatsIds_ oldPats newPats =
+  let preserver _ oldPat newPat =
+    tryPreservePIds_ oldPat newPat |> Maybe.map (flip (,) 0)
+  in
+  tryPreserveListIds_ preserver 0 oldPats newPats
+  |> Maybe.map Tuple.first
+
+tryPreserveExpsIds_ : Int -> List Exp -> List Exp -> Maybe (List Exp, Int)
+tryPreserveExpsIds_ = tryPreserveListIds_ tryPreserveIDs_
+
+tryPreserveIDs_ : Int -> Exp -> Exp -> Maybe (Exp, Int)
+tryPreserveIDs_ nextAvailId old new =
+  let
+    oldEId = expEId old
+    withEId newEId e__ = replaceE__ new e__ |> setEId newEId
+    preserveLeaf = Just (setEId oldEId new, nextAvailId)
+    return updatedAvailId e__ = Just (withEId oldEId e__, updatedAvailId)
+  in
+  case (unwrapExp old, unwrapExp new) of
+    (EConst _ _ _ _, EConst _ _ _ _) -> preserveLeaf
+    (EBase _ _, EBase _ _)           -> preserveLeaf
+    (EVar _ _, EVar _ _)             -> preserveLeaf
+    (EFun _ oldPats oldBody _, EFun wsb newPats newBody wsa) ->
+      tryPreservePatsIds_ oldPats newPats         |> Maybe.andThen (\preservedPats ->
+      tryPreserveIDs_ nextAvailId oldBody newBody |> Maybe.andThen (\(preservedBody, nextAvailId) ->
+        EFun wsb preservedPats preservedBody wsa
+        |> return nextAvailId
+      ))
+    (EApp _ oldF oldArgs _ _, EApp wsb newF newArgs appType wsa) ->
+      tryPreserveIDs_ nextAvailId oldF newF           |> Maybe.andThen (\(preservedF, nextAvailId) ->
+      tryPreserveExpsIds_ nextAvailId oldArgs newArgs |> Maybe.andThen (\(preservedArgs, nextAvailId) ->
+        EApp wsb preservedF preservedArgs appType wsa
+        |> return nextAvailId
+      ))
+    (EOp _ _ _ oldOps _, EOp wsb wsc op newOps wsa) ->
+      tryPreserveExpsIds_ nextAvailId oldOps newOps |> Maybe.andThen (\(preservedOps, nextAvailId) ->
+        EOp wsb wsc op preservedOps wsa
+        |> return nextAvailId
+      )
+    (EList _ oldChildren _ oldM _, EList wsb newChildren ws1 newM ws2) ->
+      let tryPreserveChild nextAvailId (_, oldChild) (wsC, newChild) =
+        tryPreserveIDs_ nextAvailId oldChild newChild
+        |> Maybe.map (\(preservedChild, nextAvailId) ->
+          ((wsC, preservedChild), nextAvailId)
+        )
+      in
+      tryPreserveListIds_ tryPreserveChild nextAvailId oldChildren newChildren
+      |> Maybe.andThen (\(preservedChildren, nextAvailId) ->
+        (case (oldM, newM) of
+          (Just oldT, Just newT) ->
+            tryPreserveIDs_ nextAvailId oldT newT
+            |> Maybe.map (Tuple.mapFirst Just)
+          (Nothing, Nothing) ->
+            Just (Nothing, nextAvailId)
+          _ ->
+            Nothing
+        )
+      |> Maybe.andThen (\(preservedM, nextAvailId) ->
+        EList wsb preservedChildren ws1 preservedM ws2
+        |> return nextAvailId
+      ))
+    (EIf _ oldC _ oldT _ oldF _, EIf wsb newC wsT newT wsE newF wsa) ->
+      tryPreserveExpsIds_ nextAvailId [oldC, oldT, oldF] [newC, newT, newF]
+      |> Maybe.andThen (\(preserved, nextAvailId) ->
+        let (preservedC, preservedT, preservedF) =
+          Utils.mapThree (flip Utils.geti preserved) (1, 2, 3)
+        in
+        EIf wsb preservedC wsT preservedT wsE preservedF wsa
+        |> return nextAvailId
+      )
+    (ECase _ oldS oldBranches _, ECase wsb newS newBranches wsa) ->
+      let tryPreserveBranch nextAvailId oldB newB =
+        let (Branch_ wsb newP newE wsa) = newB.val in
+        tryPreservePIds_ (branchPat oldB) newP            |> Maybe.andThen (\preservedP ->
+        tryPreserveIDs_ nextAvailId (branchExp oldB) newE |> Maybe.map (\(preservedE, nextAvailId) ->
+          (Branch_ wsb preservedP preservedE wsa |> Info.replaceInfo newB, nextAvailId)
+        ))
+      in
+      tryPreserveIDs_ nextAvailId oldS newS
+      |> Maybe.andThen (\(preservedS, nextAvailId) ->
+      tryPreserveListIds_ tryPreserveBranch nextAvailId oldBranches newBranches
+      |> Maybe.andThen (\(preservedBranches, nextAvailId) ->
+        ECase wsb preservedS preservedBranches wsa
+        |> return nextAvailId
+      ))
+    (ELet _ _ oldDecls _ oldBody, ELet wsb lk newDecls ws1 newBody) ->
+      tryPreserveDecls_ nextAvailId oldDecls newDecls |> Maybe.andThen (\(preservedDecls, nextAvailId) ->
+      tryPreserveIDs_ nextAvailId oldBody newBody     |> Maybe.andThen (\(preservedBody, nextAvailId) ->
+        ELet wsb lk preservedDecls ws1 preservedBody
+        |> return nextAvailId
+      ))
+    (EColonType _ oldE _ oldT _, EColonType wsb newE ws1 newT wsa) ->
+      tryPreserveIDs_ nextAvailId oldE newE |> Maybe.andThen (\(preservedE, nextAvailId) ->
+      tryPreserveTIds_ oldT newT            |> Maybe.andThen (\preservedT ->
+        EColonType wsb preservedE ws1 preservedT wsa
+        |> return nextAvailId
+      ))
+    (EParens _ oldE _ _, EParens wsb newE ps wsa) ->
+      tryPreserveIDs_ nextAvailId oldE newE |> Maybe.andThen (\(preservedE, nextAvailId) ->
+        EParens wsb preservedE ps wsa
+        |> return nextAvailId
+      )
+    (EHole _ EEmptyHole, EHole _ EEmptyHole)       -> preserveLeaf
+    (EHole _ (ESnapHole _), EHole _ (ESnapHole _)) -> preserveLeaf
+    (ERecord _ oldM oldDecls _, ERecord wsb newM newDecls wsa) ->
+      (case (oldM, newM) of
+        (Just (oldS, _), Just (newS, wsAfterS)) ->
+          tryPreserveIDs_ nextAvailId oldS newS
+          |> Maybe.map (Tuple.mapFirst <| flip (,) wsAfterS >> Just)
+        (Nothing, Nothing) ->
+          Just (Nothing, nextAvailId)
+        _ ->
+          Nothing
+      )
+      |> Maybe.andThen (\(preservedM, nextAvailId) ->
+      tryPreserveDecls_ nextAvailId oldDecls newDecls
+      |> Maybe.andThen (\(preservedDecls, nextAvailId) ->
+        ERecord wsb preservedM preservedDecls wsa
+        |> return nextAvailId
+      ))
+    (ESelect _ oldSel _ _ _, ESelect wsb newSel ws1 ws2 ident) ->
+      tryPreserveIDs_ nextAvailId oldSel newSel |> Maybe.andThen (\(preservedSel, nextAvailId) ->
+        ESelect wsb preservedSel ws1 ws2 ident
+        |> return nextAvailId
+      )
+    -- Accounts for when the unparser adds extra parens
+    (_, EParens wsb newInnerExp ps wsa) ->
+      tryPreserveIDs_ (nextAvailId + 1) old newInnerExp
+      |> Maybe.map (\(preservedInnerExp, nextAvailId) ->
+        let newPreserved =
+          EParens wsb preservedInnerExp ps wsa |> withEId nextAvailId
+        in
+        (newPreserved, nextAvailId)
+      )
+    _ ->
+      Nothing
+
+-- currently doesn't preserve loc ids
+tryPreserveIDs : Exp -> Exp -> Exp
+tryPreserveIDs old new =
+  let freshenedOld = Parser.freshen old in
+  case tryPreserveIDs_ (Parser.maxId freshenedOld + 1) freshenedOld new of
+    Just (e, _) -> e
+    Nothing     -> new
+
+deuceRefresh : Exp -> Model -> Model
+deuceRefresh preUnparsedExp old =
+  let
+    parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
+      Syntax.parser old.syntax old.code
+
+    (newInputExp, newLastParsedCode) =
+      case parseResult of
+        Ok parsedExp ->
+          let inputExp = tryPreserveIDs preUnparsedExp parsedExp in
+          (inputExp, old.code)
+
+        Err _ ->
+          (old.inputExp, old.lastParsedCode)
+
+    oldMbKeyboardFocusedWidget = old.deuceState.mbKeyboardFocusedWidget
+    newMbKeyboardFocusedWidget =
+      if isDeuceWidgetValid newInputExp oldMbKeyboardFocusedWidget then
+        oldMbKeyboardFocusedWidget
+      else
+        Nothing
+    oldDeuceState = old.deuceState
+    newDeuceState =
+      { oldDeuceState |
+          mbKeyboardFocusedWidget = newMbKeyboardFocusedWidget
+      }
+
+  in
+    { old
+        | inputExp = newInputExp
+        , lastParsedCode = newLastParsedCode
+        , deuceState = newDeuceState
+    }
+
 refreshInputExp : Model -> Model
 refreshInputExp old =
   let
@@ -1608,8 +1839,9 @@ refreshInputExp old =
       case parseResult of
         Ok parsedExp ->
           let
-            (inputExp, aceTypeInfo, typeChecks) =
+            (typedInputExp, aceTypeInfo, typeChecks) =
               maybeTypeCheck old.doTypeChecking parsedExp
+            inputExp = tryPreserveIDs old.inputExp typedInputExp
           in
             (inputExp, updateCodeBoxInfo aceTypeInfo old, old.code, typeChecks)
 
@@ -3073,14 +3305,33 @@ chooseDeuceExp old newRoot =
   in
   -- TODO version of tryRun/upstateRun starting with parsed expression
   upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
+  |> deuceRefresh newRoot
   |> resetDeuceKeyboardInfo
-  |> refreshInputExp
 
 maybeChooseDeuceExp : Model -> Maybe Exp -> Model
 maybeChooseDeuceExp m mbExp =
   case mbExp of
     Nothing  -> m
     Just exp -> chooseDeuceExp m exp
+
+isDeuceWidgetValid : Exp -> Maybe DeuceWidget -> Bool
+isDeuceWidgetValid root mbWidget =
+  case mbWidget of
+    Just (DeuceExp eId) ->
+      findExpByEId root eId
+      |> Utils.maybeToBool
+    Just (DeucePat ppid) ->
+      LangTools.pathedPatternIdToPId ppid root
+      |> Utils.maybeToBool
+    Just (DeuceLetBindingEquation (scopeEId, bn)) ->
+      findExpByEId root scopeEId
+      |> Maybe.andThen (flip findLetexpByBindingNumber bn)
+      |> Utils.maybeToBool
+    Just (DeuceType tId) ->
+      -- TODO implement properly
+      False
+    _ ->
+      False
 
 resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
