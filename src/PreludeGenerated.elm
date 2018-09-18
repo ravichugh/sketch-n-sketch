@@ -2875,15 +2875,53 @@ zipWithIndex xs =
 indexedMap f l =
   map (\\(i, x) -> f i x) (zipWithIndex l)
 
--- TODO re-organize the scattered list definitions into
--- LensLess.List, ListLenses, and List = LensLess.List
-
+-- TODO: Remove list lenses (lenses should be part of List)
 ListLenses =
   { map = map
     append = append
     zipWithIndex = zipWithIndex
     indexedMap = indexedMap
   }
+
+-- TODO: Create lens-enabled versions.
+Result = {
+  type Result err ok = Err err | Ok ok
+
+  map: (a -> b) -> Result err a -> Result err b
+  map f res = case res of
+    Err msg -> res
+    Ok x -> Ok (f x)
+
+  map2: (a -> b -> c) -> Result err a -> Result err b -> Result err c
+  map2 f resA resB = case resA of
+    Err msg -> res
+    Ok a -> map (f a) resB
+
+  map3: (a -> b -> c -> d) -> Result err a -> Result err b -> Result err c -> Result err d
+  map3 f resA resB resC = case resA of
+    Err msg -> res
+    Ok a -> map2 (f a) resB resC
+
+  andThen: (a -> Result err b) -> Result err a -> Result err b
+  andThen f res = case res of
+    Err msg -> res
+    Ok x -> f x
+
+  toMaybe: Result err ok -> Maybe ok
+  toMaybe res = case res of
+    Err msg -> Nothing
+    Ok x -> Just x
+
+  fromMaybe: err -> Maybe ok -> Result err ok
+  fromMaybe err res = case res of
+    Nothing -> Err err
+    Just x -> Ok x
+
+  withDefault: ok -> Result err ok -> ok
+  withDefault defaultValue res = case res of
+    Err x -> defaultValue
+    Ok x -> x
+}
 
 --------------------------------------------------------------------------------
 -- TODO (re-)organize this section into modules
@@ -3759,6 +3797,11 @@ String =
             Just [substr] -> substr
             Nothing -> Debug.crash <| \"bad arguments to String.drop \" + toString length + \" \" + toString x
   in
+  let dropRight length x =
+    case Regex.extract \"\"\"^([\\s\\S]*?)[\\s\\S]{0,@length}$\"\"\" x of
+            Just [substr] -> substr
+            Nothing -> Debug.crash <| \"bad arguments to String.drop \" + toString length + \" \" + toString x
+  in
   let sprintf str inline = case inline of
     a::tail -> sprintf (replaceFirstIn \"%s\" a str) tail
     [] -> str
@@ -3824,6 +3867,7 @@ String =
     left = take
     drop = drop
     dropLeft = drop
+    dropRight = dropRight
     trim s = case extractFirstIn \"^\\\\s*([\\\\s\\\\S]*?)\\\\s*$\" s of
       Just [trimmed] -> trimmed
       Nothing -> s
@@ -4402,7 +4446,7 @@ random = {
         d = d << 11 | d >>> 21;
         @(jsCode.tupleOf \"x\" [jsCode.tupleOf \"y\" [\"a\", \"b\", \"c\", \"d\"], \"(r >>> 0) / 4294967296\"]);\"\"\"
       in
-      withNewGeneratorResult (generator (Debug.log \"newABCD\" <| newABCD)) result
+      withNewGeneratorResult (generator newABCD) result
 
     randomFloat: () -> (Generator, Float)
     randomFloat () = randomFloat_ (,)

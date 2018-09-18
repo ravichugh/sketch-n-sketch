@@ -122,7 +122,7 @@ object SNS extends Module {
          "mode-elm.js",
          "theme-chrome.js"
     ).map(pwd/"ace-builds"/'src/_).foreach(copy(_, outDir))
-    copy(pwd/"viz.js"/"viz.js", outDir)
+    copy(pwd/"viz.js", outDir)
     mkdir ! pwd/'build/'out/'img //'
     copy(pwd/'img/"light_logo.svg", outDir/'img)
     ls! pwd/'img |? (_.ext == "png") |! (copy(_, outDir / 'img))

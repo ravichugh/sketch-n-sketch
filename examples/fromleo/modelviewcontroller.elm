@@ -40,20 +40,16 @@ view =
       <span class="result">@showResult(result)</span>
     </span>
     <div class="commands">
-    <br><br>
-    @(case result of
-       Err _ -> []
-       Ok r -> <span>
-         @button("Name the result ")(
+    <br><br>@(result
+      |> Result.map (\r -> <span> @button("Name the result ")(
            nameThisResult model.variable r)@(Html.input "text" model.variable)<br></span>)
+      |> Result.withDefault [])
     @List.concatMap(\(name,value) ->
       [button("""@name = @value""")(replaceComputationBy name)] ++
-        (case result of
-         Err _ -> []
-         Ok r -> [button("""Store the result in @name""")(nameThisResult name r)]) ++
+        (result |> Result.map (\r -> [button("""Store the result in @name""")(nameThisResult name r)]) |> Result.withDefault []) ++
        [<br>])(model.storedVariables)
     </div>
-    </div>
+  </div>
     
     
 <style>
@@ -77,6 +73,7 @@ view =
 .display .error {
   color: red;
   font-size: 0.5em;
+  white-space:pre;
 }
 .result {
   font-size: 0.8em;
@@ -91,6 +88,7 @@ view =
   height: 63.5px;
   font-size: 20px;
   margin-bottom: 10px;
+  padding-left: 10px;
 }
 </style>
 </div>

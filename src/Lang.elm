@@ -2132,7 +2132,22 @@ getOptionsFromString whitespace =
   )
 
 getOptions : Exp -> List (String, String)
-getOptions e = getOptionsFromString <| precedingWhitespace e
+getOptions e = case unwrapExp e of
+  ELet _ Def (Declarations printOrder _ _ _ as decls) _ _ ->
+    let
+      mbFirstDeclNumber = Utils.maybeGeti0 0 printOrder
+      mbFirstSpace =
+         getDeclarations decls |> Utils.zipWithIndex |> Utils.mapFirstSuccess (\(decl, bindingNumber) ->
+         if Just bindingNumber == mbFirstDeclNumber then
+           Just <| .val <| precedingWhitespaceDeclarationWithInfo decl
+         else  Nothing)
+    in case mbFirstSpace of
+      Nothing ->
+        getOptionsFromString <| precedingWhitespace e
+      Just x ->
+        getOptionsFromString x
+  _ ->
+    getOptionsFromString <| precedingWhitespace e
 
 
 ------------------------------------------------------------------------------
