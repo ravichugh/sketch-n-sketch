@@ -618,16 +618,22 @@ codeObjectPolygon msgs codeInfo codeObject color =
           codeInfo.mbKeyboardFocusedWidget == Nothing
 
         highlightInfo =
-          case (codeInfo.doTypeChecking, codeInfo.needsParse, codeObject) of
-            (True, False, E e) ->
-              case (unExpr e).val.extraDeuceTypeInfo of
+          let
+            maybeShow extraDeuceTypeInfo =
+              case extraDeuceTypeInfo of
                 Just (HighlightWhenSelected eId) ->
-                  Utils.maybeCons
-                    codeInfo.mbKeyboardFocusedWidget
-                    codeInfo.selectedWidgets |>
-                    List.all ((==) <| DeuceExp eId)
+                  List.member (DeuceExp eId) codeInfo.selectedWidgets
+
                 _ ->
                   False
+          in
+          case (codeInfo.doTypeChecking, codeInfo.needsParse, codeObject) of
+            (True, False, E e) ->
+              maybeShow (unExpr e).val.extraDeuceTypeInfo
+            (True, False, P _ p) ->
+              maybeShow p.val.extraDeuceTypeInfo
+            (True, False, T t) ->
+              maybeShow t.val.extraDeuceTypeInfo
             _ ->
               False
 

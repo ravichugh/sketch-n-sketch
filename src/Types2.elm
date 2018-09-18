@@ -621,9 +621,9 @@ inferType gamma stuff thisExp =
             result =
               checkType gamma stuff innerExp annotatedType
 
-            (newInnerExp, finishNewExp) =
+            (newInnerExp, finishNewExp, newAnnotatedType) =
               if result.okay then
-                (result.newExp, Basics.identity)
+                (result.newExp, Basics.identity, annotatedType)
 
               else
                 -- the call to checkType calls:
@@ -631,10 +631,17 @@ inferType gamma stuff thisExp =
                 --
                 -- here, adding extra breadcrumb about the solicitorExp.
                 --
-                (result.newExp, setExtraDeuceTypeInfo (HighlightWhenSelected (unExpr innerExp).val.eid))
+                let
+                  breadcrumb =
+                    HighlightWhenSelected (unExpr innerExp).val.eid
+                in
+                ( result.newExp
+                , Basics.identity -- setExtraDeuceTypeInfo breadcrumb
+                , annotatedType |> setExtraDeuceTypeInfoForThing breadcrumb
+                )
 
             newExp =
-              EColonType ws1 newInnerExp ws2 annotatedType ws3
+              EColonType ws1 newInnerExp ws2 newAnnotatedType ws3
                 |> replaceE__ thisExp
                 |> setType (Just annotatedType)
                 |> finishNewExp
@@ -863,12 +870,12 @@ inferType gamma stuff thisExp =
 
         -- Process LetExps -----------------------------------------------------
 
-        (newLetExps, newGamma) =
+        (newLetExps, newGamma, newTypeBreadCrumbs) =
           letExps
-            |> List.foldl processLetExp ([], gamma)
-            |> Tuple.mapFirst List.reverse
+            |> List.foldl processLetExp ([], gamma, [])
+            |> Utils.mapFst3 List.reverse
 
-        processLetExp (isRec, listLetExp) (accLetExpsRev, accGamma) =
+        processLetExp (isRec, listLetExp) (accLetExpsRev, accGamma, accTypeBreadCrumbs) =
           let
             listLetExpAndMaybeType : List (LetExp, Maybe Type)
             listLetExpAndMaybeType =
@@ -907,7 +914,7 @@ inferType gamma stuff thisExp =
                 in
                   List.foldl addHasMaybeType accGamma assumedRecPatTypes
 
-            newListLetExp =
+            (newListLetExp, moreTypeBreadCrumbs)  =
               listLetExpAndMaybeType
                 |> List.map (\( (LetExp ws0 ws1 pat fas ws2 expEquation)
                               , maybeAnnotatedType
@@ -947,24 +954,38 @@ inferType gamma stuff thisExp =
                                        ]
                                      )
                          in
-                         LetExp ws0 ws1 newPat fas ws2 result.newExp
+                         ( LetExp ws0 ws1 newPat fas ws2 result.newExp
+                         , []
+                         )
 
                        Just annotatedType ->
                          let
                            result =
                              checkType gammaForEquations stuff expEquation annotatedType
 
-                           newPat =
+                           (newPat, maybeTypeBreadCrumb) =
                              if result.okay then
-                               pat |> setPatType (Just annotatedType)
+                               ( pat |> setPatType (Just annotatedType)
+                               , []
+                               )
                              else
-                               pat |> setPatDeuceTypeInfo (deucePlainLabels ["type error"])
-                           -- TODO: add tool option to change annotation if result.okay == False
+                               let
+                                 breadcrumb =
+                                   HighlightWhenSelected (unExpr expEquation).val.eid
+                               in
+                               ( pat |> setPatDeuceTypeInfo (deucePlainLabels ["type error"])
+                               , [(annotatedType.val.tid, breadcrumb)]
+                               )
+
                            newExpEquation =
                              result.newExp
                          in
-                         LetExp ws0 ws1 newPat fas ws2 newExpEquation
+                         ( LetExp ws0 ws1 newPat fas ws2 newExpEquation
+                         , maybeTypeBreadCrumb
+                         )
                    )
+                |> List.unzip
+                |> Tuple.mapSecond List.concat
 
             newGamma =
               let
@@ -984,7 +1005,24 @@ inferType gamma stuff thisExp =
                   Just patTypes ->
                     List.foldl addHasType accGamma patTypes
           in
-            ((isRec, newListLetExp) :: accLetExpsRev, accGamma)
+            ( (isRec, newListLetExp) :: accLetExpsRev
+            , accGamma
+            , moreTypeBreadCrumbs ++ accTypeBreadCrumbs
+            )
+
+        newerLetAnnots =
+          newLetAnnots
+            |> List.map (\(LetAnnotation ws0 ws1 pat fas ws2 typ) ->
+                 let
+                   newType =
+                     case Utils.maybeFind typ.val.tid newTypeBreadCrumbs of
+                       Just breadcrumb ->
+                         typ |> setExtraDeuceTypeInfoForThing breadcrumb
+                       Nothing ->
+                         typ
+                 in
+                 LetAnnotation ws0 ws1 pat fas ws2 newType
+               )
 
         -- Process Let-Body ----------------------------------------------------
 
@@ -997,7 +1035,7 @@ inferType gamma stuff thisExp =
         -- Rebuild -------------------------------------------------------------
 
         newExp =
-          ELet ws1 letKind (Declarations po newLetTypes newLetAnnots newLetExps) ws2 newBody
+          ELet ws1 letKind (Declarations po newLetTypes newerLetAnnots newLetExps) ws2 newBody
             |> replaceE__ thisExp
             |> copyTypeInfoFrom newBody
       in
@@ -1267,7 +1305,7 @@ checkType gamma stuff thisExp expectedType =
             , newExp =
                 EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
-                  |> setDeuceTypeInfo (expectedButGot expectedType maybeActualType)
+                  |> setDeuceTypeInfo (expectedButGot stuff.inputExp expectedType maybeActualType)
             }
 
     (EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3, _, _) ->
@@ -1328,7 +1366,8 @@ checkType gamma stuff thisExp expectedType =
               { okay = False
               , newExp =
                   result.newExp
-                    |> setDeuceTypeInfo (expectedButGot expectedType (Just inferredType))
+                    |> setType Nothing -- overwrite (Just inferredType)
+                    |> setDeuceTypeInfo (expectedButGot stuff.inputExp expectedType (Just inferredType))
               }
 
 
@@ -1344,13 +1383,78 @@ deucePlainLabels strings =
   DeuceTypeInfo
     (List.map (deuceLabel << PlainText) strings)
 
-
+-- TODO: flip args
 deuceTool : ResultText -> Exp -> TransformationResult
 deuceTool rt exp =
   Fancy (synthesisResult "Types2 DUMMY DESCRIPTION" exp) rt
 
-expectedButGot expectedType maybeActualType =
-  DeuceTypeInfo
+expectedButGot inputExp expectedType maybeActualType =
+  let
+    rewriteType actualType =
+      mapFoldTypeTopDown (\t acc ->
+        if t.val.tid == expectedType.val.tid then
+          (actualType, True)
+
+        else
+          (t, False)
+      ) False
+
+    rewrite actualType =
+      mapFoldExp (\e acc ->
+        case (unExpr e).val.e__ of
+          EColonType ws1 e1 ws2 tipe ws3 ->
+            let
+              (newType, modified) =
+                rewriteType actualType tipe
+            in
+              ( EColonType ws1 e1 ws2 newType ws3 |> replaceE__ e
+              , modified || acc
+              )
+
+          ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+            let
+              (newLetAnnots, anyModified) =
+                letAnnots
+                  |> List.map (\(LetAnnotation mws0 ws1 pat fas ws2 typAnnot) ->
+                       let
+                         (newTypAnnot, thisOneModified) =
+                           rewriteType actualType typAnnot
+                       in
+                         (LetAnnotation mws0 ws1 pat fas ws2 newTypAnnot, thisOneModified)
+                     )
+                  |> List.unzip
+                  |> Tuple.mapSecond (List.any ((==) True))
+
+              newELet=
+                ELet ws1 letKind (Declarations po letTypes newLetAnnots letExps) ws2 body
+                  |> replaceE__ e
+            in
+              (newELet, anyModified || acc)
+
+          _ ->
+            (e, acc)
+      ) False inputExp
+
+    maybeRewriteAnnotation =
+      case maybeActualType of
+        Nothing ->
+          []
+
+        Just actualType ->
+          let
+            (newExp, modified) =
+              rewrite actualType
+          in
+          if modified then
+            [ deuceLabel <| PlainText <|
+                "Is the type annotation wrong? Change it to:"
+            , flip deuceTool newExp <| TypeText <|
+                unparseType actualType
+            ]
+          else
+            []
+  in
+  DeuceTypeInfo <|
     [ deuceLabel <| ErrorHeaderText <|
         "Type Mismatch"
     , deuceLabel <| PlainText <|
@@ -1361,9 +1465,8 @@ expectedButGot expectedType maybeActualType =
         "But this is a"
     , deuceLabel <| TypeText <|
         Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
-    , deuceLabel <| PlainText
-        ("TODO-Ravi Maybe an option to change expected type if it's annotation...")
     ]
+    ++ maybeRewriteAnnotation
 
 
 makeDeuceExpTool : Exp -> Exp -> (() -> List TransformationResult)

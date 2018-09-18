@@ -194,7 +194,7 @@
         main =
           svg logo
 
-1. <span style="color:orange;">**TODO-Nick: Keep nicer names.**</span>
+1. <span style="color:green;">**OK:**</span>
    Select `x`, `y`, and `size` constants and **Create Function from Arguments**.
    (Instead of Select `logo` and **Create Function from Definition**.)
           
@@ -279,10 +279,10 @@
 
         logo : String -> Num -> Num -> Num -> Svg
 
-1. <span style="color:red;">**TODO-Ravi:**</span>
+1. <span style="color:green;">**OK:**</span>
    **Type Information** tool says return type doesn't match
    annotation. Has an option to **Change annotation for return value**.
-   <span style="color:orange;">TODO: And perhaps **Insert call to `svgConcat`**.</span>
+   <!-- <span style="color:orange;">TODO: And perhaps **Insert call to `svgConcat`**.</span> -->
 
         logo : String -> Num -> Num -> Num -> List Svg
         logo fill x y size =

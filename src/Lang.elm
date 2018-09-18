@@ -244,11 +244,21 @@ type alias PId  = Int
 type alias TId = Int
 type alias Exp_ = WithTypeInfo { e__ : Exp__, eid : EId }
 type alias Pat_ = WithTypeInfo { p__ : Pat__, pid : PId }
-type alias Type_ = { t__ : Type__, tid: TId }
+type alias Type_ = WithDeuceTypeInfo { t__ : Type__, tid: TId }
 
 type alias WithTypeInfo a =
   { a | typ : Maybe Type
       , deuceTypeInfo : Maybe DeuceTypeInfo
+      , extraDeuceTypeInfo : Maybe ExtraDeuceTypeInfo
+  }
+
+-- factor this out of WithTypeInfo ...
+--
+-- type alias WithType a = { a | typ : Maybe Type }
+-- type alias WithTypeInfo a = WithType (WithDeuceTypeInfo a)
+--
+type alias WithDeuceTypeInfo a =
+  { a | deuceTypeInfo : Maybe DeuceTypeInfo
       , extraDeuceTypeInfo : Maybe ExtraDeuceTypeInfo
   }
 
@@ -272,6 +282,8 @@ makePat_ p__ pid =
 makeType_ t__ tid =
   { t__ = t__
   , tid = tid
+  , deuceTypeInfo = Nothing
+  , extraDeuceTypeInfo = Nothing
   }
 
 setTypeForThing : Maybe Type -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
@@ -279,12 +291,14 @@ setTypeForThing typ thing =
   let thing_ = thing.val in
   { thing | val = { thing_ | typ = typ } }
 
-setDeuceTypeInfoForThing : DeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+-- setDeuceTypeInfoForThing : DeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setDeuceTypeInfoForThing : DeuceTypeInfo -> WithInfo (WithDeuceTypeInfo a) -> WithInfo (WithDeuceTypeInfo a)
 setDeuceTypeInfoForThing info thing =
   let thing_ = thing.val in
   { thing | val = { thing_ | deuceTypeInfo = Just info } }
 
-setExtraDeuceTypeInfoForThing : ExtraDeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+-- setExtraDeuceTypeInfoForThing : ExtraDeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setExtraDeuceTypeInfoForThing : ExtraDeuceTypeInfo -> WithInfo (WithDeuceTypeInfo a) -> WithInfo (WithDeuceTypeInfo a)
 setExtraDeuceTypeInfoForThing info thing =
   let thing_ = thing.val in
   { thing | val = { thing_ | extraDeuceTypeInfo = Just info } }
