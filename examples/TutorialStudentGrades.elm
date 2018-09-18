@@ -172,7 +172,7 @@ Thanks to SVG editing capabilities, we can now move the horizontal lines up and 
 
 Make sure the line @t.lineof("""CutOff "B"""") is visible in the code editor (in the left panel).
 
-Your task is now to move the cut-off of the letter B (in the right panel) to accept one more student (by dragging it slowly below).
+Your task is now to move the cut-off of the letter B (in the right panel) to accept one more student (by dragging it slowly downwards).
 A pop-up "Output Editor" appears. Hover over "Update program", it then takes 1 second to find where to change the cut-off. Click on the solution to accept it.
 You should obtain something like the following on the right-hand side.  
 @t.displayevalcodeLocalReplace("CutOff \"B\"  76")<|"CutOff \"B\"  72.7"
@@ -191,12 +191,12 @@ To avoid this, we add a lens to modify how the cut-off is updated.
 @(placeholder 6)"""
 @t.replace("freeze 100! - cutoff")<|"freeze 100! - updateDecimal cutoff"
 A lens is a pair of two functions (here <code>apply</code> and <code>update</code>),
-such that the first contains the logic to compute forward, and the second the logic to back-propagate an updated value.
-In our case, this function takes the new output and round it to the nearest multiple of 0.1.
+such that the first contains the logic to do normal forward computation, and the second the logic to back-propagate an updated value.
+In our case, this function takes the new output and rounds it to the nearest multiple of 0.1.
 Since a lens is a record, we invoke it on an argument using a special constructor called <code>Update.lens</code>.  
   
 Modify the cut-off for letter B back to where it was, approximately (just above the blue line right above it).
-You will observe that, on update, the cut-off contains only once decimal in the code.
+You will observe that, on update, the cut-off contains only one decimal in the code.
 
 ## Table of results
 At this point, we hope that our cut-offs are well placed.
@@ -227,7 +227,7 @@ displayStudents =
 
 displayBuckets = 
   <table>
-  <tr><th>Grade</th><th>Students</th><th>Groupped</th>
+  <tr><th>Grade</th><th>Students</th><th>Grouped</th>
     <th>Cut-offs</th></tr>
   @@(List.indexedMap (\i (CutOff name cutoff, students) ->
     <tr style="background:"+(
@@ -257,11 +257,11 @@ You should see the following table appear below the graph in the output view:
 notmain = """
 Note that you can again change the cutoffs from this table right where they are displayed, using basic update techniques.
  
-## Unfair letter attribution.
-We want to know if there are unfair letter attribution.
-A possibly unfair letter attribution arises if two student grades are very close to each other (e.g. the difference is below 0.5),
+## Unfair letter grade assignments
+We want to know if any letter grades have been assigned unfairly.
+A potentially unfair letter assignment arises if two student grades are very close to each other (e.g., the difference is less than 0.5),
 but they have been assigned different letters.
-To avoid being contested, it is better to make sure there is no possibly unfair letter attribution.
+To avoid being contested, it is best to make sure there is no potentially unfair letter grade assignment.
 We compute and display this information in the table.
 
 @t.replace(placeholder 7)<|"""ifunfair i =
@@ -288,14 +288,14 @@ We compute and display this information in the table.
 </span>
 notmain = """
 
-It looks like we were right, we have one unfair letter attribution.
+It looks like our concern was justified - we have one unfair grade assignment.
 Of course, we can use the graph to change the cut-offs to avoid that, or change the cut-offs directly in the table.
-What if we had a way to just resolve the potential complaint using buttons, such as "Upgrade XXX" or "Downgrade XXX"?
+But what if we had a way to resolve the potential complaint just using buttons, such as "Upgrade XXX" or "Downgrade XXX"?
 
-## Button to modify cut-offs
-Adding buttons to upgrade or downgrade a student's means that these buttons will modify the cut-off.
+## Buttons to modify cut-offs
+Adding buttons to upgrade or downgrade a student's grade means that these buttons will modify the cut-off.
 This behavior can be locally defined with the following trick:
-When we click a button, it modifies a property using JavaScript that is supposed to contain the cut-off, with a new cut-off.
+When we click a button, it uses Javascript to modify the property that is supposed to contain the cut-off with the new cut-off.
 
 Let us focus on the function "ifunfair" for this task.  
 @t.replace("assigned @nameA</span>")<|"""assigned @@nameA.
@@ -315,10 +315,11 @@ What is the fastest way to resolve all problems here? To downgrade or to upgrade
 
 ## Second lens: Group size
 Sometimes we wish we could simply change the number of students in a group to change the cut-off.
-In usual interfaces it is impossible, but in Sketch-n-Sketch
-we can add a lens applied to the displayed number of students.
+In typical interfaces this is impossible, but in Sketch-n-Sketch
+we can apply a lens to the displayed number of students.
 This lens takes care of modifying the cut-offs in the backward direction.
-Note that we never change the count itself.  
+Note that we never change the logic used to compute the count in the code - the change to the count in the output is used to change
+the cut-offs in the code.
 @t.replace(placeholder 8)<|"""updateGroupCount bucketNum cutoff numStudents =
   Update.lens2 {
   apply (cutoff, count) = count
@@ -341,8 +342,8 @@ Note that we never change the count itself.
 @t.replace("@List.length(students)")<|"""@@updateGroupCount(i)(cutoff)<|
         List.length(students)"""
 
-Try now to change the number of students in one group to see the cut-offs change appropriately.
-For example, you can decrease to 4 the number of students in B+ (downgrade Kellee) or increase to 6 the number of students in B+ (upgrade Loida).
+Now try to change the number of students in one group to see the cut-offs change appropriately.
+For example, you can change the number of students with a B+ to 4 (downgrading Kellee) or 6 (upgrading Loida).
 @t.displayevalcodeLocalReplace("main = ")<|"""main = <span><h2>Grade by category</h2>
   @@displayBuckets
 </span>
