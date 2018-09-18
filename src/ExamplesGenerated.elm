@@ -9699,21 +9699,21 @@ main = t.htmlpass options <| t.markdown <|
 <a href=\"https://mikaelmayer.github.io/sketch-n-sketch/\">Sketch-n-sketch</a> running on your browser.
 The 'left pane' references the left half of that interface, whereas the 'right pane' references the right half of that interface. If you encounter editing issues, try resizing your window.</i>  
   
-At last, your teaching assistants corrected all the assignments,
+At last, your teaching assistants have graded all the assignments,
 the mid-terms and the final exam.
-They provided you with a list of student names and their average grade over 100.
-How to fairly map these grades to letters, such as A+, A, A-, B+... until E?
+They've provided you with a list of student names and their average grades out of 100.
+How do you fairly map these scores to letter grades, such as A+, A, A-, B+ ... down to E?
 
 To start, replace the program in the Sketch-n-sketch editor by selecting everything and pasting the following code on the left pane of the Sketch-n-sketch editor:
 @t.newcode<|\"\"\"@(placeholder 1)
 
 -- Displays the interface
 main = <span><h1>Fair grades</h1>
-  We want to give a grade to our students.<br><br>
+  We want to give grades to our students.<br><br>
   @graphicsPlaceholder
   </span>\"\"\"
 @t.displaycode
-After clicking on \"Run\", you should have the result below on the right.
+After clicking on \"Run\", you should see the below result in the right pane.
 Note that the <code>main = </code> is optional, if the program ends with an expression, it will automatically insert <code>main = </code> in front of it.
 @t.displayevalcode
 
@@ -9724,13 +9724,13 @@ In the right panel,
 <li>A pop-up menu \"Output Editor\" appears on the left panel.</li>
 <li>Hover over \"Update program\".</li>
 <li>Hover over the first solution.</li>
-<li>You see that the code is updated accordingly:@t.displaycode</li>
+<li>You'll see that the code is updated accordingly:@t.displaycode</li>
 <li>Click on the first solution to accept the change.</li></ul>
-For your information, right next to the right panel, a button labelled \"Auto Sync\" enables the propagation of non-ambiguous changes automatically, if activated. We are not using it in this tutorial.
+FYI: Right next to the right panel, a button labelled \"Auto Sync\" enables the propagation of unambiguous changes automatically. We won't be using it in this tutorial.
 
 ## Import the grades
-Out of the spreadsheet that your assistants provided you with,
-you managed to export a comma-separated value file containing on each line a name and a grade.
+From the spreadsheet that your assistants provided you, you
+generated a Comma-Separated Value (CSV) file with each line containing a name and a grade.
 Fortunately, sketch-n-sketch can handle raw strings by enclosing them in triple quotes <code>\"\"\"</code>.
 Let us assign this string data to the variable <code>@var_input_data</code>  
 @t.replace(placeholder 1)<|\"\"\"@var_input_data = @(q3)Alice,64.7
@@ -9764,7 +9764,7 @@ Rudolph,83.2
 Rafael,86.6@(q3)
 
 @(placeholder 2)\"\"\"## Convert student data
-If you want to display this data, you could simply insert in the <code>main</code> the code <code>@@@var_input_data</code>, but that would only display the string, which would not be very helpful.  
+If you want to display this data, you could simply insert <code>@@@var_input_data</code> into the <code>main</code> code, but that would only display the string, which would not be very helpful.  
 First, we convert this data to a list of datatypes like <code>Student \"Alice\" 64.7</code> and store it to a variable <code>@var_studentsGrades</code>.  
 @t.replace(placeholder 2)<|\"\"\"type Student = Student String Num
 
@@ -9776,17 +9776,17 @@ First, we convert this data to a list of datatypes like <code>Student \"Alice\" 
       Student name (Update.freeze <| String.toFloat gradeString)
   )
 
-@(placeholder 3)\"\"\"First notice how we define a datatype constructor <code>Student</code> that accepts a string (the name) and a number (the grade over 100). This datatype is like a pair that stores the two pieces of information.  
-The construcion <code>b |> f a</code> is equivalent to the more natural <code>f a b</code> (a function <code>f</code> applied to two arguments <code>a</code> and <code>b</code>) but it is a good way to visualize the transformation step by step.  
+@(placeholder 3)\"\"\"First, notice how we define a datatype constructor <code>Student</code> that accepts a string (the name) and a number (the grade out of 100). This datatype is like a pair that stores the two pieces of information.  
+The construction <code>b |> f a</code> is equivalent to the more natural <code>f a b</code> (a function <code>f</code> applied to two arguments <code>a</code> and <code>b</code>) but it is a good way to visualize the transformation step by step.  
 Here, we use the library function <code>Regex.split</code> to split the <code>@var_input_data</code> on newlines, which gives us a list of strings.
-Then, each of these \"lines\" is extracted against a regular expression for the informations before and after the comma, so that we can build a data <code>Student</code> with the extracted <code>name</code> and the grade that we convert to a float (number).  
-Note that we also add <code>Update.freeze</code> to make sure we will never modify this grade indirectly.
+Then, a regular expression is applied to each of these \"lines\" to extract the data before and after the comma, so that we can build a <code>Student</code> datum with the extracted <code>name</code> and the grade that we convert to a float (number).  
+Note that we also add <code>Update.freeze</code> to make sure we will never modify this grade indirectly via the output.
 
 ## Define the cut-offs
-We need to define associations between letters and minimum grades to obtain them.
-We suppose that we have a first guess (e.g. from previous year, or a linear guess).
+We need to define associations between letter grades and the minimum scores (i.e., cutoffs) required to obtain them.
+Let's say we have a first guess (e.g., using the cutoffs from the previous year, or a simple linear function).
 
-@t.replace(placeholder 3)<|\"\"\"type CutOff = Student String Num
+@t.replace(placeholder 3)<|\"\"\"type CutOff = CutOff String Num
 
 cutoffs = [
   CutOff \"A+\" 96.8,
@@ -9802,14 +9802,14 @@ cutoffs = [
   CutOff \"E\"  0]
 
 @(placeholder 4)\"\"\"## Example: get students in each group
-Just as an exercise, if we wanted to display how many students obtained a letter given \"B-\" and \"A+\", we could insert the following code next to <code>@graphicsPlaceholder</code> in <code>main</code>:
+Just as an exercise, if we wanted to display how many students obtained a grade between \"B-\" and \"A+\" (both inclusive), we could insert the following code next to <code>@graphicsPlaceholder</code> in <code>main</code>:
 @t.displaylocalcode(example1)
-You would end up with the following output on the right-hand side.
+You would end up with the following output in the right pane.
 @t.displayevalcodeLocalReplace(graphicsPlaceholder)(example1)
 This is just an example to illustrate general-purpose computing techniques (such as recursion, pattern matching, list construction and deconstruction), but for now you can discard this code snippet.
 ## Display cut-offs and grades as SVG
-We display cut-offs as horizontal lines, and the grades as bars,
-to \"see\" where the cuts are. To make it meaningful, we sort students by grade.
+We display cut-offs as horizontal black lines, and the grades as short blue lines,
+to \"see\" where the grades are in relation to the cutoffs. To make it meaningful, we sort students by grade.
 
 @t.replace(placeholder 4)<|\"\"\"sortedGrades =
   @var_studentsGrades
@@ -9858,7 +9858,7 @@ chart = barChart 50 0 width height
 You should obtain the following result, after running the program.
 @t.displayevalcode
 
-Thanks to SVG editing capabilities, we can now move the horizontal lines up and down to change cut-offs.
+Thanks to SVG editing capabilities, we can now move the horizontal lines up and down to change the cut-offs.
 
 Make sure the line @t.lineof(\"\"\"CutOff \"B\"\"\"\") is visible in the code editor (in the left panel).
 
@@ -10134,7 +10134,7 @@ example1 = \"\"\"@@(let
   |> List.filterMap (\\Student name grade ->
     if grade >= minGrade && grade < maxGrade
     then Just name else Nothing)
-  |> String.join \", \") ++ \" are above B-\"
+  |> String.join \", \") ++ \" have at least a B-\"
 )\"\"\"
 
 tutorialUtils = {
@@ -10217,7 +10217,7 @@ tutorialUtils = {
       (newSrc, htmlnode)
     [\"replace\", [\"placeHolder\", placeHolder]::[\"code\", code]::attrs, []] ->
       let newSrc = Regex.replace (escape placeHolder) (\\_ -> code) src in
-      (newSrc, <span>Replace the code <code>@placeHolder</code> (@(positionOf placeHolder src)) by<code @attrs>@code</code></span>)
+      (newSrc, <span>Replace the code <code>@placeHolder</code> (@(positionOf placeHolder src)) with<code @attrs>@code</code></span>)
     [\"lineof\", [\"snippet\", snippet]::attrs, []] ->
       (src, <span>@(positionOf snippet src)</span>)
     [\"displaylocalcode\", [\"code\", code]::attrs, []] ->

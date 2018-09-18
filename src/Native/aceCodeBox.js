@@ -20,6 +20,7 @@ function initialize() {
   editor.getSession().setMode("ace/mode/elm");
   editor.setOption("dragEnabled", true); // true by default anyway
   editor.setOption("highlightActiveLine", false);
+  editor.setOption("scrollPastEnd", 0.5);
   editor.setShowPrintMargin(false);
   editor.getSession().setUseSoftTabs(true);
   editor.getSession().setTabSize(2);
