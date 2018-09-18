@@ -9,6 +9,8 @@ module Types2 exposing
   , introduceTypeAliasTool
   , convertToDataTypeTool
   , renameTypeTool
+  , renameDataConstructorTool
+  , duplicateDataConstructorTool
   )
 
 import Info exposing (WithInfo, withDummyInfo)
@@ -1785,6 +1787,366 @@ renameTypeTool inputExp selections =
 
 --------------------------------------------------------------------------------
 
+-- HACKs
+--
+decodeDataConstructorDefinitions : Type -> Maybe (List (TId, (Int, String, String)))
+decodeDataConstructorDefinitions typ =
+  let
+    result =
+      case typ.val.t__ of
+        TRecord _ _ _ _ ->
+          decodeOne typ |> Maybe.map List.singleton
+
+        TApp _ tFunc tArgs InfixApp ->
+          case tFunc.val.t__ of
+            TVar _ "|" ->
+              tArgs
+                |> List.map decodeOne
+                |> Utils.projJusts
+
+            _ ->
+              Nothing
+
+        _ ->
+          -- TODO: non-TRecord data constructor?
+          -- Nothing
+          decodeOne typ |> Maybe.map List.singleton
+
+    decodeOne typ =
+      unparseType typ
+        |> String.trim
+        |> String.words
+        |> (\words ->
+              case words of
+                dataCon :: moreWords ->
+                  -- most HACKY of HACKS:
+                  -- recording line number of data constructor for string replacement...
+                  --
+                  Just ( typ.val.tid
+                       , (typ.start.line, dataCon, String.join " " moreWords)
+                       )
+
+                _ ->
+                  Nothing
+           )
+  in
+    result
+
+
+-- HACKs
+--
+renameDataConstructorTool : Exp -> DeuceSelections -> DeuceTool
+renameDataConstructorTool inputExp selections =
+  let
+    (func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+
+        -- single type, nothing else
+        (_, _, [], [], [tId], [], [], [], []) ->
+          let
+            maybeDataConAndArgs =
+              foldExp (\e acc ->
+                case (acc, (unExpr e).val.e__) of
+                  (Just _, _) ->
+                    acc
+
+                  (Nothing, ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body) ->
+                    let
+                      -- int is line number to do final string replacement
+                      maybeDataConAndArgs : Maybe (Int, String, String)
+                      maybeDataConAndArgs =
+                        letTypes
+                          |> List.map Tuple.second
+                          |> List.concat
+                          |> List.map (\(LetType mws0 ws1 aliasSpace pat fas ws2 t) ->
+                               t |> decodeDataConstructorDefinitions
+                                 |> Maybe.map (List.filter (\(tid,_) -> tid == tId))
+                                 |> Maybe.withDefault []
+                             )
+                          |> List.concat
+                          |> (\list ->
+                                case list of
+                                  [(_,stuff)] -> Just stuff
+                                  _           -> Nothing
+                             )
+
+                      newExp =
+                        ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body
+                          |> replaceE__ e
+                    in
+                    maybeDataConAndArgs
+
+                  _ ->
+                    acc
+
+              ) Nothing inputExp
+          in
+          maybeDataConAndArgs |> Maybe.andThen (\(lineNumberHack, dataCon, strArgs) ->
+          let
+            rewriteExp newDataConName =
+              mapExp <| \e ->
+                case (unExpr e).val.e__ of
+                  ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+                    let
+                      newLetTypes =
+                        letTypes
+                          |> List.map (Tuple.mapSecond
+                               (List.map (\(LetType mws0 ws1 aliasSpace pat fas ws2 t) ->
+                                  -- doing string-hacking below, instead
+                                  LetType mws0 ws1 aliasSpace pat fas ws2 t
+                               ))
+                             )
+                    in
+                    ELet ws1 letKind (Declarations po newLetTypes letAnnots letExps) ws2 body
+                      |> replaceE__ e
+
+                  ECase ws1 e1 branches ws2 ->
+                    let
+                      newBranches =
+                        branches |> mapBranchPats (\p ->
+                          case p.val.p__ of
+                            PRecord ws _ _ ->
+                              let
+                                -- HACK
+                                s =
+                                  unparsePattern p
+                                    |> String.trim
+                                    |> Regex.replace Regex.All
+                                         (Regex.regex ("^" ++ dataCon))
+                                         (always newDataConName)
+                              in
+                              PVar ws s noWidgetDecl
+                                |> replaceP__ p
+
+                            _ ->
+                              p
+                        )
+                    in
+                    ECase ws1 e1 newBranches ws2
+                      |> replaceE__ e
+
+                  ERecord ws _ _ _ ->
+                    -- HACK
+                    let s = String.trim (unparse e) in
+                    if String.startsWith dataCon s then
+                      let s2 =
+                        s |> Regex.replace Regex.All
+                               (Regex.regex ("^" ++ dataCon))
+                               (always newDataConName)
+                      in
+                      EVar ws s2
+                        |> replaceE__ e
+
+                    else
+                      e
+
+                  _ ->
+                    e
+
+            newProgram newDataConName =
+              inputExp
+                |> rewriteExp newDataConName
+                |> unparse
+                |> String.lines
+                |> Utils.mapi1 (\(i,s) ->
+                     if i == lineNumberHack then
+                       -- doing it this way to avoid replacing type con
+                       -- if on same line as data con
+                       s |> Regex.replace Regex.All
+                              (Regex.regex ("= " ++ dataCon))
+                              (always ("= " ++ newDataConName))
+                         |> Regex.replace Regex.All
+                              (Regex.regex ("\\| " ++ dataCon))
+                              (always ("| " ++ newDataConName))
+                     else
+                       s
+                   )
+                |> String.join "\n"
+                |> parse
+                |> Result.withDefault (eStr "Bad blah. Bad editor. Bad")
+
+            transformationResults newDataConName =
+              [ -- Label <| PlainText <| dataCon
+              -- , Label <| PlainText <| strArgs
+                Fancy
+                  (synthesisResult "DUMMY" (newProgram newDataConName))
+                  (PlainText "Rename")
+              ]
+          in
+          Just (RenameDeuceTransform transformationResults, Satisfied)
+
+          )
+
+          |> Maybe.withDefault (InactiveDeuceTransform, Impossible)
+
+        _ ->
+          (InactiveDeuceTransform, Impossible)
+  in
+    { name = "Rename Data Constructor"
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "renameDataConstructor"
+    }
+
+
+-- HACKs
+--
+-- Copying renameDataConstructorTool to start
+--
+duplicateDataConstructorTool : Exp -> DeuceSelections -> DeuceTool
+duplicateDataConstructorTool inputExp selections =
+  let
+    (func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+
+        -- single type, nothing else
+        (_, _, [], [], [tId], [], [], [], []) ->
+          let
+            maybeDataConAndArgs =
+              foldExp (\e acc ->
+                case (acc, (unExpr e).val.e__) of
+                  (Just _, _) ->
+                    acc
+
+                  (Nothing, ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body) ->
+                    let
+                      -- int is line number to do final string replacement
+                      maybeDataConAndArgs : Maybe (Int, String, String)
+                      maybeDataConAndArgs =
+                        letTypes
+                          |> List.map Tuple.second
+                          |> List.concat
+                          |> List.map (\(LetType mws0 ws1 aliasSpace pat fas ws2 t) ->
+                               t |> decodeDataConstructorDefinitions
+                                 |> Maybe.map (List.filter (\(tid,_) -> tid == tId))
+                                 |> Maybe.withDefault []
+                             )
+                          |> List.concat
+                          |> (\list ->
+                                case list of
+                                  [(_,stuff)] -> Just stuff
+                                  _           -> Nothing
+                             )
+
+                      newExp =
+                        ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body
+                          |> replaceE__ e
+                    in
+                    maybeDataConAndArgs
+
+                  _ ->
+                    acc
+
+              ) Nothing inputExp
+          in
+          maybeDataConAndArgs |> Maybe.andThen (\(lineNumberHack, dataCon, strArgs) ->
+          let
+            rewriteExp newDataConName =
+              mapExp <| \e ->
+                case (unExpr e).val.e__ of
+                  ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+                    -- doing string-hacking below, instead
+                    e
+
+                  ECase ws1 e1 branches ws2 ->
+                    let
+                      newBranches =
+                        branches |> List.concatMap (\branch ->
+                          let
+                            (Branch_ ws1 p e ws2) =
+                              branch.val
+
+                            branches =
+                              if String.contains dataCon (unparsePattern p) then
+                                let
+                                  newPat =
+                                    -- HACK
+                                    PVar space0 (newDataConName ++ " data") noWidgetDecl
+                                      |> replaceP__PreservingPrecedingWhitespace p
+
+                                  -- _ = Debug.log "oldPat" (unparsePattern p)
+                                  -- _ = Debug.log "newPat" (unparsePattern newPat)
+
+                                  newHole =
+                                    EHole space0 EEmptyHole
+                                      |> replaceE__PreservingPrecedingWhitespace e
+
+                                  newBranch_ =
+                                    Branch_ ws1 newPat newHole ws2
+
+                                in
+                                  [ branch
+                                  , { branch | val = newBranch_ }
+                                  ]
+
+                              else
+                                [ branch ]
+                          in
+                            branches
+                        )
+                    in
+                    ECase ws1 e1 newBranches ws2
+                      |> replaceE__ e
+
+                  _ ->
+                    e
+
+            newProgram newDataConName =
+              inputExp
+                |> rewriteExp newDataConName
+                |> unparse
+                |> String.lines
+                |> Utils.mapi1 (\(i,s) ->
+                     if i == lineNumberHack then
+                       let
+                         sNew =
+                           s |> Regex.replace Regex.All
+                                  (Regex.regex ("= " ++ dataCon))
+                                  (always ("| " ++ newDataConName))
+                             |> Regex.replace Regex.All
+                                  (Regex.regex ("\\| " ++ dataCon))
+                                  (always ("| " ++ newDataConName))
+                       in
+                         [s, sNew]
+                     else
+                       [s]
+                   )
+                |> List.concat
+                |> String.join "\n"
+                |> parse
+                |> Result.withDefault (eStr "Bad blah. Bad editor. Bad")
+
+            transformationResults () =
+              let newDataConName = "NewConstructor" in
+              [ -- Label <| PlainText <| dataCon
+              -- , Label <| PlainText <| strArgs
+                Fancy
+                  (synthesisResult "DUMMY" (newProgram newDataConName))
+                  (PlainText "Duplicate")
+              ]
+          in
+          Just (NoInputDeuceTransform transformationResults, Satisfied)
+
+          )
+
+          |> Maybe.withDefault (InactiveDeuceTransform, Impossible)
+
+        _ ->
+          (InactiveDeuceTransform, Impossible)
+  in
+    { name = "Duplicate Data Constructor"
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "duplicateDataConstructor"
+    }
+
+
+--------------------------------------------------------------------------------
+
 convertToDataTypeTool : Exp -> DeuceSelections -> DeuceTool
 convertToDataTypeTool inputExp selections =
   let
@@ -1996,7 +2358,9 @@ addInitialCaseExpressionsFor oldPatsNewNames eFunBody =
                                     PVar space0 (newDataCon ++ " data") noWidgetDecl
                                 )
                                 ( withDummyExpInfo <|
-                                    EVar space1 "data"
+                                    EVar
+                                      (ws (lineBreakAndIndent 4)) -- space1
+                                      "data\n" -- HACK: newline
                                 )
                                 space1
                     ]

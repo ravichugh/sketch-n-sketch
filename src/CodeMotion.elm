@@ -1924,6 +1924,7 @@ inlineDefinitions selectedLetEIds originalProgram =
                         Result.toMaybe
                     in
                     mbNewDecls |>
+                    Maybe.map removeDuplicateNewlinesBeforeFirstDeclaration |>
                     Maybe.map (\newDecls ->
                     replaceE__ let_
                       <| ELet wsb lk newDecls ws1 body

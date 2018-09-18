@@ -2499,13 +2499,12 @@ eTupleUnapply e =
 
 pListOfPVars names = pList (listOfPVars names)
 
-eLetUnapply: Exp -> Maybe ((Ident, Exp), Exp)
+eLetUnapply: Exp -> Maybe (WS, LetKind, Declarations, WS, Exp)
 eLetUnapply e = case unwrapExp e of
-  ELet _ _ (Declarations _ [] [] [(_, [LetExp _ _ p _ _ assign])]) _ bodyExp ->
-    case p.val.p__ of
-      PVar _ ident _ -> Just ((ident, assign), bodyExp)
-      _ -> Nothing
-  _ -> Nothing
+  ELet wsb letKind decls wsBeforeIn bodyExp ->
+    Just (wsb, letKind, decls, wsBeforeIn, bodyExp)
+  _ ->
+    Nothing
 
 eFunUnapply: Exp -> Maybe (List Pat, Exp)
 eFunUnapply e = case (unwrapExp e) of
@@ -3549,8 +3548,11 @@ modifyWsBefore f codeObject =
 
 isImplicitMain : Exp -> Bool
 isImplicitMain e =
-  case eLetUnapply e of
-    Just (("_IMPLICIT_MAIN", _), _) -> True
+  case unwrapExp e of
+    ELet _ _ (Declarations _ [] [] [(_, [LetExp _ _ p _ _ assign])]) _ bodyExp ->
+      case p.val.p__ of
+        PVar _ "_IMPLICIT_MAIN" _ -> True
+        _                         -> False
     _ -> False
 
 isHiddenCodeObject : CodeObject -> Bool

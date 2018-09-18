@@ -2868,6 +2868,130 @@ formatTool model selections =
                 in
                 (NoInputDeuceTransform func, Satisfied)
 
+              EApp _ _ _ _ _ ->
+                let
+                  lineBreakAndIndent k =
+                    "\n" ++ indent k
+
+                  indent k =
+                    String.repeat ((unExpr exp).start.col - 1) " " ++ String.repeat k "  "
+
+                  addBackwardPipeline maybeIndent e =
+                    case (unExpr e).val.e__ of
+                      EApp ws1 eFunc eArgs SpaceApp ws2 ->
+                        case Utils.split (List.length eArgs - 1) eArgs of
+                          (prefixArgs, [lastArg]) ->
+                            case (unExpr lastArg).val.e__ of
+                              EParens _ innerLastArg Parens _ ->
+                                let
+                                  maybeIndentPlusOne =
+                                    maybeIndent
+                                      |> Maybe.map ((+) 1)
+
+                                  wsNewLastArg =
+                                    maybeIndent
+                                      |> Maybe.map lineBreakAndIndent
+                                      |> Maybe.withDefault " "
+
+                                  newLastArg =
+                                    addBackwardPipeline maybeIndentPlusOne innerLastArg
+                                      |> replacePrecedingWhitespace wsNewLastArg
+
+                                  newFunc =
+                                    -- HACK: going through EVar
+                                    withDummyExpInfo <|
+                                      EVar space0 <|
+                                        String.join " " <|
+                                          List.map
+                                            (String.trim << Syntax.unparser model.syntax)
+                                            (eFunc::prefixArgs)
+                                in
+                                  EApp ws1 newFunc [newLastArg] (LeftApp space1) ws2
+                                    |> replaceE__ e
+
+                              _ ->
+                                e
+                          _ ->
+                            e
+                      _ ->
+                        e
+
+                  addForwardPipeline multi e =
+                    case (unExpr e).val.e__ of
+                      EApp ws1 eFunc eArgs SpaceApp ws2 ->
+                        case Utils.split (List.length eArgs - 1) eArgs of
+                          (prefixArgs, [lastArg]) ->
+                            case (unExpr lastArg).val.e__ of
+                              EParens _ innerLastArg Parens _ ->
+                                let
+                                  newLastArg =
+                                    addForwardPipeline multi innerLastArg
+
+                                  wsBeforePipe =
+                                    if multi then
+                                      ws (lineBreakAndIndent 1)
+                                    else
+                                      space1
+
+                                  newFunc =
+                                    -- HACK: going through EVar
+                                    withDummyExpInfo <|
+                                      EVar space1 <|
+                                        String.join " " <|
+                                          List.map
+                                            (String.trim << Syntax.unparser model.syntax)
+                                            (eFunc::prefixArgs)
+                                in
+                                  EApp space0 newFunc [newLastArg] (RightApp wsBeforePipe) ws2
+                                    |> replaceE__ e
+
+                              _ ->
+                                e |> replacePrecedingWhitespace (lineBreakAndIndent 0)
+                          _ ->
+                            e |> replacePrecedingWhitespace (lineBreakAndIndent 0)
+                      _ ->
+                        e |> replacePrecedingWhitespace (lineBreakAndIndent 0)
+
+                  rewriteAndFinish f =
+                    (unExpr (f exp)).val.e__
+                      |> replaceThisExp__
+                      |> Syntax.unparser model.syntax
+                      |> Syntax.parser model.syntax
+                      |> Result.withDefault (eStr "Bad Format EApp. Bad editor. Bad")
+
+                  transforms =
+                    [ ( "Forward Pipeline Single-Line"
+                      , rewriteAndFinish (addForwardPipeline False)
+                      )
+                    , ( "Forward Pipeline Multi-Line"
+                      , rewriteAndFinish (addForwardPipeline True)
+                      )
+                    , ( "Backward Pipeline Single-Line"
+                      , rewriteAndFinish (addBackwardPipeline Nothing)
+                      )
+                    , ( "Backward Pipeline Multi-Line"
+                      , rewriteAndFinish (addBackwardPipeline (Just 1))
+                      )
+                    ]
+                    |> List.filter (\(_, newExp) ->
+                         String.trim (Syntax.unparser model.syntax newExp) /= String.trim model.code
+                       )
+                in
+                case transforms of
+                  [] ->
+                    (InactiveDeuceTransform, Impossible)
+
+                  _ ->
+                    let func () =
+                      transforms
+                        |> List.map (\(text, newExp) ->
+                             Fancy
+                               (synthesisResult "DUMMY DESCRIPTION" newExp)
+                               (PlainText text)
+                           )
+                    in
+                    (NoInputDeuceTransform func, Satisfied)
+
               _ ->
                 (InactiveDeuceTransform, Impossible)
 
@@ -2997,6 +3121,8 @@ toolList =
   [ [ typesTool
     , (\model selections -> Types2.introduceTypeAliasTool model.inputExp selections)
     , (\model selections -> Types2.renameTypeTool model.inputExp selections)
+    , (\model selections -> Types2.renameDataConstructorTool model.inputExp selections)
+    , (\model selections -> Types2.duplicateDataConstructorTool model.inputExp selections)
     , (\model selections -> Types2.convertToDataTypeTool model.inputExp selections)
     ]
   , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
