@@ -2862,19 +2862,27 @@ wrapIconWithSvg computeViewBox svgElements =
     svgElements
 
 
+loadDrawingToolsAndIcons : Model -> Model
 loadDrawingToolsAndIcons old =
-  let drawableFunctions = Draw.getDrawableFunctions old in
-  let oldWithDrawableFunctions = { old | drawableFunctions = drawableFunctions } in
-  drawableFunctions
-  |> Utils.foldl
-      oldWithDrawableFunctions
-      (\(funcName, _) model ->
-        if Dict.member funcName model.icons then
-          model
-        else
-          -- Because of default arguments, some custom drawing functions look really bad drawn in a small space.
-          let biggestNumber =
-            Draw.newFunctionCallExp funcName model ((0, NoSnap), (0, NoSnap)) ((1, NoSnap), (1, NoSnap))
+  let
+    drawableFunctions =
+      Draw.getDrawableFunctions old
+
+    oldWithDrawableFunctions =
+      { old | drawableFunctions = drawableFunctions }
+
+    iconUpdater (funcName, _) accModel =
+      let
+        callExp =
+          Draw.newFunctionCallExp
+            funcName
+            accModel
+            ((0, NoSnap), (0, NoSnap)) ((1, NoSnap), (1, NoSnap))
+
+        -- Because of default arguments, some custom drawing functions look
+        -- really bad drawn in a small space
+        biggestNumber =
+          callExp
             |> Maybe.map (\(callExp, _) -> callExp)
             |> Maybe.withDefault (eConstDummyLoc 10)
             |> flattenExpTree
@@ -2883,13 +2891,34 @@ loadDrawingToolsAndIcons old =
             |> List.maximum
             |> Maybe.withDefault 10
             |> round
-          in
-          let (startX, startY) = (biggestNumber*3, biggestNumber*3) in -- Draw farther from the edge so the SVG doesn't clip off negative regions
-          let (endX,   endY)   = (biggestNumber*6, biggestNumber*6) in -- Draw with a width and height of 2*biggestNumber
-          let dotScalingFactor = (toFloat biggestNumber / 10)^0.7 in -- This seems to work well enough.
-          let iconHtml = wrapIconWithSvg True (Draw.drawNewFunction dotScalingFactor funcName model ((startX, NoSnap), (startY, NoSnap)) ((endX, NoSnap), (endY, NoSnap))) in
-          { model | icons = Dict.insert funcName iconHtml model.icons }
-      )
+
+        -- Draw farther from the edge so the SVG doesn't clip off negative
+        -- regions
+        (startX, startY) =
+          (biggestNumber*3, biggestNumber*3)
+
+        -- Draw with a width and height of 2*biggestNumber
+        (endX, endY) =
+          (biggestNumber*6, biggestNumber*6)
+
+        -- This seems to work well enough
+        dotScalingFactor =
+          (toFloat biggestNumber / 10)^0.7
+
+        iconHtml =
+          wrapIconWithSvg
+            True
+            ( Draw.drawNewFunction
+                dotScalingFactor
+                funcName
+                accModel
+                ((startX, NoSnap), (startY, NoSnap))
+                ((endX, NoSnap), (endY, NoSnap))
+            )
+      in
+        { accModel | icons = Dict.insert funcName iconHtml accModel.icons }
+  in
+    List.foldl iconUpdater oldWithDrawableFunctions drawableFunctions
 
 
 updateFileIndex : FileIndex -> Model -> Model
