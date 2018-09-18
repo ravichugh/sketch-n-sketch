@@ -295,7 +295,7 @@ But what if we had a way to resolve the potential complaint just using buttons, 
 ## Buttons to modify cut-offs
 Adding buttons to upgrade or downgrade a student's grade means that these buttons will modify the cut-off.
 This behavior can be locally defined with the following trick:
-When we click a button, it uses Javascript to modify the property that is supposed to contain the cut-off with the new cut-off.
+When we click a button, it uses Javascript to modify the property that is supposed to contain the cut-off with a new cut-off.
 
 Let us focus on the function "ifunfair" for this task.  
 @t.replace("assigned @nameA</span>")<|"""assigned @@nameA.
