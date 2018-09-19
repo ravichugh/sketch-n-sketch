@@ -21,7 +21,7 @@ module LeoParser exposing
 import Char
 import Set exposing (Set)
 import Dict
-import Pos
+import Pos exposing (Pos)
 import Parser as P exposing (..)
 import Parser.LanguageKit as LK
 
@@ -671,7 +671,7 @@ multilineContentParser =
   )
   |> andThen (\exp -> multilineContentParserHelp [Expr exp]))
 
-multilineConcatExp: List Exp -> Pos.Pos -> WithInfo Exp_
+multilineConcatExp: List Exp -> Pos -> WithInfo Exp_
 multilineConcatExp exps startPosition =
   case exps of
     [] ->  Debug.crash "Internal error: No expression in longstring literal"
@@ -785,7 +785,7 @@ appendToLeft (attrWS, Expr thisAttribute_) (Expr x) = let thisAttribute = (attrW
     )
   _ -> Err <| "Expected EList, EApp, but got something else for attributes (line " ++ toString x.start.line ++ ")"
 
-attrsToExp: Pos.Pos -> List HTMLParser.HTMLAttribute -> ParserI Exp_
+attrsToExp: Pos -> List HTMLParser.HTMLAttribute -> ParserI Exp_
 attrsToExp lastPos attrs =
   case attrs of
     [] -> succeed <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
@@ -833,24 +833,33 @@ attrsToExp lastPos attrs =
                Expr tailAttrExp] InfixApp space0) head.start tailAttrExp.end
            )
 
-childrenToExp: Pos.Pos -> List HTMLParser.HTMLNode -> ParserI Exp_
-childrenToExp lastPos children =
+childrenToExp: Pos -> Bool -> List HTMLParser.HTMLNode -> Parser (Pos, Bool, WithInfo Exp_)
+childrenToExp lastPos wasInterpolated children =
   case children of
-    [] -> succeed <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
+    [] -> succeed <| (,,) lastPos wasInterpolated <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
     head::tail ->
+      let newWasInterpolation = case head.val of
+        HTMLParser.HTMLListNodeExp _ -> True
+        _ -> wasInterpolated
+      in
       htmlToExp head |> andThen (\headExp ->
-        childrenToExp head.end tail |> andThen (\tailExp ->
+        childrenToExp head.end newWasInterpolation tail |> andThen (\(end, isInterpolation, tailExp) ->
           case unwrapExp (Expr headExp) of
             EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp
                let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") headExp.end tailExp.start in
-               succeed <| withInfo (exp_ <| EApp space0 appendFun [
+               succeed <| (,,) end isInterpolation <| withInfo (exp_ <| EApp space0 appendFun [
                  Expr headExp, Expr tailExp] InfixApp space0) headExp.start tailExp.end
             _ ->
               case appendToLeft (space0, Expr headExp) (Expr tailExp) of
                 Err msg -> fail msg
-                Ok (Expr newExp) -> succeed newExp
+                Ok (Expr newExp) -> succeed <| (,,) end isInterpolation <| newExp
         )
       )
+
+eMergeTexts: Pos -> Pos -> Exp -> Exp
+eMergeTexts start end (Expr children as childrenExpr) =
+  Expr <| withInfo (exp_ <|
+    EApp space1 (Expr <| withInfo (exp_ <| EVar space0 "__mergeHtmlText__") start start) [childrenExpr] SpaceApp space0) start end
 
 htmlToExp: HTMLParser.HTMLNode -> ParserI Exp_
 htmlToExp node =
@@ -872,9 +881,11 @@ htmlToExp node =
           in
           attrsToExp endPos attrs |>
           andThen (\finalattrs ->
-            childrenToExp { line = sp0.end.line, col = sp0.end.col + (if endOpeningStyle == HTMLParser.RegularEndOpening then 1 else 2) } children |>
-              andThen (\finalchildren ->
-                 succeed <| htmlnode node tagName (Expr finalattrs) sp0 (Expr finalchildren)
+            let start = { line = sp0.end.line, col = sp0.end.col + (if endOpeningStyle == HTMLParser.RegularEndOpening then 1 else 2) } in
+            childrenToExp start False children |>
+              andThen (\(end, isInterpolation, finalchildren) ->
+                 succeed <| htmlnode node tagName (Expr finalattrs) sp0 (
+                     (if isInterpolation then eMergeTexts start end else identity) <| Expr finalchildren)
                    (closingStyle == HTMLParser.AutoClosing)
                    (closingStyle == HTMLParser.VoidClosing) <|
                    case closingStyle of

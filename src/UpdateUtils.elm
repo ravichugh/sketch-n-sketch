@@ -926,6 +926,7 @@ vDiffsToString_ indent vOriginal vModified vDiffs =
     VConstDiffs ->
       "\n" ++ indent ++ "Was " ++ valToString vOriginal ++ ", now " ++ valToString vModified
 
+vDiffsToString: Val -> Val -> VDiffs -> String
 vDiffsToString = vDiffsToString_  ""
 
 listDiffsToString: String -> (String -> b -> b -> a -> String) -> (String -> Int -> Maybe (String, String)) -> (b -> String) -> String -> List b -> List b -> ListDiffs a -> String
@@ -2276,3 +2277,63 @@ affinity s1 s2 =
          Just (s2First, _) -> affinityChar s1Last s2First
          Nothing -> 25
      Nothing -> 25
+
+-- The list of strings must be non-empty
+reverseStringConcatenationMultiple: List String -> String -> List StringDiffs -> Results String (List String, List (List StringDiffs))
+reverseStringConcatenationMultiple strings newOut strDiffs =
+  case strings of
+    [] -> ok1 ([], [])
+    [a] -> ok1 ([newOut], [strDiffs])
+    head::tail ->
+      reverseStringConcatenation head (String.join "" tail) newOut strDiffs
+      |> Results.andThen ((\tail (newHead, headDiffs, newTailStr, tailStrDiffs) ->
+        reverseStringConcatenationMultiple tail newTailStr tailStrDiffs
+        |> Results.map ((\newHead headDiffs (newTailVals, tailDiffs) ->
+            (newHead::newTailVals, headDiffs::tailDiffs)
+          ) newHead headDiffs)
+        ) tail)
+
+reverseStringConcatenation: String -> String -> String -> List StringDiffs -> Results String (String, List StringDiffs, String, List StringDiffs)
+reverseStringConcatenation sa sb newOut strDiffs =
+  let saLength = String.length sa in
+  let aux: Int -> List StringDiffs -> List StringDiffs -> Results String (String, List StringDiffs, String, List StringDiffs)
+      aux  offset revForSa            diffs               =
+        --let _ = ImpureGoodies.log <| "offset=" ++ toString offset ++ ", revForSa=" ++ toString revForSa ++", diffs=" ++ toString diffs in
+        case diffs of
+        [] ->
+          let indexCut = offset + saLength in
+          let newSa = String.left     indexCut newOut in
+          let newSb = String.dropLeft indexCut newOut in
+          ok1 (newSa, List.reverse revForSa, newSb, [])
+        ((StringUpdate start end replacement) as su) :: diffsTail ->
+          if start < saLength && end > saLength then -- We need to split the diffs, it cannot encompass two positions
+            [aux offset revForSa (StringUpdate start saLength 0 ::StringUpdate saLength end replacement ::diffsTail),
+             aux offset revForSa (StringUpdate start saLength replacement ::StringUpdate saLength end 0 ::diffsTail)] |>
+               Results.projOk |> Results.andThen (LazyList.fromList >> Ok)
+          else if start > saLength || start == saLength && end > start then -- The diff happens to the right of saLength
+            let indexCutNew = saLength + offset in
+            let newSa = String.left     indexCutNew newOut in
+            let newSb = String.dropLeft indexCutNew newOut in
+            ok1 (newSa, List.reverse revForSa, newSb, offsetStr (0 - saLength) diffs)
+           else if start == saLength && end == saLength then -- Ambiguity here. We return both solutions with some preferences
+            let aLeft = String.slice (max (start - 1) 0) start sa in
+            let bRight = String.slice (end - saLength) (end - saLength + 1) sb in
+            let inserted = String.slice (start + offset) (start + offset + replacement) newOut in
+            let replacements = [
+               (offset + start + replacement, List.reverse (su :: revForSa), offsetStr (0 - saLength) diffsTail),
+               (offset + start, List.reverse revForSa, offsetStr (0 - saLength) (su :: diffsTail))
+               ]
+            in
+            let orderedReplacementst =
+                 if affinity aLeft inserted >= affinity inserted bRight || end - start >= 1 && end <= saLength then
+                  oks replacements
+                 else
+                  oks  <| List.reverse replacements
+            in
+            orderedReplacementst |> Results.andThen (\(indexCut, forSa, forSb) ->
+              let newSa = String.left     indexCut newOut in
+              let newSb = String.dropLeft indexCut newOut in
+              ok1 (newSa, forSa, newSb, forSb))
+           else -- end < saLength
+              aux (offset - (end - start) + replacement) (su::revForSa) diffsTail
+  in aux 0 [] strDiffs

@@ -353,8 +353,8 @@ parseNode parsingMode surroundingTagNames namespace =
           succeed (\_ -> HTMLInner "@")
           |= symbol "@@"
         , succeed HTMLListNodeExp
-        |. symbol "@"
-        |= childlist nospace])::defaultParsers
+          |. symbol "@"
+          |= childlist nospace])::defaultParsers
 
 
 
@@ -524,14 +524,14 @@ unparseList subUnparserDiff defaultUnparser list1 list2 offset mbdiffs =
         case ds of
         [] -> Ok <| default (strAcc, offset, listDiffs) remaining1 remaining2
         (j, listElem)::dsTail ->
-          if i < j then
+           if i < j then
             let count = j - i in
             let (r1c, r1t) = Utils.split count remaining1 in
             let (r2c, r2t) = Utils.split count remaining2 in
             default (strAcc, offset, listDiffs) r1c r2c |>
             aux j ds r1t r2t
-          else if i > j then Err "Unexpected mismatch in HTMLParser.unparseList"
-          else --if i == j then
+           else if i > j then Err "Unexpected mismatch in HTMLParser.unparseList"
+           else --if i == j then
             case listElem of
               ListElemInsert count ->
                 let (newElems, remaining22) = Utils.split count remaining2 in
@@ -587,13 +587,13 @@ unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
            case stringDiffs of
         [] -> Ok (unparsedContent2, offset + String.length unparsedContent1, List.reverse revAcc)
         StringUpdate start end replaced :: tail ->
-          let newReplaced =
+           let newReplaced =
             let newSubtr = String.slice (start + updateOffset) (start + replaced + updateOffset) content2 in
             let newSubstrUnparsed = ParserUtils.unparseStringContent quoteChar newSubtr in
             String.length newSubstrUnparsed
-          in
-          let newUpdateOffset = updateOffset + replaced - (end - start) in
-          case matches2 of
+           in
+           let newUpdateOffset = updateOffset + replaced - (end - start) in
+           case matches2 of
             [] ->
               StringUpdate (offset + start + updateOffset) (offset + end + updateOffset) newReplaced :: revAcc |>
               aux newUpdateOffset tail []

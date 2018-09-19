@@ -25,6 +25,9 @@ tuple2 sub1 sub2 vb (a, b) =
 viewtuple3:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> (Vb -> c -> Val) -> Vb -> (a, b, c) -> Val
 viewtuple3 sub1 sub2 sub3 vb (a, b, c) = vb <| VList <| [sub1 vb a, sub2 vb b, sub3 vb c]
 
+htmlText: Vb -> String -> Val
+htmlText vb text= viewtuple2 string string vb ("TEXT", text)
+
 tuple3:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> (Vb -> c -> Val) -> Vb -> (a, b, c) -> Val
 tuple3 sub1 sub2 sub3 vb (a, b, c) =
   vb <| VRecord <| Dict.fromList [

@@ -605,6 +605,15 @@ removeFirstSuccess f list =
         Nothing     -> removeFirstSuccess f xs |> Maybe.map (Tuple.mapSecond <| (::) x)
         Just res -> Just (res, xs)
 
+splitPrefix: (a -> Maybe b) -> List a -> (List b, List a)
+splitPrefix f list =
+  case list of
+    [] ->  ([], [])
+    head :: tail -> case f head of
+      Nothing -> ([], list)
+      Just b ->
+        Tuple.mapFirst ((::) b) <| splitPrefix f tail
+
 firstOrLazySecond : Maybe a -> (() -> Maybe a) -> Maybe a
 firstOrLazySecond maybe1 lazyMaybe2 =
   case maybe1 of

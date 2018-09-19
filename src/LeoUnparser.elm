@@ -875,7 +875,12 @@ unparseHtmlChildList childExp =
     Just children ->
       children |> List.map unparseHtmlNode |> String.join ""
     Nothing ->
-      case (unwrapExp childExp) of
+      case unwrapExp childExp of
+        EApp _ v [ex] SpaceApp _ ->
+          case unwrapExp v of
+            EVar _ "__mergeHtmlText__" ->
+              unparseHtmlChildList ex
+            _ -> "@(" ++ unparse childExp ++ ")"
         EApp _ _ [e1, eRight] _ _ ->
           case (unwrapExp e1) of
             EApp _ _ [eLeft, eToRenderwrapped] _ _ ->

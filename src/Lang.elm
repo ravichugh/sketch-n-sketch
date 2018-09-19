@@ -2570,9 +2570,7 @@ vHtmlNodeUnapply v = case vListUnapply v of
     _ -> Nothing
   _ -> Nothing
 
-vStringUnapply v = case v.v_ of
-  VBase (VString s) -> Just s
-  _ -> Nothing
+vStringUnapply = vStrUnapply
 
 vRecordUnapplyField field v = case v.v_ of
   VRecord d -> Dict.get field d
@@ -2599,6 +2597,22 @@ vRecordTupleUnapply v = case v.v_ of
                   )
         in Just ((ctorTuple, v), orderedKeyValues)
     )
+  _ -> Nothing
+
+vHtmlTextUnapply v = case v.v_ of
+  VList [t, x] -> case (t.v_, x.v_) of
+    (VBase (VString "TEXT"), VBase (VString a)) -> Just a
+    _ -> Nothing
+  _ -> Nothing
+
+vHtmlTextDiffs d =
+  VListDiffs [(1, ListElemUpdate d)]
+
+vHtmlTextDiffsUnapply d = case d of
+  VListDiffs ld -> case ld of
+    [(1, ListElemUpdate (VStringDiffs x))] -> Just x
+    [] -> Just []
+    _ -> Nothing
   _ -> Nothing
 
 pVarUnapply p = case p.val.p__ of

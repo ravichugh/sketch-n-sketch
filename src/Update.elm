@@ -1433,61 +1433,19 @@ maybeUpdateMathOp op operandVals oldOutVal newOutVal diffs =
         Just [VBase (VString sa) as va, VBase (VString sb) as vb] ->
           case op.val  of
             Plus ->
-              let saLength = String.length sa in
-              --let _ = ImpureGoodies.log <| "Handling concatenation '" ++ sa ++ "' + '" ++ sb ++ "' <-- " ++ newOut in
-              let aux: Int -> List StringDiffs -> List StringDiffs -> Results String (List Val, TupleDiffs VDiffs)
-                  aux  offset revForSa            diffs               =
-                    --let _ = ImpureGoodies.log <| "offset=" ++ toString offset ++ ", revForSa=" ++ toString revForSa ++", diffs=" ++ toString diffs in
-                    case diffs of
-                    [] ->
-                      let indexCut = offset + saLength in
-                      let newSa = replaceV_ oldOutVal <| VBase <| VString <| String.left     indexCut newOut in
-                      let newSb = replaceV_ oldOutVal <| VBase <| VString <| String.dropLeft indexCut newOut in
-                      let finalDiffs = if revForSa == [] then [] else [(0, VStringDiffs (List.reverse revForSa))] in
-                      ok1 ([newSa, newSb], finalDiffs)
-                    ((StringUpdate start end replacement) as su) :: diffsTail ->
-                      if start < saLength && end > saLength then -- We need to split the diffs, it cannot encompass two positions
-                        [aux offset revForSa (StringUpdate start saLength 0 ::StringUpdate saLength end replacement ::diffsTail),
-                         aux offset revForSa (StringUpdate start saLength replacement ::StringUpdate saLength end 0 ::diffsTail)] |>
-                           Results.projOk |> Results.andThen (LazyList.fromList >> Ok)
-                      else if start > saLength || start == saLength && end > start then -- The diff happens to the right of saLength
-                        let indexCutNew = saLength + offset in
-                        let newSa = replaceV_ oldOutVal <| VBase <| VString <| String.left     indexCutNew newOut in
-                        let newSb = replaceV_ oldOutVal <| VBase <| VString <| String.dropLeft indexCutNew newOut in
-                        let finalDiffs =
-                             (if revForSa == [] then [] else [(0, VStringDiffs (List.reverse revForSa))]) ++
-                             [(1, VStringDiffs (offsetStr (0 - saLength) diffs))]
-                        in
-                        ok1 ([newSa, newSb], finalDiffs)
-                       else if start == saLength && end == saLength then -- Ambiguity here. We return both solutions with some preferences
-                        let aLeft = String.slice (max (start - 1) 0) start sa in
-                        let bRight = String.slice (end - saLength) (end - saLength + 1) sb in
-                        let inserted = String.slice (start + offset) (start + offset + replacement) newOut in
-                        let replacements = [
-                           (offset + start + replacement, List.reverse (su :: revForSa), offsetStr (0 - saLength) diffsTail),
-                           (offset + start, List.reverse revForSa, offsetStr (0 - saLength) (su :: diffsTail))
-                           ]
-                        in
-                        let orderedReplacementst =
-                             if affinity aLeft inserted >= affinity inserted bRight || end - start >= 1 && end <= saLength then
-                              oks replacements
-                             else
-                              oks  <| List.reverse replacements
-                        in
-                        orderedReplacementst |> Results.andThen (\(indexCut, forSa, forSb) ->
-                          let newSa = replaceV_ oldOutVal <| VBase <| VString <| String.left     indexCut newOut in
-                          let newSb = replaceV_ oldOutVal <| VBase <| VString <| String.dropLeft indexCut newOut in
-                          let finalDiffs =
-                            (if forSa == [] then [] else [(0, VStringDiffs forSa)]) ++
-                            (if forSb == [] then [] else [(1, VStringDiffs forSb)])
-                          in
-                          ok1 ([newSa, newSb], finalDiffs))
-                       else -- end < saLength
-                         aux (offset - (end - start) + replacement) (su::revForSa) diffsTail
-              in
               ok1 (Just diffs) |> Results.andThen (\mbvdiff ->
                 case mbvdiff of
-                  Just (VStringDiffs d) -> aux 0 [] d
+                  Just (VStringDiffs d) ->
+                    reverseStringConcatenation sa sb newOut d
+                    |> Results.map (\(newSa, forSa, newSb, forSb) ->
+                      let newA = replaceV_ oldOutVal <| VBase <| VString <| newSa in
+                      let newB = replaceV_ oldOutVal <| VBase <| VString <| newSb in
+                      let finalDiffs =
+                        (if forSa == [] then [] else [(0, VStringDiffs forSa)]) ++
+                        (if forSb == [] then [] else [(1, VStringDiffs forSb)])
+                      in
+                      ([newA, newB], finalDiffs)
+                    )
                   Just dd ->
                     Err <| "Expected VStringDiffs 3, got " ++ toString dd
                   Nothing ->
