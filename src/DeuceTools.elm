@@ -460,9 +460,7 @@ smartCompleteTool =
             Err _ -> discreteOptions
       in
       SmartCompleteDeuceTransform <| \smartCompleteText ->
-        -- The current UI starts from the bottom and shows ascending results upwards
-        -- So we must reverse the list to get the first result nearest the text box
-        List.reverse (allOptions smartCompleteText) |>
+        allOptions smartCompleteText |>
         List.filter (.string >> String.startsWith smartCompleteText) |>
           List.map (\{string, e__} ->
             replaceExpNode holeEId (replaceE__ holeExp e__) root

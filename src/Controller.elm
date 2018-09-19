@@ -1959,9 +1959,16 @@ msgKeyDown keyCode =
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           { old | outputMode = Graphics }
 
-        else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick && not currentKeyDown &&
-                mbKeyboardFocusedWidget /= Nothing && not old.isDeuceTextBoxFocused then
-          handleDeuceHotKey old (keyCode :: old.keysDown |> List.sort) <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
+        else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick
+                && not currentKeyDown && mbKeyboardFocusedWidget /= Nothing then
+          let keyCodes = keyCode :: old.keysDown |> List.sort in
+          if old.isDeuceTextBoxFocused then
+            if old.mbDeuceKeyboardInfo /= Nothing then
+              handleDeuceTextBoxCommand old keyCodes
+            else
+              old
+          else
+            handleDeuceHotKey old keyCodes <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
 
         else if
           not currentKeyDown &&
@@ -3480,9 +3487,38 @@ deuceChooserUI old initText titleAndTextToTransformationResults =
         { title = title
         , text = initText
         , textToTransformationResults = textToTransformationResults
+        , smartCompleteSelection = initText
         }
     , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
   }
+
+moveSmartCompleteSelection old isDown =
+  let
+    oldDeuceKeyboardInfo =
+      Utils.fromJust_ "No keyboard info" old.mbDeuceKeyboardInfo
+    {text, textToTransformationResults, smartCompleteSelection} =
+      oldDeuceKeyboardInfo
+    textResults =
+      textToTransformationResults text
+      |> List.map transformationResultToString
+      |> Utils.applyIf isDown List.reverse
+    smartSelectionTail =
+      Utils.dropWhile ((/=) smartCompleteSelection) textResults
+    newSmartCompleteSelection =
+      case smartSelectionTail of
+        sel :: next :: _ ->
+          -- common case: select the next child
+          next
+        _                ->
+          -- if no such child exists, or we're at the last child, select the first
+          List.head textResults |> Maybe.withDefault smartCompleteSelection
+    newMbDeuceKeyboardInfo =
+      Just <|
+      { oldDeuceKeyboardInfo
+        | smartCompleteSelection = newSmartCompleteSelection
+      }
+  in
+  { old | mbDeuceKeyboardInfo = newMbDeuceKeyboardInfo }
 
 handleDeuceMoveHorizontal_ old selected isLeftMove =
   let
@@ -3499,6 +3535,12 @@ handleDeuceMoveHorizontal_ old selected isLeftMove =
   Utils.mapFirstSuccess (\co -> if isTarget co then Nothing else toDeuceWidget patMap co) cosAfterSelected |>
     Maybe.map (flip deuceMove old) |>
       Maybe.withDefault old
+
+handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected True
+
+handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected False
+
+handleDeuceSpace old selected = toggleDeuceWidget selected old
 
 handleDeuceHotKey : Model -> List Char.KeyCode -> DeuceWidget -> Model
 handleDeuceHotKey oldModel keysDown selected =
@@ -3577,11 +3619,33 @@ handleDeuceHotKey oldModel keysDown selected =
   else
     old
 
-handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected True
-
-handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected False
-
-handleDeuceSpace old selected = toggleDeuceWidget selected old
+handleDeuceTextBoxCommand : Model -> List Char.KeyCode -> Model
+handleDeuceTextBoxCommand old keysDown =
+  let
+    -- It'd be great if we could use any familiar, home-keys-accessible binding,
+    -- but literally all of them are consumed by chrome:
+    -- Ctrl+J, Ctrl+K, Ctrl+N, Ctrl+P, and Tab
+    -- I've settled on Ctrl+m and Ctrl+; for now,
+    -- but I don't what's really a good solution
+    isUp =
+      keysDown == [Keys.keyUp]
+      || ( List.length keysDown == 2
+           && (Utils.geti 1 keysDown |> Keys.isCommandKey)
+           && (Utils.geti 2 keysDown == Keys.keySemicolon)
+         )
+    isDown =
+      keysDown == [Keys.keyDown]
+      || ( List.length keysDown == 2
+           && (Utils.geti 1 keysDown |> Keys.isCommandKey)
+           && (Utils.geti 2 keysDown == Keys.keyM)
+         )
+  in
+  if isUp then
+    moveSmartCompleteSelection old False
+  else if isDown then
+    moveSmartCompleteSelection old True
+  else
+    old
 
 --------------------------------------------------------------------------------
 -- DOT

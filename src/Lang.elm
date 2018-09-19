@@ -706,6 +706,23 @@ extractSynthesisResult : TransformationResult -> Maybe SynthesisResult
 extractSynthesisResult =
   extractSynthesisResultWith identity
 
+resultTextToString : ResultText -> String
+resultTextToString rt =
+  case rt of
+    PlainText       s -> s
+    HeaderText      s -> s
+    ErrorHeaderText s -> s
+    CodeText        s -> s
+    TypeText        s -> s
+    HintText        s -> s
+
+transformationResultToString : TransformationResult -> String
+transformationResultToString tr =
+  case tr of
+    Basic (SynthesisResult sr) -> sr.description
+    Fancy _ rt                 -> resultTextToString rt
+    Label rt                   -> resultTextToString rt
+
 --------------------------------------------------------------------------------
 -- Predicates (for DeuceTools and OutputTools)
 --------------------------------------------------------------------------------

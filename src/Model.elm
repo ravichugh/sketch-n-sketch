@@ -82,6 +82,7 @@ type alias DeuceKeyboardPopupInfo =
   { title : String
   , text : String
   , textToTransformationResults : String -> List TransformationResult
+  , smartCompleteSelection : String
   }
 
 type alias PopupPanelPositions =

@@ -1142,7 +1142,8 @@ code {
 }
 
 .expected-safe .text-button:not(.disabled):hover,
-.expected-safe:hover > .hover-menu-title .text-button:not(.disabled) {
+.expected-safe:hover > .hover-menu-title .text-button:not(.disabled),
+.deuce-menu-phony-hovered {
   background-color: rgba(0, 255, 0, 0.2);
 }
 
