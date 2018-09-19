@@ -1057,7 +1057,9 @@ inferType gamma stuff thisExp =
                                          String.join " -> " (List.repeat (numArgs + 1) "_")
                                      in
                                      pat |> setPatDeuceTypeInfo (DeuceTypeInfo
-                                       [ deuceLabel <| PlainText <|
+                                       [ deuceLabel <| HeaderText
+                                           "Missing Annotation"
+                                       , deuceLabel <| PlainText <|
                                            "Currently, functions need annotations"
                                        , deuceTool (PlainText "Add skeleton type annotation")
                                            (insertStrAnnotation pat wildcards stuff.inputExp)

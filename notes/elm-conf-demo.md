@@ -268,11 +268,6 @@
    Hover around and see a bunch of things got type checked.
 
 1. <span style="color:green;">**OK:**</span>
-   Select `main`, **Type Information**, **Add inferred annotation**.
-
-        main : Svg
-
-1. <span style="color:green;">**OK:**</span>
    Currently need annotations on functions, so there's an error.
    There's a tool to **Add skeleton type annotation**.
 
@@ -304,6 +299,11 @@
 
         main =
           svg (logo "gray" 10 10 200)
+
+1. <span style="color:green;">**OK:**</span>
+   Select `main`, **Type Information**, **Add inferred annotation**.
+
+        main : Svg
 
 
 ## Type-Based Code Tools + Holes
