@@ -119,12 +119,12 @@ menuBarTotalHeight =
 --------------------------------------------------------------------------------
 
 iconButton =
-  { iconWidth = 29
-  , iconHeight = 29
+  { iconWidth = 43
+  , iconHeight = 43
   }
 
 toolButton =
-  { width = 170
+  { width = 230
   }
 
 toolPanel =

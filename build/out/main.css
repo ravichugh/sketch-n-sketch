@@ -649,7 +649,7 @@ code {
 }
 
 /******************************************************************************
- * Tool Panel                                                                 *
+ * Tool Box                                                                   *
  ******************************************************************************/
 
 .tool-panel {
@@ -681,7 +681,8 @@ code {
 }
 
 .tool-panel .icon-button-label {
-  margin-left: 5px;
+  margin-left: 6px;
+  font-size: 15px;
 }
 
 .tool-separator {
