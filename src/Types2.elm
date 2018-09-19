@@ -543,7 +543,11 @@ copyTypeInfoFrom fromExp toExp =
 
 typecheck : Exp -> Exp
 typecheck e =
-  let result = inferType [] { inputExp = e } e in
+  let initEnv =
+    [ TypeVar "Svg" -- stuffing this here for now
+    ]
+  in
+  let result = inferType initEnv { inputExp = e } e in
   result.newExp
 
 -- extra stuff for typechecker
@@ -710,6 +714,7 @@ inferType gamma stuff thisExp =
                 let
                   addErrorAndInfo (eid1, type1) (eid2, type2) branchExp =
                     branchExp
+                      |> setType Nothing -- overwrite
                       |> setDeuceTypeInfo
                            ( DeuceTypeInfo
                                [ deuceLabel <| ErrorHeaderText <|
@@ -724,8 +729,6 @@ inferType gamma stuff thisExp =
                                    "But the other branch has type"
                                , deuceLabel <| TypeText <|
                                    unparseType type2
-                               , deuceLabel <| PlainText <|
-                                   "TODO-Ravi Maybe an option to change expected type if it's annotation..."
                                , deuceLabel <| HintText
                                    "These need to match so that no matter which branch we take, we always get back the same type of value."
                                ]
@@ -753,7 +756,7 @@ inferType gamma stuff thisExp =
             Just branchType ->
               setType (Just branchType)
             Nothing ->
-              Basics.identity
+              setDeuceTypeInfo genericError
 
         newExp =
           EIf ws0 result1.newExp ws1 newThenExp ws2 newElseExp ws3
@@ -939,8 +942,7 @@ inferType gamma stuff thisExp =
                                Nothing ->
                                  case matchLambda expEquation of
                                    0 ->
-                                     pat |> setPatDeuceTypeInfo (deucePlainLabels ["type error"])
-
+                                     pat |> setPatDeuceTypeInfo genericError
                                    numArgs ->
                                      let
                                        wildcards =
@@ -973,7 +975,7 @@ inferType gamma stuff thisExp =
                                  breadcrumb =
                                    HighlightWhenSelected (unExpr expEquation).val.eid
                                in
-                               ( pat |> setPatDeuceTypeInfo (deucePlainLabels ["type error"])
+                               ( pat |> setPatDeuceTypeInfo genericError
                                , [(annotatedType.val.tid, breadcrumb)]
                                )
 
@@ -1162,6 +1164,103 @@ inferType gamma stuff thisExp =
                           |> setDeuceTypeInfo error
               in
                 { newExp = newExp }
+
+    EList ws1 wsExps ws2 Nothing ws3 ->
+      let
+        (listWs, listExps) =
+          List.unzip wsExps
+
+        result =
+          inferTypes gamma stuff listExps
+
+        maybeTypes =
+          List.map (unExpr >> .val >> .typ) result.newExps
+
+        newExp =
+          EList ws1 (Utils.zip listWs result.newExps) ws2 Nothing ws3
+            |> replaceE__ thisExp
+            |> finishNewExp
+
+        finishNewExp =
+          case Utils.projJusts maybeTypes of
+            Nothing ->
+              setDeuceTypeInfo genericError
+
+            Just [] ->
+              setDeuceTypeInfo <| DeuceTypeInfo <|
+                 [ Label <| PlainText
+                     "Empty list not supported yet..."
+                 ]
+
+            -- putting all the errors on the list, rather than on
+            -- the elements like for EIf...
+            Just (type1 :: moreTypes) ->
+              let
+                headExp =
+                  Utils.head "inferType EList" result.newExps
+
+                tailExps =
+                  Utils.tail "inferType EList" result.newExps
+
+                nth n =
+                  case n of
+                    1 -> "1st"
+                    2 -> "2nd"
+                    3 -> "3rd"
+                    _ -> toString n ++ "th"
+
+                errorMessages =
+                  Utils.zip tailExps moreTypes
+                    |> Utils.mapi1 (\(i,(e,t)) ->
+                         if typeEquiv t type1 then
+                           []
+                         else
+                           [ Label <| PlainText <|
+                               "But the " ++ nth (i+1) ++ " element"
+                           , Label <| CodeText <|
+                               String.trim (unparse e)
+                           , Label <| PlainText
+                               "is a"
+                           , Label <| TypeText <|
+                               String.trim (unparseType t)
+                           ]
+                       )
+                    |> List.concat
+              in
+                case errorMessages of
+                  [] ->
+                    setType <| Just <| withDummyTypeInfo <|
+                      TList space1
+                            (mapPrecedingWhitespaceTypeWS (always space1) type1)
+                            space0
+
+                  _ ->
+                    setDeuceTypeInfo <| DeuceTypeInfo <|
+                      [ Label <| ErrorHeaderText
+                          "Type Mismatch"
+                      , Label <| PlainText
+                          "The elements in this list are different types of values."
+                      , Label <| PlainText <|
+                          "The 1st element"
+                      , Label <| CodeText <|
+                          String.trim (unparse headExp)
+                      , Label <| PlainText <|
+                          "is a"
+                      , Label <| TypeText <|
+                          String.trim (unparseType type1)
+                      ]
+                      ++
+                      errorMessages
+                      ++
+                      [ Label <| HintText <| """
+                          Every entry in a list needs to be the same type of
+                          value. This way you never run into unexpected values
+                          partway through. To mix different types in a single
+                          list, create a "union type".
+                        """
+                      ]
+      in
+        { newExp = newExp }
 
     _ ->
       { newExp = thisExp |> setType Nothing }
@@ -1383,10 +1482,25 @@ deucePlainLabels strings =
   DeuceTypeInfo
     (List.map (deuceLabel << PlainText) strings)
 
+
+labelGenericErrorHeader : TransformationResult
+labelGenericErrorHeader =
+  Label <| ErrorHeaderText "Type Error"
+
+genericError : DeuceTypeInfo
+genericError =
+  DeuceTypeInfo <|
+    [ labelGenericErrorHeader
+    , Label <| PlainText
+        "There is a problem inside"
+    ]
+
+
 -- TODO: flip args
 deuceTool : ResultText -> Exp -> TransformationResult
 deuceTool rt exp =
   Fancy (synthesisResult "Types2 DUMMY DESCRIPTION" exp) rt
+
 
 expectedButGot inputExp expectedType maybeActualType =
   let
