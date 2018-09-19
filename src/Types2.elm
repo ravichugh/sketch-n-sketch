@@ -1039,11 +1039,12 @@ inferType gamma stuff thisExp =
                              case (unExpr result.newExp).val.typ of
                                Just inferredType ->
                                  pat |> setPatType (Just inferredType)
-                                        -- TODO: Not an error, rename DeuceTypeInfo...
                                      |> setPatDeuceTypeInfo (DeuceTypeInfo
+                                          ( okayType inferredType ++
                                           [ deuceTool (PlainText "Add inferred annotation")
                                               (insertStrAnnotation pat (unparseType inferredType) stuff.inputExp)
                                           ]
+                                          )
                                         )
 
                                Nothing ->
@@ -1590,9 +1591,22 @@ deucePlainLabels strings =
     (List.map (deuceLabel << PlainText) strings)
 
 
+-- pick a better name...
+okayType : Type -> List TransformationResult
+okayType t =
+  [ deuceLabel <| HeaderText
+      "Type Inspector"
+  , deuceLabel <| PlainText
+      "The type of this is"
+  , deuceLabel <| TypeText <|
+      unparseType t
+  ]
+
+
 labelGenericErrorHeader : TransformationResult
 labelGenericErrorHeader =
   Label <| ErrorHeaderText "Type Error"
+
 
 genericError : DeuceTypeInfo
 genericError =
@@ -1723,12 +1737,7 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
           ]
 
         (Just t, Nothing) ->
-          [ deuceLabel <| HeaderText <|
-              "Type Inspector"
-          , deuceLabel <| PlainText <|
-              "The type of this is"
-          , deuceLabel <| TypeText <| unparseType t
-          ]
+          okayType t
 
         (_, Just (DeuceTypeInfo items)) ->
           items
