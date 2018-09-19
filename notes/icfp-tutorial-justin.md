@@ -238,9 +238,8 @@ shoppingList =
   ]
   
 shoppingEntry (color, item) =
-  <li style=("color: " + color + ";")>
-    @color @item
-  </li>
+  <li style=("color:" + color)
+     >@color @item</li>
 
 name =
   "Justin"
@@ -286,9 +285,8 @@ shoppingList =
   ]
   
 shoppingEntry (color, item) =
-  <li style=("color: " + color + ";")>
-    @color @item
-  </li>
+  <li style=("color:" + color)
+     >@color @item</li>
 
 info title listViewer list =
   <section>
@@ -336,9 +334,8 @@ shoppingList =
   ]
   
 shoppingEntry (color, item) =
-  <li style=("color: " + color + ";")>
-    @color @item
-  </li>
+  <li style=("color:" + color)
+     >@color @item</li>
 
 info title listViewer list =
   <section>
@@ -390,9 +387,8 @@ shoppingList =
   ]
   
 shoppingEntry (color, item) =
-  <li style=("color: " + color + ";")>
-    @color @item
-  </li>
+  <li style=("color:" + color)
+     >@color @item</li>
 
 info title listViewer list =
   <section>
