@@ -1,5 +1,6 @@
 module LeoUnparser exposing
   ( unparse
+  , unparseOp
   , unparsePattern
   , unparseType -- Experimental
   , unparseLongStringContent

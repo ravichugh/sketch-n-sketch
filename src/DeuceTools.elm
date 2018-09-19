@@ -13,7 +13,8 @@ module DeuceTools exposing
   , renameVariableViaHotkey
   , expandFormatViaHotkey
   , addToEndViaHotkey
-  , smartCompleteHole
+  , deleteViaHotkey
+  , smartCompleteHoleViaHotkey
   , replaceWithParens
   , replaceWithList
   , replaceWithRecord
@@ -44,6 +45,7 @@ import Info
 import Lang exposing (..)
 import LangTools
 import LeoParser
+import LeoUnparser
 import Syntax
 import Types2
 
@@ -162,6 +164,41 @@ oneOrMoreNumsOnly selections =
 -- Create elements in place of holes
 --------------------------------------------------------------------------------
 
+smartCompleteOps : List Op_
+smartCompleteOps =
+  [ Pi
+  , Cos
+  , Sin
+  , ArcCos
+  , ArcSin
+  , Floor
+  , Ceil
+  , Round
+  , ToStr
+  , Sqrt
+  , Explode
+  , DebugLog
+  , Plus
+  , Minus
+  , Mult
+  , Div
+  , Lt
+  , Eq
+  , Mod
+  , Pow
+  , ArcTan2
+  ]
+
+smartCompleteModules : List {modul: String, values: List String}
+smartCompleteModules =
+  [ { modul = "List"
+    , values = ["nth", "length", "map", "filter", "take", "drop"]
+    }
+  , { modul = "Html"
+    , values = ["tr", "td", "table"]
+    }
+  ]
+
 inBodyPosition : Exp -> Exp -> Bool
 inBodyPosition root e =
   LangTools.performActionIfBody root e (\_ _ _ -> True) (always True) False
@@ -182,6 +219,20 @@ shouldHaveParensOnAccountOfParent root expEId =
     Utils.fromJust_ "Couldn't find hole EId" |>
       Maybe.map doesChildNeedParens |>
         Maybe.withDefault False
+
+deleteToHole : Model -> Selections -> Maybe Exp
+deleteToHole model selections =
+  let root = model.inputExp in
+  case selections of
+    (_, _, [eId], [], [], [], [], [], []) ->
+      findExpByEId root eId |> Maybe.map (\origExp ->
+      replaceExpNode
+        eId
+        (eEmptyHoleVal |> setEId eId |> copyPrecedingWhitespace origExp)
+        root
+      )
+    _ ->
+      Nothing
 
 addToEnd : Model -> Selections -> Maybe Exp
 addToEnd model selections =
@@ -225,6 +276,40 @@ addToEnd_ model tryParent exp =
       in
       EFun wsb (pats ++ [newPat]) body ws1
       |> return
+    ELet wsb lk decls wsIn body ->
+      let
+        flatDecls = getDeclarationsInOrder decls
+        noNL ws_ = not <| String.contains "\n" ws_.val
+        indentationNeedsChanging =
+          noNL wsb
+          || List.any (precedingWhitespaceDeclarationWithInfo >> noNL) flatDecls
+        naturalIndent =
+          LangTools.getProperIndentationIfBody root exp
+          |> Maybe.withDefault (indentationAt eId root ++ "  ")
+        naturalIndentNL = "\n" ++ naturalIndent
+        newIndent =
+          if indentationNeedsChanging then naturalIndentNL else wsb.val
+        newWsb = ws newIndent
+        newWsIn =
+          if indentationNeedsChanging then ws naturalIndentNL else wsIn
+        newDefaultBindingSpace oldWsAsSpace =
+          if indentationNeedsChanging then newIndent ++ "  " else oldWsAsSpace
+        newLastBindingWs =
+          if indentationNeedsChanging then
+            ws <| newIndent ++ "  "
+          else
+            wsOfLast (precedingWhitespaceDeclarationWithInfo >> .val) flatDecls
+        -- TODO this should probably be changed to a PWildcard
+        pat = pVar0 "_"
+        mbNewDecls =
+          List.map (mapPrecedingWhitespaceDeclaration newDefaultBindingSpace) flatDecls ++
+          [LetExp Nothing newLastBindingWs pat FunArgAsPats space1 eEmptyHoleVal |> DeclExp]
+          |> LeoParser.reorderDeclarations
+          |> Result.toMaybe
+      in
+      mbNewDecls |> Maybe.andThen (\newDecls ->
+      ELet newWsb lk newDecls newWsIn body
+      |> return)
     _ ->
       if tryParent then
         parentByEId root eId |>
@@ -299,7 +384,7 @@ makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__ =
     Just <| replaceExpNode holeEId newExp root
   )
 
--- TODO text box or slider (via the WidgetDecl) to specify the value
+-- TODO slider (via the WidgetDecl) to specify the value
 createNumTool =
   makeSimpleReplaceHoleTool
     "createNumFromHole"
@@ -328,21 +413,58 @@ createEmptyStringTool =
     False
     (\wsb -> EBase wsb <| EString defaultQuoteChar "")
 
-createVarTool =
+smartCompleteTool =
   genericReplaceHoleTool
-    "createVarReferenceFromHole"
-    "Create a variable reference"
+    "replaceHoleViaSmartComplete"
+    "Replace hole (autocomplete)"
     (\root holeExp ->
       let
         holeEId = expEId holeExp
         wsb = precedingWhitespace holeExp |> ws
-        visibleVars = visibleIdents root holeExp |> Utils.fromJust_ "holeExp not found"
+        visibleVars =
+          visibleIdents root holeExp
+          |> Maybe.withDefault []
+          |> Utils.dedup
+          |> List.map (\string -> {string = string, e__ = EVar wsb string})
+        ops =
+          smartCompleteOps |>
+          List.map (\op_ ->
+            let
+              op = Info.withDummyInfo op_
+              operands = List.repeat (opArity op) eEmptyHoleVal
+            in
+            { string = LeoUnparser.unparseOp op
+            , e__ = EOp wsb space1 op operands space0
+            }
+          )
+        selects =
+          smartCompleteModules |>
+          List.concatMap (\{modul, values} ->
+            let moduleExp = EVar space0 modul |> withDummyExpInfo in
+            values |>
+            List.map (\value ->
+              { string = modul ++ "." ++ value
+              , e__ = ESelect wsb moduleExp space0 space0 value
+              }
+            )
+          )
+        discreteOptions =
+          visibleVars ++ ops ++ selects |> List.sortBy .string
+        allOptions text =
+          case String.toFloat text of
+            Ok float  ->
+              { string = text
+              , e__ = EConst wsb float dummyLoc <| Info.withDummyInfo NoWidgetDecl
+              }
+              :: discreteOptions
+            Err _ -> discreteOptions
       in
       SmartCompleteDeuceTransform <| \smartCompleteText ->
-        List.filter (String.startsWith smartCompleteText) visibleVars |>
-          List.map (\vIdent ->
-            replaceExpNode holeEId (Expr <| withDummyExpInfoEId holeEId <| EVar wsb vIdent) root
-            |> basicTransformationResult vIdent
+        allOptions smartCompleteText |>
+        List.filter (.string >> String.startsWith smartCompleteText) |>
+          List.map (\{string, e__} ->
+            replaceExpNode holeEId (replaceE__ holeExp e__) root
+            |> basicTransformationResult string
           )
     )
 
@@ -359,99 +481,6 @@ createApplicationTool =
     "an application"
     True
     (\wsb -> EApp wsb eEmptyHoleVal0 [eEmptyHoleVal] SpaceApp space0)
-
-{- TODO we need some sort of autocompleter for ops
-  | EOp WS WS Op (List t1) WS
-type Op_
-  -- nullary ops
-  = Pi
-  | DictEmpty
-  | CurrentEnv
-  -- unary ops
-  | DictFromList
-  | Cos | Sin | ArcCos | ArcSin
-  | Floor | Ceil | Round
-  | ToStr
-  | ToStrExceptStr -- Keeps strings, but use ToStr for everything else
-  | Sqrt
-  | Explode
-  | DebugLog
-  | NoWidgets
-  -- binary ops
-  | Plus | Minus | Mult | Div
-  | Lt | Eq
-  | Mod | Pow
-  | ArcTan2
-  | DictGet
-  | DictRemove
-  -- trinary ops
-  | DictInsert
-  | RegexExtractFirstIn
---
-opFromIdentifier : Ident -> Maybe Op_
-opFromIdentifier identifier =
-  case identifier of
-    "pi" ->
-      Just Pi
-    "__DictEmpty__" ->
-      Just DictEmpty
-    "__CurrentEnv__" ->
-      Just CurrentEnv
-    "__DictFromList__" ->
-      Just DictFromList
-    "cos" ->
-      Just Cos
-    "sin" ->
-      Just Sin
-    "arccos" ->
-      Just ArcCos
-    "arcsin" ->
-      Just ArcSin
-    "floor" ->
-      Just Floor
-    "ceiling" ->
-      Just Ceil
-    "round" ->
-      Just Round
-    "toString" ->
-      Just ToStr
-    "sqrt" ->
-      Just Sqrt
-    "explode" ->
-      Just Explode
-    "+" ->
-      Just Plus
-    "-" ->
-      Just Minus
-    "*" ->
-      Just Mult
-    "/" ->
-      Just Div
-    "<" ->
-      Just Lt
-    "==" ->
-      Just Eq
-    "mod" ->
-      Just Mod
-    "^" ->
-      Just Pow
-    "arctan2" ->
-      Just ArcTan2
-    "__DictInsert__" ->
-      Just DictInsert
-    "__DictGet__" ->
-      Just DictGet
-    "__DictRemove__" ->
-      Just DictRemove
-    "debug" ->
-      Just DebugLog
-    "noWidgets" ->
-      Just NoWidgets
-    "extractFirstIn" ->
-      Just RegexExtractFirstIn
-    _ ->
-      Nothing
--}
 
 createEmptyListTool =
   makeSimpleReplaceHoleTool
@@ -476,10 +505,10 @@ createCaseTool =
         holeEId = expEId holeExp
         wsb = precedingWhitespace holeExp
         maxID = LeoParser.maxId oldRoot
-        (caseID, patID) = Utils.mapBoth ((+) maxID) (1, 2)
+        (caseID, patID, branchEID) = Utils.mapThree ((+) maxID) (1, 2, 3)
         ofExp = Expr <| withDummyExpInfoEId holeEId <| EHole space1 EEmptyHole
         pat = withDummyPatInfoPId patID <| PWildcard space0
-        holeExpWithOneSpace = replacePrecedingWhitespace " " holeExp
+        holeExpWithOneSpace = replacePrecedingWhitespace " " holeExp |> setEId branchEID
         caseExp wsBeforeCase wsBeforeBranch =
           let branch =
             withDummyBranchInfo <|
@@ -530,10 +559,10 @@ createLetTool =
         holeEId = expEId holeExp
         wsb = ws <| precedingWhitespace holeExp
         maxID = LeoParser.maxId oldRoot
-        (letID, patID, parensID) = Utils.mapThree ((+) maxID) (1, 2, 3)
+        (letID, patID, boundExpID, parensID) = Utils.mapFour ((+) maxID) (1, 2, 3, 4)
         isTopLevel = LangTools.isTopLevelEId holeEId oldRoot
         pat = withDummyPatInfoPId patID <| PWildcard <| if isTopLevel then space0 else space1
-        boundExp = Expr <| withDummyExpInfoEId holeEId <| EHole space1 EEmptyHole
+        boundExp = Expr <| withDummyExpInfoEId boundExpID <| EHole space1 EEmptyHole
         newExp =
           let
             letOrDef = if isTopLevel then Def else Let
@@ -577,11 +606,14 @@ createRecordTool =
     False
     (\wsb -> ERecord wsb Nothing (Declarations [] [] [] []) space0)
 
+deleteViaHotkey : Model -> DeuceWidget -> Maybe Exp
+deleteViaHotkey = runFunctionViaHotkey deleteToHole
+
 addToEndViaHotkey : Model -> DeuceWidget -> Maybe Exp
 addToEndViaHotkey = runFunctionViaHotkey addToEnd
 
-smartCompleteHole : Model -> DeuceWidget -> (String, String -> List TransformationResult)
-smartCompleteHole = runInputBasedToolViaHotkey createVarTool
+smartCompleteHoleViaHotkey : Model -> DeuceWidget -> (String, String -> List TransformationResult)
+smartCompleteHoleViaHotkey = runInputBasedToolViaHotkey smartCompleteTool
 
 replaceWithParens : Model -> DeuceWidget -> Maybe Exp
 replaceWithParens = runToolViaHotkey createParenthesizedTool
@@ -924,7 +956,10 @@ inlineDefinitionTool model selections =
               (toolName , InactiveDeuceTransform , Impossible)
             Just (inlinedIdents, newProgram) ->
               ( Utils.perhapsPluralizeList toolName letEIds
-              , basicDeuceTransform [basicTransformationResult ("Inline " ++ toString inlinedIdents) newProgram]
+              , basicDeuceTransform
+                  [basicTransformationResult
+                     ("Inline " ++ String.join " and " inlinedIdents)
+                     newProgram]
               , Satisfied
               )
         _ ->
@@ -2656,6 +2691,10 @@ typesTool : Model -> DeuceSelections -> DeuceTool
 typesTool model selections =
   let
     (func, boolPredVal) =
+      if model.doTypeChecking == False then
+        (InactiveDeuceTransform, Impossible)
+      else
+
       case selections of
         ([], [], [], [], [], [], [], [], []) ->
           (InactiveDeuceTransform, Possible)
@@ -3058,6 +3097,7 @@ expandFormat old selections =
           |> return
         ELet _ lk decls wsIn body ->
           replacePrecedingWhitespace naturalIndentNewLine exp
+          |> flip (replaceExpNode eId) oldRoot
           |> Just
         EIf wsb cond wsBeforeThen t wsBeforeElse f wsa ->
           let
@@ -3139,7 +3179,7 @@ toolList =
     , createParenthesizedTool
     , createRecordTool
     ]) ::
-    [ createVarTool ]
+    [ smartCompleteTool ]
 
 -- TODO: get Deuce tools to work with the ELet AST
   , [ createFunctionTool

@@ -3339,7 +3339,8 @@ moveDeclarations declsToMove ((insertionMethod, (insertionEId, insertionBindingN
           if not <| List.isEmpty warnings then
             (String.join ",\n" warnings, False)
           else if List.isEmpty declsToMoveRemaining then
-            ("move at the given place", True)
+            -- ("move at the given place", True)
+            ("Move", True) -- names of identifiers would be nice, if possible
           else ("[Internal error] Could not find declarations " ++ toString declsToMoveRemaining, False)
   in
   if List.isEmpty declarationsToInline then

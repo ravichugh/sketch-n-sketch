@@ -17,7 +17,7 @@ import Info exposing (WithInfo, withDummyInfo)
 import Lang exposing (..)
 import LangTools
 import LangUtils
-import LeoParser exposing (parse, reorderDeclarations)
+import LeoParser exposing (parse, parseT, reorderDeclarations)
 import LeoUnparser exposing (unparse, unparsePattern, unparseType)
 import Ace
 -- can't depend on Model, since ExamplesGenerated depends on Types2
@@ -543,7 +543,15 @@ copyTypeInfoFrom fromExp toExp =
 
 typecheck : Exp -> Exp
 typecheck e =
-  let result = inferType [] { inputExp = e } e in
+  let hasType x t = HasType (pVar0 x) (Result.toMaybe (parseT t)) in
+  let initEnv =
+    -- hard-coded for now
+    [ TypeVar "Svg" -- stuffing in TypeVar for now
+    , hasType "rect" "String -> Num -> Num -> Num -> Num -> Svg"
+    , hasType "line" "String -> Num -> Num -> Num -> Num -> Num -> Svg"
+    ]
+  in
+  let result = inferType initEnv { inputExp = e } e in
   result.newExp
 
 -- extra stuff for typechecker
@@ -621,9 +629,9 @@ inferType gamma stuff thisExp =
             result =
               checkType gamma stuff innerExp annotatedType
 
-            (newInnerExp, finishNewExp) =
+            (newInnerExp, finishNewExp, newAnnotatedType) =
               if result.okay then
-                (result.newExp, Basics.identity)
+                (result.newExp, Basics.identity, annotatedType)
 
               else
                 -- the call to checkType calls:
@@ -631,10 +639,17 @@ inferType gamma stuff thisExp =
                 --
                 -- here, adding extra breadcrumb about the solicitorExp.
                 --
-                (result.newExp, setExtraDeuceTypeInfo (HighlightWhenSelected (unExpr innerExp).val.eid))
+                let
+                  breadcrumb =
+                    HighlightWhenSelected (unExpr innerExp).val.eid
+                in
+                ( result.newExp
+                , Basics.identity -- setExtraDeuceTypeInfo breadcrumb
+                , annotatedType |> setExtraDeuceTypeInfoForThing breadcrumb
+                )
 
             newExp =
-              EColonType ws1 newInnerExp ws2 annotatedType ws3
+              EColonType ws1 newInnerExp ws2 newAnnotatedType ws3
                 |> replaceE__ thisExp
                 |> setType (Just annotatedType)
                 |> finishNewExp
@@ -703,6 +718,7 @@ inferType gamma stuff thisExp =
                 let
                   addErrorAndInfo (eid1, type1) (eid2, type2) branchExp =
                     branchExp
+                      |> setType Nothing -- overwrite
                       |> setDeuceTypeInfo
                            ( DeuceTypeInfo
                                [ deuceLabel <| ErrorHeaderText <|
@@ -717,8 +733,6 @@ inferType gamma stuff thisExp =
                                    "But the other branch has type"
                                , deuceLabel <| TypeText <|
                                    unparseType type2
-                               , deuceLabel <| PlainText <|
-                                   "TODO-Ravi Maybe an option to change expected type if it's annotation..."
                                , deuceLabel <| HintText
                                    "These need to match so that no matter which branch we take, we always get back the same type of value."
                                ]
@@ -746,10 +760,113 @@ inferType gamma stuff thisExp =
             Just branchType ->
               setType (Just branchType)
             Nothing ->
-              Basics.identity
+              setDeuceTypeInfo genericError
 
         newExp =
           EIf ws0 result1.newExp ws1 newThenExp ws2 newElseExp ws3
+            |> replaceE__ thisExp
+            |> finishNewExp
+      in
+        { newExp = newExp }
+
+    -- clean this case up...
+    --
+    EApp ws1 eFunc eArgs apptype ws2 ->
+      let
+        resultFunc =
+          inferType gamma stuff eFunc
+
+        inferArgTypes () = -- if inferType eFunc fails to produce an arrow
+          inferTypes gamma stuff eArgs
+            |> .newExps
+
+        (newFunc, newArgs, finishNewExp) =
+          case (unExpr resultFunc.newExp).val.typ of
+            Nothing ->
+              ( resultFunc.newExp
+              , inferArgTypes ()
+              , setDeuceTypeInfo genericError
+              )
+
+            Just eFuncType ->
+              -- currently recursing into argTypes,
+              -- but not recursing into nested EApps...
+              --
+              case matchArrowRecurse eFuncType of
+                Nothing ->
+                  ( resultFunc.newExp
+                  , inferArgTypes ()
+                  , setDeuceTypeInfo <| DeuceTypeInfo <|
+                      [ Label <| ErrorHeaderText
+                          "Type Mismatch"
+                      , Label <| PlainText
+                          "You are giving an argument to something that is not a function!"
+                      , Label <| PlainText
+                          "Maybe you forgot some parentheses? Or a comma?"
+                      ]
+                  )
+
+                Just ([], argTypes, retType) ->
+                  let
+                    numArgs     = List.length eArgs
+                    numArgTypes = List.length argTypes
+                  in
+                  if numArgs > numArgTypes then
+                    ( resultFunc.newExp
+                    , inferArgTypes ()
+                    , setDeuceTypeInfo <| DeuceTypeInfo <|
+                        [ Label <| ErrorHeaderText
+                            "Type Mismatch"
+                        , Label <| PlainText
+                            "The function has type"
+                        , Label <| TypeText <|
+                            unparseType eFuncType
+                        , Label <| PlainText <|
+                            "It takes " ++ toString numArgTypes ++ " arguments" ++
+                            "but you are giving it " ++ toString numArgs
+                        ]
+                    )
+
+                  else
+                    let
+                      (prefixArgTypes, suffixArgTypes) =
+                        Utils.split numArgs argTypes
+
+                      (allOkay, newArgs) =
+                        Utils.zip eArgs prefixArgTypes
+                          |> List.map (\(e,t) ->
+                               let result = checkType gamma stuff e t in
+                               (result.okay, result.newExp)
+                             )
+                          |> List.unzip
+                          |> Tuple.mapFirst (List.all ((==) True))
+
+                      finishNewExp =
+                        if allOkay then
+                          case suffixArgTypes of
+                            [] ->
+                              setType (Just retType)
+                            _ ->
+                              setType (Just (rebuildArrow ([], suffixArgTypes, retType)))
+                        else
+                          setDeuceTypeInfo genericError
+                    in
+                      ( resultFunc.newExp
+                      , newArgs
+                      , finishNewExp
+                      )
+
+                Just _ ->
+                  ( resultFunc.newExp
+                  , inferArgTypes ()
+                  , setDeuceTypeInfo <| DeuceTypeInfo <|
+                      [ Label <| PlainText
+                          "Polymorphic function application not yet supported..."
+                      ]
+                  )
+
+        newExp =
+          EApp ws1 newFunc newArgs apptype ws2
             |> replaceE__ thisExp
             |> finishNewExp
       in
@@ -863,12 +980,12 @@ inferType gamma stuff thisExp =
 
         -- Process LetExps -----------------------------------------------------
 
-        (newLetExps, newGamma) =
+        (newLetExps, newGamma, newTypeBreadCrumbs) =
           letExps
-            |> List.foldl processLetExp ([], gamma)
-            |> Tuple.mapFirst List.reverse
+            |> List.foldl processLetExp ([], gamma, [])
+            |> Utils.mapFst3 List.reverse
 
-        processLetExp (isRec, listLetExp) (accLetExpsRev, accGamma) =
+        processLetExp (isRec, listLetExp) (accLetExpsRev, accGamma, accTypeBreadCrumbs) =
           let
             listLetExpAndMaybeType : List (LetExp, Maybe Type)
             listLetExpAndMaybeType =
@@ -907,7 +1024,7 @@ inferType gamma stuff thisExp =
                 in
                   List.foldl addHasMaybeType accGamma assumedRecPatTypes
 
-            newListLetExp =
+            (newListLetExp, moreTypeBreadCrumbs)  =
               listLetExpAndMaybeType
                 |> List.map (\( (LetExp ws0 ws1 pat fas ws2 expEquation)
                               , maybeAnnotatedType
@@ -922,49 +1039,65 @@ inferType gamma stuff thisExp =
                              case (unExpr result.newExp).val.typ of
                                Just inferredType ->
                                  pat |> setPatType (Just inferredType)
-                                        -- TODO: Not an error, rename DeuceTypeInfo...
                                      |> setPatDeuceTypeInfo (DeuceTypeInfo
+                                          ( okayType inferredType ++
                                           [ deuceTool (PlainText "Add inferred annotation")
                                               (insertStrAnnotation pat (unparseType inferredType) stuff.inputExp)
                                           ]
+                                          )
                                         )
 
                                Nothing ->
                                  case matchLambda expEquation of
                                    0 ->
-                                     pat |> setPatDeuceTypeInfo (deucePlainLabels ["type error"])
-
+                                     pat |> setPatDeuceTypeInfo genericError
                                    numArgs ->
                                      let
                                        wildcards =
                                          String.join " -> " (List.repeat (numArgs + 1) "_")
                                      in
                                      pat |> setPatDeuceTypeInfo (DeuceTypeInfo
-                                       [ deuceLabel <| PlainText <|
+                                       [ deuceLabel <| HeaderText
+                                           "Missing Annotation"
+                                       , deuceLabel <| PlainText <|
                                            "Currently, functions need annotations"
                                        , deuceTool (PlainText "Add skeleton type annotation")
                                            (insertStrAnnotation pat wildcards stuff.inputExp)
                                        ]
                                      )
                          in
-                         LetExp ws0 ws1 newPat fas ws2 result.newExp
+                         ( LetExp ws0 ws1 newPat fas ws2 result.newExp
+                         , []
+                         )
 
                        Just annotatedType ->
                          let
                            result =
                              checkType gammaForEquations stuff expEquation annotatedType
 
-                           newPat =
+                           (newPat, maybeTypeBreadCrumb) =
                              if result.okay then
-                               pat |> setPatType (Just annotatedType)
+                               ( pat |> setPatType (Just annotatedType)
+                               , []
+                               )
                              else
-                               pat |> setPatDeuceTypeInfo (deucePlainLabels ["type error"])
-                           -- TODO: add tool option to change annotation if result.okay == False
+                               let
+                                 breadcrumb =
+                                   HighlightWhenSelected (unExpr expEquation).val.eid
+                               in
+                               ( pat |> setPatDeuceTypeInfo genericError
+                               , [(annotatedType.val.tid, breadcrumb)]
+                               )
+
                            newExpEquation =
                              result.newExp
                          in
-                         LetExp ws0 ws1 newPat fas ws2 newExpEquation
+                         ( LetExp ws0 ws1 newPat fas ws2 newExpEquation
+                         , maybeTypeBreadCrumb
+                         )
                    )
+                |> List.unzip
+                |> Tuple.mapSecond List.concat
 
             newGamma =
               let
@@ -984,7 +1117,24 @@ inferType gamma stuff thisExp =
                   Just patTypes ->
                     List.foldl addHasType accGamma patTypes
           in
-            ((isRec, newListLetExp) :: accLetExpsRev, accGamma)
+            ( (isRec, newListLetExp) :: accLetExpsRev
+            , accGamma
+            , moreTypeBreadCrumbs ++ accTypeBreadCrumbs
+            )
+
+        newerLetAnnots =
+          newLetAnnots
+            |> List.map (\(LetAnnotation ws0 ws1 pat fas ws2 typ) ->
+                 let
+                   newType =
+                     case Utils.maybeFind typ.val.tid newTypeBreadCrumbs of
+                       Just breadcrumb ->
+                         typ |> setExtraDeuceTypeInfoForThing breadcrumb
+                       Nothing ->
+                         typ
+                 in
+                 LetAnnotation ws0 ws1 pat fas ws2 newType
+               )
 
         -- Process Let-Body ----------------------------------------------------
 
@@ -997,7 +1147,7 @@ inferType gamma stuff thisExp =
         -- Rebuild -------------------------------------------------------------
 
         newExp =
-          ELet ws1 letKind (Declarations po newLetTypes newLetAnnots newLetExps) ws2 newBody
+          ELet ws1 letKind (Declarations po newLetTypes newerLetAnnots newLetExps) ws2 newBody
             |> replaceE__ thisExp
             |> copyTypeInfoFrom newBody
       in
@@ -1124,6 +1274,103 @@ inferType gamma stuff thisExp =
                           |> setDeuceTypeInfo error
               in
                 { newExp = newExp }
+
+    EList ws1 wsExps ws2 Nothing ws3 ->
+      let
+        (listWs, listExps) =
+          List.unzip wsExps
+
+        result =
+          inferTypes gamma stuff listExps
+
+        maybeTypes =
+          List.map (unExpr >> .val >> .typ) result.newExps
+
+        newExp =
+          EList ws1 (Utils.zip listWs result.newExps) ws2 Nothing ws3
+            |> replaceE__ thisExp
+            |> finishNewExp
+
+        finishNewExp =
+          case Utils.projJusts maybeTypes of
+            Nothing ->
+              setDeuceTypeInfo genericError
+
+            Just [] ->
+              setDeuceTypeInfo <| DeuceTypeInfo <|
+                 [ Label <| PlainText
+                     "Empty list not supported yet..."
+                 ]
+
+            -- putting all the errors on the list, rather than on
+            -- the elements like for EIf...
+            Just (type1 :: moreTypes) ->
+              let
+                headExp =
+                  Utils.head "inferType EList" result.newExps
+
+                tailExps =
+                  Utils.tail "inferType EList" result.newExps
+
+                nth n =
+                  case n of
+                    1 -> "1st"
+                    2 -> "2nd"
+                    3 -> "3rd"
+                    _ -> toString n ++ "th"
+
+                errorMessages =
+                  Utils.zip tailExps moreTypes
+                    |> Utils.mapi1 (\(i,(e,t)) ->
+                         if typeEquiv t type1 then
+                           []
+                         else
+                           [ Label <| PlainText <|
+                               "But the " ++ nth (i+1) ++ " element"
+                           , Label <| CodeText <|
+                               String.trim (unparse e)
+                           , Label <| PlainText
+                               "is a"
+                           , Label <| TypeText <|
+                               String.trim (unparseType t)
+                           ]
+                       )
+                    |> List.concat
+              in
+                case errorMessages of
+                  [] ->
+                    setType <| Just <| withDummyTypeInfo <|
+                      TList space1
+                            (mapPrecedingWhitespaceTypeWS (always space1) type1)
+                            space0
+
+                  _ ->
+                    setDeuceTypeInfo <| DeuceTypeInfo <|
+                      [ Label <| ErrorHeaderText
+                          "Type Mismatch"
+                      , Label <| PlainText
+                          "The elements in this list are different types of values."
+                      , Label <| PlainText <|
+                          "The 1st element"
+                      , Label <| CodeText <|
+                          String.trim (unparse headExp)
+                      , Label <| PlainText <|
+                          "is a"
+                      , Label <| TypeText <|
+                          String.trim (unparseType type1)
+                      ]
+                      ++
+                      errorMessages
+                      ++
+                      [ Label <| HintText <| """
+                          Every entry in a list needs to be the same type of
+                          value. This way you never run into unexpected values
+                          partway through. To mix different types in a single
+                          list, create a "union type".
+                        """
+                      ]
+      in
+        { newExp = newExp }
 
     _ ->
       { newExp = thisExp |> setType Nothing }
@@ -1267,7 +1514,7 @@ checkType gamma stuff thisExp expectedType =
             , newExp =
                 EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
-                  |> setDeuceTypeInfo (expectedButGot expectedType maybeActualType)
+                  |> setDeuceTypeInfo (expectedButGot stuff.inputExp expectedType maybeActualType)
             }
 
     (EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3, _, _) ->
@@ -1325,11 +1572,27 @@ checkType gamma stuff thisExp expectedType =
               }
 
             else
-              { okay = False
-              , newExp =
-                  result.newExp
-                    |> setDeuceTypeInfo (expectedButGot expectedType (Just inferredType))
-              }
+              let
+                finishExp e =
+                  e |> setType Nothing -- overwrite (Just inferredType)
+                    |> setDeuceTypeInfo (expectedButGot stuff.inputExp expectedType (Just inferredType))
+
+                newExp =
+                  case (unExpr result.newExp).val.e__ of
+                     -- since we don't have an ELet case in checkType,
+                     -- push the expectedType down to the ELet body from here
+                    ELet ws1 letKind decls ws2 body ->
+                      ELet ws1 letKind decls ws2 (finishExp body)
+                        |> replaceE__ result.newExp
+                        |> finishExp
+
+                    _ ->
+                      result.newExp
+                        |> finishExp
+              in
+                { okay = False
+                , newExp = newExp
+                }
 
 
 --------------------------------------------------------------------------------
@@ -1345,12 +1608,105 @@ deucePlainLabels strings =
     (List.map (deuceLabel << PlainText) strings)
 
 
+-- pick a better name...
+okayType : Type -> List TransformationResult
+okayType t =
+  [ deuceLabel <| HeaderText
+      "Type Inspector"
+  , deuceLabel <| PlainText
+      "The type of this is"
+  , deuceLabel <| TypeText <|
+      unparseType t
+  ]
+
+
+labelGenericErrorHeader : TransformationResult
+labelGenericErrorHeader =
+  Label <| ErrorHeaderText "Type Error"
+
+
+genericError : DeuceTypeInfo
+genericError =
+  DeuceTypeInfo <|
+    [ labelGenericErrorHeader
+    , Label <| PlainText
+        "There is a problem inside"
+    ]
+
+
+-- TODO: flip args
 deuceTool : ResultText -> Exp -> TransformationResult
 deuceTool rt exp =
   Fancy (synthesisResult "Types2 DUMMY DESCRIPTION" exp) rt
 
-expectedButGot expectedType maybeActualType =
-  DeuceTypeInfo
+
+expectedButGot inputExp expectedType maybeActualType =
+  let
+    rewriteType actualType =
+      mapFoldTypeTopDown (\t acc ->
+        if t.val.tid == expectedType.val.tid then
+          (actualType, True)
+
+        else
+          (t, acc)
+      ) False
+
+    rewrite actualType =
+      mapFoldExp (\e acc ->
+        case (unExpr e).val.e__ of
+          EColonType ws1 e1 ws2 tipe ws3 ->
+            let
+              (newType, modified) =
+                rewriteType actualType tipe
+            in
+              ( EColonType ws1 e1 ws2 newType ws3 |> replaceE__ e
+              , modified || acc
+              )
+
+          ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+            let
+              (newLetAnnots, anyModified) =
+                letAnnots
+                  |> List.map (\(LetAnnotation mws0 ws1 pat fas ws2 typAnnot) ->
+                       let
+                         (newTypAnnot, thisOneModified) =
+                           rewriteType actualType typAnnot
+                       in
+                         (LetAnnotation mws0 ws1 pat fas ws2 newTypAnnot, thisOneModified)
+                     )
+                  |> List.unzip
+                  |> Tuple.mapSecond (List.any ((==) True))
+
+              newELet=
+                ELet ws1 letKind (Declarations po letTypes newLetAnnots letExps) ws2 body
+                  |> replaceE__ e
+            in
+              (newELet, anyModified || acc)
+
+          _ ->
+            (e, acc)
+      ) False inputExp
+
+    maybeRewriteAnnotation =
+      case maybeActualType of
+        Nothing ->
+          []
+
+        Just actualType ->
+          let
+            (newExp, modified) =
+              rewrite actualType
+          in
+          if modified then
+            [ deuceLabel <| PlainText <|
+                "Is the type annotation wrong? Change it to:"
+            , flip deuceTool newExp <| TypeText <|
+                unparseType actualType
+            ]
+          else
+            []
+  in
+  DeuceTypeInfo <|
     [ deuceLabel <| ErrorHeaderText <|
         "Type Mismatch"
     , deuceLabel <| PlainText <|
@@ -1361,9 +1717,8 @@ expectedButGot expectedType maybeActualType =
         "But this is a"
     , deuceLabel <| TypeText <|
         Maybe.withDefault "Nothing" (Maybe.map unparseType maybeActualType)
-    , deuceLabel <| PlainText
-        ("TODO-Ravi Maybe an option to change expected type if it's annotation...")
     ]
+    ++ maybeRewriteAnnotation
 
 
 makeDeuceExpTool : Exp -> Exp -> (() -> List TransformationResult)
@@ -1399,12 +1754,7 @@ makeDeuceToolForThing wrap unwrap inputExp thing = \() ->
           ]
 
         (Just t, Nothing) ->
-          [ deuceLabel <| HeaderText <|
-              "Type Inspector"
-          , deuceLabel <| PlainText <|
-              "The type of this is"
-          , deuceLabel <| TypeText <| unparseType t
-          ]
+          okayType t
 
         (_, Just (DeuceTypeInfo items)) ->
           items

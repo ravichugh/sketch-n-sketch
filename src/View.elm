@@ -2621,19 +2621,31 @@ noAvailableTools =
 deuceKeyboardPopupPanel : Model -> Html Msg
 deuceKeyboardPopupPanel model =
   let
-    {title, text, textToTransformationResults} =
+    {title, text, textToTransformationResults, smartCompleteSelection} =
       model.mbDeuceKeyboardInfo |>
       Maybe.withDefault
         { title = "Totally broken!"
         , text = ""
         , textToTransformationResults = always []
+        , smartCompleteSelection = ""
         }
 
     transformationResults = textToTransformationResults text
     synthesisResults = Lang.synthesisResults transformationResults
+    mbSelectedResult =
+      transformationResults |>
+      Utils.findFirst (Lang.transformationResultToString >> (==) smartCompleteSelection)
 
     resultItem (SynthesisResult result) =
-      generalHtmlHoverMenu "expected-safe"
+      let
+        desc = result.description
+        class =
+          if desc == smartCompleteSelection then
+            "deuce-menu-phony-hovered"
+          else
+            "expected-safe"
+      in
+      generalHtmlHoverMenu class
         ( [ Html.span
               []
               [ Html.text result.description ]
@@ -2648,8 +2660,17 @@ deuceKeyboardPopupPanel model =
     onKeyDn code =
       -- Enter button
       if code == enterKeyCode && not (List.isEmpty synthesisResults) then
-        let (SynthesisResult firstResult) = Utils.head_ synthesisResults in
-        Controller.msgChooseDeuceExp firstResult.description firstResult.exp
+        let
+          sResultWrapped =
+            case mbSelectedResult of
+              Just selectedResult ->
+                Lang.transformationToSynthesisResult selectedResult
+                |> Utils.fromJust_ "Smart complete results must always have synthesis results"
+              Nothing ->
+                Utils.head_ synthesisResults
+          (SynthesisResult sResult) = sResultWrapped
+        in
+        Controller.msgChooseDeuceExp sResult.description sResult.exp
       else
         Controller.msgNoop
 
@@ -2690,7 +2711,7 @@ deuceKeyboardPopupPanel model =
             [ Attr.class "deuce-popup-panel-content" ]
             ( [ Html.ul
                 [ Attr.class "synthesis-results" ]
-                (List.map resultItem synthesisResults)
+                (List.reverse synthesisResults |> List.map resultItem)
               ] ++
               deuceTextInput Controller.msgUpdateDeuceKeyboardTextBox onKeyDn value id
             )

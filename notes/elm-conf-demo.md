@@ -194,7 +194,7 @@
         main =
           svg logo
 
-1. <span style="color:orange;">**TODO-Nick: Keep nicer names.**</span>
+1. <span style="color:green;">**OK:**</span>
    Select `x`, `y`, and `size` constants and **Create Function from Arguments**.
    (Instead of Select `logo` and **Create Function from Definition**.)
           
@@ -273,16 +273,18 @@
 
         logo : _ -> _ -> _ -> _ -> _
 
-1. <span style="color:orange;">**TODO-Nick: This could be a cool place for keyboard-based navigation,
+1. <!--
+   <span style="color:orange;">**TODO-Nick: This could be a cool place for keyboard-based navigation,
    if text edits can simply operate on the selected token.**</span>
+   -->
    Text-edit to add (buggy) annotation.
 
         logo : String -> Num -> Num -> Num -> Svg
 
-1. <span style="color:red;">**TODO-Ravi:**</span>
+1. <span style="color:orange;">**TODO-Ravi: Return type highlight.**</span>
    **Type Information** tool says return type doesn't match
    annotation. Has an option to **Change annotation for return value**.
-   <span style="color:orange;">TODO: And perhaps **Insert call to `svgConcat`**.</span>
+   <!-- <span style="color:orange;">TODO: And perhaps **Insert call to `svgConcat`**.</span> -->
 
         logo : String -> Num -> Num -> Num -> List Svg
         logo fill x y size =
@@ -369,7 +371,7 @@
 
 1. <span style="color:green;">**OK:**</span>
    **Duplicate Data Constructor**. Let's have the dummy case just be a hole to
-   start. Click `LogoParams` and **Format** to choose multi-line option.
+   start. <!-- Click `LogoParams` and **Format** to choose multi-line option.  -->
 
         type LogoParams
           = TopLeft {x:Num, y:Num, size:Num}
@@ -399,7 +401,9 @@
                 Center {cx, cy, rad} ->
                   {x=??, y=??, size=??}
 
-1. <span style="color:orange;">**TODO-Nick: Another nice place for keyboard-nav.**</span>
+1. <!--
+   <span style="color:orange;">**TODO-Nick: Another nice place for keyboard-nav.**</span>
+   -->
    Text edits. Naming errors `x` and `y`, fixes suggested.
 
                 Center {cx, cy, rad} ->
@@ -448,7 +452,7 @@
   
         main : Svg
         main =
-          svg (logo "gray" (Center {cx=300, cy=300, rad=40}))
+          svg <| logo "gray" <| Center {cx=300, cy=300, rad=40}
 
 
 

@@ -152,7 +152,7 @@ getDatatypeName v = vRecordUnapplyField ctorDataType v |> Maybe.andThen vStringU
 
 getViewDatatypeName: Val -> Maybe String
 getViewDatatypeName v = case vListUnapply v of
-  Just [head,attrs,children] -> 
+  Just [head,attrs,children] ->
     let isAttrCorrect = (case attrs.v_ of
          VList _ -> True
          _ -> False
@@ -232,6 +232,40 @@ maybeEvalMathOp op_ operands =
     (Pi,      [])    -> Just <| pi
     _                -> Nothing
 
+opArity : Op -> Int
+opArity op =
+  case op.val of
+    Pi                  -> 0
+    DictEmpty           -> 0
+    CurrentEnv          -> 0
+    DictFromList        -> 1
+    Cos                 -> 1
+    Sin                 -> 1
+    ArcCos              -> 1
+    ArcSin              -> 1
+    Floor               -> 1
+    Ceil                -> 1
+    Round               -> 1
+    ToStr               -> 1
+    ToStrExceptStr      -> 1
+    Sqrt                -> 1
+    Explode             -> 1
+    DebugLog            -> 1
+    NoWidgets           -> 1
+    Plus                -> 2
+    Minus               -> 2
+    Mult                -> 2
+    Div                 -> 2
+    Lt                  -> 2
+    Eq                  -> 2
+    Mod                 -> 2
+    Pow                 -> 2
+    ArcTan2             -> 2
+    DictGet             -> 2
+    DictRemove          -> 2
+    DictInsert          -> 3
+    RegexExtractFirstIn -> 3
+
 type alias Operator =
   (WS, Ident)
 
@@ -244,11 +278,21 @@ type alias PId  = Int
 type alias TId = Int
 type alias Exp_ = WithTypeInfo { e__ : Exp__, eid : EId }
 type alias Pat_ = WithTypeInfo { p__ : Pat__, pid : PId }
-type alias Type_ = { t__ : Type__, tid: TId }
+type alias Type_ = WithDeuceTypeInfo { t__ : Type__, tid: TId }
 
 type alias WithTypeInfo a =
   { a | typ : Maybe Type
       , deuceTypeInfo : Maybe DeuceTypeInfo
+      , extraDeuceTypeInfo : Maybe ExtraDeuceTypeInfo
+  }
+
+-- factor this out of WithTypeInfo ...
+--
+-- type alias WithType a = { a | typ : Maybe Type }
+-- type alias WithTypeInfo a = WithType (WithDeuceTypeInfo a)
+--
+type alias WithDeuceTypeInfo a =
+  { a | deuceTypeInfo : Maybe DeuceTypeInfo
       , extraDeuceTypeInfo : Maybe ExtraDeuceTypeInfo
   }
 
@@ -272,6 +316,8 @@ makePat_ p__ pid =
 makeType_ t__ tid =
   { t__ = t__
   , tid = tid
+  , deuceTypeInfo = Nothing
+  , extraDeuceTypeInfo = Nothing
   }
 
 setTypeForThing : Maybe Type -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
@@ -279,12 +325,14 @@ setTypeForThing typ thing =
   let thing_ = thing.val in
   { thing | val = { thing_ | typ = typ } }
 
-setDeuceTypeInfoForThing : DeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+-- setDeuceTypeInfoForThing : DeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setDeuceTypeInfoForThing : DeuceTypeInfo -> WithInfo (WithDeuceTypeInfo a) -> WithInfo (WithDeuceTypeInfo a)
 setDeuceTypeInfoForThing info thing =
   let thing_ = thing.val in
   { thing | val = { thing_ | deuceTypeInfo = Just info } }
 
-setExtraDeuceTypeInfoForThing : ExtraDeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+-- setExtraDeuceTypeInfoForThing : ExtraDeuceTypeInfo -> WithInfo (WithTypeInfo a) -> WithInfo (WithTypeInfo a)
+setExtraDeuceTypeInfoForThing : ExtraDeuceTypeInfo -> WithInfo (WithDeuceTypeInfo a) -> WithInfo (WithDeuceTypeInfo a)
 setExtraDeuceTypeInfoForThing info thing =
   let thing_ = thing.val in
   { thing | val = { thing_ | extraDeuceTypeInfo = Just info } }
@@ -657,6 +705,23 @@ extractSynthesisResultWith f tr =
 extractSynthesisResult : TransformationResult -> Maybe SynthesisResult
 extractSynthesisResult =
   extractSynthesisResultWith identity
+
+resultTextToString : ResultText -> String
+resultTextToString rt =
+  case rt of
+    PlainText       s -> s
+    HeaderText      s -> s
+    ErrorHeaderText s -> s
+    CodeText        s -> s
+    TypeText        s -> s
+    HintText        s -> s
+
+transformationResultToString : TransformationResult -> String
+transformationResultToString tr =
+  case tr of
+    Basic (SynthesisResult sr) -> sr.description
+    Fancy _ rt                 -> resultTextToString rt
+    Label rt                   -> resultTextToString rt
 
 --------------------------------------------------------------------------------
 -- Predicates (for DeuceTools and OutputTools)

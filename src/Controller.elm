@@ -80,6 +80,7 @@ port module Controller exposing
   )
 
 import Updatable exposing (Updatable)
+import Info
 import Lang exposing (..) --For access to what makes up the Vals
 import Types2
 import Ace
@@ -1598,6 +1599,236 @@ deucePopupPanelPositionUpdater pos old =
 
 --------------------------------------------------------------------------------
 
+tryPreserveListIds_ : (Int -> a -> a -> Maybe (a, Int)) -> Int -> List a -> List a -> Maybe (List a, Int)
+tryPreserveListIds_ preserver nextAvailId oldList newList =
+  Utils.maybeZip oldList newList |> Maybe.andThen (
+  Utils.foldlMaybe (\(old, new) (reversedAcc, updatedAvailId) ->
+    preserver updatedAvailId old new
+    |> Maybe.map (Tuple.mapFirst <| flip (::) reversedAcc)
+  )
+  (Just ([], nextAvailId))       >> Maybe.map (
+  Tuple.mapFirst List.reverse))
+
+tryPreserveDecl_ nextAvailId oldDecl newDecl =
+  case (oldDecl, newDecl) of
+    (DeclExp (LetExp _ _ oldP _ _ oldE), DeclExp (LetExp ocs wsb newP fas ws1 newE)) ->
+      tryPreservePIds_ oldP newP            |> Maybe.andThen (\preservedP ->
+      tryPreserveIDs_ nextAvailId oldE newE |> Maybe.map (\(preservedE, nextAvailId) ->
+        (DeclExp <| LetExp ocs wsb preservedP fas ws1 preservedE, nextAvailId)
+      ))
+    (DeclType (LetType _ _ _ oldP _ _ oldT), DeclType (LetType ocs wsb aS newP fas ws1 newT)) ->
+      tryPreservePIds_ oldP newP |> Maybe.andThen (\preservedP ->
+      tryPreserveTIds_ oldT newT |> Maybe.map (\preservedT ->
+        (DeclType <| LetType ocs wsb aS preservedP fas ws1 preservedT, nextAvailId)
+      ))
+    (DeclAnnotation (LetAnnotation _ _ oldP _ _ oldT), DeclAnnotation (LetAnnotation ocs wsb newP fas ws1 newT)) ->
+      tryPreservePIds_ oldP newP |> Maybe.andThen (\preservedP ->
+      tryPreserveTIds_ oldT newT |> Maybe.map (\preservedT ->
+        (DeclAnnotation <| LetAnnotation ocs wsb preservedP fas ws1 preservedT, nextAvailId)
+      ))
+    _ ->
+      Nothing
+
+tryPreserveDecls_ nextAvailId oldDecls newDecls =
+  let
+    oldDeclsOrdered = getDeclarationsInOrder oldDecls
+    newDeclsOrdered = getDeclarationsInOrder newDecls
+  in
+  tryPreserveListIds_ tryPreserveDecl_ nextAvailId oldDeclsOrdered newDeclsOrdered
+  |> Maybe.andThen (\(preservedDeclsFlat, nextAvailId) ->
+  Parser.reorderDeclarations preservedDeclsFlat |> Result.toMaybe
+  |> Maybe.map (\preservedDecls ->
+  (preservedDecls, nextAvailId)
+  ))
+
+tryPreservePIds_ : Pat -> Pat -> Maybe Pat
+-- TODO implement properly
+tryPreservePIds_ oldPat newPat = Just newPat
+
+tryPreserveTIds_ : Type -> Type -> Maybe Type
+-- TODO implement properly
+tryPreserveTIds_ oldType newType = Just newType
+
+tryPreservePatsIds_ : List Pat -> List Pat -> Maybe (List Pat)
+tryPreservePatsIds_ oldPats newPats =
+  let preserver _ oldPat newPat =
+    tryPreservePIds_ oldPat newPat |> Maybe.map (flip (,) 0)
+  in
+  tryPreserveListIds_ preserver 0 oldPats newPats
+  |> Maybe.map Tuple.first
+
+tryPreserveExpsIds_ : Int -> List Exp -> List Exp -> Maybe (List Exp, Int)
+tryPreserveExpsIds_ = tryPreserveListIds_ tryPreserveIDs_
+
+tryPreserveIDs_ : Int -> Exp -> Exp -> Maybe (Exp, Int)
+tryPreserveIDs_ nextAvailId old new =
+  let
+    oldEId = expEId old
+    withEId newEId e__ = replaceE__ new e__ |> setEId newEId
+    preserveLeaf = Just (setEId oldEId new, nextAvailId)
+    return updatedAvailId e__ = Just (withEId oldEId e__, updatedAvailId)
+  in
+  case (unwrapExp old, unwrapExp new) of
+    (EConst _ _ _ _, EConst _ _ _ _) -> preserveLeaf
+    (EBase _ _, EBase _ _)           -> preserveLeaf
+    (EVar _ _, EVar _ _)             -> preserveLeaf
+    (EFun _ oldPats oldBody _, EFun wsb newPats newBody wsa) ->
+      tryPreservePatsIds_ oldPats newPats         |> Maybe.andThen (\preservedPats ->
+      tryPreserveIDs_ nextAvailId oldBody newBody |> Maybe.andThen (\(preservedBody, nextAvailId) ->
+        EFun wsb preservedPats preservedBody wsa
+        |> return nextAvailId
+      ))
+    (EApp _ oldF oldArgs _ _, EApp wsb newF newArgs appType wsa) ->
+      tryPreserveIDs_ nextAvailId oldF newF           |> Maybe.andThen (\(preservedF, nextAvailId) ->
+      tryPreserveExpsIds_ nextAvailId oldArgs newArgs |> Maybe.andThen (\(preservedArgs, nextAvailId) ->
+        EApp wsb preservedF preservedArgs appType wsa
+        |> return nextAvailId
+      ))
+    (EOp _ _ _ oldOps _, EOp wsb wsc op newOps wsa) ->
+      tryPreserveExpsIds_ nextAvailId oldOps newOps |> Maybe.andThen (\(preservedOps, nextAvailId) ->
+        EOp wsb wsc op preservedOps wsa
+        |> return nextAvailId
+      )
+    (EList _ oldChildren _ oldM _, EList wsb newChildren ws1 newM ws2) ->
+      let tryPreserveChild nextAvailId (_, oldChild) (wsC, newChild) =
+        tryPreserveIDs_ nextAvailId oldChild newChild
+        |> Maybe.map (\(preservedChild, nextAvailId) ->
+          ((wsC, preservedChild), nextAvailId)
+        )
+      in
+      tryPreserveListIds_ tryPreserveChild nextAvailId oldChildren newChildren
+      |> Maybe.andThen (\(preservedChildren, nextAvailId) ->
+        (case (oldM, newM) of
+          (Just oldT, Just newT) ->
+            tryPreserveIDs_ nextAvailId oldT newT
+            |> Maybe.map (Tuple.mapFirst Just)
+          (Nothing, Nothing) ->
+            Just (Nothing, nextAvailId)
+          _ ->
+            Nothing
+        )
+      |> Maybe.andThen (\(preservedM, nextAvailId) ->
+        EList wsb preservedChildren ws1 preservedM ws2
+        |> return nextAvailId
+      ))
+    (EIf _ oldC _ oldT _ oldF _, EIf wsb newC wsT newT wsE newF wsa) ->
+      tryPreserveExpsIds_ nextAvailId [oldC, oldT, oldF] [newC, newT, newF]
+      |> Maybe.andThen (\(preserved, nextAvailId) ->
+        let (preservedC, preservedT, preservedF) =
+          Utils.mapThree (flip Utils.geti preserved) (1, 2, 3)
+        in
+        EIf wsb preservedC wsT preservedT wsE preservedF wsa
+        |> return nextAvailId
+      )
+    (ECase _ oldS oldBranches _, ECase wsb newS newBranches wsa) ->
+      let tryPreserveBranch nextAvailId oldB newB =
+        let (Branch_ wsb newP newE wsa) = newB.val in
+        tryPreservePIds_ (branchPat oldB) newP            |> Maybe.andThen (\preservedP ->
+        tryPreserveIDs_ nextAvailId (branchExp oldB) newE |> Maybe.map (\(preservedE, nextAvailId) ->
+          (Branch_ wsb preservedP preservedE wsa |> Info.replaceInfo newB, nextAvailId)
+        ))
+      in
+      tryPreserveIDs_ nextAvailId oldS newS
+      |> Maybe.andThen (\(preservedS, nextAvailId) ->
+      tryPreserveListIds_ tryPreserveBranch nextAvailId oldBranches newBranches
+      |> Maybe.andThen (\(preservedBranches, nextAvailId) ->
+        ECase wsb preservedS preservedBranches wsa
+        |> return nextAvailId
+      ))
+    (ELet _ _ oldDecls _ oldBody, ELet wsb lk newDecls ws1 newBody) ->
+      tryPreserveDecls_ nextAvailId oldDecls newDecls |> Maybe.andThen (\(preservedDecls, nextAvailId) ->
+      tryPreserveIDs_ nextAvailId oldBody newBody     |> Maybe.andThen (\(preservedBody, nextAvailId) ->
+        ELet wsb lk preservedDecls ws1 preservedBody
+        |> return nextAvailId
+      ))
+    (EColonType _ oldE _ oldT _, EColonType wsb newE ws1 newT wsa) ->
+      tryPreserveIDs_ nextAvailId oldE newE |> Maybe.andThen (\(preservedE, nextAvailId) ->
+      tryPreserveTIds_ oldT newT            |> Maybe.andThen (\preservedT ->
+        EColonType wsb preservedE ws1 preservedT wsa
+        |> return nextAvailId
+      ))
+    (EParens _ oldE _ _, EParens wsb newE ps wsa) ->
+      tryPreserveIDs_ nextAvailId oldE newE |> Maybe.andThen (\(preservedE, nextAvailId) ->
+        EParens wsb preservedE ps wsa
+        |> return nextAvailId
+      )
+    (EHole _ EEmptyHole, EHole _ EEmptyHole)       -> preserveLeaf
+    (EHole _ (ESnapHole _), EHole _ (ESnapHole _)) -> preserveLeaf
+    (ERecord _ oldM oldDecls _, ERecord wsb newM newDecls wsa) ->
+      (case (oldM, newM) of
+        (Just (oldS, _), Just (newS, wsAfterS)) ->
+          tryPreserveIDs_ nextAvailId oldS newS
+          |> Maybe.map (Tuple.mapFirst <| flip (,) wsAfterS >> Just)
+        (Nothing, Nothing) ->
+          Just (Nothing, nextAvailId)
+        _ ->
+          Nothing
+      )
+      |> Maybe.andThen (\(preservedM, nextAvailId) ->
+      tryPreserveDecls_ nextAvailId oldDecls newDecls
+      |> Maybe.andThen (\(preservedDecls, nextAvailId) ->
+        ERecord wsb preservedM preservedDecls wsa
+        |> return nextAvailId
+      ))
+    (ESelect _ oldSel _ _ _, ESelect wsb newSel ws1 ws2 ident) ->
+      tryPreserveIDs_ nextAvailId oldSel newSel |> Maybe.andThen (\(preservedSel, nextAvailId) ->
+        ESelect wsb preservedSel ws1 ws2 ident
+        |> return nextAvailId
+      )
+    -- Accounts for when the unparser adds extra parens
+    (_, EParens wsb newInnerExp ps wsa) ->
+      tryPreserveIDs_ (nextAvailId + 1) old newInnerExp
+      |> Maybe.map (\(preservedInnerExp, nextAvailId) ->
+        let newPreserved =
+          EParens wsb preservedInnerExp ps wsa |> withEId nextAvailId
+        in
+        (newPreserved, nextAvailId)
+      )
+    _ ->
+      Nothing
+
+-- currently doesn't preserve loc ids
+tryPreserveIDs : Exp -> Exp -> Exp
+tryPreserveIDs old new =
+  let freshenedOld = Parser.freshen old in
+  case tryPreserveIDs_ (Parser.maxId freshenedOld + 1) freshenedOld new of
+    Just (e, _) -> e
+    Nothing     -> new
+
+deuceRefresh : Exp -> Model -> Model
+deuceRefresh preUnparsedExp old =
+  let
+    parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
+      Syntax.parser old.syntax old.code
+
+    (newInputExp, newLastParsedCode) =
+      case parseResult of
+        Ok parsedExp ->
+          let inputExp = tryPreserveIDs preUnparsedExp parsedExp in
+          (inputExp, old.code)
+
+        Err _ ->
+          (old.inputExp, old.lastParsedCode)
+
+    oldMbKeyboardFocusedWidget = old.deuceState.mbKeyboardFocusedWidget
+    newMbKeyboardFocusedWidget =
+      if isDeuceWidgetValid newInputExp oldMbKeyboardFocusedWidget then
+        oldMbKeyboardFocusedWidget
+      else
+        Nothing
+    oldDeuceState = old.deuceState
+    newDeuceState =
+      { oldDeuceState |
+          mbKeyboardFocusedWidget = newMbKeyboardFocusedWidget
+      }
+
+  in
+    { old
+        | inputExp = newInputExp
+        , lastParsedCode = newLastParsedCode
+        , deuceState = newDeuceState
+    }
+
 refreshInputExp : Model -> Model
 refreshInputExp old =
   let
@@ -1608,8 +1839,9 @@ refreshInputExp old =
       case parseResult of
         Ok parsedExp ->
           let
-            (inputExp, aceTypeInfo, typeChecks) =
+            (typedInputExp, aceTypeInfo, typeChecks) =
               maybeTypeCheck old.doTypeChecking parsedExp
+            inputExp = tryPreserveIDs old.inputExp typedInputExp
           in
             (inputExp, updateCodeBoxInfo aceTypeInfo old, old.code, typeChecks)
 
@@ -1727,9 +1959,16 @@ msgKeyDown keyCode =
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           { old | outputMode = Graphics }
 
-        else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick && not currentKeyDown &&
-                mbKeyboardFocusedWidget /= Nothing && not old.isDeuceTextBoxFocused then
-          handleDeuceHotKey old (keyCode :: old.keysDown |> List.sort) <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
+        else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick
+                && not currentKeyDown && mbKeyboardFocusedWidget /= Nothing then
+          let keyCodes = keyCode :: old.keysDown |> List.sort in
+          if old.isDeuceTextBoxFocused then
+            if old.mbDeuceKeyboardInfo /= Nothing then
+              handleDeuceTextBoxCommand old keyCodes
+            else
+              old
+          else
+            handleDeuceHotKey old keyCodes <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
 
         else if
           not currentKeyDown &&
@@ -3073,14 +3312,33 @@ chooseDeuceExp old newRoot =
   in
   -- TODO version of tryRun/upstateRun starting with parsed expression
   upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
+  |> deuceRefresh newRoot
   |> resetDeuceKeyboardInfo
-  |> refreshInputExp
 
 maybeChooseDeuceExp : Model -> Maybe Exp -> Model
 maybeChooseDeuceExp m mbExp =
   case mbExp of
     Nothing  -> m
     Just exp -> chooseDeuceExp m exp
+
+isDeuceWidgetValid : Exp -> Maybe DeuceWidget -> Bool
+isDeuceWidgetValid root mbWidget =
+  case mbWidget of
+    Just (DeuceExp eId) ->
+      findExpByEId root eId
+      |> Utils.maybeToBool
+    Just (DeucePat ppid) ->
+      LangTools.pathedPatternIdToPId ppid root
+      |> Utils.maybeToBool
+    Just (DeuceLetBindingEquation (scopeEId, bn)) ->
+      findExpByEId root scopeEId
+      |> Maybe.andThen (flip findLetexpByBindingNumber bn)
+      |> Utils.maybeToBool
+    Just (DeuceType tId) ->
+      -- TODO implement properly
+      False
+    _ ->
+      False
 
 resetDeuceState m =
   let layoutOffsets = m.layoutOffsets in
@@ -3217,8 +3475,8 @@ deuceMove destWidget old =
   { old | deuceState = newDS } |>
   flip resetDeuceCacheAndReselect DeuceTools.createToolCache
 
-deuceChooserUI : Model -> (String, String -> List TransformationResult) -> Model
-deuceChooserUI old titleAndTextToTransformationResults =
+deuceChooserUI : Model -> String -> (String, String -> List TransformationResult) -> Model
+deuceChooserUI old initText titleAndTextToTransformationResults =
   let
     (title, textToTransformationResults) = titleAndTextToTransformationResults
     oldReset = resetDeuceKeyboardInfo old
@@ -3227,11 +3485,40 @@ deuceChooserUI old titleAndTextToTransformationResults =
     | mbDeuceKeyboardInfo =
         Just <|
         { title = title
-        , text = ""
+        , text = initText
         , textToTransformationResults = textToTransformationResults
+        , smartCompleteSelection = initText
         }
     , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
   }
+
+moveSmartCompleteSelection old isDown =
+  let
+    oldDeuceKeyboardInfo =
+      Utils.fromJust_ "No keyboard info" old.mbDeuceKeyboardInfo
+    {text, textToTransformationResults, smartCompleteSelection} =
+      oldDeuceKeyboardInfo
+    textResults =
+      textToTransformationResults text
+      |> List.map transformationResultToString
+      |> Utils.applyIf isDown List.reverse
+    smartSelectionTail =
+      Utils.dropWhile ((/=) smartCompleteSelection) textResults
+    newSmartCompleteSelection =
+      case smartSelectionTail of
+        sel :: next :: _ ->
+          -- common case: select the next child
+          next
+        _                ->
+          -- if no such child exists, or we're at the last child, select the first
+          List.head textResults |> Maybe.withDefault smartCompleteSelection
+    newMbDeuceKeyboardInfo =
+      Just <|
+      { oldDeuceKeyboardInfo
+        | smartCompleteSelection = newSmartCompleteSelection
+      }
+  in
+  { old | mbDeuceKeyboardInfo = newMbDeuceKeyboardInfo }
 
 handleDeuceMoveHorizontal_ old selected isLeftMove =
   let
@@ -3249,11 +3536,44 @@ handleDeuceMoveHorizontal_ old selected isLeftMove =
     Maybe.map (flip deuceMove old) |>
       Maybe.withDefault old
 
+handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected True
+
+handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected False
+
+handleDeuceSpace old selected = toggleDeuceWidget selected old
+
 handleDeuceHotKey : Model -> List Char.KeyCode -> DeuceWidget -> Model
 handleDeuceHotKey oldModel keysDown selected =
-  let old = resetDeuceKeyboardInfo oldModel in
+  let
+    old = resetDeuceKeyboardInfo oldModel
+    -- TODO although difficult to avoid, this is way too hard-coded
+    mbPrefixOfNumberOrOp keyCodes =
+      if List.length keyCodes == 1
+         && Utils.head_ keyCodes >= Keys.keyDigit 0
+         && Utils.head_ keyCodes <= Keys.keyDigit 9 then
+        Just <| toString <| Utils.head_ keyCodes - Keys.keyDigit 0
+      else if keyCodes == [Keys.keyPeriod] then
+        Just "."
+      else if keyCodes == [Keys.keyShift, Keys.keyPlusEqual] then
+        Just "+"
+      else if keyCodes == [Keys.keyMinus] then
+        Just "-"
+      else if keyCodes == [Keys.keyShift, Keys.keyDigit 8] then
+        Just "*"
+      else if keyCodes == [Keys.keyForwardSlash] then
+        Just "/"
+      else if keyCodes == [Keys.keyShift, Keys.keyComma] then
+        Just "<"
+      else if keyCodes == [Keys.keyPlusEqual] then
+        Just "="
+      else if keyCodes == [Keys.keyShift, Keys.keyDigit 6] then
+        Just "^"
+      else
+        Nothing
+  in
 
   -- Movement
+
   if List.member keysDown [[Keys.keyLeft], [Keys.keyH]] then
     handleDeuceLeft old selected
   else if List.member keysDown [[Keys.keyRight], [Keys.keyL]] then
@@ -3263,14 +3583,21 @@ handleDeuceHotKey oldModel keysDown selected =
   --   handleDeuceSpace old selected
 
   -- Deuce tools
+
   else if keysDown == [Keys.keyI] then
-    DeuceTools.smartCompleteHole old selected |> deuceChooserUI old
+    DeuceTools.smartCompleteHoleViaHotkey old selected |> deuceChooserUI old ""
+  else if mbPrefixOfNumberOrOp keysDown /= Nothing then
+    DeuceTools.smartCompleteHoleViaHotkey old selected
+    |> deuceChooserUI old (mbPrefixOfNumberOrOp keysDown |> Utils.fromJust_ "bad num/op")
+
   else if keysDown == [Keys.keyS] then
-    DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old
+    DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old ""
   else if List.member keysDown [[Keys.keyShift, Keys.keyDown], [Keys.keyShift, Keys.keyJ]] then
     DeuceTools.expandFormatViaHotkey old selected |> maybeChooseDeuceExp old
   else if keysDown == [Keys.keyShift, Keys.keyA] then
     DeuceTools.addToEndViaHotkey old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyD] then
+    DeuceTools.deleteViaHotkey old selected |> maybeChooseDeuceExp old
 
   else if keysDown == Keys.openParen then
     DeuceTools.replaceWithParens old selected |> maybeChooseDeuceExp old
@@ -3292,11 +3619,33 @@ handleDeuceHotKey oldModel keysDown selected =
   else
     old
 
-handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected True
-
-handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected False
-
-handleDeuceSpace old selected = toggleDeuceWidget selected old
+handleDeuceTextBoxCommand : Model -> List Char.KeyCode -> Model
+handleDeuceTextBoxCommand old keysDown =
+  let
+    -- It'd be great if we could use any familiar, home-keys-accessible binding,
+    -- but literally all of them are consumed by chrome:
+    -- Ctrl+J, Ctrl+K, Ctrl+N, Ctrl+P, and Tab
+    -- I've settled on Ctrl+m and Ctrl+; for now,
+    -- but I don't what's really a good solution
+    isUp =
+      keysDown == [Keys.keyUp]
+      || ( List.length keysDown == 2
+           && (Utils.geti 1 keysDown |> Keys.isCommandKey)
+           && (Utils.geti 2 keysDown == Keys.keySemicolon)
+         )
+    isDown =
+      keysDown == [Keys.keyDown]
+      || ( List.length keysDown == 2
+           && (Utils.geti 1 keysDown |> Keys.isCommandKey)
+           && (Utils.geti 2 keysDown == Keys.keyM)
+         )
+  in
+  if isUp then
+    moveSmartCompleteSelection old False
+  else if isDown then
+    moveSmartCompleteSelection old True
+  else
+    old
 
 --------------------------------------------------------------------------------
 -- DOT
