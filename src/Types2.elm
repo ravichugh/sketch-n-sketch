@@ -541,6 +541,16 @@ copyTypeInfoFrom fromExp toExp =
 
 --------------------------------------------------------------------------------
 
+tNum = withDummyTypeInfo (TNum space1)
+
+opTypeTable =
+  List.map
+    (\op_ -> (op_, ([], [tNum, tNum], tNum)))
+    [Plus, Minus, Mult, Div]
+
+
+--------------------------------------------------------------------------------
+
 typecheck : Exp -> Exp
 typecheck e =
   let hasType x t = HasType (pVar0 x) (Result.toMaybe (parseT t)) in
@@ -871,6 +881,84 @@ inferType gamma stuff thisExp =
             |> finishNewExp
       in
         { newExp = newExp }
+
+    -- mostly just copying EApp for now...
+    --
+    EOp ws1 ws2 op eArgs ws ->
+      let
+        inferArgTypes () = -- if inferType eFunc fails to produce an arrow
+          inferTypes gamma stuff eArgs
+            |> .newExps
+
+        newExp =
+          EOp ws1 ws2 op newArgs ws
+            |> replaceE__ thisExp
+            |> finishNewExp
+
+        (newArgs, finishNewExp) =
+          case Utils.maybeFind op.val opTypeTable of
+            Nothing ->
+              ( inferArgTypes ()
+              , setDeuceTypeInfo (deucePlainLabels [ "op not yet supported... " ++ toString op.val ])
+              )
+
+            Just ([], argTypes, retType) ->
+              let
+                numArgs     = List.length eArgs
+                numArgTypes = List.length argTypes
+              in
+              if numArgs > numArgTypes then
+                ( inferArgTypes ()
+                , setDeuceTypeInfo <| DeuceTypeInfo <|
+                    [ Label <| ErrorHeaderText
+                        "Type Mismatch"
+                    , Label <| PlainText
+                        "The operator has type"
+                    , Label <| TypeText <|
+                        unparseType (rebuildArrow ([], argTypes, retType))
+                    , Label <| PlainText <|
+                        "It takes " ++ toString numArgTypes ++ " arguments" ++
+                        "but you are giving it " ++ toString numArgs
+                    ]
+                )
+
+              else
+                let
+                  (prefixArgTypes, suffixArgTypes) =
+                    Utils.split numArgs argTypes
+
+                  (allOkay, newArgs) =
+                    Utils.zip eArgs prefixArgTypes
+                      |> List.map (\(e,t) ->
+                           let result = checkType gamma stuff e t in
+                           (result.okay, result.newExp)
+                         )
+                      |> List.unzip
+                      |> Tuple.mapFirst (List.all ((==) True))
+
+                  finishNewExp =
+                    if allOkay then
+                      case suffixArgTypes of
+                        [] ->
+                          setType (Just retType)
+                        _ ->
+                          setType (Just (rebuildArrow ([], suffixArgTypes, retType)))
+                    else
+                      setDeuceTypeInfo genericError
+                in
+                  ( newArgs
+                  , finishNewExp
+                  )
+
+            Just _ ->
+              ( inferArgTypes ()
+              , setDeuceTypeInfo <| DeuceTypeInfo <|
+                  [ Label <| PlainText
+                      "Polymorphic operators not yet supported..."
+                  ]
+              )
+          in
+            { newExp = newExp }
 
     ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
       let
