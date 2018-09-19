@@ -924,7 +924,10 @@ inlineDefinitionTool model selections =
               (toolName , InactiveDeuceTransform , Impossible)
             Just (inlinedIdents, newProgram) ->
               ( Utils.perhapsPluralizeList toolName letEIds
-              , basicDeuceTransform [basicTransformationResult ("Inline " ++ toString inlinedIdents) newProgram]
+              , basicDeuceTransform
+                  [basicTransformationResult
+                     ("Inline " ++ String.join " and " inlinedIdents)
+                     newProgram]
               , Satisfied
               )
         _ ->
@@ -2656,6 +2659,10 @@ typesTool : Model -> DeuceSelections -> DeuceTool
 typesTool model selections =
   let
     (func, boolPredVal) =
+      if model.doTypeChecking == False then
+        (InactiveDeuceTransform, Impossible)
+      else
+
       case selections of
         ([], [], [], [], [], [], [], [], []) ->
           (InactiveDeuceTransform, Possible)
