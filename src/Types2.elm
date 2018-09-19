@@ -1570,12 +1570,27 @@ checkType gamma stuff thisExp expectedType =
               }
 
             else
-              { okay = False
-              , newExp =
-                  result.newExp
-                    |> setType Nothing -- overwrite (Just inferredType)
+              let
+                finishExp e =
+                  e |> setType Nothing -- overwrite (Just inferredType)
                     |> setDeuceTypeInfo (expectedButGot stuff.inputExp expectedType (Just inferredType))
-              }
+
+                newExp =
+                  case (unExpr result.newExp).val.e__ of
+                     -- since we don't have an ELet case in checkType,
+                     -- push the expectedType down to the ELet body from here
+                    ELet ws1 letKind decls ws2 body ->
+                      ELet ws1 letKind decls ws2 (finishExp body)
+                        |> replaceE__ result.newExp
+                        |> finishExp
+
+                    _ ->
+                      result.newExp
+                        |> finishExp
+              in
+                { okay = False
+                , newExp = newExp
+                }
 
 
 --------------------------------------------------------------------------------
@@ -1631,7 +1646,7 @@ expectedButGot inputExp expectedType maybeActualType =
           (actualType, True)
 
         else
-          (t, False)
+          (t, acc)
       ) False
 
     rewrite actualType =
