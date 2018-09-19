@@ -219,7 +219,7 @@ buildHtml_ (model, addZones) insideSvgNode d i =
       let
         -- https://softwareengineering.stackexchange.com/questions/199166/why-does-a-contenteditable-div-not-behave-like-an-input-element
         maybeContentEditableAttr =
-          if List.member shape ["th", "td", "p", "span", "pre", "li", "h1", "h2", "h3", "h4", "h5", "h6"]
+          if List.member shape ["th", "td", "p", "span", "pre", "li", "h1", "h2", "h3", "h4", "h5", "h6", "ul"]
             then [Attr.contenteditable True]
             else []
       in
