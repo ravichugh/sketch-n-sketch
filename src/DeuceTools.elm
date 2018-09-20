@@ -3230,6 +3230,18 @@ expandFormat old selections =
           in
           EIf wsb cond wsBeforeThen newTrue (ws elseIndent) newFalse wsa
           |> return
+        ECase wsb scrutinee branches wsa ->
+          let newBranches =
+            branches
+            |> List.map (\branch ->
+                 case branch.val of
+                   Branch_ ws1 p e ws2 ->
+                     let newE = replacePrecedingWhitespace (naturalIndentNewLine ++ "    ") e in
+                     Branch_ ws1 p newE ws2 |> replaceB__ branch
+            )
+          in
+          ECase wsb scrutinee newBranches wsa
+          |> return
         EList ws1 wsExps ws2 maybeTail ws3 ->
           let
             startCol = (unExpr exp).start.col
