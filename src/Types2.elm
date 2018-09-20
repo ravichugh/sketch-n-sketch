@@ -582,11 +582,16 @@ copyTypeInfoFrom fromExp toExp =
 --------------------------------------------------------------------------------
 
 tNum = withDummyTypeInfo (TNum space1)
+tBool = withDummyTypeInfo (TBool space1)
 
 opTypeTable =
   List.map
     (\op_ -> (op_, ([], [tNum, tNum], tNum)))
     [Plus, Minus, Mult, Div]
+  ++
+  List.map
+    (\op_ -> (op_, ([], [tNum, tNum], tBool)))
+    [Lt]
 
 
 --------------------------------------------------------------------------------
@@ -767,7 +772,7 @@ inferType gamma stuff thisExp =
 
               else
                 let
-                  addErrorAndInfo (eid1, type1) (eid2, type2) branchExp =
+                  addErrorAndInfo (this, eid1, type1) (other, eid2, type2) branchExp =
                     branchExp
                       |> setType Nothing -- overwrite
                       |> setDeuceTypeInfo
@@ -777,11 +782,11 @@ inferType gamma stuff thisExp =
                                , deuceLabel <| PlainText <|
                                    "The branches of this `if` produce different types of values."
                                , deuceLabel <| PlainText <|
-                                   "This branch has type"
+                                   "The " ++ this ++ " branch has type"
                                , deuceLabel <| TypeText <|
                                    unparseType type1
                                , deuceLabel <| PlainText <|
-                                   "But the other branch has type"
+                                   "But the " ++ other ++ " branch has type"
                                , deuceLabel <| TypeText <|
                                    unparseType type2
                                , deuceLabel <| HintText
@@ -795,11 +800,13 @@ inferType gamma stuff thisExp =
 
                   errorThenExp =
                     result2.newExp
-                      |> addErrorAndInfo (thenExpId, thenType) (elseExpId, elseType)
+                      |> addErrorAndInfo ("`then`", thenExpId, thenType)
+                                         ("`else`", elseExpId, elseType)
 
                   errorElseExp =
                     result3.newExp
-                      |> addErrorAndInfo (elseExpId, elseType) (thenExpId, thenType)
+                      |> addErrorAndInfo ("`else`", elseExpId, elseType)
+                                         ("`then`", thenExpId, thenType)
                 in
                   (errorThenExp, errorElseExp, Nothing)
 
