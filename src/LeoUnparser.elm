@@ -119,9 +119,9 @@ tryUnparseTuple unparseTerm wsBefore keyValues wsBeforeEnd =
             insideValues
             |> List.map
                  (\(wsBeforeComma, elBinding) ->
-                   (wsBeforeComma |> Maybe.map .val |> Maybe.withDefault "") ++ unparseTerm elBinding
+                   (wsBeforeComma |> Maybe.map (\spc -> spc.val ++ ",") |> Maybe.withDefault "") ++ unparseTerm elBinding
                  )
-            |> String.join ","
+            |> String.join ""
       in
         Just <|
           wsBefore.val
