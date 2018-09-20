@@ -2698,15 +2698,45 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
   case findLetAndIdentBindingExp funcEId originalProgram of -- Return LetExp and a way to rebuild the Let in the original program.
     Just (letExp, funcName) ->
       case (unwrapExp letExp) of
-        ELet ws1 letKind decls spEq letBody ->
-          let _ = Debug.log "TODO: CodeMotion.reorderFunctionArgs needs ELet's new definition to be implemented" () in
-          []
-        {-ELet ws1 letKind isRec letPat ws2 func ws3 letBody ws4 ->
+        ELet _ _ (Declarations _ _ _ groupedLetExps as decls) _ letBody ->
+          let func =
+            -- TODO lots of duplicated logic from findLetAndIdentBindingExp
+            elemsOf groupedLetExps
+            |> Utils.mapFirstSuccess (\(LetExp _ _ pat _ _ boundExp) ->
+                 pVarUnapply pat |> Maybe.andThen (\ident ->
+                 if ident == funcName then Just boundExp else Nothing
+                 )
+            )
+            |> Utils.fromJust_ "TODO gross"
+          in
+          -- TODO copy-pasted
+          let funcVarUsageEIdsInsideSiblingBindingsAndSelf =
+              -- TODO consolidate this logic with freeVars
+              getDeclarationsInOrder decls |>
+              List.foldl
+                (\decl (idUsageEIds, shouldIgnore) ->
+                   case decl of
+                     DeclExp (LetExp _ _ p _ _ boundExp) ->
+                       let usagesFromBoundExp () =
+                         (identifierUsageEIds funcName boundExp ++ idUsageEIds, False)
+                       in
+                       if eidIs funcEId boundExp then
+                         usagesFromBoundExp ()
+                       else if shouldIgnore || List.member funcName (identifiersListInPat p) then
+                         (idUsageEIds, True)
+                       else
+                         usagesFromBoundExp ()
+                     _ ->
+                       (idUsageEIds, shouldIgnore)
+                )
+                ([], True)
+              |> Tuple.first
+          in
           -- If func is passed to itself as an arg, this probably breaks. (is fixable though, with flow craziness)
           let funcVarUsageEIds =
-            if isRec
-            then identifierUsageEIds funcName func ++ identifierUsageEIds funcName letBody |> Set.fromList
-            else identifierUsageEIds funcName letBody |> Set.fromList
+            identifierUsageEIds funcName letBody
+            ++ funcVarUsageEIdsInsideSiblingBindingsAndSelf
+            |> Set.fromList
           in
           case (unwrapExp func) of
             EFun fws1 fpats fbody fws2 ->
@@ -2730,10 +2760,12 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
                   []
 
                 Just insertPath ->
+                  -- TODO more clown
+                  let newInsertPath = Utils.removeLastElement insertPath in
                   let maybeFPatsAfterInsertion =
                     pluckedPats
                     |> Utils.foldrMaybe
-                        (\pluckedPat newFPats -> addPatToPats pluckedPat insertPath newFPats)
+                        (\pluckedPat newFPats -> addPatToPats pluckedPat newInsertPath newFPats)
                         (Just fpatsAfterRemoved1)
                   in
                   case maybeFPatsAfterInsertion of
@@ -2760,6 +2792,38 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
                               case (unwrapExp exp) of
                                 EApp appWs1 appFuncExp appArgs appType appWs2 ->
                                   if Set.member (expEId appFuncExp) funcVarUsageEIds then
+                                    case targetPath of
+                                      -- TODO keep things dead simple for now
+                                      [targetIndex, beforeOrAfter] ->
+                                        let
+                                          indices1ToRemove =
+                                            pathsRemoved1 ++ pathsRemoved2
+                                            |> List.filterMap List.head
+                                          insertionPoint = targetIndex + beforeOrAfter - 2
+                                          newExps =
+                                            Utils.zipWithIndex appArgs |> List.concatMap (\(origArg, i) ->
+                                              let
+                                                toInsert =
+                                                  if i == insertionPoint then
+                                                    List.filterMap List.head pathsRemoved1
+                                                    |> List.map (flip Utils.geti appArgs)
+                                                  else
+                                                    []
+                                                orig =
+                                                  if List.member (i+1) indices1ToRemove then
+                                                    []
+                                                  else
+                                                    [ origArg ]
+                                              in
+                                              toInsert ++ orig
+                                            )
+                                        in
+                                        ( replaceE__ exp (EApp appWs1 appFuncExp newExps appType appWs2)
+                                        , Set.insert (expEId appFuncExp) funcVarUsagesTransformed
+                                        )
+                                      _ ->
+                                        (exp, funcVarUsagesTransformed)
+                                    {- TODO
                                     case tryReorderExps pathsRemoved1 targetPath pathsRemoved2 appArgs of
                                       Just newExps ->
                                         ( replaceE__ exp (EApp appWs1 appFuncExp newExps appType appWs2)
@@ -2768,6 +2832,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
                                       Nothing ->
                                         (exp, funcVarUsagesTransformed)
+                                    -}
 
                                   else
                                     (exp, funcVarUsagesTransformed)
@@ -2784,7 +2849,6 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
 
             _ ->
               Debug.crash <| "CodeMotion.reorderFunctionArgs should've had an EFun here"
-        -}
         _ ->
           Debug.crash <| "CodeMotion.reorderFunctionArgs expected findLetAndIdentBindingExp to return ELet"
 
