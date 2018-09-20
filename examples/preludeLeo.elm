@@ -773,6 +773,7 @@ Update =
     vTupleDiffs_2 d = VRecordDiffs {_2=d}
     vTupleDiffs_3 d = VRecordDiffs {_3=d}
     vTupleDiffs_4 d = VRecordDiffs {_4=d}
+    vTupleDiffs_1_2 d1 d2 = VRecordDiffs {_1=d1, _2=d2}
     default apply uInput =
         __updateApp__ {uInput | fun = apply }
     -- Instead of returning a result of a lens, just returns the list or empty if there is an error.
@@ -2386,15 +2387,6 @@ Html =
       update {input, outputNew} = Ok (Inputs [controller input outputNew])
     }.apply model
   in
-  -- Reversibly merges the text nodes from a list of nodes.
-  let mergeTextNodes nodes = case nodes of
-    [] -> nodes
-    [head] -> nodes
-    ["TEXT", str1]::["TEXT", str2]::tail -> mergeTextNodes (["TEXT", str1+str2]::tail)
-    _ ->
-      let (head, tail) = List.split 1 nodes in
-      head ++ mergeTextNodes tail
-  in
   {- Given
      * a regex
      * a replacement function that takes a string match and returns a list of Html nodes
@@ -2410,7 +2402,7 @@ Html =
             Left str ->
               [["TEXT", str]]
             Right match -> replacement match
-        ) |> mergeTextNodes
+        ) |> __mergeHtmlText__
       [tag, attrs, children] -> [[tag, attrs, List.concatMap_ (\x -> [x]) (\[node] -> aux node) children]]
     in case aux node of
       [x] -> x
@@ -2439,7 +2431,7 @@ Html =
                   Left str -> (nodes ++ [["TEXT", str]], acc)
                   Right match -> let (newNodes, newAcc) = matchAccToNewNodesNewAcc match acc in
                     (nodes ++ newNodes, newAcc)
-                ) ([], acc) |> Tuple.mapFirst mergeTextNodes
+                ) ([], acc) |> Tuple.mapFirst __mergeHtmlText__
              [tag, attrs, children] ->
                let (newChildren, newAcc) =
                  List.foldl (\child (buildingChildren, acc) ->
@@ -4002,12 +3994,12 @@ tutorialUtils = {
   -- Replaces the 'placeHolder' by 'code' in the current code. In the final document,
   -- In the final document, displays a message "Replace [placeHolder] (line XXX) by "
   replace: String -> String -> Instruction
-  replace placeHolder code = <replace placeHolder=placeHolder code=code class="snippet"></replace>
+  replace placeHolder code = <replace placeholder=placeHolder code=code class="snippet"></replace>
 
   -- Replaces the 'placeHolder' by 'code' in the current code. Not visible in the final document
   -- Can be useful to replace the code if we gave instructions to replace it from the output.
   hiddenreplace: String -> String -> Instruction
-  hiddenreplace placeHolder code = <hiddenreplace placeHolder=placeHolder code=code></hiddenreplace>
+  hiddenreplace placeHolder code = <hiddenreplace placeholder=placeHolder code=code></hiddenreplace>
 
   -- Display the current code. You will use this perhaps only at the beginning and the end,
   -- or for checkpoints.
@@ -4059,10 +4051,10 @@ tutorialUtils = {
   let aux src htmlnode = case htmlnode of
     ["newcode", ["code", code]::attrs, []] ->
       (code, htmlnode)
-    ["hiddenreplace", ["placeHolder", placeHolder]::["code", code]::attrs, []] ->
+    ["hiddenreplace", ["placeholder", placeHolder]::["code", code]::attrs, []] ->
       let newSrc = Regex.replace (escape placeHolder) (\_ -> code) src in
       (newSrc, htmlnode)
-    ["replace", ["placeHolder", placeHolder]::["code", code]::attrs, []] ->
+    ["replace", ["placeholder", placeHolder]::["code", code]::attrs, []] ->
       let newSrc = Regex.replace (escape placeHolder) (\_ -> code) src in
       (newSrc, <span>@text_replace_the_code <code>@placeHolder</code> (@(positionOf placeHolder src)) @text_with<code @attrs>@code</code></span>)
     ["lineof", ["snippet", snippet]::attrs, []] ->

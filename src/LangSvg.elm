@@ -510,7 +510,10 @@ printNode: HTMLParser.NameSpace -> Bool -> Bool -> Int ->  IndexedTree -> NodeId
 printNode namespace showGhosts prettyPrint indent slate i =
   case Utils.justGet i slate |> .interpreted of
     -- TODO escape strings in TextNode and TextListNode
-    TextNode s -> ImpureGoodies.htmlescape s
+    TextNode s ->
+      let content = ImpureGoodies.htmlescape s in
+      if prettyPrint then content
+      else Regex.replace Regex.All (Regex.regex "&gt;") (\_ -> ">") content -- useful for styles
     SvgNode kind_ l1_ l2 ->
       let (kind,l1) = desugarShapeAttrs 0 0 kind_ l1_ in
       case (showGhosts, Utils.maybeRemoveFirst "HIDDEN" l1) of
@@ -524,10 +527,10 @@ printNode namespace showGhosts prettyPrint indent slate i =
           let newKind = if HTMLParser.isForeignElement kind then HTMLParser.Foreign else namespace in
           if l2 == [] then
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ ending
+            Utils.delimit "<" ">" (kind ++ printAttrs prettyPrint l1_) ++ ending
           else
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs l1_) ++ (if prettyPrint then "\n" else "") ++
+            Utils.delimit "<" ">" (kind ++ printAttrs prettyPrint l1_) ++ (if prettyPrint then "\n" else "") ++
             printNodes newKind showGhosts prettyPrint (indent+1) slate l2 ++ (if prettyPrint then "\n" else "") ++
             (if prettyPrint then tab indent else "") ++ ending
 
@@ -536,18 +539,20 @@ printNodes namespace showGhosts prettyPrint indent slate =
     (if prettyPrint then (++) (tab indent) else identity) <<
     printNode namespace showGhosts prettyPrint indent slate)
 
-printAttrs l = case l of
+printAttrs prettyPrint l = case l of
   [] -> ""
-  _  -> " " ++ Utils.spaces (List.map printAttr l)
+  _  -> " " ++ Utils.spaces (List.map (printAttr prettyPrint) l)
 
-printAttr (k,v) =
-  k ++ "=" ++ Utils.delimit "'" "'" (Regex.replace Regex.All (Regex.regex "\\\\|'|\n|\r|\t") (\m ->
+printAttr prettyPrint (k,v) =
+  k ++ "=" ++ Utils.delimit "\"" "\"" (Regex.replace Regex.All (Regex.regex "&|\\\\|\"|'|\n|\r|\t") (\m ->
     case m.match of
-      "\\" -> "\\\\"
-      "'" -> "\\'"
-      "\n" -> "\\n"
-      "\r" -> "\\r"
-      "\t" -> "\\t"
+      "\\" -> if prettyPrint then "\\\\" else "\\"
+      "'" -> if prettyPrint then "'" else "&#39;"
+      "\"" -> if prettyPrint then "\\\"" else "&quot;"
+      "\n" -> if prettyPrint then "\\n" else "&#10;"
+      "\r" -> if prettyPrint then "\\r" else "&#13;"
+      "&" -> if prettyPrint then "&" else "&amp;"
+      "\t" -> if prettyPrint then "\\t" else "\t"
       e -> e
   ) (strAVal v))
 

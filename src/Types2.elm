@@ -1320,7 +1320,7 @@ inferType gamma stuff thisExp =
                           case p.val.p__ of
                             PVar _ fieldName _ ->
                               (unExpr result.newExp).val.typ
-                                |> Maybe.map (\t -> (Nothing, space1, fieldName, space1, t))
+                                |> Maybe.map (\t -> (Just space0, space1, fieldName, space1, t))
                             _ ->
                               Nothing -- TODO: report error around non-var field
                       in
