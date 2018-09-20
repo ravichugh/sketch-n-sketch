@@ -281,7 +281,7 @@
 
         logo : String -> Num -> Num -> Num -> Svg
 
-1. <span style="color:orange;">**TODO-Ravi: Return type highlight.**</span>
+1. <span style="color:green;">**OK:**</span>
    **Type Information** tool says return type doesn't match
    annotation. Has an option to **Change annotation for return value**.
    <!-- <span style="color:orange;">TODO: And perhaps **Insert call to `svgConcat`**.</span> -->
