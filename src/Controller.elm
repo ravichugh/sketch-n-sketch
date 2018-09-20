@@ -3674,6 +3674,10 @@ handleDeuceHotKey oldModel keysDown selected =
     DeuceTools.replaceWithList old selected |> maybeChooseDeuceExp old
   else if keysDown == Keys.openCurly then
     DeuceTools.replaceWithRecord old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyComma] then
+    DeuceTools.replaceWithTuple old selected |> maybeChooseDeuceExp old
+  else if keysDown == [Keys.keyShift, Keys.keySemicolon] then
+    DeuceTools.replaceWithCons old selected |> maybeChooseDeuceExp old
   else if keysDown == Keys.backslash then
     DeuceTools.replaceWithLambda old selected |> maybeChooseDeuceExp old
   else if keysDown == [Keys.keySpace] then
