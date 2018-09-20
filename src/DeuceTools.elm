@@ -18,6 +18,8 @@ module DeuceTools exposing
   , replaceWithParens
   , replaceWithList
   , replaceWithRecord
+  , replaceWithTuple
+  , replaceWithCons
   , replaceWithLambda
   , replaceWithApp
   , replaceWithCase
@@ -270,9 +272,7 @@ addToEnd_ model tryParent exp =
     EFun wsb pats body ws1 ->
       let
         patWsb = wsOfLast precedingWhitespacePat pats
-        -- TODO this should probably actually be a PWildcard
-        newPat =
-          withDummyPatInfo <| PVar patWsb "_" <| Info.withDummyInfo NoWidgetDecl
+        newPat = withDummyPatInfo <| PWildcard patWsb
       in
       EFun wsb (pats ++ [newPat]) body ws1
       |> return
@@ -300,7 +300,7 @@ addToEnd_ model tryParent exp =
           else
             wsOfLast (precedingWhitespaceDeclarationWithInfo >> .val) flatDecls
         -- TODO this should probably be changed to a PWildcard
-        pat = pVar0 "_"
+        pat = pWildcard0
         mbNewDecls =
           List.map (mapPrecedingWhitespaceDeclaration newDefaultBindingSpace) flatDecls ++
           [LetExp Nothing newLastBindingWs pat FunArgAsPats space1 eEmptyHoleVal |> DeclExp]
@@ -310,6 +310,14 @@ addToEnd_ model tryParent exp =
       mbNewDecls |> Maybe.andThen (\newDecls ->
       ELet newWsb lk newDecls newWsIn body
       |> return)
+    ECase wsb scrutinee branches wsa ->
+      let
+        newWsb = wsOfLast precedingWhitespaceBranch branches
+        newBranch = Branch_ newWsb pWildcard0 eEmptyHoleVal space1 |> withDummyBranchInfo
+        newBranches = branches ++ [ newBranch ]
+      in
+      ECase wsb scrutinee newBranches wsa
+      |> return
     _ ->
       if tryParent then
         parentByEId root eId |>
@@ -383,6 +391,47 @@ makeSimpleReplaceHoleTool   toolID    replDesc  mightNeedParens wsToExp__ =
     in
     Just <| replaceExpNode holeEId newExp root
   )
+
+makeSimpleReplaceWildcardTool : String -> String -> Pat__ -> Model -> Selections -> DeuceTool
+makeSimpleReplaceWildcardTool   toolID    replDesc  p__      model    selections =
+  let
+    (func, predVal) =
+      let
+        impossible = (InactiveDeuceTransform, Impossible)
+        root = model.inputExp
+      in
+      case selections of
+        (_, _, [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+        (_, _, [], [wildcardPPID], [], [], [], [], []) ->
+          let
+            pat = LangTools.findPatByPathedPatternId wildcardPPID root |> Utils.fromJust_ "No pat"
+            pid = LangTools.pathedPatternIdToPId wildcardPPID root |> Utils.fromJust_ "No pat"
+            newPat = replaceP__ pat p__
+            newProgram = replacePatNodePreservingPrecedingWhitespace pid newPat root
+            result =
+              ( basicDeuceTransform [basicTransformationResult ("Replace with " ++ replDesc) newProgram]
+              , FullySatisfied
+              )
+          in
+          case pat.val.p__ of
+            PVar _ _ _  -> result
+            PWildcard _ -> result
+            _           -> impossible
+        _ ->
+          impossible
+  in
+    { name = "Create " ++ replDesc
+    , func = func
+    , reqs =
+        [ { description =
+              "Select a wildcard (i.e. '_') pattern"
+          , value =
+              predVal
+          }
+        ]
+    , id = toolID
+    }
 
 -- TODO slider (via the WidgetDecl) to specify the value
 createNumTool =
@@ -468,6 +517,32 @@ smartCompleteTool =
           )
     )
 
+createTupleTool =
+  makeSimpleReplaceHoleTool
+    "createTupleFromHole"
+    "a tuple"
+    False
+    (\wsb ->
+      eTuple__
+        wsb
+        [ (Just space1, eEmptyHoleVal0)
+        , (Nothing, eEmptyHoleVal)
+        ]
+        space0
+    )
+
+createTupleFromWildcardTool =
+  makeSimpleReplaceWildcardTool
+    "createTupleFromWildcard"
+    "a tuple"
+    ( pTuple__
+        space0
+        [ (Just space1, pWildcard0)
+        , (Nothing, pWildcard1)
+        ]
+        space0
+    )
+
 createLambdaTool =
   makeSimpleReplaceHoleTool
     "createLambdaFromHole"
@@ -481,6 +556,25 @@ createApplicationTool =
     "an application"
     True
     (\wsb -> EApp wsb eEmptyHoleVal0 [eEmptyHoleVal] SpaceApp space0)
+
+createConsListFromWildcardTool =
+  makeSimpleReplaceWildcardTool
+    "createConsListFromWildcard"
+    "a cons pattern (i.e. 'a :: b')"
+    (PList space0 [pWildcard0] space1 (Just pWildcard1) space0)
+
+createConsListTool =
+  makeSimpleReplaceHoleTool
+    "createConsListFromHole"
+    "a cons list (i.e. 'a :: b')"
+    True
+    (\wsb -> EList wsb [(space0, eEmptyHoleVal0)] space1 (Just eEmptyHoleVal) space0)
+
+createEmptyListFromWildcardTool =
+  makeSimpleReplaceWildcardTool
+    "createEmptyListFromWildcard"
+    "an empty list pattern"
+    (PList space0 [] space0 Nothing space0)
 
 createEmptyListTool =
   makeSimpleReplaceHoleTool
@@ -512,7 +606,7 @@ createCaseTool =
         caseExp wsBeforeCase wsBeforeBranch =
           let branch =
             withDummyBranchInfo <|
-              Branch_ (ws wsBeforeBranch) pat holeExpWithOneSpace space0
+              Branch_ (ws wsBeforeBranch) pat holeExpWithOneSpace space1
           in
           Expr <|
             withDummyExpInfoEId caseID <|
@@ -619,10 +713,34 @@ replaceWithParens : Model -> DeuceWidget -> Maybe Exp
 replaceWithParens = runToolViaHotkey createParenthesizedTool
 
 replaceWithList : Model -> DeuceWidget -> Maybe Exp
-replaceWithList = runToolViaHotkey createEmptyListTool
+replaceWithList =
+  mergeTools
+    "replaceHoleOrWildcardWithEmptyList"
+    "Create empty list"
+    "Select a hole or wildcard ('_') pattern"
+    [ createEmptyListTool, createEmptyListFromWildcardTool ]
+  |> runToolViaHotkey
 
 replaceWithRecord : Model -> DeuceWidget -> Maybe Exp
 replaceWithRecord = runToolViaHotkey createRecordTool
+
+replaceWithTuple : Model -> DeuceWidget -> Maybe Exp
+replaceWithTuple =
+  mergeTools
+    "replaceHoleOrWildcardWithTuple"
+    "Create tuple"
+    "Select a hole or wildcard ('_') pattern"
+    [ createTupleTool, createTupleFromWildcardTool ]
+  |> runToolViaHotkey
+
+replaceWithCons : Model -> DeuceWidget -> Maybe Exp
+replaceWithCons =
+  mergeTools
+    "replaceHoleOrWildcardWithConsList"
+    "Create cons list (i.e. 'a :: b')"
+    "Select a hole or wildcard ('_') pattern"
+    [ createConsListTool, createConsListFromWildcardTool ]
+  |> runToolViaHotkey
 
 replaceWithLambda : Model -> DeuceWidget -> Maybe Exp
 replaceWithLambda = runToolViaHotkey createLambdaTool
