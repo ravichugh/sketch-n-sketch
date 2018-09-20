@@ -1515,14 +1515,14 @@ setPatName ((scopeEId, branchI), path) newName exp =
               makeNewScope (EFun ws1 (Utils.replacei0 branchI newPat pats) body ws2)
             )
 
-       Just (ECase ws1 scrutinee branches ws2) ->
+       Just (ECase wsb scrutinee branches wsa) ->
         Utils.maybeGeti0 branchI branches
         |> Maybe.map
             (\branch ->
               let (Branch_ ws1 pat exp ws2) = branch.val in
               let newPat = setPatNameInPat path newName pat in
               let newBranch = { branch | val = Branch_ ws1 newPat exp ws2 } in
-              makeNewScope (ECase ws1 scrutinee (Utils.replacei0 branchI newBranch branches) ws2)
+              makeNewScope (ECase wsb scrutinee (Utils.replacei0 branchI newBranch branches) wsa)
             )
 
        _ ->
@@ -1538,6 +1538,9 @@ setPatNameInPat path newName pat =
   case (pat.val.p__, path) of
     (PVar ws ident wd, []) ->
       replaceP__ pat (PVar ws newName wd)
+
+    (PWildcard wsb, []) ->
+      replaceP__ pat (PVar wsb newName <| Info.withDummyInfo NoWidgetDecl)
 
     (PAs ws1 p1 ws2 p2, 1::is) ->
       replaceP__ pat (PAs ws1 (setPatNameInPat is newName p1) ws2 p1)
@@ -1555,6 +1558,19 @@ setPatNameInPat path newName pat =
         replaceP__ pat (PList ws1 newPs ws2 (Just tailPat) ws3)
       else if i == List.length ps + 1 then
         replaceP__ pat (PList ws1 ps ws2 (Just (setPatNameInPat is newName tailPat)) ws3)
+      else
+        pat
+
+    (PRecord wsb fields wsa, i::is) ->
+      if i <= List.length fields then
+        let
+          newFields =
+            fields |> Utils.getReplacei1 i (\(mws, ws1, oldIdent, ws2, fieldPat) ->
+              let newFieldPat = setPatNameInPat is newName fieldPat in
+              (mws, ws1, oldIdent, ws2, newFieldPat)
+            )
+        in
+        replaceP__ pat (PRecord wsb newFields wsa)
       else
         pat
 
