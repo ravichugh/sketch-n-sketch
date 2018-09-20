@@ -2243,16 +2243,20 @@ reorderArgumentsTool model selections =
 
         ([], [], [], pathedPatIds, [], [], [], [], [patTarget]) ->
           let targetPathedPatId = patTargetPositionToTargetPathedPatId patTarget in
-          let scopeIds          = List.map pathedPatIdToScopeId (targetPathedPatId::pathedPatIds) in
+          let scopeIds          = List.map pathedPatIdToScopeEId (targetPathedPatId::pathedPatIds) in
           let targetScopeEId    = pathedPatIdToScopeEId targetPathedPatId in
+          -- TODO supremely clowny
+          let getProperPath ppid =
+            (pathedPatIdToScopeId ppid |> Tuple.second |> (+) 1) :: pathedPatIdToPath ppid
+          in
           case (Utils.allSame scopeIds, targetScopeEId |> findExpByEId model.inputExp |> Maybe.map unwrapExp) of
             (True, Just (EFun _ _ _ _)) ->
               ( NoInputDeuceTransform <|
                   \() ->
                     CodeMotion.reorderFunctionArgs
                         targetScopeEId
-                        (List.map pathedPatIdToPath pathedPatIds)
-                        (pathedPatIdToPath targetPathedPatId)
+                        (List.map getProperPath pathedPatIds)
+                        (getProperPath targetPathedPatId)
                         model.inputExp
 
               , Satisfied
@@ -3186,12 +3190,10 @@ toolList =
     , createFunctionFromArgsTool
     -- , mergeTool
     ]
-  , [ addArgumentsTool ]
-{-
-    , removeArgumentsTool
+  , [ addArgumentsTool
+    --, removeArgumentsTool
     , reorderArgumentsTool
     ]
--}
   , [ renameVariableTool
     , introduceVariableTool
     ]
