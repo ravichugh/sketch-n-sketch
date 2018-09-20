@@ -201,6 +201,22 @@ maybeTypeCheck doTypeChecking inputExp =
   else
     (inputExp, Types2.dummyAceTypeInfo, True)
 
+-- replace most uses of maybeTypeCheck with this.
+--
+maybeTypeCheckAndUpdateModel : Model -> Model
+maybeTypeCheckAndUpdateModel model =
+  let
+    (newInputExp, aceTypeInfo, typeChecks) =
+      maybeTypeCheck model.doTypeChecking model.inputExp
+  in
+    { model
+        | inputExp =
+            newInputExp
+        , codeBoxInfo =
+            updateCodeBoxInfo aceTypeInfo model
+    }
+      |> showTypeInspectorIfNecessary typeChecks
+
 showTypeInspectorIfNecessary : Bool -> Model -> Model
 showTypeInspectorIfNecessary typeChecks model =
   { model
@@ -3314,6 +3330,7 @@ chooseDeuceExp old newRoot =
   upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
   |> deuceRefresh newRoot
   |> resetDeuceKeyboardInfo
+  |> maybeTypeCheckAndUpdateModel
 
 maybeChooseDeuceExp : Model -> Maybe Exp -> Model
 maybeChooseDeuceExp m mbExp =

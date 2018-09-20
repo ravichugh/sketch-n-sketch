@@ -220,7 +220,7 @@
 1. <span style="color:green;">**OK:**</span>
    Select `"gray"` and **Add Argument** adds to end of argument list.
 
-1. <span style="color:orange;">**TODO-Nick: Could do without this if necessary.**</span>
+1. <span style="color:green;">**OK:**</span>
    Select `fill` and before `x` and **Reorder Argument**.
 
         logo fill x y size =
@@ -311,6 +311,8 @@
 1. <span style="color:green;">**OK:**</span>
    Select three `Num`s and **Introduce Type Alias from Args**.
    One option ~~with tuple type, one~~ with record type called `NumNumNum`.
+
+1. <span style="color:red;">**TODO-Ravi: alias and data types.**</span>
 
 1. <span style="color:green;">**OK:**</span>
    **Rename Type**.
