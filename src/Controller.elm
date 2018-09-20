@@ -3530,16 +3530,19 @@ deuceChooserUI old initText titleAndTextToTransformationResults =
     (title, textToTransformationResults) = titleAndTextToTransformationResults
     oldReset = resetDeuceKeyboardInfo old
   in
-  { oldReset
-    | mbDeuceKeyboardInfo =
-        Just <|
-        { title = title
-        , text = initText
-        , textToTransformationResults = textToTransformationResults
-        , smartCompleteSelection = initText
-        }
-    , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
-  }
+  if List.isEmpty <| textToTransformationResults initText then
+    old
+  else
+    { oldReset
+      | mbDeuceKeyboardInfo =
+          Just <|
+          { title = title
+          , text = initText
+          , textToTransformationResults = textToTransformationResults
+          , smartCompleteSelection = initText
+          }
+      , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
+    }
 
 moveSmartCompleteSelection old isDown =
   let
