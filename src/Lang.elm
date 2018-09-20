@@ -3018,6 +3018,11 @@ replacePrecedingWhitespacePat newWs pat =
   mapPrecedingWhitespacePat (\_ -> newWs) pat
 
 
+replacePrecedingWhitespaceBranch : String -> Branch -> Branch
+replacePrecedingWhitespaceBranch newWs branch =
+  mapPrecedingWhitespaceBranch (\_ -> newWs) branch
+
+
 copyPrecedingWhitespace : Exp -> Exp -> Exp
 copyPrecedingWhitespace source target =
   replacePrecedingWhitespace (precedingWhitespace source) target
@@ -3061,6 +3066,12 @@ mapPrecedingWhitespacePat : (String -> String) -> Pat -> Pat
 mapPrecedingWhitespacePat stringMap pat =
   let mapWs s = ws (stringMap s.val) in
   mapPrecedingWhitespacePatWS mapWs pat
+
+mapPrecedingWhitespaceBranch : (String -> String) -> Branch -> Branch
+mapPrecedingWhitespaceBranch stringMap branch =
+  let mapWs s = ws (stringMap s.val) in
+  case branch.val of
+    Branch_ wsb p e wsa -> Branch_ (mapWs wsb) p e wsa |> replaceB__ branch
 
 mapPrecedingWhitespacePatWS : (WS -> WS) -> Pat -> Pat
 mapPrecedingWhitespacePatWS mapWs pat =
