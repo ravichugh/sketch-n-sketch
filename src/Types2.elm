@@ -117,6 +117,13 @@ aceTypeInfo exp =
               { row = 0, type_ = "info", text= "No type errors!" }
 
             _ ->
+              let
+                _ =
+                  errorAnnotations
+                    |> if False
+                       then Debug.log "errorAnnotations"
+                       else identity
+              in
               { row = 0, type_ = "warning", text="Type errors below..." }
       in
         summaryAnnotation :: errorAnnotations
@@ -148,6 +155,15 @@ type TypeEnvElement
 
 addHasMaybeType : (Pat, Maybe Type) -> TypeEnv -> TypeEnv
 addHasMaybeType (p, mt) gamma =
+  let
+    _ =
+      ( unparsePattern p
+      , mt |> Maybe.map unparseType |> Maybe.withDefault "Nothing"
+      )
+      |> if False
+         then Debug.log "addHasMaybeType"
+         else identity
+  in
   HasType p mt :: gamma
 
 
@@ -176,28 +192,52 @@ lookupVar gamma x =
       Nothing
 
 
+-- TODO write a mapFoldPatType, and use it here
+--
 lookupVarInPat : Ident -> Pat -> Maybe Type -> Maybe (Maybe Type)
 lookupVarInPat x p mt =
-  case p.val.p__ of
-    PConst _ _ -> Nothing
-    PBase _ _ -> Nothing
-    PWildcard _ -> Nothing
+  let
+    p__ = p.val.p__
+    t__ = mt |> Maybe.map (.val >> .t__)
+  in
+  case (p__, t__) of
+    (PConst _ _, _) -> Nothing
+    (PBase _ _, _) -> Nothing
+    (PWildcard _, _) -> Nothing
 
-    PVar _ y _ ->
+    (PVar _ y _, _) ->
       if x == y then
         Just mt
       else
         Nothing
+
+    (PRecord _ fieldPats_ _, Just (TRecord _ _ fieldTypes_ _)) ->
+      let
+        fieldTypes =
+          fieldTypes_
+            |> List.map (\(_, _, fieldName, _, fieldType) ->
+                 (fieldName, fieldType)
+               )
+
+        maybeMaybeTypes =
+          fieldPats_
+            |> List.map (\(_, _, fieldName, _, fieldPat) ->
+                 Utils.maybeFind fieldName fieldTypes
+                   |> Maybe.andThen (\fieldType ->
+                        lookupVarInPat x fieldPat (Just fieldType)
+                      )
+               )
+      in
+        maybeMaybeTypes
+          |> Utils.firstMaybe
 
     -- TODO
 {-
   | PList WS (List Pat) WS (Maybe Pat) WS -- TODO store WS before commas, like EList
   | PAs WS Pat WS Pat
   | PParens WS Pat WS
-  | PRecord WS {- { -}  (List (Maybe WS {- , -}, WS, Ident, WS{-=-}, Pat)) WS{- } -}
   | PColonType WS Pat WS Type
 -}
-
     _ ->
       Nothing
 
@@ -559,6 +599,7 @@ typecheck e =
     [ TypeVar "Svg" -- stuffing in TypeVar for now
     , hasType "rect" "String -> Num -> Num -> Num -> Num -> Svg"
     , hasType "line" "String -> Num -> Num -> Num -> Num -> Num -> Svg"
+    , hasType "svg" "List Svg -> Svg"
     ]
   in
   let result = inferType initEnv { inputExp = e } e in
@@ -982,7 +1023,7 @@ inferType gamma stuff thisExp =
         _ =
           annotTable
             |> List.map (Tuple.mapSecond unparseType)
-            |> if True
+            |> if False
                then Debug.log "annotTable"
                else Basics.identity
 
@@ -997,6 +1038,7 @@ inferType gamma stuff thisExp =
             (newLetAnnots, newTable)
 
         -- Somewhat similar to lookupVarInPat.
+        -- TODO write a mapFoldPatType, and use it here
         --
         processPat : List (Ident, Type) -> Pat -> Type -> (Pat, List (Ident, Type))
         processPat accTable pat typ =
@@ -1073,6 +1115,38 @@ inferType gamma stuff thisExp =
             |> List.foldl processLetExp ([], gamma, [])
             |> Utils.mapFst3 List.reverse
 
+        -- TODO write a mapFoldPatType, and use it here
+        --
+        setPatTypeDeep : Type -> Pat -> Pat
+        setPatTypeDeep typ pat =
+          case (pat.val.p__, typ.val.t__) of
+            (PRecord ws1 fieldPats_ ws2, TRecord _ _ fieldTypes_ _) ->
+               let
+                 fieldTypes =
+                   fieldTypes_
+                     |> List.map (\(_, _, fieldName, _, fieldType) ->
+                          (fieldName, fieldType)
+                        )
+
+                 newFieldPats_ =
+                   fieldPats_
+                     |> List.map (\(mws0, ws1, fieldName, ws2, fieldPat) ->
+                          let
+                            newFieldPat =
+                              Utils.maybeFind fieldName fieldTypes
+                                |> Maybe.map (\fieldType -> setPatTypeDeep fieldType fieldPat)
+                                |> Maybe.withDefault fieldPat
+                          in
+                          (mws0, ws1, fieldName, ws2, newFieldPat)
+                        )
+               in
+                 PRecord ws1 newFieldPats_ ws2
+                  |> replaceP__ pat
+                  |> setPatType (Just typ)
+
+            _ ->
+              pat |> setPatType (Just typ)
+
         processLetExp (isRec, listLetExp) (accLetExpsRev, accGamma, accTypeBreadCrumbs) =
           let
             listLetExpAndMaybeType : List (LetExp, Maybe Type)
@@ -1089,12 +1163,7 @@ inferType gamma stuff thisExp =
                        -- annotations. And any remaining annotations will
                        -- have to be treated as EColonTypes.
                        _ ->
-                         let
-                           newPat =
-                             pat |> setPatDeuceTypeInfo
-                               (deucePlainLabels ["pattern not yet supported by type checker"])
-                         in
-                           (LetExp ws0 ws1 newPat fas ws2 expEquation, Nothing)
+                         (letExp, Nothing)
                    )
 
             gammaForEquations =
@@ -1126,7 +1195,7 @@ inferType gamma stuff thisExp =
                            newPat =
                              case (unExpr result.newExp).val.typ of
                                Just inferredType ->
-                                 pat |> setPatType (Just inferredType)
+                                 pat |> setPatTypeDeep inferredType
                                      |> setPatDeuceTypeInfo (DeuceTypeInfo
                                           ( okayType inferredType ++
                                           [ deuceTool (PlainText "Add inferred annotation")
@@ -1165,7 +1234,7 @@ inferType gamma stuff thisExp =
 
                            (newPat, maybeTypeBreadCrumb) =
                              if result.okay then
-                               ( pat |> setPatType (Just annotatedType)
+                               ( pat |> setPatTypeDeep annotatedType
                                , []
                                )
                              else
@@ -1187,7 +1256,7 @@ inferType gamma stuff thisExp =
                 |> List.unzip
                 |> Tuple.mapSecond List.concat
 
-            newGamma =
+            newAccGamma =
               let
                 maybePatTypes : Maybe (List (Pat, Type))
                 maybePatTypes =
@@ -1196,6 +1265,15 @@ inferType gamma stuff thisExp =
                          newPat.val.typ |> Maybe.map ((,) newPat)
                        )
                     |> Utils.projJusts
+
+                _ =
+                  maybePatTypes
+                    |> Maybe.withDefault []
+                    |> List.map (\(p,t) -> unparsePattern p ++ " : " ++ unparseType t)
+                    |> if False
+                       then Debug.log "maybePatTypes"
+                       else Basics.identity
+
               in
                 -- Add bindings only if every LetExp type checked.
                 case maybePatTypes of
@@ -1206,7 +1284,7 @@ inferType gamma stuff thisExp =
                     List.foldl addHasType accGamma patTypes
           in
             ( (isRec, newListLetExp) :: accLetExpsRev
-            , accGamma
+            , newAccGamma
             , moreTypeBreadCrumbs ++ accTypeBreadCrumbs
             )
 
@@ -1292,9 +1370,18 @@ inferType gamma stuff thisExp =
                       case (p.val.p__, (unExpr e).val.e__) of
                         (PVar _ pname _, EBase _ (EString _ ename)) ->
                           if String.startsWith "Tuple" ename then
+                            let
+                              dummyType =
+                                Just (withDummyTypeInfo (TVar space0 "DUMMY_TYPE"))
+
+                              newFirstLetExp =
+                                LetExp mbWs1 ws2
+                                  (p |> setPatType dummyType) funArgStyle ws3
+                                  (e |> setType dummyType)
+                            in
                             ( restListLetExp
                             , \(newRestListLetExp, fieldMaybeTypes) ->
-                                ( firstLetExp
+                                ( newFirstLetExp
                                     :: newRestListLetExp
                                 , Just (Lang.ctor (withDummyTypeInfo << TVar space0) TupleCtor ename)
                                     :: fieldMaybeTypes
@@ -1320,7 +1407,7 @@ inferType gamma stuff thisExp =
                           case p.val.p__ of
                             PVar _ fieldName _ ->
                               (unExpr result.newExp).val.typ
-                                |> Maybe.map (\t -> (Just space0, space1, fieldName, space1, t))
+                                |> Maybe.map (\t -> (Just space0, space0, fieldName, space0, t))
                             _ ->
                               Nothing -- TODO: report error around non-var field
                       in

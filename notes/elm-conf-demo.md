@@ -220,7 +220,7 @@
 1. <span style="color:green;">**OK:**</span>
    Select `"gray"` and **Add Argument** adds to end of argument list.
 
-1. <span style="color:orange;">**TODO-Nick: Could do without this if necessary.**</span>
+1. <span style="color:green;">**OK:**</span>
    Select `fill` and before `x` and **Reorder Argument**.
 
         logo fill x y size =
@@ -281,7 +281,7 @@
 
         logo : String -> Num -> Num -> Num -> Svg
 
-1. <span style="color:orange;">**TODO-Ravi: Return type highlight.**</span>
+1. <span style="color:green;">**OK:**</span>
    **Type Information** tool says return type doesn't match
    annotation. Has an option to **Change annotation for return value**.
    <!-- <span style="color:orange;">TODO: And perhaps **Insert call to `svgConcat`**.</span> -->
@@ -311,6 +311,8 @@
 1. <span style="color:green;">**OK:**</span>
    Select three `Num`s and **Introduce Type Alias from Args**.
    One option ~~with tuple type, one~~ with record type called `NumNumNum`.
+
+1. <span style="color:red;">**TODO-Ravi: alias and data types.**</span>
 
 1. <span style="color:green;">**OK:**</span>
    **Rename Type**.
