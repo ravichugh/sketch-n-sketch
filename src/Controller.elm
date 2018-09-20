@@ -1642,8 +1642,57 @@ tryPreserveDecls_ nextAvailId oldDecls newDecls =
   ))
 
 tryPreservePIds_ : Pat -> Pat -> Maybe Pat
--- TODO implement properly
-tryPreservePIds_ oldPat newPat = Just newPat
+tryPreservePIds_ oldPat newPat =
+  let
+    oldPId = oldPat.val.pid
+    preserveLeaf = setPId oldPId newPat |> Just
+    return p__ = replaceP__ newPat p__ |> setPId oldPId |> Just
+  in
+  case (oldPat.val.p__, newPat.val.p__) of
+    (PVar _ _ _, PVar _ _ _)    -> preserveLeaf
+    (PWildcard _, PVar _ "_" _) -> preserveLeaf
+    (PConst _ _, PConst _ _)    -> preserveLeaf
+    (PBase _ _, PBase _ _)      -> preserveLeaf
+    (PWildcard _, PWildcard _)  -> preserveLeaf
+    (PVar _ "_" _, PWildcard _) -> preserveLeaf
+    (PList _ oldPats _ oldM _, PList wsb newPats ws1 newM ws2) ->
+      tryPreservePatsIds_ oldPats newPats |> Maybe.andThen (\preservedPats ->
+      (case (oldM, newM) of
+        (Just oldT, Just newT) -> tryPreservePIds_ oldT newT |> Maybe.map Just
+        (Nothing, Nothing)     -> Just Nothing
+        _                      -> Nothing
+      )                                   |> Maybe.andThen (\preservedM ->
+        PList wsb preservedPats ws1 preservedM ws2 |> return
+      ))
+    (PAs _ oldBound _ oldAs, PAs wsb newBound ws1 newAs) ->
+      tryPreservePIds_ oldBound newBound |> Maybe.andThen (\preservedBound ->
+      tryPreservePIds_ oldAs newAs       |> Maybe.andThen (\preservedAs ->
+        PAs wsb preservedBound ws1 preservedAs |> return
+      ))
+    (PParens _ oldInner _, PParens wsb newInner wsa) ->
+      tryPreservePIds_ oldInner newInner |> Maybe.andThen (\preservedInner ->
+        PParens wsb preservedInner wsa |> return
+      )
+    (PRecord _ oldFields _, PRecord wsb newFields wsa) ->
+      Utils.zip oldFields newFields
+      |> List.map (\((_, _, oldIdent, _, oldField), (mbWs, wsbf, newIdent, ws1, newField)) ->
+        if oldIdent == newIdent then
+          tryPreservePIds_ oldField newField
+          |> Maybe.map (\preservedField -> (mbWs, wsbf, newIdent, ws1, preservedField))
+        else
+          Nothing
+      )
+      |> Utils.projJusts
+      |> Maybe.andThen (\preservedFields ->
+        PRecord wsb preservedFields wsa |> return
+      )
+    (PColonType _ oldInner _ oldType, PColonType wsb newInner ws1 newType) ->
+      tryPreservePIds_ oldInner newInner |> Maybe.andThen (\preservedInner ->
+      tryPreserveTIds_ oldType newType   |> Maybe.andThen (\preservedType ->
+        PColonType wsb preservedInner ws1 preservedType |> return
+      ))
+    _ ->
+      Nothing
 
 tryPreserveTIds_ : Type -> Type -> Maybe Type
 -- TODO implement properly
