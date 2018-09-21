@@ -52,14 +52,16 @@ After clicking on "Run", you should see the below result in the right pane.
 Let us explain this code a bit.  
 First because we want to change the data, we prepend <code>@@Update.expressionFreeze</code> to the rendered table to make sure the expression itself will not be modified when we change the output, only the data.  
 Second, we transform the list of images to a list of <code>&lt;tr&gt;</code> rows containing two <code>&lt;td&gt;</code> cells. The first cell contains one image, the second cell the name.  
-Because the rows we are importing may contain whitespace outside of the name (which our program does not produce), we make sure to remove it by the instruction <code>Update.onUpdate (Html.filter (not &lt;< Html.isEmptyText))</code>. This instruction is the last one because it will be the first to execute when the program executes in reverse.
+Because the rows we are importing will contain whitespace, mostly newlines (which our program does not produce), we make sure to remove them with the instruction <code>Update.onUpdate (Html.filter (not &lt;< Html.isEmptyText))</code>.
+This instruction is the last one because it will be the first to execute when the program executes in reverse.
 
 Note that the <code>main = </code> is optional, if the program ends with an expression, it will automatically insert <code>main = </code> in front of it.
 
 Great. You can try to rename "dog" in the output to see that it can rename it in the input file.  
 Now, time to import the images.
 
-On the website, right click and inspect the table, select the first 8 rows in the Html source.
+On the website, right-click on the table. In major browsers a menu "Inspect" or "Inspector" will lead you to a developer console that will display you the source code of the page at this point. To display the actual source code, you might have to right-click the element again and "edit as HTML".
+Now select the first 8 rows in the Html source. A row starts with <tr> and ends with </tr>.
 Alternatively, here are the rows, you can copy them from here as well.
 
 @t.displaylocalcode<|"""<tr>
