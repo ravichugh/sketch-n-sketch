@@ -9,8 +9,8 @@ main = t.htmlpass options <| t.markdown <|
 <a href="https://mikaelmayer.github.io/sketch-n-sketch/">Sketch-n-sketch</a> running on your browser.
 The 'left pane' references the left half of that interface, whereas the 'right pane' references the right half of that interface. If you encounter editing issues, try resizing your window.</i>  
   
-The memory game consists of pairs of identical cards face down.
-The player returns two cards. If they are the same, they are left face visible.
+The memory game consists of pairs of identical cards placed face down.
+The player turns over two cards. If they are the same, they are left face up.
 If they are not, they are turned back face down.  
   
 In this tutorial, we will create an educational variant of the memory game
@@ -21,16 +21,16 @@ This is our roadmap:
 <li>Design a functional memory game</li>
 <li>Add translations to the game</li>
 </ul>
-## Import images and descriptions.
-We will import images and descriptions from <a href="https://www.englisch-hilfen.de/en/words/kitchen.htm">this website</a>. Visit the link to see how the table looks like.  
-We want to import this table as a source code we can work with.
-For that, the trick is to actually write a source code with some dummy data,
-transform it to be rendered as the table,
-and add the remaining rows by copying them from the website and pasting them in the output.
+## Import images and descriptions
+We will import images and descriptions from <a href="https://www.englisch-hilfen.de/en/words/kitchen.htm">this website</a>. Visit the link to see what the table looks like.  
+We want to import this table as source code we can work with.
+For that, the trick is to actually write source code with some dummy data,
+transform it to be rendered as a table,
+and add the remaining rows by copying them from the website and pasting them into the output.
 Sketch-n-sketch will figure out for us how to reverse the execution and, finally,
 update our source data to produce the given table.
 
-In sketch-n-sketch, erase the previous program and replace it with the following:
+In sketch-n-sketch, erase the program in the left pane and replace it with the following:
 @t.newcode<|"""images = [
   Image "dog" "https://upload.wikimedia.org/wikipedia/commons/7/7d/Labrador_Chocolate.jpg"
 ]
@@ -51,18 +51,18 @@ After clicking on "Run", you should see the below result in the right pane.
 @t.displayevalcode
 Let us explain this code a bit.  
 First because we want to change the data, we prepend <code>@@Update.expressionFreeze</code> to the rendered table to make sure the expression itself will not be modified when we change the output, only the data.  
-Second, we transform the list of images to a list of <code>&lt;tr&gt;</code> rows containing two <code>&lt;td&gt;</code> cells. The first cell contains one image, the second cell the name.  
+Second, we transform the list of images to a list of <code>&lt;tr&gt;</code> rows, each containing two <code>&lt;td&gt;</code> cells. The first cell contains the image, the second cell the name.  
 Because the rows we are importing will contain whitespace, mostly newlines (which our program does not produce), we make sure to remove them with the instruction <code>Update.onUpdate (Html.filter (not &lt;< Html.isEmptyText))</code>.
 This instruction is the last one because it will be the first to execute when the program executes in reverse.
 
 Note that the <code>main = </code> is optional, if the program ends with an expression, it will automatically insert <code>main = </code> in front of it.
 
-Great. You can try to rename "dog" in the output to see that it can rename it in the input file.  
+Great. You can try to rename "dog" in the output to see that the rename propagates to the input file.  
 Now, time to import the images.
 
-On the website, right-click on the table. In major browsers a menu "Inspect" or "Inspector" will lead you to a developer console that will display you the source code of the page at this point. To display the actual source code, you might have to right-click the element again and "edit as HTML".
+On the website, right-click on the table. In major browsers a menu item "Inspect" or "Inspector" will lead you to a developer console that will display the source code of the page at this point. To display the actual source code, you might have to right-click the element again and "edit as HTML".
 Now select the first 8 rows in the Html source. A row starts with &lt;tr&gt; and ends with &lt;/tr&gt;.
-Alternatively, here are the rows, you can copy them from here as well.
+Alternatively, you can copy the rows from the box below.
 
 @t.displaylocalcode<|"""<tr>
 <td><img src="/images/kitchen/034.jpg"></td>
@@ -97,12 +97,12 @@ Alternatively, here are the rows, you can copy them from here as well.
 <td>corkscrew</td>
 </tr>"""
 
-Once you have this data is in the clipboard, click on the "Html" button to the right of the Sketch-n-sketch interface to see the source code as html. Paste the clipboard content right after the last <code>&lt;/tr&gt;</code>.
-The popup "Output Editor" appears, hover "Update program", click on the first solution.
+Once you have this data is in the clipboard, click on the "Html" button to the right of the Sketch-n-sketch interface to see the source code as html. Paste the clipboard contents right after the last <code>&lt;/tr&gt;</code>.
+The popup "Output Editor" appears; hover over "Update program" and click on the first solution.
 The variable 'images' is now populated.  
-You successfully imported a data that, else, would have taken you regular expressions or custom programs to parse.  
+You've successfully imported data that would have normally required the use of regular expressions or custom programs to parse.  
   
-You now need to fix the URL of the images you imported, because they are relative, 
+You now need to fix the URL of the images you imported, because they are relative.
 Delete the first row containing the dog picture (and the comma in front of the second entry).
 @t.hiddenreplace("""images = [
   Image "dog" "https://upload.wikimedia.org/wikipedia/commons/7/7d/Labrador_Chocolate.jpg"
@@ -121,7 +121,7 @@ Delete the first row containing the dog picture (and the comma in front of the s
 You should now obtain the following table:
 @t.displayevalcode
 
-For your information, the source code at this point is:
+FYI: the source code at this point is:
 @t.displaycode
 ## Design the logic
 We want to create two cards for each image, one for the name,
@@ -155,7 +155,7 @@ card i child =
 	</div>
 </div>
 """
-Now, we add the code for displaying the deck, the css and the javascript.
+Now, we add the css and javascript for displaying the deck.
 @t.replace("""main = <table>...</table>""")<|"""main = Html.forceRefresh <div>
   @buttonPlaceholder The game is in English.
   <div class="pairsContainer">
@@ -340,8 +340,8 @@ Click on the squares to reveal them.
 
 A few notes for how we achieved this result:
 <ul>
-<li>When attributes are prefixed with <code>ignore-</code>, their modifications are ignored by the update engine. Hence, we allow the javascript to only modify these attributes. Because CSS can read attributes, we can change the appearance of cards when we click on them, without triggering the update engine.</li>
-<li>We actually create complex javascript code inside the "onclick" event of cards, by inlining the codes for <code>isOkToSelecct</code> and <code>checkPair</code> That's fine, we are not looking at the generated source code anyway.</li>
+<li>When attributes are prefixed with <code>ignore-</code>, their modifications are ignored by the update engine. Hence, we only allow the javascript to modify these attributes. Because CSS can read attributes, we can change the appearance of cards when we click on them, without triggering the update engine.</li>
+<li>We actually create complex javascript code inside the "onclick" events of cards, by inlining the code for <code>isOkToSelecct</code> and <code>checkPair</code>. That's fine, we are not looking at the generated source code anyway.</li>
 <li>We use similar tricks to display the modal dialog box when the game is over.</li>
 </ul>
 Now try to find the corkscrew and its image (hints: 2North-2East, 1North-1West).
@@ -365,11 +365,11 @@ Translations are a list of keywords associated to a word in the language.
 From this table, we extract the list of available languages (<code>languages</code>),
 and given a <code>languageIndex</code> we can compute the current language's name.
 
-We did not translate the word in French yet because we are going to do it from the game itself soon.  
+We did not translate the word into French yet because we are going to do so from the game itself soon.  
   
-We need to know when to use translated text and when not. Let us take the convention that any word prefixed with a $ will be subject to translation using the table above.
+We need to know when to use translated text and when not to. Let us use the convention that any word prefixed with a $ will be subject to translation using the table above.
 @t.replace("Image \"corkscrew\"")<|"Image \"$translation1\""
-Now we want to see '$translation1' being replaced by 'corkscrew' back again.
+Now, the 'corkscrew' card shows '$translation1' instead - we want to see it go back to being 'corkscrew' again.
 @t.replace(placeholder 3)<|
 """translate translations languageIndex node =
   let currentTranslation = nth translations languageIndex |> Tuple.second |> Dict.fromList in
@@ -385,17 +385,17 @@ Now we want to see '$translation1' being replaced by 'corkscrew' back again.
   Html.forceRefresh <div>"""
 @t.replace("The game is in English.")<|"""The game is in @@(language)."""
 
-Good job. Now "corkscrew" should be back again.
-But wait, didn't we say that the language is French?
-In the game directly, replace "corkscrew" by "tire-bouchon" (the french translation).
+Good job. Now it's back to "corkscrew" again.
+But wait, doesn't the game say that the language is French?
+Directly on the corkscrew card, replace "corkscrew" with "tire-bouchon" (the French translation).
 Make sure @t.lineof("(\"French\",") is visible to see the changes.
 @t.hiddenreplace("""("French", [("translation1", "corkscrew")""")<|
                  """("French", [("translation1", "tire-bouchon")"""
 
 ## Add translations from the output
-For now, we cannot translate anything else than "corkscrew", because it is the only entry in the translation table.
+For now, we cannot translate anything other than "corkscrew", because it is the only entry in the translation table.
 We wish we could directly edit the output and add a flag that says "Add a translation entry for this word".
-We can use lenses for that purpose. We decide that if we write '{:word:}' in the game, it should create an entry for 'word' in every language.
+We can use lenses for this purpose. We decide that if we write '{:word:}' in the game, it should create an entry for 'word' in every language.
 @t.replace(placeholder 4)<|
 """|> \htmlNode ->
     Update.lens2 {
@@ -419,15 +419,15 @@ freshVarName name i dictionary =
     if Dict.member (name + toString i) (dictionary) then freshVarName name (i + 1) (dictionary) else name + toString i
 
 @(placeholder 5)"""
-Be careful about the whitespace, there should be two spaces before the first <code>|&gt;</code> you just inserted, so that this code stays inside the function.
-Here is the explanation:
+Be careful about the whitespace - there should be two spaces before the first <code>|&gt;</code> you just inserted, so that this code stays inside the function.
+Here is an explanation of how the above code works:
 <ul>
 <li>We name the result of translation <code>htmlNode</code>.</li>
-<li>The notation <code>|&gt;</code> means "pass the result before to the function to the right.</li>
 <li>We apply a lens to this result and the list of all translations.</li>
-<li>In the forward evaluation, this lens returns the html node</li>
-<li>In the backwards evaluation, it looks for occurrences of {:...:}, create a variable name for them, and add the definitions to all languages in translations. Furthermore, it replaces them by the new variable prefixed with '$'.</li>
-<li>The new variables are guaranteed to not yet exist</li></ul>
+<li>In the forward evaluation, this lens returns the html node.</li>
+<li>In the backwards evaluation, it looks for occurrences of {:...:}, creates variable names for them, and adds the definitions to all languages in translations. Furthermore, it replaces them with the new variables prefixed with '$'.</li>
+<li>The new variable names are guaranteed to not yet exist.</li></ul>
+<li>The notation <code>|&gt;</code> means "pass whatever is before <code>|&gt;</code> as the argument to the function that comes after <code>|&gt;</code>".</li>
 Good. In the output, find and rename "cake slice" to "{:cake slice:}".
 @t.hiddenreplace("\"translation1\", \"corkscrew\")")<|""""translation1", "corkscrew")
               , ("translation2", "cake slice")"""
@@ -437,7 +437,7 @@ After update, the braces and colon should disappear in the output. You can now r
 Had we done this translation automatically, we would have had the French equivalent of "slice of cake", which is not at all the same thing. Translating in context can be very useful.
 
 ## Translation toolbar
-It can be tedious to manually type the characters {:...:} to translate every word. Fortunately, we can use a button with Javascript that does this on selected text:
+It can be tedious to manually type the characters {:...:} to translate every word. Fortunately, using Javascript we can make a button that does this on the selected text:
 
 @t.replace(buttonPlaceholder)<|"""<menu>
       <button
@@ -455,13 +455,13 @@ Good. Now, in the output, find and select the text "cooker, stove". Click on the
               , ("translation3", "cooker, stove")"""
 @t.hiddenreplace("\"translation2\", \"pelle à tarte\")")<|""""translation1", "corkscrew")
               , ("translation3", "cuisinière, four")"""
-This is much easier than to manually write {:...:}.
+This is much easier than manually writing {:...:}.
 
 What about selecting the language in which we are displaying the game? Easy.
 @t.replace(othermenuitems)<|"""@@(Html.select [] languages languageIndex)
 @othermenuitems"""
-<code>Html.select</code> is a lens that displays options with the third argument designating the selected one. It is coded in such a way that, if you change the selection, it changes the third argument.
-Select English, and then go back to French to see how this works.
+<code>Html.select</code> is a lens that displays options, with the third argument designating the selected one. It is coded in such a way that, if you change the selection, it changes the third argument.
+Select English, and then go back to French, to see how this works.
 
 What about adding a new language? For that, we display an input text box that, if submitted,
 uses its value as a new language name and copies the current translations for it.
@@ -491,27 +491,27 @@ uses its value as a new language name and copies the current translations for it
 A few notes on what we just did.
 <ul>
 <li>The variable <code>langAdder</code> is computed as the empty string.</li>
-<li>When the input is submitted, the javascript makes langAdder to be updated with the new language name.</li>
-<li>The lens has the power to change the languageIndex and the translations. It duplicates the current translation and append it to the end of the table of translations, and changes the language index to switch to the new language.</li>
-<li>Until now, we return values in lenses with <code>Inputs</code> and a list of possible values.
+<li>When the input is submitted, the Javascript updates langAdder with the new language name.</li>
+<li>The lens has the power to change the languageIndex and the translations. It duplicates the current translation and appends it to the end of the table of translations, and changes the language index to switch to the new language.</li>
+<li>So far, we've returned values in lenses with <code>Inputs</code> and a list of possible values.
 Another (more advanced) way is to use <code>InputsWithDiffs</code> and a list of pair of possible values
-and their <i>difference</i> with the old value. That way, the engine does not need to compute differences itself.</li>
+and their <i>difference</i> to the old values. That way, the engine does not need to compute differences itself.</li>
 </ul>
   
 The result should look like:
 @t.displayevalcode
 
-As an exercise you can translate the remaining in the language of your choice.
+As an exercise, you can translate the remaining cards into the language of your choice.
 
 ## Experiments
 If you have more time, you can try to accomplish the following tasks:
 <ul>
 <li>Can you translate the text of the button "@makeselectiontranslatable" itself?</li>
-<li>And how can we translate the title that appears when we hover over this button?</li>
+<li>And how can we translate the tooltip that appears when we hover over this button?</li>
 <li>Right now, translation names are "translation1", "translation2", which is boring.
 Could you infer a better (unique) name from the content itself? You might find the following code snippet useful: <code>Regex.replace """[^a-zA-Z0-9]""" (\_ -> "") "Word with space"</code></li>
 <li>It can be tedious to see which text is translated and which is not.
-You could replace <code>[["TEXT", definition]]</code> (@(t.lineof """[["TEXT", definition]]""")) by <code>
+You could replace <code>[["TEXT", definition]]</code> (@(t.lineof """[["TEXT", definition]]""")) with <code>
 [&lt;span style="@highlightstyle"&gt;@@definition&lt;/span&gt;]]</code> to see the difference (e.g. <span style=highlightstyle>tire-bouchon</span>).
 Could you add a toolbar button that allows you to do the switch easily? Hint: create a boolean <code>doHighlight = True</code> and render a bidirectional checkbox using <code>Html.checkbox "Highlights" "Highlight translatable text" doHighlight</code>.
 </li>
