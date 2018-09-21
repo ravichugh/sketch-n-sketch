@@ -222,19 +222,64 @@ shouldHaveParensOnAccountOfParent root expEId =
       Maybe.map doesChildNeedParens |>
         Maybe.withDefault False
 
+deleteToHoleTool : Model -> Selections -> DeuceTool
+deleteToHoleTool old selections =
+  let (func, predVal) =
+    case (selections, deleteToHole old selections) of
+      ((_, _, [], [], [], [], [], [], []), _) ->
+        (InactiveDeuceTransform, Possible)
+      (_, Nothing) ->
+        (InactiveDeuceTransform, Impossible)
+      (_, Just newProgram) ->
+        ( [basicTransformationResult "Replace with ??" newProgram]
+          |> basicDeuceTransform
+        , FullySatisfied
+        )
+  in
+  { name = "Delete (i.e. replace with a hole)"
+  , func = func
+  , reqs = [ { description = "Select something", value = predVal } ]
+  , id = "deleteToHoleID"
+  }
+
 deleteToHole : Model -> Selections -> Maybe Exp
 deleteToHole model selections =
   let root = model.inputExp in
   case selections of
     (_, _, [eId], [], [], [], [], [], []) ->
-      findExpByEId root eId |> Maybe.map (\origExp ->
-      replaceExpNode
-        eId
-        (eEmptyHoleVal |> setEId eId |> copyPrecedingWhitespace origExp)
-        root
+      findExpByEId root eId |> Maybe.andThen (\origExp ->
+      case unwrapExp origExp of
+        EHole _ _ ->
+          Nothing
+        _ ->
+          replaceExpNode
+            eId
+            (eEmptyHoleVal |> setEId eId |> copyPrecedingWhitespace origExp)
+            root
+          |> Just
       )
     _ ->
       Nothing
+
+addToEndTool : Model -> Selections -> DeuceTool
+addToEndTool old selections =
+  let (func, predVal) =
+    case (selections, addToEnd old selections) of
+      ((_, _, [], [], [], [], [], [], []), _) ->
+        (InactiveDeuceTransform, Possible)
+      (_, Nothing) ->
+        (InactiveDeuceTransform, Impossible)
+      (_, Just newProgram) ->
+        ( [basicTransformationResult "Add hole to end" newProgram]
+          |> basicDeuceTransform
+        , FullySatisfied
+        )
+  in
+  { name = "Add a child"
+  , func = func
+  , reqs = [ { description = "Select something that can have children", value = predVal } ]
+  , id = "addChildToEnd"
+  }
 
 addToEnd : Model -> Selections -> Maybe Exp
 addToEnd model selections =
@@ -1198,6 +1243,30 @@ copyExpressionTool model selections =
           }
         ]
     , id = "copyExpression"
+    }
+
+copyPatternTool : Model -> Selections -> DeuceTool
+copyPatternTool model selections =
+  let
+    (func, predVal) =
+      case selections of
+        (_, _, [], [], [], [], [], [], []) ->
+          (InactiveDeuceTransform, Possible)
+        (_, _, [], ppids, [], [], [], [], []) ->
+          (CodeMotion.copyPatternTransformation model.inputExp ppids |> mbThunkToTransform, Satisfied)
+        _ ->
+          (InactiveDeuceTransform, Impossible)
+  in
+    { name = "Make Equal by Copying"
+    , func = func
+    , reqs =
+        [ { description =
+              "Select two or more patterns."
+          , value =
+              predVal
+          }
+        ]
+    , id = "copyPattern"
     }
 
 --------------------------------------------------------------------------------
@@ -3261,6 +3330,26 @@ expandFormat old selections =
     _ ->
       Nothing
 
+expandFormatTool : Model -> Selections -> DeuceTool
+expandFormatTool old selections =
+  let (func, predVal) =
+    case (selections, expandFormat old selections) of
+      ((_, _, [], [], [], [], [], [], []), _) ->
+        (InactiveDeuceTransform, Possible)
+      (_, Nothing) ->
+        (InactiveDeuceTransform, Impossible)
+      (_, Just newProgram) ->
+        ( [basicTransformationResult "Alternative multiline style" newProgram]
+          |> basicDeuceTransform
+        , FullySatisfied
+        )
+  in
+  { name = "Format multi-line"
+  , func = func
+  , reqs = [ { description = "Select something", value = predVal } ]
+  , id = "expandFormatMultiline"
+  }
+
 --==============================================================================
 --= EXPORTS
 --==============================================================================
@@ -3303,9 +3392,11 @@ toolList =
     [ createTrueTool
     , createFalseTool
     , createEmptyStringTool
+    , createTupleTool
     , createLambdaTool
     , createApplicationTool
     , createEmptyListTool
+    , createConsListTool
     , createCondTool
     , createCaseTool
     , createLetTool
@@ -3313,9 +3404,15 @@ toolList =
     , createParenthesizedTool
     , createRecordTool
     ]) ::
-    [ smartCompleteTool ]
-
--- TODO: get Deuce tools to work with the ELet AST
+    smartCompleteTool ::
+    [ mergeTools "wildcardReplacementMerger" "Replace wildcard" "Select a wildcard ('_') pattern"
+    [ createTupleFromWildcardTool
+    , createConsListFromWildcardTool
+    , createEmptyListFromWildcardTool
+    ]]
+  , [ addToEndTool
+    , deleteToHoleTool
+    ]
   , [ createFunctionTool
     , createFunctionFromArgsTool
     -- , mergeTool
@@ -3331,14 +3428,16 @@ toolList =
     , swapNamesAndUsagesTool
     , swapUsagesTool
     ]
--}  , [ makeEqualTool
-    --, copyExpressionTool
+-}, [ makeEqualTool
+    , copyExpressionTool
+    , copyPatternTool
     ]
   , [ moveDefinitionTool
     --, swapDefinitionsTool
     , inlineDefinitionTool
     --, duplicateDefinitionTool
     ]
+-- TODO: get Deuce tools to work with the ELet AST
  {- , [ reorderExpressionsTool
     , swapExpressionsTool
     ]
@@ -3355,8 +3454,10 @@ toolList =
   , [ flipBooleanTool
     ]
 -}
-  , [ formatTool
-    ]
+  , [ mergeTools "formattingMerger" "Format" "Select something"
+    [ formatTool
+    , expandFormatTool
+    ]]
   ]
 
 deuceToolsOf : Model -> List (List DeuceTool)

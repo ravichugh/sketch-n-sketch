@@ -13,6 +13,7 @@ module CodeMotion exposing
   , introduceVarTransformation
   , makeEqualTransformation
   , copyExpressionTransformation
+  , copyPatternTransformation
   , swapExpressionsTransformation
   , swapDefinitionsTransformation
   , rewriteOffsetTransformation
@@ -26,7 +27,7 @@ import Lang exposing (..)
 import LangTools exposing (..)
 import LangUtils exposing (..)
 import LangSimplify
-import LangUnparser exposing (unparseWithIds, expsEquivalent, patsEquivalent, unparseWithUniformWhitespace)
+import LangUnparser exposing (unparseWithIds, expsEquivalent, patsEquivalent, unparseWithUniformWhitespace, unparsePatWithUniformWhitespace)
 import LeoParser as Parser
 -- import DependenceGraph exposing
   -- (ScopeGraph, ScopeOrder(..), parentScopeOf, childScopesOf)
@@ -38,6 +39,7 @@ import Solver exposing (MathExp(..)) -- For twiddling
 import Sync
 import Syntax exposing (Syntax)
 import LeoParser
+import LeoUnparser
 import Utils
 
 import Dict exposing (Dict)
@@ -3859,6 +3861,36 @@ copyExpressionTransformation syntax originalProgram eids =
                 originalProgramUniqueNames
                 newProgramUniqueNames
           )
+
+copyPatternTransformation originalProgram ppids =
+  let pats = List.map (flip findPatByPathedPatternId originalProgram >> Utils.fromJust_ "Meh") ppids in
+  let
+    uniquePats =
+      Utils.dedupBy (unparsePatWithUniformWhitespace False) pats
+    pids = List.map (.val >> .pid) pats
+  in
+  if List.length uniquePats < 2 then
+    Nothing
+  else
+    Just <|
+      \() ->
+        uniquePats
+        |> List.map (\pat ->
+          let
+            patFresh = clearPIds pat
+            pid = pat.val.pid
+            otherPIds = Utils.removeAsSet pid pids
+            newProgram =
+              otherPIds
+              |> List.foldl (\otherPId accProgram ->
+                   replacePatNodePreservingPrecedingWhitespace otherPId patFresh accProgram
+                 )
+                 originalProgram
+            desc =
+              "Copy " ++ LeoUnparser.unparsePattern pat
+          in
+          basicTransformationResult desc newProgram
+        )
 
 ------------------------------------------------------------------------------
 
