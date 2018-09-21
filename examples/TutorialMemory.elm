@@ -61,7 +61,7 @@ Great. You can try to rename "dog" in the output to see that it can rename it in
 Now, time to import the images.
 
 On the website, right-click on the table. In major browsers a menu "Inspect" or "Inspector" will lead you to a developer console that will display you the source code of the page at this point. To display the actual source code, you might have to right-click the element again and "edit as HTML".
-Now select the first 8 rows in the Html source. A row starts with <tr> and ends with </tr>.
+Now select the first 8 rows in the Html source. A row starts with &lt;tr&gt; and ends with &lt;/tr&gt;.
 Alternatively, here are the rows, you can copy them from here as well.
 
 @t.displaylocalcode<|"""<tr>
