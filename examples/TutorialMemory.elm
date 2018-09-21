@@ -9,8 +9,8 @@ main = t.htmlpass options <| t.markdown <|
 <a href="https://mikaelmayer.github.io/sketch-n-sketch/">Sketch-n-sketch</a> running on your browser.
 The 'left pane' references the left half of that interface, whereas the 'right pane' references the right half of that interface. If you encounter editing issues, try resizing your window.</i>  
   
-The memory game consists of pairs of identical cards face down.
-The player returns two cards. If they are the same, they are left face visible.
+The memory game consists of pairs of identical cards placed face down.
+The player turns over two cards. If they are the same, they are left face up.
 If they are not, they are turned back face down.  
   
 In this tutorial, we will create an educational variant of the memory game
@@ -22,15 +22,15 @@ This is our roadmap:
 <li>Add translations to the game</li>
 </ul>
 ## Import images and descriptions.
-We will import images and descriptions from <a href="https://www.englisch-hilfen.de/en/words/kitchen.htm">this website</a>. Visit the link to see how the table looks like.  
-We want to import this table as a source code we can work with.
-For that, the trick is to actually write a source code with some dummy data,
-transform it to be rendered as the table,
-and add the remaining rows by copying them from the website and pasting them in the output.
+We will import images and descriptions from <a href="https://www.englisch-hilfen.de/en/words/kitchen.htm">this website</a>. Visit the link to see what the table looks like.  
+We want to import this table as source code we can work with.
+For that, the trick is to actually write source code with some dummy data,
+transform it to be rendered as a table,
+and add the remaining rows by copying them from the website and pasting them into the output.
 Sketch-n-sketch will figure out for us how to reverse the execution and, finally,
 update our source data to produce the given table.
 
-In sketch-n-sketch, erase the previous program and replace it with the following:
+In sketch-n-sketch, erase the program in the left pane and replace it with the following:
 @t.newcode<|"""images = [
   Image "dog" "https://upload.wikimedia.org/wikipedia/commons/7/7d/Labrador_Chocolate.jpg"
 ]
@@ -51,12 +51,12 @@ After clicking on "Run", you should see the below result in the right pane.
 @t.displayevalcode
 Let us explain this code a bit.  
 First because we want to change the data, we prepend <code>@@Update.expressionFreeze</code> to the rendered table to make sure the expression itself will not be modified when we change the output, only the data.  
-Second, we transform the list of images to a list of <code>&lt;tr&gt;</code> rows containing two <code>&lt;td&gt;</code> cells. The first cell contains one image, the second cell the name.  
-Because the rows we are importing may contain whitespace outside of the name (which our program does not produce), we make sure to remove it by the instruction <code>Update.onUpdate (Html.filter (not &lt;< Html.isEmptyText))</code>. This instruction is the last one because it will be the first to execute when the program executes in reverse.
+Second, we transform the list of images to a list of <code>&lt;tr&gt;</code> rows, each containing two <code>&lt;td&gt;</code> cells. The first cell contains the image, the second cell the name.  
+Because the rows we are importing may contain whitespace outside of the name (which our program does not produce), we make sure to remove it with the instruction <code>Update.onUpdate (Html.filter (not &lt;< Html.isEmptyText))</code>. This instruction is the last one because it will be the first to execute when the program executes in reverse.
 
 Note that the <code>main = </code> is optional, if the program ends with an expression, it will automatically insert <code>main = </code> in front of it.
 
-Great. You can try to rename "dog" in the output to see that it can rename it in the input file.  
+Great. You can try to rename "dog" in the output to see that the rename propagates to the input file.  
 Now, time to import the images.
 
 On the website, right click and inspect the table, select the first 8 rows in the Html source.
