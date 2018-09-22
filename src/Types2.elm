@@ -635,8 +635,21 @@ inferType gamma stuff thisExp =
 
     EVar ws x ->
       case lookupVar gamma x of
-        Just mt ->
-          { newExp = thisExp |> setType mt }
+        Just (Just t) ->
+          { newExp = thisExp |> setType (Just t) }
+
+        Just Nothing ->
+          let
+            newExp =
+              thisExp
+                |> setDeuceTypeInfo (DeuceTypeInfo
+                     [ labelGenericErrorHeader
+                     , deuceLabel <| PlainText
+                         "This variable is defined but it has a problem"
+                     ]
+                   )
+          in
+          { newExp = newExp }
 
         Nothing ->
           let
@@ -727,26 +740,29 @@ inferType gamma stuff thisExp =
           in
             { newExp = newExp }
 
-{-
     EFun ws1 pats body ws2 ->
       let
+        newPats =
+          pats |> List.map (
+            mapPat (setPatDeuceTypeInfo
+              (DeuceTypeInfo
+                [ labelGenericErrorHeader
+                , Label <| PlainText
+                    "Needs an annotation"
+                ]
+              )
+            )
+          )
         newGamma =
-          -- TODO: just putting vars in env for now
           List.map (\pat -> HasType pat Nothing) pats ++ gamma
         result =
           inferType newGamma stuff body
         newExp =
-          EFun ws1 pats result.newExp ws2
+          EFun ws1 newPats result.newExp ws2
             |> replaceE__ thisExp
+            |> setDeuceTypeInfo genericError
       in
       { newExp = newExp }
--}
-    EFun ws1 pats body ws2 ->
-      { newExp =
-          thisExp
-            |> setDeuceTypeInfo
-                 (deucePlainLabels ["trying to synthesize unannotated..."])
-      }
 
     EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3 ->
       -- Not currently digging into nested EIfs
@@ -1214,14 +1230,15 @@ inferType gamma stuff thisExp =
                                Nothing ->
                                  case matchLambda expEquation of
                                    0 ->
-                                     pat |> setPatDeuceTypeInfo genericError
+                                     pat |> mapPat (setPatDeuceTypeInfo genericError)
+
                                    numArgs ->
                                      let
                                        wildcards =
                                          String.join " -> " (List.repeat (numArgs + 1) "_")
                                      in
                                      pat |> setPatDeuceTypeInfo (DeuceTypeInfo
-                                       [ deuceLabel <| HeaderText
+                                       [ deuceLabel <| ErrorHeaderText
                                            "Missing Annotation"
                                        , deuceLabel <| PlainText <|
                                            "Currently, functions need annotations"
@@ -1249,7 +1266,7 @@ inferType gamma stuff thisExp =
                                  breadcrumb =
                                    HighlightWhenSelected (unExpr expEquation).val.eid
                                in
-                               ( pat |> setPatDeuceTypeInfo genericError
+                               ( pat |> mapPat (setPatDeuceTypeInfo genericError)
                                , [(annotatedType.val.tid, breadcrumb)]
                                )
 
@@ -1265,12 +1282,17 @@ inferType gamma stuff thisExp =
 
             newAccGamma =
               let
-                maybePatTypes : Maybe (List (Pat, Type))
-                maybePatTypes =
+                patMaybeTypes : List (Pat, Maybe Type)
+                patMaybeTypes =
                   newListLetExp
                     |> List.map (\(LetExp _ _ newPat _ _ _) ->
-                         newPat.val.typ |> Maybe.map ((,) newPat)
+                         (newPat, newPat.val.typ)
                        )
+
+                maybePatTypes : Maybe (List (Pat, Type))
+                maybePatTypes =
+                  patMaybeTypes
+                    |> List.map (\(p,mt) -> mt |> Maybe.map (\t -> (p,t)))
                     |> Utils.projJusts
 
                 _ =
@@ -1285,7 +1307,9 @@ inferType gamma stuff thisExp =
                 -- Add bindings only if every LetExp type checked.
                 case maybePatTypes of
                   Nothing ->
-                    accGamma
+                    patMaybeTypes
+                      |> List.map (Tuple.mapSecond (always Nothing))
+                      |> List.foldl addHasMaybeType accGamma
 
                   Just patTypes ->
                     List.foldl addHasType accGamma patTypes
@@ -1446,10 +1470,14 @@ inferType gamma stuff thisExp =
                         recordTypeWithXXXs =
                           withDummyTypeInfo (TRecord space0 Nothing fieldTypesWithXXXs space1)
                         error =
+                          genericError
+                          -- get this to work nicely with tuples
+                          {-
                           deucePlainLabels
                             [ "Some fields are okay, but others are not: "
                             , unparseType recordTypeWithXXXs
                             ]
+                          -}
                       in
                         ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots newLetExps) ws2
                           |> replaceE__ thisExp
