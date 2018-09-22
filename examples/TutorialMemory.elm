@@ -57,7 +57,7 @@ This instruction is the last one because it will be the first to execute when th
 
 Note that the <code>main = </code> is optional, if the program ends with an expression, it will automatically insert <code>main = </code> in front of it.
 
-Great. You can try to rename "dog" in the output to see that the rename propagates to the input file.  
+Great. You can try to rename "dog" in the output to see that the rename propagates to the corresponding <code>Image</code>.  
 Now, time to import the images.
 
 On the website, right-click on the table. In major browsers a menu item "Inspect" or "Inspector" will lead you to a developer console that will display the source code of the page at this point. To display the actual source code, you might have to right-click the element again and "edit as HTML".
@@ -103,7 +103,7 @@ The variable 'images' is now populated.
 You've successfully imported data that would have normally required the use of regular expressions or custom programs to parse.  
   
 You now need to fix the URL of the images you imported, because they are relative.
-Delete the first row containing the dog picture (and the comma in front of the second entry).
+In the code, <b>delete the first row<b> containing the information about the dog (and the comma in front of the second entry).
 @t.hiddenreplace("""images = [
   Image "dog" "https://upload.wikimedia.org/wikipedia/commons/7/7d/Labrador_Chocolate.jpg"
 ]""")<|"""images = [
