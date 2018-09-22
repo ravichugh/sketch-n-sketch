@@ -3572,27 +3572,42 @@ moveSmartCompleteSelection old isDown =
   in
   { old | mbDeuceKeyboardInfo = newMbDeuceKeyboardInfo }
 
-handleDeuceMoveHorizontal_ old selected isLeftMove =
+handleDeuceMoveHorizontal_ old selected findPredicate isBackwards =
   let
     oldRoot = old.inputExp
     patMap = computePatMap oldRoot
     cosAfterSelected =
       E oldRoot |>
         flattenToCodeObjects |>
-          Utils.applyIf isLeftMove List.reverse |>
+          Utils.applyIf isBackwards List.reverse |>
             Utils.dropWhile (toDeuceWidget patMap >> (==) (Just selected) >> not) |>
               List.tail |>
                 Maybe.withDefault []
   in
-  Utils.mapFirstSuccess (\co -> if isTarget co then Nothing else toDeuceWidget patMap co) cosAfterSelected |>
+  Utils.mapFirstSuccess (\co -> if findPredicate co then toDeuceWidget patMap co else Nothing) cosAfterSelected |>
     Maybe.map (flip deuceMove old) |>
       Maybe.withDefault old
 
-handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected True
+navFindPred_ co = not <| isTarget co
 
-handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected False
+holeFindPred_ co =
+  case co of
+    E e ->
+      case unwrapExp e of
+        EHole _ EEmptyHole -> True
+        _                  -> False
+    _ ->
+      False
 
-handleDeuceSpace old selected = toggleDeuceWidget selected old
+handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected navFindPred_ True
+
+handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected navFindPred_ False
+
+handleDeuceNextHole old selected = handleDeuceMoveHorizontal_ old selected holeFindPred_ False
+
+handleDeucePreviousHole old selected = handleDeuceMoveHorizontal_ old selected holeFindPred_ True
+
+handleDeuceSelect old selected = toggleDeuceWidget selected old
 
 handleDeuceHotKey : Model -> List Char.KeyCode -> DeuceWidget -> Model
 handleDeuceHotKey oldModel keysDown selected =
@@ -3630,9 +3645,15 @@ handleDeuceHotKey oldModel keysDown selected =
     handleDeuceLeft old selected
   else if List.member keysDown [[Keys.keyRight], [Keys.keyL]] then
     handleDeuceRight old selected
-  -- TODO revive with some alternative hotkey
-  -- else if keysDown == [Keys.keySpace] then
-  --   handleDeuceSpace old selected
+  else if keysDown == [Keys.keyN] then
+    handleDeuceNextHole old selected
+  else if keysDown == [Keys.keyShift, Keys.keyN] then
+    handleDeucePreviousHole old selected
+  else if ( List.length keysDown == 2
+            && (Utils.geti 1 keysDown |> Keys.isCommandKey)
+            && (Utils.geti 2 keysDown == Keys.keySpace)
+          ) then
+    handleDeuceSelect old selected
 
   -- Deuce tools
 
