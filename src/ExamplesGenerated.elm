@@ -33,6 +33,7 @@ import Syntax
 import EvalUpdate
 import Parser
 import ParserUtils
+import Config
 
 type alias Example = {
    e: Exp,
@@ -6051,8 +6052,7 @@ badPrelude =
 """
 
 blankSvg =
- """main =
-  svg (concat [])
+ """main = svg []
 
 """
 
@@ -10149,7 +10149,7 @@ welcomeCategory =
   ( "Welcome"
   , [ makeLeoExample blankSvgTemplate blankSvg
     , makeLeoExample blankHtmlTemplate blankDoc
-    , makeLeoExample initTemplate welcome1
+    , makeLeoExample initTemplate (if Config.elmConfDemo then blankSvg else welcome1)
 --    , makeLeoExample "Tutorial" blankDoc
     ]
   )

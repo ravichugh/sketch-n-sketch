@@ -25,6 +25,7 @@ import Types
 import Blobs exposing (..)
 import Model exposing (..)
 import LeoParser as Parser
+import LeoUnparser
 import LangTools
 import LangUnparser
 import StaticAnalysis
@@ -306,6 +307,7 @@ randomColor1WithSlider model =
 addLine old click2 click1 =
   let ((_,(x2,y2)),(_,(x1,y1))) = (click2, click1) in
   let (xb, yb) = snapLine old.keysDown click2 click1 in
+{-
   let color =
     if old.tool == HelperLine
       then eStr "aqua"
@@ -324,6 +326,18 @@ addLine old click2 click1 =
         ]
         f
         args
+-}
+  let lineExp =
+    withDummyExpInfo <|
+      EApp
+        (ws "\n ")
+        (eVar0 "line")
+        (eStr "white"
+           :: eConst 10 dummyLoc
+           :: Utils.mapHead (replacePrecedingWhitespace " ") (makeInts [x1,y1,xb,yb])
+        )
+        SpaceApp
+        space0
   in
   addShapeToModel old "line" lineExp
 
@@ -352,10 +366,23 @@ addRawRect old (_,pt2) (_,pt1) =
     (stencilRawRect x y w h fill stroke strokeWidth rot)
 
 stencilRawRect x y w h fill _ _ _ =
+  withDummyExpInfo <|
+    EApp
+      (ws "\n  ")
+      (eVar0 "rect")
+      (eStr "slategray"
+         :: Utils.mapHead (replacePrecedingWhitespace " ")
+                          (makeInts [x, y, w, h])
+      )
+      SpaceApp
+      space0
+
+{-
   makeCallWithLocals
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h]) ]
     (eVar0 "rect")
     [ fill , eVar "x", eVar "y", eVar "w", eVar "h" ]
+-}
     {-
     [ makeLet ["x","y","w","h"] (makeInts [x,y,w,h])
     , makeLet ["fill", "stroke","strokeWidth"] [fill, stroke, eConstDummyLoc strokeWidth]
@@ -982,7 +1009,24 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
         (\(listEId, _) -> listEIds |> List.all (\otherListEId -> not <| StaticAnalysis.isDependentOn grossDependencies otherListEId listEId))
     |> Maybe.withDefault (-1, program)
   in
-  bestProgram
+  if Config.elmConfDemo then
+    -- 7. HACK: deal with "\n\n"
+    bestProgram
+      |> LeoUnparser.unparse
+      |> String.lines
+      |> List.filter (\s -> String.trim s /= "")
+      |> List.concatMap (\s ->
+           if String.left 1 s == " "
+             then [ s ]
+             else ["\n", s]
+         )
+      |> String.join "\n"
+      |> Regex.replace Regex.All (Regex.regex "\\n\\n") (always "\n")
+      |> Parser.parse
+      |> Result.withDefault bestProgram
+
+  else
+    bestProgram
 
 
 makeCallWithLocals locals func args =
