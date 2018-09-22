@@ -103,7 +103,7 @@ The variable 'images' is now populated.
 You've successfully imported data that would have normally required the use of regular expressions or custom programs to parse.  
   
 You now need to fix the URL of the images you imported, because they are relative.
-In the code, <b>delete the first row<b> containing the information about the dog (and the comma in front of the second entry).
+In the code, <b>delete the first row</b> containing the information about the dog (and the comma in front of the second entry).
 @t.hiddenreplace("""images = [
   Image "dog" "https://upload.wikimedia.org/wikipedia/commons/7/7d/Labrador_Chocolate.jpg"
 ]""")<|"""images = [
