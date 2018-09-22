@@ -4,6 +4,8 @@ import Debug
 
 --------------------------------------------------------------------------------
 
+elmConfDemo = False
+
 debugParser = False
 debugView = False
 debugController = False
@@ -20,7 +22,7 @@ debugLog b s x =
 -- User Interface Layout
 
 params =
-  { strVersion = "v0.7.0"
+  { strVersion = if elmConfDemo then "version: elm-conf-2018-demo" else "v0.7.0"
   , debugLayout = False    -- displays colors for high-level layout structure
   , wGut = 10              -- width of left/right side gutters (spans entire height)
   , topSection =

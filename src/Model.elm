@@ -27,6 +27,7 @@ import Solver
 -- import Update -- move valToString to ValUnparser
 -- import ValUnparser
 import History exposing (History)
+import Config
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -1388,7 +1389,9 @@ initModel =
     , addDummyDivAroundCanvas = Nothing
     , widgets       = ws
     , outputMode    = Graphics
-    , syncMode      = ValueBackprop False
+    , syncMode      = if Config.elmConfDemo
+                        then TracesAndTriggers True
+                        else ValueBackprop False
                         -- Native/outputCanvas.js:
                         --   initializeOutputCanvas() assumes initModel.syncMode == ValueBackprop b
                         --   set enableAutoUpdate = true/false to match b
@@ -1506,7 +1509,7 @@ initModel =
     , syntax = Syntax.Leo
     , codeEditorMode = CEText
     , deuceOverlayCache = Nothing
-    , doTypeChecking = False
+    , doTypeChecking = if Config.elmConfDemo then False else False
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
     }

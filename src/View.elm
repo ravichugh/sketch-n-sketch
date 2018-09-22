@@ -2009,9 +2009,14 @@ toolPanel model =
 
     toolButtons =
       if LangSvg.isSvg model.inputVal then
+       (if Config.elmConfDemo then []
+        else
         [ outputModeIndicator model
         , syncModeIndicator model
         , toolButton model Cursor
+        ]
+        ) ++
+        [ toolButton model Cursor
         , toolButton model PointOrOffset
         , toolButton model Text
         , toolButton model (Line model.toolMode)
