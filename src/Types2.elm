@@ -2177,12 +2177,23 @@ introduceTypeAliasTool inputExp selections =
 
             rewriteWithNewTypeAlias e =
               let
+                strExpLines =
+                  e
+                    |> unparse
+                    |> String.lines
+
                 strNewTypeAlias =
                   "type alias " ++ newTypeAliasName ++ "\n"
-                    ++ "  = " ++ String.trim (unparseType newRecordType) ++ "\n"
+                    ++ "  = " ++ String.trim (unparseType newRecordType)
+                    ++ (strExpLines |> List.head
+                                    |> Maybe.map (\s ->
+                                         if String.trim s == ""
+                                           then ""
+                                           else "\n"
+                                       )
+                                    |> Maybe.withDefault "")
               in
-                e |> unparse
-                  |> String.lines
+                strExpLines
                   |> Utils.inserti 0 strNewTypeAlias
                   |> String.join "\n"
                   |> parse
