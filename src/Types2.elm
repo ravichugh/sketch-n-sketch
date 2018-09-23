@@ -150,7 +150,7 @@ type alias TypeEnv = List TypeEnvElement
 type TypeEnvElement
   = HasType Pat (Maybe Type)
   | TypeVar Ident
-  -- | TypeAlias Pat Type
+  | TypeAlias Ident Type
 
 
 addHasMaybeType : (Pat, Maybe Type) -> TypeEnv -> TypeEnv
@@ -177,12 +177,23 @@ addTypeVar typeVar gamma =
   TypeVar typeVar :: gamma
 
 
+addTypeAlias (a, t) gamma =
+  TypeAlias a t :: gamma
+
+
+typeAliasesOfGamma =
+  List.concatMap <| \binding ->
+    case binding of
+      TypeAlias a t -> [(a, t)]
+      _             -> []
+
+
 lookupVar : TypeEnv -> Ident -> Maybe (Maybe Type)
 lookupVar gamma x =
   case gamma of
     HasType p mt :: gammaRest ->
       Utils.firstOrLazySecond
-        (lookupVarInPat x p mt)
+        (lookupVarInPat gamma x p mt)
         (\_ -> lookupVar gammaRest x)
 
     _ :: gammaRest ->
@@ -194,8 +205,9 @@ lookupVar gamma x =
 
 -- TODO write a mapFoldPatType, and use it here
 --
-lookupVarInPat : Ident -> Pat -> Maybe Type -> Maybe (Maybe Type)
-lookupVarInPat x p mt =
+-- TypeEnv is for expanding type aliases
+lookupVarInPat : TypeEnv -> Ident -> Pat -> Maybe Type -> Maybe (Maybe Type)
+lookupVarInPat gamma x p mt =
   let
     p__ = p.val.p__
     t__ = mt |> Maybe.map (.val >> .t__)
@@ -224,7 +236,7 @@ lookupVarInPat x p mt =
             |> List.map (\(_, _, fieldName, _, fieldPat) ->
                  Utils.maybeFind fieldName fieldTypes
                    |> Maybe.andThen (\fieldType ->
-                        lookupVarInPat x fieldPat (Just fieldType)
+                        lookupVarInPat gamma x fieldPat (Just fieldType)
                       )
                )
       in
@@ -239,7 +251,18 @@ lookupVarInPat x p mt =
   | PColonType WS Pat WS Type
 -}
     _ ->
-      Nothing
+      -- otherwise try expanding alias
+      mt |> Maybe.andThen (\typ ->
+              let
+                -- HACK
+                a = String.trim (unparseType typ)
+              in
+                typeAliasesOfGamma gamma
+                  |> Utils.maybeFind a
+                  |> Maybe.andThen (\aliasedType ->
+                       lookupVarInPat gamma x p (Just aliasedType)
+                     )
+            )
 
 
 varsOfGamma gamma =
@@ -299,14 +322,17 @@ varNotFoundSuggestions x gamma =
     result
 
 
+-- maybe rename these functions
+--
 findUnboundTypeVars : TypeEnv -> Type -> Maybe (List Ident)
 findUnboundTypeVars gamma typ =
   let
     typeVarsInGamma =
       List.foldl (\binding acc ->
         case binding of
-          TypeVar a -> a :: acc
-          _         -> acc
+          TypeVar a     -> a :: acc
+          TypeAlias a _ -> a :: acc
+          _             -> acc
       ) [] gamma
 
     freeTypeVarsInType =
@@ -360,11 +386,26 @@ freeVarsType typeVarsInGamma typ =
 
 --------------------------------------------------------------------------------
 
-typeEquiv t1 t2 =
-  -- LangUtils.typeEqual is ws-sensitive.
-  -- will need to do alpha-renaming too.
-  -- TODO: this is temporary
-  String.trim (unparseType t1) == String.trim (unparseType t2)
+expandType typeAliases =
+  mapType <| \t ->
+    -- HACK
+    let
+      s = String.trim (unparseType t)
+    in
+      Utils.maybeFind s typeAliases
+        |> Maybe.map (expandType typeAliases)
+        |> Maybe.withDefault t
+
+
+typeEquiv gamma t1 t2 =
+  -- TODO: this is temporary string-based hack
+  let
+    expand = expandType (typeAliasesOfGamma gamma)
+
+    unparseAndRemoveWs =
+      unparseType >> String.words >> String.concat
+  in
+    unparseAndRemoveWs (expand t1) == unparseAndRemoveWs (expand t2)
 
 
 --------------------------------------------------------------------------------
@@ -783,7 +824,7 @@ inferType gamma stuff thisExp =
                , (unExpr result3.newExp).val.typ
                ) of
             (True, Just thenType, Just elseType) ->
-              if typeEquiv thenType elseType then
+              if typeEquiv gamma thenType elseType then
                 (result2.newExp, result3.newExp, Just thenType)
 
               else
@@ -1028,9 +1069,44 @@ inferType gamma stuff thisExp =
       let
         -- Process LetTypes ----------------------------------------------------
 
-        newLetTypes =
-          -- TODO: Not processing these yet.
+        (newLetTypes, newGammaAfterLetTypes) =
           letTypes
+            |> List.foldl (\(isRec, listLetType) (accLetTypesRev, accGamma) ->
+                 let
+                   (newListLetType, newAliases) =
+                     listLetType
+                       |> List.map (\(LetType mws0 ws1 aliasSpace pat fas ws2 typ) ->
+                            let
+                              -- TODO
+                              newPat =
+                                pat |>
+                                  setPatType (Just (withDummyTypeInfo (TVar space0 (unparsePattern pat))))
+                            in
+                            case aliasSpace of
+                              Just _ ->
+                                -- TODO
+                                let s = String.trim (unparsePattern pat) in
+                                (LetType mws0 ws1 aliasSpace newPat fas ws2 typ, [(s, typ)])
+
+                              Nothing ->
+                                (LetType mws0 ws1 aliasSpace newPat fas ws2 typ, [])
+                          )
+                       |> List.unzip
+                       |> Tuple.mapSecond List.concat
+
+                   _ =
+                     newAliases
+                       |> List.map (\(a,t) -> (a, unparseType t))
+                       |> if False
+                          then Debug.log "newAliases"
+                          else identity
+
+                   newAccGamma =
+                     List.foldl addTypeAlias accGamma newAliases
+                 in
+                   ((isRec, newListLetType) :: accLetTypesRev, newAccGamma)
+               ) ([], gamma)
+            |> Tuple.mapFirst List.reverse
 
         -- Process LetAnnotations ----------------------------------------------
 
@@ -1081,7 +1157,7 @@ inferType gamma stuff thisExp =
                     |> Maybe.withDefault []
 
                 errors2 =
-                  findUnboundTypeVars gamma typ
+                  findUnboundTypeVars newGammaAfterLetTypes typ
                     |> Maybe.map (\unboundTypeVars ->
                          [ "ill-formed type annotation"
                          , "unbound: " ++ String.join " " unboundTypeVars
@@ -1133,9 +1209,9 @@ inferType gamma stuff thisExp =
 
         -- Process LetExps -----------------------------------------------------
 
-        (newLetExps, newGamma, newTypeBreadCrumbs) =
+        (newLetExps, newGammaAfterLetExps, newTypeBreadCrumbs) =
           letExps
-            |> List.foldl processLetExp ([], gamma, [])
+            |> List.foldl processLetExp ([], newGammaAfterLetTypes, [])
             |> Utils.mapFst3 List.reverse
 
         -- TODO write a mapFoldPatType, and use it here
@@ -1336,7 +1412,7 @@ inferType gamma stuff thisExp =
         -- Process Let-Body ----------------------------------------------------
 
         resultBody =
-          inferType newGamma stuff body
+          inferType newGammaAfterLetExps stuff body
 
         newBody =
           resultBody.newExp
@@ -1532,7 +1608,7 @@ inferType gamma stuff thisExp =
                 errorMessages =
                   Utils.zip tailExps moreTypes
                     |> Utils.mapi1 (\(i,(e,t)) ->
-                         if typeEquiv t type1 then
+                         if typeEquiv gamma t type1 then
                            []
                          else
                            [ Label <| PlainText <|
@@ -1776,9 +1852,13 @@ checkType gamma stuff thisExp expectedType =
             }
 
           Just inferredType ->
-            if typeEquiv inferredType expectedType then
+            if typeEquiv gamma inferredType expectedType then
               { okay = True
-              , newExp = result.newExp
+              , newExp =
+                  result.newExp
+                    |> setType (Just expectedType)
+                         -- overwrite (Just inferredType), because
+                         -- expectedType is more likely to use type aliases
               }
 
             else
