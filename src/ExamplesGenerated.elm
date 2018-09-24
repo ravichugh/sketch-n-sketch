@@ -8970,7 +8970,7 @@ examples = [
     ([], [])),
   (\"Line example\",  \"An example with SVG\",
     ([(\"res1\", \"x\"), (\"res2\", \"y\"), (\"res3\",\"right\")],
-     [\"10\", \"100\", \"x+70\", \"<line x1=x y1=y x2=right y2=(y+10) stroke='red' stroke-width='3px'/>\"])),
+     [\"10\", \"100\", \"x+70\", \"<line x1=x y1=y x2=right y2=(y + 10) stroke='red' stroke-width='3px'/>\"])),
   (\"Hello world\",\"String concatenations\",([], [ \"\\\"Hello\\\"\",
             \"res1 + \\\" \\\" + \\\"world\\\"\"
           ]))
