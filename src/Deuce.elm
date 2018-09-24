@@ -192,6 +192,7 @@ type alias CodeInfo =
   , maxLineLength : Int
   , needsParse : Bool
   , doTypeChecking : Bool
+  , mode : Model.CodeEditorMode
   }
 
 --==============================================================================
@@ -783,32 +784,36 @@ diffpolygons codeInfo exps =
 
 polygons : Messages msg -> CodeInfo -> Exp -> List (Svg msg)
 polygons msgs codeInfo ast =
-  List.reverse <|
-    foldCode
-      ( \codeObject acc ->
-          --if isSelectable codeObject then
-            case codeObject of
-              E e ->
-                expPolygon msgs codeInfo e ++ acc
-              P e p ->
-                patPolygon msgs codeInfo e p ++ acc
-              T t ->
-                typePolygon msgs codeInfo t ++ acc
-              D eid bn ->
-                letBindingEquationPolygon msgs codeInfo eid bn ++ acc
-              ET ba ws et ->
-                targetPolygon msgs codeInfo codeObject ++ acc
-              PT ba ws e pt ->
-                targetPolygon msgs codeInfo codeObject ++ acc
-              DT _ _ _ _ ->
-                targetPolygon msgs codeInfo codeObject ++ acc
-              TT _ _ _ ->
-                targetPolygon msgs codeInfo codeObject ++ acc
-          --else
-          --  blockerPolygon codeInfo codeObject ++ acc
-      )
-      []
-      (E ast)
+  let
+    hideTargets =
+      codeInfo.mode == Model.CETypeInspector
+  in
+    List.reverse <|
+      foldCode
+        ( \codeObject acc ->
+            if hideTargets && isTarget codeObject then
+              acc
+            else
+              case codeObject of
+                E e ->
+                  expPolygon msgs codeInfo e ++ acc
+                P e p ->
+                  patPolygon msgs codeInfo e p ++ acc
+                T t ->
+                  typePolygon msgs codeInfo t ++ acc
+                D eid bn ->
+                  letBindingEquationPolygon msgs codeInfo eid bn ++ acc
+                ET ba ws et ->
+                  targetPolygon msgs codeInfo codeObject ++ acc
+                PT ba ws e pt ->
+                  targetPolygon msgs codeInfo codeObject ++ acc
+                DT _ _ _ _ ->
+                  targetPolygon msgs codeInfo codeObject ++ acc
+                TT _ _ _ ->
+                  targetPolygon msgs codeInfo codeObject ++ acc
+        )
+        []
+        (E ast)
 
 --==============================================================================
 --= EXPORTS
@@ -856,6 +861,8 @@ overlay msgs model =
           Model.needsParse model
       , doTypeChecking =
           model.doTypeChecking
+      , mode =
+          model.codeEditorMode
       }
     leftShift =
       model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
@@ -899,6 +906,8 @@ diffOverlay model exps =
           Model.needsParse model
       , doTypeChecking =
           model.doTypeChecking
+      , mode =
+          model.codeEditorMode
       }
     leftShift =
       model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
