@@ -34,7 +34,6 @@ port module Controller exposing
   , msgNew, msgSaveAs, msgSave, msgOpen, msgDelete
   , msgAskNew, msgAskOpen
   , msgConfirmFileOperation, msgCancelFileOperation
-  , msgToggleAutosave
   , msgExportCode, msgExportHtml
   , msgImportCode, msgAskImportCode
   , msgMouseEnterCodeBox, msgMouseLeaveCodeBox
@@ -1225,11 +1224,19 @@ issueCommandBasedOnCaption kind oldModel newModel =
         -- we receieve changes (if this is removed, an infinite feedback loop
         -- occurs).
         "Ace Update" ->
-            if newModel.autosave && newModel.needsSave then
-              FileHandler.sendMessage <|
-                Write newModel.filename newModel.code
-            else
-              Cmd.none
+          if newModel.backupRecovery then
+            let
+              backup =
+                File.backupFilename newModel.filename
+            in
+              if newModel.needsSave then
+                FileHandler.sendMessage <|
+                  Write backup ("{-\n" ++ newModel.code ++ "\n-}\n\nmain = svg []")
+              else
+                FileHandler.sendMessage <|
+                  Delete backup
+          else
+            Cmd.none
 
         "Enable Text Edits" ->
           AceCodeBox.setReadOnly False
@@ -3082,8 +3089,11 @@ msgUpdateFilenameInput str = Msg "Update Filename Input" <| \old ->
 
 confirmWrite : Filename -> Model -> Model
 confirmWrite savedFilename old =
-  { old | needsSave = False
-        , lastSaveState = Just old.code }
+  if savedFilename == old.filename then
+    { old | needsSave = False
+          , lastSaveState = Just old.code }
+  else
+    old
 
 confirmDelete : Filename -> Model -> Model
 confirmDelete deletedFilename = identity
@@ -3337,9 +3347,6 @@ msgCancelFileOperation = Msg "Cancel File Operation" Model.cancelFileOperation
 msgConfirmFileOperation = Msg "Confirm File Operation" <| (\old ->
   { old | fileOperationConfirmed = True })
     >> Model.closeDialogBox AlertSave
-
-msgToggleAutosave = Msg "Toggle Autosave" <| \old ->
-  { old | autosave = not old.autosave }
 
 --------------------------------------------------------------------------------
 -- Exporting

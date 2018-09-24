@@ -182,7 +182,12 @@ main =
 
 ## Saving
 
-Now let's save the file.
+Now let's save the file. Once the file is saved, we Sketch-n-Sketch
+automatically enables backup recovery for the file.
+
+## Exporting
+
+We can also export our output as HTML!
 
 ## Styles
 

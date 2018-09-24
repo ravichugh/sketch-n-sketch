@@ -277,9 +277,15 @@ generalUiButton disabled userClass title onClickHandler =
         ""
   in
     Html.span
-      [ Attr.class <| "ui-button " ++ disabledFlag ++ userClass
-      , E.onClick onClickHandler
-      ]
+      ( [ Attr.class <| "ui-button " ++ disabledFlag ++ userClass
+        ] ++
+        ( if not disabled then
+            [ E.onClick onClickHandler
+            ]
+          else
+            []
+        )
+      )
       [ Html.text title ]
 
 --------------------------------------------------------------------------------
@@ -2226,7 +2232,13 @@ fileSaveAsDialogBox model =
       ([saveAsInputHeader, saveAsInput, currentFilesHeader] ++ (List.map viewFileIndexEntry model.fileIndex))
 
 fileOpenDialogBox model =
-  let fileOpenRow filename =
+  let
+    fileOpenRow filename =
+      let
+        -- Disable any operations if a backup file is present
+        disabled =
+          List.member (File.backupFilename filename) model.fileIndex
+      in
         Html.div
           [ Attr.class "open-listing"
           ]
@@ -2238,13 +2250,17 @@ fileOpenDialogBox model =
           , Html.span
               [ Attr.class "file-open-delete-buttons"
               ]
-              [ uiButton
+              [ generalUiButton
+                  disabled
+                  ""
                   "Open"
                    (Controller.msgAskOpen filename model.needsSave)
               , Html.span
                   [ Attr.class "file-delete-button"
                   ]
-                  [ uiButton
+                  [ generalUiButton
+                      disabled
+                      ""
                       "Delete"
                       (Controller.msgDelete filename)
                   ]
@@ -2258,7 +2274,10 @@ fileOpenDialogBox model =
       []
       [Html.text "Open..."]
       []
-      (List.map fileOpenRow model.fileIndex)
+      ( model.fileIndex
+          |> List.sortBy .name
+          |> List.map fileOpenRow
+      )
 
 viewFileIndexEntry filename =
   Html.div

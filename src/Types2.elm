@@ -150,7 +150,10 @@ type alias TypeEnv = List TypeEnvElement
 type TypeEnvElement
   = HasType Pat (Maybe Type)
   | TypeVar Ident
-  -- | TypeAlias Pat Type
+  | TypeAlias Ident Type
+  | TypeDef Ident (List DataDef)
+
+type alias DataDef = (Ident, List Type)
 
 
 addHasMaybeType : (Pat, Maybe Type) -> TypeEnv -> TypeEnv
@@ -177,12 +180,38 @@ addTypeVar typeVar gamma =
   TypeVar typeVar :: gamma
 
 
+addTypeAlias (a, t) gamma =
+  TypeAlias a t :: gamma
+
+
+typeAliasesOfGamma =
+  List.concatMap <| \binding ->
+    case binding of
+      TypeAlias a t -> [(a, t)]
+      _             -> []
+
+
+
+lookupDataCon : TypeEnv -> Ident -> Maybe (Ident, List Type)
+lookupDataCon gamma dataConName =
+  let
+    dataDefsOfGamma : TypeEnv -> List (Ident, (Ident, List Type))
+    dataDefsOfGamma =
+      List.concatMap <| \binding ->
+        case binding of
+          TypeDef tyCon dataDefs -> List.map (Tuple.mapSecond ((,) tyCon)) dataDefs
+          _                      -> []
+  in
+    Utils.maybeFind dataConName (dataDefsOfGamma gamma)
+
+
+
 lookupVar : TypeEnv -> Ident -> Maybe (Maybe Type)
 lookupVar gamma x =
   case gamma of
     HasType p mt :: gammaRest ->
       Utils.firstOrLazySecond
-        (lookupVarInPat x p mt)
+        (lookupVarInPat gamma x p mt)
         (\_ -> lookupVar gammaRest x)
 
     _ :: gammaRest ->
@@ -194,8 +223,9 @@ lookupVar gamma x =
 
 -- TODO write a mapFoldPatType, and use it here
 --
-lookupVarInPat : Ident -> Pat -> Maybe Type -> Maybe (Maybe Type)
-lookupVarInPat x p mt =
+-- TypeEnv is for expanding type aliases
+lookupVarInPat : TypeEnv -> Ident -> Pat -> Maybe Type -> Maybe (Maybe Type)
+lookupVarInPat gamma x p mt =
   let
     p__ = p.val.p__
     t__ = mt |> Maybe.map (.val >> .t__)
@@ -224,7 +254,7 @@ lookupVarInPat x p mt =
             |> List.map (\(_, _, fieldName, _, fieldPat) ->
                  Utils.maybeFind fieldName fieldTypes
                    |> Maybe.andThen (\fieldType ->
-                        lookupVarInPat x fieldPat (Just fieldType)
+                        lookupVarInPat gamma x fieldPat (Just fieldType)
                       )
                )
       in
@@ -239,7 +269,43 @@ lookupVarInPat x p mt =
   | PColonType WS Pat WS Type
 -}
     _ ->
-      Nothing
+      -- otherwise try expanding alias
+      mt |> Maybe.andThen (\typ ->
+              let
+                -- HACK
+                a = String.trim (unparseType typ)
+              in
+                typeAliasesOfGamma gamma
+                  |> Utils.maybeFind a
+                  |> Maybe.andThen (\aliasedType ->
+                       lookupVarInPat gamma x p (Just aliasedType)
+                     )
+            )
+
+
+-- TODO temp
+--
+setPatDummyTypeDeep : Pat -> Pat
+setPatDummyTypeDeep pat =
+  case pat.val.p__ of
+    (PRecord ws1 fieldPats_ ws2) ->
+       let
+         newFieldPats_ =
+           fieldPats_
+             |> List.map (\(mws0, ws1, fieldName, ws2, fieldPat) ->
+                  let
+                    newFieldPat =
+                      setPatDummyTypeDeep fieldPat
+                  in
+                  (mws0, ws1, fieldName, ws2, newFieldPat)
+                )
+       in
+         PRecord ws1 newFieldPats_ ws2
+          |> replaceP__ pat
+          |> setPatType (Just (withDummyTypeInfo <| TVar space0 "..."))
+
+    _ ->
+      pat |> setPatType (Just (withDummyTypeInfo <| TVar space0 "..."))
 
 
 varsOfGamma gamma =
@@ -299,14 +365,18 @@ varNotFoundSuggestions x gamma =
     result
 
 
+-- maybe rename these functions
+--
 findUnboundTypeVars : TypeEnv -> Type -> Maybe (List Ident)
 findUnboundTypeVars gamma typ =
   let
     typeVarsInGamma =
       List.foldl (\binding acc ->
         case binding of
-          TypeVar a -> a :: acc
-          _         -> acc
+          TypeVar a     -> a :: acc
+          TypeAlias a _ -> a :: acc
+          TypeDef a _   -> a :: acc
+          _             -> acc
       ) [] gamma
 
     freeTypeVarsInType =
@@ -360,11 +430,191 @@ freeVarsType typeVarsInGamma typ =
 
 --------------------------------------------------------------------------------
 
-typeEquiv t1 t2 =
-  -- LangUtils.typeEqual is ws-sensitive.
-  -- will need to do alpha-renaming too.
-  -- TODO: this is temporary
-  String.trim (unparseType t1) == String.trim (unparseType t2)
+decodeDataDefs : Type -> Maybe (List DataDef)
+decodeDataDefs t =
+  case t.val.t__ of
+    TApp _ tFunc tArgs InfixApp ->
+      case tFunc.val.t__ of
+        TVar _ "|" ->
+          tArgs
+            |> List.map decodeDataDef
+            |> Utils.projJusts
+
+        _ ->
+          decodeDataDef t |> Maybe.map List.singleton
+
+    _ ->
+      decodeDataDef t |> Maybe.map List.singleton
+
+decodeDataDef : Type -> Maybe DataDef
+decodeDataDef t =
+  case t.val.t__ of
+    -- using TApp, not TRecord?
+    {-
+    TRecord _ Nothing fieldTypes_ _ ->
+      let
+        fieldTypes =
+          fieldTypes_
+            |> List.map (\(_,_,f,_,t) -> (f, t))
+
+        _ =
+          fieldTypes
+            |> List.map (Tuple.mapSecond unparseType)
+            |> Debug.log "decodeDataDef: fieldTypes"
+      in
+      Utils.maybeFind ctorDataType fieldTypes |> Maybe.andThen (\t ->
+        case t.val.t__ of
+          TVar _ dataConName ->
+            Just (dataConName, []) -- TODO
+
+          _ ->
+            Nothing
+      )
+    -}
+
+    TApp _ t ts SpaceApp ->
+      case t.val.t__ of
+        TVar _ dataConName ->
+          Just (dataConName, ts)
+
+        _ ->
+          Nothing
+
+    _ ->
+      let _ = Debug.log "decode other" t.val.t__ in
+      Nothing
+
+
+decodeDataPat : Pat -> Maybe (Ident, List Pat)
+decodeDataPat p =
+  case p.val.p__ of
+    PRecord _ fieldPats_ _ ->
+      let
+        fieldPats =
+          fieldPats_
+            |> List.map (\(_,_,f,_,p) -> (f, p))
+      in
+      Utils.maybeFind ctorDataType fieldPats |> Maybe.andThen (\p ->
+        case p.val.p__ of
+          PBase _ (EString _ dataConName) ->
+            Utils.maybeFind ctorArgs fieldPats |> Maybe.andThen (\args ->
+              case args.val.p__ of
+                -- TODO
+                PRecord _ argsFieldPats_ _ ->
+                  -- TODO copied from encodingUnapply for now...
+                  let
+                    pats =
+                      argsFieldPats_
+                        |> List.filter
+                             ( \(_, _, elName, _, _) ->
+                                 String.startsWith "_" elName
+                             )
+                        |> List.sortBy
+                             ( \(_, _, elName, _, _) ->
+                                 elName
+                                   |> String.dropLeft 1
+                                   |> String.toInt
+                                   |> Result.withDefault -1
+                             )
+                        |> List.map (\(_, _, _, _, p) -> p)
+                  in
+                    Just (dataConName, pats)
+
+                _ ->
+                  Nothing
+            )
+
+          _ ->
+            let _ = Debug.log "decode PRecord lookup" (List.map (Tuple.mapSecond unparsePattern) fieldPats) in
+            let _ = Debug.log "decode PRecord found" (p.val.p__) in
+            Nothing
+      )
+
+    _ ->
+      let _ = Debug.log "decode other" p.val.p__ in
+      Nothing
+
+
+-- TODO make a single decodeERecord
+
+inferTypeDataExp gamma thisExp listLetExp rebuildLetExps =
+  let
+    isDataExp : Maybe (Ident, List Type) -- (tyCon, dataConArgs)
+    isDataExp =
+      listLetExp |> List.head |> Maybe.andThen (\firstLetExp ->
+        let
+          (LetExp mbWs1 ws2 p funArgStyle ws3 e) = firstLetExp
+        in
+        case (p.val.p__, (unExpr e).val.e__) of
+          (PVar _ pname _, EBase _ (EString _ ename)) ->
+            if String.startsWith "Tuple" ename then
+              Nothing
+            else if pname == ctorDataType then
+              lookupDataCon gamma ename
+            else
+              Nothing
+          _ ->
+            Nothing
+      )
+  in
+  isDataExp |> Maybe.map (\(tyCon, dataConArgs) ->
+    case (unExpr thisExp).val.e__ of
+      ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots letExps) ws2 ->
+        let
+          -- TODO check args
+          newListLetExp =
+            listLetExp
+
+          newLetExps =
+            rebuildLetExps newListLetExp
+
+          newExp =
+            ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots newLetExps) ws2
+              |> replaceE__ thisExp
+              |> mapExp (setType (Just (withDummyTypeInfo <|
+                   TVar space0 "Actually, I skipped this... I trust you!")) -- TODO
+                 )
+              |> setType (Just (withDummyTypeInfo <| TVar space0 tyCon))
+        in
+        { newExp = newExp }
+
+      _ ->
+        { newExp = thisExp }
+  )
+
+
+--------------------------------------------------------------------------------
+
+expandType typeAliases =
+  mapType <| \t ->
+    -- HACK
+    let
+      s = String.trim (unparseType t)
+    in
+      Utils.maybeFind s typeAliases
+        |> Maybe.map (expandType typeAliases)
+        |> Maybe.withDefault t
+
+
+typeEquiv gamma t1 t2 =
+  -- TODO: this is temporary string-based hack
+  let
+    expand = expandType (typeAliasesOfGamma gamma)
+
+    unparseAndRemoveWs =
+      unparseType >> String.words >> String.concat
+  in
+    unparseAndRemoveWs (expand t1) == unparseAndRemoveWs (expand t2)
+
+typesEquiv gamma types =
+  case types of
+    [] ->
+      Nothing
+    t1 :: ts ->
+      if List.all (typeEquiv gamma t1) ts then
+        Just t1
+      else
+        Nothing
 
 
 --------------------------------------------------------------------------------
@@ -555,6 +805,40 @@ insertStrAnnotation pat strType exp =
       |> String.join "\n"
       |> parse
       |> Result.withDefault (eStr "Bad dummy annotation. Bad editor. Bad")
+
+
+--------------------------------------------------------------------------------
+
+holeType : Type
+holeType =
+  withDummyTypeInfo <| TVar space0 "??" -- for now
+
+
+isHoleType : Type -> Bool
+isHoleType typ =
+  case typ.val.t__ of
+    TVar _ "??" -> True
+    _           -> False
+
+
+maybeHoleFiller : Type -> Maybe Exp
+maybeHoleFiller typ =
+  case typ.val.t__ of
+    TRecord _ Nothing fieldTypes_ _ ->
+      let
+        recordOfHoles =
+          fieldTypes_
+            |> List.map (\(_,_,field,_,_) -> field)
+            |> List.map (\field -> field ++ " = ??")
+            |> String.join ", "
+            |> Utils.braces
+            |> parse
+            |> Result.withDefault (eStr "Bad record hole skeleton. Bad editor. Bad")
+      in
+      Just recordOfHoles
+
+    _ ->
+      Nothing
 
 
 --------------------------------------------------------------------------------
@@ -783,7 +1067,7 @@ inferType gamma stuff thisExp =
                , (unExpr result3.newExp).val.typ
                ) of
             (True, Just thenType, Just elseType) ->
-              if typeEquiv thenType elseType then
+              if typeEquiv gamma thenType elseType then
                 (result2.newExp, result3.newExp, Just thenType)
 
               else
@@ -1028,9 +1312,50 @@ inferType gamma stuff thisExp =
       let
         -- Process LetTypes ----------------------------------------------------
 
-        newLetTypes =
-          -- TODO: Not processing these yet.
+        (newLetTypes, newGammaAfterLetTypes) =
           letTypes
+            |> List.foldl (\(isRec, listLetType) (accLetTypesRev, accGamma) ->
+                 let
+                   (newListLetType, newAccGamma) =
+                     listLetType
+                       |> List.map (\(LetType mws0 ws1 aliasSpace pat fas ws2 typ) ->
+                            let
+                              -- TODO
+                              s = String.trim (unparsePattern pat)
+
+                              -- TODO
+                              newPatOkay =
+                                pat |>
+                                  setPatType (Just (withDummyTypeInfo (TVar space0 s)))
+
+                              newPatError =
+                                pat |>
+                                  setPatDeuceTypeInfo genericError
+                            in
+                            case aliasSpace of
+                              Just _ ->
+                                ( LetType mws0 ws1 aliasSpace newPatOkay fas ws2 typ
+                                , addTypeAlias (s, typ) accGamma
+                                )
+
+                              Nothing ->
+                                case decodeDataDefs typ of
+                                  Just dataDefs ->
+                                    ( LetType mws0 ws1 aliasSpace newPatOkay fas ws2 typ
+                                    , TypeDef s dataDefs :: accGamma
+                                    )
+
+                                  Nothing ->
+                                    ( LetType mws0 ws1 aliasSpace newPatError fas ws2 typ
+                                    , accGamma
+                                    )
+                          )
+                       |> List.unzip
+                       |> Tuple.mapSecond List.concat
+                 in
+                   ((isRec, newListLetType) :: accLetTypesRev, newAccGamma)
+               ) ([], gamma)
+            |> Tuple.mapFirst List.reverse
 
         -- Process LetAnnotations ----------------------------------------------
 
@@ -1081,7 +1406,7 @@ inferType gamma stuff thisExp =
                     |> Maybe.withDefault []
 
                 errors2 =
-                  findUnboundTypeVars gamma typ
+                  findUnboundTypeVars newGammaAfterLetTypes typ
                     |> Maybe.map (\unboundTypeVars ->
                          [ "ill-formed type annotation"
                          , "unbound: " ++ String.join " " unboundTypeVars
@@ -1133,9 +1458,9 @@ inferType gamma stuff thisExp =
 
         -- Process LetExps -----------------------------------------------------
 
-        (newLetExps, newGamma, newTypeBreadCrumbs) =
+        (newLetExps, newGammaAfterLetExps, newTypeBreadCrumbs) =
           letExps
-            |> List.foldl processLetExp ([], gamma, [])
+            |> List.foldl processLetExp ([], newGammaAfterLetTypes, [])
             |> Utils.mapFst3 List.reverse
 
         -- TODO write a mapFoldPatType, and use it here
@@ -1336,7 +1661,7 @@ inferType gamma stuff thisExp =
         -- Process Let-Body ----------------------------------------------------
 
         resultBody =
-          inferType newGamma stuff body
+          inferType newGammaAfterLetExps stuff body
 
         newBody =
           resultBody.newExp
@@ -1384,6 +1709,11 @@ inferType gamma stuff thisExp =
               eRecordError "wasn't expecting these letExps..."
 
             Just listLetExp ->
+
+             case inferTypeDataExp gamma thisExp listLetExp rebuildLetExps of
+              Just result -> result
+              Nothing ->
+
               let
                 (listLetExpMinusCtor, finishLetExpsAndFieldTypes) =
                   let
@@ -1532,7 +1862,7 @@ inferType gamma stuff thisExp =
                 errorMessages =
                   Utils.zip tailExps moreTypes
                     |> Utils.mapi1 (\(i,(e,t)) ->
-                         if typeEquiv t type1 then
+                         if typeEquiv gamma t type1 then
                            []
                          else
                            [ Label <| PlainText <|
@@ -1581,6 +1911,147 @@ inferType gamma stuff thisExp =
                       ]
       in
         { newExp = newExp }
+
+    ECase ws1 dataExp branches ws2 ->
+      let
+        result0 =
+          inferType gamma stuff dataExp
+
+        newDataExp =
+          result0.newExp
+
+        (newBranches, branchResults) =
+          branches
+            |> List.map (\branch ->
+                 let (Branch_ ws1 p e ws2) = branch.val in
+                 case decodeDataPat p of
+                   Nothing ->
+                     let newP =
+                       p |> setPatDeuceTypeInfo (DeuceTypeInfo
+                              [ deuceLabel <| ErrorHeaderText <|
+                                  "Pattern Error..."
+                              , deuceLabel <| CodeText <|
+                                  unparsePattern p
+                              ]
+                            )
+                     in
+                     let result = { newExp = e } in
+                     ({ branch | val = Branch_ ws1 newP e ws2 }, result)
+
+                   Just (dataConName, pats) ->
+                     -- case Utils.maybeFind dataConName (dataDefsOfGamma gamma) of
+                     case lookupDataCon gamma dataConName of
+                       Nothing ->
+                         let newP =
+                           p |> setPatDeuceTypeInfo (DeuceTypeInfo
+                                  [ deuceLabel <| ErrorHeaderText <|
+                                      "Naming Error"
+                                  , deuceLabel <| PlainText <|
+                                      "Cannot find variable"
+                                  , deuceLabel <| CodeText <|
+                                      dataConName
+                                  ]
+                                )
+                         in
+                         let result = { newExp = e } in
+                         ({ branch | val = Branch_ ws1 newP e ws2 }, result)
+
+                       Just (typeCon, dataConTypes) ->
+                         -- TODO compare typeCon to result0
+                         let
+                           newP =
+                             -- TODO decode should provide a reencoder.
+                             -- until then, setting dummy types in deep, and
+                             -- correct type at the top
+                             p |> setPatDummyTypeDeep
+                               |> setPatType (unExpr result0.newExp).val.typ
+
+                           patTypes =
+                             Utils.zip pats dataConTypes
+
+                           branchGamma =
+                             List.foldl addHasType gamma patTypes
+
+                           branchResult =
+                             inferType branchGamma stuff e
+                         in
+                         ({ branch | val = Branch_ ws1 newP branchResult.newExp ws2 }, branchResult)
+               )
+            |> List.unzip
+
+        maybeBranchTypes : Maybe (List Type)
+        maybeBranchTypes =
+          branchResults
+            |> List.map (.newExp >> unExpr >> .val >> .typ)
+            |> Utils.projJusts
+
+        maybeSameBranchType : Maybe Type
+        maybeSameBranchType =
+          maybeBranchTypes
+            |> Maybe.andThen (typesEquiv gamma)
+
+        (newerBranches, finishExp) =
+          case maybeSameBranchType of
+            Just branchType ->
+              (newBranches, setType (Just branchType))
+
+            Nothing ->
+              maybeBranchTypes |> Maybe.andThen (\branchTypes ->
+              let
+                maybeSameNonHoleBranchType =
+                  maybeBranchTypes
+                    |> Maybe.map (List.filter (not << isHoleType))
+                    |> Maybe.andThen (typesEquiv gamma)
+              in
+              maybeSameNonHoleBranchType |> Maybe.andThen (\nonHoleBranchType ->
+              maybeHoleFiller nonHoleBranchType |> Maybe.andThen (\holeFiller ->
+              let
+                betterBranches =
+                  newBranches
+                    |> List.map (\branch ->
+                         let (Branch_ ws1 p e ws2) = branch.val in
+                         let
+                           finishE =
+                             (unExpr e).val.typ |> Maybe.map (\t ->
+                                if isHoleType t then
+                                  setDeuceTypeInfo (DeuceTypeInfo
+                                    ( okayType t ++
+                                    [ Label <| PlainText
+                                        "Replace the hole expression?"
+                                    , deuceTool
+                                        (CodeText <| unparse holeFiller)
+                                        (replaceExpNode
+                                          (unExpr e).val.eid
+                                          (holeFiller |> replacePrecedingWhitespace (precedingWhitespace e))
+                                          stuff.inputExp)
+                                    ]
+                                    )
+                                  )
+                                else
+                                  identity
+                             )
+                             |> Maybe.withDefault identity
+                         in
+                         { branch | val = Branch_ ws1 p (finishE e) ws2 }
+                       )
+              in
+              Just (betterBranches, setDeuceTypeInfo genericError)
+              )))
+
+              |> Maybe.withDefault (newBranches, setDeuceTypeInfo genericError)
+
+        newExp =
+          ECase ws1 newDataExp newerBranches ws2
+            |> replaceE__ thisExp
+            |> finishExp
+      in
+        { newExp = newExp }
+
+    EHole _ EEmptyHole ->
+      { newExp =
+          thisExp
+            |> setType (Just holeType)
+      }
 
     _ ->
       { newExp = thisExp |> setType Nothing }
@@ -1776,9 +2247,13 @@ checkType gamma stuff thisExp expectedType =
             }
 
           Just inferredType ->
-            if typeEquiv inferredType expectedType then
+            if typeEquiv gamma inferredType expectedType then
               { okay = True
-              , newExp = result.newExp
+              , newExp =
+                  result.newExp
+                    |> setType (Just expectedType)
+                         -- overwrite (Just inferredType), because
+                         -- expectedType is more likely to use type aliases
               }
 
             else

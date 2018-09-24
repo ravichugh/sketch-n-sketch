@@ -1020,6 +1020,8 @@ addShape model newShapeName newShapeExp numberOfNewShapesExpected =
              then [ s ]
              else ["\n", s]
          )
+      -- extra right whitespace screws with Format
+      |> List.map (Regex.replace Regex.All (Regex.regex "[ ]*$") (always ""))
       |> String.join "\n"
       |> Regex.replace Regex.All (Regex.regex "\\n\\n") (always "\n")
       |> Parser.parse
