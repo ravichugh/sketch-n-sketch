@@ -809,6 +809,40 @@ insertStrAnnotation pat strType exp =
 
 --------------------------------------------------------------------------------
 
+holeType : Type
+holeType =
+  withDummyTypeInfo <| TVar space0 "??" -- for now
+
+
+isHoleType : Type -> Bool
+isHoleType typ =
+  case typ.val.t__ of
+    TVar _ "??" -> True
+    _           -> False
+
+
+maybeHoleFiller : Type -> Maybe Exp
+maybeHoleFiller typ =
+  case typ.val.t__ of
+    TRecord _ Nothing fieldTypes_ _ ->
+      let
+        recordOfHoles =
+          fieldTypes_
+            |> List.map (\(_,_,field,_,_) -> field)
+            |> List.map (\field -> field ++ " = ??")
+            |> String.join ", "
+            |> Utils.braces
+            |> parse
+            |> Result.withDefault (eStr "Bad record hole skeleton. Bad editor. Bad")
+      in
+      Just recordOfHoles
+
+    _ ->
+      Nothing
+
+
+--------------------------------------------------------------------------------
+
 copyTypeInfoFrom : Exp -> Exp -> Exp
 copyTypeInfoFrom fromExp toExp =
   let
@@ -1956,16 +1990,58 @@ inferType gamma stuff thisExp =
           maybeBranchTypes
             |> Maybe.andThen (typesEquiv gamma)
 
-        (newBranches, finishExp) =
+        (newerBranches, finishExp) =
           case maybeSameBranchType of
             Just branchType ->
               (newBranches, setType (Just branchType))
 
             Nothing ->
-              (newBranches, setDeuceTypeInfo genericError)
+              maybeBranchTypes |> Maybe.andThen (\branchTypes ->
+              let
+                maybeSameNonHoleBranchType =
+                  maybeBranchTypes
+                    |> Maybe.map (List.filter (not << isHoleType))
+                    |> Maybe.andThen (typesEquiv gamma)
+              in
+              maybeSameNonHoleBranchType |> Maybe.andThen (\nonHoleBranchType ->
+              maybeHoleFiller nonHoleBranchType |> Maybe.andThen (\holeFiller ->
+              let
+                betterBranches =
+                  newBranches
+                    |> List.map (\branch ->
+                         let (Branch_ ws1 p e ws2) = branch.val in
+                         let
+                           finishE =
+                             (unExpr e).val.typ |> Maybe.map (\t ->
+                                if isHoleType t then
+                                  setDeuceTypeInfo (DeuceTypeInfo
+                                    ( okayType t ++
+                                    [ Label <| PlainText
+                                        "Replace the hole expression?"
+                                    , deuceTool
+                                        (CodeText <| unparse holeFiller)
+                                        (replaceExpNode
+                                          (unExpr e).val.eid
+                                          (holeFiller |> replacePrecedingWhitespace (precedingWhitespace e))
+                                          stuff.inputExp)
+                                    ]
+                                    )
+                                  )
+                                else
+                                  identity
+                             )
+                             |> Maybe.withDefault identity
+                         in
+                         { branch | val = Branch_ ws1 p (finishE e) ws2 }
+                       )
+              in
+              Just (betterBranches, setDeuceTypeInfo genericError)
+              )))
+
+              |> Maybe.withDefault (newBranches, setDeuceTypeInfo genericError)
 
         newExp =
-          ECase ws1 newDataExp newBranches ws2
+          ECase ws1 newDataExp newerBranches ws2
             |> replaceE__ thisExp
             |> finishExp
       in
