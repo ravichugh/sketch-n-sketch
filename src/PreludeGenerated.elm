@@ -3897,9 +3897,14 @@ Maybe =
   { type Maybe a = Nothing | Just a
 
     -- Returns the first argument if the second is Nothing. If the second is Just x returns x
-    -- In the reverse direction, it first tries to propagate the new value as if was non empty.
-    -- On a second round it changes the default value.
-    withDefault = Update.lens2 {
+    withDefault d mb =
+      case mb of
+        Nothing -> d
+        Just j -> j
+
+    -- Like withDefault, but if the default was used and we push a new value,
+    -- it will push it back as a \"Just\" before trying the usual behavior. Ideal for displaying placeholders.
+    withDefaultToReplace = Update.lens2 {
       apply (d, mb) = case mb of
         Nothing -> d
         Just j -> j
@@ -3909,7 +3914,15 @@ Maybe =
               if mb /= Nothing then [] else Update.defaultAsListWithDiffs apply uInput)))
     }
 
-    withDefaultLazy = Update.lens2 {
+    -- Like withDefault, but the default value is a callback that is called if mb is empty.
+    withDefaultLazy df mb =
+      case mb of
+        Nothing -> df ()
+        Just j -> j
+
+    -- Like withDefault, but if the default was used and we push a new value,
+    -- it will push it back as a \"Just\" before trying the usual behavior. Ideal for displaying placeholders.
+    withDefaultToReplaceLazy = Update.lens2 {
       apply (df, mb) = case mb of
         Nothing -> df ()
         Just j -> j

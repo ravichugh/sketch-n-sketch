@@ -71,7 +71,7 @@ main = <div class="mainwebpage">
  </tr>@List.map(\{date,title,instructorId} ->
      let instructorName = 
           List.findByAReturnB .id .name instructorId instructors
-          |> Maybe.withDefault "To come..."
+          |> Maybe.withDefaultToReplace "To come..."
      in
      <tr>
        <td>@date</td>

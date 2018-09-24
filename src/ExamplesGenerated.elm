@@ -7242,70 +7242,80 @@ main =
 """
 
 fromleo_modelviewcontroller =
- """--#updatedelay:0
--- Calculator.
-
+ """-- #updatedelay:0
 model = {
-  computation = \"7*s\"
-  storedVariables = [(\"s\", 86400)]
-  variable = \"s\"
+  computation = \"s/2+1/s\"
+  vars = [(\"s\", 2)]
 }
 
-controllers = {
-  compute model =
-    __evaluate__ model.storedVariables model.computation
+controller = {
+  compute model = 
+    case __evaluate__ model.vars model.computation of
+      Err msg -> <span class=\"error\">Err</span>
+      Ok x -> x
 
-  showResult = case of
-      Ok r -> <span><span contenteditable=\"false\">=</span>@r</span>
-      Err x -> <span class=\"error\">@x</span>
-      
-  nameThisResult name value m =
+  modify f model =
+    {model | computation = f model.computation }
+  
+  appendString string = modify (\\s -> s + string)
+  
+  backspace = modify (String.dropRight 1)
+  
+  erase = modify (\\_ -> \"\")
+  
+  storeVar name value model = 
     let replaceIn = case of
       [] -> [(name, value)]
       (n, nr)::tail -> if n == name then (n, value)::tail else (n, nr)::replaceIn tail
-    in {m | storedVariables = replaceIn m.storedVariables }
-    
-  replaceComputationBy newComputation m =
-    { m | computation = newComputation }
-    
-} 
+    in { model | vars = replaceIn model.vars }
+}
 
-view =
-  let {showResult,compute,nameThisResult,replaceComputationBy} = controllers in
-  let result = compute model in
-  let button name controller = Html.button name \"\" model controller in
+view model = 
+  let button text title action =
+    Html.button text title model action in
+  let result = controller.compute(model) in
   <div style=\"margin:20px\" contenteditable=\"\">
     <h1>Model-View-Controller Calculator</h1
     >Although you do not need to, it's straightforward to create a Model-View-Controller interface.
     Note that the controller refer to the model, and the view binds the controllers to the model.<br>
-    <div class=\"calculator\">
-    @Update.expressionFreeze<|<span class=\"display\" contenteditable=\"false\">
+  <div class=\"calculator\">
+    <div class=\"display\">
       <span class=\"computation\">@model.computation</span><br>
-      <span class=\"result\">@showResult(result)</span>
-    </span>
-    <div class=\"commands\">
-    <br><br>@(result
-      |> Result.map (\\r -> <span> @button(\"Name the result \")(
-           nameThisResult model.variable r)@(Html.input \"text\" model.variable)<br></span>)
-      |> Result.withDefault [])
-    @List.concatMap(\\(name,value) ->
-      [button(\"\"\"@name = @value\"\"\")(replaceComputationBy name)] ++
-        (result |> Result.map (\\r -> [button(\"\"\"Store the result in @name\"\"\")(nameThisResult name r)]) |> Result.withDefault []) ++
-       [<br>])(model.storedVariables)
+      <span class=\"result\">@result</span>
+    </div>
+    <div class=\"buttons\">
+      @(List.range 0 9 |> List.map (\\i ->
+        button i \"\" (controller.appendString (toString i)))
+      )@(button \"<=\" \"Delete last char\" controller.backspace
+      )@(button \"CLR\" \"Erase formula\" controller.erase
+      )@([\"(\",\")\",\"+\",\"*\",\"/\",\"%\",\"-\",\"^\"] |> List.map (\\s ->
+        button s \"\" (controller.appendString s))
+      )<br>@(model.vars |> List.concatMap (\\(name, value) ->
+        [button name (toString value) (controller.appendString name),
+         button (\"→\"+name) \"\"\"Store @result to @name\"\"\" (controller.storeVar name result)])
+      )
+      <input type=\"text\" v=(Update.lens {
+          apply model = \"d\"
+          update {input=model,outputNew} = Ok (Inputs [controller.storeVar outputNew result model])
+        } model) placeholder=\"+var\" onchange=\"this.setAttribute('v', this.value)\">
     </div>
   </div>
-    
-    
-<style>
+  <style>@styles</style>
+</div>
+
+main = view model
+
+styles = \"\"\"
 .calculator {
-  width: 450 px;
+  width: 405 px;
+  max-width: 405px;
   border: 2px solid black;
   display: inline-block;
   padding: 10px;
   border-radius: 10px;
 }
 .display {
-  width: 400px;
+  width: 380px;
   border: 1px solid #AAA;
   background: #EEE;
   font-size: 4em;
@@ -7320,25 +7330,26 @@ view =
   white-space:pre;
 }
 .result {
-  font-size: 0.8em;
+  font-size: 0.68em;
   color: #888;
 }
 .calculator button {
   height: 64px;
+  width: 64px;
   font-size: 20px;
-  margin-bottom: 10px;
+  margin-top: 10px;
+  margin-left: 10px;
 }
 .calculator input {
   height: 63.5px;
   font-size: 20px;
   margin-bottom: 10px;
   padding-left: 10px;
+  margin-top: 10px;
+  margin-left: 10px;
+  width: 64px;
 }
-</style>
-</div>
-
-main = view
-
+\"\"\"
 """
 
 fromleo_linkedtexteditor =
