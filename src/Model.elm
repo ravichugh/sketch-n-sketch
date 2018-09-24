@@ -178,7 +178,7 @@ type alias Model =
   , layoutOffsets : LayoutOffsets
   , needsSave : Bool
   , lastSaveState : Maybe Code
-  , autosave : Bool
+  , backupRecovery : Bool
   , filename : Filename
   , fileIndex : FileIndex
   , dialogBoxes : Set Int
@@ -1454,7 +1454,7 @@ initModel =
     , layoutOffsets = initialLayoutOffsets
     , needsSave     = False
     , lastSaveState = Nothing
-    , autosave      = False
+    , backupRecovery = True
     , filename      = { name = "", extension = File.LeoFile }
     , fileIndex     = []
     , dialogBoxes   = Set.empty

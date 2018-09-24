@@ -990,7 +990,7 @@ code {
   margin-left: 30px;
 }
 
-.dialog-box .file-delete-button .ui-button {
+.dialog-box .file-delete-button .ui-button:not(.disabled) {
   color: var(--alert-warning-text-color);
 }
 
