@@ -7,6 +7,7 @@ module File exposing
   , encodeFilename
   , filenameDecoder
   , parseFilename
+  , backupFilename
   , File
   , encodeFile
   , fileDecoder
@@ -126,6 +127,12 @@ parseFilename s =
 
       Nothing ->
         default
+
+backupFilename : Filename -> Filename
+backupFilename filename =
+  { filename
+      | name = filename.name ++ "~BACKUP"
+  }
 
 --------------------------------------------------------------------------------
 -- Files
