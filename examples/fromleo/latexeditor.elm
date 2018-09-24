@@ -95,7 +95,7 @@ incSectionCounter opts =
   let newCounter = opts.sectionCounter  + freeze 1 in
   { opts |
     sectionCounter = newCounter
-    subsectionCounter = 1
+    subsectionCounter = 0
     currentLabelName = toString newCounter
   }
 

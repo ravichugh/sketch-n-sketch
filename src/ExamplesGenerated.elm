@@ -33,7 +33,6 @@ import Syntax
 import EvalUpdate
 import Parser
 import ParserUtils
-import Config
 
 type alias Example = {
    e: Exp,
@@ -6052,7 +6051,8 @@ badPrelude =
 """
 
 blankSvg =
- """main = svg []
+ """main =
+  svg (concat [])
 
 """
 
@@ -7680,7 +7680,7 @@ incSectionCounter opts =
   let newCounter = opts.sectionCounter  + freeze 1 in
   { opts |
     sectionCounter = newCounter
-    subsectionCounter = 1
+    subsectionCounter = 0
     currentLabelName = toString newCounter
   }
 
@@ -8930,7 +8930,7 @@ displayEvaluationResult x = case x of
   
 
 content = 
-  letrec aux i commands prevDefinitions revAcc =
+  let aux i commands prevDefinitions revAcc =
     case commands of
     [] -> List.reverse revAcc
     cmd::tail ->
@@ -10149,7 +10149,7 @@ welcomeCategory =
   ( "Welcome"
   , [ makeLeoExample blankSvgTemplate blankSvg
     , makeLeoExample blankHtmlTemplate blankDoc
-    , makeLeoExample initTemplate (if Config.elmConfDemo then blankSvg else welcome1)
+    , makeLeoExample initTemplate welcome1
 --    , makeLeoExample "Tutorial" blankDoc
     ]
   )

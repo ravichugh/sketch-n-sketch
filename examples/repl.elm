@@ -26,7 +26,7 @@ displayEvaluationResult x = case x of
   
 
 content = 
-  letrec aux i commands prevDefinitions revAcc =
+  let aux i commands prevDefinitions revAcc =
     case commands of
     [] -> List.reverse revAcc
     cmd::tail ->
