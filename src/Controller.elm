@@ -1378,13 +1378,13 @@ upstateRun old =
   case tryRun old of
     Err (oldWithUpdatedHistory, err, Just annot) ->
       { oldWithUpdatedHistory
-          | errorBox = Just err
+          | errorBox = oldWithUpdatedHistory.errorBox -- TODO Just err
           , codeBoxInfo = updateCodeBoxWithParseError annot old.codeBoxInfo
           , runFailuresInARowCount = newFailuresInARowAfterFail
       }
     Err (oldWithUpdatedHistory, err, Nothing) ->
       { oldWithUpdatedHistory
-          | errorBox = Just err
+          | errorBox = oldWithUpdatedHistory.errorBox -- TODO Just err
           , runFailuresInARowCount = newFailuresInARowAfterFail
       }
     Ok newModel ->
