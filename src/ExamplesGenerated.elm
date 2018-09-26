@@ -8298,7 +8298,7 @@ playersEnCours = List.filter (\\j ->  List.length j.betselfs == currentRound ) p
 playerFromName name =
   nth (List.filter (\\j ->  j.name == name) players) 0
 playerIndexFromName name =
-  letrec aux i = 
+  let aux i =
     if (nth players i).name == name then i else
     if i >= List.length players then -1 else
     aux (i + 1) in aux 0
@@ -8832,16 +8832,16 @@ fromleo_universal_number =
 
 universal_number lengthStr =
   let alphabetSizeStr =
-    letrec aux acc a = case a of [] -> acc; head::tail -> aux (acc + \"#\") tail in
+    let aux acc a = case a of [] -> acc; head::tail -> aux (acc + \"#\") tail in
     aux \"\" alphabetArray
   in
   let stringRepeat sequence size =
-    letrec aux acc sz = case String.uncons sz of
+    let aux acc sz = case String.uncons sz of
       Just (\"#\", tail) -> aux (acc + sequence) tail
       _ -> acc
     in aux \"\" size in
   let times sequence sizeBinary =
-    letrec string_aux acc sizeB = case String.uncons sizeB of
+    let string_aux acc sizeB = case String.uncons sizeB of
       Just (\"0\", tail) ->
         let newAcc = stringRepeat acc alphabetSizeStr in
         string_aux newAcc tail
@@ -8854,7 +8854,7 @@ universal_number lengthStr =
   let numabBin = (\"1\" + replaceFirstIn \".\" \"\" lengthStr) in
   let numab = String.length (times \"#\" numabBin) in
   let init =
-    letrec aux acc letterList =
+    let aux acc letterList =
       case letterList of
         [] -> acc
         head :: tail -> aux (acc + (times head numabBin)) tail
@@ -8862,16 +8862,16 @@ universal_number lengthStr =
   in
   let repeatedPrefix = \"^.{\" + (toString numab) + \"}\" in
   let positionNext posStr =
-    letrec aux acc pos = if Regex.matchIn repeatedPrefix pos then (
+    let aux acc pos = if Regex.matchIn repeatedPrefix pos then (
         let newPos = replaceFirstIn repeatedPrefix \"\" pos in
         let newAcc = acc + \"#\" in
         aux newAcc newPos
       ) else (
-        acc + (letrec k a l = case String.uncons l of Just (\"#\", tail) -> k (a + pos) tail; _ -> a in k \"\" alphabetSizeStr)
+        acc + (let k a l = case String.uncons l of Just (\"#\", tail) -> k (a + pos) tail; _ -> a in k \"\" alphabetSizeStr)
       )
     in aux \"\" posStr in
   let init0 = replaceAllIn \".\" \"0\" init in
-  letrec cycle startStr currentStr state acc =
+  let cycle startStr currentStr state acc =
     let newCurrentStr = positionNext currentStr in
     let newCurrentStrLength = toString (String.length newCurrentStr) in
     let newAcc = acc + (
@@ -8883,7 +8883,7 @@ universal_number lengthStr =
     ) else (
       cycle startStr newCurrentStr newState newAcc
     ) in
-  letrec loop state acc =
+  let loop state acc =
     if (Regex.matchIn \"^1*$\" state) then
       acc
     else (

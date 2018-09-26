@@ -26,7 +26,7 @@ tableCities =
   }
   
 nthOf elem list = 
-  letrec aux i l = case l of
+  let aux i l = case l of
     [] -> -1
     h :: t -> if h == elem then i else aux (i+1) t
   in aux 0 list

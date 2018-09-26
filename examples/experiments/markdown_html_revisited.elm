@@ -1,5 +1,5 @@
 markdown =
-  letrec fix phase node =
+  let fix phase node =
     let new_node = phase node in
     if new_node == node then node else fix phase new_node
   in

@@ -169,7 +169,7 @@ playersEnCours = List.filter (\j ->  List.length j.betselfs == currentRound ) pl
 playerFromName name =
   nth (List.filter (\j ->  j.name == name) players) 0
 playerIndexFromName name =
-  letrec aux i = 
+  let aux i =
     if (nth players i).name == name then i else
     if i >= List.length players then -1 else
     aux (i + 1) in aux 0

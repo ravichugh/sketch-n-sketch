@@ -30,7 +30,7 @@ map f l = {
         let [inputsRemoved, remainingInputs] = splitByLength deleted inputElements in
         let inputsAligned = copyLengthFrom inserted inputsRemoved in
         -- inputsAligned has now the same size as added.
-        letrec recoverInputs newFs newIns oldIns newOuts = case [oldIns, newOuts] of
+        let recoverInputs newFs newIns oldIns newOuts = case [oldIns, newOuts] of
           [[], []] -> [newFs, newIns]
           [inHd::inTail, outHd::outTail] ->
             case Update.updateApp (\[f, x] -> f x) [f, inHd] (f inHd) outHd of
@@ -50,7 +50,7 @@ map f l = {
             head::tail -> head
             _ -> "Error: Cannot update a call to a map if there is no input" + 1
         in
-        letrec recoverInputs newFs newIns newOuts = case newOuts of
+        let recoverInputs newFs newIns newOuts = case newOuts of
           [] -> [newFs, newIns]
           outHd::outTail ->
             case Update.updateApp (\[f, x] -> f x) [f, oneInput] (f oneInput) outHd of

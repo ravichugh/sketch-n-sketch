@@ -7,7 +7,7 @@ i = 0
 username = nth usernames i
 
 List = { List | contains n =
-  letrec aux l = case l of
+  let aux l = case l of
     [] -> False
     head::tail -> if head == n then True else aux tail
   in aux }

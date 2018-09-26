@@ -1,5 +1,5 @@
 averages (head::tail) =
-  letrec sum n acc ls = case ls of
+  let sum n acc ls = case ls of
     [] -> (n, acc)
     (l :: ltail) -> sum (n + 1) (map2 (\x y -> x + y) acc l) ltail
   in
