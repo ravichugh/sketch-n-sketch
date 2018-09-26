@@ -60,10 +60,10 @@ expandSkeleton ( ".."  , "src/tutorial/04.src-generated.html"             , "../
 expandSkeleton ( ".."  , "src/tutorial/05.src-generated.html"             , "../tutorial/05.html"               )
 expandSkeleton ( ".."  , "src/tutorial/exit.src-generated.html"           , "../tutorial/exit.html"             )
 
-expandSkeleton ( "../.."
-               , "src/tutorial/icfp-2018/index.src.html"
-               , "../tutorial/icfp-2018/index.html"
-               )
+## expandSkeleton ( "../.."
+##                , "src/tutorial/icfp-2018/index.src.html"
+##                , "../tutorial/icfp-2018/index.html"
+##                )
 
 # expandSkeleton ( "../.." , "src/misc/pldi2016-artifact.src.html" , "../releases/v0.4.1/pldi2016-artifact.html" )
 
