@@ -4,7 +4,7 @@ import Debug
 
 --------------------------------------------------------------------------------
 
-elmConfDemo = True
+elmConfDemo = False
 
 debugParser = False
 debugView = False
