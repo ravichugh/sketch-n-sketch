@@ -475,17 +475,59 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
      ESelect sp0 e1 sp1 sp2 ident ->
        case doEvalw env e1 of
          Err msg -> UpdateCriticalError msg
-         Ok ((initv, _), initVEnv) ->
-           case initv.v_ of
+         Ok ((vRecord, _), initVEnv) ->
+           case vRecord.v_ of
              VRecord dinit ->
-               let newE1Value = replaceV_ initv <| VRecord (Dict.insert ident newVal dinit) in
-               let propagatedDiff = VRecordDiffs (Dict.fromList [(ident, diffs)]) in
-               updateContinue "ESelect" env e1 (keepLets env initVEnv) initv newE1Value propagatedDiff <|
-                 \newE1UpdatedEnv newE1 ->
-                   let finalExp = ret <| ESelect sp0 newE1.val sp1 sp2 ident in
-                   let finalChanges = Maybe.map (\d -> EChildDiffs [(0, d)]) newE1.changes in
-                   updateResult newE1UpdatedEnv <| UpdatedExp finalExp finalChanges
-             _ -> UpdateCriticalError ("Expected Record, got " ++ valToString initv)
+               case Dict.get ident dinit of
+                 Nothing -> UpdateCriticalError <| "Could not find " ++ ident++ " in record."
+                 Just vValue ->
+                   let withNewE1 newE1UpdatedEnv newE1 =
+                        let finalExp = ret <| ESelect sp0 newE1.val sp1 sp2 ident in
+                        let finalChanges = Maybe.map (\d -> EChildDiffs [(0, d)]) newE1.changes in
+                        updateResult newE1UpdatedEnv <| UpdatedExp finalExp finalChanges
+                   in
+                   let default () =
+                     let newE1Value = replaceV_ vRecord <| VRecord (Dict.insert ident newVal dinit) in
+                     let propagatedDiff = VRecordDiffs (Dict.fromList [(ident, diffs)]) in
+                     updateContinue "ESelect" env e1 (keepLets env initVEnv) vRecord newE1Value propagatedDiff withNewE1
+                   in
+                   case vValue.v_ of
+                    VClosure recEnv (p1::pTail) body closureEnv ->
+                     case pVarUnapply p1 of
+                       Just "this" -> -- recursive records.
+                         updateContinue "ESelect recursive"
+                           [("this", vRecord), ("recRecordMethod", vValue)]
+                           (eApp (eVar "recRecordMethod") [eVar "this"]) [] oldVal newVal diffs <|
+                         \newRecRecordMethodThis newApp ->
+                           if newApp.changes == Nothing then
+                             case newRecRecordMethodThis.val of
+                               [("this", newThis), ("recRecordMethod", newRecMethod)] ->
+                                 let (thisChange, otherChanges) =
+                                       case newRecRecordMethodThis.changes of
+                                         (0, vRecordDiffs)::c -> (Just vRecordDiffs, c)
+                                         c -> (Nothing, c)
+                                     recMethodChange =
+                                       case otherChanges of
+                                         (1, methodChanges)::_ -> Just methodChanges
+                                         _ -> Nothing
+                                     (finalThis, finalThisChange) =
+                                       case recMethodChange of
+                                         Nothing -> (newThis, thisChange)
+                                         Just methodChanges ->
+                                           let newE1Value = replaceV_ vRecord <| VRecord (Dict.insert ident newRecMethod dinit) in
+                                           let propagatedDiff = VRecordDiffs (Dict.fromList [(ident, diffs)]) in
+                                           mergeValMaybe vRecord newThis thisChange newE1Value (Just propagatedDiff)
+                                 in
+                                 case finalThisChange of
+                                   Just fc ->
+                                     updateContinue "ESelect" env e1 (keepLets env initVEnv) vRecord finalThis fc withNewE1
+                                   Nothing ->
+                                     updateResultSameEnvExp env e
+                               _ -> UpdateCriticalError "[Internal error] environment should contain 2 elements"
+                           else UpdateFails "Not allowed to modify rewritten expression (recRecordMethod this)"
+                       _ -> default ()
+                    _ -> default ()
+             _ -> UpdateCriticalError ("Expected Record, got " ++ valToString vRecord)
 
      EApp sp0 (Expr e1_) e2s appType sp1 ->
        let e1 = Expr e1_ in

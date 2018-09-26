@@ -325,11 +325,21 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
        evalReturn <| retBoth (Maybe.withDefault [] <| Maybe.map (\x -> [x]) v) (kvs, ws)
 
   ESelect ws0 (Expr exp1_ as e1) _ wsId id ->
-    evalContinue options syntax env bt_ e1 <| \((d, ws), _) ->
-      case d.v_ of
+    evalContinue options syntax env bt_ e1 <| \((vRecord, ws), _) ->
+      case vRecord.v_ of
         VRecord dict ->
           case Dict.get id dict of
-            Just v -> evalReturn <| retBoth [d] (v.v_, ws)
+            Just vValue ->
+              let default () = evalReturn <| retBoth [vRecord] (vValue.v_, ws) in
+              case vValue.v_ of
+                VClosure recEnv (p1::pTail) body closureEnv ->
+                  case pVarUnapply p1 of
+                    Just "this" -> -- recursive records.
+                      evalContext options syntax
+                        [("this", vRecord), ("recRecordMethod", vValue)] bt
+                        (eApp (eVar "recRecordMethod") [eVar "this"])
+                    _ -> default()
+                _ -> default ()
             _ ->
                 let suggestions = Utils.stringSuggestions (Dict.keys dict) id in
                 errorWithBacktrace syntax (e1::bt) <| strPos wsId.end ++ " Key " ++ id ++ " not found." ++ (case suggestions of
