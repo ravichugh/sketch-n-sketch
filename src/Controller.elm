@@ -2013,6 +2013,27 @@ msgKeyDown keyCode =
         else if somethingSelectedInOutput && keyCode == Keys.keyZ && List.any Keys.isCommandKey old.keysDown && List.any ((==) Keys.keyShift) old.keysDown && List.length old.keysDown == 2 then
           doRedo old
 
+        else if
+          List.any Keys.isCommandKey old.keysDown &&
+          List.any ((==) Keys.keyShift) old.keysDown &&
+          keyCode == Keys.keyDigit 8
+        then
+          { old | mainResizerX = Just <| Layout.mainResizerLeftBound old }
+
+        else if
+          List.any Keys.isCommandKey old.keysDown &&
+          List.any ((==) Keys.keyShift) old.keysDown &&
+          keyCode == Keys.keyDigit 9
+        then
+          { old | mainResizerX = Nothing }
+
+        else if
+          List.any Keys.isCommandKey old.keysDown &&
+          List.any ((==) Keys.keyShift) old.keysDown &&
+          keyCode == Keys.keyDigit 0
+        then
+          { old | mainResizerX = Just <| Layout.mainResizerRightBound old }
+
         else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           case old.outputMode of
             Graphics  -> upstateRun old

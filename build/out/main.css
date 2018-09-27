@@ -570,6 +570,8 @@ code {
 
   border-top: 1px solid var(--subtle-border-color);
 
+  overflow: hidden;
+
   position: absolute;
   bottom: 0;
 }
