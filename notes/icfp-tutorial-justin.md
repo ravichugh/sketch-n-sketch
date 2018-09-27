@@ -10,17 +10,29 @@
 
 # Steps
 
-## Introduction
+## HTML Structure
+
+Let's start with a blank file:
+
+```
+main =
+  [ "div"
+  , []
+  , []
+  ]
+```
+
+We can construct HTML nodes with this tree structure:
 
 ```
 main =
   [ "div" -- tag name
   , []    -- attributes
-  , []
+  , []    -- children
   ]
 ```
 
-We can output HTML nodes by creating this tree structure:
+Let's add some text:
 
 ```
 main =
@@ -28,7 +40,8 @@ main =
   , []    -- attributes
   , [ [ "h1"
       , []
-      , [ ["TEXT", "Hello, world!"] ]
+      , [ ["TEXT", "Hello, world!"]
+        ]
       ]
     ]
   ]
@@ -47,7 +60,8 @@ main =
   , []    -- attributes
   , [ [ "h1"
       , []
-      , [ ["TEXT", "Hello," + name + "!"] ]
+      , [ ["TEXT", "Hello," + name + "!"]
+        ]
       ]
     ]
   ]
@@ -100,13 +114,14 @@ main =
     <h2>@name's Shopping List</h2>
     <ul>
       <li>red apples</li>
-      <li>orange carrots</li>
       <li>yellow potatoes</li>
       <li>green beans</li>
       <li>blue berries</li>
     </ul>
   </div>
 ```
+
+## Bidirectional Programming 2
 
 Let's add some additional information to these list items.
 
@@ -120,7 +135,6 @@ main =
     <h2>@name's Shopping List</h2>
     <ul>
       <li>I need red apples</li>
-      <li>I need orange carrots</li>
       <li>I need yellow potatoes</li>
       <li>I need green beans</li>
       <li>I need blue berries</li>
@@ -138,7 +152,6 @@ require entry =
 
 shoppingList =
   [ "red apples"
-  , "orange carrots"
   , "yellow potatoes"
   , "green beans"
   , "blue berries"
@@ -157,7 +170,7 @@ main =
   </div>
 ```
 
-## Bidirectional Programming 2
+## Bidirectional Programming 3
 
 Let's change our "require" function using the output canvas:
 
@@ -167,7 +180,6 @@ require entry =
 
 shoppingList =
   [ "red apples"
-  , "orange carrots"
   , "yellow potatoes"
   , "green beans"
   , "blue berries"
@@ -194,7 +206,6 @@ require entry =
 
 shoppingList =
   [ "red apples"
-  , "orange carrots"
   , "yellow potatoes"
   , "green beans"
   , "blue berries"
@@ -217,7 +228,7 @@ main =
 
 ## Saving
 
-Now let's save the file. Once the file is saved, we Sketch-n-Sketch
+Now let's save the file. Once the file is saved, Sketch-n-Sketch
 automatically enables backup recovery for the file.
 
 ## Exporting
@@ -234,7 +245,6 @@ require entry =
 
 shoppingList =
   [ "red apples"
-  , "orange carrots"
   , "yellow potatoes"
   , "green beans"
   , "blue berries"
@@ -262,17 +272,16 @@ Let's add a lot of style, actually, using let bindings and string operations!
 ```
 require entry =
   let
-    [color, item] =
+    color :: _ =
       Regex.split " " entry
-
+    
     myStyle =
       "color: " + color
   in
-    <li style=myStyle>I really need @color @item</li>
+    <li style=myStyle>I need @entry</li>
 
 shoppingList =
   [ "red apples"
-  , "orange carrots"
   , "yellow potatoes"
   , "green beans"
   , "blue berries"
@@ -284,37 +293,35 @@ name =
   "Justin"
 
 main =
-  <div style="padding: 10px">
+  <div style="padding: 10px;">
     <h1>Hello, @name!</h1>
     <h2>@name's Shopping List</h2>
     <ul>
       @(List.map require shoppingList)
     </ul>
   </div>
-
 ```
 
-## Bidirectional Programming 3
+## Bidirectional Programming 4
 
 Let's change the output of our shopping list!
 
 ```
 require entry =
   let
-    [color, item] =
+    color :: _ =
       Regex.split " " entry
-
+    
     myStyle =
       "color: " + color
   in
-    <li style=myStyle>I really need @color @item</li>
+    <li style=myStyle>I need @entry</li>
 
 shoppingList =
   [ "green apples"
-  , "orange carrots"
   , "purple potatoes"
   , "red beans"
-  , "black berries"
+  , "blue berries"
   , "chocolate cake"
   , "tomato soup"
   ]
@@ -323,7 +330,7 @@ name =
   "Justin"
 
 main =
-  <div style="padding: 10px">
+  <div style="padding: 10px;">
     <h1>Hello, @name!</h1>
     <h2>@name's Shopping List</h2>
     <ul>
