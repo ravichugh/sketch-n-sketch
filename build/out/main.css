@@ -1137,41 +1137,23 @@ code {
  * Deuce Tools                                                                *
  ******************************************************************************/
 
-.expected-safe .text-button {
+.expected-safe .text-button,
+.unexpected-unsafe .text-button,
+.unexpected-safe .text-button,
+.expected-unsafe .text-button {
   background-color: rgba(0, 255, 0, 0.1);
 }
 
 .expected-safe .text-button:not(.disabled):hover,
 .expected-safe:hover > .hover-menu-title .text-button:not(.disabled),
-.deuce-menu-phony-hovered {
-  background-color: rgba(0, 255, 0, 0.2);
-}
-
-.unexpected-unsafe .text-button {
-  background-color: rgba(255, 0, 255, 0.5);
-}
-
+.deuce-menu-phony-hovered,
 .unexpected-unsafe .text-button:not(.disabled):hover,
-.unexpected-unsafe:hover > .hover-menu-title .text-button:not(.disabled) {
-  background-color: rgba(255, 0, 255, 1);
-}
-
-.unexpected-safe .text-button {
-  background-color: rgba(255, 255, 0, 0.1);
-}
-
+.unexpected-unsafe:hover > .hover-menu-title .text-button:not(.disabled),
 .unexpected-safe .text-button:not(.disabled):hover,
-.unexpected-safe:hover > .hover-menu-title .text-button:not(.disabled) {
-  background-color: rgba(255, 255, 0, 0.2);
-}
-
-.expected-unsafe .text-button {
-  background-color: rgba(255, 0, 0, 0.1);
-}
-
+.unexpected-safe:hover > .hover-menu-title .text-button:not(.disabled),
 .expected-unsafe .text-button:not(.disabled):hover,
 .expected-unsafe:hover > .hover-menu-title .text-button:not(.disabled) {
-  background-color: rgba(255, 0, 0, 0.2);
+  background-color: rgba(0, 255, 0, 0.2);
 }
 
 /* Deuce tool text box */
