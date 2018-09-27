@@ -1,0 +1,1370 @@
+/******************************************************************************
+ * General                                                                    *
+ ******************************************************************************/
+
+* {
+  margin: 0;
+  padding: 0;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  -o-box-sizing: border-box;
+  box-sizing: border-box;
+  caret-color: lightblue; /* for contenteditable nodes */
+}
+
+body {
+  background-color: var(--main-bg-color);
+  color: var(--text-color);
+  font-family: "Roboto", sans-serif;
+  overflow: hidden;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+code {
+  font-family: "Inconsolata", monospace;
+  font-size: 0.9em;
+}
+
+/******************************************************************************
+ * Buttons                                                                    *
+ ******************************************************************************/
+
+.text-button {
+  color: var(--text-color);
+  cursor: pointer;
+  /* transition: background-color 0.1s; */
+}
+
+.text-button:not(.disabled):hover,
+.hover-menu:hover > .hover-menu-title .text-button:not(.disabled),
+.hover-menu.always-show > .hover-menu-title .text-button:not(.disabled)
+{
+  background-color: var(--active-text-color);
+  background-color: var(--hover-effect-bg-color);
+}
+
+.text-button.disabled {
+  color: var(--disabled-text-color);
+  cursor: default;
+}
+
+.text-button .radio-button-active {
+  font-weight: bold;
+}
+
+.text-button .radio-button-icon {
+  margin-right: 10px;
+}
+
+.ui-button {
+  color: var(--text-color);
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.ui-button:not(.disabled):hover {
+  color: var(--text-color);
+  background-color: rgba(50, 50, 50, 0.1);
+}
+
+.ui-button:not(.disabled):active {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.ui-button.disabled {
+  color: var(--disabled-text-color);
+  cursor: default;
+}
+
+.ui-button.wide {
+  display: block;
+  margin: 10px;
+}
+
+.ui-button.close {
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+
+  background-color: transparent;
+  border: none;
+
+  position: relative;
+
+  -webkit-transform: scale(0.8);
+  -moz-transform: scale(0.8);
+  -ms-transform: scale(0.8);
+  -o-transform: scale(0.8);
+  transform: scale(0.8);
+
+  -webkit-transition: -webkit-transform 0.5s;
+  -moz-transition: -moz-transform 0.5s;
+  -ms-transition: -ms-transform 0.5s;
+  -o-transition: -o-transform 0.5s;
+  transition: transform 0.5s;
+}
+
+.dragger .ui-button.close {
+  -webkit-box-sizing: content-box;
+  -moz-box-sizing: content-box;
+  -ms-box-sizing: content-box;
+  -o-box-sizing: content-box;
+  box-sizing: content-box;
+}
+
+.ui-button.close:hover {
+  -webkit-transform: scale(1);
+  -moz-transform: scale(1);
+  -ms-transform: scale(1);
+  -o-transform: scale(1);
+  transform: scale(1);
+
+  background-color: transparent;
+  border: none;
+}
+
+.ui-button.close:before, .ui-button.close:after {
+  content: "";
+  display: block;
+
+  width: 100%;
+  height: 0;
+
+  border-bottom: 3px solid var(--subtle-text-color);
+
+  margin: auto;
+
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+
+  -webkit-transform-origin: center;
+  -moz-transform-origin: center;
+  -ms-transform-origin: center;
+  -o-transform-origin: center;
+  transform-origin: center;
+
+  transition: border-color 0.5s;
+}
+
+.ui-button.close:hover:before, .ui-button.close:hover:after {
+  border-color: #880000;
+}
+
+.ui-button.close:before {
+  -webkit-transform: rotate(45deg);
+  -moz-transform: rotate(45deg);
+  -ms-transform: rotate(45deg);
+  -o-transform: rotate(45deg);
+  transform: rotate(45deg);
+}
+
+.ui-button.close:after {
+  -webkit-transform: rotate(-45deg);
+  -moz-transform: rotate(-45deg);
+  -ms-transform: rotate(-45deg);
+  -o-transform: rotate(-45deg);
+  transform: rotate(-45deg);
+}
+
+.icon-button {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+  /* background-color: DYNAMIC */
+  cursor: pointer;
+}
+
+.icon-button:focus {
+  outline: 0;
+}
+
+/******************************************************************************
+ * Menu Bar                                                                   *
+ ******************************************************************************/
+
+/* General Menu Bar */
+
+.menu-bar {
+  background-color: var(--panel-bg-color);
+
+  width: 100%;
+  /* height: DYNAMIC */
+
+  border-bottom-style: solid;
+  border-bottom-color: var(--main-border-color);
+  /* border-bottom-width: DYNAMIC */
+
+  box-shadow: 0 0 7px 0 var(--shadow-color);
+
+  display: flex;
+  justify-content: space-between;
+
+  -webkit-box-sizing: content-box;
+  -moz-box-sizing: content-box;
+  -ms-box-sizing: content-box;
+  -o-box-sizing: content-box;
+  box-sizing: content-box;
+}
+
+/* Main Bar */
+
+.main-bar {
+  display: flex;
+  align-items: center;
+}
+
+.logo-image {
+  width: 20px;
+  height: 20px;
+  margin: 15px;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu-heading {
+  white-space: nowrap;
+  /* height: DYNAMIC */
+  /* line-height: DYNAMIC */
+
+  padding: 0 15px;
+  cursor: pointer;
+
+  /* transition: background-color 0.1s; */
+}
+
+.main .main-bar .menu:nth-child(2) .menu-heading {
+  font-weight: bold;
+}
+
+.menu-heading:hover,
+.main-bar.active .menu:hover .menu-heading {
+  background-color: var(--hover-effect-bg-color);
+  color: var(--active-text-color);
+}
+
+.menu-options,
+.dropdown-content {
+  background-color: var(--panel-bg-color);
+  border: 1px solid var(--main-border-color);
+  box-shadow: 0 3px 7px -3px var(--shadow-color);
+}
+
+.menu-options {
+  display: none;
+  /* TODO overflow scrolling acts weirdly */
+  /* max-height: 80vh; */
+  /* overflow: scroll; */
+  border-top-color: var(--subtle-border-color);
+  position: absolute;
+  /* top: DYNAMIC */
+  left: 0;
+  z-index: 100;
+}
+
+.main-bar.active .menu:hover .menu-options {
+  display: block;
+}
+
+.menu-options .text-button {
+  display: block;
+  white-space: nowrap;
+  min-width: 150px;
+  height: 30px;
+  line-height: 30px;
+  padding: 0 15px;
+}
+
+.menu-option-divider {
+  width: 100%;
+  height: 1px;
+  background-color: var(--subtle-border-color);
+}
+
+/* Hover Menu */
+
+.hover-menu {
+  position: relative;
+}
+
+.hover-menu-title .text-button {
+  display: flex;
+  justify-content: space-between;
+  cursor: default;
+}
+
+.hover-menu-indicator {
+  margin-left: 10px;
+}
+
+.hover-menu > .dropdown-content {
+  display: none;
+  position: absolute;
+  border-left: none;
+}
+
+.hover-menu:not(.disabled):hover > .dropdown-content,
+.hover-menu.always-show > .dropdown-content
+{
+  display: block;
+  left: 100%;
+  top: -1px;
+}
+
+
+/* TODO User Study Info (temporary) */
+/* re-using this now for Previous/Next Example buttons */
+
+.user-study-info {
+  position: absolute;
+  right: 15px;
+}
+
+.user-study-info .text-button,
+.user-study-info .step-info,
+.user-study-info .time-left {
+  display: inline-block;
+  height: 30px; /* height of menu bar */
+  line-height: 30px; /* height of menu bar */
+  padding: 0 15px;
+  min-width: 120px;
+  text-align: center;
+}
+
+.user-study-info .step-info {
+  min-width: 175px;
+}
+
+.user-study-info .time-left {
+  font-weight: bold;
+  color: #0c0;
+}
+
+.user-study-info .time-left.time-almost-gone {
+  color: #f22;
+}
+
+.flip {
+  /* The left triangle and the right triangle have different sizes, so just
+   * use one of them for both left/right and flip it. */
+  display: inline-block;
+  -webkit-transform: scale(-1);
+  -moz-transform: scale(-1);
+  -ms-transform: scale(-1);
+  -o-transform: scale(-1);
+  transform: scale(-1);
+}
+
+/* Quick Action Bar */
+
+/* DISABLED FOR NOW
+
+.quick-action-bar {
+  display: flex;
+  align-items: center;
+  padding-right: 15px;
+}
+
+.quick-action-bar-label {
+  font-size: 0.7em;
+  font-weight: lighter;
+  margin: 0 15px;
+  padding: 0 15px;
+  border-left: 1px solid #333333;
+  border-right: 1px solid #333333;
+}
+
+.quick-action-bar .text-button {
+  white-space: nowrap;
+  height: 30px;
+  line-height: 30px;
+  padding: 0 15px;
+}
+
+*/
+
+/******************************************************************************
+ * General Panels                                                             *
+ ******************************************************************************/
+
+.panel {
+  border: 1px solid var(--main-border-color);
+  box-shadow: 0 0 7px 0 var(--shadow-color);
+}
+
+/******************************************************************************
+ * Code Panel                                                                 *
+ ******************************************************************************/
+
+/* General Code Panel */
+
+.code-panel {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+
+  background-color: var(--panel-bg-color);
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+
+  /* transition: height 0.5s; */
+
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  -o-user-select: text;
+  user-select: text;
+}
+
+/* Status Bar */
+
+.status-bar {
+  height: 35px;
+  line-height: 35px;
+  padding: 0 15px;
+  border-bottom: 1px solid var(--subtle-border-color);
+  overflow: hidden;
+  position: relative;
+}
+
+.file-indicator {
+  color: var(--active-text-color);
+}
+
+.needs-run-light {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid #555555;
+  cursor: default;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+
+  transition: background-color 0.3s, border-color 0.3s;
+
+  -webkit-box-sizing: content-box;
+  -moz-box-sizing: content-box;
+  -ms-box-sizing: content-box;
+  -o-box-sizing: content-box;
+  box-sizing: content-box;
+
+  position: absolute;
+  right: 14px;
+  top: 14px; /* (height of status bar - height of light) / 2 */
+}
+
+.needs-run .status-bar .needs-run-light {
+  background-color: #FF3300;
+  border-color: #330000;
+}
+
+/* Action Bar */
+
+.action-bar {
+  border-bottom: 1px solid var(--subtle-border-color);
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+.action-bar .text-button {
+  display: inline-block;
+  white-space: nowrap;
+  height: 35px;
+  line-height: 35px;
+  padding: 0 15px;
+}
+
+.action-bar .run,
+.action-bar .emoji {
+  display: inline-block;
+
+  white-space: nowrap;
+  height: 25px;
+  line-height: 25px;
+
+  position: relative;
+
+  float: right;
+  margin-right: 10px;
+}
+
+.action-bar .emoji {
+  font-size: 28px;
+  top: 7px;
+}
+
+.action-bar .run {
+  top: 5px; /* (height of bar - height of button) / 2 */
+  padding: 0 15px;
+
+  cursor: pointer;
+
+  background-color: var(--pop-color);
+  color: #FFFFFF;
+  border-bottom: 2px solid var(--pop-color-darker);
+  border-radius: 5px;
+
+  /* transition: background-color 0.1s; */
+}
+
+.action-bar .run:hover {
+  background-color: #33BB00;
+}
+
+.action-bar .run:active {
+  background-color: #339900;
+  border-bottom-width: 1px;
+}
+
+/* Editor */
+
+#editor {
+  position: absolute;
+  /* top =
+   *   height of status bar + height of action bar
+   *     + border of code panel + border action bar
+   */
+  top: 72px;
+  right: 0;
+  /* bottom =
+   *   mode bar height + mode bar border-top height
+   */
+  bottom: 45px;
+  left: 0;
+}
+
+/* Mode Bar */
+
+.mode-bar {
+  display: flex;
+
+  width: 100%;
+  height: 44px;
+
+  border-top: 1px solid var(--subtle-border-color);
+
+  position: absolute;
+  bottom: 0;
+}
+
+.mode-bar > * {
+  margin-left: 3px;
+}
+
+.mode-icon-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+}
+
+.mode-indicator {
+  align-self: center;
+
+  width: 6px;
+  height: 6px;
+  background-color: var(--pop-color-clear);
+  transition: background-color 0.2s;
+
+  border: 1px solid var(--subtle-border-color);
+  border-radius: 6px;
+}
+
+.mode-icon-wrapper.active .mode-indicator {
+  background-color: var(--pop-color);
+}
+
+.mode-icon {
+  width: 34px;
+  height: 34px;
+
+  border: 1px solid var(--subtle-border-color);
+  box-sizing: border-box;
+}
+
+/* TODO temporary until icons added */
+.mode-icon .text-button {
+  display: block;
+  font-size: 0.5em;
+  width: 100%;
+  height: 100%;
+  word-wrap: break-word;
+  text-align: center;
+}
+
+.mode-icon .text-button img {
+  width: 100%;
+  height: 100%;
+}
+
+.mode-separator {
+  background-color: var(--subtle-border-color);
+  width: 1px;
+}
+
+/******************************************************************************
+ * Resizers                                                                    *
+ ******************************************************************************/
+
+.resizer {
+  color: var(--resizer-color);
+  font-size: 2em;
+  text-align: center;
+}
+
+.main-resizer {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+  /* line-height: DYNAMIC */
+  /* transition: height 0.5s, line-height 0.5s; */
+
+  cursor: col-resize;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+}
+
+/******************************************************************************
+ * Output Panel                                                               *
+ ******************************************************************************/
+
+.text-output {
+  width: 100%;
+  height: 100%;
+  padding: 7px;
+  overflow: scroll;
+
+  color: #000000;
+  font-family: "Inconsolata", monospace;
+  font-size: 16px; /* match default Ace Editor font size */
+
+  white-space: pre;
+  resize: none;
+
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  -o-user-select: text;
+  user-select: text;
+}
+
+.output-panel {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+
+  background-color: #FFFFFF;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+}
+
+#outputCanvas {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+  cursor: default;
+  overflow: auto;
+  position: relative;
+  font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+
+/* Output Canvas children styles */
+
+#outputCanvas h1,
+#outputCanvas h2,
+#outputCanvas h3,
+#outputCanvas h4,
+#outputCanvas h5,
+#outputCanvas h6,
+#outputCanvas ul,
+#outputCanvas ol,
+#outputCanvas p
+{
+  margin: 0.75em 0;
+}
+
+#outputCanvas a {
+  color: blue;
+  text-decoration: underline;
+}
+
+#outputCanvas a:active {
+  color: red;
+}
+
+#outputCanvas a:visited {
+  color: purple;
+}
+
+#outputCanvas button {
+  padding: 1px 7px 2px;
+}
+
+#outputCanvas ul,
+#outputCanvas ol
+{
+  padding-inline-start: 40px;
+}
+
+#svgWidgetsLayer {
+  /* left : DYNAMIC */
+  /* top : DYNAMIC */
+  /* width : DYNAMIC */
+  /* height : DYNAMIC */
+  position: fixed;
+  pointer-events: none;
+}
+
+#svgWidgetsLayer * {
+  pointer-events: auto;
+}
+
+.output-panel-warning {
+  pointer-events: none; /* pass mouse events through to canvas */
+  position: absolute;
+  /* top: DYNAMIC */
+  /* right: DYNAMIC */
+  /* bottom: DYNAMIC */
+  /* left: DYNAMIC */
+
+  border: 0px solid rgba(136, 0, 0, 0.7);
+  transition: border-width 0.5s;
+}
+
+.needs-run .output-panel-warning {
+  border-width: 5px;
+}
+
+.code-panel-warning {
+  pointer-events: none; /* pass mouse events through to code panel */
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  bottom: 0px;
+  left: 0px;
+
+  border: 0px solid rgba(136, 0, 0, 0.7);
+  transition: border-width 0.5s;
+  z-index: 6;
+}
+
+.needs-value-backprop .code-panel-warning {
+  border-width: 5px;
+}
+
+/******************************************************************************
+ * Tool Panel                                                                 *
+ ******************************************************************************/
+
+.tool-panel {
+  /* width: DYNAMIC */
+  background-color: var(--panel-bg-color);
+  /* margin-left: DYNAMIC */
+
+  position: absolute;
+  /* right: DYNAMIC */
+}
+
+.tool-separator {
+  height: 5px;
+}
+
+.tool-mode-indicator {
+  text-align: center;
+  font-size: 0.5em;
+  line-height: 1.4em;
+  padding: 5px 0;
+}
+
+.tool-mode-indicator .tool-mode {
+  color: var(--subtle-text-color);
+  cursor: pointer;
+}
+
+.tool-mode-indicator .tool-mode.active {
+  color: var(--active-text-color);
+}
+
+.tool-mode-indicator .larger-text {
+  font-size: 2.0em;
+  line-height: normal;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/******************************************************************************
+ * Synthesis Panel                                                            *
+ ******************************************************************************/
+
+.synthesis-panel-wrapper {
+  overflow: hidden;
+
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  /* bottom: DYNAMIC */
+
+  /* height: DYNAMIC */
+  /* transition: height 0.5s; */
+}
+
+.synthesis-panel {
+  background-color: var(--panel-bg-color);
+  height: 290px;
+  margin-top: 10px;
+  padding: 10px;
+  overflow: scroll;
+}
+
+.synthesis-menu-holder {
+  display: inline-block;
+}
+
+/******************************************************************************
+ * Dialog Boxes                                                               *
+ ******************************************************************************/
+
+.subtle-background {
+  background-color: #000000;
+
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0s linear 0.2s, opacity 0.2s;
+}
+
+.main.has-dialogs .subtle-background {
+  visibility: visible;
+  opacity: 0.5;
+  transition-delay: 0s;
+}
+
+.dialog-box {
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+  /* z-index: DYNAMIC */
+
+  background-color: var(--panel-bg-color);
+  border: 1px solid var(--main-border-color);
+  box-shadow: 0 0 7px 0 rgba(0,0,0,0.5);
+
+  display: flex;
+  flex-direction: column;
+
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  -webkit-transform: translateY(-50%) translateX(-50%) scale(0);
+  -moz-transform: translateY(-50%) translateX(-50%) scale(0);
+  -ms-transform: translateY(-50%) translateX(-50%) scale(0);
+  -o-transform: translateY(-50%) translateX(-50%) scale(0);
+  transform: translateY(-50%) translateX(-50%) scale(0);
+
+  -webkit-transition: -webkit-transform 0.2s;
+  -moz-transition: -moz-transform 0.2s;
+  -ms-transition: -ms-transform 0.2s;
+  -o-transition: -o-transform 0.2s;
+  transition: transform 0.2s;
+}
+
+.dialog-box.active {
+  -webkit-transform: translateY(-50%) translateX(-50%) scale(1);
+  -moz-transform: translateY(-50%) translateX(-50%) scale(1);
+  -ms-transform: translateY(-50%) translateX(-50%) scale(1);
+  -o-transform: translateY(-50%) translateX(-50%) scale(1);
+  transform: translateY(-50%) translateX(-50%) scale(1);
+}
+
+.dialog-box h1 {
+  margin: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--subtle-border-color);
+  box-shadow: 0 3px 5px -3px var(--shadow-color);
+
+  flex: 0 0 60px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-box h2 {
+  background-color: rgba(0, 0, 0, 0.2);
+  margin: 10px 0;
+  padding: 10px 20px;
+}
+
+.dialog-box .content {
+  overflow: scroll;
+  flex-grow: 1;
+}
+
+.dialog-box .open-listing {
+  background-color: rgba(0, 0, 0, 0.1);
+  font-family: "Inconsolata", monospace;
+  font-size: 1.2em;
+  margin: 10px 0;
+  padding: 20px;
+}
+
+.dialog-box .file-listing {
+  background-color: rgba(0, 0, 0, 0.1);
+  font-family: "Inconsolata", monospace;
+  font-size: 1.2em;
+  margin-bottom: 10px;
+  padding: 10px 20px;
+}
+
+.dialog-box .centered {
+  background-color: rgba(0, 0, 0, 0.1);
+  text-align: center;
+  margin: 20px 0;
+  padding: 20px;
+  border-top: 1px solid var(--subtle-border-color);
+  border-bottom: 1px solid var(--subtle-border-color);
+}
+
+.dialog-box .alert-warning {
+  color: var(--alert-warning-text-color);
+}
+
+/* Save As Dialog */
+
+.dialog-box .save-as-input {
+  background-color: rgba(0, 0, 0, 0.1);
+  font-family: "Inconsolata", monospace;
+  font-size: 1.2em;
+  padding: 20px;
+}
+
+.dialog-box input[type="text"] {
+  font-family: "Inconsolata", monospace;
+  font-size: 1em;
+  padding: 5px;
+}
+
+.dialog-box .save-as-button {
+  margin-left: 20px;
+}
+
+/* Open Dialog */
+
+.dialog-box .file-open-delete-buttons {
+  float: right;
+}
+
+.dialog-box .file-delete-button {
+  margin-left: 30px;
+}
+
+.dialog-box .file-delete-button .ui-button:not(.disabled) {
+  color: var(--alert-warning-text-color);
+}
+
+/* Help Dialog */
+
+.help-list {
+  text-align: left;
+  margin: 0 20px;
+}
+
+.help-list li {
+  padding-left: 5px;
+}
+
+/******************************************************************************
+ * Synthesis Menu                                                             *
+ ******************************************************************************/
+
+.synthesis-results .hover-menu .text-button,
+.synthesis-results .just-description
+{
+  display: block;
+  width: 450px;
+  height: auto;
+  line-height: 1.4em;
+  white-space: normal;
+  position: relative;
+}
+
+.synthesis-results .hover-menu .text-button {
+  padding: 7px;
+}
+
+.synthesis-results .just-description {
+  margin: 7px 0;
+  padding: 0 7px;
+}
+
+.synthesis-results .hover-menu .text-button {
+  border-bottom: 1px solid var(--subtle-border-color);
+}
+
+.synthesis-results .hover-menu .text-button:not(.disabled) {
+  cursor: pointer;
+}
+
+.synthesis-results .hover-menu:last-child .text-button {
+  border-bottom: none;
+}
+
+.synthesis-results .hover-menu-indicator {
+  display: none;
+}
+
+/******************************************************************************
+ * Result Text                                                                *
+ ******************************************************************************/
+
+.result-text-plain {
+}
+
+.result-text-header {
+  font-size: 1em;
+  position: relative;
+  z-index: 1;
+}
+
+.result-text-header:before {
+  content: "";
+  display: block;
+
+  border-bottom: 1px dashed var(--main-border-color);
+
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  z-index: -1;
+}
+
+.result-text-header .result-text-content {
+  background-color: var(--panel-bg-color);
+  margin-left: 20px;
+  padding: 0 5px;
+}
+
+.result-text-header.error {
+  color: var(--alert-warning-text-color);
+}
+
+.result-text-code,
+.result-text-type
+{
+  margin: 0 15px;
+  padding: 5px 10px;
+  border: 1px dashed var(--main-border-color);
+  border-radius: 5px;
+  display: block;
+}
+
+.result-text-code {
+}
+
+.result-text-type {
+}
+
+.result-text-hint {
+}
+
+.result-text-hint-annotation {
+  text-decoration: underline;
+}
+
+/******************************************************************************
+ * Deuce                                                                      *
+ ******************************************************************************/
+
+.deuce-overlay-container {
+  /* pointer-events: DYNAMIC */
+
+  display: block;
+  overflow: hidden;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+  /* width: DYNAMIC */
+  /* height: DYNAMIC */
+
+  z-index: 10;
+}
+
+.deuce-overlay-container.disabled {
+  display: none;
+}
+
+.deuce-overlay {
+  position: relative;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+}
+
+/******************************************************************************
+ * Deuce Tools                                                                *
+ ******************************************************************************/
+
+.expected-safe .text-button,
+.unexpected-unsafe .text-button,
+.unexpected-safe .text-button,
+.expected-unsafe .text-button {
+  background-color: rgba(0, 255, 0, 0.1);
+}
+
+.expected-safe .text-button:not(.disabled):hover,
+.expected-safe:hover > .hover-menu-title .text-button:not(.disabled),
+.deuce-menu-phony-hovered,
+.unexpected-unsafe .text-button:not(.disabled):hover,
+.unexpected-unsafe:hover > .hover-menu-title .text-button:not(.disabled),
+.unexpected-safe .text-button:not(.disabled):hover,
+.unexpected-safe:hover > .hover-menu-title .text-button:not(.disabled),
+.expected-unsafe .text-button:not(.disabled):hover,
+.expected-unsafe:hover > .hover-menu-title .text-button:not(.disabled) {
+  background-color: rgba(0, 255, 0, 0.2);
+}
+
+/* Deuce tool text box */
+.deuce-input {
+  width: 100%;
+  margin-top: 0.4em; /* 1em - synthesis-results.line-height */
+  font-size: 16px;
+  padding: 5px;
+}
+
+/* Rename in output box */
+#rename-box {
+  font-family: Tahoma, sans-serif;
+  font-size: 11pt;
+}
+
+.pats {
+}
+
+.pat {
+  display: inline-block;
+  margin-right: 10px;
+  width: 90px;
+  cursor: text;
+}
+
+.remove-arg {
+  margin-left: 5px;
+  font-size: 9pt;
+  cursor: pointer;
+}
+
+/******************************************************************************
+ * Deuce Right Click Menu                                                     *
+ ******************************************************************************/
+
+.deuce-right-click-menu .text-button {
+  display: block;
+}
+
+/******************************************************************************
+ * Popup Panel                                                                *
+ ******************************************************************************/
+
+.popup-panel {
+  display: block;
+  background-color: var(--panel-bg-color);
+  z-index: 15;
+
+  position: absolute;
+  /* top: DYNAMIC */
+  /* left: DYNAMIC */
+
+  -webkit-transition: -webkit-transform 0.3s;
+  -moz-transition: -moz-transform 0.3s;
+  -ms-transition: -ms-transform 0.3s;
+  -o-transition: -o-transform 0.3s;
+  transition: transform 0.3s;
+}
+
+.popup-panel.disabled {
+  display: none;
+}
+
+.popup-panel .dragger {
+  background-color: var(--dragger-bg-color-fallback);
+  background-image: var(--dragger-bg-gradient);
+  font-weight: bold;
+  text-align: center;
+  padding: 2px 0;
+  cursor: move;
+  position: relative;
+}
+
+.popup-panel .dragger .close {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+}
+
+.popup-panel .text-button {
+  padding: 5px;
+}
+
+.appear-above {
+  -webkit-transform: translateY(-100%);
+  -moz-transform: translateY(-100%);
+  -ms-transform: translateY(-100%);
+  -o-transform: translateY(-100%);
+  transform: translateY(-100%);
+}
+
+.appear-below {
+  -webkit-transform: translate(32px, 32px);
+  -moz-transform: translate(32px, 32px);
+  -ms-transform: translate(32px, 32px);
+  -o-transform: translate(32px, 32px);
+  transform: translate(32px, 32px);
+}
+
+.no-available-tools {
+  width: 300px;
+  color: var(--subtle-text-color);
+  padding: 5px;
+}
+
+/******************************************************************************
+ * Edit Code Popup Panel                                                      *
+ ******************************************************************************/
+
+.edit-code-popup-panel {
+  width: 300px;
+}
+.edit-code-popup-panel .synthesis-results .hover-menu .text-button {
+  width: 100%;
+}
+
+.edit-code-popup-panel
+  .synthesis-results
+  .hover-menu
+  .text-button
+  .hover-menu-content {
+  width: 100%;
+}
+
+.edit-code-popup-panel .synthesis-results .hover-menu:first-child .text-button {
+  border-top: 1px solid var(--subtle-border-color);
+}
+
+.edit-code-popup-panel .synthesis-results .hover-menu:last-child .text-button {
+  border-bottom: 1px solid var(--subtle-border-color);
+}
+
+.edit-code-popup-panel h2 {
+  font-size: 1em;
+  margin: 10px;
+}
+
+.requirements-list {
+  margin: 10px 10px 10px 40px;
+}
+
+.requirements-list .fully-satisfied {
+  color: var(--satisfied-color);
+}
+
+.requirements-list .fully-satisfied:after {
+  content: " (Satisfied)";
+  font-style: italic;
+}
+
+.requirements-list .satisfied {
+  color: var(--satisfied-color);
+}
+
+.requirements-list .satisfied:after {
+  content: " (Satisfied)";
+  font-style: italic;
+}
+
+.requirements-list .possible {
+}
+
+.requirements-list .possible:after {
+}
+
+.requirements-list .impossible {
+  color: var(--impossible-color);
+}
+
+.requirements-list .impossible:after {
+  content: " (Invalid Selections)";
+  font-style: italic;
+}
+
+/******************************************************************************
+ * Auto Output Tools Popup Panel                                              *
+ ******************************************************************************/
+
+.auto-output-tools {
+  min-width: 150px;
+}
+
+.auto-output-tools .text-button {
+  display: flex;
+}
+
+[contenteditable]:focus {
+  outline: 0px solid transparent;
+}
+
+.synthesisResult .hover-menu-content{
+  /*white-space: pre;*/
+}
+
+/******************************************************************************
+ * Deuce SVG Styling                                                          *
+ ******************************************************************************/
+
+.code-object-polygon {
+  opacity: 0;
+  /* So that hover events pass through to the hover polygons */
+  pointer-events: none;
+}
+
+.code-object-polygon.translucent {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.hover-select-polygon:hover ~ .code-object-polygon,
+.code-object-polygon.opaque {
+  opacity: 1;
+}
