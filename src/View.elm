@@ -787,10 +787,10 @@ menuBar model =
               ]
           , simpleHtmlTextButton
               [ Html.a
-                  [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little"
+                  [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/preludeLeo.elm"
                   , Attr.target "_blank"
                   ]
-                  [ Html.text "Little Standard Library (Prelude)" ]
+                  [ Html.text "Standard Library (Prelude)" ]
               ]
           , simpleHtmlTextButton
               [ Html.a
