@@ -1325,11 +1325,14 @@ initTemplate =
     Just msg -> Examples.badPreludeTemplate
 
 loadTemplate name =
-  let theTemplate =  Utils.find_ Examples.list name |> Tuple.second in
+  let mbTheTemplate =  Utils.maybeFind name Examples.list |> Maybe.map Tuple.second in
+  case mbTheTemplate of
+    Nothing -> \() -> Err <| name ++ " not found"
+    Just theTemplate ->
   if name /= Examples.badPreludeTemplate then
-    theTemplate
+     theTemplate
   else
-    case LeoParser.preludeNotParsed of
+     case LeoParser.preludeNotParsed of
       Nothing -> theTemplate
       Just msg ->
         let _ = Debug.log "error in template" () in

@@ -14,6 +14,7 @@ port module OutputCanvas exposing
   , setCaretPosition
   , stopDomListener
   , startDomListener
+  , setExampleByName
   )
 
 import Model exposing (Model, OutputCanvasInfo)
@@ -63,3 +64,5 @@ port receiveValueUpdate : ((Int, List Int, JSDecode.Value)-> msg) -> Sub msg
 port maybeAutoSync : (Int -> msg) -> Sub msg
 
 port clearPreviewDiff : (Int -> msg) -> Sub msg
+
+port setExampleByName: (String -> msg) -> Sub msg

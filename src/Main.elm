@@ -91,6 +91,7 @@ subscriptions model =
     , OutputCanvas.receiveValueUpdate Controller.msgValuePathUpdate
     , OutputCanvas.maybeAutoSync Controller.msgAutoSync
     , OutputCanvas.clearPreviewDiff Controller.msgClearPreviewDiff
+    , OutputCanvas.setExampleByName Controller.msgSetExampleByName
     , AnimationLoop.receiveFrame Controller.msgTickDelta
     , FileHandler.receiveMessage
         Controller.fileMessageHandler

@@ -58,6 +58,7 @@ port module Controller exposing
   , msgDragDeuceRightClickMenu
   , msgTextSelect
   , msgClearPreviewDiff
+  , msgSetExampleByName
   , msgSetEnableDeuceBoxSelection
   , msgSetEnableDeuceTextSelection
   , msgSetCodeToolsMenuMode
@@ -2839,6 +2840,9 @@ msgClearPreviewDiff n = Msg "clearPreviewDiff" doClearPreviewDiff
 doClearPreviewDiff: Model -> Model
 doClearPreviewDiff m =
   { m | previewdiffs = Nothing }
+
+msgSetExampleByName: String -> Msg
+msgSetExampleByName name = msgNew name
 
 --------------------------------------------------------------------------------
 
