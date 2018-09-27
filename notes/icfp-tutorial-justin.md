@@ -14,8 +14,8 @@
 
 ```
 main =
-  [ "div"
-  , []
+  [ "div" -- tag name
+  , []    -- attributes
   , []
   ]
 ```
@@ -86,7 +86,9 @@ main =
   </div>
 ```
 
-Now let's make a list of our favorite things.
+## HTML List
+
+Now let's make a shopping list.
 
 ```
 name =
@@ -95,13 +97,13 @@ name =
 main =
   <div>
     <h1>Hello, @name!</h1>
-    <h2>These are a few of my favorite things</h2>
+    <h2>@name's Shopping List</h2>
     <ul>
-      <li>Raindrops on roses</li>
-      <li>Whiskers on kittens</li>
-      <li>Bright copper kettles</li>
-      <li>Warm woolen mittens</li>
-      <li>Brown paper packages tied up with strings</li>
+      <li>red apples</li>
+      <li>orange carrots</li>
+      <li>yellow potatoes</li>
+      <li>green beans</li>
+      <li>blue berries</li>
     </ul>
   </div>
 ```
@@ -115,56 +117,31 @@ name =
 main =
   <div>
     <h1>Hello, @name!</h1>
-    <h2>These are a few of my favorite things</h2>
+    <h2>@name's Shopping List</h2>
     <ul>
-      <li>I like raindrops on roses</li>
-      <li>I like whiskers on kittens</li>
-      <li>I like bright copper kettles</li>
-      <li>I like warm woolen mittens</li>
-      <li>I like brown paper packages tied up with strings</li>
+      <li>I need red apples</li>
+      <li>I need orange carrots</li>
+      <li>I need yellow potatoes</li>
+      <li>I need green beans</li>
+      <li>I need blue berries</li>
     </ul>
   </div>
 ```
 
-## Functions
+## Functions + List Mapping
 
-That was a lot of typing! Let's abstract it into the function so we don't have to ever do that again in the future (change to "really like").
-
-```
-like x =
-  <li>I really like @x</li>
-
-name =
-  "Justin"
-
-main =
-  <div>
-    <h1>Hello, @name!</h1>
-    <h2>These are a few of my favorite things</h2>
-    <ul>
-      @(like "raindrops on roses")
-      @(like "whiskers on kittens")
-      @(like "bright copper kettles")
-      @(like "warm woolen mittens")
-      @(like "brown paper packages tied up with strings")
-    </ul>
-  </div>
-```
-
-## List Mapping
-
-But we can do better! Let's make a list of our favorite things, and map over it:
+That was a lot of typing! Let's abstract "needing" into a function so we don't have to ever do that again in the future, and map it over a list of items that we need to buy.
 
 ```
-like x =
-  <li>I really like @x</li>
+require entry =
+  <li>I need @entry</li>
 
-myFavoriteThings =
-  [ "raindrops on roses"
-  , "whiskers on kittens"
-  , "bright copper kettles"
-  , "warm woolen mittens"
-  , "brown paper packages tied up with strings"
+shoppingList =
+  [ "red apples"
+  , "orange carrots"
+  , "yellow potatoes"
+  , "green beans"
+  , "blue berries"
   ]
 
 name =
@@ -173,9 +150,67 @@ name =
 main =
   <div>
     <h1>Hello, @name!</h1>
-    <h2>These are a few of my favorite things</h2>
+    <h2>@name's Shopping List</h2>
     <ul>
-      @(List.map like myFavoriteThings)
+      @(List.map require shoppingList)
+    </ul>
+  </div>
+```
+
+## Bidirectional Programming 2
+
+Let's change our "require" function using the output canvas:
+
+```
+require entry =
+  <li>I really need @entry</li>
+
+shoppingList =
+  [ "red apples"
+  , "orange carrots"
+  , "yellow potatoes"
+  , "green beans"
+  , "blue berries"
+  ]
+
+name =
+  "Justin"
+
+main =
+  <div>
+    <h1>Hello, @name!</h1>
+    <h2>@name's Shopping List</h2>
+    <ul>
+      @(List.map require shoppingList)
+    </ul>
+  </div>
+```
+
+And now let's add some more items to our shopping list!
+
+```
+require entry =
+  <li>I really need @entry</li>
+
+shoppingList =
+  [ "red apples"
+  , "orange carrots"
+  , "yellow potatoes"
+  , "green beans"
+  , "blue berries"
+  , "chocolate ice cream"
+  , "tomato soup"
+  ]
+
+name =
+  "Justin"
+
+main =
+  <div>
+    <h1>Hello, @name!</h1>
+    <h2>@name's Shopping List</h2>
+    <ul>
+      @(List.map require shoppingList)
     </ul>
   </div>
 ```
@@ -194,226 +229,105 @@ We can also export our output as HTML!
 We can modify styles, too:
 
 ```
-like x =
-  <li>I really like @x</li>
+require entry =
+  <li>I really need @entry</li>
 
-myFavoriteThings =
-  [ "raindrops on roses"
-  , "whiskers on kittens"
-  , "bright copper kettles"
-  , "warm woolen mittens"
-  , "brown paper packages tied up with strings"
-  ]
-
-name =
-  "Justin"
-
-main =
-  <div style="padding: 10px;">
-    <h1>Hello, @name!</h1>
-    <h2>These are a few of my favorite things</h2>
-    <ul>
-      @(List.map like myFavoriteThings)
-    </ul>
-  </div>
-```
-
-Let's add a lot of style, actually!
-
-```
-like x =
-  <li>I really like @x</li>
-
-myFavoriteThings =
-  [ "raindrops on roses"
-  , "whiskers on kittens"
-  , "bright copper kettles"
-  , "warm woolen mittens"
-  , "brown paper packages tied up with strings"
-  ]
-  
 shoppingList =
-  [ ("red", "apples")
-  , ("orange", "carrots")
-  , ("yellow", "bananas")
-  , ("green", "kale")
-  , ("blue", "berries")
-  , ("indigo", "dye")
-  , ("violet", "flowers")
+  [ "red apples"
+  , "orange carrots"
+  , "yellow potatoes"
+  , "green beans"
+  , "blue berries"
+  , "chocolate ice cream"
+  , "tomato soup"
   ]
-  
-shoppingEntry (color, item) =
-  <li style=("color:" + color)
-     >@color @item</li>
 
 name =
   "Justin"
 
 main =
-  <div style="padding: 10px;">
+  <div style="padding: 10px">
     <h1>Hello, @name!</h1>
-    <h2>These are a few of my favorite things</h2>
+    <h2>@name's Shopping List</h2>
     <ul>
-      @(List.map like myFavoriteThings)
-    </ul>
-    <h2>Shopping list</h2>
-    <ul>
-      @(List.map shoppingEntry shoppingList)
+      @(List.map require shoppingList)
     </ul>
   </div>
 ```
 
-## Abstraction
+## Let bindings
 
-And we'll abstract once more:
+Let's add a lot of style, actually, using let bindings and string operations!
 
 ```
-like x =
-  <li>I really like @x</li>
+require entry =
+  let
+    [color, item] =
+      Regex.split " " entry
 
-myFavoriteThings =
-  [ "raindrops on roses"
-  , "whiskers on kittens"
-  , "bright copper kettles"
-  , "warm woolen mittens"
-  , "brown paper packages tied up with strings"
-  ]
-  
+    myStyle =
+      "color: " + color
+  in
+    <li style=myStyle>I really need @color @item</li>
+
 shoppingList =
-  [ ("red", "apples")
-  , ("orange", "carrots")
-  , ("yellow", "bananas")
-  , ("green", "kale")
-  , ("blue", "berries")
-  , ("indigo", "dye")
-  , ("violet", "flowers")
+  [ "red apples"
+  , "orange carrots"
+  , "yellow potatoes"
+  , "green beans"
+  , "blue berries"
+  , "chocolate cake"
+  , "tomato soup"
   ]
-  
-shoppingEntry (color, item) =
-  <li style=("color:" + color)
-     >@color @item</li>
-
-info title listViewer list =
-  <section>
-    <h2>@title</h2>
-    <ul>
-      @(List.map listViewer list)
-    </ul>
-  </section>
 
 name =
   "Justin"
 
 main =
-  <div style="padding: 10px;">
+  <div style="padding: 10px">
     <h1>Hello, @name!</h1>
-    @(info "These are a few of my favorite things" like myFavoriteThings)
-    @(info "Shopping list" shoppingEntry shoppingList)
-  </div>
-```
-
-## Lambda
-
-And to finish it off (note the lambda):
-
-```
-like x =
-  <li>I really like @x</li>
-
-myFavoriteThings =
-  [ "raindrops on roses"
-  , "whiskers on kittens"
-  , "bright copper kettles"
-  , "warm woolen mittens"
-  , "brown paper packages tied up with strings"
-  ]
-  
-shoppingList =
-  [ ("red", "apples")
-  , ("orange", "carrots")
-  , ("yellow", "bananas")
-  , ("green", "kale")
-  , ("blue", "berries")
-  , ("indigo", "dye")
-  , ("violet", "flowers")
-  ]
-  
-shoppingEntry (color, item) =
-  <li style=("color:" + color)
-     >@color @item</li>
-
-info title listViewer list =
-  <section>
-    <h2>@title</h2>
+    <h2>@name's Shopping List</h2>
     <ul>
-      @(List.map listViewer list)
+      @(List.map require shoppingList)
     </ul>
-  </section>
-
-name =
-  "Justin"
-
-myData =
-  [ ("These are a few of my favorite things", like, myFavoriteThings)
-  , ("Shopping list", shoppingEntry, shoppingList)
-  ]
-
-main =
-  <div style="padding: 10px;">
-    <h1>Hello, @name!</h1>
-    @(List.map (\(t, lv, l) -> info t lv l) myData)
   </div>
+
 ```
 
-## Bidirectional Programming 2
+## Bidirectional Programming 3
 
 Let's change the output of our shopping list!
 
 ```
-like x =
-  <li>I really like @x</li>
+require entry =
+  let
+    [color, item] =
+      Regex.split " " entry
 
-myFavoriteThings =
-  [ "raindrops on roses"
-  , "whiskers on kittens"
-  , "bright copper kettles"
-  , "warm woolen mittens"
-  , "brown paper packages tied up with strings"
-  ]
-  
+    myStyle =
+      "color: " + color
+  in
+    <li style=myStyle>I really need @color @item</li>
+
 shoppingList =
-  [ ("yellow", "apples")
-  , ("orange", "carrots")
-  , ("yellow", "bananas")
-  , ("green", "kale")
-  , ("black", "berries")
-  , ("cyan", "dye")
-  , ("purple", "flowers")
+  [ "green apples"
+  , "orange carrots"
+  , "purple potatoes"
+  , "red beans"
+  , "black berries"
+  , "chocolate cake"
+  , "tomato soup"
   ]
-  
-shoppingEntry (color, item) =
-  <li style=("color:" + color)
-     >@color @item</li>
-
-info title listViewer list =
-  <section>
-    <h2>@title</h2>
-    <ul>
-      @(List.map listViewer list)
-    </ul>
-  </section>
 
 name =
   "Justin"
 
-myData =
-  [ ("These are a few of my favorite things", like, myFavoriteThings)
-  , ("Shopping list", shoppingEntry, shoppingList)
-  ]
-
 main =
-  <div style="padding: 10px;">
+  <div style="padding: 10px">
     <h1>Hello, @name!</h1>
-    @(List.map (\(t, lv, l) -> info t lv l) myData)
+    <h2>@name's Shopping List</h2>
+    <ul>
+      @(List.map require shoppingList)
+    </ul>
   </div>
 ```
