@@ -1,0 +1,29 @@
+:root {
+  --main-bg-color: #333333;
+  --panel-bg-color: #222222;
+  --prose-code-bg-color: #444444;
+  --hover-effect-bg-color: rgba(255, 255, 255, 0.1);
+
+  --text-color: #CCCCCC;
+  --subtle-text-color: #888888;
+  --active-text-color: #FFFFFF;
+  --disabled-text-color: #555555;
+  --alert-warning-text-color: #FF3300;
+
+  --pop-color: rgb(51, 170, 0, 1);
+  --pop-color-darker: rgb(51, 136, 0, 1);
+  --pop-color-clear: rgb(51, 170, 0, 0);
+
+  --main-border-color: #555555;
+  --subtle-border-color: #333333;
+
+  --shadow-color: #000000;
+
+  --resizer-color: #444444;
+
+  --dragger-bg-color-fallback: #444444;
+  --dragger-bg-gradient: linear-gradient(#444444, #333333);
+
+  --satisfied-color: #33AA00;
+  --impossible-color: #FF3300;
+}
