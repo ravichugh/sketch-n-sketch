@@ -4292,7 +4292,7 @@ findAllDeps root e =
     case boundExpForIdent root e id of
         Nothing -> []
         Just (FE e) -> [expEId e]
-        Just (BE e) -> expEId e :: findAllDeps root e
+        Just (BE e) -> [expEId e] -- expEId e :: findAllDeps root e
   )
 
 freeVars : Exp -> List Exp
