@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Sketch-n-Sketch</title>
+    <link rel="shortcut icon"
+          type="image/png"
+          href="img/sketch-n-sketch-logo.png" />
+    <link href="https://fonts.googleapis.com/css?family=Inconsolata|Roboto:400,400i,700,700i" rel="stylesheet">
+    <link rel="stylesheet" href="light.css" data-color-scheme="light" />
+    <link rel="stylesheet" href="dark.css" data-color-scheme="dark" />
+    <link rel="stylesheet" href="main.css" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.rawgit.com/dreampulse/computer-modern-web-font/master/fonts.css">
+    <script type="text/javascript" src="sns.js"></script>
+    <script type="text/javascript" src="ace.js"></script>
+    <script type="text/javascript" src="aceTooltips.js"></script>
+    <!-- <script type="text/javascript" src="viz.js"></script> -->
+  </head>
+
+  <body style="margin: 0 0 0 0;">
+    <script>
+      var app = Elm.Main.fullscreen();
+
+      // https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload
+      window.onbeforeunload = function(e) {
+        var dataElement = document.getElementById("onbeforeunload-data");
+        if (dataElement !== null) {
+          var needsSave = dataElement.getAttribute("data-needs-save") === "true";
+          if (needsSave) {
+            var filename = dataElement.getAttribute("data-filename")
+            var warning = filename + " has unsaved changes. Are you sure that you would like to leave?\n\nYou will lose your unsaved changes.";
+            e.returnValue = warning;
+            return warning;
+          }
+        }
+      }
+    </script>
+
+    <script type="text/javascript" src="aceCodeBox.js"></script>
+    <script type="text/javascript" src="outputCanvas.js"></script>
+    <script type="text/javascript" src="animationLoop.js"></script>
+    <script type="text/javascript" src="fileHandler.js"></script>
+    <script type="text/javascript" src="deucePopupPanelInfo.js"></script>
+    <script type="text/javascript" src="dotGraph.js"></script>
+    <script type="text/javascript" src="colorScheme.js"></script>
+    <script type="text/javascript" src="syntaxHighlight.js"></script>
+    <script type="text/javascript" src="focus.js"></script>
+    <script type="text/javascript" src="keyBlocker.js"></script>
+    <script type="text/javascript" src="solverServer.js"></script>
+  </body>
+</html>
+
+<!--
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8"/>
+    <title>elm-elm</title>
+    <link rel="stylesheet" href="simple.css"/>
+    <script src="sns.js"></script>
+  </head>
+  <body>
+    <script>
+      var app = Elm.Main.fullscreen();
+    </script>
+  </body>
+</html>
+-->
