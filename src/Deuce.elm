@@ -919,7 +919,7 @@ occludeOverlay msgs model =
       model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
     mbHoveredDepEIds =
       case model.deuceState.hoveredWidgets of
-        [DeuceExp hoveredEId] -> Just <| Set.fromList <| Lang.findAllDeps ast <| LangTools.justFindExpByEId ast hoveredEId
+        [DeuceExp hoveredEId] -> Just <| Set.fromList <| (::) hoveredEId <| Lang.findAllDeps ast <| LangTools.justFindExpByEId ast hoveredEId
         _ -> Nothing
   in
     Svg.g

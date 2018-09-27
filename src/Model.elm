@@ -1293,6 +1293,7 @@ type alias DeuceCacheTriggerValues =
   , lineHeight : Float
   , characterWidth : Float
   , contentLeft : Float
+  , codeEditorMode : CodeEditorMode
   }
 
 deuceCacheTriggerValues : Model -> DeuceCacheTriggerValues
@@ -1306,6 +1307,7 @@ deuceCacheTriggerValues m =
   , lineHeight = m.codeBoxInfo.lineHeight
   , characterWidth = m.codeBoxInfo.characterWidth
   , contentLeft = m.codeBoxInfo.contentLeft
+  , codeEditorMode = m.codeEditorMode
   }
 
 deuceCacheNeedsUpdate : Model -> Model -> Bool
