@@ -4236,6 +4236,65 @@ visibleIdents root e =
     )
   )
 
+type Thing = BE Exp | FE Exp
+
+boundExpForIdent : Exp -> Exp -> Ident -> Maybe Thing
+boundExpForIdent root e id =
+  expEId e |>
+  findWithAncestorsByEId root |>
+  Maybe.andThen (\eWithAncestors ->
+    let eAndAncestorEIds = List.map expEId eWithAncestors |> Set.fromList in
+    List.reverse eWithAncestors |> List.tail |> Maybe.andThen (
+    Utils.mapFirstSuccess (\ancestor ->
+      case unwrapExp ancestor of
+        EFun _ pats _ _ ->
+                if List.member id <| identifiersListInPats pats then Just <| FE ancestor  else Nothing
+        ECase _ _ branches _ ->
+          let mbAncestorBranch =
+            branches |>
+            Utils.findFirst (\branch -> Set.member (branchExp branch |> expEId) eAndAncestorEIds)
+          in
+          case mbAncestorBranch of
+            Nothing             -> Nothing
+            Just ancestorBranch ->
+                 if List.member id <| identifiersListInPat <| branchPat ancestorBranch then Just <| BE <| branchExp ancestorBranch else Nothing
+        ELet _ _ (Declarations _ _ _ groupedExps) _ _ ->
+          let accumulate hasSeen remainingGroupedExps =
+            case remainingGroupedExps of
+              [] ->
+                Nothing
+              (isRec, letExps) :: rest ->
+                let
+                  eIsPartOfThisGroup =
+                    groupBoundExps letExps |>
+                    List.any (\boundExp -> Set.member (expEId boundExp) eAndAncestorEIds)
+                  newHasSeen = eIsPartOfThisGroup || hasSeen
+                  foundPat = List.member id <| groupIdentifiers letExps
+                  boundExp = Utils.fromJust_ "Bad bound exp" <| List.head <| groupBoundExps letExps
+                in
+                ( if foundPat then
+                    Just <| BE boundExp
+                  else
+                    accumulate newHasSeen rest
+                )
+          in
+          accumulate False <| List.reverse groupedExps
+        _ -> Nothing
+    )
+  ))
+
+findAllDeps : Exp -> Exp -> List EId
+findAllDeps root e =
+  let
+    idsInE = Set.toList <| freeIdentifiers e
+  in
+  idsInE |> List.concatMap (\id ->
+    case boundExpForIdent root e id of
+        Nothing -> []
+        Just (FE e) -> [expEId e]
+        Just (BE e) -> expEId e :: findAllDeps root e
+  )
+
 freeVars : Exp -> List Exp
 freeVars exp =
   let removeIntroducedBy pats vars =

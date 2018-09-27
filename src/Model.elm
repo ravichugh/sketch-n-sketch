@@ -1288,7 +1288,7 @@ type alias DeuceCacheTriggerValues =
   , inputExp : Exp
   , mbKeyboardFocusedWidget : Maybe DeuceWidgets.DeuceWidget
   , selectedWidgets : List DeuceWidgets.DeuceWidget
-  -- , hoveredWidgets : List DeuceWidgets.DeuceWidget
+  , hoveredWidgets : List DeuceWidgets.DeuceWidget
   , colorScheme : ColorScheme
   , lineHeight : Float
   , characterWidth : Float
@@ -1301,7 +1301,7 @@ deuceCacheTriggerValues m =
   , inputExp = m.inputExp
   , mbKeyboardFocusedWidget = m.deuceState.mbKeyboardFocusedWidget
   , selectedWidgets = m.deuceState.selectedWidgets
-  -- , hoveredWidgets = m.deuceState.hoveredWidgets
+  , hoveredWidgets = m.deuceState.hoveredWidgets
   , colorScheme = m.colorScheme
   , lineHeight = m.codeBoxInfo.lineHeight
   , characterWidth = m.codeBoxInfo.characterWidth

@@ -5,6 +5,7 @@
 module Deuce exposing (Messages, overlay, diffOverlay, c2a)
 
 import List
+import Set
 import String
 import Tuple
 import Dict exposing (Dict)
@@ -25,6 +26,7 @@ import Model exposing
 
 import Info exposing (WithInfo)
 
+import LangTools
 import Lang exposing
   ( WS
   , BeforeAfter(..)
@@ -560,10 +562,16 @@ whitespaceColor colorScheme =
 -- This polygon should be used for code objects that should not be Deuce-
 -- selectable. The purpose of this polygon is to block selection of the parent
 -- code object of the unwanted code object.
-blockerPolygon : CodeInfo -> CodeObject -> List (Svg msg)
-blockerPolygon codeInfo codeObject =
+occluderPolygon : Messages msg -> CodeInfo -> CodeObject -> DeuceWidget -> List (Svg msg)
+occluderPolygon msgs codeInfo codeObject deuceWidget =
   [ Svg.polygon
-      [ SAttr.opacity "0"
+      [ SAttr.opacity "0.3"
+      , SAttr.fill <|
+          rgbaString
+            { r = 0 , g = 0 , b = 0 }
+            0.3
+      , SE.onMouseOver <| msgs.onMouseOver deuceWidget
+      , SE.onMouseOut <| msgs.onMouseOut deuceWidget
       , SAttr.points <|
           codeObjectHullPoints False codeInfo codeObject
       ]
@@ -822,6 +830,9 @@ type alias Messages msg =
 
 overlay : Messages msg -> Model -> Svg msg
 overlay msgs model =
+ if model.codeEditorMode == Model.CETypeInspector then
+  occludeOverlay msgs model
+ else
   let
     ast =
       model.inputExp
@@ -865,6 +876,71 @@ overlay msgs model =
           "translate(" ++ toString leftShift ++ ", 0)"
       ]
       ( polygons msgs codeInfo ast
+      )
+
+occludeOverlay : Messages msg -> Model -> Svg msg
+occludeOverlay msgs model =
+  let
+    ast =
+      model.inputExp
+    displayInfo =
+      { lineHeight =
+          model.codeBoxInfo.lineHeight
+      , characterWidth =
+          model.codeBoxInfo.characterWidth
+      , colorScheme =
+          model.colorScheme
+      }
+    (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
+      lineHullsFromCode displayInfo model.code
+    patMap =
+      computePatMap ast
+    codeInfo =
+      { displayInfo =
+          displayInfo
+      , untrimmedLineHulls =
+          untrimmedLineHulls
+      , trimmedLineHulls =
+          trimmedLineHulls
+      , mbKeyboardFocusedWidget =
+          model.deuceState.mbKeyboardFocusedWidget
+      , selectedWidgets =
+          model.deuceState.selectedWidgets
+      , patMap =
+          patMap
+      , maxLineLength =
+          maxLineLength
+      , needsParse =
+          Model.needsParse model
+      , doTypeChecking =
+          model.doTypeChecking
+      }
+    leftShift =
+      model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
+    mbHoveredDepEIds =
+      case model.deuceState.hoveredWidgets of
+        [DeuceExp hoveredEId] -> Just <| Set.fromList <| Lang.findAllDeps ast <| LangTools.justFindExpByEId ast hoveredEId
+        _ -> Nothing
+  in
+    Svg.g
+      [ SAttr.transform <|
+          "translate(" ++ toString leftShift ++ ", 0)"
+      ]
+      ( List.reverse <|
+          foldCode
+            ( \codeObject acc ->
+                  case (mbHoveredDepEIds, codeObject, toDeuceWidget codeInfo.patMap codeObject) of
+                    (Nothing, _, _) -> acc
+                    (Just hoveredDepEIds, E e, Just dw) ->
+                      if Set.member (Lang.expEId e) hoveredDepEIds then
+                        acc
+                      else
+                        occluderPolygon msgs codeInfo codeObject dw ++ acc
+                    _ ->
+                      acc
+            )
+            []
+            (E ast)
       )
 
 diffOverlay : Model -> List Exp -> Svg msg

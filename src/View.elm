@@ -1599,7 +1599,7 @@ codePanel model =
             Model.CEDeuceClick ->
               ("Deuce", "Deuce")
             Model.CETypeInspector ->
-              ("Type Inspector", "TypeInspector")
+              ("Context Info", "ContextInfo")
       in
         Html.div
           [ Attr.classList
