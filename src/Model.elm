@@ -1489,7 +1489,7 @@ initModel =
         }
     , mbDeuceKeyboardInfo = Nothing
     , deuceRightClickMenuMode = Nothing
-    , enableDeuceBoxSelection = True
+    , enableDeuceBoxSelection = False
     , enableDeuceTextSelection = True
     , codeToolsMenuMode = CTAll
     , outputToolsMenuMode = False
