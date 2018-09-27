@@ -565,11 +565,11 @@ whitespaceColor colorScheme =
 occluderPolygon : Messages msg -> CodeInfo -> CodeObject -> DeuceWidget -> List (Svg msg)
 occluderPolygon msgs codeInfo codeObject deuceWidget =
   [ Svg.polygon
-      [ SAttr.opacity "0.8"
+      [ SAttr.opacity "0.15"
       , SAttr.fill <|
           rgbaString
             { r = 255 , g = 255 , b = 255 }
-            0.8
+            0.15
       , SE.onMouseOver <| msgs.onMouseOver deuceWidget
       , SE.onMouseOut <| msgs.onMouseOut deuceWidget
       , SAttr.points <|
