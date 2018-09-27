@@ -172,17 +172,19 @@ main =
 
 ## Bidirectional Programming 3
 
-Let's change our "require" function using the output canvas:
+And now let's add some more items to our shopping list!
 
 ```
 require entry =
-  <li>I really need @entry</li>
+  <li>I need @entry</li>
 
 shoppingList =
   [ "red apples"
   , "yellow potatoes"
   , "green beans"
   , "blue berries"
+  , "chocolate ice cream"
+  , "tomato soup"
   ]
 
 name =
@@ -198,7 +200,7 @@ main =
   </div>
 ```
 
-And now let's add some more items to our shopping list!
+And now let's change our "require" function using the output canvas:
 
 ```
 require entry =
@@ -256,7 +258,7 @@ name =
   "Justin"
 
 main =
-  <div style="padding: 10px">
+  <div style="padding:10px">
     <h1>Hello, @name!</h1>
     <h2>@name's Shopping List</h2>
     <ul>
@@ -276,16 +278,16 @@ require entry =
       Regex.split " " entry
     
     myStyle =
-      "color: " + color
+      "color:" + color
   in
-    <li style=myStyle>I need @entry</li>
+    <li style=myStyle>I really need @entry</li>
 
 shoppingList =
   [ "red apples"
   , "yellow potatoes"
   , "green beans"
   , "blue berries"
-  , "chocolate cake"
+  , "chocolate ice cream"
   , "tomato soup"
   ]
 
@@ -293,7 +295,7 @@ name =
   "Justin"
 
 main =
-  <div style="padding: 10px;">
+  <div style="padding:10px">
     <h1>Hello, @name!</h1>
     <h2>@name's Shopping List</h2>
     <ul>
@@ -313,7 +315,7 @@ require entry =
       Regex.split " " entry
     
     myStyle =
-      "color: " + color
+      "color:" + color
   in
     <li style=myStyle>I need @entry</li>
 
@@ -322,7 +324,7 @@ shoppingList =
   , "purple potatoes"
   , "red beans"
   , "blue berries"
-  , "chocolate cake"
+  , "chocolate ice cream"
   , "tomato soup"
   ]
 
@@ -330,7 +332,42 @@ name =
   "Justin"
 
 main =
-  <div style="padding: 10px;">
+  <div style="padding:10px">
+    <h1>Hello, @name!</h1>
+    <h2>@name's Shopping List</h2>
+    <ul>
+      @(List.map require shoppingList)
+    </ul>
+  </div>
+```
+
+And we can use the web inspector to change values too:
+
+```
+require entry =
+  let
+    color :: _ =
+      Regex.split " " entry
+    
+    myStyle =
+      "color:" + color
+  in
+    <li style=myStyle>I need @entry</li>
+
+shoppingList =
+  [ "green apples"
+  , "purple potatoes"
+  , "red beans"
+  , "blue berries"
+  , "chocolate ice cream"
+  , "olive soup"
+  ]
+
+name =
+  "Justin"
+
+main =
+  <div style="padding:10px">
     <h1>Hello, @name!</h1>
     <h2>@name's Shopping List</h2>
     <ul>
