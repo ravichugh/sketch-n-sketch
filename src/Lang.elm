@@ -2597,6 +2597,10 @@ eListUnapplyWS e = case (unwrapExp e) of
   EList _ elems _ Nothing  _-> Just <| elems
   _ -> Nothing
 
+eConsUnapply e = case (unwrapExp e) of
+  EList _ [(_, elem)] _ (Just tail)  _-> Just <| (elem, tail)
+  _ -> Nothing
+
 eOpUnapply1 expectedOp e = case (unwrapExp e) of
   EOp _ _ op [arg] _ -> if op.val == expectedOp then Just arg else Nothing
   _ -> Nothing
@@ -2674,11 +2678,14 @@ vHtmlTextUnapply v = case v.v_ of
 vHtmlTextDiffs d =
   vListDiffs [ListElemSkip, ListElemUpdate d]
 
+-- Empty means that it could not extract any difference
+vHtmlTextDiffsUnapply: Diffs -> Diffs
 vHtmlTextDiffsUnapply ds = ds |> List.map (\d -> case d of
   DiffSame -> Just [DiffSame]
-  DiffUpdate [("hd", [DiffSame]), ("tl", [DiffUpdate [("hd", ds), ("tl", [DiffSame])]])] ->
+  DiffUpdate _ [("hd", [DiffSame]), ("tl",
+    [DiffUpdate _ [("hd", ds), ("tl", [DiffSame])]])] ->
     Just ds
-  _ -> Nothing) |> Utils.projJusts |> Maybe.map List.concat
+  _ -> Nothing) |> List.filterMap identity |> List.concat
 
 pVarUnapply p = case p.val.p__ of
   PVar _ s _ -> Just s
@@ -4346,28 +4353,68 @@ vTupleDiffs list =
     |> List.map (Maybe.map (\d -> ListElemUpdate d) >> Maybe.withDefault ListElemSkip))
 
 type RelativePath = Up | Down Ident
-type WhitespaceDiffs = OnlyWhitespaceDiffs | AnyDiffs
+type MetaDiff = WhitespaceDiff
+
+type Clone =
+    -- The path is relative to the last expression stored.
+    Clone (List RelativePath) Diffs
 
 type alias Diffs = List Diff
 type Diff =
     DiffSame
-  | DiffNew WhitespaceDiffs -- For expressions that do need to be re-rendered but not mentionned in the summary
   | DiffDelete -- For dictionaries or change in datatype.
-  | DiffClone (List RelativePath) Diffs -- The path is relative to the last expression stored.
-  | DiffUpdate (List (String, Diffs))
-  | DiffString {-original start: -}Int {-original end: -}Int {- chars replacing -}Int Diffs -- Start, end, how many characters replaced, other diffs (to the right)
-  | DiffWrap Ident Exp -- The expression will substitute the ident in Exp
+  -- DiffNew supposes that the structure of the element is modified.
+  | DiffNew Exp (List (Ident, Clone))   -- To insert whatever new expression, but still clone other expressions in scope.
+  -- DiffUpdate supposes that the element structure did not change, only its children.
+  | DiffUpdate (List MetaDiff) (List (String, Diffs))
 
-type ListElemDiff a = ListElemSkip | ListElemUpdate a | ListElemInsert | ListElemDelete
+diffUpdateHdSameTlDiffs: Diffs -> Diffs
+diffUpdateHdSameTlDiffs diffs =
+  [DiffUpdate [] [("hd", [DiffSame]), ("tl", diffs)]]
+
+diffSameMultiple: Int -> Diffs -> Diffs
+diffSameMultiple nb diffs =
+  Utils.foldLeft diffs (List.range 1 nb) <|
+    \acc _ -> diffUpdateHdSameTlDiffs acc
+
+diffDownPath: Int -> List RelativePath
+diffDownPath n = List.range 1 n |> List.map (always (Down "tl"))
+
+-- with diffString, we want to be able to replace many character at once.
+diffStringReplace: Int -> Int -> String -> Diffs
+diffStringReplace start end newString =
+  diffSameMultiple start
+    [DiffNew
+       (eOp Plus [eStr newString, eVar "old"])
+       [("old", Clone (diffDownPath (end - start)) [DiffSame])]]
+
+diffStringInsert: Int -> String -> Diffs
+diffStringInsert start newString =
+  diffStringReplace start start newString
+
+diffStringRemove: Int -> Int -> Diffs
+diffStringRemove start end =
+  diffSameMultiple start
+    [DiffNew (eVar "old") [("old", Clone (diffDownPath (end - start)) [DiffSame])]]
+
+type ListElemDiff a =
+    ListElemSkip
+  | ListElemUpdate a
+  | ListElemInsert Exp -- TODO: This is restrictive (it does not allow cloning)
+  | ListElemDelete
 
 -- Compatibility
 listElemDiffsToDiffs: (a -> Diffs) -> List (ListElemDiff a) -> Diffs
 listElemDiffsToDiffs subroutine l = case l of
   [] -> [DiffSame]
-  ListElemSkip :: tail -> [DiffUpdate [("hd", [DiffSame]), ("tl", listElemDiffsToDiffs subroutine tail)]]
-  ListElemDelete :: tail -> [DiffClone [Down "tl"] (listElemDiffsToDiffs subroutine tail)]
-  ListElemInsert :: tail -> [DiffUpdate [("hd", [DiffNew AnyDiffs]), ("tl", [DiffClone [] (listElemDiffsToDiffs subroutine tail)])]]
-  ListElemUpdate d::tail -> [DiffUpdate [("hd", subroutine d), ("tl", listElemDiffsToDiffs subroutine tail)]]
+  ListElemSkip :: tail ->
+    diffUpdateHdSameTlDiffs <| listElemDiffsToDiffs subroutine tail
+  ListElemDelete :: tail ->
+    [DiffNew (eVar "old") [("old", Clone [Down "tl"] (listElemDiffsToDiffs subroutine tail))]]
+  ListElemInsert exp  :: tail ->
+    [DiffNew (eList [exp] (Just (eVar "old"))) [("old", Clone [] (listElemDiffsToDiffs subroutine tail))]]
+  ListElemUpdate d::tail ->
+    [DiffUpdate [] [("hd", subroutine d), ("tl", listElemDiffsToDiffs subroutine tail)]]
 
 diffsTolistElemDiffsToDiffs: (Diffs -> Result String (List a)) -> Diffs -> Result String (List (List (ListElemDiff a)))
 diffsTolistElemDiffsToDiffs subroutine ds = case ds of
@@ -4376,17 +4423,23 @@ diffsTolistElemDiffsToDiffs subroutine ds = case ds of
      let thisDiffs =
         case d of
           DiffSame -> Ok [ [] ]
-          DiffClone [Down "tl"] tailDiff -> diffsTolistElemDiffsToDiffs subroutine tailDiff
-             |> Result.map (List.map ((::) ListElemDelete))
-          DiffUpdate [("hd", hddiffs), ("tl", tail)] ->
+          DiffNew content [("old", Clone path tailDiff)] ->
+            case (eVarUnapply content, path) of
+              (Just "old", [Down "tl"]) ->
+                diffsTolistElemDiffsToDiffs subroutine tailDiff
+                |> Result.map (List.map ((::) ListElemDelete))
+              _ ->
+                case (eConsUnapply content |> Maybe.map (Tuple.mapSecond eVarUnapply), path) of
+                  (Just (exp, Just "old"), []) ->
+                     diffsTolistElemDiffsToDiffs subroutine tailDiff
+                     |> Result.map (List.map ((::) (ListElemInsert exp)))
+                  _ -> Err <| "Could not recognize DiffNew"
+          DiffUpdate _ [("hd", hddiffs), ("tl", tail)] ->
              Utils.cartProd hddiffs tail
              |> List.map (\(hddiff, taildiff) -> case (hddiff, taildiff) of
                (DiffSame, tailDiff) ->
                  diffsTolistElemDiffsToDiffs subroutine [tailDiff]
                  |> Result.map (List.map ((::) ListElemSkip))
-               (DiffNew AnyDiffs, DiffClone [] tailDiff) ->
-                 diffsTolistElemDiffsToDiffs subroutine tailDiff
-                 |> Result.map (List.map ((::) ListElemInsert))
                (u, t) -> diffsTolistElemDiffsToDiffs subroutine [t]
                  |> Result.map2 (\possibleAs tailDiffs ->
                      Utils.flip2 Utils.cartProdMap possibleAs tailDiffs <|
@@ -4411,7 +4464,7 @@ vListDiffsUnapply vdiffs = case vdiffs of
 -}
 vRecordDiffsUnapply: Diff -> Maybe (Dict String Diffs)
 vRecordDiffsUnapply x = case x of
-  DiffUpdate l -> Just (Dict.fromList l)
+  DiffUpdate _ l -> Just (Dict.fromList l)
   _ -> Nothing
 
 -- Given a string "_1", "_2" ... returns if there is a diff associated to it for a diff on datatypes
@@ -4421,19 +4474,19 @@ vDatatypeDiffsGet n d = d |> vRecordDiffsUnapply
      Maybe.andThen (
       List.map (vRecordDiffsUnapply >> Maybe.andThen (Dict.get n)) >> Utils.projJusts >> Maybe.map List.concat))
 
-offsetStr: Int -> Diff -> Diff
+{-offsetStr: Int -> Diff -> Diff
 offsetStr n diff =
   case diff of
     DiffString start end replaced ds ->
       DiffString (start + n) (end + n) replaced (List.map (offsetStr n) ds)
   --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|
     x -> x
-
+-}
 diffOps = {
   mbVClosureDiffs = \envDiffs bodyDiffs ->
     if List.all ((==) DiffSame) envDiffs && List.all ((==) DiffSame) bodyDiffs &&
       not (List.isEmpty envDiffs) && not (List.isEmpty bodyDiffs) then [DiffSame]
-    else [DiffUpdate [("env", envDiffs), ("bodyDiffs", bodyDiffs)]]
+    else [DiffUpdate [] [("env", envDiffs), ("bodyDiffs", bodyDiffs)]]
   }
 
 type alias UpdatedExp = { val: Exp, changes: Diffs }
@@ -4458,7 +4511,7 @@ updated = {
        [] -> UpdatedEnv
                (List.reverse revEnv)
                (Utils.foldRight revDs [DiffSame] <|
-                  \ds tailDiffs -> [DiffUpdate [("hd", ds), ("tl", tailDiffs)]])
+                  \ds tailDiffs -> [DiffUpdate [] [("hd", ds), ("tl", tailDiffs)]])
        (name, (v, ds))::tail ->
           aux tail ((name, v)::revEnv) (ds :: revDs)
      in

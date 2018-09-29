@@ -486,10 +486,10 @@ contructorVDiffs vdiffs =
   _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
 
 
-unparseConstructor: String -> Int -> TupleDiffs VDiffs -> List HTMLUnparserDiff -> Result String (String, Int, List StringDiffs)
+unparseConstructor: String -> Int -> Diffs {- tupleDiffs -}-> List HTMLUnparserDiff -> Result String (String, Int, Diffs {-List StringDiffs -})
 unparseConstructor tagName    offset tDiffs unparsers =
   --let _ = Debug.log ("unparseConstructor " ++ tagName ++ " " ++ toString offset ++ " " ++ toString tDiffs ++ " " ++ toString unparsers) () in
-  let aux: TupleDiffs VDiffs -> List HTMLUnparserDiff -> (String, Int, List StringDiffs) -> Result String (String, Int, List StringDiffs)
+  let aux: Diffs -> List HTMLUnparserDiff -> (String, Int, Diffs) -> Result String (String, Int, Diffs)
       aux tDiffs unparsers (strAcc, offset, listDiffs) =
     --let _ = Debug.log ("unparseConstructor.aux " ++ toString i ++ " " ++ toString tDiffs ++ " " ++ toString unparsers ++ " " ++ toString (strAcc, offset, listDiffs)) () in
     case tDiffs of
@@ -724,12 +724,13 @@ unparseCommentStyleDiffs oldStyle newStyle offset mbvdiffs =
 
 unparseNodeDiffs: HTMLNode -> HTMLNode -> Unparser
 unparseNodeDiffs oldNode newNode offset mbvdiffs =
+  flip List.map mbvdiffs <| \mbvdiff ->
   --let _ = Debug.log ("unparseNodeDiffs " ++ toString oldNode ++ " " ++ toString newNode ++ " " ++ toString offset ++ " " ++ toString mbvdiffs) () in
-  case mbvdiffs of
-    Nothing ->
+  case mbvdiff of
+    DiffSame ->
       let nodeStr = unparseNode newNode in
       Ok (nodeStr, offset + String.length nodeStr, [])
-    Just vdiffs ->
+    vdiffs ->
       case (oldNode.val, newNode.val, contructorVDiffs vdiffs) of
       (_, _, Err msg) -> Err msg
       (HTMLInner s1, HTMLInner s2, Ok ds) ->
@@ -769,10 +770,10 @@ unparseNodeDiffs oldNode newNode offset mbvdiffs =
         let oldNodeStr = unparseNode oldNode in
         let newNodeStr = unparseNode newNode in
         let lengthOldode = String.length oldNodeStr in
-        Ok (newNodeStr, offset + lengthOldode, [StringUpdate offset (offset + lengthOldode) (String.length newNodeStr)])
+        Ok (newNodeStr, offset + lengthOldode, [DiffString offset (offset + lengthOldode) (String.length newNodeStr) [DiffSame]])
 
 -- Top-level function
-unparseHtmlNodesDiffs: Maybe VDiffs-> List HTMLNode -> List HTMLNode -> Result String (String, List StringDiffs)
+unparseHtmlNodesDiffs: Diffs-> List HTMLNode -> List HTMLNode -> Result String (String, Diffs {- StringDiffs -})
 unparseHtmlNodesDiffs diffs oldNodes newNodes =
   unparseList unparseNodeDiffs unparseNode oldNodes newNodes 0 diffs |> Result.map (\(s, _, l) -> (s, l))
   --|>  Debug.log ("unparseHtmlNodesDiffs " ++toString diffs ++ " " ++ toString oldNodes ++ " " ++ toString newNodes)
