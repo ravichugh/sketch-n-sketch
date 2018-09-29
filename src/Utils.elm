@@ -466,9 +466,13 @@ slice start end list =
     |> List.drop start
     |> List.take (end - start)
 
+cartProdMap : (a -> b -> c) -> List a -> List b -> List c
+cartProdMap f xs ys =
+   xs |> List.concatMap (\x -> List.map (f x) ys)
+
 cartProd : List a -> List b -> List (a, b)
-cartProd xs ys =
-   xs |> List.concatMap (\x -> List.map ((,) x) ys)
+cartProd =
+   cartProdMap (,)
 
 -- Cartesian product for arbitrary many lists of the same type
 oneOfEach : List (List a) -> List (List a)
@@ -971,7 +975,7 @@ flipDict : Dict a b -> Dict b a
 flipDict dict =
   dict
   |> Dict.toList
-  |> List.map flip
+  |> List.map flipTuple
   |> Dict.fromList
 
 multiKeySingleValue : List k -> v -> Dict k v
@@ -1177,6 +1181,25 @@ projOk list =
       (Ok [])
       list
 
+splitResults: List (Result a b) -> (List a, List b)
+splitResults results =
+  Tuple.mapFirst List.reverse <|
+  Tuple.mapSecond List.reverse <|
+  foldLeft ([], []) results <|
+  \(aList, bList) result -> case result of
+    Err a -> (a :: aList, bList)
+    Ok b -> (aList, b :: bList)
+
+-- Same as projOk but if there is at least one Ok, it returns it.
+projOkForgiving: List (Result a b) -> Result a (List b)
+projOkForgiving list =
+  let (errs, oks) = splitResults list in
+  if List.length oks > 0 then
+    Ok oks
+  else case errs of
+    head :: tail -> Err head
+    _ -> Ok oks
+
 -- Returns Err if function ever returns Err
 foldlResult : (a -> b -> Result err b) -> Result err b -> List a -> Result err b
 foldlResult f resultAcc list =
@@ -1217,7 +1240,9 @@ mapFst3 f (x,y,z) = (f x, y, z)
 mapSnd3 f (x,y,z) = (x, f y, z)
 mapThd3 f (x,y,z) = (x, y, f z)
 
-flip (a, b) = (b, a)
+flipTuple (a, b) = (b, a)
+
+flip2 f a b callback = f callback a b
 
 bindResult : Result a b -> (b -> Result a b_) -> Result a b_
 bindResult res f =

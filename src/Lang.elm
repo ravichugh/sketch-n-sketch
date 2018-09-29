@@ -549,7 +549,7 @@ type Val_
   | VFun String -- Name
          (List String) -- Name of arguments
          (List Val -> Result String (Val, Widgets)) -- Evaluation rule
-         (Maybe (List Val -> Val -> Val -> VDiffs -> Results String (List Val, TupleDiffs VDiffs))) -- Maybe Update rule
+         (Maybe (List Val -> Val -> Val -> Diffs -> Results String (List Val, Diffs))) -- Maybe Update rule
 
 type alias VDict_ = Dict (String, String) Val -- First key string is unparsed key, the second type is the value. See Eval.valToDictKey
 
@@ -2672,15 +2672,13 @@ vHtmlTextUnapply v = case v.v_ of
   _ -> Nothing
 
 vHtmlTextDiffs d =
-  VListDiffs [ListElemSkip 1, ListElemUpdate d]
+  vListDiffs [ListElemSkip, ListElemUpdate d]
 
-vHtmlTextDiffsUnapply d = case d of
-  VListDiffs ld -> case ld of
-    [ListElemSkip 1, ListElemUpdate (VStringDiffs x)] -> Just x
-    [ListElemSkip _] -> Just []
-    [] -> Just []
-    _ -> Nothing
-  _ -> Nothing
+vHtmlTextDiffsUnapply ds = ds |> List.map (\d -> case d of
+  DiffSame -> Just [DiffSame]
+  DiffUpdate [("hd", [DiffSame]), ("tl", [DiffUpdate [("hd", ds), ("tl", [DiffSame])]])] ->
+    Just ds
+  _ -> Nothing) |> Utils.projJusts |> Maybe.map List.concat
 
 pVarUnapply p = case p.val.p__ of
   PVar _ s _ -> Just s
@@ -4337,71 +4335,114 @@ freeIdentifiersList exp =
 getTopLevelOptions: Exp -> List (String, String)
 getTopLevelOptions e = getOptions e
 
--- Diffs
+-- Backward compatibility
+vListDiffs: List (ListElemDiff Diffs) -> Diffs
+vListDiffs list =
+  listElemDiffsToDiffs identity list
 
-type alias TupleDiffs a = List (Maybe a)
-type alias ListDiffs a = List (ListElemDiff a)
+vTupleDiffs: List (Maybe Diffs) -> Diffs
+vTupleDiffs list =
+  vListDiffs (list
+    |> List.map (Maybe.map (\d -> ListElemUpdate d) >> Maybe.withDefault ListElemSkip))
 
-type ListElemDiff a = ListElemSkip Int | ListElemUpdate a | ListElemInsert Int | ListElemDelete Int
+type RelativePath = Up | Down Ident
+type WhitespaceDiffs = OnlyWhitespaceDiffs | AnyDiffs
 
-type VDictElemDiff = VDictElemDelete | VDictElemInsert | VDictElemUpdate VDiffs
+type alias Diffs = List Diff
+type Diff =
+    DiffSame
+  | DiffNew WhitespaceDiffs -- For expressions that do need to be re-rendered but not mentionned in the summary
+  | DiffDelete -- For dictionaries or change in datatype.
+  | DiffClone (List RelativePath) Diffs -- The path is relative to the last expression stored.
+  | DiffUpdate (List (String, Diffs))
+  | DiffString {-original start: -}Int {-original end: -}Int {- chars replacing -}Int Diffs -- Start, end, how many characters replaced, other diffs (to the right)
+  | DiffWrap Ident Exp -- The expression will substitute the ident in Exp
 
-type StringDiffs = StringUpdate {-original start: -}Int {-original end: -}Int {- chars replacing -}Int
+type ListElemDiff a = ListElemSkip | ListElemUpdate a | ListElemInsert | ListElemDelete
 
-type alias EnvDiffs = TupleDiffs VDiffs
--- The environment of a closure if it was modified, the modifications of an environment else.
-type VDiffs = VClosureDiffs EnvDiffs (Maybe EDiffs)
-            | VListDiffs (ListDiffs VDiffs)
-            | VStringDiffs (List StringDiffs)
-            | VDictDiffs (Dict (String, String) VDictElemDiff)
-            | VRecordDiffs (Dict String VDiffs)
-            | VConstDiffs
+-- Compatibility
+listElemDiffsToDiffs: (a -> Diffs) -> List (ListElemDiff a) -> Diffs
+listElemDiffsToDiffs subroutine l = case l of
+  [] -> [DiffSame]
+  ListElemSkip :: tail -> [DiffUpdate [("hd", [DiffSame]), ("tl", listElemDiffsToDiffs subroutine tail)]]
+  ListElemDelete :: tail -> [DiffClone [Down "tl"] (listElemDiffsToDiffs subroutine tail)]
+  ListElemInsert :: tail -> [DiffUpdate [("hd", [DiffNew AnyDiffs]), ("tl", [DiffClone [] (listElemDiffsToDiffs subroutine tail)])]]
+  ListElemUpdate d::tail -> [DiffUpdate [("hd", subroutine d), ("tl", listElemDiffsToDiffs subroutine tail)]]
 
-type EDiffs = EConstDiffs EWhitespaceDiffs
-            | EListDiffs (ListDiffs EDiffs)
-            | EStringDiffs (List StringDiffs)
-            | EChildDiffs (TupleDiffs EDiffs) -- Also for records
+diffsTolistElemDiffsToDiffs: (Diffs -> Result String (List a)) -> Diffs -> Result String (List (List (ListElemDiff a)))
+diffsTolistElemDiffsToDiffs subroutine ds = case ds of
+   [] -> Ok [ [] ]
+   d :: t ->
+     let thisDiffs =
+        case d of
+          DiffSame -> Ok [ [] ]
+          DiffClone [Down "tl"] tailDiff -> diffsTolistElemDiffsToDiffs subroutine tailDiff
+             |> Result.map (List.map ((::) ListElemDelete))
+          DiffUpdate [("hd", hddiffs), ("tl", tail)] ->
+             Utils.cartProd hddiffs tail
+             |> List.map (\(hddiff, taildiff) -> case (hddiff, taildiff) of
+               (DiffSame, tailDiff) ->
+                 diffsTolistElemDiffsToDiffs subroutine [tailDiff]
+                 |> Result.map (List.map ((::) ListElemSkip))
+               (DiffNew AnyDiffs, DiffClone [] tailDiff) ->
+                 diffsTolistElemDiffsToDiffs subroutine tailDiff
+                 |> Result.map (List.map ((::) ListElemInsert))
+               (u, t) -> diffsTolistElemDiffsToDiffs subroutine [t]
+                 |> Result.map2 (\possibleAs tailDiffs ->
+                     Utils.flip2 Utils.cartProdMap possibleAs tailDiffs <|
+                       \a tailDiff -> ListElemUpdate a :: tailDiff
+                     ) (subroutine [u])
+             )
+             |> Utils.projOk |> Result.map (List.concat)
+          _ -> Err <| "Could not convert diffs " ++ toString d ++ " to list element diffs"
+     in
+     thisDiffs |>
+     Result.andThen (\lll ->
+       diffsTolistElemDiffsToDiffs subroutine t
+       |> Result.map ((++) lll))
 
-type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
+type UpdateReturn = Inputs (List Val) | InputsWithDiffs (List (Val, Diffs))
 
-type UpdateReturn = Inputs (List Val) | InputsWithDiffs (List (Val, Maybe VDiffs))
-
-vListDiffsUnapply: VDiffs -> Maybe (ListDiffs VDiffs)
+{-
+vListDiffsUnapply: Diffs -> Maybe (ListDiffs VDiffs)
 vListDiffsUnapply vdiffs = case vdiffs of
   VListDiffs d -> Just d
   _ -> Nothing
-
-vRecordDiffsUnapply: VDiffs -> Maybe (Dict String VDiffs)
+-}
+vRecordDiffsUnapply: Diff -> Maybe (Dict String Diffs)
 vRecordDiffsUnapply x = case x of
-  VRecordDiffs dict -> Just dict
+  DiffUpdate l -> Just (Dict.fromList l)
   _ -> Nothing
 
 -- Given a string "_1", "_2" ... returns if there is a diff associated to it for a diff on datatypes
-vDatatypeDiffsGet: String -> VDiffs -> Maybe VDiffs
-vDatatypeDiffsGet n d = d |> vRecordDiffsUnapply |> Maybe.andThen (Dict.get ctorArgs) |> Maybe.andThen vRecordDiffsUnapply |> Maybe.andThen (Dict.get n)
+vDatatypeDiffsGet: String -> Diff -> Maybe Diffs
+vDatatypeDiffsGet n d = d |> vRecordDiffsUnapply
+  |> Maybe.andThen (Dict.get ctorArgs >>
+     Maybe.andThen (
+      List.map (vRecordDiffsUnapply >> Maybe.andThen (Dict.get n)) >> Utils.projJusts >> Maybe.map List.concat))
 
-offsetStr: Int -> List StringDiffs -> List StringDiffs
-offsetStr n diffs =
+offsetStr: Int -> Diff -> Diff
+offsetStr n diff =
+  case diff of
+    DiffString start end replaced ds ->
+      DiffString (start + n) (end + n) replaced (List.map (offsetStr n) ds)
   --Debug.log ("computing offset of " ++ toString n ++ " on " ++ toString diffs)  <|
-  List.map (\sd -> case sd of
-    StringUpdate start end replaced -> StringUpdate (start + n) (end + n) replaced) diffs
+    x -> x
 
 diffOps = {
-  mbVClosureDiffs = \envDiffs mbBodyDiffs ->
-    if envDiffs /= [] || mbBodyDiffs  /= Nothing then
-      Just <| VClosureDiffs envDiffs mbBodyDiffs
-    else Nothing
+  mbVClosureDiffs = \envDiffs bodyDiffs ->
+    if List.all ((==) DiffSame) envDiffs && List.all ((==) DiffSame) bodyDiffs &&
+      not (List.isEmpty envDiffs) && not (List.isEmpty bodyDiffs) then [DiffSame]
+    else [DiffUpdate [("env", envDiffs), ("bodyDiffs", bodyDiffs)]]
   }
 
-type alias UpdatedExp = { val: Exp, changes: Maybe EDiffs }
-type alias UpdatedExpTuple = { val: List Exp, changes: Maybe (TupleDiffs EDiffs) }
-type alias UpdatedDeclarations = {val: Declarations, changes: Maybe (TupleDiffs EDiffs)}
-type alias UpdatedVal = { val: Val, changes: Maybe VDiffs }
-type alias UpdatedEnv = { val: Env, changes: EnvDiffs }
+type alias UpdatedExp = { val: Exp, changes: Diffs }
+type alias UpdatedExpTuple = { val: List Exp, changes: Diffs }
+type alias UpdatedDeclarations = {val: Declarations, changes: Diffs}
+type alias UpdatedVal = { val: Val, changes: Diffs }
+type alias UpdatedEnv = { val: Env, changes: Diffs }
 
 updatedVal = { unapply = \updatedVal -> (updatedVal.val, updatedVal.changes) }
-
-eChildDiffs = Maybe.map EChildDiffs
 
 -- Builders for updated vals.
 updated = {
@@ -4410,15 +4451,18 @@ updated = {
      diffOps.mbVClosureDiffs updatedEnv.changes updatedExp.changes |>
      UpdatedVal (valBuilder <| VClosure recNames p updatedExp.val updatedEnv.val),
 
-   --: List (String, (Val, Maybe VDiffs)) -> UpdatedEnv
+   --: List (String, (Val, Diffs)) -> UpdatedEnv
    env = \namesUpdatedVals ->
-     let (revEnv, revDiffs) = Utils.foldLeft ([], []) namesUpdatedVals <|
-       \(revEnv, revDiffs) (name, {val, changes}) ->
-          case changes of
-           Nothing -> ((name, val)::revEnv, Nothing::revDiffs)
-           Just d -> ((name, val)::revEnv, (Just d)::revDiffs)
+     let aux: List (String, (Val, Diffs)) -> List (String, Val) -> List Diffs -> UpdatedEnv
+         aux namesUpdatedVals revEnv revDs = case namesUpdatedVals  of
+       [] -> UpdatedEnv
+               (List.reverse revEnv)
+               (Utils.foldRight revDs [DiffSame] <|
+                  \ds tailDiffs -> [DiffUpdate [("hd", ds), ("tl", tailDiffs)]])
+       (name, (v, ds))::tail ->
+          aux tail ((name, v)::revEnv) (ds :: revDs)
      in
-     UpdatedEnv (List.reverse revEnv) (List.reverse revDiffs)
+     aux namesUpdatedVals [] []
   }
 
 

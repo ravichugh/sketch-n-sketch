@@ -446,31 +446,43 @@ unparseHtmlNodes nodes =
 -}
 
 
-type alias Unparser = Int -> Maybe VDiffs -> Result String (String, Int, List StringDiffs)
+type alias Unparser = Int -> Diffs {- Html diffs -} -> Result String (String, Int, Diffs {- String diffs -})
 
 type HTMLUnparserDiff = UnparseArgument Unparser |
                         UnparseSymbol String
 
-contructorVDiffs: VDiffs -> Result String (TupleDiffs VDiffs)
+contructorVDiffs: Diffs -> Result String Diffs {- tuple of diffs -}
 contructorVDiffs vdiffs =
   --Debug.log ("constructorVDiffs " ++ toString vdiffs ++ " = ") <|
   case vdiffs of
-  VConstDiffs ->
-    Ok []
-  VRecordDiffs d ->
-    case Dict.get Lang.ctorArgs d of
+  DiffNew ->
+    Ok DiffSame
+  DiffUpdate dList ->
+    case Utils.maybeFind Lang.ctorArgs dList of
       Nothing ->
-        Err <| Lang.ctorArgs ++ " not found in " ++ toString d
-      Just (VRecordDiffs dArgs) ->
-        let
-          reslDiff = Dict.toList dArgs |> List.map (\(argKey, argValue) -> nameToArg argKey |> Result.map (flip (,) argValue)) |> Utils.projOk in
-        case reslDiff of
-          Err msg -> Err msg
-          Ok lDiff ->
-        case List.maximum <| List.map Tuple.first lDiff of
-           Nothing -> Ok []
-           Just x -> List.range 1 x |> List.map (argName >> flip Dict.get dArgs) |> Ok
-      _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
+        Err <| Lang.ctorArgs ++ " not found in " ++ toString dList
+      Just diffsArgs ->
+        diffsArgs
+        |> List.map (\dArgs -> case dArgs of
+          DiffUpdate dListArgs ->
+            let
+              reslDiff = dListArgs
+                |> List.map (\(argKey, argValue) ->
+                  nameToArg argKey
+                  |> Result.map (flip (,) argValue))
+                  |> Utils.projOk in
+            case reslDiff of
+              Err msg -> Err msg
+              Ok lDiff ->
+            case List.maximum <| List.map Tuple.first lDiff of
+               Nothing -> Ok DiffSame
+               Just x ->
+                 List.range 1 x
+                 |> List.map (argName >> flip Utils.maybeFind lDiff)
+                 |> vTupleDiffs
+                 |> Ok)
+        |> Utils.projOkForgiving
+        |> Result.map (List.concat)
   _ -> Err <| "Expected a datatype constructor vdiffs (nested VRecordDiffs), got " ++ toString vdiffs
 
 
