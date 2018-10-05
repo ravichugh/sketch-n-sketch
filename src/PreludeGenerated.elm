@@ -3317,24 +3317,49 @@ Regex =
 --------------------------------------------------------------------------------
 -- Dict --
 
-Dict = {
-  empty = __DictEmpty__
-  remove x d = __DictRemove__ x d
-  get x d = __DictGet__ x d
-  apply d x = case __DictGet__ x d of
+-- Interface
+dictLike = {
+  apply this d x = case this.get x d of
     Just x -> x
     _ -> Debug.crash (\"Expected element \" + toString x + \" in dict, got nothing\")
-  insert k v d = __DictInsert__ k v d
+  member this key list = this.get key list /= Nothing
+  contains this = this.member
+  delete this = this.remove
+  update this k f d = case f <| this.get k d of
+    Nothing -> this.delete k d
+    Just v -> this.insert k v d
+}
+
+-- Dictionary implementation
+Dict = { dictLike |
+  empty = __DictEmpty__
   fromList l = __DictFromList__ l
-  member x d = case __DictGet__ x d of
-    Just _ -> True
-    _ -> False
-  contains x d = case __DictGet__ x d of
-    Just _ -> True
-    _ -> False
-  update k f d = case f <| __DictGet__ k d of
-    Nothing -> __DictDelete__ k d
-    Just v -> __DictInsert__ k v d
+  get x d = __DictGet__ x d
+  remove x d = __DictRemove__ x d
+  insert k v d = __DictInsert__ k v d
+}
+
+-- List of pair implementation
+listDict = {
+  empty = []
+  fromList = identity
+  get key = Update.lens {
+    apply list = case list of
+      [] -> Nothing
+      (k, v) :: tail -> if k == key then Just v else get key tail
+    update = case of
+      {input, outputOld = Nothing, outputNew = Just v} ->
+        Ok (Inputs [insert key v input])
+      {input, outputOld = Just _, outputNew = Nothing} ->
+        Ok (Inputs [remove key input])
+      uInput -> Update.default apply uInput
+    }
+  remove key list = case list of
+    [] -> []
+    ((k, v) as head) :: tail -> if k == key then tail else head :: remove key tail
+  insert key value list = case list of
+    [] -> [(key, value)]
+    ((k, v) as head) :: tail -> if k == key then (k, value)::tail else head :: insert key value tail
 }
 
 
@@ -3932,13 +3957,68 @@ Maybe =
               if mb /= Nothing then [] else Update.defaultAsListWithDiffs apply uInput)))
     }
 
-    map f a = case a of
-      Nothing -> Nothing
-      Just x -> Just (f x)
+    map = Update.lens2 {
+      apply (f, a) = case a of
+        Nothing -> Nothing
+        Just x -> Just (f x)
+      update = case of
+        {outputOld=Just x, outputNew=Nothing} ->
+          Ok (InputsWithDiffs [((f, Nothing), Update.mbPairDiffs Nothing VConstDiffs)])
+        uInput -> Update.default apply uInput
+    }
+
+    -- Like map, but does not fail if the input was NOthing and the new output is Just, because it knows a default element.
+    mapWithDefault = Update.lens2 {
+      apply (default, f, a) = case a of
+        Nothing -> Nothing
+        Just x -> Just (f x)
+      update = case of
+        {outputOld=Just x, outputNew=Nothing} ->
+           Ok (InputsWithDiffs [((f, Nothing), Update.mbPairDiffs Nothing VConstDiffs)])
+        {outputOld=Nothing, outputNew=Just x} ->
+           case Update.updateApp {fun (_, f, x) = f x, input = (default, f, default), outputNew = x} of
+             Err msg -> Err msg
+             Ok (InputsWithDiffs inputsWithDiffs) ->
+               Ok (InputsWithDiffs (inputsWithDiffs |> List.map (\\((default, f, newX), newDiff) ->
+                 ((default, f, Just newX), case newDiff of
+                   Just _ -> Just (VRecordDiffs { _3=VConstDiffs})
+                   Nothing -> Nothing)
+               )))
+        uInput -> Update.default apply uInput
+    }
 
     andThen f a = case a of
       Nothing -> Nothing
       Just x -> f x
+
+    orElse mb2 mb1 = case mb1 of
+      Just _ -> mb1
+      Nothing -> mb2
+
+    -- like orElse, but in the reverse direction, will try to push Nothing to mb1
+    orElseReplace = Update.lens2 {
+      apply (mb2, mb1) = case mb1 of
+        Nothing -> mb2
+        Just x -> mb1
+      update {input=(mb2, mb1), outputOld, outputNew} =
+        case outputNew of
+          Just _ -> case mb1 of
+            Nothing -> Ok (Inputs [(mb2, outputNew), (outputNew, mb1)])
+            Just _ -> Ok (Inputs [(mb2, outputNew)])
+          Nothing -> Ok (Inputs [(mb2, Nothing)])
+    }
+
+    -- Given emptyCondition and Just x, returns x.
+    -- On the reverse direction, if the new x is equal to emptyCondition, propagates back Nothing
+    getUnless emptyCondition = Update.lens {
+      apply (Just x) = x
+      update {outputNew} as uInput =
+        if outputNew == emptyCondition then
+          Ok (Inputs [Nothing])
+        else
+          Update.default apply uInput
+    }
+
   }
 
 -- if we decide to allow types to be defined within (and exported from) modules
