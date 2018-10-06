@@ -1916,13 +1916,20 @@ refreshInputExp old =
 
 --------------------------------------------------------------------------------
 
-getKeyboardFocusedWidget : Model -> Maybe DeuceWidget
+getKeyboardFocusedWidget : Model -> (Maybe DeuceWidget, Model)
 getKeyboardFocusedWidget model =
   let ds = model.deuceState in
   case (ds.mbKeyboardFocusedWidget, ds.selectedWidgets) of
-    (Just keyboardFocusedWidget, _) -> Just keyboardFocusedWidget
-    (_, selected :: _) -> Just selected
-    _ -> Nothing
+    (Just keyboardFocusedWidget, _) ->
+      (Just keyboardFocusedWidget, model)
+    (_, selected :: restSelected) ->
+      ( Just selected
+      , { model | deuceState =
+           { ds | selectedWidgets = restSelected }
+        }
+      )
+    _ ->
+      (Nothing, model)
 
 isKeyDown : Int -> Model -> Bool
 isKeyDown keyCode model =
@@ -1942,16 +1949,16 @@ msgKeyDown keyCode =
           { old | keysDown = keyCode :: old.keysDown }
         else
           old
-    func old =
+    func veryOld =
       let
         currentKeyDown =
-          isKeyDown keyCode old
+          isKeyDown keyCode veryOld
         noughtSelectedInOutput =
-          nothingSelectedInOutput old
+          nothingSelectedInOutput veryOld
         somethingSelectedInOutput =
           not noughtSelectedInOutput
-        mbKeyboardFocusedWidget =
-          getKeyboardFocusedWidget old
+        (mbKeyboardFocusedWidget, old) =
+          getKeyboardFocusedWidget veryOld
       in
         if keyCode == Keys.keyEsc then
           if Model.anyDialogShown old then
