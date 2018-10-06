@@ -3597,11 +3597,16 @@ handleDeuceMoveHorizontal_ old selected findPredicate isBackwards =
 
 navFindPred_ co = not <| isTarget co
 
-holeFindPred_ co =
+holeOrWildcardFindPred_ co =
   case co of
     E e ->
       case unwrapExp e of
         EHole _ EEmptyHole -> True
+        _                  -> False
+    P _ p ->
+      case p.val.p__ of
+        PWildcard _        -> True
+        PVar _ "_" _       -> True
         _                  -> False
     _ ->
       False
@@ -3610,9 +3615,9 @@ handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected navFindPr
 
 handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected navFindPred_ False
 
-handleDeuceNextHole old selected = handleDeuceMoveHorizontal_ old selected holeFindPred_ False
+handleDeuceNextHoleOrWildcard old selected = handleDeuceMoveHorizontal_ old selected holeOrWildcardFindPred_ False
 
-handleDeucePreviousHole old selected = handleDeuceMoveHorizontal_ old selected holeFindPred_ True
+handleDeucePreviousHoleOrWildcard old selected = handleDeuceMoveHorizontal_ old selected holeOrWildcardFindPred_ True
 
 handleDeuceSelect old selected = toggleDeuceWidget selected old
 
@@ -3653,9 +3658,9 @@ handleDeuceHotKey oldModel keysDown selected =
   else if List.member keysDown [[Keys.keyRight], [Keys.keyL]] then
     handleDeuceRight old selected
   else if keysDown == [Keys.keyN] then
-    handleDeuceNextHole old selected
+    handleDeuceNextHoleOrWildcard old selected
   else if keysDown == [Keys.keyShift, Keys.keyN] then
-    handleDeucePreviousHole old selected
+    handleDeucePreviousHoleOrWildcard old selected
   else if ( List.length keysDown == 2
             && (Utils.geti 1 keysDown |> Keys.isCommandKey)
             && (Utils.geti 2 keysDown == Keys.keySpace)
