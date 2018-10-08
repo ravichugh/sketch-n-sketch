@@ -1,24 +1,8 @@
-delay = "0.5s"
-
-displayError msg = <span style="color:red;white-space:pre;">@msg</span>
-
-minieval x =
-  <span class="code">@x<div><b>⇨ </b
-      >@(case __evaluate__ (__CurrentEnv__) x of
-    Ok x -> toString x 
-    Err msg -> displayError msg)</div></span>
-
-minievalx x =
-  <span class="code">@x<br><b>⇨ </b>@(case __evaluate__ (__CurrentEnv__) x of
-    Ok x -> x
-    Err msg -> displayError msg
-  )</span>
-
--- 
 titleWrite = "Write your program"
 
-<div>
+main = <div id="app">
 <div class="slides" id="slides" contenteditable="true">
+  @fullscreenbutton
   <slide ignore-position="current">
     <h1 class="center1">Sketch-n-Sketch 2.0</h1>
     @Html.forceRefresh<|
@@ -108,6 +92,14 @@ if(container !== null) {
   width: 100%;
   text-align: center;
 }""" in <style>
+#fullscreenbutton {
+  z-index: 1001;
+  position: absolute;
+  opacity: 0.2;
+}
+#fullscreenbutton:hover {
+  opacity: 1;
+}
 .slides {
   display: block;
   width: 100%;
@@ -119,7 +111,7 @@ slide {
   position: absolute;
   top: 0; bottom: 0; left: 0;
   width: 100%;
-  font-size: 24px;
+  font-size: 1em;
   padding: 20px;
   box-sizing: border-box;
 }
@@ -149,3 +141,64 @@ slide h1, slide h2 {
 .center2 @center("0em")
 </style>
 </div>
+
+delay = "0.5s"
+
+displayError msg = <span style="color:red;white-space:pre;">@msg</span>
+
+minieval x =
+  <span class="code">@x<div><b>⇨ </b
+      >@(case __evaluate__ (__CurrentEnv__) x of
+    Ok x -> toString x 
+    Err msg -> displayError msg)</div></span>
+
+minievalx x =
+  <span class="code">@x<br><b>⇨ </b>@(case __evaluate__ (__CurrentEnv__) x of
+    Ok x -> x
+    Err msg -> displayError msg
+  )</span>
+
+
+fullscreenbutton = [
+  <button id="fullscreenbutton" onclick="""
+if(typeof isFullScreen == "undefined")
+  isFullScreen = false;
+isFullScreen = !isFullScreen;
+var d = document.getElementById("fullscreenstyle")
+if(isFullScreen) {
+  d.innerHTML = `<style>
+body {
+  background: white;
+}
+body * {
+  visibility: hidden;
+}
+#outputCanvas {
+  height: auto !important;
+  overflow: visible;
+}
+#app {
+  position: absolute;
+  height: auto;
+  width: 100%;
+  overflow: visible;
+  width: 100vw;
+  font-size: 2em;
+}
+#app, #app * {
+  visibility: visible;
+}
+.code-panel {
+  display: none;
+}
+.output-panel {
+  left: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+</style>`
+} else {
+  d.innerHTML = ""
+}""">Fullscreen</button>,
+<div><transient id="fullscreenstyle"></transient></div>]

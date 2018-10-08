@@ -134,7 +134,7 @@ function triggerAutoUpdate() {
 
 function listenForUpdatesToOutputValues() {
   function isTransientElement(elem) {
-    return elem.nodeType == 1 && elem.tagName == "transient";
+    return elem.nodeType == 1 && elem.tagName == "TRANSIENT";
   }
 
   function whichChild(elem){
