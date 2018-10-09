@@ -819,9 +819,7 @@ multilineContentUnparse e = case (unwrapExp e) of
           (x, _) -> -- There should be parentheses
             let sx = unparse x in
             let sy = multilineContentUnparse right in
-            if String.endsWith ")" sx then
-              "@" ++ sx ++ sy
-            else if Regex.contains (Regex.regex "[\\w_\\$]$") sx && Regex.contains (Regex.regex "^[^\\w_\\$\\.]|^$") sy then
+            if noInterpolationConflict sx sy then
               "@" ++ sx ++ sy
             else
               "@(" ++ sx ++ ")" ++ sy
@@ -829,6 +827,10 @@ multilineContentUnparse e = case (unwrapExp e) of
   ELet ws1 _ decls wsIn e2 ->
     "@let" ++ unparseDeclarations decls ++ wsIn.val ++ "in\n" ++ multilineContentUnparse e2
   anyExp -> "@(" ++ unparse e ++ ")"
+
+noInterpolationConflict varString rightString =
+  String.endsWith ")" varString ||
+  Regex.contains (Regex.regex "[\\w_\\$]$") varString && Regex.contains (Regex.regex "^[^\\w_\\$\\.]|^$") rightString
 
 ------------------------
 -- HTML Unparsing
@@ -885,11 +887,15 @@ unparseHtmlChildList childExp =
         EApp _ _ [e1, eRight] _ _ ->
           case (unwrapExp e1) of
             EApp _ _ [eLeft, eToRenderwrapped] _ _ ->
-              case (unwrapExp eToRenderwrapped) of
-                EApp  _ _ [eToRender] _ _ ->
-                  unparseHtmlChildList eLeft ++ "@" ++ unparse eToRender ++ unparseHtmlChildList eRight
-                _ ->
-                  unparseHtmlChildList eLeft ++ "@" ++ unparse eToRenderwrapped ++ unparseHtmlChildList eRight
+              let rightRendered = unparseHtmlChildList eRight in
+              let interpolated = case (unwrapExp eToRenderwrapped) of
+                EApp  _ _ [eToRender] _ _ -> unparse eToRender
+                _ ->                         unparse eToRenderwrapped
+              in
+              if noInterpolationConflict interpolated rightRendered then
+                unparseHtmlChildList eLeft ++ "@" ++ interpolated ++ rightRendered
+              else
+                unparseHtmlChildList eLeft ++ "@(" ++ interpolated ++ ")" ++ rightRendered
             _  -> "@(" ++ unparse childExp ++ ")"
         _  -> "@(" ++ unparse childExp ++ ")"
 

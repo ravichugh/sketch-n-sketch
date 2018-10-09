@@ -758,6 +758,11 @@ Update =
         (Just d, Just d2) -> Just (VRecordDiffs {_1=d, _2=d2})
         (Nothing, Just d2) -> Just (VRecordDiffs {_2=d2})
   in
+  let bijection forward backward elem =
+    {apply elem = forward elem
+     update {outputNew} = Ok (Inputs [backward outputNew])
+    }.apply elem
+  in
   -- exports from Update module
   { freeze x = x
     expressionFreeze x = x
@@ -769,6 +774,7 @@ Update =
     lens2 l x y = l.apply (x, y)
     lens3 l x y z = l.apply (x, y, z)
     lens4 l x y z w = l.apply (x, y, z, w)
+    bijection = bijection
     vTupleDiffs_1 d = VRecordDiffs {_1=d}
     vTupleDiffs_2 d = VRecordDiffs {_2=d}
     vTupleDiffs_3 d = VRecordDiffs {_3=d}
@@ -1426,6 +1432,7 @@ Regex =
     _ -> True
   split = split
   find = find
+  escape = replace """\||\\|\{|\}|\[|\]|\$|\.|\?|\+|\(|\)""" (\m -> "\\" + m.match)
 }
 
 --------------------------------------------------------------------------------
@@ -1789,7 +1796,7 @@ List =
               Just x -> -- No rename here.
                 Ok (InputsWithDiffs [
                   ((converterA, converterB, x, list),
-                    Update.diffs target x |> Maybe.map Update.vTupleDiffs_3)])
+                    Update.diffs target x |> LensLess.Maybe.map Update.vTupleDiffs_3)])
               Nothing ->
                 Update.default apply uInput
             -- To ways to update: Either find the new B in the list and return A
@@ -2410,26 +2417,21 @@ Html =
   let forceRefresh node =
     [freshTag True, [], [node]]
   in
+  --TODO: Allow the option to be modifiable
   let option value selected content =
-    { apply (value,selected,content) =
-        ["option", [["v",value]] ++ (if selected then [["selected","selected"]] else []), content]
-      update {outputNew} = case outputNew of
-        [_, ["v", value] :: ["selected", _] :: _, content] ->
-          Ok (Inputs [(value, True, content)])
-        [_, ["v", value] :: _, content] ->
-          Ok (Inputs [value, False, content])
-        _ -> Err ("Expected an option (selected or not), got " ++ toString outputNew)
-    }.apply (value, selected, content)
+    <option v=value @(
+      Update.bijection
+        (\selected -> if selected then [["selected","selected"]] else [])
+        ((==) []) selected
+    )>@content</option>
   in
   let select attributes strArray index =
-    let aux acc i options = case options of
-       [] -> acc
-       (opt :: tail) ->
-         let newAcc = acc ++ [option (toString i) (i == index) [["TEXT", opt]]] in
-         let newI = i + 1 in
-         aux newAcc newI tail
+    let options = List.indexedMap (\i opt ->
+        option (toString i) (i == index) [["TEXT", opt]]
+      ) strArray
     in
-    ["select", [["selected-index", toString index], ["onchange", "this.setAttribute('selected-index', this.selectedIndex)"]] ++ attributes, aux [] 0 strArray]
+    <select selected-index=(toString index)
+      onchange="this.setAttribute('selected-index', this.selectedIndex)" @attributes>@options</select>
   in
   let checkbox text title isChecked =
       let id = "checkbox-"+Regex.replace "[^\\w]" "" text in
@@ -2480,26 +2482,78 @@ Html =
       update {input, outputNew} = Ok (Inputs [controller input outputNew])
     }.apply model
   in
+  -- Takes a 1-element node list, and whatever this element is replaced by.
+  -- In the reverse direction, modifies the element but also propagates its deletion to the list
+  -- or insertions of new elements.
+  let insertionDeletionUpdatesTo  = Update.lens2 {
+    apply (node1List, node1) = [node1]
+    update {input=(node1List, node1), outputNew=newNodes, diffs} =
+      case diffs of
+        VListDiffs listDiffs ->
+          let aux i newNodes listDiffs newNode1List newNode1ListDiffs newNode1 mbNode1Diffs =
+            case listDiffs of
+              [] ->
+                Ok (InputsWithDiffs [(
+                  (newNode1List, newNode1),
+                  Update.pairDiff2
+                    (if newNode1ListDiffs == [] then
+                      Nothing
+                     else Just (VListDiffs newNode1ListDiffs))
+                    mbNode1Diffs
+                )])
+              (j, d)::diffTail ->
+                if i < j then -- i == 0 and j == 1
+                  let (skipped, remainingNodes) = List.split 1 newNodes in
+                  aux j remainingNodes listDiffs (newNode1List ++ skipped) newNode1ListDiffs newNode1 mbNode1Diffs
+                else
+                  case d of
+                    ListElemInsert x ->
+                      let (inserted, remainingNodes) = List.split x newNodes in
+                      let insertionDiffs = newNode1ListDiffs ++ [(j, ListElemInsert x)] in
+                      aux j remainingNodes diffTail
+                        (newNode1List ++ inserted) insertionDiffs newNode1 mbNode1Diffs
+
+                    ListElemUpdate x ->
+                      let newNode1_ :: remainingNodes = newNodes in
+                      aux (j + 1) remainingNodes diffTail
+                        (newNode1List ++ node1List) newNode1ListDiffs newNode1_ (Just x)
+
+                    ListElemDelete 1 -> -- Only the element can be deleted.
+                      let deletionDiffs = newNode1ListDiffs ++ [(0, ListElemDelete 1)] in
+                      aux (j + 1) newNodes diffTail
+                        newNode1List deletionDiffs node1 Nothing
+
+                    _ -> Err <| "Unexpected diff for insertionDeletionUpdatesTo:" ++ toString d
+          in aux 0 newNodes listDiffs [] [] node1 Nothing
+        _ -> Err <| "Expected VListDiffs for insertionDeletionUpdatesTo, got " ++ toString diffs
+    }
+  in
+  let  -- Takes a list of nodes, returns a list of nodes.
+    replaceNodes regex replacement nodes =
+      List.concatMap_ identity (\[node] as node1List ->
+        case node of
+          ["TEXT", text] ->
+            findInterleavings 0 regex text
+              |> List.concatMap_ identity (\[head] as headList ->
+              case head of
+                Left str ->
+                  Update.debug "insertionDeletion" <|
+                  insertionDeletionUpdatesTo (Update.debug "node1List" node1List) ["TEXT", str]
+                Right match -> replacement match
+            ) |> __mergeHtmlText__
+          [tag, attrs, children] ->
+            insertionDeletionUpdatesTo node1List [tag, attrs, replaceNodes regex replacement children]
+      ) nodes
+  in
   {- Given
      * a regex
      * a replacement function that takes a string match and returns a list of Html nodes
      * a node
      This functions returns a node, (excepted if the top-level node is a ["TEXT", _] and is splitted.
   -}
-  let replace regex replacement node =
-    let aux node = case node of
-      ["TEXT", text] ->
-        findInterleavings 0 regex text
-        |> List.concatMap_ identity (\[head] ->
-          case head of
-            Left str ->
-              [["TEXT", str]]
-            Right match -> replacement match
-        ) |> __mergeHtmlText__
-      [tag, attrs, children] -> [[tag, attrs, List.concatMap_ (\x -> [x]) (\[node] -> aux node) children]]
-    in case aux node of
-      [x] -> x
-      y -> y
+  let replace regex replacement node = case replaceNodes regex replacement [node] of
+    [x] -> x
+    y -> y
   in
   let find regex node =
     let aux node = case node of
@@ -2547,6 +2601,38 @@ Html =
             if pred elem then [[tagName, attrs, filter pred children]]
             else []
           elem -> if pred elem then [elem] else []) elemList
+  in
+  let translate =
+    let freshVarName name i dictionary =
+      if name == "" then freshVarName "translation" i dictionary else
+      if Dict.member (name + toString i) dictionary then freshVarName name (i + 1) dictionary else name + toString i
+    in
+    \translations indexLangue node ->
+    let currentTranslation = nth translations indexLangue |> Tuple.second |> Dict.fromList in
+    replace """\$(\w+|\$)""" (\m ->
+      if m.match == "$" then [["TEXT", m.match]] else
+        let key = nth m.group 1 in
+        case Dict.get key currentTranslation of
+          Nothing -> [["TEXT", m.match]]
+          Just definition -> [["TEXT", definition]]
+      ) node |>
+    \htmlNode ->
+      Update.lens2 {
+        apply (htmlNode, _) = htmlNode
+        update {input = (_, translations), outputNew=newHtmlNode} =
+          find """\{:([^\}]*(?!\})\S[^\}]*):\}""" newHtmlNode
+          |> List.foldl (\matchToTranslate (updatedHtmlNode, currentTranslation, translations) ->
+              let definition = nth matchToTranslate.group 1
+                  name = freshVarName (Regex.replace "[^a-zA-Z]" "" definition |> String.take 16) 1 currentTranslation
+                  textToFind = """\{:@(Regex.escape definition):\}"""
+              in
+              (replace textToFind (\_ -> [["TEXT", "$" + name]]) updatedHtmlNode,
+               Dict.insert name definition currentTranslation,
+               List.map (\(lang, d) -> (lang, d ++ [(name, definition)])) translations)
+            ) (newHtmlNode, currentTranslation, translations)
+          |> \(finalHtmlNode, _, newTranslations) ->
+            Ok (Inputs [(finalHtmlNode, newTranslations)])
+      } htmlNode translations
   in
   { textNode = textNode
     p = textElementHelper "p"
@@ -2604,6 +2690,8 @@ Html =
       <button onclick=(scriptFindEnclosing(tagNameToDelete)(\v ->
           """@(v).remove()"""))
       @attrs>@children</button>
+
+    translate = translate
   }
 
 --------------------------------------------------------------------------------
@@ -4172,9 +4260,7 @@ tutorialUtils = {
 
   -- Escapes a string so that we can search it using regexes.
   -- Replaces ... by a regexp that parses any sequence of chars, minimally.
-  escape =
-    Regex.replace """\||\\|\{|\}|\[|\]|\$|\.|\?|\+|\(|\)""" (\m -> "\\" + m.match)
-    >> Regex.replace """\\\.\\\.\\\.""" (\m -> """[\s\S]+?""")
+  escape = Regex.escape >> Regex.replace """\\\.\\\.\\\.""" (\m -> """[\s\S]+?""")
 
   -- Computes the line position of a placeholder inside a string.
   positionOf: String -> String -> String

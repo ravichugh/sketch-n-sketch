@@ -206,7 +206,7 @@ if(container !== null) {
   }
 }
 </script>
-<script>
+@Html.forceRefresh<|<script>
 var container = document.querySelector("#slides");
 if(typeof keyDown != "undefined" && container !== null) {
   container.removeEventListener("keydown", keyDown, false);
