@@ -360,16 +360,18 @@ hoverMenu title dropdownContent =
 
 -- Configuration flag to indicate whether Code and Output Tools
 --   have been run and cached.
-indicateWhetherToolIsCached = False
+indicateWhetherToolIsCached = True
+
+stringWithCacheIndicator str cached =
+  if cached && indicateWhetherToolIsCached
+    then str ++ " ✓"
+    else str
 
 synthesisHoverMenu : Model -> String -> String -> Msg -> Bool -> Html Msg
 synthesisHoverMenu model resultsKey title onMouseEnter disabled =
   let cached = Dict.member resultsKey model.synthesisResultsDict in
   generalHoverMenu
-    ( if cached && indicateWhetherToolIsCached
-        then title ++ " ✓"
-        else title
-    )
+    ( stringWithCacheIndicator title cached )
     ( if cached
         then Controller.msgNoop
         else onMouseEnter
@@ -450,14 +452,14 @@ deuceSynthesisResultInfo
             result.description result.exp
       }
 
-viewResultText : ResultText -> Html Msg
-viewResultText rt =
+viewResultText : Bool -> ResultText -> Html Msg
+viewResultText alreadyRun rt =
   let
     content t =
       Html.span
         [ Attr.class "result-text-content"
         ]
-        [ Html.text t
+        [ Html.text <| stringWithCacheIndicator t alreadyRun
         ]
   in
     case rt of
@@ -524,22 +526,23 @@ deuceTransformationResult model path deuceTransformation transformationResult =
                 deuceTransformation
                 result.description
                 [ Html.text <|
-                    if info.alreadyRun && indicateWhetherToolIsCached
-                      then result.description ++ " ✓"
-                      else result.description
+                    stringWithCacheIndicator result.description info.alreadyRun
                 ]
             )
 
         Fancy synthesisResult resultText ->
-          ( Just <|
+          let
+            info =
               deuceSynthesisResultInfo
                 model path deuceTransformation synthesisResult
-          , [ viewResultText resultText ]
-          )
+          in
+            ( Just info
+            , [ viewResultText info.alreadyRun resultText ]
+            )
 
         Label resultText ->
           ( Nothing
-          , [ viewResultText resultText ]
+          , [ viewResultText False resultText ]
           )
 
         Palette (paletteName, paletteCallInfo) ->

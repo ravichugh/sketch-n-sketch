@@ -21,7 +21,7 @@ type alias PaletteDefinition model msg =
   , encode : model -> Exp__
   , toExp : model -> Exp__
   , update : msg -> model -> model
-  , view : PaletteExpInfo -> model -> Html msg
+  , view : model -> Html msg
   }
 
 
@@ -70,7 +70,7 @@ embedPalette paletteName palette paletteExpInfo =
       let
         paletteHtml : Html msg
         paletteHtml =
-          palette.view paletteExpInfo model
+          palette.view model
 
         msgToMsg : (msg -> Msg)
         msgToMsg msg =
@@ -122,7 +122,12 @@ checkbox =
     update (CheckboxClick newBool) _ =
       newBool
 
-    view stuff currentBool =
+    -- This version suffers from Elm not re-rendering things:
+    --
+    -- update (CheckboxClick _ ) oldBool =
+    --   not oldBool
+
+    view currentBool =
       Html.div
         [ Attr.style [ ("padding", "20px") ]
         ]
