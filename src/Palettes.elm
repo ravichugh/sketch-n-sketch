@@ -31,8 +31,12 @@ type alias PaletteDefinition model msg =
 view : String -> PaletteExpInfo -> Html Msg
 view paletteName =
   case paletteName of
-    "Checkbox" -> embedPalette paletteName checkbox
-    _          -> always (Html.text ("palette not defined: " ++ paletteName))
+    "Checkbox" ->
+      embedPalette paletteName checkbox
+    "NumButtons" ->
+      embedPalette paletteName numButtons
+    _ ->
+      always (Html.text ("palette not defined: " ++ paletteName))
 
 
 embedPalette : String -> PaletteDefinition model msg -> PaletteExpInfo -> Html Msg
@@ -138,6 +142,91 @@ checkbox =
             , E.onCheck (\newBool -> CheckboxClick newBool)
             ]
             []
+        ]
+  in
+    { atType = atType
+    , init = init
+    , decode = decode
+    , encode = encode
+    , toExp = toExp
+    , update = update
+    , view = view
+    }
+
+
+--------------------------------------------------------------------------------
+-- NumButtons
+
+type alias NumButtonsModel = (Float, Float, Float)
+
+type NumButtonsMsg = NumButtonsOffset Int -- (+1) or (-1)
+
+numButtons : PaletteDefinition NumButtonsModel NumButtonsMsg
+numButtons =
+  let
+    atType =
+      withDummyTypeInfo (TNum space1)
+
+    init =
+      (0, 5, 10)
+
+    encode (min, num, max) =
+      eTuple (listOfNums [min, num, max]) |> unExpr |> .val |> .e__
+
+    toExp (_, num, _) =
+      EConst space1 num dummyLoc noWidgetDecl
+
+    update (NumButtonsOffset offset) (min, num, max) =
+      (min, num + toFloat offset, max)
+
+    decode exp =
+      let
+        strings =
+          unparse exp
+            |> String.trim
+            |> String.map
+                 (\c -> if c == ',' || c == '(' || c == ')'
+                          then ' '
+                          else c)
+            |> String.words
+      in
+        case strings of
+          [s1, s2, s3] ->
+            String.toFloat s1 |> Result.andThen (\n1 ->
+            String.toFloat s2 |> Result.andThen (\n2 ->
+            String.toFloat s3 |> Result.andThen (\n3 ->
+              Ok (n1, n2, n3)
+            )))
+
+            |> Result.toMaybe
+
+          _ ->
+            Nothing
+
+    view (min, num, max) =
+      let blah thing =
+        if round (min + num + max) % 2 == 0 then
+          Html.div [] [thing]
+        else
+          thing
+      in
+      blah <|
+
+      Html.div
+        [ Attr.style [ ("padding", "20px") ]
+        ]
+        [ Html.button
+            [ Attr.disabled (num - 1 < min)
+            -- , Attr.attribute "data-canvas-count" (toString (min + num + max))
+            , E.onClick (NumButtonsOffset (-1))
+            ]
+            [ Html.text <| "-1 to " ++ toString (num - 1) ]
+        , Html.text (toString num)
+        , Html.button
+            [ Attr.disabled (num + 1 > max)
+            , E.onClick (NumButtonsOffset 1)
+            ]
+            [ Html.text <| "+1 to " ++ toString (num + 1) ]
         ]
   in
     { atType = atType
