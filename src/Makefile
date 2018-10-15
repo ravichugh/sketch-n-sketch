@@ -75,6 +75,7 @@ loc:
     LangTools.elm LangSimplify.elm ValueBasedTransform.elm \
     Blobs.elm Draw.elm ExpressionBasedTransform.elm \
     DeuceWidgets.elm Deuce.elm DeuceTools.elm \
+    Palettes.elm \
 		OutputTools.elm \
     DependenceGraph.elm CodeMotion.elm Native/dotGraph.js \
     Ace.elm AceCodeBox.elm Native/aceCodeBox.js \

@@ -2356,6 +2356,7 @@ doSelectSynthesisResult newExp old =
               , codeBoxInfo = updateCodeBoxInfo Types2.dummyAceTypeInfo newer
               , outputMode  = Graphics -- switch out of ValueText
               }
+      |> maybeTypeCheckAndUpdateModel
   )
 
 maybeUpdateOutputMode: Model-> LangSvg.RootedIndexedTree -> OutputMode

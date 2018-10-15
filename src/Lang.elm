@@ -655,6 +655,15 @@ type TransformationResult
   | Fancy SynthesisResult ResultText
     -- Just a ResultText without an associated transformation
   | Label ResultText
+    -- Custom GUI to generate an expression
+  | Palette (String, PaletteExpInfo)
+
+type alias PaletteExpInfo =
+  { program : Exp
+  , paletteExp : Exp
+  , paletteExpEApp : (WS, Exp, (Exp, Exp, Exp), ApplicationType, WS)
+  }
+
 
 basicTransformationResult : String -> Exp -> TransformationResult
 basicTransformationResult description exp =
@@ -671,6 +680,9 @@ transformationToSynthesisResult tr =
       Just sr
 
     Label _ ->
+      Nothing
+
+    Palette _ ->
       Nothing
 
 synthesisResults : List TransformationResult -> List SynthesisResult
@@ -690,6 +702,9 @@ mapSynthesisResult f tr =
     Label rt ->
       Label rt
 
+    Palette info ->
+      Palette info
+
 extractSynthesisResultWith : (SynthesisResult -> a) -> TransformationResult -> Maybe a
 extractSynthesisResultWith f tr =
   case tr of
@@ -700,6 +715,9 @@ extractSynthesisResultWith f tr =
       Just (f sr)
 
     Label _ ->
+      Nothing
+
+    Palette _ ->
       Nothing
 
 extractSynthesisResult : TransformationResult -> Maybe SynthesisResult
@@ -722,6 +740,7 @@ transformationResultToString tr =
     Basic (SynthesisResult sr) -> sr.description
     Fancy _ rt                 -> resultTextToString rt
     Label rt                   -> resultTextToString rt
+    Palette _                  -> "TODO palette no description..."
 
 --------------------------------------------------------------------------------
 -- Predicates (for DeuceTools and OutputTools)

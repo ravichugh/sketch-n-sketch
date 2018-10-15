@@ -375,3 +375,32 @@ expEqual e1_ e2_ =
   _ -> False
 --}
 
+
+-- currently here, instead of Lang, because hacking on strings
+--
+isPaletteExp : Exp -> Exp -> Maybe (String, PaletteExpInfo)
+isPaletteExp inputExp thisExp =
+  let unparse = Syntax.unparser Syntax.Leo in
+  case (unExpr thisExp).val.e__ of
+    EApp ws1 eFunc [ePaletteName, ePaletteState, eExpansion] appType ws2 ->
+      if String.trim (unparse eFunc) == "Editor.palette" then
+        let
+          paletteName =
+            String.trim (unparse ePaletteName)
+
+          paletteExpInfo =
+            { program =
+                inputExp
+            , paletteExp =
+                thisExp
+            , paletteExpEApp =
+                (ws1, eFunc, (ePaletteName, ePaletteState, eExpansion), appType, ws2)
+            }
+        in
+          Just (paletteName, paletteExpInfo)
+
+      else
+        Nothing
+
+    _ ->
+      Nothing

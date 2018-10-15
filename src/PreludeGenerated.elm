@@ -4062,7 +4062,9 @@ Tuple =
 --------------------------------------------------------------------------------
 -- Editor --
 
-Editor = {}
+Editor = {
+  palette name state exp = exp
+}
 
 -- TODO remove this; add as imports as needed in examples
 {freeze, applyLens} = Update

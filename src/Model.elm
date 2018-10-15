@@ -1489,10 +1489,10 @@ initModel =
         }
     , mbDeuceKeyboardInfo = Nothing
     , deuceRightClickMenuMode = Nothing
-    , enableDeuceBoxSelection = False
+    , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True
     , codeToolsMenuMode = CTAll
-    , outputToolsMenuMode = False
+    , outputToolsMenuMode = True
     , textSelectMode = SubsetExtra
     , enableTextEdits =
         Updatable.setUpdated << Updatable.create <| True
@@ -1512,7 +1512,7 @@ initModel =
     , syntax = Syntax.Leo
     , codeEditorMode = CEText
     , deuceOverlayCache = Nothing
-    , doTypeChecking = if Config.elmConfDemo then False else False
+    , doTypeChecking = True
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
     }

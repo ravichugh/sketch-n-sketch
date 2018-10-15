@@ -46,6 +46,7 @@ import Model exposing
 import Info
 import Lang exposing (..)
 import LangTools
+import LangUtils
 import LeoParser
 import LeoUnparser
 import Syntax
@@ -3249,6 +3250,47 @@ expandFormat old selections =
     _ ->
       Nothing
 
+
+--------------------------------------------------------------------------------
+-- Palettes Tool
+--------------------------------------------------------------------------------
+
+palettesTool : Model -> DeuceSelections -> DeuceTool
+palettesTool model selections =
+  let
+    defaultName =
+      "Palettes"
+
+    (name, func, boolPredVal) =
+      case selections of
+        ([], [], [], [], [], [], [], [], []) ->
+          (defaultName, InactiveDeuceTransform, Possible)
+
+        -- single expression, nothing else
+        (_, _, [eId], [], [], [], [], [], []) ->
+          let
+            exp = LangTools.justFindExpByEId model.inputExp eId
+          in
+            case LangUtils.isPaletteExp model.inputExp exp of
+              Just paletteInfo ->
+                ( Tuple.first paletteInfo ++ " Palette"
+                , NoInputDeuceTransform (always [Palette paletteInfo])
+                , FullySatisfied
+                )
+
+              Nothing ->
+                (defaultName, InactiveDeuceTransform, Impossible)
+
+        _ ->
+          (defaultName, InactiveDeuceTransform, Impossible)
+  in
+    { name = name
+    , func = func
+    , reqs = [ { description = "Select something.", value = boolPredVal } ]
+    , id = "palettesTool"
+    }
+
+
 --==============================================================================
 --= EXPORTS
 --==============================================================================
@@ -3287,6 +3329,7 @@ toolList =
     , (\model selections -> Types2.duplicateDataConstructorTool model.inputExp selections)
     , (\model selections -> Types2.convertToDataTypeTool model.inputExp selections)
     ]
+  , [ palettesTool ]
   , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
     [ createTrueTool
     , createFalseTool

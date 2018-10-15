@@ -45,6 +45,7 @@ import File
 import Eval
 
 import DeuceWidgets exposing (..)
+import Palettes
 import Config exposing (params)
 
 --------------------------------------------------------------------------------
@@ -539,6 +540,11 @@ deuceTransformationResult model path deuceTransformation transformationResult =
         Label resultText ->
           ( Nothing
           , [ viewResultText resultText ]
+          )
+
+        Palette (paletteName, paletteCallInfo) ->
+          ( Nothing
+          , [ Palettes.view paletteName paletteCallInfo ]
           )
   in
     case maybeSynthesisInfo of
