@@ -1023,6 +1023,7 @@ hooks =
   , handleDeuceCache
   , focusJustShownRenameBox
   , focusAsNeeded
+  , handleDeuceToolCache
   ]
 
 applyAllHooks : Model -> Model -> (Model, List (Cmd Msg))
@@ -1074,6 +1075,17 @@ handleOutputSelectionChanges oldModel newModel =
     (newModel, Cmd.none)
   else
     let finalModel = { newModel | synthesisResultsDict = Dict.empty } in
+    (finalModel, Cmd.none)
+
+handleDeuceToolCache : Model -> Model -> (Model, Cmd Msg)
+handleDeuceToolCache oldModel newModel =
+  let
+    finalModel =
+      if newModel.code /= oldModel.code then
+        resetDeuceCacheAndReselect newModel DeuceTools.createToolCache
+      else
+        newModel
+  in
     (finalModel, Cmd.none)
 
 deuceOverlayMsgs : Deuce.Messages Msg
