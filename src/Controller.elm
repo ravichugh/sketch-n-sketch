@@ -3586,21 +3586,20 @@ moveSmartCompleteSelection old isDown =
   in
   { old | mbDeuceKeyboardInfo = newMbDeuceKeyboardInfo }
 
+codeObjectsStartingWith_ model selected patMap shouldReverse =
+  E model.inputExp
+  |> flattenToCodeObjects
+  |> Utils.applyIf shouldReverse List.reverse
+  |> Utils.dropWhile (toDeuceWidget patMap >> (==) (Just selected) >> not)
+
 handleDeuceMoveHorizontal_ old selected findPredicate isBackwards =
-  let
-    oldRoot = old.inputExp
-    patMap = computePatMap oldRoot
-    cosAfterSelected =
-      E oldRoot |>
-        flattenToCodeObjects |>
-          Utils.applyIf isBackwards List.reverse |>
-            Utils.dropWhile (toDeuceWidget patMap >> (==) (Just selected) >> not) |>
-              List.tail |>
-                Maybe.withDefault []
-  in
-  Utils.mapFirstSuccess (\co -> if findPredicate co then toDeuceWidget patMap co else Nothing) cosAfterSelected |>
-    Maybe.map (flip deuceMove old) |>
-      Maybe.withDefault old
+  let patMap = computePatMap old.inputExp in
+  codeObjectsStartingWith_ old selected patMap isBackwards
+  |> List.tail
+  |> Maybe.withDefault []
+  |> Utils.mapFirstSuccess (\co -> if findPredicate co then toDeuceWidget patMap co else Nothing)
+  |> Maybe.map (flip deuceMove old)
+  |> Maybe.withDefault old
 
 navFindPred_ co = not <| isTarget co
 
@@ -3618,9 +3617,36 @@ holeOrWildcardFindPred_ co =
     _ ->
       False
 
+handleDeuceMoveVertical_ old selected isUp =
+  let patMap = computePatMap old.inputExp in
+  case codeObjectsStartingWith_ old selected patMap isUp of
+    selectedCO :: remainingCOs ->
+      let
+        selInfo = extractInfoFromCodeObject selectedCO
+        diffFromSel f co = f co - f selInfo |> abs
+        sortByDiff f = List.sortBy <| diffFromSel f
+      in
+      remainingCOs
+      |> List.map extractInfoFromCodeObject
+      |> List.filter (\co -> diffFromSel (.start >> .line) co /= 0 && not (isTarget co.val))
+      |> sortByDiff (.end >> .col)
+      |> sortByDiff (.start >> .col)
+      |> sortByDiff (.start >> .line)
+      |> List.head
+      |> Maybe.map .val
+      |> Maybe.andThen (toDeuceWidget patMap)
+      |> Maybe.map (flip deuceMove old)
+      |> Maybe.withDefault old
+    _ ->
+      old
+
 handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected navFindPred_ True
 
 handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected navFindPred_ False
+
+handleDeuceUp old selected = handleDeuceMoveVertical_ old selected True
+
+handleDeuceDown old selected = handleDeuceMoveVertical_ old selected False
 
 handleDeuceNextHoleOrWildcard old selected = handleDeuceMoveHorizontal_ old selected holeOrWildcardFindPred_ False
 
@@ -3664,6 +3690,10 @@ handleDeuceHotKey oldModel keysDown selected =
     handleDeuceLeft old selected
   else if List.member keysDown [[Keys.keyRight], [Keys.keyL]] then
     handleDeuceRight old selected
+  else if List.member keysDown [[Keys.keyUp], [Keys.keyK]] then
+    handleDeuceUp old selected
+  else if List.member keysDown [[Keys.keyDown], [Keys.keyJ]] then
+    handleDeuceDown old selected
   else if keysDown == [Keys.keyN] then
     handleDeuceNextHoleOrWildcard old selected
   else if keysDown == [Keys.keyShift, Keys.keyN] then
