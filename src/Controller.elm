@@ -76,6 +76,7 @@ port module Controller exposing
   , msgAutoSync
   , msgSetCodeEditorMode
   , msgSetDoTypeChecking
+  , mbPosAboveWidget
   )
 
 import Updatable exposing (Updatable)
@@ -3534,9 +3535,18 @@ deuceMove destWidget old =
   let
     oldDS = old.deuceState
     newDS = { oldDS | mbKeyboardFocusedWidget = Just destWidget }
+    oldPopupPanelPositions = old.popupPanelPositions
+    oldPos = oldPopupPanelPositions.deuce
+    newPos =
+      mbPosAboveWidget old destWidget |> Maybe.withDefault oldPos
+    newPopupPanelPositions =
+      { oldPopupPanelPositions | deuce = newPos }
   in
-  { old | deuceState = newDS } |>
-  flip resetDeuceCacheAndReselect DeuceTools.createToolCache
+  { old
+    | deuceState          = newDS
+    , popupPanelPositions = newPopupPanelPositions
+  }
+  |> flip resetDeuceCacheAndReselect DeuceTools.createToolCache
 
 deuceChooserUI : Model -> String -> (String, String -> List TransformationResult) -> Model
 deuceChooserUI old initText titleAndTextToTransformationResults =
@@ -3988,6 +3998,32 @@ deltaMouse old new =
   ( new.x - old.x
   , new.y - old.y
   )
+
+mbPosAboveWidget : Model -> DeuceWidget -> Maybe (Int, Int)
+mbPosAboveWidget model dw =
+  let
+    displayInfo =
+      { lineHeight =
+          model.codeBoxInfo.lineHeight
+      , characterWidth =
+          model.codeBoxInfo.characterWidth
+      , colorScheme =
+          model.colorScheme
+      }
+    root = model.inputExp
+    toPos withInfo =
+      -- Why `+ 6`? no one can say, really. The answer is lost in the rapids of time
+      (withInfo.start.col + 6, withInfo.start.line + 5)
+      |> Deuce.c2a displayInfo
+      |> Utils.mapBoth floor
+  in
+  case dw of
+    DeuceExp eId ->
+      Lang.findExpByEId root eId |> Maybe.map Lang.unExpr |> Maybe.map toPos
+    DeucePat ppid ->
+      LangTools.findPatByPathedPatternId ppid root |> Maybe.map toPos
+    _ ->
+      Nothing
 
 updatePopupPanelPosition
   :  (PopupPanelPositions -> (Int, Int))

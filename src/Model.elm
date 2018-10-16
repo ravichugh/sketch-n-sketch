@@ -939,7 +939,7 @@ htmlEditorNeedsCallUpdate model =
       Nothing -> False
       Just h -> htmlCode /= h
     _ -> False
-  
+
 domEditorNeedsCallUpdate model =
   not <| Utils.maybeIsEmpty model.updatedValue
 

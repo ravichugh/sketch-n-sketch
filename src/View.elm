@@ -2693,28 +2693,10 @@ deuceKeyboardPopupPanel model =
       else
         Controller.msgNoop
 
-    root = model.inputExp
-    displayInfo =
-      { lineHeight =
-          model.codeBoxInfo.lineHeight
-      , characterWidth =
-          model.codeBoxInfo.characterWidth
-      , colorScheme =
-          model.colorScheme
-      }
-    toPos =
-      Maybe.map (\withInfo -> (withInfo.start.col + 6, withInfo.start.line + 6))
-      >> Maybe.withDefault (0, 0)
-      >> Deuce.c2a displayInfo
-      >> Utils.mapBoth floor
     pos =
-      case model.deuceState.mbKeyboardFocusedWidget of
-        Just (DeuceExp eId) ->
-          Lang.findExpByEId root eId |> Maybe.map Lang.unExpr |> toPos
-        Just (DeucePat ppid) ->
-          LangTools.findPatByPathedPatternId ppid root |> toPos
-        _ ->
-          toPos Nothing
+      model.deuceState.mbKeyboardFocusedWidget
+      |> Maybe.andThen (Controller.mbPosAboveWidget model)
+      |> Maybe.withDefault (0, 0)
 
     id = Just deuceKeyboardPopupPanelTextBoxId
     value = Just text
