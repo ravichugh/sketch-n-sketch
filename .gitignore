@@ -40,3 +40,4 @@ user_study_surveys/
 solver_server/reduce-algebra
 solver_server/log.txt
 /tests/pathtobenchmark.txt
+/publish_local.txt

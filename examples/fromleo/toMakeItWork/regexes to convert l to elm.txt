@@ -1,0 +1,21 @@
+\.(toString|length)
+
+ ?=\s*\\(\w)\.
+ \1 =
+
+\\(\w)\s*\.
+\\\1 -> 
+
+\\(\w)\s*,(\w)\s*\.
+\\\1 \2 -> 
+
+(\S+)\.length
+length \1
+
+if(?:(?!then)[\s\S])*?else
+
+ \d\b
+ 
+\{\s*tag\s*=
+
+(t)(rue)|(f)(alse)
