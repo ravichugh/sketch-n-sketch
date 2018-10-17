@@ -5,6 +5,7 @@ import Html.Attributes as Attr
 import Html.Events as E
 
 import Lang exposing (..)
+import LeoParser exposing (parse)
 import LeoUnparser exposing (unparse)
 import Model exposing (Msg)
 import Controller
@@ -18,6 +19,9 @@ type alias PaletteDefinition model msg =
   { atType : Type
   , init : model
   , decode : Exp -> Maybe model
+      -- if it were really important to have custom formatting for
+      -- serialized models to be preserved, could have decode also return
+      -- a function for re-encoding with a new model. and scrap encode.
   , encode : model -> Exp__
   , toExp : model -> Exp__
   , update : msg -> model -> model
@@ -35,6 +39,8 @@ view paletteName =
       embedPalette paletteName checkbox
     "NumButtons" ->
       embedPalette paletteName numButtons
+    "Matrix" ->
+      embedPalette paletteName matrix
     _ ->
       always (always (Html.text ("palette not defined: " ++ paletteName)))
 
@@ -91,6 +97,36 @@ embedPalette paletteName palette paletteExpInfo program =
       in
         -- Html.h1 [] [ Html.text <| paletteName ++ " Palette" ]
         Html.map msgToMsg paletteHtml
+
+
+--------------------------------------------------------------------------------
+-- Do these exist somewhere?
+
+decodeNum exp =
+  case (unExpr exp).val.e__ of
+    EConst _ n _ _ -> Just n
+    _              -> Nothing
+
+decodeInt exp =
+  decodeNum exp
+    |> Maybe.map round
+       -- TODO could check that num is actually whole
+
+decodeRecord exp =
+  case (unExpr exp).val.e__ of
+    ERecord _ Nothing decls _ ->
+      decls
+        |> recordEntriesFromDeclarations
+        |> Maybe.map (List.map (\(_,_,f,_,e) -> (f,e)))
+    _ ->
+      Nothing
+
+decodeList exp =
+  case (unExpr exp).val.e__ of
+    EList _ wsExps _ Nothing _ ->
+      Just (List.map Tuple.second wsExps)
+    _ ->
+      Nothing
 
 
 --------------------------------------------------------------------------------
@@ -222,4 +258,141 @@ numButtons =
     , toExp = toExp
     , update = update
     , view = view
+    }
+
+
+--------------------------------------------------------------------------------
+-- Matrix
+
+type alias MatrixModel =
+  { numRows : Int
+  , numCols : Int
+  , data : List (List Float)
+  }
+
+type MatrixMsg
+  = MatrixNoop
+  | MatrixSet { row : Int, col : Int, newNum : Float }
+
+matrix : PaletteDefinition MatrixModel MatrixMsg
+matrix =
+  let
+    atType =
+      withDummyTypeInfo (TVar space1 "blaaaaaaaah")
+
+    init =
+      { numRows = 2
+      , numCols = 3
+      , data = [[0,0,0],[0,0,0]]
+      }
+
+    toExp {data} =
+      data
+        |> List.map (\nums -> eList (listOfNums nums) Nothing)
+        |> flip eList Nothing
+        |> unExpr |> .val |> .e__
+
+    update msg oldModel =
+      case msg of
+        MatrixNoop ->
+          oldModel
+
+        MatrixSet {row, col, newNum} ->
+          let
+            newRow =
+              oldModel.data
+                |> Utils.geti row
+                |> Utils.replacei col newNum
+
+            newData =
+              oldModel.data
+                |> Utils.replacei row newRow
+          in
+            { oldModel | data = newData }
+
+    view {numRows, numCols, data} =
+      let
+        grid =
+          List.range 1 numRows |> List.map (\i ->
+            List.range 1 numCols |> List.map (\j ->
+              let
+                num = data |> Utils.geti i |> Utils.geti j
+              in
+              Html.textarea
+                [ Attr.style
+                    [ ("width", "20pt")
+                    ]
+                , E.onInput <| \text ->
+                    case String.toFloat (String.trim text) of
+                      Ok n  -> MatrixSet {row=i, col=j, newNum=n}
+                      Err _ -> MatrixNoop
+                ]
+                [ Html.text <| toString num
+                ]
+            )
+          )
+          |> List.map (Html.div [])
+
+      in
+      Html.div
+        [ Attr.style [ ("padding", "20px") ]
+        ]
+        grid
+
+    decode exp =
+      decodeRecord exp |> Maybe.andThen (\fieldExps ->
+        case fieldExps of
+          [("numRows", e1), ("numCols", e2), ("data", e3)] ->
+            decodeInt  e1 |> Maybe.andThen (\numRows ->
+            decodeInt  e2 |> Maybe.andThen (\numCols ->
+            decodeList e3 |> Maybe.andThen (\exps ->
+              exps
+                |> List.map decodeList
+                |> Utils.projJusts
+                |> Maybe.andThen (\lists ->
+                     lists
+                       |> List.map (List.map decodeNum)
+                       |> List.map Utils.projJusts
+                       |> Utils.projJusts
+                       |> Maybe.andThen (\data ->
+                            Just { numRows = numRows
+                                 , numCols = numCols
+                                 , data = data
+                                 }
+            )))))
+
+          _ -> Nothing
+      )
+
+    encode {numRows, numCols, data} =
+      let
+        strRow row =
+          List.map toString row
+            |> String.join ","
+            |> Utils.bracks
+
+        strData =
+          data
+            |> List.map strRow
+            |> String.join ","
+            |> Utils.bracks
+
+        str =
+          "{ numRows = " ++ toString numRows ++
+          ", numCols = " ++ toString numCols ++
+          ", data = " ++ strData ++
+          " }"
+      in
+        str
+          |> parse
+          |> Result.withDefault (eStr "Bad encode. Bad matrix palette. Bad")
+          |> unExpr |> .val |> .e__
+  in
+    { atType = atType
+    , init = init
+    , toExp = toExp
+    , update = update
+    , view = view
+    , decode = decode
+    , encode = encode
     }
