@@ -659,8 +659,7 @@ type TransformationResult
   | Palette (String, PaletteExpInfo)
 
 type alias PaletteExpInfo =
-  { program : Exp
-  , paletteExp : Exp
+  { paletteExp : Exp
   , paletteExpEApp : (WS, Exp, (Exp, Exp, Exp), ApplicationType, WS)
   }
 

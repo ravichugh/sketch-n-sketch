@@ -106,6 +106,7 @@ type CodeEditorMode
   = CEText
   | CEDeuceClick
   | CETypeInspector
+  | CEPalettes
 
 type alias Model =
   { code : Code
@@ -975,6 +976,7 @@ deuceActive model =
         [ deuceShortcutActive model
         , model.codeEditorMode == CEDeuceClick
         , model.codeEditorMode == CETypeInspector
+        , model.codeEditorMode == CEPalettes
         , configurationPanelShown model
         ]
     ]
@@ -1194,7 +1196,8 @@ nothingSelectedInOutput model =
 
 allowOnlySingleSelection : Model -> Bool
 allowOnlySingleSelection model =
-  model.codeEditorMode == CETypeInspector
+  model.codeEditorMode == CETypeInspector ||
+  model.codeEditorMode == CEPalettes
 
 
 --------------------------------------------------------------------------------
@@ -1220,6 +1223,7 @@ deucePopupPanelShown model =
             ]
         , Utils.and
             [ model.codeEditorMode == CETypeInspector
+                || model.codeEditorMode == CEPalettes
             , not <| List.isEmpty model.deuceState.hoveredWidgets
             ]
         ]
@@ -1294,6 +1298,7 @@ type alias DeuceCacheTriggerValues =
   , lineHeight : Float
   , characterWidth : Float
   , contentLeft : Float
+  , codeEditorMode : CodeEditorMode
   }
 
 deuceCacheTriggerValues : Model -> DeuceCacheTriggerValues
@@ -1307,6 +1312,7 @@ deuceCacheTriggerValues m =
   , lineHeight = m.codeBoxInfo.lineHeight
   , characterWidth = m.codeBoxInfo.characterWidth
   , contentLeft = m.codeBoxInfo.contentLeft
+  , codeEditorMode = m.codeEditorMode
   }
 
 deuceCacheNeedsUpdate : Model -> Model -> Bool
@@ -1512,7 +1518,7 @@ initModel =
     , syntax = Syntax.Leo
     , codeEditorMode = CEText
     , deuceOverlayCache = Nothing
-    , doTypeChecking = True
+    , doTypeChecking = False
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
     }

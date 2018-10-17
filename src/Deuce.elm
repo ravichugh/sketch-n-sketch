@@ -21,6 +21,7 @@ import Model exposing
   ( Model
   , Code
   , ColorScheme(..)
+  , CodeEditorMode(..)
   )
 
 import Info exposing (WithInfo)
@@ -47,6 +48,8 @@ import Lang exposing
   , firstNestedExp
   , unwrapExp
   )
+
+import LangUtils
 
 import DeuceWidgets exposing
   ( DeuceState
@@ -192,6 +195,7 @@ type alias CodeInfo =
   , maxLineLength : Int
   , needsParse : Bool
   , doTypeChecking : Bool
+  , codeEditorMode : CodeEditorMode
   }
 
 --==============================================================================
@@ -637,6 +641,13 @@ codeObjectPolygon msgs codeInfo codeObject color =
             _ ->
               False
 
+        highlightPaletteExp =
+          case (codeInfo.codeEditorMode, codeObject) of
+            (CEPalettes, E e) ->
+              LangUtils.isPaletteExp e
+            _ ->
+              False
+
         errorColor =
           objectErrorColor codeInfo.displayInfo.colorScheme
 
@@ -656,6 +667,8 @@ codeObjectPolygon msgs codeInfo codeObject color =
           else if highlightError then
             (" translucent", errorColor)
           else if highlightInfo then
+            (" opaque", infoColor)
+          else if highlightPaletteExp then
             (" opaque", infoColor)
           else
             ("", color)
@@ -856,6 +869,8 @@ overlay msgs model =
           Model.needsParse model
       , doTypeChecking =
           model.doTypeChecking
+      , codeEditorMode =
+          model.codeEditorMode
       }
     leftShift =
       model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed
@@ -899,6 +914,8 @@ diffOverlay model exps =
           Model.needsParse model
       , doTypeChecking =
           model.doTypeChecking
+      , codeEditorMode =
+          model.codeEditorMode
       }
     leftShift =
       model.codeBoxInfo.contentLeft + Layout.deuceOverlayBleed

@@ -28,7 +28,7 @@ type alias PaletteDefinition model msg =
 --------------------------------------------------------------------------------
 -- "Framework" for Embedding Palette GUIs
 
-view : String -> PaletteExpInfo -> Html Msg
+view : String -> PaletteExpInfo -> Exp -> Html Msg
 view paletteName =
   case paletteName of
     "Checkbox" ->
@@ -36,13 +36,13 @@ view paletteName =
     "NumButtons" ->
       embedPalette paletteName numButtons
     _ ->
-      always (Html.text ("palette not defined: " ++ paletteName))
+      always (always (Html.text ("palette not defined: " ++ paletteName)))
 
 
-embedPalette : String -> PaletteDefinition model msg -> PaletteExpInfo -> Html Msg
-embedPalette paletteName palette paletteExpInfo =
+embedPalette : String -> PaletteDefinition model msg -> PaletteExpInfo -> Exp -> Html Msg
+embedPalette paletteName palette paletteExpInfo program =
   let
-    { program, paletteExp, paletteExpEApp } =
+    { paletteExp, paletteExpEApp } =
       paletteExpInfo
 
     (ws1, eFunc, (ePaletteName, ePaletteModel, eExpansion), appType, ws2) =
@@ -98,7 +98,7 @@ embedPalette paletteName palette paletteExpInfo =
 
 type alias CheckboxModel = Bool
 
-type CheckboxMsg = CheckboxClick Bool
+type CheckboxMsg = CheckboxClick
 
 checkbox : PaletteDefinition CheckboxModel CheckboxMsg
 checkbox =
@@ -123,13 +123,8 @@ checkbox =
     toExp newBool =
       encode newBool
 
-    update (CheckboxClick newBool) _ =
-      newBool
-
-    -- This version suffers from Elm not re-rendering things:
-    --
-    -- update (CheckboxClick _ ) oldBool =
-    --   not oldBool
+    update CheckboxClick oldBool =
+      not oldBool
 
     view currentBool =
       Html.div
@@ -139,7 +134,7 @@ checkbox =
             [ Attr.type_ "checkbox"
             , Attr.checked currentBool
             , Attr.style [ ("transform", "scale(3)") ]
-            , E.onCheck (\newBool -> CheckboxClick newBool)
+            , E.onCheck (always CheckboxClick)
             ]
             []
         ]
@@ -204,20 +199,11 @@ numButtons =
             Nothing
 
     view (min, num, max) =
-      let blah thing =
-        if round (min + num + max) % 2 == 0 then
-          Html.div [] [thing]
-        else
-          thing
-      in
-      blah <|
-
       Html.div
         [ Attr.style [ ("padding", "20px") ]
         ]
         [ Html.button
             [ Attr.disabled (num - 1 < min)
-            -- , Attr.attribute "data-canvas-count" (toString (min + num + max))
             , E.onClick (NumButtonsOffset (-1))
             ]
             [ Html.text <| "-1 to " ++ toString (num - 1) ]

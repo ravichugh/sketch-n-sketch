@@ -378,8 +378,8 @@ expEqual e1_ e2_ =
 
 -- currently here, instead of Lang, because hacking on strings
 --
-isPaletteExp : Exp -> Exp -> Maybe (String, PaletteExpInfo)
-isPaletteExp inputExp thisExp =
+getPaletteExpInfo : Exp -> Maybe (String, PaletteExpInfo)
+getPaletteExpInfo thisExp =
   let unparse = Syntax.unparser Syntax.Leo in
   case (unExpr thisExp).val.e__ of
     EApp ws1 eFunc [ePaletteName, ePaletteState, eExpansion] appType ws2 ->
@@ -389,9 +389,7 @@ isPaletteExp inputExp thisExp =
             String.trim (unparse ePaletteName)
 
           paletteExpInfo =
-            { program =
-                inputExp
-            , paletteExp =
+            { paletteExp =
                 thisExp
             , paletteExpEApp =
                 (ws1, eFunc, (ePaletteName, ePaletteState, eExpansion), appType, ws2)
@@ -404,3 +402,9 @@ isPaletteExp inputExp thisExp =
 
     _ ->
       Nothing
+
+isPaletteExp : Exp -> Bool
+isPaletteExp exp =
+  getPaletteExpInfo exp
+    |> Maybe.map (always True)
+    |> Maybe.withDefault False

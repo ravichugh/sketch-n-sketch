@@ -5,6 +5,7 @@
 
 module DeuceTools exposing
   ( typesToolId
+  , palettesToolId
   , createToolCache
   , reselectDeuceTool
   , updateInputSensitiveToolsInCache
@@ -3255,6 +3256,10 @@ expandFormat old selections =
 -- Palettes Tool
 --------------------------------------------------------------------------------
 
+palettesToolId : String
+palettesToolId =
+  "palettesTool"
+
 palettesTool : Model -> DeuceSelections -> DeuceTool
 palettesTool model selections =
   let
@@ -3271,7 +3276,7 @@ palettesTool model selections =
           let
             exp = LangTools.justFindExpByEId model.inputExp eId
           in
-            case LangUtils.isPaletteExp model.inputExp exp of
+            case LangUtils.getPaletteExpInfo exp of
               Just paletteInfo ->
                 ( Tuple.first paletteInfo ++ " Palette"
                 , NoInputDeuceTransform (always [Palette paletteInfo])
@@ -3287,7 +3292,7 @@ palettesTool model selections =
     { name = name
     , func = func
     , reqs = [ { description = "Select something.", value = boolPredVal } ]
-    , id = "palettesTool"
+    , id = palettesToolId
     }
 
 
@@ -3317,8 +3322,10 @@ toolNeedsHovers : Model -> String -> Bool
 toolNeedsHovers model toolId =
   Utils.and
     [ model.codeEditorMode == Model.CETypeInspector
+        || model.codeEditorMode == Model.CEPalettes
     , Model.noCodeWidgetsSelected model
     , toolId == typesToolId
+        || toolId == palettesToolId
     ]
 
 toolList =
@@ -3628,3 +3635,4 @@ isActive : Model.CodeEditorMode -> DeuceTool -> Bool
 isActive mode deuceTool =
   deuceTool.func /= InactiveDeuceTransform
     && (mode /= Model.CETypeInspector || deuceTool.id == typesToolId)
+    && (mode /= Model.CEPalettes || deuceTool.id == palettesToolId)

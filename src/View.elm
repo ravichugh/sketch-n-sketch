@@ -547,7 +547,7 @@ deuceTransformationResult model path deuceTransformation transformationResult =
 
         Palette (paletteName, paletteCallInfo) ->
           ( Nothing
-          , [ Palettes.view paletteName paletteCallInfo ]
+          , [ Palettes.view paletteName paletteCallInfo model.inputExp ]
           )
   in
     case maybeSynthesisInfo of
@@ -812,6 +812,9 @@ menuBar model =
               True
               params.strVersion
               Controller.msgNoop
+          -- TODO add Credits, for Palettes.svg if still using it
+          -- James Fenton, from the Noun Project
+          -- https://en.wikipedia.org/wiki/File:Paint_palette_icon_from_the_Noun_Project.svg#file
           ]
         ]
 
@@ -1609,6 +1612,8 @@ codePanel model =
               ("Deuce", "Deuce")
             Model.CETypeInspector ->
               ("Type Inspector", "TypeInspector")
+            Model.CEPalettes ->
+              ("Palettes", "Palettes")
       in
         Html.div
           [ Attr.classList
@@ -1651,6 +1656,8 @@ codePanel model =
         , modeIcon Model.CEDeuceClick
         , modeSeparator
         , modeIcon Model.CETypeInspector
+        , modeSeparator
+        , modeIcon Model.CEPalettes
         , modeSeparator
         ]
   in
@@ -2776,8 +2783,12 @@ deucePopupPanel model =
     alwaysShowFlag =
       case activeTools of
         [(tool, _, _)] ->
-          model.codeEditorMode == CETypeInspector
-            && tool.id == DeuceTools.typesToolId
+          Utils.or
+            [ model.codeEditorMode == CETypeInspector
+                && tool.id == DeuceTools.typesToolId
+            , model.codeEditorMode == CEPalettes
+                && tool.id == DeuceTools.palettesToolId
+            ]
 
         _ ->
           False
@@ -2795,6 +2806,7 @@ deucePopupPanel model =
           Utils.or
             [ not <| Model.deucePopupPanelShown model
             , model.codeEditorMode == CETypeInspector && noTools
+            , model.codeEditorMode == CEPalettes && noTools
             ]
       , dragHandler =
           Controller.msgDragDeucePopupPanel

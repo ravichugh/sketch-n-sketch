@@ -1988,7 +1988,9 @@ msgKeyDown keyCode =
 
           else if noughtSelectedInOutput
                     && not (deucePopupPanelShown old)
-                    && (old.codeEditorMode == CEDeuceClick || old.codeEditorMode == CETypeInspector)
+                    && (old.codeEditorMode == CEDeuceClick
+                          || old.codeEditorMode == CETypeInspector
+                          || old.codeEditorMode == CEPalettes)
                     && not currentKeyDown then
             { old | codeEditorMode = CEText }
 
@@ -3532,7 +3534,7 @@ msgMouseClickDeuceWidget widget =
       toggleDeuceWidget widget old
 
     positionUpdater old =
-      if old.codeEditorMode == CETypeInspector then
+      if old.codeEditorMode == CETypeInspector || old.codeEditorMode == CEPalettes then
         deucePopupPanelPositionUpdater (Model.mousePosition old) old
       else
         old
@@ -3552,7 +3554,7 @@ msgMouseEnterDeuceWidget widget = Msg ("msgMouseEnterDeuceWidget " ++ toString w
     newModel =
       { old | deuceState = newDeuceState }
   in
-    if newModel.codeEditorMode == CETypeInspector then
+    if newModel.codeEditorMode == CETypeInspector || newModel.codeEditorMode == CEPalettes then
       resetDeuceCacheAndReselect newModel DeuceTools.createToolCache
     else
       newModel
