@@ -3330,6 +3330,13 @@ toolList =
     , (\model selections -> Types2.convertToDataTypeTool model.inputExp selections)
     ]
   , [ palettesTool ]
+
+  -- TODO
+  -- now that deuce cache is cleared much more often, it's slower.
+  -- turning off the rest of the tools for now.
+  ]
+
+{-
   , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
     [ createTrueTool
     , createFalseTool
@@ -3389,6 +3396,8 @@ toolList =
   , [ formatTool
     ]
   ]
+
+-}
 
 deuceToolsOf : Model -> List (List DeuceTool)
 deuceToolsOf model =
