@@ -788,6 +788,7 @@ updateExp oldExp oldVal newVal =
         Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
          --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
          (update <| updateContext "initial update" preludeEnv oldExp [] oldVal newVal diffs)) |>
+         Results.filter (\(newEnv, newExp) -> newEnv.changes == []) |>
          Results.map (\(newEnv, newExp) -> newExp.val)
 
 valToNative: Val -> Result String a
@@ -818,8 +819,22 @@ evaluate s =
   Syntax.parser Syntax.Leo s
   |> Result.mapError ParserUtils.showError
   |> Result.andThen (\exp ->
-    Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp |> Result.map Tuple.first
-  ) |> Result.map Tuple.first
+    Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp
+    |> Result.map (Tuple.first >> Tuple.first)
+  )
+
+updateString: String -> Val -> Result String (List String)
+updateString oldProgram newVal =
+  Syntax.parser Syntax.Leo oldProgram
+  |> Result.mapError ParserUtils.showError
+  |> Result.andThen (\exp ->
+      Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp
+      |> Result.map (Tuple.first >> Tuple.first)
+      |> Result.andThen (\oldVal ->
+        updateExp exp oldVal newVal
+        |> Result.map (LazyList.toList >> List.map (Syntax.unparser Syntax.Leo))
+      )
+    )
 
 evaluateEnv: Env -> String -> Result String Val
 evaluateEnv env s =
@@ -832,14 +847,15 @@ evaluateEnv env s =
 api = {
   parse = parse,
   evalExp = evalExp,
-  updateExp = updateExp,
+  updateExp = updateExp, -- Returns all solutions in a lazy way.
   unparse = unparse,
   andThen = Result.andThen,
-  valToNative = valToNative,
+  valToNative = valToNative, -- Converts a Val to native Javascript (except closures)
   nativeToVal = nativeToVal (builtinVal "EvalUpdate.nativeToVal"),
 
   valToString = LangUtils.valToString,
   valToHTMLSource = LangSvg.valToHTMLSource HTMLParser.HTML,
-  evaluate = evaluate,
+  evaluate = evaluate, -- Takes a string, returns a Val
+  update = updateString, -- Takes
   evaluateEnv = evaluateEnv
   }

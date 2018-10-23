@@ -715,7 +715,15 @@ valToHTMLSource namespace v =
             case List.map (valToHTMLSource newNamespace) l2 |> Utils.projOk of
               Err msg -> Err msg
               Ok children ->
-                Ok <| Utils.delimit "<" ">" (kind ++ attributes) ++ (children |> String.join "") ++ ending
+                let childrenRawStr = children |> String.join ""  in
+                let childrenStr = case kind of
+                      "style"  -> childrenRawStr |> String.split "&gt;" |> String.join ">"
+                      "script" ->
+                        childrenRawStr |> String.split "&gt;" |> String.join ">"
+                        |> String.split "&lt;" |> String.join "<"
+                      _ -> childrenRawStr
+                in
+                Ok <| Utils.delimit "<" ">" (kind ++ attributes) ++ childrenStr ++ ending
       _ -> Err <| "Don't know how to convert this 3-element list to an HTML node : " ++ valToString v
     _ -> Err <| "Don't know how to convert this to an HTML node : " ++ valToString v
 
