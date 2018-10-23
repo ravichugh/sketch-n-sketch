@@ -2625,8 +2625,7 @@ Html =
               |> List.concatMap_ identity (\[head] as headList ->
               case head of
                 Left str ->
-                  Update.debug "insertionDeletion" <|
-                  insertionDeletionUpdatesTo (Update.debug "node1List" node1List) ["TEXT", str]
+                  insertionDeletionUpdatesTo node1List ["TEXT", str]
                 Right match -> replacement match
             ) |> __mergeHtmlText__
           [tag, attrs, children] ->
