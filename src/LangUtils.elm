@@ -375,3 +375,14 @@ expEqual e1_ e2_ =
   _ -> False
 --}
 
+-- Given a predicate and a pattern, returns true if the patterns extracts a top-level field satisfying the predicate
+patternExtractsField fieldPredicate pat = case pat.val.p__ of
+  PParens _ p _ -> patternExtractsField fieldPredicate p
+  PAs _ p1 _ p2 -> patternExtractsField fieldPredicate p2 || patternExtractsField fieldPredicate p1
+  PVar _ _ _ -> True
+  PRecord _ ps _ -> List.any (\(_, _, k, _, _) -> fieldPredicate k) ps
+  PColonType _ p _ _ -> patternExtractsField fieldPredicate p
+  PConst _ _ -> False
+  PBase _ _ -> False
+  PWildcard _ -> False
+  PList _ _ _ _ _ -> False

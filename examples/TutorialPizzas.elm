@@ -84,16 +84,16 @@ Try now to change the preference for the user "John". It creates an entry in the
 
 ## Simplify the code
 This is a situation so common that we designed a primitive for such a lens.  
-@t.replace("Update.lens ... }")<|"""Maybe.withDefaultToReplace 0"""
+@t.replace("Update.lens ... }")<|"""Maybe.withDefaultReplace 0"""
 If you now change the username and select a pizza, it will now offer two possible updates: either modify the default value, or create an entry for this user.
 To make sure it does not modify this default value, we can freeze it.  
-@t.replace("""Maybe.withDefaultToReplace 0""")<|
-"""Maybe.withDefaultToReplace (freeze 0)"""
+@t.replace("""Maybe.withDefaultReplace 0""")<|
+"""Maybe.withDefaultReplace (freeze 0)"""
 
 ## Deleting preferences
 The last step at this point is to let user delete their data.
 For that, if a user selects the first choice (the one that says "@chooseyourpizza"), we want to push back <code>Nothing</code> to the call of <code>listDict.get</code>. In this case, <code>listDict.get</code> deletes the key/value pair, this is a defined behavior.
-@t.replace("""Maybe.withDefaultToReplace (freeze 0)""")<|
+@t.replace("""Maybe.withDefaultReplace (freeze 0)""")<|
 """Maybe.orElseReplace (freeze (Just 0))
          |> Maybe.getUnless 0"""
 

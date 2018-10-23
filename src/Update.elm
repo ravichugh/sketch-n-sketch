@@ -581,22 +581,34 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                   Ok ((vArg, _), vArgEnv) ->
                                     let x = eVar "x" in
                                     let y = eVar "y" in
-                                    let diffsVal =
-                                      -- ImpureGoodies.logTimedRun ".update vDiffsToVal" <| \_ ->
-                                      vDiffsToVal (Vb.fromVal v1) diffs in
-                                    let customArgument = Vb.record Vb.identity (Vb.fromVal vArg) <| Dict.fromList [
-                                         ("input", vArg),
-                                         ("output", newVal),
-                                           ("outputNew", newVal), -- Redundant
-                                           ("newOutput", newVal), -- Redundant
-                                         ("outputOld", oldVal),
-                                           ("outputOriginal", oldVal), -- Redundant
-                                           ("oldOutput", oldVal), -- Redundant
-                                         ("diffs", diffsVal),
-                                           ("diff", diffsVal),    -- Redundant
-                                           ("outDiff", diffsVal), -- Redundant
-                                           ("diffOut", diffsVal) -- Redundant
-                                         ] in
+                                    let customArgumentList =
+                                      let base = [
+                                            ("input", vArg),
+                                            ("output", newVal),
+                                              ("outputNew", newVal), -- Redundant
+                                              ("newOutput", newVal), -- Redundant
+                                            ("outputOld", oldVal),
+                                              ("outputOriginal", oldVal), -- Redundant
+                                              ("oldOutput", oldVal)] -- Redundant
+                                      in
+                                      case fieldUpdateClosure.v_ of
+                                        VClosure recEnv [pat] body env ->
+                                          if pat |> patternExtractsField (\f ->
+                                            f == "diffs" || f ==  "diff" || f == "outDiff" || f == "diffOut") then
+                                            let diffsVal = -- ImpureGoodies.logTimedRun ".update vDiffsToVal" <| \_ ->
+                                              vDiffsToVal (Vb.fromVal v1) diffs in
+                                            base ++ [
+                                              ("diffs", diffsVal),
+                                              ("diff", diffsVal),    -- Redundant
+                                              ("outDiff", diffsVal), -- Redundant
+                                              ("diffOut", diffsVal) -- Redundant
+                                            ]
+                                          else base
+                                        _ ->
+                                          base
+                                    in
+                                    let customArgument = Vb.record Vb.identity (Vb.fromVal vArg) <|
+                                      Dict.fromList customArgumentList in
                                     let xyApplication = ret <| EApp space0 x [y] SpaceApp space0 in
                                     let xyEnv = [("x", fieldUpdateClosure), ("y", customArgument)] in
                                     case (

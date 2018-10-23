@@ -1884,8 +1884,18 @@ List =
     [] -> Nothing
     head :: tail -> if pred head then Just head else find pred tail
   in
+  let indexWhere pred list =
+    let aux n list = case list of
+      head :: tail -> if pred head then n else aux (n + 1) tail
+      _ -> -1
+    in
+    aux 0 list
+  in
+  let indexOf value  = indexWhere ((==) value) in
   -- TODO: Continue to insert List functions from Elm (http://package.elm-lang.org/packages/elm-lang/core/latest/List#range)
-  { simpleMap = simpleMap
+  { indexWhere = indexWhere
+    indexOf = indexOf
+    simpleMap = simpleMap
     map = map
     mapWithDefault = mapWithDefault
     map2 = map2 -- TOOD: Make it a lens that supports insertion?
@@ -2128,7 +2138,7 @@ Maybe =
 
     -- Like withDefault, but if the default was used and we push a new value,
     -- it will push it back as a "Just" before trying the usual behavior. Ideal for displaying placeholders.
-    withDefaultToReplace = Update.lens2 {
+    withDefaultReplace = Update.lens2 {
       apply (d, mb) = case mb of
         Nothing -> d
         Just j -> j
@@ -2146,7 +2156,7 @@ Maybe =
 
     -- Like withDefault, but if the default was used and we push a new value,
     -- it will push it back as a "Just" before trying the usual behavior. Ideal for displaying placeholders.
-    withDefaultToReplaceLazy = Update.lens2 {
+    withDefaultReplaceLazy = Update.lens2 {
       apply (df, mb) = case mb of
         Nothing -> df ()
         Just j -> j
@@ -2683,7 +2693,9 @@ Html =
   let translate =
     let freshVarName name i dictionary =
       if name == "" then freshVarName "translation" i dictionary else
-      if Dict.member (name + toString i) dictionary then freshVarName name (i + 1) dictionary else name + toString i
+      let suffix = if i == 0 then "" else toString i in
+      let potentialName = name + suffix in
+      if Dict.member potentialName dictionary then freshVarName name (i + 1) dictionary else potentialName
     in
     \translations indexLangue node ->
     let currentTranslation = nth translations indexLangue |> Tuple.second |> Dict.fromList in
@@ -2701,7 +2713,7 @@ Html =
           find """\{:([^\}]*(?!\})\S[^\}]*):\}""" newHtmlNode
           |> List.foldl (\matchToTranslate (updatedHtmlNode, currentTranslation, translations) ->
               let definition = nth matchToTranslate.group 1
-                  name = freshVarName (Regex.replace "[^a-zA-Z]" "" definition |> String.take 16) 1 currentTranslation
+                  name = freshVarName (Regex.replace "[^a-zA-Z]" "" definition |> String.take 16) 0 currentTranslation
                   textToFind = """\{:@(Regex.escape definition):\}"""
               in
               (replace textToFind (\_ -> [["TEXT", "$" + name]]) updatedHtmlNode,

@@ -43,7 +43,7 @@ questions = [
 -- Dictionary of questions id/answers made for this user
 questionsAnswered = 
   listDict.get username userdata
-  |> Maybe.withDefaultToReplace (freeze [])
+  |> Maybe.withDefaultReplace (freeze [])
 
 -- Compute the next question to ask (either Nothing or Just question)
 questionToAsk = questions
@@ -52,9 +52,9 @@ questionToAsk = questions
 -- Displays a particular question
 display {render, id, defaultAnswer} =
   render <|
-      -- Note that because of withDefaultToReplace,
+      -- Note that because of withDefaultReplace,
       -- changing the argument will store the result at the right place.
-    (listDict.get id questionsAnswered |> Maybe.withDefaultToReplace (freeze defaultAnswer))
+    (listDict.get id questionsAnswered |> Maybe.withDefaultReplace (freeze defaultAnswer))
  
 main = <div style="margin:10px" contenteditable="true">
   <h1>Evaluation quizz for @username</h1>
