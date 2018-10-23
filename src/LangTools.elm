@@ -583,7 +583,6 @@ newLetFancyWhitespace   insertedLetEId isRec   pat    boundExp expToWrap program
 locDescription program loc =
   String.join " " (locDescriptionParts program loc)
 
-
 -- e.g. ["rect1", "x"] for (def rect1 (let x = ... in ...) ...)
 locDescriptionParts program loc =
   let (locId, _, ident) = loc in
@@ -2455,6 +2454,41 @@ visibleIdentifiersAtPredicate_ idents exp pred =
     EParens _ e _ _           -> ret <| recurse e
     EHole _ _                 -> ret Set.empty
 
+
+visibleIdentifiersAtEIdBindingNumNoPrelude: Exp -> (InsertionMethod, (EId, BindingNumber)) -> List Ident
+visibleIdentifiersAtEIdBindingNumNoPrelude  program (insertionMethod, (eid, bn)) =
+  let f: (Exp -> List Ident -> List Ident -> List Ident)
+       -> (Exp -> IsRec -> List LetExp -> BindingNumber -> List Ident -> List Ident -> (List Ident, List Ident))
+       -> (Exp -> List Ident -> List Ident)
+       -> (Exp -> Branch -> BindingNumber -> List Ident -> List Ident)
+       -> List Ident
+       -> List Ident
+       -> Exp
+       -> List Ident
+      f = foldExpTopDownWithScope
+  in
+  f (\exp globalIdents currentScope -> globalIdents)
+    (\exp isRec group bindingNumber globalIdents currentScope ->
+      let newIdents = group |> List.concatMap (patOfLetExp >> identifiersListInPat) in
+      let newScope = currentScope |> Utils.reverseInsert newIdents in
+      let newGlobalIdents: List Ident
+          newGlobalIdents =
+            if expEId exp == eid && bindingNumber == bn then
+               if insertionMethod == InsertDeclarationLevel After then newScope else currentScope
+            else globalIdents
+      in (newGlobalIdents, newScope)
+    )
+    (\fun currentScope -> case unwrapExp fun of
+       EFun _ pats _ _ -> currentScope |> Utils.reverseInsert (pats |> List.concatMap identifiersListInPat)
+       _ -> currentScope
+    )
+    (\cs branch index currentScope -> case branch.val of
+      Branch_ _ pat _ _ -> currentScope |> Utils.reverseInsert (pat |> identifiersListInPat)
+    )
+    []
+    []
+    program
+
 -- Compute the PathedPatternId that assigned the binding referenced by varExp
 --
 -- Uses ident of given varExp, returns that name's binding at varExp's EId in program.
@@ -2813,3 +2847,206 @@ eidToMaybeCorrespondingArgumentPathedPatId program targetEId =
 
           _ -> Nothing
       )
+
+
+assignUniqueNames_ : Exp -> Set.Set Ident -> Dict Ident Ident -> (Exp, Set.Set Ident, Dict Ident Ident)
+assignUniqueNames_ exp usedNames oldNameToNewName =
+  let recurse = assignUniqueNames_ in
+  let recurseExps es =
+    es
+    |> List.foldl
+        (\e (newEs, usedNames, newNameToOldName) ->
+          let (newE, usedNames_, newNameToOldName_) = recurse e usedNames oldNameToNewName in
+          (newEs ++ [newE], usedNames_, Dict.union newNameToOldName_ newNameToOldName)
+        )
+        ([], usedNames, Dict.empty)
+  in
+  let recurseExp e =
+    let (newEs, usedNames, newNameToOldName) = recurseExps [e] in
+    (Utils.head "assignUniqueNames_ head1" newEs, usedNames, newNameToOldName)
+  in
+  let assignUniqueNamesToPat_ pat usedNames =
+    identifiersListInPat pat
+    |> List.foldl
+        (\name (pat, usedNames, oldNameToNewName) ->
+          if Set.member name usedNames then
+            let newName = nonCollidingName name 2 usedNames in
+            (renameIdentifierInPat name newName pat, Set.insert newName usedNames, Dict.insert name newName oldNameToNewName)
+          else
+            (pat, Set.insert name usedNames, oldNameToNewName)
+        )
+        (pat, usedNames, Dict.empty)
+  in
+  let assignUniqueNamesToDeclarations_: Declarations -> Set.Set Ident -> Dict Ident Ident ->
+       (Declarations, Set.Set Ident, Dict Ident Ident, Dict Ident Ident)
+      assignUniqueNamesToDeclarations_ (Declarations po tpes anns exps) usedNames oldNameToNewName =
+    let (newRevLetexpsGroups, usedNames__, newNameToOldName__, oldNameToNewName__) =
+       foldLeftGroup ([], usedNames, Dict.empty, oldNameToNewName) exps <|
+         \(revAccGroup, usedNames, newNameToOldName, oldNameToNewName) letexps isRec  ->
+           let (newRevPats, usedNames__, oldNameToNewNameAdditions) =
+             Utils.foldLeft ([], usedNames, Dict.empty) letexps <|
+                \(revPats, usedNames, oldNameToNewNameAdditions) (LetExp _ _ p _ _ _) ->
+                 let (newPat, usedNames_, oldNameToNewNameAdditions_) = assignUniqueNamesToPat_ p usedNames in
+                 (p::revPats, usedNames_, Dict.union oldNameToNewNameAdditions oldNameToNewNameAdditions_)
+           in
+           let newPats = List.reverse newRevPats in
+           let oldNameToNewNameWithAdditions = Dict.union oldNameToNewNameAdditions oldNameToNewName in
+           let oldNameToNewNameForBoundExps =
+             if isRec then
+                oldNameToNewNameWithAdditions
+             else
+                oldNameToNewName
+           in
+           let (usedNames___, _, revNewLetExps, newNameToOldName__) =
+             Utils.foldLeft (usedNames__, newPats, [], Utils.flipDict oldNameToNewNameAdditions) letexps <|
+             \(usedNames_, newPats, revLetExps, newNameToOldName) (LetExp spc spp oldPat fs spe e1) ->
+                case newPats of
+                 newPat :: patTail ->
+                   let (newE1, usedNames__, newNameToOldName_)   = recurse e1 usedNames_ oldNameToNewNameForBoundExps in
+                   let newLetExp = LetExp spc spp newPat fs spe newE1 in
+                   (usedNames__, patTail, newLetExp::revLetExps, Dict.union newNameToOldName newNameToOldName_)
+                 _ -> Debug.crash "Unexpected missing pattern in EvalUpdate.assignUniqueNames_"
+           in
+           ((isRec, List.reverse revNewLetExps) :: revAccGroup,
+            usedNames___,
+            Dict.union newNameToOldName newNameToOldName__,
+            oldNameToNewNameWithAdditions
+            )
+    in
+    (Declarations po tpes anns <| List.reverse newRevLetexpsGroups,
+     usedNames__,
+     newNameToOldName__,
+     oldNameToNewName__
+    )
+  in
+  let leafUnchanged = (exp, usedNames, Dict.empty) in
+  case (unwrapExp exp) of
+    EConst _ _ _ _  -> leafUnchanged
+    EBase _ _       -> leafUnchanged
+    EVar ws oldName ->
+       case Dict.get oldName oldNameToNewName of
+        Just newName  -> (replaceE__ exp (EVar ws newName), usedNames, Dict.empty)
+        Nothing       -> leafUnchanged
+
+    EFun ws1 ps e ws2 ->
+       let (newPs, usedNames_, oldNameToNewNameAdditions) =
+        ps
+        |> List.foldl
+            (\p (newPs, usedNames, oldNameToNewNameAdditions) ->
+              let (newPat, usedNames_, oldNameToNewNameAdditions_) = assignUniqueNamesToPat_ p usedNames in
+              (newPs ++ [newPat], usedNames_, Dict.union oldNameToNewNameAdditions_ oldNameToNewNameAdditions)
+            )
+            ([], usedNames, Dict.empty)
+       in
+       let (newBody, usedNames__, newNameToOldName) = recurse e usedNames_ (Dict.union oldNameToNewNameAdditions oldNameToNewName) in
+       let newNameToOldName_ = Dict.union (Utils.flipDict oldNameToNewNameAdditions) newNameToOldName in
+       ( replaceE__ exp (EFun ws1 newPs newBody ws2)
+       , usedNames__
+       , newNameToOldName_
+       )
+
+    EOp ws1 wso op es ws2 ->
+       let (newEs, usedNames_, newNameToOldName) = recurseExps es in
+       ( replaceE__ exp (EOp ws1 wso op newEs ws2)
+       , usedNames_
+       , newNameToOldName
+       )
+
+    EList ws1 es ws2 Nothing ws3 ->
+       let (newEs, usedNames_, newNameToOldName) = recurseExps (Utils.listValues es) in
+       ( replaceE__ exp (EList ws1 (Utils.listValuesMake es newEs) ws2 Nothing ws3)
+       , usedNames_
+       , newNameToOldName
+       )
+
+    EList ws1 es ws2 (Just tail) ws3 ->
+       let (newEs, usedNames_, newNameToOldName) = recurseExps (Utils.listValues es ++ [tail]) in
+       let (newHeads, newTail) = (Utils.removeLastElement newEs, Utils.last "assignUniqueNames_" newEs) in
+       ( replaceE__ exp (EList ws1 (Utils.listValuesMake es newHeads) ws2 (Just newTail) ws3)
+       , usedNames_
+       , newNameToOldName
+       )
+
+    ERecord ws1 mbInit decls ws2 ->
+       let (newInit, usedNames__, newNameToOldName)  = case mbInit of
+         Nothing -> (Nothing, usedNames, Dict.empty)
+         Just (init, wsi) ->
+            let (newInit, usedNames_, newNameToOldName_) = recurse init usedNames oldNameToNewName in
+            (Just (newInit, wsi), usedNames_, newNameToOldName_)
+       in
+       let (newDecls, usedNames___, newNameToOldName__, _) = assignUniqueNamesToDeclarations_ decls usedNames__ oldNameToNewName in
+       ( replaceE__ exp (ERecord ws1 newInit newDecls ws2)
+       , usedNames___
+       , Dict.union newNameToOldName newNameToOldName__
+       )
+
+    ESelect ws0 e1 ws1 ws2 s ->
+       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+        ( replaceE__ exp (ESelect ws0 newE1 ws1 ws2 s)
+        , usedNames_
+        , newNameToOldName
+        )
+
+    EIf ws1 e1 ws2 e2 ws3 e3 ws4 ->
+       let (newEs, usedNames_, newNameToOldName) = recurseExps [e1, e2, e3] in
+       case newEs of
+         [newE1, newE2, newE3] ->
+           ( replaceE__ exp (EIf ws1 newE1 ws2 newE2 ws3 newE3 ws4)
+           , usedNames_
+           , newNameToOldName
+           )
+
+         _ ->
+           Debug.crash "assignUniqueNames_ EIf"
+
+    ECase ws1 e1 bs ws2 ->
+       let (newScrutinee, usedNames_, newNameToOldName) = recurse e1 usedNames oldNameToNewName in
+       let (newBranches, usedNames__, newNameToOldName_) =
+         bs
+         |> List.foldl
+             (\branch (newBranches, usedNames, newNameToOldName) ->
+               let (Branch_ bws1 bPat bExp bws2) = branch.val in
+               let (newPat, usedNames_, oldNameToNewNameAdditions) = assignUniqueNamesToPat_ bPat usedNames in
+               let (newBody, usedNames__, newNameToOldName_) = recurse bExp usedNames_ (Dict.union oldNameToNewNameAdditions oldNameToNewName) in
+               let newBranch = { branch | val = Branch_ bws1 newPat newBody bws2 } in
+               (newBranches ++ [newBranch], usedNames__, Dict.union (Utils.flipDict oldNameToNewNameAdditions) (Dict.union newNameToOldName_ newNameToOldName))
+             )
+             ([], usedNames_, newNameToOldName)
+       in
+       ( replaceE__ exp (ECase ws1 newScrutinee newBranches ws2)
+       , usedNames__
+       , newNameToOldName_
+       )
+
+    EApp ws1 e1 es appType ws2 ->
+       let (newE1AndEs, usedNames_, newNameToOldName) = recurseExps (e1::es) in
+       let (newE1, newEs) = (Utils.head "assignUniqueNames_ head" newE1AndEs, Utils.tail "assignUniqueNames_ tail" newE1AndEs) in
+       ( replaceE__ exp (EApp ws1 newE1 newEs appType ws2)
+       , usedNames_
+       , newNameToOldName
+       )
+    ELet ws1 kind decls ws3 e2 ->
+       let (newDecls, usedNames_, newNameToOldName, oldNameToNewNameWithAdditions) =
+         assignUniqueNamesToDeclarations_ decls usedNames oldNameToNewName in
+       let (newE2, usedNames__, newNameToOldName_) = recurse e2 usedNames_ oldNameToNewNameWithAdditions in
+       let newNameToOldName__ = Dict.union newNameToOldName newNameToOldName_ in
+       ( replaceE__ exp (ELet ws1 kind newDecls ws3 newE2)
+       , usedNames__
+       , newNameToOldName__
+       )
+
+    EColonType ws1 e1 ws2 tipe ws3 ->
+       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+       ( replaceE__ exp (EColonType ws1 newE1 ws2 tipe ws3)
+       , usedNames_
+       , newNameToOldName
+       )
+
+    EParens ws1 e1 pStyle ws2 ->
+       let (newE1, usedNames_, newNameToOldName) = recurseExp e1 in
+       ( replaceE__ exp (EParens ws1 newE1 pStyle ws2)
+       , usedNames_
+       , newNameToOldName
+       )
+
+    EHole _ _ -> leafUnchanged

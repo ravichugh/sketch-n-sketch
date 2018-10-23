@@ -9,7 +9,8 @@ module LangSvg exposing
   , dummySvgNode
   , isSvg
   , valToIndexedTree
-  , printHTML, printRawHTML
+  , printHTML, printRawHTML, printAttr
+  , valToHTMLSource
   , compileAttr, compileAttrs
   , desugarShapeAttrs
   , buildSvgSimple
@@ -541,10 +542,10 @@ printNodes namespace showGhosts prettyPrint indent slate =
 
 printAttrs prettyPrint l = case l of
   [] -> ""
-  _  -> " " ++ Utils.spaces (List.map (printAttr prettyPrint) l)
+  _  -> String.concat (List.map (printAttr prettyPrint) l)
 
-printAttr prettyPrint (k,v) =
-  k ++ "=" ++ Utils.delimit "\"" "\"" (Regex.replace Regex.All (Regex.regex "&|\\\\|\"|'|\n|\r|\t") (\m ->
+printAttrRaw prettyPrint (k,v) =
+  " " ++ k ++ "=" ++ Utils.delimit "\"" "\"" (Regex.replace Regex.All (Regex.regex "&|\\\\|\"|'|\n|\r|\t") (\m ->
     case m.match of
       "\\" -> if prettyPrint then "\\\\" else "\\"
       "'" -> if prettyPrint then "'" else "&#39;"
@@ -554,7 +555,9 @@ printAttr prettyPrint (k,v) =
       "&" -> if prettyPrint then "&" else "&amp;"
       "\t" -> if prettyPrint then "\\t" else "\t"
       e -> e
-  ) (strAVal v))
+  ) v)
+
+printAttr prettyPrint (k,v) = printAttrRaw prettyPrint (k, strAVal v)
 
 addAttrs kind attrs =
   if kind == "svg"
@@ -667,6 +670,55 @@ strAVal a = case a.interpreted of
 strPoints : List Point -> String
 strPoints l =
   Utils.spaces (List.map strPoint l)
+
+-- Direct translation from Val to HTML or SVG source
+valToHTMLSource: HTMLParser.NameSpace -> Val -> Result String String
+valToHTMLSource namespace v =
+  case v.v_ of
+    VList [textTag, textContent] -> case (textTag.v_, textContent.v_) of
+      (VBase (VString "TEXT"), VBase (VString s)) ->
+        let content = ImpureGoodies.htmlescape s in
+        Ok <| Regex.replace Regex.All (Regex.regex "&gt;") (\_ -> ">") content -- useful for styles
+      _ -> Err <| "Don't know how to convert this 2-element list to an HTML node : " ++ valToString v
+    VList [tag, attrs, content] -> case (tag.v_, attrs.v_, content.v_) of
+      (VBase (VString kind), VList l1, VList l2) ->
+        let ending = (case namespace of
+           HTMLParser.HTML -> if HTMLParser.isVoidElement kind then "" else
+             Utils.delimit "</" ">" kind
+           _ -> Utils.delimit "</" ">" kind)
+        in
+        let newNamespace = if HTMLParser.isForeignElement kind then HTMLParser.Foreign else namespace in
+        let resAttributes = l1 |>
+          List.map (\vAttr -> case vAttr.v_ of
+             VList [vKey, vValue] ->
+               case (vKey.v_, vValue.v_) of
+                 (VBase (VString key), VBase (VString value)) ->
+                   Ok <| printAttrRaw False (key,value)
+                 (VBase (VString "style"), VList styles) ->
+                   styles |> List.map (\vStyle -> case vStyle.v_ of
+                     VList [styleKey, styleAttr] ->
+                       case (styleKey.v_, styleAttr.v_) of
+                         (VBase (VString sKey), VBase (VString sAttr)) ->
+                           Ok <| sKey ++ ":" ++ sAttr
+                         _ -> Err <| "Style attrs should be [string, string], got " ++ valToString vStyle
+                     _ -> Err <| "Style attrs should be [string, string], got " ++ valToString vStyle
+                   ) |> Utils.projOk |> Result.map (String.join ";")
+                   |> Result.map (\v -> printAttrRaw False ("style", v))
+                 _ -> Err <| "Expected string=string or string=list for attribute, got " ++ valToString vAttr
+             _ -> Err <| "Expected 2-element list for attribute, got " ++ valToString vAttr
+          ) |>
+          Utils.projOk |> Result.map (String.join "")
+        in
+        case resAttributes of
+          Err msg -> Err msg
+          Ok attributes ->
+            case List.map (valToHTMLSource newNamespace) l2 |> Utils.projOk of
+              Err msg -> Err msg
+              Ok children ->
+                Ok <| Utils.delimit "<" ">" (kind ++ attributes) ++ (children |> String.join "") ++ ending
+      _ -> Err <| "Don't know how to convert this 3-element list to an HTML node : " ++ valToString v
+    _ -> Err <| "Don't know how to convert this to an HTML node : " ++ valToString v
+
 
 
 ------------------------------------------------------------------------------
