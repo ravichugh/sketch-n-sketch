@@ -4104,11 +4104,11 @@ Maybe =
     }
 
     -- Given emptyCondition and Just x, returns x.
-    -- On the reverse direction, if the new x is equal to emptyCondition, propagates back Nothing
+    -- On the reverse direction, if the new x passes the emptyCondition, propagates back Nothing
     getUnless emptyCondition = Update.lens {
       apply (Just x) = x
       update {outputNew} as uInput =
-        if outputNew == emptyCondition then
+        if emptyCondition outputNew then
           Ok (Inputs [Nothing])
         else
           Update.default apply uInput

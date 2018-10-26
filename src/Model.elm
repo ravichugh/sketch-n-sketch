@@ -1324,19 +1324,22 @@ initTemplate =
     Nothing -> Examples.initTemplate
     Just msg -> Examples.badPreludeTemplate
 
+-- First error level is if the example is not found
+-- Second error level is if the example does not parse or evaluate
+loadTemplate: String -> Result String (() -> Result String Examples.Example)
 loadTemplate name =
   let mbTheTemplate =  Utils.maybeFind name Examples.list |> Maybe.map Tuple.second in
   case mbTheTemplate of
-    Nothing -> \() -> Err <| name ++ " not found"
+    Nothing -> Err <| name ++ " not found"
     Just theTemplate ->
   if name /= Examples.badPreludeTemplate then
-     theTemplate
+     Ok theTemplate
   else
      case LeoParser.preludeNotParsed of
-      Nothing -> theTemplate
+      Nothing -> Ok theTemplate
       Just msg ->
         let _ = Debug.log "error in template" () in
-        \() ->
+        Ok <| \() ->
           let t = theTemplate () in
           flip Result.map t <| \t ->
           let e = t.e in
@@ -1356,10 +1359,12 @@ loadTemplate name =
 
 initModel : Model
 initModel =
-  let f    = loadTemplate initTemplate () in
+  let f = loadTemplate initTemplate in
   let
     {e,v,ws,env} = case f of
-         Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
+       Err msg -> {e=eStr ("Init template error: " ++ msg), v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
+       Ok callback -> case callback () of
+         Err msg -> {e=eStr "Init template did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
          Ok ff -> ff
   in
   let unwrap = Utils.fromOk "generating initModel" in

@@ -531,8 +531,10 @@ printNode namespace showGhosts prettyPrint indent slate i =
             Utils.delimit "<" ">" (kind ++ printAttrs prettyPrint l1_) ++ ending
           else
             let l1_ = addAttrs kind (removeSpecialAttrs l1) in
-            Utils.delimit "<" ">" (kind ++ printAttrs prettyPrint l1_) ++ (if prettyPrint then "\n" else "") ++
-            printNodes newKind showGhosts prettyPrint (indent+1) slate l2 ++ (if prettyPrint then "\n" else "") ++
+            Utils.delimit "<" ">" (kind ++ printAttrs prettyPrint l1_) ++
+            (if prettyPrint then "\n" else "") ++
+            unescapeStyleScript kind  (printNodes newKind showGhosts prettyPrint (indent+1) slate l2) ++
+            (if prettyPrint then "\n" else "") ++
             (if prettyPrint then tab indent else "") ++ ending
 
 printNodes namespace showGhosts prettyPrint indent slate =
@@ -716,18 +718,21 @@ valToHTMLSource namespace v =
               Err msg -> Err msg
               Ok children ->
                 let childrenRawStr = children |> String.join ""  in
-                let childrenStr = case kind of
-                      "style"  -> childrenRawStr |> String.split "&gt;" |> String.join ">"
-                      "script" ->
-                        childrenRawStr |> String.split "&gt;" |> String.join ">"
-                        |> String.split "&lt;" |> String.join "<"
-                      _ -> childrenRawStr
+                let childrenStr = unescapeStyleScript kind childrenRawStr
                 in
                 Ok <| Utils.delimit "<" ">" (kind ++ attributes) ++ childrenStr ++ ending
       _ -> Err <| "Don't know how to convert this 3-element list to an HTML node : " ++ valToString v
     _ -> Err <| "Don't know how to convert this to an HTML node : " ++ valToString v
 
-
+unescapeStyleScript kind childrenRawStr =
+  case kind of
+    "style"  -> childrenRawStr |> String.split "&gt;" |> String.join ">"
+    "script" ->
+      childrenRawStr
+      |> String.split "&gt;" |> String.join ">"
+      |> String.split "&lt;" |> String.join "<"
+      |> String.split "&amp;" |> String.join "&"
+    _ -> childrenRawStr
 
 ------------------------------------------------------------------------------
 -- Compiling to SVG (DOM)

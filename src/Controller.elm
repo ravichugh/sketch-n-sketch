@@ -3254,28 +3254,31 @@ fileMessageError err =
 msgNew template = Msg "New" (handleNew template)
 
 handleNew template = (\old ->
-  let f = loadTemplate template () in
+  case loadTemplate template of
+    Err msg -> let _ = Debug.log msg "" in old
+    Ok f ->
+  let fApplied = f () in
   let
-    {e,v,ws,env} = case f of
+     {e,v,ws,env} = case fApplied of
          Err msg -> {e=eStr "Example did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
          Ok ff -> ff
   in
   let
-    (inputExp, aceTypeInfo, typeChecks) =
+     (inputExp, aceTypeInfo, typeChecks) =
       maybeTypeCheck old.doTypeChecking e
   in
   let so = Sync.syncOptionsOf old.syncOptions inputExp in
   let outputMode =
-    Utils.fromOk "SelectExample mkLive" <|
+     Utils.fromOk "SelectExample mkLive" <|
        mkLive old.syntax so old.slideNumber old.movieNumber old.movieTime inputExp (v,ws)
   in
   LangSvg.fetchEverything old.syntax old.slideNumber old.movieNumber old.movieTime v
   |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
-    let code = Syntax.unparser old.syntax inputExp in
-    { initModel | inputExp      = inputExp
+     let code = Syntax.unparser old.syntax inputExp in
+     { initModel | inputExp      = inputExp
                 , inputVal      = v
                 , inputEnv      = env
-                , caption       = (case f of
+                , caption       = (case fApplied of
                         Err msg -> Just (LangError msg)
                         _ -> Nothing
                       )

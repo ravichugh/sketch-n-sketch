@@ -17,7 +17,7 @@ Tu veux quelle pizza?
 @Html.select[]("Choisis ta pizza"::options)(
   listDict.get user userdata
   |> Maybe.orElseReplace (freeze (Just 0))
-  |> Maybe.getUnless 0)
+  |> Maybe.getUnless (== 0))
 <br><br>
 @Html.select[](List.map Tuple.first dictionnaire)(indexLangue)<br><br>
 Choix finaux:<br>

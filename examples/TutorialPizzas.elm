@@ -95,12 +95,12 @@ The last step at this point is to let user delete their data.
 For that, if a user selects the first choice (the one that says "@chooseyourpizza"), we want to push back <code>Nothing</code> to the call of <code>listDict.get</code>. In this case, <code>listDict.get</code> deletes the key/value pair, this is a defined behavior.
 @t.replace("""Maybe.withDefaultReplace (freeze 0)""")<|
 """Maybe.orElseReplace (freeze (Just 0))
-         |> Maybe.getUnless 0"""
+         |> Maybe.getUnless (== 0)"""
 
 The explanation is the following. <code>Maybe.orElse</code> takes another option (either <code>Nothing</code> or <code>Just x</code>) and returns it if the one before is <code>Nothing</code>. In the reverse direction, the variant <code>Maybe.orElseReplace</code> has the special effect that it can push a <code>Nothing</code> to the one before if we push back a <code>Nothing</code>.
 
 <code>Maybe.getUnless</code> takes a <code>Just x</code> and returns <code>x</code>.
-In the reverse direction, if the new x is the argument of <code>Maybe.getUnless</code> (in our case, 0), then this function pushes back <code>Nothing</code>.
+In the reverse direction, if the new x passes the predicate of the argument of <code>Maybe.getUnless</code> (in our case, (== 0)), then this function pushes back <code>Nothing</code>.
 
 Try it. Change the username, select a pizza, then entry is added to <code>userdata</code>.
 Select the option @chooseyourpizza again, the entry is deleted.
