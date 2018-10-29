@@ -2787,11 +2787,49 @@ Html =
 -- Javascript
 
 jsCode = {
-  -- create a tuple of a list of strings. Uses v as intermediate variable.
+  -- Create a tuple of a list of strings. Uses v as intermediate variable.
   -- calling __jsEval__ ("var a = 1\n" ++ tupleOf "x" ["a", "2", "a"]) == (1, 2, 1)
   tupleOf: String -> List String -> String
   tupleOf v list =
     """(function() { var @v = {@(List.indexedMap (\i x -> """_@(i+1): @x""") list |> String.join ",")}; @v['$t_ctor']='Tuple@(List.length list)'; return @v})()"""
+
+  -- Creates a datatype of a list of strings. Uses v as intermediate variable.
+  datatypeOf: String -> String -> List String -> String
+  datatypeOf v kind args =
+    """(function() { var @v = {args: {@(List.indexedMap (\i x -> """_@(i+1): @x""") args |> String.join ",")}}; @v['$d_ctor']='@kind'; return @v})()"""
+}
+
+nodejs = {
+  fileread = Update.lens {
+    apply name =
+      __jsEval__ """
+        (function() {
+          if(fs.existsSync("@name"))
+            return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync("@name", "utf-8")"""]);
+          else
+            return @(jsCode.datatypeOf "x" "Nothing" []);
+        })()"""
+    update = case of
+      {input=name, outputOld, outputNew=Just content} ->
+        let
+          mbCreateDir = case outputOld of
+            Nothing -> __jsEval__ """
+              var pathToFile = @(toString name);
+              var filePathSplit = pathToFile.split('/');
+              var dirName = "";
+              for (var index = 0; index < filePathSplit.length - 1; index++) {
+                  dirName += filePathSplit[index]+'/';
+                  if (!fs.existsSync(dirName))
+                      fs.mkdirSync(dirName);
+              }""" -- Create the file's directory structure.
+            Just oldContent -> ""
+          written = __jsEval__ """fs.writeFileSync("@name", @(toString content), "utf-8"); 1"""
+        in Ok (InputsWithDiffs [(input, Nothing)])
+      {input=name, outputOld=Just _, outputNew=Nothing} ->  -- Delete the file
+         let deleted = __jsEval__ """fs.unlinkSync("@name"); 1""" in
+         Ok (InputsWithDiffs [(input, Nothing)])
+      {input} -> Ok (InputsWithDiffs [(input, Nothing)])
+  }
 }
 
 -- Because we base decisions on random numbers,

@@ -82,6 +82,13 @@ object SNS extends Module {
         """var Elm = {};
           |Elm["EvalUpdate"] = Elm["EvalUpdate"] || {};
           |Elm["EvalUpdate"].api = _user$project$EvalUpdate$api;
+          |if(typeof exports !== "undefined") { // npm package
+          |  var keysToExport = Object.keys(_user$project$EvalUpdate$api);
+          |  for(var i = 0; i < keysToExport.length; i++) {
+          |    exports[keysToExport[i]] = _user$project$EvalUpdate$api[keysToExport[i]];
+          |  }
+          |  return;
+          |}
           |""".stripMargin))
     }
     true

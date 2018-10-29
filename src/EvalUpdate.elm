@@ -791,6 +791,25 @@ updateExp oldExp oldVal newVal =
          Results.filter (\(newEnv, newExp) -> newEnv.changes == []) |>
          Results.map (\(newEnv, newExp) -> newExp.val)
 
+-- Same as updateExp, but with an additional environment that can change.
+updateEnvExp: Env -> Exp -> Val -> Val -> Results String (Env, Exp)
+updateEnvExp env oldExp oldVal newVal =
+  let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
+  in
+  case thediffs of
+    Err msg -> Err msg
+    Ok (LazyList.Nil ) -> Err "[Internal error] expected a diff or an error, got Nil"
+    Ok (LazyList.Cons Nothing _ ) -> ok1 (env, oldExp)
+    Ok ll ->
+        Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
+         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
+         (update <| updateContext "initial update" (env ++ preludeEnv) oldExp [] oldVal newVal diffs)) |>
+         Results.filter (\(newEnv, newExp) ->
+           case Utils.maybeLast newEnv.changes of
+             Nothing -> True
+             Just (i, d) -> i < List.length env) |>
+         Results.map (\(newEnv, newExp) -> (List.take (List.length env) newEnv.val, newExp.val))
+
 valToNative: Val -> Result String a
 valToNative v = case Vu.string v of
   Ok x -> Ok <| ImpureGoodies.hideType x
@@ -819,7 +838,7 @@ evaluate s =
   Syntax.parser Syntax.Leo s
   |> Result.mapError ParserUtils.showError
   |> Result.andThen (\exp ->
-    Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp
+      Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp
     |> Result.map (Tuple.first >> Tuple.first)
   )
 
@@ -836,13 +855,45 @@ updateString oldProgram newVal =
       )
     )
 
-evaluateEnv: Env -> String -> Result String Val
-evaluateEnv env s =
-  Syntax.parser Syntax.Leo s
+objectToEnv: objectAsEnvOfConsts -> Result String Env
+objectToEnv objectAsEnvOfConsts =
+  let envAsVal = nativeToVal (builtinVal "EvalUpdate.nativeToVal") objectAsEnvOfConsts in
+  case envAsVal.v_ of
+      VRecord d ->
+        Ok <| Dict.toList d
+      v -> Err <| "Environment not interpretable: " ++ valToString envAsVal
+
+envToObject: Env -> Result String objectAsEnvOfConsts
+envToObject env =
+  valToNative (Vb.record Vb.identity (builtinVal "EvalUpdate.nativeToVal") (Dict.fromList env))
+
+evaluateEnv: objectAsEnvOfConsts -> String -> Result String Val
+evaluateEnv objectAsEnvOfConsts s =
+  objectToEnv objectAsEnvOfConsts
+  |> Result.andThen (\env ->
+      Syntax.parser Syntax.Leo s
+      |> Result.mapError ParserUtils.showError
+      |> Result.andThen (\exp ->
+        Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ preludeEnv) exp |> Result.map Tuple.first
+      ) |> Result.map Tuple.first
+  )
+
+updateEnv: objectAsEnvOfConsts -> String -> Val -> Result String (List (objectAsEnvOfConsts2, String))
+updateEnv objectAsEnvOfConsts oldProgram newVal =
+  objectToEnv objectAsEnvOfConsts
+  |> Result.andThen (\env ->
+  Syntax.parser Syntax.Leo oldProgram
   |> Result.mapError ParserUtils.showError
   |> Result.andThen (\exp ->
-    Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ preludeEnv) exp |> Result.map Tuple.first
-  ) |> Result.map Tuple.first
+      Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp
+      |> Result.map (Tuple.first >> Tuple.first)
+      |> Result.andThen (\oldVal ->
+        updateEnvExp env exp oldVal newVal
+        |> Result.map (LazyList.toList >> List.map (\(newEnv, newExp) ->
+          (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", Syntax.unparser Syntax.Leo newExp)))
+      )
+    )
+  )
 
 api = {
   parse = parse,
@@ -856,6 +907,7 @@ api = {
   valToString = LangUtils.valToString,
   valToHTMLSource = LangSvg.valToHTMLSource HTMLParser.HTML,
   evaluate = evaluate, -- Takes a string, returns a Val
-  update = updateString, -- Takes
-  evaluateEnv = evaluateEnv
+  update = updateString, -- Takes a string (program), a new val, returns a list of new strings (programs=
+  evaluateEnv = evaluateEnv, -- Takes an object (environment) and a string, returns a Val
+  updateEnv = updateEnv -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
   }

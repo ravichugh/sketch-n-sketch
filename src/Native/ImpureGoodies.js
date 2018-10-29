@@ -186,7 +186,6 @@ var _user$project$Native_ImpureGoodies = {
 
     keyPairsOfNativeRecord: function(record) {
       var recordKeys = Object.keys(record);
-      if(recordKeys.length == 0) return _elm_lang$core$Maybe$Nothing;
       var acc = _elm_lang$core$Native_List.Nil;
       for(var i = 0; i < recordKeys.length; i ++) {
         var key = recordKeys[i];
