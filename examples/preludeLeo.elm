@@ -2507,6 +2507,9 @@ Html =
     apply x = "dummy" + toString (getCurrentTime x)
     update {input} = Ok (InputsWithDiffs [(input, Nothing)]) }.apply x
   in
+  let integerRefresh i node =
+    ["""span@i""", [], [node]]
+  in
   let forceRefresh node =
     [freshTag True, [], [node]]
   in
@@ -2752,6 +2755,7 @@ Html =
     parse = html
     freshTag = freshTag
     forceRefresh = forceRefresh
+    integerRefresh = integerRefresh
     select = select
     checkbox = checkbox
     button = button
