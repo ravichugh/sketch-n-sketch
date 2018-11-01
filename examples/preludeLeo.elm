@@ -2797,6 +2797,15 @@ jsCode = {
   datatypeOf: String -> String -> List String -> String
   datatypeOf v kind args =
     """(function() { var @v = {args: {@(List.indexedMap (\i x -> """_@(i+1): @x""") args |> String.join ",")}}; @v['$d_ctor']='@kind'; return @v})()"""
+
+  -- JS representation of a given string
+  stringOf: String -> String
+  stringOf content =
+    "\"" + Regex.replace "\\|\"|\r|\n|\t" (\m -> case m.match of
+      "\r" -> "\\r"
+      "\n" -> "\\n"
+      "\t" -> "\\t"
+      x -> "\\" + x) content + "\""
 }
 
 nodejs = {
@@ -2805,7 +2814,7 @@ nodejs = {
       __jsEval__ """
         (function() {
           if(fs.existsSync("@name"))
-            return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync("@name", "utf-8")"""]);
+            return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync(@(jsCode.stringOf), "utf-8")"""]);
           else
             return @(jsCode.datatypeOf "x" "Nothing" []);
         })()"""
@@ -2814,7 +2823,7 @@ nodejs = {
         let
           mbCreateDir = case outputOld of
             Nothing -> __jsEval__ """
-              var pathToFile = @(toString name);
+              var pathToFile = @(jsCode.stringOf name);
               var filePathSplit = pathToFile.split('/');
               var dirName = "";
               for (var index = 0; index < filePathSplit.length - 1; index++) {
@@ -2823,10 +2832,10 @@ nodejs = {
                       fs.mkdirSync(dirName);
               }""" -- Create the file's directory structure.
             Just oldContent -> ""
-          written = __jsEval__ """fs.writeFileSync(@(toString name), @(toString content), "utf-8"); 1"""
+          written = __jsEval__ """fs.writeFileSync(@(jsCode.stringOf name), @(jsCode.stringOf content), "utf-8"); 1"""
         in Ok (InputsWithDiffs [(input, Nothing)])
       {input=name, outputOld=Just _, outputNew=Nothing} ->  -- Delete the file
-         let deleted = __jsEval__ """fs.unlinkSync("@name"); 1""" in
+         let deleted = __jsEval__ """fs.unlinkSync(@(jsCode.stringOf name)); 1""" in
          Ok (InputsWithDiffs [(input, Nothing)])
       {input} -> Ok (InputsWithDiffs [(input, Nothing)])
   }
