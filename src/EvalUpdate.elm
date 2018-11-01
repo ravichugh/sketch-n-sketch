@@ -885,7 +885,7 @@ updateEnv objectAsEnvOfConsts oldProgram newVal =
   Syntax.parser Syntax.Leo oldProgram
   |> Result.mapError ParserUtils.showError
   |> Result.andThen (\exp ->
-      Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp
+      Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ preludeEnv) exp
       |> Result.map (Tuple.first >> Tuple.first)
       |> Result.andThen (\oldVal ->
         updateEnvExp env exp oldVal newVal

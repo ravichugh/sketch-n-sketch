@@ -2823,7 +2823,7 @@ nodejs = {
                       fs.mkdirSync(dirName);
               }""" -- Create the file's directory structure.
             Just oldContent -> ""
-          written = __jsEval__ """fs.writeFileSync("@name", @(toString content), "utf-8"); 1"""
+          written = __jsEval__ """fs.writeFileSync(@(toString name), @(toString content), "utf-8"); 1"""
         in Ok (InputsWithDiffs [(input, Nothing)])
       {input=name, outputOld=Just _, outputNew=Nothing} ->  -- Delete the file
          let deleted = __jsEval__ """fs.unlinkSync("@name"); 1""" in
