@@ -4692,7 +4692,7 @@ jsCode = {
   -- JS representation of a given string
   stringOf: String -> String
   stringOf content =
-    \"\\\"\" + Regex.replace \"\\\\|\\\"|\\r|\\n|\\t\" (\\m -> case m.match of
+    \"\\\"\" + Regex.replace \"\\\\\\\\|\\\"|\\r|\\n|\\t\" (\\m -> case m.match of
       \"\\r\" -> \"\\\\r\"
       \"\\n\" -> \"\\\\n\"
       \"\\t\" -> \"\\\\t\"

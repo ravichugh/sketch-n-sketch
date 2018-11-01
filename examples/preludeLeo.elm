@@ -2806,7 +2806,7 @@ jsCode = {
   -- JS representation of a given string
   stringOf: String -> String
   stringOf content =
-    "\"" + Regex.replace "\\|\"|\r|\n|\t" (\m -> case m.match of
+    "\"" + Regex.replace "\\\\|\"|\r|\n|\t" (\m -> case m.match of
       "\r" -> "\\r"
       "\n" -> "\\n"
       "\t" -> "\\t"
@@ -2838,11 +2838,11 @@ nodejs = {
               }""" -- Create the file's directory structure.
             Just oldContent -> ""
           written = __jsEval__ """fs.writeFileSync(@(jsCode.stringOf name), @(jsCode.stringOf content), "utf-8"); 1"""
-        in Ok (InputsWithDiffs [(input, Nothing)])
+        in Ok (InputsWithDiffs [(name, Nothing)])
       {input=name, outputOld=Just _, outputNew=Nothing} ->  -- Delete the file
          let deleted = __jsEval__ """fs.unlinkSync(@(jsCode.stringOf name)); 1""" in
-         Ok (InputsWithDiffs [(input, Nothing)])
-      {input} -> Ok (InputsWithDiffs [(input, Nothing)])
+         Ok (InputsWithDiffs [(name, Nothing)])
+      {input=name} -> Ok (InputsWithDiffs [(name, Nothing)])
   }
 }
 
