@@ -2819,7 +2819,7 @@ nodejs = {
       __jsEval__ """
         (function() {
           if(fs.existsSync("@name"))
-            return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync(@(jsCode.stringOf), "utf-8")"""]);
+            return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync(@(jsCode.stringOf name), "utf-8")"""]);
           else
             return @(jsCode.datatypeOf "x" "Nothing" []);
         })()"""
