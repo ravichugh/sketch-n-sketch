@@ -248,6 +248,7 @@ LEO_TO_ELM welcome1
 LEO_TO_ELM tableOfStatesA
 LEO_TO_ELM tableOfStatesB
 LEO_TO_ELM tableOfStatesC
+LEO_TO_ELM tableOfStatesE
 LEO_TO_ELM simpleBudget
 LEO_TO_ELM mapMaybeLens
 LEO_TO_ELM mapListLens_1
@@ -290,7 +291,7 @@ docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
     , makeLeoExample "1b: Table of States" tableOfStatesC
-    , makeLeoExample "1c: Table of States" tableOfStatesB
+    , makeLeoExample "1c: Table of States" tableOfStatesE
     ] ++
     (
     List.indexedMap

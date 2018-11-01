@@ -6081,6 +6081,7 @@ hash = \"decodeURIComponent(location.hash.substring(1))\"
     else [])
   <h1>Quick start</h1>
   <ul>
+    <li><a onclick=(load \"1c: Table of States\")>Table of States</a></li>
     <li><a onclick=(load \"3: Conference Budget\")>Conference budget</a></li>
     <li><a onclick=(load \"5: Scalable Recipe Editor\")>Scalable Recipe Editor</a></li>
     <li><a onclick=(load \"8: Markdown Editor\")>Markdown Editor</a></li>
@@ -6303,6 +6304,56 @@ main =
   in
   Html.table [padding] [] (headerRow :: stateRows)
 
+"""
+
+tableOfStatesE =
+ """-- type State = State String String String
+
+states = -- states : List State
+  [ State \"Alabama\" \"AL?\" \"\"
+  , State \"Alaska\" \"AL?\" \"\"
+  , State \"Arizona\" \"AR?\" \"\"
+  , State \"Arkansas\" \"AR?\" \"\"
+  , State \"California\" \"CA\" \"\"
+  , State \"Colorado\" \"CO?\" \"\"
+  , State \"Connecticut\" \"CO?\" \"\"]
+
+main =
+  let
+    padding = [\"padding\", \"3px\"]
+
+    stateRows =
+      let
+        colors = [\"lightgray\", \"white\"]
+
+        drawRow i (State state abbrev cap) =
+          let
+            color =
+              List.nth colors (mod i (List.length colors))
+              
+            columns =
+              List.map
+                (Html.td [padding, [\"background-color\", color]] [])
+                [state, cap + \", \" + abbrev]
+          in
+            Html.tr [] [] <| columns
+            -- ++ [ Html.buttonToDuplicateEnclosing \"tr\" [] \"+\"]
+      in
+        List.indexedMap drawRow states
+
+    headerRow =
+      Html.tr [] []
+        (List.map (Html.th [padding] [])
+                  [\"State\", \"Capital\"])
+  in
+    Html.table [padding] [] (headerRow :: stateRows)                     |>
+
+
+
+
+
+
+Html.forceRefresh
 """
 
 simpleBudget =
@@ -10356,7 +10407,7 @@ docsCategory =
   ( "Examples (OOPSLA 2018 Submission)"
   , [ makeLeoExample "1a: Table of States" tableOfStatesA
     , makeLeoExample "1b: Table of States" tableOfStatesC
-    , makeLeoExample "1c: Table of States" tableOfStatesB
+    , makeLeoExample "1c: Table of States" tableOfStatesE
     ] ++
     (
     List.indexedMap

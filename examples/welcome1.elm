@@ -13,6 +13,7 @@ hash = "decodeURIComponent(location.hash.substring(1))"
     else [])
   <h1>Quick start</h1>
   <ul>
+    <li><a onclick=(load "1c: Table of States")>Table of States</a></li>
     <li><a onclick=(load "3: Conference Budget")>Conference budget</a></li>
     <li><a onclick=(load "5: Scalable Recipe Editor")>Scalable Recipe Editor</a></li>
     <li><a onclick=(load "8: Markdown Editor")>Markdown Editor</a></li>

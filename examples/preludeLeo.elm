@@ -1638,8 +1638,12 @@ List =
     nth
   in
   let mapi f xs = map f (zipWithIndex xs) in
+  let mapiWithDefault default f xs = mapWithDefault default f (zipWithIndex xs) in
   let indexedMap f xs =
     mapi (\(i,x) -> f i x) xs
+  in
+  let indexedMapWithDefault default f xs =
+    mapiWithDefault default (\(i,x) -> f i x) xs
   in
   let concatMap =
     concatMap
@@ -1904,6 +1908,7 @@ List =
     length = length
     nth = nth
     indexedMap = indexedMap
+    indexedMapWithDefault = indexedMapWithDefault
     indexedConcatMap = indexedConcatMap
     concatMap = concatMap
     concatMap_ = concatMap_
