@@ -78,7 +78,13 @@ object SNS extends Module {
         val endTime =  Calendar.getInstance().getTime.getTime
         println("it took " + (endTime - startTime )/ 1000 + "s")
         val output = read(outSNS)
-        write.over(outSNS, output.replace("""var Elm = {};""",
+        write.over(outSNS,
+          """if(typeof document === "undefined" || document === null)
+            |  document = {}; // So that the evaluation of sns.js does not throw exceptions.
+            |if(typeof location === "undefined" || location === null)
+            |  location = { hash : ""}; // so that the evaluation does not throw exceptions.
+            |
+            |""".stripMargin + output.replace("""var Elm = {};""",
         """var Elm = {};
           |Elm["EvalUpdate"] = Elm["EvalUpdate"] || {};
           |Elm["EvalUpdate"].api = _user$project$EvalUpdate$api;

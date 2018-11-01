@@ -2818,6 +2818,7 @@ nodejs = {
     apply name =
       __jsEval__ """
         (function() {
+          const fs = require("fs");
           if(fs.existsSync("@name"))
             return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync(@(jsCode.stringOf name), "utf-8")"""]);
           else
@@ -2828,6 +2829,7 @@ nodejs = {
         let
           mbCreateDir = case outputOld of
             Nothing -> __jsEval__ """
+              const fs = require("fs");
               var pathToFile = @(jsCode.stringOf name);
               var filePathSplit = pathToFile.split('/');
               var dirName = "";
@@ -2837,10 +2839,12 @@ nodejs = {
                       fs.mkdirSync(dirName);
               }""" -- Create the file's directory structure.
             Just oldContent -> ""
-          written = __jsEval__ """fs.writeFileSync(@(jsCode.stringOf name), @(jsCode.stringOf content), "utf-8"); 1"""
+          written = __jsEval__ """const fs = require("fs");
+            fs.writeFileSync(@(jsCode.stringOf name), @(jsCode.stringOf content), "utf-8"); 1"""
         in Ok (InputsWithDiffs [(name, Nothing)])
       {input=name, outputOld=Just _, outputNew=Nothing} ->  -- Delete the file
-         let deleted = __jsEval__ """fs.unlinkSync(@(jsCode.stringOf name)); 1""" in
+         let deleted = __jsEval__ """const fs = require("fs");
+           fs.unlinkSync(@(jsCode.stringOf name)); 1""" in
          Ok (InputsWithDiffs [(name, Nothing)])
       {input=name} -> Ok (InputsWithDiffs [(name, Nothing)])
   }
