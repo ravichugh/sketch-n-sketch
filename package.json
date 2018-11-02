@@ -1,0 +1,20 @@
+{
+  "name": "sketch-n-sketch",
+  "version": "0.7.5",
+  "description": "Bidirectional programming library that sketch-n-sketch relies on",
+  "main": "sns.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "bidirectional",
+    "programming"
+  ],
+  "author": "Mikael Mayer <mikael.mayer@polytechnique.org>",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "files": [
+    "sns.js",
+    "readme.md",
+    "LICENSE.md"
+  ]
+}
