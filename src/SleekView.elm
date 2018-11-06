@@ -63,7 +63,7 @@ groupDisabled : Bool -> Model -> Bool
 groupDisabled disallowSelectedFeatures model =
   let
     noFeatures =
-      Set.isEmpty model.selectedFeatures
+      List.isEmpty model.selectedFeatures
     noBlobs =
       Dict.isEmpty model.selectedBlobs
   in

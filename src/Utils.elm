@@ -219,7 +219,7 @@ addAsSet : a -> List a -> List a
 addAsSet x xs =
   if List.member x xs
   then xs
-  else x::xs
+  else xs ++ [x]
 
 -- i.e. unionAsSet
 addAllAsSet : List a -> List a -> List a
@@ -847,11 +847,11 @@ toggleSet : a -> Set a -> Set a
 toggleSet x set =
   if Set.member x set then Set.remove x set else Set.insert x set
 
-multiToggleSet : Set a -> Set a -> Set a
-multiToggleSet insertSet set =
-  Set.diff
-    (Set.union insertSet set)
-    (Set.intersect insertSet set)
+multiToggleAsSet : List a -> List a -> List a
+multiToggleAsSet insertSet set =
+  diffAsSet
+    (addAllAsSet insertSet set)
+    (intersectAsSet insertSet set)
 
 toggleDict : (k, v) -> Dict k v -> Dict k v
 toggleDict (k,v) dict =

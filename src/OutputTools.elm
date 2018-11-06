@@ -26,8 +26,8 @@ import Utils
 --==============================================================================
 
 type alias Selections a =
-  { a | selectedFeatures : Set SelectableFeature
-      , selectedShapes : Set NodeId
+  { a | selectedFeatures : List SelectableFeature
+      , selectedShapes : List NodeId
       , selectedBlobs : Dict Int NodeId
       , synthesisResultsDict : Dict String (List SynthesisResult)
   }
@@ -52,14 +52,14 @@ type alias OutputTool =
 --= Requirement Helpers
 --==============================================================================
 
-nOrMore : Int -> Set a -> PredicateValue
+nOrMore : Int -> List a -> PredicateValue
 nOrMore n xs =
-  if Set.size xs >= n then
+  if List.length xs >= n then
     Satisfied
   else
     Possible
 
-atLeastOneFeature : Set SelectableFeature -> Predicate
+atLeastOneFeature : List SelectableFeature -> Predicate
 atLeastOneFeature selectedFeatures =
   { description =
       "Select at least on feature"
@@ -67,7 +67,7 @@ atLeastOneFeature selectedFeatures =
       nOrMore 1 selectedFeatures
   }
 
-atLeastTwoFeatures : Set SelectableFeature -> Predicate
+atLeastTwoFeatures : List SelectableFeature -> Predicate
 atLeastTwoFeatures selectedFeatures =
   { description =
       "Select at least two features"
@@ -79,9 +79,9 @@ atLeastOneSelection : Selections a -> Predicate
 atLeastOneSelection { selectedFeatures, selectedShapes, selectedBlobs } =
   let
     atLeastOneFeature =
-      not <| Set.isEmpty selectedFeatures
+      not <| List.isEmpty selectedFeatures
     atLeastOneShape =
-      not <| Set.isEmpty selectedShapes
+      not <| List.isEmpty selectedShapes
     atLeastOneBlob =
       not <| Dict.isEmpty selectedBlobs
   in
@@ -100,7 +100,7 @@ atLeastTwoSelections { selectedFeatures, selectedShapes, selectedBlobs } =
   { description =
       "Select at least two features, shapes, or blobs"
   , value =
-      if Set.size selectedFeatures + Set.size selectedShapes + Dict.size selectedBlobs >= 2 then
+      if List.length selectedFeatures + List.length selectedShapes + Dict.size selectedBlobs >= 2 then
         Satisfied
       else
         Possible
@@ -111,9 +111,9 @@ atLeastOneShapeNoFeatures : Selections a -> Predicate
 atLeastOneShapeNoFeatures { selectedFeatures, selectedShapes, selectedBlobs } =
   let
     atLeastOneFeature =
-      not <| Set.isEmpty selectedFeatures
+      not <| List.isEmpty selectedFeatures
     atLeastOneShape =
-      not <| Set.isEmpty selectedShapes
+      not <| List.isEmpty selectedShapes
     atLeastOneBlob =
       not <| Dict.isEmpty selectedBlobs
   in
@@ -154,7 +154,6 @@ hideWidgetTool { selectedFeatures, selectedShapes, selectedBlobs } =
     let
       allSelectedFeaturesAreOffsets =
         selectedFeatures
-        |> Set.toList
         |> List.all
             (\feature ->
               case feature of
@@ -165,14 +164,14 @@ hideWidgetTool { selectedFeatures, selectedShapes, selectedBlobs } =
     { description =
         "Select at least one offset widget"
     , value =
-        if Set.size selectedFeatures > 0 && allSelectedFeaturesAreOffsets && Set.size selectedShapes == 0 && Dict.size selectedBlobs == 0 then
+        if List.length selectedFeatures > 0 && allSelectedFeaturesAreOffsets && List.length selectedShapes == 0 && Dict.size selectedBlobs == 0 then
           Satisfied
         else
           Impossible
     }
   in
   { name =
-      "Hide Widget" ++ if Set.size selectedFeatures >= 2 then "s" else ""
+      "Hide Widget" ++ if List.length selectedFeatures >= 2 then "s" else ""
   , shortcut =
       Nothing
   , kind =

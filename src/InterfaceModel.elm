@@ -135,8 +135,8 @@ type alias Model =
   , hoveredShapes : Set.Set NodeId
   , hoveredCrosshairs : Set.Set SelectablePoint
   , hoveredBoundsWidgets : List ((Num, Num, Num, Num), Set.Set NodeId) -- Bounds beyond which un-hovering should occur, and widgets associated with those bounds.
-  , selectedShapes : Set.Set NodeId
-  , selectedFeatures : Set.Set SelectableFeature
+  , selectedShapes : List NodeId
+  , selectedFeatures : List SelectableFeature
   -- line/g ids assigned by blobs function
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
@@ -145,7 +145,7 @@ type alias Model =
   , solutionsCache : Solver.SolutionsCache
   , synthesisResultsDict : Dict String (List SynthesisResult)
   , hoveredSynthesisResultPathByIndices : List Int
-  , renamingInOutput : Maybe (PId, Set.Set NodeId, Set.Set SelectableFeature, String)
+  , renamingInOutput : Maybe (PId, List NodeId, List SelectableFeature, String)
   , randomColor : Int
   , drawableFunctions : List (Ident, Type)
   , layoutOffsets : LayoutOffsets
@@ -243,8 +243,8 @@ type MouseMode
 
   | MouseDragSelect
       Mouse.Position              -- initial mouse position
-      (Set.Set NodeId)            -- initial selected shapes
-      (Set.Set SelectableFeature) -- initial selected features
+      (List NodeId)            -- initial selected shapes
+      (List SelectableFeature) -- initial selected features
       (Dict Int NodeId)           -- initial selected blobs
 
   | MouseDrawNew ShapeBeingDrawn
@@ -733,7 +733,7 @@ prependDescription newPrefix synthesisResult =
 
 --------------------------------------------------------------------------------
 
-maybeRenamingPId : Maybe (PId, Set.Set NodeId, Set.Set SelectableFeature, String) -> Maybe PId
+maybeRenamingPId : Maybe (PId, List NodeId, List SelectableFeature, String) -> Maybe PId
 maybeRenamingPId modelRenamingInOutput =
   modelRenamingInOutput
   |> Maybe.map (\(renamingPId, _, _, _) -> renamingPId)
@@ -994,8 +994,8 @@ noCodeWidgetsSelected model =
 
 nothingSelectedInOutput : Model -> Bool
 nothingSelectedInOutput model =
-  Set.isEmpty model.selectedFeatures &&
-  Set.isEmpty model.selectedShapes &&
+  List.isEmpty model.selectedFeatures &&
+  List.isEmpty model.selectedShapes &&
   Dict.isEmpty model.selectedBlobs
 
 --------------------------------------------------------------------------------
@@ -1012,8 +1012,8 @@ deucePopupPanelShown model =
 autoOutputToolsPopupPanelShown : Model -> Bool
 autoOutputToolsPopupPanelShown model =
   Utils.or
-    [ not <| Set.isEmpty model.selectedFeatures
-    , not <| Set.isEmpty model.selectedShapes
+    [ not <| List.isEmpty model.selectedFeatures
+    , not <| List.isEmpty model.selectedShapes
     , not <| Dict.isEmpty model.selectedBlobs
     , Dict.member "Termination Condition Options" model.synthesisResultsDict
     , containsNode isPBEHole model.inputExp
@@ -1137,8 +1137,8 @@ initModel =
     , hoveredShapes = Set.empty
     , hoveredCrosshairs = Set.empty
     , hoveredBoundsWidgets = []
-    , selectedShapes = Set.empty
-    , selectedFeatures = Set.empty
+    , selectedShapes = []
+    , selectedFeatures = []
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , autoSynthesis = False

@@ -85,7 +85,7 @@ msgMouseDownOnCanvas = Msg "MouseDownOnCanvas" <| \old ->
       let dragMode = MouseDragSelect (mousePosition old) old.selectedShapes old.selectedFeatures old.selectedBlobs in
       if old.keysDown == [Keys.keyShift]
       then { old | mouseMode = dragMode }
-      else { old | mouseMode = dragMode, selectedShapes = Set.empty, selectedFeatures = Set.empty, selectedBlobs = Dict.empty }
+      else { old | mouseMode = dragMode, selectedShapes = [], selectedFeatures = [], selectedBlobs = Dict.empty }
 
     (_ , MouseNothing) -> startDrawing old Nothing
     _                  -> old
@@ -94,7 +94,7 @@ msgMouseDownOnCanvas = Msg "MouseDownOnCanvas" <| \old ->
 startDrawing : Model -> Maybe Clickable -> Model
 startDrawing old maybeClickable =
   { old | mouseMode = MouseDrawNew (DrawJustStarted maybeClickable) -- No points until drag begins, or (for paths/polys) mouse-up
-        , selectedShapes = Set.empty
+        , selectedShapes = []
         , selectedBlobs = Dict.empty }
 
 
@@ -257,7 +257,7 @@ drawNewPointAndOffset model shouldHighlight (x1, y1) (x2, y2) =
 dummyVal : Val
 dummyVal = { v_ = VList [], provenance = dummyProvenance, parents = Parents [] }
 
-isRenamingMaybePat : Maybe Pat -> Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool
+isRenamingMaybePat : Maybe Pat -> Maybe (PId, List NodeId, List SelectableFeature, String) -> Bool
 isRenamingMaybePat maybePat modelRenamingInOutput =
   maybePat /= Nothing && Maybe.map (.val >> .pid) maybePat == maybeRenamingPId modelRenamingInOutput
 
@@ -311,7 +311,7 @@ svgOffsetWidget1DArrowPartsAndEndPoint program modelRenamingInOutput idAsShape (
       else []
     in
     case Provenance.valToMaybeLetPat program amountVal of
-      Just pat -> patInOutput modelRenamingInOutput False pat (Set.singleton idAsShape) Set.empty left top NoHoverPadding
+      Just pat -> patInOutput modelRenamingInOutput False pat [idAsShape] [] left top NoHoverPadding
       Nothing ->
         let string = toString amount in
         flip Svg.text_ [VirtualDom.text string] <|
@@ -333,7 +333,7 @@ type HoverPadding
   | HoverPadding Float
 
 -- Returns (div, estimated width)
-patAsHTML : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> HoverPadding -> (Html Msg, Int)
+patAsHTML : Maybe (PId, List NodeId, List SelectableFeature, String) -> Bool -> Pat -> List NodeId -> List SelectableFeature -> HoverPadding -> (Html Msg, Int)
 patAsHTML modelRenamingInOutput showRemoverAndReorderers pat associatedShapes associatedFeatures hoverPadding =
   let pid = pat.val.pid in
   let nameCurrentlyInCode = Syntax.patternUnparser Syntax.Elm pat |> Utils.squish in
@@ -405,14 +405,14 @@ patAsHTML modelRenamingInOutput showRemoverAndReorderers pat associatedShapes as
       )
 
 
-patInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> Pat -> Set NodeId -> Set SelectableFeature -> Float -> Float -> HoverPadding -> Svg Msg
+patInOutput : Maybe (PId, List NodeId, List SelectableFeature, String) -> Bool -> Pat -> List NodeId -> List SelectableFeature -> Float -> Float -> HoverPadding -> Svg Msg
 patInOutput modelRenamingInOutput showRemoverAndReorderers pat associatedShapes associatedFeatures left top hoverPadding =
   patsInOutput modelRenamingInOutput showRemoverAndReorderers [(pat, associatedShapes, associatedFeatures)] left top hoverPadding
   |> Utils.maybeUnwrap1
   |> Utils.fromJust_ "Canvas.patInOutput expected exactly 1 SVG when giving a single pat to patsInOutput"
 
 
-patsInOutput : Maybe (PId, Set NodeId, Set SelectableFeature, String) -> Bool -> List (Pat, Set NodeId, Set SelectableFeature) -> Float -> Float -> HoverPadding -> List (Svg Msg)
+patsInOutput : Maybe (PId, List NodeId, List SelectableFeature, String) -> Bool -> List (Pat, List NodeId, List SelectableFeature) -> Float -> Float -> HoverPadding -> List (Svg Msg)
 patsInOutput modelRenamingInOutput showRemoverAndReorderers patAndAssociatedSelectables left top hoverPadding =
   let paddingBetweenPats = 10 in
   let
@@ -487,14 +487,14 @@ type SelectedItem
   | SelectedEIdOnly EId
 
 
-featuresShapesAndMaybeInterpretationForItem : SelectedItem -> (Set SelectableFeature, Set NodeId, Maybe (List (List EId)))
+featuresShapesAndMaybeInterpretationForItem : SelectedItem -> (List SelectableFeature, List NodeId, Maybe (List (List EId)))
 featuresShapesAndMaybeInterpretationForItem item =
   let (features, shapes, maybeInterpretations) =
     case item of
-      SelectedShape nodeId              -> (Set.empty,                         Set.singleton nodeId, Nothing)
-      SelectedFeature selectableFeature -> (Set.singleton selectableFeature,   Set.empty,            Nothing)
-      SelectedPoint xFeature yFeature   -> (Set.fromList [xFeature, yFeature], Set.empty,            Nothing)
-      SelectedEIdOnly eid               -> (Set.empty,                         Set.empty,            Just [[eid]])
+      SelectedShape nodeId              -> ([],                   [nodeId], Nothing)
+      SelectedFeature selectableFeature -> ([selectableFeature],  [],       Nothing)
+      SelectedPoint xFeature yFeature   -> ([xFeature, yFeature], [],       Nothing)
+      SelectedEIdOnly eid               -> ([],                   [],       Just [[eid]])
   in
   (features, shapes, maybeInterpretations)
 
@@ -513,7 +513,7 @@ interpretationsForSelectedItem program slate widgets item =
   interpretations
 
 
-perhapsPatOrExpInOutput : Exp -> LangSvg.RootedIndexedTree -> List Widget -> Maybe (PId, Set NodeId, Set SelectableFeature, String) -> SelectedItem -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
+perhapsPatOrExpInOutput : Exp -> LangSvg.RootedIndexedTree -> List Widget -> Maybe (PId, List NodeId, List SelectableFeature, String) -> SelectedItem -> Float -> Float -> HoverPadding -> Bool -> List (Svg Msg)
 perhapsPatOrExpInOutput program slate widgets modelRenamingInOutput item left top hoverPadding shouldShow =
   let
     (features, shapes, _) = featuresShapesAndMaybeInterpretationForItem item
@@ -615,7 +615,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
       let color =
         case model.tool of
           Cursor ->
-            if Set.member selectableFeature model.selectedFeatures
+            if List.member selectableFeature model.selectedFeatures
               then colorPointSelected
               else strOldInterfaceColor -- colorPointNotSelected
           _ -> strOldInterfaceColor
@@ -663,7 +663,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
         ySelectableFeature = ShapeFeature idAsShape (YFeat LonePoint)
       in
       let (proximalInterps, _) =
-        ShapeWidgets.selectionsProximalDistalEIdInterpretations_ model.inputExp model.slate model.widgets ([xSelectableFeature, ySelectableFeature] |> Set.fromList) Set.empty Dict.empty (always True)
+        ShapeWidgets.selectionsProximalDistalEIdInterpretations_ model.inputExp model.slate model.widgets [xSelectableFeature, ySelectableFeature] [] Dict.empty (always True)
       in
       proximalInterps |> List.head |> Maybe.withDefault []
     in
@@ -680,7 +680,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
   in
   let drawOffsetWidget1D i_ baseXNumTr baseYNumTr axis sign (amount, amountTr) amountVal endXVal endYVal =
     let idAsShape = -2 - i_ in
-    let isSelected = Set.member (ShapeFeature idAsShape (DFeat Offset)) model.selectedFeatures in
+    let isSelected = List.member (ShapeFeature idAsShape (DFeat Offset)) model.selectedFeatures in
     -- let isSelected = Set.member idAsShape model.selectedShapes in
     let shouldHighlight = isSelected || isShapeBeingDrawnSnappingToVal model amountVal in
     let isUnused =
@@ -871,8 +871,8 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
           [ Just box
           , maybeRecOrBaseCaseLabel
           , maybeTerminationCondition
-          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput model.renamingInOutput False funcPat Set.empty Set.empty left (boxTop - if isCurrentContext then 20 else 0) NoHoverPadding)
-          ] ++ (maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True (List.map (\argPat -> (argPat, Set.empty, Set.empty)) argPats) left boxTop NoHoverPadding) |> Maybe.withDefault [] |> List.map Just) ++
+          , maybeFuncPat |> Maybe.map (\funcPat -> patInOutput model.renamingInOutput False funcPat [] [] left (boxTop - if isCurrentContext then 20 else 0) NoHoverPadding)
+          ] ++ (maybeArgPats |> Utils.filterMaybe (always isCurrentContext) |> Maybe.map (\argPats -> patsInOutput model.renamingInOutput True (List.map (\argPat -> (argPat, [], [])) argPats) left boxTop NoHoverPadding) |> Maybe.withDefault [] |> List.map Just) ++
           [ -- maybeAddArg
           ] |> Utils.filterJusts
   in
@@ -884,7 +884,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
         Just focusedExp -> (expEffectiveExp focusedExp).val.eid == valEId listVal
         _               -> False
     in
-    let isSelected = Set.member idAsShape model.selectedShapes in
+    let isSelected = List.member idAsShape model.selectedShapes in
     if not <| isCurrentContext || isSelected || List.any (\(_, hoveredIs) -> Set.member i_ hoveredIs) model.hoveredBoundsWidgets then
       []
     else if model.mouseMode /= MouseNothing && not isCurrentContext then
@@ -980,10 +980,9 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
 
 buildDistances : Model -> LangSvg.RootedIndexedTree -> Widgets -> List (Svg Msg)
 buildDistances model slate widgets =
-  let selectedPoints = ShapeWidgets.featuresToSelectablePoints (Set.toList model.selectedFeatures) in
+  let selectedPoints = ShapeWidgets.featuresToSelectablePoints model.selectedFeatures in
   let pointsAtEndOfSelectedDistances =
     model.selectedFeatures
-    |> Set.toList
     |> List.concatMap
         (\selectedFeature ->
           case selectedFeature of
@@ -996,7 +995,7 @@ buildDistances model slate widgets =
   |> List.map (\(selectedPt1, selectedPt2) -> Set.fromList [selectedPt1, selectedPt2])
   |> List.filter (Set.size >> (==) 2)
   |> Utils.dedup -- Cartesian product produces both {a,b} and {b,a}, which are equivalent
-  |> List.sortBy (\pointPairSet -> if Set.member (DistanceBetweenFeatures pointPairSet) model.selectedFeatures then 1 else 0) -- Draw selected distances on top of non-selected distances
+  |> List.sortBy (\pointPairSet -> if List.member (DistanceBetweenFeatures pointPairSet) model.selectedFeatures then 1 else 0) -- Draw selected distances on top of non-selected distances
   |> List.concatMap
       (\pointPairSet ->
         let (selectablePoint1, selectablePoint2) = ShapeWidgets.extractSelectablePoints pointPairSet in
@@ -1005,14 +1004,14 @@ buildDistances model slate widgets =
              , ShapeWidgets.selectablePointToMaybeXY selectablePoint2 slate widgets ) of
           (Just (x1, y1), Just (x2, y2)) ->
             let selectableFeature = DistanceBetweenFeatures (Set.fromList [selectablePoint1, selectablePoint2]) in
-            let isSelected = Set.member selectableFeature model.selectedFeatures in
+            let isSelected = List.member selectableFeature model.selectedFeatures in
             let color = if isSelected then colorPointSelected else colorLineNotSelected in
             let deselectEndPoints model =
               if isSelected then
                 model
               else
                 let featuresToDeselect = List.concatMap (ShapeWidgets.selectablePointToSelectableFeatures >> Utils.pairToList) [selectablePoint1, selectablePoint2] in
-                { model | selectedFeatures = model.selectedFeatures |> Set.filter (\selectedFeature -> not <| List.member selectedFeature featuresToDeselect) }
+                { model | selectedFeatures = model.selectedFeatures |> List.filter (\selectedFeature -> not <| List.member selectedFeature featuresToDeselect) }
             in
             let line =
               svgLine [
@@ -1282,7 +1281,7 @@ zonePoint model alwaysShow id shapeKind realZone transform (x, y) =
         Just (pointZoneStylesFillSelected model id)
       else if objectIsCurrentlyBeingManipulated model id then
         Nothing
-      else if Set.member id model.selectedShapes then
+      else if List.member id model.selectedShapes then
         Just (pointZoneStylesFillSelected model id)
       else if Set.member id model.hoveredShapes || alwaysShow then
         Just pointZoneStyles.fill.shown
@@ -1358,7 +1357,7 @@ maybeTransformAttr l =
 
 zoneRotate model id shape (cx,cy) r maybeCmds =
   let pred z = isPrimaryZone z || isFillStrokeZone z in
-  case ( Set.member id model.selectedShapes
+  case ( List.member id model.selectedShapes
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeCmds ) of
     (True, False, Just cmds) -> zoneRotate_ model id shape cx cy r cmds
@@ -1393,7 +1392,7 @@ zoneRotate_ model id shape cx cy r cmds =
         ([LangSvg.Rot (_,trace) _ _], Cursor) ->
           let selectableFeature = ShapeFeature id (OFeat Rotation) in
           let handler = [onMouseDownAndStop (toggleSelected [selectableFeature])] in
-          if Set.member selectableFeature model.selectedFeatures
+          if List.member selectableFeature model.selectedFeatures
             then (colorPointSelected, handler)
             else (colorPointNotSelected, handler)
         _ ->
@@ -1459,10 +1458,10 @@ maybeColorNumAttr k l =
 
 zoneColor realZone shapeFeature model id shape x y maybeColor =
   let pred z = isPrimaryZone z || isRotateZone z in
-  let shapeSelected = Set.member id model.selectedShapes in
+  let shapeSelected = List.member id model.selectedShapes in
   let selectableFeature = ShapeFeature id shapeFeature in
   let featureSelected =
-    Set.member selectableFeature
+    List.member selectableFeature
                model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
@@ -1491,7 +1490,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member selectableFeature model.selectedFeatures
+          if List.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "none" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -1528,9 +1527,9 @@ wOpacityBox = ShapeWidgets.wOpacitySlider
 
 zoneOpacity realZone shapeFeature model id shape x y maybeOpacity =
   let pred z = isPrimaryZone z || isRotateZone z in
-  let shapeSelected = Set.member id model.selectedShapes in
+  let shapeSelected = List.member id model.selectedShapes in
   let selectableFeature = ShapeFeature id shapeFeature in
-  let featureSelected = Set.member selectableFeature model.selectedFeatures in
+  let featureSelected = List.member selectableFeature model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeOpacity ) of
@@ -1559,7 +1558,7 @@ zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member selectableFeature model.selectedFeatures
+          if List.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "white" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -1588,9 +1587,9 @@ maybeStrokeWidthNumAttr l =
 
 zoneStrokeWidth model id shape x y maybeStrokeWidth =
   let pred z = isPrimaryZone z || isRotateZone z in
-  let shapeSelected = Set.member id model.selectedShapes in
+  let shapeSelected = List.member id model.selectedShapes in
   let selectableFeature = ShapeFeature id (OFeat StrokeWidth) in
-  let featureSelected = Set.member selectableFeature model.selectedFeatures in
+  let featureSelected = List.member selectableFeature model.selectedFeatures in
   case ( shapeSelected || featureSelected
        , objectZoneIsCurrentlyBeingManipulated model id pred
        , maybeStrokeWidth ) of
@@ -1605,7 +1604,7 @@ zoneStrokeWidth_ model id shape x y (n, trace) =
   let box =
     flip Svg.rect [] <|
       [ attr "fill" <|
-          if Set.member selectableFeature model.selectedFeatures
+          if List.member selectableFeature model.selectedFeatures
             then colorPointSelected
             else "white" -- colorPointNotSelected
       , attr "stroke" stroke , attr "stroke-width" strokeWidth
@@ -1700,11 +1699,11 @@ doToggleSelected selectableFeatures =
   \model ->
     -- If only some of the features were selected, we want to select all of
     -- them, not toggle individually.
-    let deselect = List.all (flip Set.member model.selectedFeatures) selectableFeatures in
+    let deselect = List.all (flip List.member model.selectedFeatures) selectableFeatures in
     let updateSet selectableFeature acc =
       if deselect
-        then Set.remove selectableFeature acc
-        else Set.insert selectableFeature acc
+        then Utils.removeAsSet selectableFeature acc
+        else Utils.addAsSet selectableFeature acc
     in
     { model | selectedFeatures = List.foldl updateSet model.selectedFeatures selectableFeatures }
 
@@ -1721,7 +1720,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
   let thisCrosshair = (id, pointFeature) in
   let len = 20 in
   let color selectableFeatures =
-    if List.all (flip Set.member model.selectedFeatures) selectableFeatures
+    if List.all (flip List.member model.selectedFeatures) selectableFeatures
     then colorPointSelected
     else colorPointNotSelected
   in
@@ -1732,8 +1731,8 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
   in
   let
     isHovered = Set.member thisCrosshair model.hoveredCrosshairs && model.tool == Cursor
-    shouldShowX = isHovered || Set.member xSelectableFeature model.selectedFeatures
-    shouldShowY = isHovered || Set.member ySelectableFeature model.selectedFeatures
+    shouldShowX = isHovered || List.member xSelectableFeature model.selectedFeatures
+    shouldShowY = isHovered || List.member ySelectableFeature model.selectedFeatures
   in
   let (backDisc, frontDisc) =
     let r =
@@ -1771,7 +1770,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
       (model.contextInputVals |> List.any (valToMaybeXYVals >> Maybe.map (\(inXVal, inYVal) -> Provenance.valsSame xVal inXVal && Provenance.valsSame yVal inYVal) >> Maybe.withDefault False))
     in
     let dotFill =
-      case (isShapeBeingDrawnSnappingToPoint model xVal yVal, Set.member id model.selectedShapes, isContextInputPoint model xVal yVal, isContextOutputPoint model xVal yVal) of
+      case (isShapeBeingDrawnSnappingToPoint model xVal yVal, List.member id model.selectedShapes, isContextInputPoint model xVal yVal, isContextOutputPoint model xVal yVal) of
         (True, _, _, _)    -> colorPointSelected
         (_, True, _, _)    -> pointZoneStylesFillSelected model id
         (_, _, True, True) -> colorInputAndOutput
@@ -1782,7 +1781,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
     let isVisible =
       (shapeKind == "point" || not (objectIsCurrentlyBeingManipulated model id)) -- Show proper point widgets during live sync.
          && (alwaysShowDot ||
-             Set.member id model.selectedShapes ||
+             List.member id model.selectedShapes ||
              Set.member id model.hoveredShapes ||
              Set.member thisCrosshair model.hoveredCrosshairs ||
              model.tool /= Cursor)
@@ -1892,7 +1891,7 @@ zoneSelectLine model nodeId shapeFeature (x1,y1) (x2,y2) =
   let selectableFeature = ShapeFeature nodeId shapeFeature in
   let shouldShow =
     Set.member nodeId model.hoveredShapes ||
-    Set.member selectableFeature model.selectedFeatures
+    List.member selectableFeature model.selectedFeatures
   in
   let perhapsLabelWidget =
     perhapsPatOrExpInOutput
@@ -1911,7 +1910,7 @@ zoneSelectLine model nodeId shapeFeature (x1,y1) (x2,y2) =
     (_, False)             -> []
     _                      ->
      let color =
-       if Set.member selectableFeature model.selectedFeatures
+       if List.member selectableFeature model.selectedFeatures
        then colorLineSelected
        else colorLineNotSelected
      in
@@ -1990,7 +1989,7 @@ perhapsLabelWidgetForShape model nodeId x y =
     _ ->
       let shouldShow =
         Set.member nodeId model.hoveredShapes ||
-        Set.member nodeId model.selectedShapes
+        List.member nodeId model.selectedShapes
       in
       perhapsPatOrExpInOutput
           model.inputExp

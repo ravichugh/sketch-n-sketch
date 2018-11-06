@@ -218,8 +218,8 @@ addSlateAndCode old (exp, val) =
 
 clearSelections : Model -> Model
 clearSelections old =
-  { old | selectedFeatures = Set.empty
-        , selectedShapes   = Set.empty
+  { old | selectedFeatures = []
+        , selectedShapes   = []
         , selectedBlobs    = Dict.empty
         }
 
@@ -290,7 +290,7 @@ maybeClickableToPointWithSnap (defaultX, defaultY) maybeClickable =
 
 
 maybeDrawOnSelect selectedIdAsShape old =
-  case (old.tool, Set.size old.selectedFeatures, Set.size old.selectedShapes, Dict.size old.selectedBlobs, Utils.maybeGeti1 (-2 - selectedIdAsShape) old.widgets) of
+  case (old.tool, List.length old.selectedFeatures, List.length old.selectedShapes, Dict.size old.selectedBlobs, Utils.maybeGeti1 (-2 - selectedIdAsShape) old.widgets) of
     (Poly, 0, 0, 0, Just (WList listVal)) ->
       Just <| upstateRun <| switchToCursorTool <| Draw.addPolygonList old (eHoleVal listVal)
 
@@ -378,7 +378,7 @@ onClickPrimaryZone i k realZone old =
     if i < -2 then -- Clicked a widget
       if realZone == ZOffset1D then
         let selectableFeatureToToggle = ShapeFeature i (DFeat Offset) in
-        let update = if Set.member selectableFeatureToToggle old.selectedFeatures then Set.remove else Set.insert in
+        let update = if List.member selectableFeatureToToggle old.selectedFeatures then Utils.removeAsSet else Utils.addAsSet in
         (update selectableFeatureToToggle old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
       else
         (old.selectedFeatures, old.selectedShapes, old.selectedBlobs)
@@ -387,14 +387,14 @@ onClickPrimaryZone i k realZone old =
       let toggleThisShape () =
         -- When you command-tab in and out of the browser, sometimes the cmd key is still
         -- considered "down" in the model and this fails.
-        if Set.member i old.selectedShapes then
+        if List.member i old.selectedShapes then
           if old.keysDown == [Keys.keyShift]
-          then Set.remove i old.selectedShapes
+          then Utils.removeAsSet i old.selectedShapes
           else old.selectedShapes
         else
           if old.keysDown == [Keys.keyShift]
-          then Set.insert i old.selectedShapes
-          else Set.singleton i
+          then Utils.addAsSet i old.selectedShapes
+          else [i]
       in
       let selectBlob blobId =
         if Dict.member blobId old.selectedBlobs then
@@ -509,12 +509,12 @@ onMouseDrag lastPosition newPosition old =
         |> List.map    (\((nodeId, shapeFeature), (x, y)) -> ShapeFeature nodeId shapeFeature)
       in
       if old.keysDown == [Keys.keyShift] then
-        { old | selectedShapes   = Utils.multiToggleSet (Set.fromList shapesToSelect) initialSelectedShapes
-              , selectedFeatures = Utils.multiToggleSet (Set.fromList featuresToSelect) initialSelectedFeatures
+        { old | selectedShapes   = Utils.multiToggleAsSet (Utils.dedup shapesToSelect) initialSelectedShapes
+              , selectedFeatures = Utils.multiToggleAsSet (Utils.dedup featuresToSelect) initialSelectedFeatures
               , selectedBlobs    = initialSelectedBlobs }
       else
-        { old | selectedShapes   = Set.fromList shapesToSelect
-              , selectedFeatures = Set.fromList featuresToSelect
+        { old | selectedShapes   = Utils.dedup shapesToSelect
+              , selectedFeatures = Utils.dedup featuresToSelect
               , selectedBlobs    = Dict.fromList blobsToSelect }
 
 
@@ -1614,11 +1614,10 @@ msgHideWidgets = Msg "Hide Widget(s)" hideWidgets
 -- Should work for any selected widget, but only shows for offsets for now.
 hideWidgets : Model -> Model
 hideWidgets old =
-  if Set.size old.selectedShapes == 0 && Dict.size old.selectedBlobs == 0 then
+  if List.length old.selectedShapes == 0 && Dict.size old.selectedBlobs == 0 then
     let
       (offsetAmountEIds, offsetExpressionEIds) =
         old.selectedFeatures
-        |> Set.toList
         |> List.filterMap
             (\feature ->
               case feature of
@@ -1808,7 +1807,7 @@ msgRepeatByIndexedMerge = Msg "Repeat by Indexed Merge" <| \old ->
       Set.fromList <|
         ShapeWidgets.selectionsEIdsTouched old.inputExp old.slate old.widgets old.selectedFeatures old.selectedShapes old.selectedBlobs (\e -> childExps e /= [])
     in
-    let minCloneCount = max 2 (Set.size old.selectedShapes) in
+    let minCloneCount = max 2 (List.length old.selectedShapes) in
     ETransform.repeatByIndexedMerge old (\e -> Set.member e.val.eid eidSet) minCloneCount 2 old.inputExp
   in
   { old | synthesisResultsDict = Dict.insert "Repeat by Indexed Merge" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
@@ -2266,7 +2265,6 @@ doDuplicate old =
             -- Attempt 1: Try to add to output as a shape.
             let expectedShapeCountIncrease =
               old.selectedShapes
-              |> Set.toList
               |> List.map
                   (\selectedNodeId ->
                     case Utils.maybeGeti1 (-2 - selectedNodeId) old.widgets of
@@ -2280,7 +2278,7 @@ doDuplicate old =
                   )
               |> List.sum
             in
-            let newProgram = DrawAddShape.addShape old (always True) (Just name) expToDuplicate (Just <| expectedShapeCountIncrease + Set.size old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing False old.inputExp in
+            let newProgram = DrawAddShape.addShape old (always True) (Just name) expToDuplicate (Just <| expectedShapeCountIncrease + List.length old.selectedFeatures + Dict.size old.selectedBlobs) Nothing Nothing Nothing False old.inputExp in
             if not <| LangUnparser.expsEquivalent newProgram old.inputExp then
               newProgram
             else
@@ -2314,7 +2312,7 @@ msgMerge = Msg "Merge" <| \old ->
       -- Debug.log "selectionsEIdsTouched" <|
         ShapeWidgets.selectionsEIdsTouched old.inputExp old.slate old.widgets old.selectedFeatures old.selectedShapes old.selectedBlobs (\e -> childExps e /= [])
     in
-    let minCloneCount = max 2 (Set.size old.selectedShapes) in
+    let minCloneCount = max 2 (List.length old.selectedShapes) in
     ETransform.cloneEliminationSythesisResults (\e -> Utils.anyOverlapListSet (expEffectiveEIds e) eidSet) minCloneCount 2 old.inputExp
   in
   { old | synthesisResultsDict = Dict.insert "Merge" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
@@ -2566,10 +2564,10 @@ doClearEditingContext old =
 msgSelectList idAsShape = Msg "Select List" <| \old ->
   case maybeDrawOnSelect idAsShape old of
     Just new -> new
-    Nothing  -> { old | selectedShapes = Set.insert idAsShape old.selectedShapes }
+    Nothing  -> { old | selectedShapes = Utils.addAsSet idAsShape old.selectedShapes }
 
 msgDeselectList idAsShape = Msg "Deselect List" <| \old ->
-  { old | selectedShapes = Set.remove idAsShape old.selectedShapes }
+  { old | selectedShapes = Utils.removeAsSet idAsShape old.selectedShapes }
 
 msgActivateRenameInOutput pid shapes features = Msg ("Active Rename Box for PId " ++ toString pid) <| \old ->
   let oldPatStr =

@@ -43,11 +43,10 @@ debugLog = Config.debugLog Config.debugSync
 
 
 
-digHole : Exp -> Set.Set ShapeWidgets.SelectableFeature -> LangSvg.RootedIndexedTree -> List Widget -> Sync.Options -> Exp
+digHole : Exp -> List ShapeWidgets.SelectableFeature -> LangSvg.RootedIndexedTree -> List Widget -> Sync.Options -> Exp
 digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
   let featuresWithEquation =
     selectedFeatures
-    |> Set.toList
     |> List.filterMap
         (\feature ->
           ShapeWidgets.featureToEquation feature tree widgets
@@ -230,7 +229,7 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp =
   sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
 
 
-indexedRelate : Bool -> Syntax -> Exp -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
+indexedRelate : Bool -> Syntax -> Exp -> List ShapeWidgets.SelectableFeature -> List NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
 indexedRelate showPreludeOffsets syntax originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
   if True then
     []
@@ -240,11 +239,10 @@ indexedRelate showPreludeOffsets syntax originalExp selectedFeatures selectedSha
     Ok (slate, widgets) ->
       let (_, tree) = slate in
       let featuresToRevolutionize =
-        if Set.size selectedFeatures > 0 then
-          Set.toList selectedFeatures
+        if List.length selectedFeatures > 0 then
+          selectedFeatures
         else
           selectedShapes
-          |> Set.toList
           |> List.concatMap
               (\nodeId ->
                 let (kind, attrs, _) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
@@ -397,13 +395,12 @@ rankComparedTo originalExp synthesisResults =
       )
 
 
-selectedFeaturesToFeaturesAndEquations : Set.Set ShapeWidgets.SelectableFeature -> Exp -> Bool -> Int -> Int -> Float -> List SelectedFeatureAndEquation
+selectedFeaturesToFeaturesAndEquations : List ShapeWidgets.SelectableFeature -> Exp -> Bool -> Int -> Int -> Float -> List SelectedFeatureAndEquation
 selectedFeaturesToFeaturesAndEquations selectedFeatures program showPreludeOffsets slideNumber movieNumber movieTime =
   case evalToSlateAndWidgetsResult program showPreludeOffsets slideNumber movieNumber movieTime of
     Err s -> []
     Ok ((rootI, tree), widgets) ->
       selectedFeatures
-      |> Set.toList
       |> List.filterMap
           (\selectableFeature ->
             case ShapeWidgets.featureToEquation selectableFeature tree widgets of
@@ -872,7 +869,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
 
 -- Returns synthesis results
 -- Build an abstraction where one feature is returned as function, perhaps of the other selected features.
-abstract : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Bool -> Maybe (EId, a) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
+abstract : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Bool -> Maybe (EId, a) -> List ShapeWidgets.SelectableFeature -> List NodeId -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Sync.Options -> List InterfaceModel.SynthesisResult
 abstract program idToTypeAndContextThunk showPreludeOffsets editingContext selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime syncOptions =
   case InterfaceModel.runAndResolve_ { showPreludeOffsets = showPreludeOffsets, slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } program of -- Syntax is dummy; we abort on unparsable code
     Err s -> []
@@ -1171,7 +1168,7 @@ abstract_ program originalProgramUniqueNames editingContext uniqueNameToOldName 
   )
 
 
-repeatUsingFunction : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Bool -> Maybe (EId, a) -> Maybe Env -> Ident -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeatUsingFunction : Exp -> AlgorithmJish.IdToTypeAndContextThunk -> Bool -> Maybe (EId, a) -> Maybe Env -> Ident -> List ShapeWidgets.SelectableFeature -> List NodeId -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
 repeatUsingFunction program idToTypeAndContextThunk showPreludeOffsets editingContext maybeEnv pointsFuncName selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let maybeMakePointsExpAndRepeatingOverWhatDesc argExps shouldReverseXY =
     let
@@ -1227,7 +1224,7 @@ repeatUsingFunction program idToTypeAndContextThunk showPreludeOffsets editingCo
     syncOptions
 
 
-repeatUsingPointList : Exp -> Bool -> Maybe (EId, a) -> Maybe Env -> Val -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeatUsingPointList : Exp -> Bool -> Maybe (EId, a) -> Maybe Env -> Val -> List ShapeWidgets.SelectableFeature -> List NodeId -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
 repeatUsingPointList program showPreludeOffsets editingContext maybeEnv pointListVal selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let maybeMakePointsExpAndRepeatingOverWhatDesc argExps shouldReverseXY =
     Just <|
@@ -1251,7 +1248,7 @@ repeatUsingPointList program showPreludeOffsets editingContext maybeEnv pointLis
     syncOptions
 
 
-repeat_ : Exp -> Bool -> Maybe (EId, a) -> Maybe Env -> (List Exp -> Bool -> Maybe (Exp, String)) -> Set.Set ShapeWidgets.SelectableFeature -> Set.Set Int -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
+repeat_ : Exp -> Bool -> Maybe (EId, a) -> Maybe Env -> (List Exp -> Bool -> Maybe (Exp, String)) -> List ShapeWidgets.SelectableFeature -> List NodeId -> Dict.Dict Int NodeId -> Int -> Int -> Num -> Solver.SolutionsCache -> Sync.Options -> List InterfaceModel.SynthesisResult
 repeat_ program showPreludeOffsets editingContext maybeEnv maybeMakePointsExpAndRepeatingOverWhatDesc selectedFeatures selectedShapes selectedBlobs slideNumber movieNumber movieTime solutionsCache syncOptions =
   let
     model =

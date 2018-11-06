@@ -1144,7 +1144,7 @@ groupSelectedBlobsAround model (defs, blobs, f) (anchorId, anchorPointFeature) =
           { model | code = code_
                   , genSymCount = model.genSymCount + 1
                   , selectedBlobs = Dict.empty
-                  , selectedFeatures = Set.empty
+                  , selectedFeatures = []
                   }
 
         _ ->
