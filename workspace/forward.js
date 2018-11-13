@@ -7,11 +7,16 @@
 // <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 // <html xmlns="http://www.w3.org/1999/xhtml">
 
-var source = `
-pôsts: List (String, String)
-posts = nodejs.listdircontent "src/blog/posts"
+const fs = require("fs")
+const sns = require("sketch-n-sketch")
 
-postheader = nodejs.fileread "src/blog/post-before.html"
-`
+var source = fs.readFileSync(__dirname + "/generate.elm", "utf8");
+console.log("source")
+var result = sns.evaluateEnv({v:1})(source)
+console.log("result", result)
 
-sns.evaluateEnv({})(source)
+if(result.ctor == "Ok") {
+  console.log(sns.valToNative(result._0)._0)
+} else {
+  console.log("error", result._0)
+}

@@ -74,12 +74,12 @@
              Regex.matchIn """^\d+\.md""" filename)
            |> List.indexedMap (\i (filename, filecontent) ->
              let finalname = Regex.extract """^(.*)\.md$""" filename
-               |> Maybe.map (\[name] -> name + ".html")
-               |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
+                  |> Maybe.map (\[name] -> name + ".html")
+                  |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
              in
              let title = Regex.extract """# ([^\r\n]+)""" filecontent
-               |> Maybe.map (\[title] -> title)
-               |> Maybe.withDefaultLazy (\() -> """[Missing title in @filename]""")
+                  |> Maybe.map (\[title] -> title)
+                  |> Maybe.withDefaultLazy (\() -> """[Missing title in @filename]""")
              in
              <li>Step @(i + 1): <a href="@finalname">@title</a></li>
            ))
