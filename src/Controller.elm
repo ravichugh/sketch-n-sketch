@@ -2028,7 +2028,7 @@ msgKeyDown keyCode =
           let keyCodes = keyCode :: old.keysDown |> List.sort in
           if old.isDeuceTextBoxFocused then
             if old.mbDeuceKeyboardInfo /= Nothing then
-              handleDeuceTextBoxCommand old keyCodes
+              handleDeuceMenuCommand old keyCodes
             else
               old
           else
@@ -3526,6 +3526,11 @@ msgChooseDeuceExp name exp = Msg ("Choose Deuce Exp \"" ++ name ++ "\"") <| \m -
 --------------------------------------------------------------------------------
 -- Deuce Keyboard Interactions
 
+isCommandAnd keysDown k =
+  List.length keysDown == 2
+    && (List.any Keys.isCommandKey keysDown)
+    && (List.any ((==) k) keysDown)
+
 resetDeuceKeyboardInfo : Model -> Model
 resetDeuceKeyboardInfo old =
   { old | mbDeuceKeyboardInfo = Nothing }
@@ -3708,10 +3713,7 @@ handleDeuceHotKey oldModel keysDown selected =
     handleDeuceNextHoleOrWildcard old selected
   else if keysDown == [Keys.keyShift, Keys.keyN] then
     handleDeucePreviousHoleOrWildcard old selected
-  else if ( List.length keysDown == 2
-            && (Utils.geti 1 keysDown |> Keys.isCommandKey)
-            && (Utils.geti 2 keysDown == Keys.keySpace)
-          ) then
+  else if isCommandAnd keysDown Keys.keySpace then
     handleDeuceSelect old selected
 
   -- Deuce tools
@@ -3755,26 +3757,22 @@ handleDeuceHotKey oldModel keysDown selected =
   else
     old
 
-handleDeuceTextBoxCommand : Model -> List Char.KeyCode -> Model
-handleDeuceTextBoxCommand old keysDown =
+handleDeuceMenuCommand : Model -> List Char.KeyCode -> Model
+handleDeuceMenuCommand old keysDown =
   let
     -- It'd be great if we could use any familiar, home-keys-accessible binding,
     -- but literally all of them are consumed by chrome:
     -- Ctrl+J, Ctrl+K, Ctrl+N, Ctrl+P, and Tab
-    -- I've settled on Ctrl+m and Ctrl+; for now,
-    -- but I don't what's really a good solution
-    isUp =
-      keysDown == [Keys.keyUp]
-      || ( List.length keysDown == 2
-           && (Utils.geti 1 keysDown |> Keys.isCommandKey)
-           && (Utils.geti 2 keysDown == Keys.keySemicolon)
-         )
+    -- For now I've settled on Ctrl+m through Ctrl+/,
+    -- with the same behavior as h through l, but not sure what works best
+    isLeft =
+      keysDown == [Keys.keyLeft] || isCommandAnd keysDown Keys.keyM
+    isRight =
+      keysDown == [Keys.keyRight] || isCommandAnd keysDown Keys.keyForwardSlash
     isDown =
-      keysDown == [Keys.keyDown]
-      || ( List.length keysDown == 2
-           && (Utils.geti 1 keysDown |> Keys.isCommandKey)
-           && (Utils.geti 2 keysDown == Keys.keyM)
-         )
+      keysDown == [Keys.keyDown] || isCommandAnd keysDown Keys.keyComma
+    isUp =
+      keysDown == [Keys.keyUp] || isCommandAnd keysDown Keys.keyPeriod
   in
   if isUp then
     moveSmartCompleteSelection old False
