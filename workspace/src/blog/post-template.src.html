@@ -1,0 +1,31 @@
+-- input: content  (markdown)
+-- input: load
+  
+<html xmlns="http://www.w3.org/1999/xhtml">
+@(load "head.src.html")
+<body>
+  <div id="wrapper">
+
+    <div id="header">
+      <div id="logo"> <h1>Sketch-n-Sketch [<a href="index.html">Blog</a>]</h1> </div>
+      @(load "src/menu.src.html")
+    </div>
+
+    <div id="page">
+
+      <div class="content_wide">
+      <div class="blog_post">
+      @(Html.fromMarkdown content)
+      </div>
+      </div>
+
+      <br class="clearfix" />
+
+    </div> @([] {- <!-- end id="page" --> -})
+
+  </div> @([] {- <!-- end id="wrapper" --> -})
+
+  @(load "src/footer.src.html")
+  @(load "src/ga-tracker.src.html")
+</body>
+</html>

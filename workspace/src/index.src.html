@@ -1,7 +1,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <!-- LOAD_SRC src/head.src.html -->
+  @(load "head.src.html")
 </head>
 <body>
   <div id="wrapper">
@@ -10,7 +10,7 @@
       <div id="logo">
         <h1>Sketch-n-Sketch</h1>
       </div>
-      <!-- LOAD_SRC src/menu.src.html -->
+      @(load "src/menu.src.html")
     </div>
 
     <div id="page">
@@ -31,6 +31,7 @@
           for many other programming and design settings as well.
           So far in our work, three themes have emerged:
         </p>
+@([] {-
 <!--
         <p>
           Sketch-n-Sketch is a direct manipulation programming system for
@@ -41,7 +42,7 @@
           new and interesting ways to approach the design process.
           Take a look around and <a href="releases/">try it</a> yourself!
         </p>
--->
+--> -})
         <p class="topic-tag-summary"><span class="topic-tag topic-tag-op">Output-Directed Programming</span>
           The ability to design and shape the desired output by example,
           adding new values and adding new intended relationships among them.
@@ -64,14 +65,14 @@
         </p>
       </div>
       </div>
-
+@([] {-
 <!--
       <div class="content_next">
       <div class="post1">
         <h3>A Prodirect Manipulation Editor for SVG</h3>
       </div>
       </div>
--->
+--> -})
 
       <div class="content_next">
       <div class="post1">
@@ -92,9 +93,9 @@
             (<a href="https://conf.researchr.org/home/icse-2018">ICSE 2018</a>)<br>
             Brian Hempel, Justin Lubin, Grace Lu, and Ravi Chugh<br>
             [ <a href="https://www.youtube.com/watch?v=wU17sNGs_qA">video</a>
-            | <a href="__ROOT__/static/documents/deuce-icse2018-slides.pdf">slides</a>
-            | <a href="__ROOT__/blog/06-deuce-user-study.html">user study</a>
-            | <a href="__ROOT__/blog/05-deuce.html">older videos</a>
+            | <a href="""@root/static/documents/deuce-icse2018-slides.pdf""">slides</a>
+            | <a href="""@root/blog/06-deuce-user-study.html""">user study</a>
+            | <a href="""@root/blog/05-deuce.html""">older videos</a>
             ]
             <br>
             <span class="topic-tag topic-tag-reference topic-tag-ste">Structured Text Editing</span>
@@ -161,9 +162,9 @@
 
       <div id="sidebar">
         <img width="200px" height="200px"
-             src="__ROOT__/static/images/sketch-n-sketch-logo-gray.svg" />
+             src="""@root/static/images/sketch-n-sketch-logo-gray.svg""" />
       </div>
-
+@([] {-
 <!--
       <div id="sidebar_next">
         <h3>people</h3>
@@ -172,12 +173,13 @@
         Mitchell Spradlin<br>
         Jacob Albers
       </div>
--->
+--> -})
 
       <div id="sidebar_next">
+      @([] {-
 <!--
         <h3>Videos</h3>
--->
+--> -})
         <p>
         <iframe width="225" frameborder="0" allowfullscreen
           src="https://www.youtube.com/embed/-TFL6E1uSHE"
@@ -220,6 +222,7 @@
         ></iframe>
         Brian @ PLDI 2016<br> (studio recording)
         </p>
+@([] {-
 <!--
         <p>
         <iframe width="225" frameborder="0" allowfullscreen
@@ -266,32 +269,33 @@
 -->
 <!--
         <video width="225" controls>
-          <source src="__ROOT__/static/videos/SNS-Demo-1a.mp4" type="video/mp4">
+          <source src="""@root/static/videos/SNS-Demo-1a.mp4""" type="video/mp4">
           Your browser does not support the video tag.
         </video> 
         <a href="blog/00-preview.html">Blog Post</a>
--->
+--> -})
       </div>
 
       <div id="sidebar_next">
+@([] {-
 <!--
         <h3>poster</h3>
--->
-        <a href="__ROOT__/static/documents/sns-poster.pdf">
-          <img width="225px" src="__ROOT__/static/images/sns-poster.png"/></a>
+--> -}
+        <a href="""@root/static/documents/sns-poster.pdf""">
+          <img width="225px" src="""@root/static/images/sns-poster.png"""/></a>
         Brian @ <a href="http://ceres.cs.uchicago.edu/">CERES</a> Kickoff<br>
         January 2016
       </div>
 
       <br class="clearfix" />
 
-    </div> <!-- end id="page" -->
+    </div> @([] {- <!-- end id="page" --> -}
 
-  </div> <!-- end id="wrapper" -->
+  </div> @([] {- <!-- end id="wrapper" --> -}
 
-  <!-- LOAD_SRC src/footer.src.html -->
+  @(load "src/footer.src.html")
 
-  <!-- LOAD_SRC src/ga-tracker.src.html -->
+  @(load "src/ga-tracker.src.html")
 
 </body>
 </html>

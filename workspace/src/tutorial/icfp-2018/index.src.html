@@ -1,14 +1,12 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <!-- LOAD_SRC src/head.src.html -->
-</head>
+@(load "head.src.html")
 <body>
   <div id="wrapper">
 
     <div id="header">
       <div id="logo"> <h1>Sketch-n-Sketch [Tutorial @ ICFP 2018]</h1> </div>
-      <!-- not loading src/menu.src.html -->
+      @("" {- not loading src/menu.src.html --> -})
     </div>
 
     <div id="page">
@@ -16,11 +14,36 @@
       <div class="content">
       <div class="post1">
         <p>
-          Stay tuned...
+          Here is the roadmap of this tutorial:
         </p>
+        <ul>
+          <li style="padding-bottom: 10pt;">
+            <a href="sns-icfp-2018-tutorial-overview.pdf">Overview</a>
+            (Ravi Chugh)
+          </li>
+
+          <li style="padding-bottom: 10pt;">
+            <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/notes/icfp-tutorial-justin.md">Introduction to Sketch-n-Sketch</a>
+            (Justin Lubin)
+          </li>
+
+          <li style="padding-bottom: 10pt;">Bidirectional HTML Programming Demos (Mikaël Mayer)
+            [version: <a href="../../releases/icfp-2018-html/index.html">icfp-2018-html</a>]
+          </li>
+          <li style="padding-bottom: 10pt;">Bidirectional HTML Programming Tutorial: <a href="https://mikaelmayer.github.io/TutorialStudentGrades.html">Student Grades</a> (self-paced). At last, your teaching assistants have graded all the assignments, the mid-terms and the final exam. They've provided you with a list of student names and their average grades out of 100. How do you fairly map these scores to letter grades, such as A+, A, A-, B+ ... down to E?</li>
+          <li style="padding-bottom: 10pt;">Bidirectional HTML Programming Tutorial: <a href="https://mikaelmayer.github.io/TutorialMemory.html">Multilingual Memory Game</a> (self-paced). The memory game consists of pairs of identical cards placed face down. The player turns over two cards. If they are the same, they are left face up. If they are not, they are turned back face down. We will create an educational multilingual variant of the memory game to associate images to their transcriptions.</li>
+          <li style="padding-bottom: 10pt;">Output-Directed SVG Programming (Brian Hempel)
+            [version: <a href="../../releases/icfp-2018-svg/index.html">icfp-2018-svg</a>]
+          </li>
+          <li style="padding-bottom: 10pt;">Structured Editing with Holes (Nick Collins)
+            [version: <a href="../../releases/icfp-2018-holes/index.html">icfp-2018-holes</a>]
+          </li>
+        </ul>
       </div>
       </div>
 
+@([] {- 
+<!--
       <div class="content_next">
       <div class="post1">
         <p>
@@ -28,6 +51,8 @@
         </p>
       </div>
       </div>
+-->
+-})
 
       <div id="sidebar">
         <img width="225px;" src="sns-tutorial-icfp-2018-logo.png" />
@@ -39,13 +64,12 @@
 
       <br class="clearfix" />
 
-    </div> <!-- end id="page" -->
+    </div> @([] {- <!-- end id="page" --> -})
 
-  </div> <!-- end id="wrapper" -->
+  </div> @([] {- <!-- end id="wrapper" --> -})
 
-  <!-- LOAD_SRC src/footer.src.html -->
-
-  <!-- LOAD_SRC src/ga-tracker.src.html -->
+  @(load "src/footer.src.html")
+  @(load "src/ga-tracker.src.html")
 
 </body>
 </html>

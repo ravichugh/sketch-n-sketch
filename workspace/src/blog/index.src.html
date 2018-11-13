@@ -1,14 +1,11 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <!-- LOAD_SRC src/head.src.html -->
-</head>
+  @(load "src/head.src.html")
 <body>
   <div id="wrapper">
 
     <div id="header">
       <div id="logo"> <h1>Sketch-n-Sketch [Blog]</h1> </div>
-      <!-- LOAD_SRC src/menu.src.html -->
+      @(load "src/menu.src.html")
     </div>
 
     <div id="page">
@@ -17,17 +14,32 @@
       <div class="post0">
         <h3>Posts</h3>
         <ul class="nobullets">
-          <li><tt>01.31.2018:</tt> <a href="06-deuce-user-study.html">Deuce User Study</a></li>
-          <li><tt>04.17.2017:</tt> <a href="05-deuce.html">Deuce: Lightweight Structured Editing in Sketch-n-Sketch</a></li>
-          <li><tt>04.13.2016:</tt> <a href="04-coffee.html">Researchers in Offices Drawing Coffee</a></li>
-          <li><tt>11.23.2015:</tt> <a href="03-user-study-videos.html">User Study Videos</a></li>
-          <li><tt>09.04.2015:</tt> <a href="02-user-study.html">User Study &mdash; Call for Participants</a></li>
-          <li><tt>07.17.2015:</tt> <a href="01-case-studies.html">Initial Case Studies</a></li>
-          <li><tt>07.09.2015:</tt> <a href="00-preview.html">Sneak Preview</a></li>
+          @(nodejs.listdircontent "src/blog/posts"
+           |> List.map (\(filename, filecontent) ->
+             let date = Regex.extract """\*((\w+) (\d+), (\d\d\d\d))\*""" filecontent
+               |> Maybe.map (\[date, month, day, year] ->
+                  let
+                    monthnumericRaw = List.indexOf month ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+                    monthnumeric = if (monthnumericRaw < 10) then """0@monthnumericRaw""" else """@monthnumericRaw"""
+                  in
+                   """@(monthnumeric).@(day).@year"""
+                 )
+               |> Maybe.withDefaultLazy (\() -> "Date not found in " + filename)
+             in
+             let finalname = Regex.extract """^(.*)\.md$""" filename
+               |> Maybe.map (\[name] -> name + ".html")
+               |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
+             in
+             let title = Regex.extract """# ([^\r\n]+)""" filecontent
+               |> Maybe.map (\[title] -> title)
+               |> Maybe.withDefaultLazy (\() -> """[Missing title in @filename]""")
+             in
+             <li><tt>@date:</tt> <a href="@finalname">@title</a></li>
+           ))
         </ul>
       </div>
       </div>
-
+@("" {-
 <!--
       <div class="content_wide_next">
       <div class="post0">
@@ -39,23 +51,21 @@
 <!--
       <div id="sidebar">
         <img width="200px" height="200px"
-             src="__ROOT__/static/images/sketch-n-sketch-logo-gray.svg" />
+             src="@root/static/images/sketch-n-sketch-logo-gray.svg" />
       </div>
 
       <div id="sidebar_next">
         <h3>Something Else</h3>
       </div>
--->
+-->-})
 
       <br class="clearfix" />
 
-    </div> <!-- end id="page" -->
+    </div> @([] {- <!-- end id="page" --> -})
 
-  </div> <!-- end id="wrapper" -->
+  </div> @([] {- <!-- end id="wrapper" --> -})
+  @(load "src/footer.src.html")
 
-  <!-- LOAD_SRC src/footer.src.html -->
-
-  <!-- LOAD_SRC src/ga-tracker.src.html -->
-
+  @(load "src/ga-tracker.src.html")
 </body>
 </html>
