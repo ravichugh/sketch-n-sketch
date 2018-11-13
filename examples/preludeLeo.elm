@@ -767,6 +767,7 @@ Update =
   { freeze x = x
     expressionFreeze x = x
     sizeFreeze = sizeFreeze
+    conditionalFreeze cond = if cond then (\x -> freeze x) else identity
     foldDiff = foldDiff
     applyLens = applyLens
     lens l x = l.apply x
@@ -1042,6 +1043,70 @@ mapWithDefault default f l = {
                    [[fs, insA++[newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]) vsds
               else
                 aprioriResult)
+
+      onFinish [newFs, newIns, diffInsA, _] =
+       --after we finish, we need to return the new function
+       --as a merge of original functions with all other modifications
+       -- and the collected new inputs
+       Ok [[Update.merge f newFs, newIns, diffInsA]]
+
+      onGather [(newF, fdiff), newIns, diffInsA] =
+        let fdiffPart = case fdiff of
+          Nothing -> []
+          Just d -> [(0, ListElemUpdate d)]
+        in
+        let inPart = case diffInsA of
+          [] -> []
+          d -> [(1, ListElemUpdate (VListDiffs d))]
+        in
+        let finalDiff = case fdiffPart ++ inPart of
+          [] -> Nothing
+          d -> Just (VListDiffs d)
+        in
+        Ok (InputWithDiff ([newF, newIns], finalDiff))
+    } oldOutput outputNew diffs
+  }.apply [f, l]
+
+mapWithReverse reverse f l = {
+  apply [f, l] = LensLess.List.map f l
+  update {input=[f, l], oldOutput, outputNew, diffs} =
+    Update.foldDiff {
+      start =
+        --Start: the collected functions and diffs,
+        -- the collected inputs,
+        -- The collected input diffs,
+        -- the inputs yet to process.
+        [[], [], [], l]
+
+
+      onSkip [fs, insA, diffInsA, insB] {count} =
+        --'outs' was the same in oldOutput and outputNew
+        let (skipped, remaining) = LensLess.List.split count insB in
+        Ok [[fs, insA ++ skipped, diffInsA, remaining]]
+
+      onUpdate [fs, insA, diffInsA, insB] {oldOutput, newOutput, diffs, index} =
+        let input::remaining = insB in
+        case Update.updateApp {fun (f,x) = f x, input = (f, input), output = newOutput, oldOutput = oldOutput, diffs = diffs} of
+          Err msg -> Err msg
+          Ok (InputsWithDiffs vsds) -> Ok (
+              LensLess.List.map (\((newF, newA), d) ->
+                let newFs = case d of
+                  Just (VRecordDiffs {_1 = d}) -> (newF, Just d)::fs
+                  _ -> fs
+                in
+                let newDiffsInsA = case d of
+                  Just (VRecordDiffs {_2 = d}) -> diffInsA ++ [(index, ListElemUpdate d)]
+                  _ -> diffInsA
+                in
+                [newFs, insA ++ [newA], newDiffsInsA, remaining]) vsds)
+
+      onRemove [fs, insA, diffInsA, insB] {oldOutput, index} =
+        let _::remaining = insB in
+        Ok [[fs, insA, diffInsA ++ [(index, ListElemDelete 1)], remaining]]
+
+      onInsert [fs, insA, diffInsA, insB] {newOutput, index} =
+        let newA  = reverse newOutput in
+        Ok [[fs, insA ++ [newA], diffInsA ++ [(index, ListElemInsert 1)], insB]]
 
       onFinish [newFs, newIns, diffInsA, _] =
        --after we finish, we need to return the new function
@@ -1538,7 +1603,7 @@ Dict = { dictLike |
 }
 
 -- List of pair implementation
-listDict = {
+listDict = { dictLike |
   empty = []
   fromList = identity
   get key = Update.lens {
@@ -1902,6 +1967,7 @@ List =
     simpleMap = simpleMap
     map = map
     mapWithDefault = mapWithDefault
+    mapWithReverse = mapWithReverse
     map2 = map2 -- TOOD: Make it a lens that supports insertion?
     nil = nil
     cons = cons
@@ -1924,7 +1990,6 @@ List =
     filterMap = filterMap
     filter = filter
     findByAReturnB = findByAReturnB
-    find = find
     sum = sum
     range = range
     zipWithIndex = zipWithIndex
@@ -1941,6 +2006,14 @@ List =
     insertAt = insertAt
     removeAt = removeAt
     last = LensLess.List.last
+
+    all pred list = case list of
+      [] -> True
+      hd :: tl -> if pred hd then all pred tl else False
+
+    any pred list = case list of
+      [] -> False
+      hd :: tl -> if pred hd then True else any pred tl
   }
 
 

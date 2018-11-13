@@ -153,3 +153,17 @@ Here is how you can use it.
     // Displays '<span>Hello world</span>'
     console.log(outHTML._0);
 
+## Package Sketch-n-sketch for npm (node.js):
+
+After building Sketch-n-sketch, go to `build/out` and run
+
+    npm version patch
+    npm publish
+
+You might need to register a user to do the last command.
+After publishing, make sure you update the dependency to SNS in your project via
+
+    npm update sketch-n-sketch
+
+
+

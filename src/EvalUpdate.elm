@@ -38,7 +38,7 @@ builtinEnv =
         _ -> Err <| valToString arg
     ) Nothing)
   , ("parseHTML", HTMLValParser.htmlValParser)
-   -- TODO: This && evaluates both sides, can we have something that does less?
+   -- TODO: This && evaluates both sides, can we have something that tries only the first one?
   , ("&&", builtinVal "EvalUpdate.&&" <| VFun "&&" ["left", "right"] (twoArgs "&&" <| \left right ->
          case left.v_ of
            VBase (VBool True) -> Ok (right, [])
