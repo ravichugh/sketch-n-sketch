@@ -86,25 +86,24 @@ handleposts root kind =
     |> (case of Ok x -> x; Err msg -> <error>Error: @msg</error>)
     |> (,) """../@kind/@finalname"""
     )
-  
-blogposts     = handleposts ".." "blog"
-tutorialposts = handleposts ".." "tutorial"
 
 expandSkeleton root file outtarget =
   (outtarget, load root file)
 
-main = blogposts ++ tutorialposts ++
+toWriteVal = (handleposts ".." "blog") {- ++ (handleposts ".." "tutorial") ++
 [ expandSkeleton "."   "src/index.src.html"                             "../index.html"
 , expandSkeleton ".."  "src/releases/index.src.html"                    "../releases/index.html"
 , expandSkeleton ".."  "src/blog/index.src.html"                        "../blog/index.html"
 , expandSkeleton ".."  "src/tutorial/index.src.html"                    "../tutorial/index.html"
 , expandSkeleton "../.." "src/tutorial/icfp-2018/index.src.html" "../tutorial/icfp-2018/index.html"]
+-}
 
-main |> List.map (\(name, content) ->
-  if name == "../tutorial/04.html" then """@name: @content""" else
+_ = toWriteVal |> List.map (\(name, content) -> 
   let aux node = case node of
     ["error", [], [["TEXT", msg]]] -> """
 @name: @msg"""
     [tag, attrs, children] -> List.map aux children |> String.join ""
     _ -> ""
-  in aux content) |> String.join ""
+  in aux content) |> String.join "" |> (\x -> if x /= "" then Debug.log "Warning:@x" () else ())
+
+toWriteRaw = toWriteVal |> List.map (\(name, content) -> (name, valToHTMLSource content))
