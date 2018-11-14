@@ -3430,18 +3430,33 @@ parens = delimit \"(\" \")\"
 -- Regex --
 
 Regex =
-  let split regex s =
-    case extractFirstIn (\"^([\\\\s\\\\S]*?)(\" + regex + \")([\\\\s\\\\S]*)$\") s of
-      Just [before, removed, after] ->
-        if before == \"\" && removed == \"\" then
-          case extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" after of
-            Nothing -> [after]
-            Just [x, remaining] ->
-              let head::tail = split regex remaining in
-              (x + head) :: tail
+  let split regex = Update.lens {
+    apply s =
+      case extractFirstIn (\"^([\\\\s\\\\S]*?)(\" + regex + \")([\\\\s\\\\S]*)$\") s of
+        Just [before, removed, after] ->
+          if before == \"\" && removed == \"\" then
+            case extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" after of
+              Nothing -> [after]
+              Just [x, remaining] ->
+                let head::tail = split regex remaining in
+                (x + head) :: tail
 
-        else before :: split regex after
-      _ -> [s]
+          else before :: split regex after
+        _ -> [s]
+    update {input=s, outputNew} =
+      case extractFirstIn (\"^([\\\\s\\\\S]*?)(\" + regex + \")([\\\\s\\\\S]*)$\") s of
+        Just [before, removed, after] ->
+          Ok (Inputs [outputNew |> LensLess.String.join removed])
+        _ -> case outputNew of
+          [x] -> Ok (Inputs [x])
+          _ -> Err \"Regex.split resulted in 1 element or less, cannot update with more elements. Use Regex.splitReverse if you know the join string\"
+    }
+  in
+  let splitReverse joinStr regex = Update.lens {
+    apply s = split regex s
+    update {input=s, outputNew} =
+      Ok (Inputs [outputNew |> LensLess.String.join joinStr])
+    }
   in
   let find regex s =
     case extractFirstIn (\"(\" + regex + \")([\\\\s\\\\S]*)\") s of
@@ -3459,6 +3474,7 @@ Regex =
     Nothing -> False
     _ -> True
   split = split
+  splitReverse = splitReverse
   find = find
   escape = replace \"\"\"\\||\\\\|\\{|\\}|\\[|\\]|\\$|\\.|\\?|\\+|\\(|\\)\"\"\" (\\m -> \"\\\\\" + m.match)
 }
@@ -4584,8 +4600,9 @@ Html =
     }
   in
   let  -- Takes a list of nodes, returns a list of nodes.
-    replaceNodes regex replacement nodes =
+    replaceNodesIf nodePred regex replacement nodes =
       List.concatMap_ identity (\\[node] as node1List ->
+        if not (nodePred node) then node1List else
         case node of
           [\"TEXT\", text] ->
             findInterleavings 0 regex text
@@ -4594,10 +4611,13 @@ Html =
                 Left str ->
                   insertionDeletionUpdatesTo node1List [\"TEXT\", str]
                 Right match -> replacement match
-            ) |> __mergeHtmlText__
+            ) |> __mergeHtmlText__ |> List.filter (/= [\"TEXT\", \"\"])
           [tag, attrs, children] ->
-            insertionDeletionUpdatesTo node1List [tag, attrs, replaceNodes regex replacement children]
+            insertionDeletionUpdatesTo node1List [tag, attrs, replaceNodesIf nodePred regex replacement children]
       ) nodes
+  in
+  let  -- Takes a list of nodes, returns a list of nodes.
+    replaceNodes  = replaceNodesIf (\\_ -> True)
   in
   {- Given
      * a regex
@@ -4605,9 +4625,11 @@ Html =
      * a node
      This functions returns a node, (excepted if the top-level node is a [\"TEXT\", _] and is splitted.
   -}
-  let replace regex replacement node = case replaceNodes regex replacement [node] of
+  let replaceIf nodePred regex replacement node = case replaceNodesIf nodePred regex replacement [node] of
     [x] -> x
     y -> y
+  in
+  let replace  = replaceIf (\\_ -> True)
   in
   let find regex node =
     let aux node = case node of
@@ -4632,7 +4654,7 @@ Html =
                   Left str -> (nodes ++ [[\"TEXT\", str]], acc)
                   Right match -> let (newNodes, newAcc) = matchAccToNewNodesNewAcc match acc in
                     (nodes ++ newNodes, newAcc)
-                ) ([], acc) |> Tuple.mapFirst __mergeHtmlText__
+                ) ([], acc) |> Tuple.mapFirst (__mergeHtmlText__ >> List.filter (/= [\"TEXT\", \"\"]))
              [tag, attrs, children] ->
                let (newChildren, newAcc) =
                  List.foldl (\\child (buildingChildren, acc) ->
@@ -4722,6 +4744,9 @@ Html =
     observeCopyValueToAttribute = observeCopyValueToAttribute
     onChangeAttribute = onChangeAttribute
     replace = replace
+    replaceIf = replaceIf
+    replaceNodes = replaceNodes
+    replaceNodesIf = replaceNodesIf
     find = find
     foldAndReplace = foldAndReplace
     filter = filter
@@ -4782,7 +4807,7 @@ nodejs = {
       __jsEval__ \"\"\"
         (function() {
           const fs = require(\"fs\");
-          if(fs.existsSync(\"@name\"))
+          if(fs.existsSync(@(jsCode.stringOf name)))
             return @(jsCode.datatypeOf \"x\" \"Just\" [\"\"\"fs.readFileSync(@(jsCode.stringOf name), \"utf-8\")\"\"\"]);
           else
             return @(jsCode.datatypeOf \"x\" \"Nothing\" []);
@@ -4811,6 +4836,26 @@ nodejs = {
          Ok (InputsWithDiffs [(name, Nothing)])
       {input=name} -> Ok (InputsWithDiffs [(name, Nothing)])
   }
+
+  listdir: String -> List String
+  listdir foldername = __jsEval__ \"\"\"
+          (function() {
+            const fs = require(\"fs\");
+            const path = require('path');
+            var filesfolders =
+              fs.readdirSync(@(jsCode.stringOf foldername));
+            return filesfolders.filter(filename => {
+               var filename = @(jsCode.stringOf foldername) + \"/\" + filename;
+               var stat = fs.lstatSync(filename);
+               return !stat.isDirectory() }
+            )
+          })()
+        \"\"\"
+
+  listdircontent foldername = listdir foldername |>
+    List.map (\\name ->
+      let fullname = \"\"\"@foldername/@name\"\"\" in
+      (name, fileread fullname |> Maybe.withDefault (freeze \"\"\"Unknown file @fullname\"\"\")))
 }
 
 -- Because we base decisions on random numbers,
