@@ -2,8 +2,8 @@ initEnv = __CurrentEnv__
 
 markdown node =
     let
-        regexFootnotes = """\r?\n\[^([^\]]+)\]:\s*((?:(?!\r?\n\r?\n)[\s\S])+)"""
-        regexReferences = """\r?\n\[(?!^)([^\]]+)\]:\s*(\S+)"""
+        regexFootnotes = """\r?\n\[\^([^\]]+)\]:\s*((?:(?!\r?\n\r?\n)[\s\S])+)"""
+        regexReferences = """\r?\n\[(?!\^)([^\]]+)\]:\s*(\S+)"""
         footnotes = Html.find regexFootnotes node
                      |> List.map (\m -> (nth m.group 1, nth m.group 2))
                      |> List.indexedMap (\i (name, value) -> (name, (i + 1, value)))
@@ -12,9 +12,10 @@ markdown node =
         notCode = case of ["code", _, _] -> False; _ -> True
         notTitle = case of [tag, _, _] -> not (Regex.matchIn """h\d""" tag); _ -> True
         notList = case of [tag, _, _] -> tag /= "ul" && tag /= "ol"; _ -> True
+        notPara = case of ["p", _, _] -> False; _ -> True
         r: String -> (Match -> List HtmlNode) -> HtmlNode -> HtmlNode
         r = Html.replaceIf notCode
-        r2 = Html.replaceIf (\x -> notCode x && notTitle x && notList x)
+        r2 = Html.replaceIf (\x -> notCode x && notTitle x && notList x && notPara x)
         lregex = """(?:\r?\n|^)((?:(?![\r\n])\s)*)(\*|-|\d+\.)(\s+)((?:.*)(?:\r?\n\1  ?\3(?:.*))*(?:\r?\n\1(?:\*|-|\d+\.)\3(?:.*)(?:\r?\n\1 \3(?:.*))*)*)"""
         handleLists node  =
           r lregex (
@@ -35,11 +36,10 @@ markdown node =
           [tag, attrs, children ++ Update.sizeFreeze [
             <div class="footnotes"><hr><ol>@(footnotes |>
               List.map (\(name, (n, value)) -> 
-                <li id="""fn@n"""><p>@value<a href="#fnref@n">↩</a></p></li>
+                <li id="""fn@n"""><p>@value<a href="""#fnref@n""">↩</a></p></li>
               ))</ol></div>]
           ])
-    |> r """&mdash;""" (\_ -> [["TEXT", "—"]])
-    |> r "(```)([\\s\\S]*?)\\1(?!`)" (\m -> [<pre><code>@(nth m.group 2)</code></pre>])
+    |> r "(```)([\\s\\S]*?)\\1(?!`)" (\m -> [<pre><code>@(nth m.group 2 |> String.trim)</code></pre>])
     |> r """(^|\r?\n)(#+)\s*([^\r\n]*)""" (\m -> [<@("""h@(String.length (nth m.group 2))""")>@(nth m.group 3)</@>])
     |> handleLists
     |> r2 "(\r?\n\r?\n(?:\\\\noindent\r?\n)?|^)((?=\\s*\\w|\\S)[\\s\\S]*?)(?=\r?\n\r?\n|\r?\n$|$)" (\m -> [<p>@(nth m.group 2)</p>])
@@ -50,16 +50,21 @@ markdown node =
               Just link -> <a href=link>@(nth m.group 1)</a>
               Nothing -> ["TEXT", m.match]
         ])
-    |> r """\[^([^\]]+)\]""" (\m -> 
+    |> r """\[\^([^\]]+)\]""" (\m -> 
       listDict.get (nth m.group 1) footnotes |> case of
         Just (n, key) -> [ <a href="""#fn@n""" class="footnoteRef" id="""fnref@n"""><sup>@n</sup></a>]
         Nothing -> [["TEXT", m.match]])
     |> r "(`)(?=[^\\s`])(.*?)\\1" (\m -> [<code>@(nth m.group 2)</code>])
-    |> r """(\*{1,3}|_{1,3})(?=[^\s\*_])(.*?)\1""" (\m -> [
+    |> r """(\*{1,3}|_{1,3})(?=[^\s\*_])((?:(?!\\\*|\_).)*?)\1""" (\m -> [
       case nth m.group 1 |> String.length of
         1 -> <em>@(nth m.group 2)</em>
         2 -> <strong>@(nth m.group 2)</strong>
         _ -> <em><strong>@(nth m.group 2)</strong></em>])
+    |> r """&mdash;|\\\*|\\_""" (\m -> [["TEXT", case m.match of
+      "&mdash;" -> "—"
+      "\\*" -> String.drop 1 m.match
+      "\\_" -> String.drop 1 m.match
+      ]])
     )
 
 load root path = 
@@ -94,7 +99,7 @@ handleposts root kind =
 expandSkeleton root file outtarget =
   (outtarget, load root file)
 
-toWriteVal = (handleposts ".." "blog") {- ++ (handleposts ".." "tutorial") ++
+toWriteVal = {- (handleposts ".." "blog") ++ -} (handleposts ".." "tutorial") {- ++
 [ expandSkeleton "."   "src/index.src.html"                             "../index.html"
 , expandSkeleton ".."  "src/releases/index.src.html"                    "../releases/index.html"
 , expandSkeleton ".."  "src/blog/index.src.html"                        "../blog/index.html"
