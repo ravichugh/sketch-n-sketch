@@ -1,6 +1,6 @@
 # Initial Case Studies
 
-*July 17, 2015* <br><br>
+*July 17, 2015*
 
 Our long-term goal is to tightly
 integrate programmatic and direction manipulation in two primary
@@ -31,7 +31,7 @@ effectively program and manipulate several designs that would be difficult
 using existing direct manipulation tools, such as Illustrator and PowerPoint.
 The rest of this article will describe several case studies to
 back up this claim. You may want to
-<a href="../releases/v0.0/" target="_blank">open Sketch-N-Sketch in a new tab</a>
+[open Sketch-N-Sketch in a new tab]^(../releases/v0.0/)
 and try out the [examples][Examples] along with the discussion.
 If you find yourself in a bind (syntactically), the `little`
 [Syntax Guide][SyntaxGuide] and standard [`Prelude`][Prelude] may help.

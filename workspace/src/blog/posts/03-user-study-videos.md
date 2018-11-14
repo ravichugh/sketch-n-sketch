@@ -1,6 +1,6 @@
 # User Study Videos
 
-*November 23, 2015* <br><br>
+*November 23, 2015*
 
 
 We recently ran a user study with 25 participants, who were asked to watch
@@ -8,12 +8,12 @@ the following videos and answer survey questions based on their observations.
 These videos (also available as a [YouTube playlist][YouTube])
 can be viewed as a general introduction to Sketch-n-Sketch.
 
-* [00] <a href="#00">Combining Programmatic and Direct Manipulation</a> (02:54)
-* [01] <a href="#01">Intro to Sketch-n-Sketch</a> (09:10)
-* [02] <a href="#02">Basic Examples Using Variables</a> (02:21)
-* [03] <a href="#03">Heuristics for Resolving Ambiguities</a> (06:34)
-* [04] <a href="#04">Sliders</a> (03:25)
-* [05] <a href="#05">Side-by-Side Comparisons</a> (22:02)
+* [00] [Combining Programmatic and Direct Manipulation](#00) (02:54)
+* [01] [Intro to Sketch-n-Sketch](#01) (09:10)
+* [02] [Basic Examples Using Variables](#02) (02:21)
+* [03] [Heuristics for Resolving Ambiguities](#03) (06:34)
+* [04] [Sliders](#04) (03:25)
+* [05] [Side-by-Side Comparisons](#05) (22:02)
 
 The primary purpose of the study was to evaluate the question:
 "Are direct manipulation heuristics [in Sketch-n-Sketch] better or

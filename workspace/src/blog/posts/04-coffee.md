@@ -1,9 +1,9 @@
 # Researchers in Offices Drawing Coffee
 
-*April 13, 2016* <br><br>
+*April 13, 2016*
 
 
-In the first milestone for Sketch-n-Sketch (<a href="../releases/v0.4.2/">v0.4.2</a>),
+In the first milestone for Sketch-n-Sketch ([v0.4.2](../releases/v0.4.2/)),
 you start by writing a program complete with all intended
 relationships encoded explicitly (via shared constants).
 Then you can directly manipulate shapes in the canvas
@@ -17,7 +17,7 @@ There are now tools for
 **Grouping** shapes.
 We will write about the new features in detail in the coming months.
 In the meantime, here are some videos to preview what's new
-in <a href="../releases/v0.5/">v0.5</a>
+in [v0.5](../releases/v0.5/)
 (also available as a [YouTube playlist][YouTube]).
 
 NOTE: Only the first and third videos below are narrated.

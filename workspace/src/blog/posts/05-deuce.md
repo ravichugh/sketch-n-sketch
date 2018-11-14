@@ -1,6 +1,6 @@
 # Deuce: Lightweight Structured Editing in Sketch-n-Sketch
 
-*April 17, 2017* <br><br>
+*April 17, 2017*
 
 Representing programs in plain text is extremely useful, but there are
 often tedious, error-prone editing tasks that detract from the more
@@ -22,7 +22,7 @@ text-editing workflow.
 
 Earlier versions of Sketch-n-Sketch introduced features for
 directly manipulating the output of a program.
-This release (<a href="../releases/v0.6.0/">v0.6.0</a>) presents Deuce,
+This release ([v0.6.0](../releases/v0.6.0/)) presents Deuce,
 a lightweight structured editor for directly manipulating the program text,
 with automated transformations that perform a variety of programming tasks
 that are tedious and error-prone with text-edits alone.

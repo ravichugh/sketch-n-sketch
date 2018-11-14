@@ -10,16 +10,19 @@ markdown node =
         references = Html.find regexReferences node
                      |> List.map (\m -> (nth m.group 1, nth m.group 2))
         notCode = case of ["code", _, _] -> False; _ -> True
+        notTitle = case of [tag, _, _] -> not (Regex.matchIn """h\d""" tag); _ -> True
+        notList = case of [tag, _, _] -> tag /= "ul" && tag /= "ol"; _ -> True
         r: String -> (Match -> List HtmlNode) -> HtmlNode -> HtmlNode
         r = Html.replaceIf notCode
-        lregex = """(?:\r?\n|^)((?:(?![\r\n])\s)*)(\*|-|\d\.)(\s+)((?:.*)(?:\r?\n\1  ?\3(?:.*))*(?:\r?\n\1(?:\*|-|\d\.)\3(?:.*)(?:\r?\n\1 \3(?:.*))*)*)"""
+        r2 = Html.replaceIf (\x -> notCode x && notTitle x && notList x)
+        lregex = """(?:\r?\n|^)((?:(?![\r\n])\s)*)(\*|-|\d+\.)(\s+)((?:.*)(?:\r?\n\1  ?\3(?:.*))*(?:\r?\n\1(?:\*|-|\d+\.)\3(?:.*)(?:\r?\n\1 \3(?:.*))*)*)"""
         handleLists node  =
           r lregex (
             \m -> let indent = nth m.group 1
                       afterindent = nth m.group 3
                       ul_ol = case nth m.group 2 of "*" -> "ul"; "-" -> "ul"; _ -> "ol"
                       elements = 
-                        Regex.split """\r?\n@indent(?:\*|-|\d\.)@afterindent""" (nth m.group 4)
+                        Regex.split """\r?\n@indent(?:\*|-|\d+\.)@afterindent""" (nth m.group 4)
                   in
                   [<@ul_ol>@(List.map (\elem -> handleLists <li>@elem</li>) elements)</@>]) node
     in (
@@ -35,13 +38,15 @@ markdown node =
                 <li id="""fn@n"""><p>@value<a href="#fnref@n">↩</a></p></li>
               ))</ol></div>]
           ])
-    |> r "(\r?\n\r?\n(?:\\\\noindent\r?\n)?|^)((?=\\s*\\w)[\\s\\S]*?)(?=\r?\n\r?\n|$)" (\m -> [<p>@(nth m.group 2)</p>])
+    |> r """&mdash;""" (\_ -> [["TEXT", "—"]])
     |> r "(```)([\\s\\S]*?)\\1(?!`)" (\m -> [<pre><code>@(nth m.group 2)</code></pre>])
+    |> r """(^|\r?\n)(#+)\s*([^\r\n]*)""" (\m -> [<@("""h@(String.length (nth m.group 2))""")>@(nth m.group 3)</@>])
     |> handleLists
-    |> r """\[([^\]]+)\](\(|\[)([^\)\]]+)(\)|\])""" (\m -> [
-      case nth m.group 2 of
-        "(" -> <a href=(nth m.group 3)>@(nth m.group 1)</a>
-        _ -> listDict.get (nth m.group 3) references |> case of
+    |> r2 "(\r?\n\r?\n(?:\\\\noindent\r?\n)?|^)((?=\\s*\\w|\\S)[\\s\\S]*?)(?=\r?\n\r?\n|\r?\n$|$)" (\m -> [<p>@(nth m.group 2)</p>])
+    |> r """\[([^\]]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])""" (\m -> [
+      case nth m.group 3 of
+        "(" -> <a href=(nth m.group 4) @(if nth m.group 2 == "^" then [["target", "_blank"]] else [])>@(nth m.group 1)</a>
+        _ -> listDict.get (nth m.group 4) references |> case of
               Just link -> <a href=link>@(nth m.group 1)</a>
               Nothing -> ["TEXT", m.match]
         ])
@@ -55,7 +60,6 @@ markdown node =
         1 -> <em>@(nth m.group 2)</em>
         2 -> <strong>@(nth m.group 2)</strong>
         _ -> <em><strong>@(nth m.group 2)</strong></em>])
-    |> r """(^|\n)(#+)\s*(.*)""" (\m -> [<@("""h@(String.length (nth m.group 2))""")>@(nth m.group 3)</@>])
     )
 
 load root path = 
