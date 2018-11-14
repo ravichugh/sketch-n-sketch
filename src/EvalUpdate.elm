@@ -617,6 +617,12 @@ builtinEnv =
                 _ -> Err <| "Expected VListDiffs and a List, got " ++ toString diffs ++ " and " ++ valToString newVal
             _ -> Err <| "__mbstylesplit__ takes a string or a List, got " ++ valToString newVal
     )
+  , ("valToHTMLSource", builtinVal "EvalUpdate.valToHTMLSource" <|
+       VFun "__mbstylesplit__" ["style_str"] (oneArg "__mbstylesplit__" <| \original ->
+          LangSvg.valToHTMLSource HTMLParser.HTML original
+          |> Result.map (\str -> replaceV_ original (VBase (VString str)))
+          |> Result.map (flip (,) [])
+       ) Nothing)
   ]
 
 oneArg: String -> (Val -> Result String a) -> (List Val -> Result String a)
