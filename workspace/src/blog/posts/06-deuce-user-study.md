@@ -27,7 +27,7 @@ path listed in Table 1.
 
 <center>
 
-<iframe width="560" height="315" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/N5QcbCKm1I0"
 ></iframe>
 

@@ -11,9 +11,7 @@ const fs = require("fs")
 const sns = require("sketch-n-sketch")
 
 var source = fs.readFileSync(__dirname + "/generate.elm", "utf8");
-console.log("source")
 var result = sns.evaluateEnv({v:1})(source)
-console.log("result", result)
 
 if(result.ctor == "Ok") {
   console.log(sns.valToNative(result._0)._0)

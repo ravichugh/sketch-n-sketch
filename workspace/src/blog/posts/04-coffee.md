@@ -26,7 +26,7 @@ NOTE: Only the first and third videos below are narrated.
 <!-- <h3 id="00">Overview of Drawing, Relating, and Grouping with Coffee</h3> -->
 <h3 id="00">Caffeine Overviewdose</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/M3P7z1o1ULY?list=PLWFCLxeg6NJldZ4yudyv6307kntzgzs40"
 ></iframe>
 </center>
@@ -36,7 +36,7 @@ NOTE: Only the first and third videos below are narrated.
 <center>
 <h3 id="01">Sketch-n-Sketch Logo</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/w0Ph7u8Nuzs?list=PLWFCLxeg6NJldZ4yudyv6307kntzgzs40"
 ></iframe>
 </center>
@@ -46,7 +46,7 @@ NOTE: Only the first and third videos below are narrated.
 <center>
 <h3 id="02">Sketch-n-Sketch Logo (Redux)</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/xJqtmqcp71c?list=PLWFCLxeg6NJldZ4yudyv6307kntzgzs40"
 ></iframe>
 </center>
@@ -56,7 +56,7 @@ NOTE: Only the first and third videos below are narrated.
 <center>
 <h3 id="03">Chicago Botanic Garden Logo</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/zQjuGPZMbs8?list=PLWFCLxeg6NJldZ4yudyv6307kntzgzs40"
 ></iframe>
 </center>
@@ -66,7 +66,7 @@ NOTE: Only the first and third videos below are narrated.
 <center>
 <h3 id="04">Snip Polygons</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/whquyXpsWhg?list=PLWFCLxeg6NJldZ4yudyv6307kntzgzs40"
 ></iframe>
 </center>

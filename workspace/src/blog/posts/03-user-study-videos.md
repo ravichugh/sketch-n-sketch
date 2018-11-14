@@ -38,7 +38,7 @@ Additional Videos
 <center>
 <h3 id="00">[00] Combining Programmatic and Direct Manipulation</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/rskUgwq5N2A"
 ></iframe>
 </center>
@@ -48,7 +48,7 @@ Additional Videos
 <center>
 <h3 id="01">[01] Intro to Sketch-n-Sketch</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/Yv9rOGHU-4k"
 ></iframe>
 </center>
@@ -58,7 +58,7 @@ Additional Videos
 <center>
 <h3 id="02">[02] Basic Examples Using Variables</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/DFNQLODSTj0"
 ></iframe>
 </center>
@@ -68,7 +68,7 @@ Additional Videos
 <center>
 <h3 id="03">[03] Heuristics for Resolving Ambiguities</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/R9qVM4YWp9Q"
 ></iframe>
 </center>
@@ -78,7 +78,7 @@ Additional Videos
 <center>
 <h3 id="04">[04] Sliders</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/MWoCUc-JEJ4"
 ></iframe>
 </center>
@@ -88,7 +88,7 @@ Additional Videos
 <center>
 <h3 id="05">[05] Side-by-Side Comparisons</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/dLTxzaS9OO4"
 ></iframe>
 </center>

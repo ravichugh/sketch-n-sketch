@@ -33,7 +33,7 @@ Here are some videos to demonstrate the new features
 
 <h3 id="01">Sketch-n-Sketch Logo</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/DD0HRYKjAhI?list=PLWFCLxeg6NJl-q-c9VjlEypI_DXGbk9LP"
 ></iframe>
 
@@ -41,7 +41,7 @@ Here are some videos to demonstrate the new features
 
 <h3 id="02">Target</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/oJaRkyelA-8?list=PLWFCLxeg6NJl-q-c9VjlEypI_DXGbk9LP"
 ></iframe>
 
@@ -49,7 +49,7 @@ Here are some videos to demonstrate the new features
 
 <h3 id="03">Battery Icon</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/aWZGN43wkME?list=PLWFCLxeg6NJl-q-c9VjlEypI_DXGbk9LP"
 ></iframe>
 
@@ -57,7 +57,7 @@ Here are some videos to demonstrate the new features
 
 <h3 id="04">Coffee Mug</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://www.youtube.com/embed/2ndEUIeCyqI?list=PLWFCLxeg6NJl-q-c9VjlEypI_DXGbk9LP"
 ></iframe>
 
@@ -65,7 +65,7 @@ Here are some videos to demonstrate the new features
 
 <h3 id="05">Mondrian Arch</h3>
 
-<iframe width="560" height="315" frameborder="0" allowfullscreen
+<iframe width="560" height="315" frameborder="0" allowfullscreen="allowfullscreen"
   src="https://youtube.com/embed/jsOvJqWpi3o?list=PLWFCLxeg6NJl-q-c9VjlEypI_DXGbk9LP"
 ></iframe>
 
