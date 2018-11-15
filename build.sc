@@ -22,6 +22,12 @@ object SNS extends Module {
   val outDir = pwd / "build" /"out"
   val outSNS = outDir / "sns.js"
 
+  def publishNpm = T.input{ // Not working for now.
+    html()
+    %("npm", "version", "patch")(pwd / "build" / "out")
+    %("npm", "publish")(pwd / "build" / "out")
+  }
+
   def publish = T.input{
     html()
     val publishFile = pwd / "publish_local.txt"
