@@ -2740,10 +2740,51 @@ Html =
      This functions returns a node, (excepted if the top-level node is a ["TEXT", _] and is splitted.
   -}
   let replaceIf nodePred regex replacement node = case replaceNodesIf nodePred regex replacement [node] of
-    [x] -> x
-    y -> y
+       [x] -> x
+       y -> y
   in
   let replace  = replaceIf (\_ -> True)
+  in
+  let replaceNodesAsTextIf nodePred regex replacement nodes =
+      let children = nodes |> List.filter (case of [_, _, _] -> True; _ -> False) in
+      let nodesAsText = nodes |> List.foldl (\n (acc, i) -> case n of
+        ["TEXT", t] -> (acc + t, i)
+        _ -> (acc ++ """<|#@i#|>""", i + 1)) ("", 0) |> Tuple.first
+      in
+      -- Takes a list of nodes, and replaces each <|(number)|> by the matching node in the top-level text nodes.
+      -- Calls replaceNodesAsTextIf on the result.
+      let reinsertNodes nodes = replaceNodesIf (\_ -> True) """<\|#(\d+)#\|>""" (\m ->
+         let oldNode = nth children (String.toInt (nth m.group 1)) in
+         case oldNode of
+           [tag, attrs, children] ->
+             if nodePred oldNode then
+               [[tag, attrs, replaceNodesAsTextIf nodePred regex replacement children]]
+             else [oldNode]
+           _ -> [oldNode]
+        ) nodes in
+      let reinsertNodesInText text = reinsertNodes [["TEXT", text]] in
+      -- Takes a string and replaces  each <|(number)|> by the matching node in the top-level text nodes.
+      let reinsertNodesInText text = reinsertNodes [["TEXT", text]] in
+      -- Takes a string and replace each <|(number)|> by the node in raw format (i.e. printed as HTML)
+      let reinsertNodesRaw nodes = replaceNodesIf (\_ -> True) """<\|#(\d+)#\|>""" (\m ->
+        let oldNode = nth children (String.toInt (nth m.group 1)) in
+        [["TEXT", valToHTMLSource oldNode]]
+      ) nodes in
+      let reinsertNodesRawInText text = reinsertNodesRaw [["TEXT", text]] in
+      findInterleavings 0 regex nodesAsText |>
+      List.concatMap (\head ->
+        case head of
+          Left str -> reinsertNodesInText str
+          Right m ->  reinsertNodes (replacement { m | reinsertNodesRawInText = reinsertNodesRawInText})
+      ) |> __mergeHtmlText__ |> List.filter (/= ["TEXT", ""])
+  in
+  let replaceNodesAsText regex replacement nodes = replaceNodesAsTextIf (\_ -> True) regex replacement nodes
+  in
+  let replaceAsTextIf nodePred regex replacement node = case replaceNodesAsTextIf nodePred regex replacement [node] of
+        [x] -> x
+        y -> y
+  in
+  let replaceAsText = replaceAsTextIf (\_ -> True)
   in
   let find regex node =
     let aux node = case node of
@@ -2861,6 +2902,10 @@ Html =
     replaceIf = replaceIf
     replaceNodes = replaceNodes
     replaceNodesIf = replaceNodesIf
+    replaceAsTextIf = replaceAsTextIf
+    replaceAsText = replaceAsText
+    replaceNodesAsTextIf = replaceNodesAsTextIf
+    replaceNodesAsText = replaceNodesAsText
     find = find
     foldAndReplace = foldAndReplace
     filter = filter
