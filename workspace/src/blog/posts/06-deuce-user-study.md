@@ -1,6 +1,6 @@
 # Deuce User Study
 
-*January 31, 2018*
+*January 31, 2018* <br><br>
 
 Last summer we ran a user study to evaluate Deuce, as implemented in
 [Sketch-n-Sketch v0.6.2][v062]. Check out our [ICSE 2018 paper][ICSEpaper]
@@ -27,7 +27,7 @@ path listed in Table 1.
 
 <center>
 
-<iframe width="560" height="315" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen="allowfullscreen"
+<iframe width="560" height="315" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen
   src="https://www.youtube.com/embed/N5QcbCKm1I0"
 ></iframe>
 

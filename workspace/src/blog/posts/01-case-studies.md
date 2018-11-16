@@ -1,6 +1,6 @@
 # Initial Case Studies
 
-*July 17, 2015*
+*July 17, 2015* <br><br>
 
 Our long-term goal is to tightly
 integrate programmatic and direction manipulation in two primary
@@ -98,7 +98,7 @@ to pan within or scale a canvas, one can use `'viewBox'` in order
 to render the output in "full screen" mode.
 
 The second interesting aspect is the square, which is rotated using
-the SVG \expStr{matrix} command within the \expStr{transform} attribute.
+the SVG `matrix` command within the `transform` attribute.
 Again, even though we currently provide no special support for these
 features, the zone we display for the square (though not rotated to
 match) can still be used to directly manipulate it.

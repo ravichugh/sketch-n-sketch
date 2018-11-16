@@ -40,7 +40,6 @@
           We have also sprinkled in a set of exercises in each lesson that we hope
           will offer instructive and fun opportunities to get your hands dirty.
         </p>
-@("" {-
 <!--
         <p>
           To help us understand what aspects of Sketch-n-Sketch and this
@@ -59,15 +58,12 @@
       <div class="post1">
         <h3>Articles</h3>
 -->
--})
         <h4>Articles</h4>
-@("" {-
 <!--
         <ul class="nobullets">
           <li>Step 0: <a href="entrance.html">Entrance Survey</a></li>
         </ul>
 -->
--})
         <ul class="nobullets">
           @(nodejs.listdircontent "src/tutorial/posts"
            |> List.filter (\(filename, _) ->
@@ -77,20 +73,17 @@
                   |> Maybe.map (\[name] -> name + ".html")
                   |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
              in
-             let title = Regex.extract """# ([^\r\n]+)""" filecontent
-                  |> Maybe.map (\[title] -> title)
-                  |> Maybe.withDefaultLazy (\() -> """[Missing title in @filename]""")
+             let [step, title] = Regex.extract """#\s*(Step \d+:\s*)?([^\r\n]+)""" filecontent
+                  |> Maybe.withDefaultLazy (\() -> ["", """[Missing # title in @filename]"""])
              in
-             <li>Step @(i + 1): <a href="@finalname">@title</a></li>
+             <li>@step<a href="""@finalname""">@title</a></li>
            ))
         </ul>
-@("" {-
 <!--
         <ul class="nobullets">
           <li>Step 6: <a href="exit.html">Exit Survey</a></li>
         </ul>
 -->
--})
       </div>
       </div>
 
@@ -117,9 +110,9 @@
 
       <br class="clearfix" />
 
-    </div> @([] {- <!-- end id="page" --> -})
+    </div> <!-- end id="page" -->
 
-  </div> @([] {- <!-- end id="wrapper" --> -})
+  </div> <!-- end id="wrapper" -->
 
   @(load "src/footer.src.html")
   @(load "src/ga-tracker.src.html")

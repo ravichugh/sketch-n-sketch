@@ -1,6 +1,6 @@
 # User Study &mdash; Call for Participants
 
-*September 3, 2015*
+*September 3, 2015* <br><br>
 
 We have had a lot of fun dreaming up and building Sketch-n-Sketch. Although we
 plan to make many improvements (including bug fixes and improved error messages,

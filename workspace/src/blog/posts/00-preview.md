@@ -6,7 +6,7 @@ Here's a brief video that shows what it's like
 to work in Sketch-N-Sketch.
 <!--Note that this screencast contains no voice-over narration.-->
 
-[Update 07.29.15]: Voiceover added.
+\[Update 07.29.15\]: Voiceover added.
 
 <br>
 

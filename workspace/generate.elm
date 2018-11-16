@@ -3,7 +3,7 @@ initEnv = __CurrentEnv__
 markdown node =
     let
         regexFootnotes = """\r?\n\[\^([^\]]+)\]:\s*((?:(?!\r?\n\r?\n)[\s\S])+)"""
-        regexReferences = """\r?\n\[(?!\^)([^\]]+)\]:\s*(\S+)"""
+        regexReferences = """\r?\n\[(?!\^)([^\]\\]+)\]:\s*(\S+)"""
         footnotes = Html.find regexFootnotes node
                      |> List.map (\m -> (nth m.group 1, nth m.group 2))
                      |> List.indexedMap (\i (name, value) -> (name, (i + 1, value)))
@@ -14,8 +14,8 @@ markdown node =
         notList = case of [tag, _, _] -> tag /= "ul" && tag /= "ol"; _ -> True
         notPara = case of ["p", _, _] -> False; _ -> True
         r: String -> (Match -> List HtmlNode) -> HtmlNode -> HtmlNode
-        r = Html.replaceIf notCode
-        r2 = Html.replaceIf (\x -> notCode x && notTitle x && notList x && notPara x)
+        r  = Html.replaceAsTextIf notCode
+        r2 = Html.replaceAsTextIf (\x -> notCode x && notTitle x && notList x && notPara x)
         lregex = """(?:\r?\n|^)((?:(?![\r\n])\s)*)(\*|-|\d+\.)(\s+)((?:.*)(?:\r?\n\1  ?\3(?:.*))*(?:\r?\n\1(?:\*|-|\d+\.)\3(?:.*)(?:\r?\n\1 \3(?:.*))*)*)"""
         handleLists node  =
           r lregex (
@@ -39,18 +39,20 @@ markdown node =
                 <li id="""fn@n"""><p>@value<a href="""#fnref@n""">↩</a></p></li>
               ))</ol></div>]
           ])
-    |> r "(```)([\\s\\S]*?)\\1(?!`)" (\m -> [<pre><code>@(nth m.group 2 |> String.trim)</code></pre>])
+    |> r "(```)([\\s\\S]*?)\\1(?!`)" (\m -> [<pre><code>@(nth m.group 2 |> String.trim |> m.reinsertNodesRawInText)</code></pre>])
     |> r """(^|\r?\n)(#+)\s*([^\r\n]*)""" (\m -> [<@("""h@(String.length (nth m.group 2))""")>@(nth m.group 3)</@>])
     |> handleLists
-    |> r2 "(\r?\n\r?\n(?:\\\\noindent\r?\n)?|^)((?=\\s*\\w|\\S)[\\s\\S]*?)(?=\r?\n\r?\n|\r?\n$|$)" (\m -> [<p>@(nth m.group 2)</p>])
-    |> r """\[([^\]]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])""" (\m -> [
+    |> r2 "(\r?\n\r?\n(?:\\\\noindent\r?\n)?|^)((?=\\s*\\w|\\S)[\\s\\S]*?)(?=(\r?\n\r?\n|\r?\n$|$))" (
+      \m -> if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
+         || Regex.matchIn """^\s*<\|#\d+#(?:h\d|ul|ol|p)#\|>\s*$""" (nth m.group 2) then [["TEXT", m.match]] else  [<p>@(nth m.group 2)</p>])
+    |> r """\[([^\]\\]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])""" (\m -> [ -- Direct and indirect References + syntax ^ to open in external page.
       case nth m.group 3 of
         "(" -> <a href=(nth m.group 4) @(if nth m.group 2 == "^" then [["target", "_blank"]] else [])>@(nth m.group 1)</a>
         _ -> listDict.get (nth m.group 4) references |> case of
               Just link -> <a href=link>@(nth m.group 1)</a>
               Nothing -> ["TEXT", m.match]
         ])
-    |> r """\[\^([^\]]+)\]""" (\m -> 
+    |> r """\[\^([^\]]+)\]""" (\m ->  -- Footnotes
       listDict.get (nth m.group 1) footnotes |> case of
         Just (n, key) -> [ <a href="""#fn@n""" class="footnoteRef" id="""fnref@n"""><sup>@n</sup></a>]
         Nothing -> [["TEXT", m.match]])
@@ -60,10 +62,12 @@ markdown node =
         1 -> <em>@(nth m.group 2)</em>
         2 -> <strong>@(nth m.group 2)</strong>
         _ -> <em><strong>@(nth m.group 2)</strong></em>])
-    |> r """&mdash;|\\\*|\\_""" (\m -> [["TEXT", case m.match of
+    |> r """&mdash;|\\\*|\\_|\\\[|\\\]""" (\m -> [["TEXT", case m.match of
       "&mdash;" -> "—"
       "\\*" -> String.drop 1 m.match
       "\\_" -> String.drop 1 m.match
+      "\\[" -> String.drop 1 m.match
+      "\\]" -> String.drop 1 m.match
       ]])
     )
 
@@ -71,7 +75,7 @@ load root path =
   let loadraw path = 
         nodejs.fileread path
         |> Maybe.map (\x ->
-           __evaluate__ ([("root", root), ("load", load root)] ++ initEnv) x
+           __evaluate__ ([("root", root), ("load", load root)] ++ initEnv) (Regex.replace """<!--[\s\S]*?-->""" (\m -> freeze "") x)
            |> case of Ok x -> x; Err msg -> <error>@msg</error>)
         |> Maybe.withDefaultLazy (\_ -> <error>file @path not found</error>)
   in
@@ -93,20 +97,20 @@ handleposts root kind =
     in
     __evaluate__ (("content", finalcontent)::("root", root)::("load", load root)::initEnv) posttemplate
     |> (case of Ok x -> x; Err msg -> <error>Error: @msg</error>)
-    |> (,) """../@kind/@finalname"""
+    |> (,) (Debug.log "writing" """../@kind/@finalname""")
     )
 
 expandSkeleton root file outtarget =
-  (outtarget, load root file)
+  (Debug.log "writing " outtarget, load root file)
 
-toWriteVal = {- (handleposts ".." "blog") ++ -} (handleposts ".." "tutorial") {- ++
-[ expandSkeleton "."   "src/index.src.html"                             "../index.html"
+toWriteVal = {-(handleposts ".." "blog") ++ -} (handleposts ".." "tutorial")  ++ [ {-
+  expandSkeleton "."   "src/index.src.html"                             "../index.html"
 , expandSkeleton ".."  "src/releases/index.src.html"                    "../releases/index.html"
 , expandSkeleton ".."  "src/blog/index.src.html"                        "../blog/index.html"
-, expandSkeleton ".."  "src/tutorial/index.src.html"                    "../tutorial/index.html"
-, expandSkeleton "../.." "src/tutorial/icfp-2018/index.src.html" "../tutorial/icfp-2018/index.html"]
--}
-
+,-} expandSkeleton ".."  "src/tutorial/index.src.html"                    "../tutorial/index.html" {-
+, expandSkeleton "../.." "src/tutorial/icfp-2018/index.src.html" "../tutorial/icfp-2018/index.html"
+--}
+]
 _ = toWriteVal |> List.map (\(name, content) -> 
   let aux node = case node of
     ["error", [], [["TEXT", msg]]] -> """
