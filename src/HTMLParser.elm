@@ -195,7 +195,7 @@ parseHtmlAttributeValue parsingMode =
           |= attributevalue nospace
          )
         , succeed identity
-          |. oneOf [lookAhead (symbol " "), lookAhead (symbol ">"), lookAhead (symbol "/")]
+          |. oneOf [lookAhead (symbol " "), lookAhead (symbol ">"), lookAhead (symbol "/"), lookAhead (symbol "\r"), lookAhead (symbol "\n")]
           |= succeed HTMLAttributeNoValue
       ]
 
