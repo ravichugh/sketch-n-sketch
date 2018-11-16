@@ -1,5 +1,49 @@
 initEnv = __CurrentEnv__
 
+Html = { Html |
+  {replaceNodesIf} = Html
+
+  replaceNodesAsTextIf nodePred regex replacement nodes =
+      let children = nodes |> List.filter (case of [_, _, _] -> True; _ -> False) in
+      let nodesAsText = nodes |> List.foldl (\n (acc, i) -> case n of
+        ["TEXT", t] -> (acc + t, i)
+        [tag, _, _] -> (acc ++ """<|#@i#@tag#|>""", i + 1)) ("", 0) |> Tuple.first
+      in
+      --let _ = Debug.log nodesAsText () in
+      -- Takes a list of nodes, and replaces each <|(number)|> by the matching node in the top-level text nodes.
+      -- Calls replaceNodesAsTextIf on the result.
+      let reinsertNodes nodes = replaceNodesIf (\_ -> True) """<\|#(\d+)#\w+#\|>""" (\m ->
+         let oldNode = nth children (String.toInt (nth m.group 1)) in
+         case oldNode of
+           [tag, attrs, children] ->
+             if nodePred oldNode then
+               [[tag, attrs, replaceNodesAsTextIf nodePred regex replacement children]]
+             else [oldNode]
+           _ -> [oldNode]
+        ) nodes in
+      let reinsertNodesInText text = reinsertNodes [["TEXT", text]] in
+      -- Takes a string and replaces  each <|(number)|> by the matching node in the top-level text nodes.
+      let reinsertNodesInText text = reinsertNodes [["TEXT", text]] in
+      -- Takes a string and replace each <|(number)|> by the node in raw format (i.e. printed as HTML)
+      let reinsertNodesRaw nodes = replaceNodesIf (\_ -> True) """<\|#(\d+)#\w+#\|>""" (\m ->
+        let oldNode = nth children (String.toInt (nth m.group 1)) in
+        [["TEXT", valToHTMLSource oldNode]]
+      ) nodes in
+      let reinsertNodesRawInText text = reinsertNodesRaw [["TEXT", text]] in
+      findInterleavings 0 regex nodesAsText |>
+      List.concatMap (\head ->
+        case head of
+          Left str -> reinsertNodesInText str
+          Right m ->  reinsertNodes (replacement { m | reinsertNodesRawInText = reinsertNodesRawInText})
+      ) |> __mergeHtmlText__ |> List.filter (/= ["TEXT", ""])
+
+  replaceNodesAsText regex replacement nodes = replaceNodesAsTextIf (\_ -> True) regex replacement nodes
+
+  replaceAsTextIf nodePred regex replacement node = case replaceNodesAsTextIf nodePred regex replacement [node] of
+        [x] -> x
+        y -> y
+}
+
 markdown node =
     let
         regexFootnotes = """\r?\n\[\^([^\]]+)\]:\s*((?:(?!\r?\n\r?\n)[\s\S])+)"""
@@ -39,12 +83,14 @@ markdown node =
                 <li id="""fn@n"""><p>@value<a href="""#fnref@n""">↩</a></p></li>
               ))</ol></div>]
           ])
-    |> r "(```)([\\s\\S]*?)\\1(?!`)" (\m -> [<pre><code>@(nth m.group 2 |> String.trim |> m.reinsertNodesRawInText)</code></pre>])
-    |> r """(^|\r?\n)(#+)\s*([^\r\n]*)""" (\m -> [<@("""h@(String.length (nth m.group 2))""")>@(nth m.group 3)</@>])
-    |> handleLists
-    |> r2 "(\r?\n\r?\n(?:\\\\noindent\r?\n)?|^)((?=\\s*\\w|\\S)[\\s\\S]*?)(?=(\r?\n\r?\n|\r?\n$|$))" (
-      \m -> if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
-         || Regex.matchIn """^\s*<\|#\d+#(?:h\d|ul|ol|p)#\|>\s*$""" (nth m.group 2) then [["TEXT", m.match]] else  [<p>@(nth m.group 2)</p>])
+    |> r """(```)([\s\S]*?)\1(?!`)""" (\m -> [<pre><code>@(nth m.group 2 |> String.trim |> m.reinsertNodesRawInText)</code></pre>])
+    |> r """(^|\r?\n)(#+)\s*([^\r\n]*)""" (\m -> [["TEXT", nth m.group 1], <@("""h@(String.length (nth m.group 2))""")>@(nth m.group 3)</@>])
+    |> handleLists --|> (\x -> let _ = Debug.log ("Paragraph phase") () in x)
+    |> r2 """(\r?\n *\r?\n(?:\\noindent\r?\n)?|^)((?=\s*\w|\S)[\s\S]*?)(?=(\r?\n *\r?\n|\r?\n$|$))""" (
+      \m -> 
+        --let _ = Debug.log m.match () in
+        if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
+         || Regex.matchIn """^\s*<\|#\d+#(?:h\d|ul|ol|p|pre)#\|>\s*$""" (nth m.group 2) then [["TEXT", m.match]] else  [<p>@(nth m.group 2)</p>]) --|> (\x -> let _ = Debug.log ("End of paragraph phase:" + valToHTMLSource x) () in x)
     |> r """\[([^\]\\]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])""" (\m -> [ -- Direct and indirect References + syntax ^ to open in external page.
       case nth m.group 3 of
         "(" -> <a href=(nth m.group 4) @(if nth m.group 2 == "^" then [["target", "_blank"]] else [])>@(nth m.group 1)</a>
@@ -85,13 +131,17 @@ handleposts root kind =
   let posttemplate = nodejs.fileread """src/@kind/post-template.src.html""" |> Maybe.withDefault """<error>src/@kind/post-template.src.html not found</error>"""
   in
   nodejs.listdircontent """src/@kind/posts"""
+  |> List.filter (\(filename, filecontent) -> filename == "05.md")
   |> List.map (\(filename, filecontent) ->
     let _ = Debug.log """@filename""" () in
     let finalname = Regex.extract """^(.*)\.md$""" filename
          |> Maybe.map (\[name] -> name + ".html")
          |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
     in
-    let contentwithoutcomments = Regex.replace """<!--[\s\S]*?-->""" (\m -> freeze "") filecontent in
+    let contentwithoutcomments = 
+         filecontent
+         |> Regex.replace """(```)([\s\S]*?)\1(?!`)""" (\m -> Regex.replace "<" "&lt;" m.match)
+         |> Regex.replace """<!--[\s\S]*?-->""" (\m -> freeze "") in
     let finalcontent = __evaluate__ (("root", root) :: initEnv) (Update.expressionFreeze """<span>@contentwithoutcomments</span>""") |>
       (case of Ok x -> markdown x; Err msg -> <error>@msg</error>)
     in

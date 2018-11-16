@@ -33,11 +33,16 @@
       <span><h1>Step 5: Additional SVG Functionality</h1><p><br> In the previous several lessons, we have discussed SVG features that have
 some "special" support from Sketch-n-Sketch. In this lesson, we will cover:
 <ul><li>How to use Little's "thin wrapper" around the full range of SVG
-  nodes and attributes.</li></ul></p><p>Let's head for the finish line!
-<h3>Thin Wrapper Syntax</h3></p><p>As mentioned in the first lesson, the output of a Little program is an SVG node
+  nodes and attributes.</li></ul></p><p>Let's head for the finish line!</p>
+
+<h3>Thin Wrapper Syntax</h3><p>As mentioned in the first lesson, the output of a Little program is an SVG node
 that has type <code>svg</code>. However, while SVG nodes are represented in text form as
 XML-style nodes and attributes delimited with <code>&lt;</code> and <code>></code>, SVG nodes in Little
-are represented by three-element lists of the following form:</p><p><pre><code>[ 'nodeName' attributeList childNodeList ]</code></pre></p><p>Furthermore, each attribute takes the form</p><p><pre><code>[ 'attrName' value ]</code></pre></p><p>where the <code>value</code> can be a string, number, or list depending on what <code>attrName</code>
+are represented by three-element lists of the following form:</p>
+
+<pre><code>[ 'nodeName' attributeList childNodeList ]</code></pre><p>Furthermore, each attribute takes the form</p>
+
+<pre><code>[ 'attrName' value ]</code></pre><p>where the <code>value</code> can be a string, number, or list depending on what <code>attrName</code>
 is. No matter what, however, a string <code>value</code> can be used, in which case it is
 copied directly into the output SVG format. For this reason, we
 describe our representation of SVG elements as a "thin wrapper" around the full
@@ -48,12 +53,16 @@ inside strings.) The <code>nodeName</code> value above can also be any string an
 provides access even to SVG elements that are not handled specially by the
 editor.</p><p>Having let the cat out of the bag, we can now think about how to reimplement the
 <code>rect</code> function ourselves. In raw SVG format, a rectangle is specified in the
-following fashion:</p><p><pre><code>&lt;rect x="xval" y="yval" width="widthval" height="heightval" fill="colorname">
-    &amp;lt;!-- Usually no children -->
-&lt;/rect></code></pre></p><p>Usually, a rectangle has no children, so we may leave the children list empty.
+following fashion:</p>
+
+<pre><code>&lt;rect x="xval" y="yval" width="widthval" height="heightval" fill="colorname">
+    &lt;!-- Usually no children -->
+&lt;/rect></code></pre><p>Usually, a rectangle has no children, so we may leave the children list empty.
 Furthermore, the attributes that are absolutely necessary are <code>x</code>, <code>y</code>, <code>width</code>,
 <code>height</code>, and <code>fill</code>. So, we should make those arguments to our function. Thus,
-we can specify the following Little function to make a rectangle:</p><p><pre><code>(def ourRect (\(x y w h fill)
+we can specify the following Little function to make a rectangle:</p>
+
+<pre><code>(def ourRect (\(x y w h fill)
   [ 'rect' 
     [ ['x' x]
       ['y' y]
@@ -62,12 +71,14 @@ we can specify the following Little function to make a rectangle:</p><p><pre><co
       ['fill' fill]
     ]
     []
-  ] ) )</code></pre></p><p>It can be hard to read and write code with these lists of lists everywhere, so
+  ] ) )</code></pre><p>It can be hard to read and write code with these lists of lists everywhere, so
 sometimes it helps to introduce temporary variables (and to choose whitespace
-to taste):</p><p><pre><code>(def ourRect (\(x y w h fill)
+to taste):</p>
+
+<pre><code>(def ourRect (\(x y w h fill)
   (let attrs [['x' x] ['y' y] ['width' w] ['height' h] ['fill' fill]]
   (let children []
-    ['rect' attrs children]))))</code></pre></p><p>That's pretty much all there is to the built-in <code>rect</code> function. All of the
+    ['rect' attrs children]))))</code></pre><p>That's pretty much all there is to the built-in <code>rect</code> function. All of the
 shape functions in Little are implemented in similar fashion. Take a peek at
 <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> to see how the functions <code>line</code>, <code>rect</code>, <code>circle</code>,
 <code>path</code>, and so on simply provide a nicer syntax than having to write down lists
@@ -80,8 +91,10 @@ For example, as mentioned on the
 rectangle with rounded corners.</p><p><strong>Exercise 5.1:</strong> Modify <code>ourRect</code> so that it allows you to specify the radius of
 the rounded corners.</p><p><strong>Hint:</strong> There's a nice helper function in <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> called <code>addAttr</code>
 that can be very helpful for creating complicated SVG nodes. Its definition
-is as follows:</p><p><pre><code>(def addAttr (\([shapeKind oldAttrs children] newAttr)
-  [shapeKind (snoc newAttr oldAttrs) children]))</code></pre></p><p>This allows attributes to be appended to existing SVG nodes with
+is as follows:</p>
+
+<pre><code>(def addAttr (\([shapeKind oldAttrs children] newAttr)
+  [shapeKind (snoc newAttr oldAttrs) children]))</code></pre><p>This allows attributes to be appended to existing SVG nodes with
 ease.<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a> It is easy to imagine a similar function that allows for
 the appending of children as well. Furthermore, as attributes and children are just
 lists with elements that are straightforward to pattern match on with <code>case</code>,
@@ -91,7 +104,9 @@ it is:</p>
 
 
 
-<p><pre><code>(defrec setFill_ (\(attrs fill)
+
+
+<pre><code>(defrec setFill_ (\(attrs fill)
   (case attrs
     ([]              [['fill' fill]])
     ([[a v] | rest]  (if (= a 'fill')
@@ -99,16 +114,15 @@ it is:</p>
                        [[a v] | (setFill_ rest fill)])))))
 
 (def setFill (\([nodeName attrs children] fill)
-  [nodeName (setFill_ attrs fill) children]))</code></pre>
- 
-Notice how we need to keep in mind that the attributes themselves are
+  [nodeName (setFill_ attrs fill) children]))</code></pre><p>Notice how we need to keep in mind that the attributes themselves are
 two-element lists inside of lists. This leads to more than a few nested
 brackets, but the syntax should become familiar after you use it once or twice.
 Also notice the use of an <code>(if condition thenExp elseExp)</code>,
 which works the same way in Little as you would expect from other languages.</p><p><strong>Practice 5.1:</strong> Enter the <code>setFill</code> function into a file, and use it to set
 the fill of one or more shapes. Then, modify the function to have it set a
-different attribute.
-<h3>SVG ViewBox</h3></p><p>In all of our examples so far, we have used absolute coordinates (in pixels)
+different attribute.</p>
+
+<h3>SVG ViewBox</h3><p>In all of our examples so far, we have used absolute coordinates (in pixels)
 when defining the sizes and positions of SVG shapes. Because Scalable Vector
 Graphics are, well, scalable, this is often okay; most SVG editors
 and viewers can resize these designs appropriately if needed. Sometimes,
@@ -117,10 +131,11 @@ automatically, such as when embedding it into an HTML document.</p><p>The best w
 will be scaled appropriately is to specify a <code>viewBox</code> attribute for the
 top-level <code>svg</code> canvas node, which defines a local coordinate system for the
 design. The general structure of using a <code>viewBox</code> is that the top-level SVG
-node ends up as follows:</p><p><pre><code>
-&lt;svg width="totalWidth" height="totalHeight" viewBox="minX minY maxX maxY">
+node ends up as follows:</p>
+
+<pre><code>&lt;svg width="totalWidth" height="totalHeight" viewBox="minX minY maxX maxY">
   ...
-&lt;/svg></code></pre></p><p>This creates an internal coordinate system for your design
+&lt;/svg></code></pre><p>This creates an internal coordinate system for your design
 that goes from <code>minX</code> to <code>maxX</code> in the x-direction and <code>minY</code> to <code>maxY</code>
 in the y-direction. (Often, <code>minX</code> and <code>maxY</code> are both set to <code>0</code>,
 effectively making <code>maxX</code> the <code>width</code> of the coordinate system and <code>maxY</code> the
@@ -153,14 +168,17 @@ if set to <code>false</code> doesn't. Furthermore, it also doesn't render the he
 when <code>doneEditing</code> is set to <code>true</code>, making a convenient mechanism to switch
 between a "working" mode and an "export" mode. In fact, if you're working with
 any complicated graphic that uses UI widgets, this setup makes for a very good
-workflow.
-<h4>Sliding and Panning and Zooming, Oh My!</h4></p><p>Next, we will put several bits of knowledge and experience to good use —
+workflow.</p>
+
+<h4>Sliding and Panning and Zooming, Oh My!</h4><p>Next, we will put several bits of knowledge and experience to good use —
 about <code>viewBox</code>, the thin wrapper syntax, and our custom UI widgets — to
 allow us to easily pan and zoom around a larger, design within a fixed window.
 In particular, we will set up:
 <ul><li>two variables for the "total" width and height of the window,</li><li>a slider (via <code>hSlider</code> from Prelude) to control a "zoom" parameter relative
   to the total window size, and</li><li>a two-dimensonal slider (via <code>xySlider</code> from a built-in example) to control
-  "x-offset" and "y-offset" parameters.</li></ul></p><p>A general skeleton for this pattern is the following:</p><p><pre><code>; -------------------------------------------------------------------
+  "x-offset" and "y-offset" parameters.</li></ul></p><p>A general skeleton for this pattern is the following:</p>
+
+<pre><code>; -------------------------------------------------------------------
 ; Currently, xySlider is not currently included in Prelude, so
 ; copy the definitions of xySlider_ and xySlider here.
 
@@ -201,7 +219,7 @@ In particular, we will set up:
               ['height' (toString height)]]
   ['svg' attrs shapes]))
 
-(svg (concat [[scaledDesign] panSlider zoomSlider]))</code></pre></p><p><strong>Practice 5.2:</strong> Add some shapes to the <code>shapes</code> definition, making sure that
+(svg (concat [[scaledDesign] panSlider zoomSlider]))</code></pre><p><strong>Practice 5.2:</strong> Add some shapes to the <code>shapes</code> definition, making sure that
 all shapes that you would like to be visible have their dimensions such that
 they are within the <code>totalWidth</code> and <code>totalHeight</code> coordinates. Then, use
 the pan and zoom sliders to move around your design. Notice how moving the
@@ -228,8 +246,9 @@ built-in <code>svgViewBox</code> function and some experimentation are sufficien
 the trick.</p><p><strong>Exercise 5.4 (Optional):</strong> Replace the deeply-nested series of string
 concatenations in <code>viewBoxAttr</code> with an expression that uses the
 <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> functions <code>map</code> and <code>joinStrings</code>; the latter is like
-<code>concat</code> but for "squishing together" strings instead of lists.
-<h3>Adding a New SVG Feature</h3></p><p>In the zoom-and-pan example, we used the thin wrapper syntax to add "new"
+<code>concat</code> but for "squishing together" strings instead of lists.</p>
+
+<h3>Adding a New SVG Feature</h3><p>In the zoom-and-pan example, we used the thin wrapper syntax to add "new"
 attributes to "existing" SVG nodes in Little. But there is nothing from stopping
 us from using the underlying representation to access different SVG node types
 altogether.  For the last topic of this tutorial, we will demonstrate how to
@@ -240,17 +259,20 @@ all the features in the most recent SVG specification.</p><p>We will choose to i
 As with any additional element that you incorporate into Little, there will be
 no built-in zones that allow you to directly manipulate its attributes. However,
 as we seen several times throughout our journey, UI widgets work often work well for
-manipulating attributes that are not hard-wired in to the editor.</p><p>The <code>animate</code> tag, in a simple form, takes the following structure:</p><p><pre><code>
-&lt;nodeToAnimate itsAttributes>
+manipulating attributes that are not hard-wired in to the editor.</p><p>The <code>animate</code> tag, in a simple form, takes the following structure:</p>
+
+<pre><code>&lt;nodeToAnimate itsAttributes>
   &lt;animate  attributeName="attrName"
             from="attrMin" to="attrMax"
             values="from;to"
             dur="duration"
             repeatCount="indefinite or count">&lt;/animate>
-&lt;/nodeToAnimate></code></pre></p><p>So, to animate any given node over time, we need to add a child <code>animate</code> node with
+&lt;/nodeToAnimate></code></pre><p>So, to animate any given node over time, we need to add a child <code>animate</code> node with
 the desired values for each of the attributes above.
 In our case, we can assume that the <code>attributeType</code> will always be XML, so we won't
-make that an argument to the <code>animate</code> function below:</p><p><pre><code>(def animate (\(attrName from to dur repeat)
+make that an argument to the <code>animate</code> function below:</p>
+
+<pre><code>(def animate (\(attrName from to dur repeat)
   ['animate'
     [ ['attributeName' attrName]
       ['from' (toString from)]
@@ -260,10 +282,12 @@ make that an argument to the <code>animate</code> function below:</p><p><pre><co
       ['repeatCount' repeat]
     ]
     []
-  ] ) )</code></pre></p><p>As with the shape functions from Prelude, this function provides a nicer way of
+  ] ) )</code></pre><p>As with the shape functions from Prelude, this function provides a nicer way of
 packaging together an SVG node without writing lists everywhere. Even better,
 when calling the <code>animate</code> function, we can provide numeric values and rely on
-this function to perform the <code>toString</code> conversions that are needed.</p><p>Now, we can create a rectangle that moves in the x-direction:</p><p><pre><code>(def coolRect 
+this function to perform the <code>toString</code> conversions that are needed.</p><p>Now, we can create a rectangle that moves in the x-direction:</p>
+
+<pre><code>(def coolRect 
   [ 'rect'
     [ ['x' 100]
       ['y' 100]
@@ -275,9 +299,11 @@ this function to perform the <code>toString</code> conversions that are needed.<
   ]
 )
 
-(svg [coolRect])</code></pre></p><p>That's a cool rectangle!</p><p>It's then straightforward to turn <code>coolRect</code> into a function that
+(svg [coolRect])</code></pre><p>That's a cool rectangle!</p><p>It's then straightforward to turn <code>coolRect</code> into a function that
 takes an argument for the y-position, so we can draw many animated
-rectangles on the screen at once:</p><p><pre><code>(def coolRect (\ypos
+rectangles on the screen at once:</p>
+
+<pre><code>(def coolRect (\ypos
   [ 'rect'
     [ ['x' 100]
       ['y' ypos]
@@ -289,7 +315,7 @@ rectangles on the screen at once:</p><p><pre><code>(def coolRect (\ypos
   ]
 ) )
 
-(svg (map coolRect [100 210 320 430 540]))</code></pre></p><p>Now, we can programmatically generate animated rectangles with just as much
+(svg (map coolRect [100 210 320 430 540]))</code></pre><p>Now, we can programmatically generate animated rectangles with just as much
 flexibility as we can any other shape, with the ability to change the low-level
 placement function definitions to boot. <strong>Practice 5.3:</strong> Try having some of the arguments to
 <code>animate</code> also depend on <code>ypos</code> and see what happens (changing <code>dur</code> leads to
