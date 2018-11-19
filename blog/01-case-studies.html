@@ -56,14 +56,17 @@ back up this claim. You may want to
 <a href="../releases/v0.0/" target="_blank">open Sketch-N-Sketch in a new tab</a>
 and try out the <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/">examples</a> along with the discussion.
 If you find yourself in a bind (syntactically), the <code>little</code>
-<a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/README.md">Syntax Guide</a> and standard <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/prelude.little"><code>Prelude</code></a> may help.</p><p>Note: Much of the discussion below draws from <a href="http://arxiv.org/abs/1507.02988v1">this report</a>.
-<h3>Example: Evenly-Spaced Boxes</h3></p><p>The <code>nBoxes</code> program is our "hello world" example for
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/README.md">Syntax Guide</a> and standard <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/prelude.little"><code>Prelude</code></a> may help.</p><p>Note: Much of the discussion below draws from <a href="http://arxiv.org/abs/1507.02988v1">this report</a>.</p>
+
+<h3>Example: Evenly-Spaced Boxes</h3><p>The <code>nBoxes</code> program is our "hello world" example for
 prodirect manipulation. The number of boxes and their location, width,
 and height are simple parameters to change in the program.
 In addition, the location, width, and height
 can easily be changed in the direct manipulation editor.
 When manipulated in live mode, all of the boxes are updated
-together in real-time.</p><p><pre><code>(def nBoxes
+together in real-time.</p>
+
+<pre><code>(def nBoxes
   (let [x0 y0 w h sep n] [40 28 60 130 110 3]
   (let boxi (\i
     (let xi (+ x0 (mult i sep))
@@ -71,7 +74,7 @@ together in real-time.</p><p><pre><code>(def nBoxes
   (map boxi (list0N (- n 1))))))
 
 ; this is the "main" expression
-(svg nBoxes)</code></pre></p><p><img class="img_on_right" src="../static/images/post01/three-boxes.png"></p><p>The screenshot on the right shows the <em><strong>zones</strong></em> (interior, edges, corners, etc.)
+(svg nBoxes)</code></pre><p><img class="img_on_right" src="../static/images/post01/three-boxes.png"></p><p>The screenshot on the right shows the <em><strong>zones</strong></em> (interior, edges, corners, etc.)
 displayed to the user. When multiple program updates may be assigned to a user
 action, Sketch-N-Sketch uses heuristics to break the ambiguity
 without asking the programmer. Try dragging the interior zone of each
@@ -80,8 +83,9 @@ constants in the program in order to match the updates to the canvas.
 The programmer can <em>freeze</em> a constant, however, by annotating it with
 an exclamation point.</p><p>Try freezing the initial <code>x0</code> and <code>y0</code> positions
 in the program (i.e. <code>40!</code> and <code>28!</code>) and see what happens. Then
-try freezing the <code>sep</code>aration parameter instead.
-<h3>Example: <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/elmLogo.little">Elm Logo</a></h3></p><p>The <a href="http://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm">Elm logo</a> is a tangram consisting of seven polygons.
+try freezing the <code>sep</code>aration parameter instead.</p>
+
+<h3>Example: <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/elmLogo.little">Elm Logo</a></h3><p>The <a href="http://github.com/evancz/elm-svg/blob/1.0.2/examples/Logo.elm">Elm logo</a> is a tangram consisting of seven polygons.
 We implemented this logo by massaging the definition from the SVG format
 to the representation in <code>little</code>.
 This process will be automatic once we add support for importing
@@ -97,8 +101,9 @@ to render the output in "full screen" mode.</p><p>The second interesting aspect 
 the SVG <code>matrix</code> command within the <code>transform</code> attribute.
 Again, even though we currently provide no special support for these
 features, the zone we display for the square (though not rotated to
-match) can still be used to directly manipulate it.
-<h3>Example: <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/logo.little">Sketch-N-Sketch Logo</a></h3></p><p>The high-level relationships between the shapes in the
+match) can still be used to directly manipulate it.</p>
+
+<h3>Example: <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/logo.little">Sketch-N-Sketch Logo</a></h3><p>The high-level relationships between the shapes in the
 Elm logo are not captured by the definition in SVG format,
 nor in its direct translation to <code>little</code>.
 As a result, directly manipulating any one of the pieces does not
@@ -108,7 +113,9 @@ uses the abstraction facilities afforded by a programming language to
 declare relationships between multiple shapes.
 The definition is parameterized by a position <code>(x0,y0)</code> for the top-left
 corner, a width <code>w</code> and height <code>h</code>, and a <code>delta</code> parameter that
-determines the size of the gap between the three shapes:</p><p><pre><code>(let [x0 y0 w h delta] [50 50 200 200 10] ...)</code></pre></p><p>The rest of the definition (not shown) computes the three polygons
+determines the size of the gap between the three shapes:</p>
+
+<pre><code>(let [x0 y0 w h delta] [50 50 200 200 10] ...)</code></pre><p>The rest of the definition (not shown) computes the three polygons
 in terms of these parameters. It is, thus, simple to change any of
 these values and re-run the program to generate an updated logo.</p><p>Better yet is the ability to manipulate the parameters <em>directly</em>
 through the canvas in live mode. For example, say that we want to stretch the
@@ -135,13 +142,16 @@ and direct manipulation (i.e. prodirect manipulation) in the
 current version of Sketch-N-Sketch. In future work, it may be useful to
 provide some built-in support for grouping shapes.</p>
 
+
 <h3>Example: <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/chicago.little">Chicago Flag</a></h3><p>It is useful to define abstractions on top of the primitive
 SVG shapes. We define a <code>nStar</code> function (and include it
 in <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/prelude.little">Prelude</a>) that creates an <code>n</code>-sided star
 centered at <code>(cx,cy)</code> and rotated <code>rot</code> radians
 in the clockwise direction, where the distance from the center to the outer
-points is <code>len1</code> and the distance to the inner points is <code>len2</code>.</p><p><pre><code>(def nStar
-  (\(fill stroke w n len1 len2 rot cx cy) ...))</code></pre></p><p><img class="img_on_right" src="../static/images/post01/chicago-flag.png"></p><p>We use <code>nStar</code> to implement the City of Chicago flag, which contains
+points is <code>len1</code> and the distance to the inner points is <code>len2</code>.</p>
+
+<pre><code>(def nStar
+  (\(fill stroke w n len1 len2 rot cx cy) ...))</code></pre><p><img class="img_on_right" src="../static/images/post01/chicago-flag.png"></p><p>We use <code>nStar</code> to implement the City of Chicago flag, which contains
 four evenly-spaced six-sided stars. By directly manipulating the point
 zones of a star in live mode, we can control the outer and
 inner distances of all four stars. Modifying length parameters this way
@@ -158,6 +168,7 @@ the relationship between stretching one of the stripes and the overall
 flag is not a smooth, intuitive one. Using a group box, however, provides
 the simple and expected behavior.</p>
 
+
 <h3>Example: <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/botanic.little">Chicago Botanic Garden Logo</a></h3><p><img class="img_on_right" src="../static/images/post01/botanic-logo.png"></p><p>The symmetric design of the <a href="http://www.chicagobotanic.org/">Chicago Botanic Graden</a> logo
 uses curves, defined with Bezier <code>path</code> commands.
 By programming in <code>little</code>, we can define the coordinates
@@ -166,6 +177,7 @@ a vertical axis running down the middle of the logo.
 Then, in live mode, direct manipulation of any position or control point
 (the "floating" point zones in the screenshot)
 in either half is immediately reflected in the other half.</p>
+
 
 
 <h3>Custom UI Widgets</h3><p>The approach in Sketch-N-Sketch provides
@@ -183,14 +195,18 @@ There are four sliders,
 one for a floating-point number <code>n</code>,
 one for an integer <code>i</code>, and
 two for booleans <code>b1</code> and <code>b2</code>
-(we refer to boolean sliders as "buttons").</p><p><pre><code>(let [n s1] (numSlider ... 0! 5! 'n = ' 3.1415)
+(we refer to boolean sliders as "buttons").</p>
+
+<pre><code>(let [n s1] (numSlider ... 0! 5! 'n = ' 3.1415)
 (let [i s2] (intSlider ... 0! 5! 'i = ' 3.1415)
 (let [b1 s3] (button ... 'b1 = ' 0.25)
-(let [b2 s4] (button ... 'b2 = ' 0.75) ...))))</code></pre></p><p><em>Directly</em> manipulating the sliders <em>indirectly</em>
+(let [b2 s4] (button ... 'b2 = ' 0.75) ...))))</code></pre><p><em>Directly</em> manipulating the sliders <em>indirectly</em>
 manipulates four constants, the unfrozen constant on each line
 (and, hence, the values bound to <code>n</code>, <code>i</code>, <code>b1</code>, and <code>b2</code>).
 Both <code>numSlider</code> and <code>intSlider</code> are defined in terms
-of the <code>slider</code> helper function:</p><p><pre><code>; slider : Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num -> [Num (List Svg)]
+of the <code>slider</code> helper function:</p>
+
+<pre><code>; slider : Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num -> [Num (List Svg)]
 (def slider
   (\(roundInt x0 x1 y minVal maxVal caption srcVal)
     (let targetVal
@@ -207,7 +223,7 @@ of the <code>slider</code> helper function:</p><p><pre><code>; slider : Bool -> 
         (circle 'black' x0 y 4!) (circle 'black' x1 y 4!) ball ])
     [targetVal shapes]))))
 
-(def [numSlider intSlider] [(slider false) (slider true)])</code></pre></p><p>The former returns <code>srcVal</code> clamped to the range
+(def [numSlider intSlider] [(slider false) (slider true)])</code></pre><p>The former returns <code>srcVal</code> clamped to the range
 <code>[minVal, maxVal]</code>, if necessary;
 the latter, furthermore, rounds <code>srcVal</code> to the nearest integer.
 We refer to the number supplied as the <code>srcVal</code> parameter to
@@ -238,6 +254,7 @@ editor does not provide any special support for indirect manipulation
 via user interface widgets; instead, they are derivable using the
 basic prodirect manipulation approach we have described.</p>
 
+
 <h3>Example: <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/activeTrans.little">Active Trans Logo</a></h3><p><img class="img_on_right" src="../static/images/post01/active-trans-logo.png"></p><p>The logo of the <a href="http://activetrans.org/">Active Transportation Alliance</a> contains two
 paths, each of which has a single curved edge and some number of straight edges.
 In our current implementation, Sketch-N-Sketch does not provide a GUI-based way
@@ -247,10 +264,12 @@ this logo as follows. First, we implement a <code>makePath</code> function
 that stitches together a path based on a list of points and a single
 Bezier control point. Next, we define two intially-empty lists,
 <code>grayPts</code> and <code>greenPts</code>, that will store the points of each
-path. Then, we use <code>makePath</code> to construct two paths out of these lists.</p><p><pre><code>(let makePath (\(color pts [xCtrl yCtrl]) ...)
+path. Then, we use <code>makePath</code> to construct two paths out of these lists.</p>
+
+<pre><code>(let makePath (\(color pts [xCtrl yCtrl]) ...)
 (let [grayPts greenPts] [ [] [] ]
 (let [p1 p2] [(makePath ...) (makePath ...)]
-  ...)))</code></pre></p><p>Now the task is to define the list of points for each path.
+  ...)))</code></pre><p>Now the task is to define the list of points for each path.
 We would like to do this visually by directly manipulating points
 into the desired positions, but we need some points to begin with.
 As is, \verb+grayPts+ and \verb+greenPts+ are empty, so there are
@@ -276,6 +295,7 @@ version, where the shapes are white and the background is colored.
 These two versions of the logo are easy to develop
 in tandem using Sketch-N-Sketch.</p>
 
+
 <h3>Example: <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/ferris.little">Ferris Wheel</a></h3><p>For the final case study we will discuss, we designed a ferris wheel that
 consists of some number of equal-length spokes emanating from a central
 hub, each of which has a passenger car at its end. Furthermore,
@@ -286,10 +306,14 @@ It is hard to imagine how one could develop these relationships
 in a modular way using tools like Illustrator or PowerPoint.</p><p><img class="img_on_right" src="../static/images/post01/ferris.png"></p><p>In Sketch-N-Sketch, we combine programmatic, direct manipulation,
 and indirect manipulation (via user-defined sliders) to develop
 our design in a way that is highly-reusable and easy to edit.
-First, we write a function</p><p><pre><code>(def ferrisWheel
-  (\(numSpokes spokeLen rotAngle sizeCar radiusCenter cx cy) ...))</code></pre></p><p>that, given several parameters, draws the desired circles, lines,
+First, we write a function</p>
+
+<pre><code>(def ferrisWheel
+  (\(numSpokes spokeLen rotAngle sizeCar radiusCenter cx cy) ...))</code></pre><p>that, given several parameters, draws the desired circles, lines,
 and rectangles. The function is straightforward to write, making use
-of a <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/prelude.little">Prelude</a> function</p><p><pre><code>(def nPointsOnCircle (\(n rot cx cy r) ...))</code></pre></p><p>that generates a list of <code>n</code> points evenly spaced around a circle
+of a <a href="https://github.com/ravichugh/sketch-n-sketch/blob/v0.0/examples/prelude.little">Prelude</a> function</p>
+
+<pre><code>(def nPointsOnCircle (\(n rot cx cy r) ...))</code></pre><p>that generates a list of <code>n</code> points evenly spaced around a circle
 of <code>r</code> radius centered at <code>(cx,cy)</code>.
 A drawing that results from <code>ferrisWheel</code> is shown in the screenshot.</p><p>We can directly manipulate several parameters of the ferris wheel:
 we can adjust the location <code>(cx,cy)</code> of the wheel by dragging
@@ -302,7 +326,9 @@ it would be nice to also have a way to adjust <code>numSpokes</code>
 and <code>rotAngle</code> in the visual editor. However, no zones are connected
 to these parameters.
 Therefore, we add <code>slider</code>s to expose control over <code>numSpokes</code>,
-<code>rotAngle</code>, and <code>spokeLen</code> from the GUI editor.</p><p><pre><code>(let [num s1] (intSlider ... 5)
+<code>rotAngle</code>, and <code>spokeLen</code> from the GUI editor.</p>
+
+<pre><code>(let [num s1] (intSlider ... 5)
 (let [len s2] (intSlider ... 80)
 (let [rot s3] (numSlider ... 0)
 
@@ -311,7 +337,7 @@ Therefore, we add <code>slider</code>s to expose control over <code>numSpokes</c
   (let show true
   (if show (concat [s1 s2 s3]) []))
 
-(svg (append sliders wheel)))))))</code></pre></p><p>The resulting canvas is shown above.
+(svg (append sliders wheel)))))))</code></pre><p>The resulting canvas is shown above.
 With this setup, we can easily tweak any of the parameters
 to <code>ferrisWheel</code> in live mode without having to modify the
 program. If we wanted to change something about the ferris wheel
@@ -322,6 +348,7 @@ We can set the <code>show</code> parameter to <code>false</code> in order to hid
 the sliders from the output. From there, we use the export
 facility in Sketch-N-Sketch to generate the raw SVG for our design, which
 we can copy and paste into other SVG editors or HTML documents.</p>
+
 
 
 <h3>More Examples</h3><p><img class="img_on_right" src="../static/images/post01/flw.png">

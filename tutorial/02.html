@@ -32,8 +32,9 @@
       <div class="blog_post">
       <span><h1>Step 2: Constant vs. Computed Attributes</h1><p><br>
 In this lesson, we will cover:
-<ul><li>How to program and directly manipulate "computed" attributes,</li><li>How to control what parameters may and may not be directly manipulated, and</li><li>How to employ the Group Box pattern.</li></ul>
-<h3>Two Kinds of Parameters</h3></p><p>When programming designs in Little, there are two primary ways to define
+<ul><li>How to program and directly manipulate "computed" attributes,</li><li>How to control what parameters may and may not be directly manipulated, and</li><li>How to employ the Group Box pattern.</li></ul></p>
+
+<h3>Two Kinds of Parameters</h3><p>When programming designs in Little, there are two primary ways to define
 attributes of a shape: the first is by specifying a constant expression (for
 example, using a number <code>3.14</code> or a variable <code>pie</code> that stores a number), and the
 second is by specifying an expression that computes a value (such as <code>(/ pie 2)</code>).
@@ -56,7 +57,9 @@ desired start position and spacing.</p><p><strong>Practice 2.1:</strong> To make
 program <code>x0</code> and <code>xSep</code>. As a reminder, you can define variables using the <code>def</code>
 syntax as below. Remember that you need to define any variables before you use
 them in your program, so make sure that this definition comes before any other
-statements in your program.</p><p><pre><code>(def [x0 xSep] [100 150])</code></pre></p><p>Next, redefine your <code>placeRectangle</code> function to take the "index" instead of the
+statements in your program.</p>
+
+<pre><code>(def [x0 xSep] [100 150])</code></pre><p>Next, redefine your <code>placeRectangle</code> function to take the "index" instead of the
 box (that is, the <code>0</code>th box, <code>1</code>st box, <code>2</code>nd box, and so on) rather than its
 x-position. Using this indexing scheme, the x-position of a the <code>index</code>-th box
 will be determined by the expression <code>(+ x0 (* xSep index))</code>.</p><p>Finally, redefine the SVG canvas to map the <code>placeRectangle</code> function over a
@@ -64,8 +67,9 @@ list of indices instead of x-positions. Start with index <code>0</code> so that 
 rectangle is placed exactly at position <code>x0</code>. After doing this, run the program
 and examine your output. Feel free to manipulate the shapes a bit to get them
 all in view, and to change the list of indices to add or remove boxes from the
-design.
-<h4>Directly Manipulating Computed Values</h4></p><p>Let's now take a closer look at how Sketch-n-Sketch decides how to update the
+design.</p>
+
+<h4>Directly Manipulating Computed Values</h4><p>Let's now take a closer look at how Sketch-n-Sketch decides how to update the
 program when one of the boxes is directly manipulated. Notice that all of the
 x-positions are determined by the same expression <code>(+ x0 (* xSep index))</code>, and
 that different values of <code>index</code> lead to different resulting values. For the
@@ -104,13 +108,16 @@ to add a <code>ySep</code> parameter to vary the y-position of the shapes depend
 index. Another possibility is to define some sort of <code>scale</code> factor and use it
 to vary the width and height of the boxes.</p>
 
+
 <h3>Freezing and Thawing Constants</h3><p>By default, Sketch-n-Sketch may change the values of all numeric constants in
 your Little program to help reconcile the changes you make via direct
 manipulation. You may find that there are numbers in your program that you do
 not want to be changed no matter what happens in the canvas pane.  You can
 instruct Sketch-n-Sketch not to change a number by "freezing" it, indicated with
 a bang (<code>!</code>). We say that a number is "thawed" if it is not frozen. Only thawed
-numbers may be modified via direct manipulation.</p><p>For example, try modifying the variable definitions as follows:</p><p><pre><code>(def [x0 xSep] [100 150!])</code></pre></p><p>As a result, Sketch-n-Sketch may modify the value of <code>x0</code> but not <code>xSep</code>. Try
+numbers may be modified via direct manipulation.</p><p>For example, try modifying the variable definitions as follows:</p>
+
+<pre><code>(def [x0 xSep] [100 150!])</code></pre><p>As a result, Sketch-n-Sketch may modify the value of <code>x0</code> but not <code>xSep</code>. Try
 directly manipulating  the boxes to see what happens. Also try freezing <code>x0</code> and
 unfreezing <code>xSep</code>.</p><p>You may have noticed that manipulating certain rectangles actually changes the
 <code>index</code> values. Although when writing the program, you may have a clear sense
@@ -118,7 +125,9 @@ that indices ought not to change, in general, these are perfectly plausible
 values to change to reconcile updates to the canvas, so sometimes
 Sketch-n-Sketch will choose to modify them. In cases like this, you can freeze
 the particular constants to declare your intent.
-If you structure part of your design around the</p><p><pre><code>(map drawingFunction indices)</code></pre></p><p>pattern, it is often a good idea to freeze all of these indices.
+If you structure part of your design around the</p>
+
+<pre><code>(map drawingFunction indices)</code></pre><p>pattern, it is often a good idea to freeze all of these indices.
 Try freezing all of the indices above and, again, see what happens when you
 directly manipulate different boxes.</p><p>By default, all numbers not explicitly annotated as frozen are treated as
 thawed. Sometimes, however, you may want the default to be reversed; that is,
@@ -137,8 +146,9 @@ side-by-side separated by a distance of <code>delta</code> pixels. Structure you
 so that you can still directly manipulate the <code>delta</code> parameter with ease. Also,
 try to set things up so that you can directly manipulate the height and width of
 the entire "double logo" design. (Hint: if you get stuck on this last bit, keep
-reading below.)
-<h3>Group Box Pattern</h3></p><p>Perhaps suprisingly, one of the parameters that ends up being computed in many
+reading below.)</p>
+
+<h3>Group Box Pattern</h3><p>Perhaps suprisingly, one of the parameters that ends up being computed in many
 designs is the overall width and height of the graphic. In cases where the
 ability to change the overall width and height is desirable, a useful design
 pattern to employ is a "group box." The idea behind a group box is to define at
@@ -161,12 +171,14 @@ to position and proportion our box. Then, define a group box that has position
 and dimension exactly equal to those values. An important aspect of a group box
 is that it should not affect the final image, so defining its color with an RGBA
 value with an alpha-component of zero is a good idea. Putting these together, we
-have the following:</p><p><pre><code>(def [x0 y0 w h] [66 66 450 300])
+have the following:</p>
+
+<pre><code>(def [x0 y0 w h] [66 66 450 300])
 (def groupBox
   (let [deltaP deltaS] [10! 20!]
   (rect [255 255 255 0]
         (- x0 deltaP) (- y0 deltaP)
-        (+ w deltaS) (+ h deltaS))))</code></pre></p><p>Here, <code>deltaP</code> and <code>deltaS</code> represent the difference between the positioning
+        (+ w deltaS) (+ h deltaS))))</code></pre><p>Here, <code>deltaP</code> and <code>deltaS</code> represent the difference between the positioning
 (both <code>x0</code> and <code>y0</code>) and the sizing (both <code>w</code> and <code>h</code>) of the group box and its
 contents. Think of this as a layer of padding that allows for easier
 manipulation of the dimensions and positioning without accidentally grabbing an
@@ -184,9 +196,11 @@ adjust those parameters. For instance, the blue stripes (the CSS color
 <code>'lightblue'</code> is a close enough match for our purposes) should be positioned
 such that you can still manipulate the underlying group box. So, the following
 definition is one way to define the stripes (keeping in mind, of course, the
-<a href="https://en.wikipedia.org/wiki/Flag_of_Chicago">official proportions</a>):</p><p><pre><code>(def stripes
+<a href="https://en.wikipedia.org/wiki/Flag_of_Chicago">official proportions</a>):</p>
+
+<pre><code>(def stripes
   [ (rect 'lightblue' x0 (+ y0 (/ h 7!)) w (/ h 6!))
-    (rect 'lightblue' x0 (+ y0 (* 5! (/ h 7!))) w (/ h 6!)) ])</code></pre></p><p>Note that we've frozen all of the constants that we use to do the proportioning
+    (rect 'lightblue' x0 (+ y0 (* 5! (/ h 7!))) w (/ h 6!)) ])</code></pre><p>Note that we've frozen all of the constants that we use to do the proportioning
 of the shapes, since we don't want to accidentally directly manipulate them later.</p><p><strong>Exercise 2.3 (Optional):</strong> Refactor the <code>stripes</code> definition with additional
 variables (using <code>let</code>-expressions) to eliminate redundant calculations.</p><p><strong>Practice 2.4:</strong> Next, we need to define the six-pointed stars that run horizontally across the
 middle of the design. Programming a six-pointed star is an interesting
@@ -194,11 +208,17 @@ exercise in its own right, but it's a common enough shape that we've made a
 built-in function to generate n-pointed stars, <code>nStar</code> (If you're interested in
 how it's implemented, check out the Stars example or the
 <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a>. The <code>nStar</code> function takes
-arguments of the following form:</p><p><pre><code>(nStar fill stroke w n len1 len2 rot cx cy)</code></pre></p><p>The arguments to <code>nStar</code> define the following:
+arguments of the following form:</p>
+
+<pre><code>(nStar fill stroke w n len1 len2 rot cx cy)</code></pre><p>The arguments to <code>nStar</code> define the following:
 <ul><li><em><code>fill</code></em> is the color of the fill of the star </li><li><em><code>stroke</code></em> is the color of the outline of the star (<code>'none'</code> is an acceptable and commonly used value)</li><li><em><code>w</code></em> is the width of the outline</li><li><em><code>n</code></em> is the number of points on the star</li><li><em><code>len1</code></em> is the length from the center of the star to the outer points</li><li><em><code>len2</code></em> is the length from the center of the star to the inner points </li><li><em><code>rot</code></em> is the amount of clockwise rotation in radians</li><li><em><code>cx</code></em> is the x-position of the center of the star</li><li><em><code>cy</code></em> is the y-position of the center of the star</li></ul></p><p>To define a six-pointed star with the appropriate color and
-dimensions, we could write the following:</p><p><pre><code>(def placeStar (\i
+dimensions, we could write the following:</p>
+
+<pre><code>(def placeStar (\i
   (let xi (+ x0 (* i (/ w 4!)))
-  (nStar 'red' 'none' 0! 6! (/ h 10!) (/ h 25!) 0! xi (+ y0 (/ h 2!))))))</code></pre></p><p>Then, we can define all of our stars as follows:</p><p><pre><code>(def stars (map placeStar [0.5! 1.5! 2.5! 3.5!]))</code></pre></p><p>Add these stars to the overall <code>svg</code> canvas — via `(append [groupBox]
+  (nStar 'red' 'none' 0! 6! (/ h 10!) (/ h 25!) 0! xi (+ y0 (/ h 2!))))))</code></pre><p>Then, we can define all of our stars as follows:</p>
+
+<pre><code>(def stars (map placeStar [0.5! 1.5! 2.5! 3.5!]))</code></pre><p>Add these stars to the overall <code>svg</code> canvas — via `(append [groupBox]
 (append stars stripes))` or, equivalently, <code>(concat [groupBox] stars stripes)</code>
 — and out comes our flag! All that work to incorporate the overall width and
 height of the image now pays off, as we can translate and scale the whole design
@@ -212,6 +232,7 @@ But if you cannot bear the anticipation, you can look at <a href="https://github
 see how lines and polygons are drawn. If you do, then one enjoyable option may be to
 tackle the <a href="https://en.wikipedia.org/wiki/Principality_of_Sealand#/media/File:Flag_of_Sealand.svg">flag of Sealand</a> while listening to
 <a href="http://99percentinvisible.org/episode/from-the-sea-freedom/">this podcast</a>.</p>
+
 
 
 
