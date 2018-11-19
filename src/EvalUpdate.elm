@@ -29,6 +29,7 @@ import ValUnbuilder as Vu
 import UpdateRegex
 import Regex
 import LangSvg
+import Lazy
 
 
 builtinEnv =
@@ -839,28 +840,6 @@ nativeToVal vb v =
     (\l -> Vb.list nativeToVal vb l)
     (\r -> Vb.record nativeToVal vb (Dict.fromList r))
 
-evaluate: String -> Result String Val
-evaluate s =
-  Syntax.parser Syntax.Leo s
-  |> Result.mapError ParserUtils.showError
-  |> Result.andThen (\exp ->
-      Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp
-    |> Result.map (Tuple.first >> Tuple.first)
-  )
-
-updateString: String -> Val -> Result String (List String)
-updateString oldProgram newVal =
-  Syntax.parser Syntax.Leo oldProgram
-  |> Result.mapError ParserUtils.showError
-  |> Result.andThen (\exp ->
-      Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo preludeEnv exp
-      |> Result.map (Tuple.first >> Tuple.first)
-      |> Result.andThen (\oldVal ->
-        updateExp exp oldVal newVal
-        |> Result.map (LazyList.toList >> List.map (Syntax.unparser Syntax.Leo))
-      )
-    )
-
 objectToEnv: objectAsEnvOfConsts -> Result String Env
 objectToEnv objectAsEnvOfConsts =
   let envAsVal = nativeToVal (builtinVal "EvalUpdate.nativeToVal") objectAsEnvOfConsts in
@@ -873,47 +852,157 @@ envToObject: Env -> Result String objectAsEnvOfConsts
 envToObject env =
   valToNative (Vb.record Vb.identity (builtinVal "EvalUpdate.nativeToVal") (Dict.fromList env))
 
-evaluateEnv: objectAsEnvOfConsts -> String -> Result String Val
-evaluateEnv objectAsEnvOfConsts s =
-  objectToEnv objectAsEnvOfConsts
-  |> Result.andThen (\env ->
-      Syntax.parser Syntax.Leo s
-      |> Result.mapError ParserUtils.showError
-      |> Result.andThen (\exp ->
-        Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ preludeEnv) exp |> Result.map Tuple.first
-      ) |> Result.map Tuple.first
-  )
+evaluateRaw: Env -> Exp -> Result String Val
+evaluateRaw env exp =
+   Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ preludeEnv) exp
+  |> Result.map (Tuple.first >> Tuple.first)
 
-updateEnv: objectAsEnvOfConsts -> String -> Val -> Result String (List (objectAsEnvOfConsts2, String))
-updateEnv objectAsEnvOfConsts oldProgram newVal =
+evaluateEnv: objectAsEnvOfConsts -> Exp -> Result String Val
+evaluateEnv objectAsEnvOfConsts exp =
+  objectToEnv objectAsEnvOfConsts
+  |> Result.andThen (flip evaluateRaw exp)
+
+evaluateString: String -> Result String Val
+evaluateString stringSource =
+  parse stringSource
+  |> Result.andThen (evaluateRaw [])
+
+evaluateEnvString: objectAsEnvOfConsts -> String -> Result String Val
+evaluateEnvString objectAsEnvOfConsts stringSource =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (\env ->
-  Syntax.parser Syntax.Leo oldProgram
-  |> Result.mapError ParserUtils.showError
-  |> Result.andThen (\exp ->
-      Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ preludeEnv) exp
-      |> Result.map (Tuple.first >> Tuple.first)
-      |> Result.andThen (\oldVal ->
-        updateEnvExp env exp oldVal newVal
-        |> Result.map (LazyList.toList >> List.map (\(newEnv, newExp) ->
-          (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", Syntax.unparser Syntax.Leo newExp)))
-      )
+    parse stringSource
+    |> Result.andThen (evaluateRaw env))
+
+updateRaw: Env -> Exp -> Val -> Results String (Env, Exp)
+updateRaw env exp newVal =
+  evaluateRaw env exp
+  |> Result.andThen (\oldVal ->
+    updateEnvExp env exp oldVal newVal)
+
+updateEnv: objectAsEnvOfConsts -> Exp -> Val -> Results String (objectAsEnvOfConsts, Exp)
+updateEnv objectAsEnvOfConsts exp newVal =
+  objectToEnv objectAsEnvOfConsts
+  |> Result.andThen (\env ->
+    updateRaw env exp newVal
+    |> Result.map (LazyList.map (\(newEnv, newExp) ->
+              (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", newExp)))
     )
-  )
 
+updateString: String -> Val -> Results String String
+updateString strSource newVal =
+    parse strSource
+    |> Result.andThen (\exp ->
+    updateRaw [] exp newVal
+    |> Result.map (LazyList.map (\(newenv, newExp) ->
+              unparse newExp)))
+
+updateEnvString: objectAsEnvOfConsts -> String -> Val -> Results String (objectAsEnvOfConsts2, String)
+updateEnvString objectAsEnvOfConsts strSource newVal =
+  objectToEnv objectAsEnvOfConsts
+  |> Result.andThen (\env ->
+    parse strSource
+    |> Result.andThen (\exp ->
+    updateRaw env exp newVal
+    |> Result.map (LazyList.map (\(newEnv, newExp) ->
+              (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", unparse newExp)))
+    ))
+
+type alias StringObjEnvType envA envB envC = {
+    evaluate: envA -> String -> Result String Val,
+    update: envB -> String -> Val -> Results String (envC, String)
+  }
+
+stringObjEnv: StringObjEnvType envA envB envC
+stringObjEnv = {
+    -- JSObj -> StringSource-> Result StringError Val
+    evaluate = evaluateEnvString, -- Takes an object (environment) and a string, returns a Val
+    -- JSObj -> StringSource-> Val -> Result StringError (LazyList (JSObj, String))
+    update = updateEnvString -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
+  }
+
+type alias StringType envA envB envC  = {
+    evaluate: String -> Result String Val,
+    update: String -> Val -> Results String String,
+    objEnv: StringObjEnvType envA envB envC
+  }
+string: StringType envA envB envC
+string = {
+    -- StringSource -> Result StringError Val
+    evaluate = evaluateString, -- Takes a string, returns a Val
+    -- StringSource -> Val -> Result StringError (LazyList StringSource)
+    update = updateString, -- Takes a string (program), a new val, returns a list of new strings (programs=
+    objEnv = stringObjEnv
+  }
+
+type alias ObjEnvType envA envB envC = {
+    evaluate: envA -> Exp -> Result String Val,
+    update: envB -> Exp -> Val -> Results String (envB, Exp),
+    string: StringObjEnvType envA envB envC
+  }
+objEnv: ObjEnvType envA envB envC
+objEnv = {
+    evaluate = evaluateEnv,
+    update = updateEnv,
+    string = stringObjEnv
+  }
+
+type alias LazyListType a = {
+  nonEmpty: LazyList a -> Bool,
+  isEmpty: LazyList a -> Bool,
+  head: LazyList a -> a,
+  tail: LazyList a -> LazyList a
+  }
+lazyList: LazyListType a
+lazyList = {
+  nonEmpty = \l -> case l of
+    LazyList.Nil -> False
+    _ -> True,
+  isEmpty = \l -> case l of
+    LazyList.Nil -> True
+    _ -> False,
+  head = \l -> case l of
+    LazyList.Nil -> Debug.crash "Head of empty lazy list"
+    LazyList.Cons a lt -> a,
+  tail = \l -> case l of
+    LazyList.Nil -> Debug.crash "Tail of empty lazy list"
+    LazyList.Cons a lt -> Lazy.force lt
+  }
+
+api: {
+  parse: String -> Result String Exp,
+  evaluate: Exp -> Result String Val,
+  update: Exp -> Val -> Val -> Results String Exp,
+  lazyList: LazyListType a,
+  unparse: Exp -> String,
+  process: Result err a -> (a -> Result err b) -> Result err b,
+  valToNative: Val -> Result String nativea,
+  nativeToVal: nativeb -> Val,
+  valToString: Val -> String,
+  valToHTMLSource: Val -> Result String String,
+  string: StringType envA envB envC,
+  objEnv: ObjEnvType envA envB envC
+  }
 api = {
+  -- parse: String -> Result String Exp
   parse = parse,
-  evalExp = evalExp,
-  updateExp = updateExp, -- Returns all solutions in a lazy way.
+  -- evaluate: Exp -> Result String Val
+  evaluate = evalExp,
+  -- updateExp: Exp -> Val -> Val -> Result String (LazyList Exp)
+  update = updateExp,
+  lazyList = lazyList,
+  -- unparse: Exp -> String
   unparse = unparse,
-  andThen = Result.andThen,
+  -- process: Result err a -> (a -> Result err b) -> Result err b,
+  process = flip Result.andThen,
+  -- valToNative: Val -> JSAny
   valToNative = valToNative, -- Converts a Val to native Javascript (except closures)
+  -- nativeToVal: JSAny -> Val
   nativeToVal = nativeToVal (builtinVal "EvalUpdate.nativeToVal"),
-
+  -- valToString: Val -> String
   valToString = LangUtils.valToString,
+  -- Val -> Result String String
   valToHTMLSource = LangSvg.valToHTMLSource HTMLParser.HTML,
-  evaluate = evaluate, -- Takes a string, returns a Val
-  update = updateString, -- Takes a string (program), a new val, returns a list of new strings (programs=
-  evaluateEnv = evaluateEnv, -- Takes an object (environment) and a string, returns a Val
-  updateEnv = updateEnv -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
+  string = string,
+  objEnv = objEnv
   }

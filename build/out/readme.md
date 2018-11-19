@@ -8,7 +8,7 @@ If you want to get familiar with Sketch-n-sketch for the language, first visit t
 
 [github.com/ravichugh/sketch-n-sketch](https://github.com/ravichugh/sketch-n-sketch)
 
-## How to include the API.
+## API usage
 
 In a javascript of your node.js project, simply include the following:
 
@@ -16,25 +16,38 @@ In a javascript of your node.js project, simply include the following:
 
 The evaluation of this line will take 3 seconds the first time, the time necessary to evaluate the prelude.
 
-## API functions:
+## Basic API documentation
 
 Given that `JSObj` represents the native Javascript object type to store key/value pairs, and `JSAny` any javascript value (in our case: numbers, booleans, arrays and objects), we provide the following API along with their types.
 
     parse: String -> Result String Exp
-    evalExp: Exp -> Result String Val
-    updateExp: Exp -> Val -> Val -> Result String (LazyList Exp)
+    evaluate: Exp -> Result String Val
+    update: Exp -> Val -> Val -> Result String (LazyList Exp)
     unparse: Exp -> String
-    andThen: (a -> Result err b) -> Result err a -> Result err b
+    process: Result err a -> (a -> Result err b) -> Result err b
     valToNative: Val -> JSAny
     nativeToVal: JSAny -> Val
     valToString: Val -> String
     valToHTMLSource: Val -> Result String String
-    evaluate: String -> Result String Val
-    update: String -> Val -> Result String (List String)
-    evaluateEnv: JSObj -> String -> Result String Val
-    updateEnv: JSObj -> String -> Val -> Result String (List (JSObj, String))
 
-## Example usage
+### Specialized API
+
+Plug-in an environment of constants (as a JavaScript object):
+
+    objEnv.evaluate: JSObj -> Exp -> Result String Val
+    objEnv.update: JSObj -> Exp -> Val -> Result String (LazyList (JSObj, Exp))
+
+Combine parse and evaluate steps directly:
+
+    string.evaluate: String -> Result String Val
+    string.update: String -> Val -> Result String (LazyList String)
+
+Plug-in an environment of constants AND combine parse and evaluate (`string.objEnv.` is also a valid prefix):
+
+    objEnv.string.evaluate: JSObj -> String -> Result String Val
+    objEnv.string.update: JSObj -> String -> Val -> Result String (LazyList (JSObj, String))
+
+## Basic API Example usage
 
 Here is a detailed workflow using variable assignments, expression parsing and unparsing:
 
@@ -46,10 +59,10 @@ Here is a detailed workflow using variable assignments, expression parsing and u
        let who = "world" in
        [f 2, """Hello @who""", <span>Nice</span>]`)._0;
     
-    // sns.evalExp returns either 
+    // sns.evaluate returns either 
     //    {ctor: "Ok",  _0: Val}
     // or {ctor: "Err", _0: Evaluation error message}
-    var outVal = sns.evalExp(prog)._0;
+    var outVal = sns.evaluate(prog)._0;
     
     /* Prints
        [ 3,
@@ -78,12 +91,11 @@ Here is a detailed workflow using variable assignments, expression parsing and u
     // The result is either
     //    {ctor: "Ok",  _0: Lazy list of new exps}
     // or {ctor: "Err", _0: Update error message}
-    var newProgs = sns.updateExp(prog)(outVal)(newOutVal);
+    var newProgs = sns.update(prog)(outVal)(newOutVal);
     
-    // First solution:
-    var solutionLazyList = newProgs._0;
-    // solutionLazyList.ctor == "Cons" here, se we can access the head _0
-    var solutionExp1 = solutionLazyList._0;
+    var solutions = newProgs._0;
+    // sns.lazyList.nonEmpty(solutions) == true
+    var solutionExp1 = sns.lazyList.head(solutions);
     
     // Display the first solution to the update problem.
     console.log(sns.unparse(solutionExp1))
@@ -92,18 +104,17 @@ Here is a detailed workflow using variable assignments, expression parsing and u
       [f 1, """Hello @who""", <span>Nice</span>]
     */
 
-    // Tail of solutions.
-    var solutionLazyListTail = solutionLazyList._1._0();
+    // Tail of solutions, computed lazily.
+    var solutionsTail = sns.lazyList.tail(solutions);
     
-    // If there is none, then solutionLazyListTail.ctor == "Nil". Else, it is "Cons" and we can access _0.
-    var solutionExp2 = solutionLazyListTail._0
+    var solutionExp2 = sns.lazyList.head(solutionsTail);
     console.log(sns.unparse(solutionExp2))
     /*let f x = x + 0 in
       let who = "earth" in
       [f 2, """Hello @who""", <span>Nice</span>]
      */
     // Third solution, etc.
-    // var solutionLazyListTailTail = solutionLazyListTail._1._0();
+    // sns.lazyList.isEmpty(sns.lazyList.tail(solutionsTail)) == true
 
 We can also encode this workflow in a way that carries errors until the result must be recovered:
 
@@ -112,11 +123,13 @@ We can also encode this workflow in a way that carries errors until the result m
        let who = "world" in
        [f 2, """Hello @who""", <span>Nice</span>]`);
     
-    var resOutVal = sns.andThen(prog => sns.evalExp(prog))(resProg);
+    var resOutVal = sns.process(resProg)(prog =>
+      sns.evaluate(prog));
     
     // Returns either {ctor: "Ok", _0: native val} or {ctor: "Err", _0: Conversion error message}
     // Here nativeOutVal._0 is equal to [3, "Hello world", ["span", [], [["TEXT", "Nice"]]]]
-    var nativeOutVal = sns.andThen(outVal => sns.valToNative(outVal))(resOutVal);
+    var nativeOutVal = sns.process(resOutVal)(outVal =>
+      sns.valToNative(outVal));
     console.log(nativeOutVal);
     
     // Convert this Javascript value to a SNS value. This always succeed if we don't use functions.
@@ -125,11 +138,11 @@ We can also encode this workflow in a way that carries errors until the result m
     // Invokes our update procedure with the given new out value.
     // The result is either {ctor: "Ok", _0: Lazy list of new exps} or {ctor: "Err", _0: Update error message}
     var newProgs =
-      sns.andThen(prog =>
-        sns.andThen(outVal =>
-          sns.updateExp(prog)(outVal)(newOutVal))(resOutVal)
-        )(resProg);
-    
+      sns.process(resProg)(prog =>
+      sns.process(resOutVal)(outVal =>
+        sns.update(prog)(outVal)(newOutVal)
+      ));
+
     // The remaining works as before.
 
 `sns.valToHTMLSource` converts a value to a string in such a way it can be served as a web page (e.g. as the content of a http response). It takes care of
@@ -143,7 +156,7 @@ Here is how you can use it.
       `let x = "world" in
        <span>Hello @x</span>`)._0;
     
-    var outVal = sns.evalExp(prog)._0;
+    var outVal = sns.evaluate(prog)._0;
     
     // Returns either a
     //    {ctor:"Ok", _0: The HTML string}

@@ -2140,7 +2140,7 @@ String =
       apply x = x
       update {input, outputNew} =
         if String.take String.length input outputNew == input then
-          Ok (Inputs [])
+          Err ("Cannot add anything to the right of '" + input + "'")
         else
           Ok (Inputs [outputNew])
     }.apply x
@@ -2149,7 +2149,7 @@ String =
       apply x = x
       update {input, outputNew} =
         if String.drop (String.length outputNew - String.length input) outputNew == input then
-          Ok (Inputs [])
+          Err ("Cannot add anything to the left of '" + input + "'")
         else
           Ok (Inputs [outputNew])
     }.apply x
