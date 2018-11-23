@@ -2653,26 +2653,32 @@ implicitMain =
     succeed builder
       |= getPos
 
-mainExpression : Parser Exp
-mainExpression =
-  inContext "Main expression" <|
-  oneOf
-    [ expression spaces 0 MinIndentSpace
-    , implicitMain
-    ]
-
 program : Parser Exp
 program =
-  succeed (\declsOpt mainExp ->
-    case (declsOpt, mainExp.val) of
-      (Nothing, _) -> mainExp.val
-      (Just decls, Expr mainExpAsWithInfoExp_) ->
-        Expr <| withInfo (exp_ <| ELet space0 Def decls.val space0 mainExp.val) decls.start mainExpAsWithInfoExp_.end
-  )
-  |= optional (trackInfo (declarations 0))
-  |= trackInfo mainExpression
-  |. spaces
-  |. end
+  optional (trackInfo (declarations 0))
+  |> andThen (\declsOpt ->
+    map (\mainExp ->
+      case (declsOpt, mainExp.val) of
+        (Nothing, _) -> mainExp.val
+        (Just decls, Expr mainExpAsWithInfoExp_) ->
+          Expr <| withInfo (exp_ <| ELet space0 Def decls.val space0 mainExp.val) decls.start mainExpAsWithInfoExp_.end
+    ) (
+    succeed identity
+    |= trackInfo (oneOf ([
+        inContext "Main expression" <| expression spaces 0 MinIndentSpace
+    ] ++ (
+      let isMainDefined = declsOpt |> Maybe.andThen (\{val} ->
+           let (Declarations _ _ _ letexps) = val in
+           letexps |> Utils.mapFirstSuccess (\(isRec, letexps) -> letexps |>
+            Utils.mapFirstSuccess (\(LetExp _ _ p _ _ _) ->
+              identifiersListInPat p |> Utils.mapFirstSuccess (\i ->
+                if i == "main" then Just True else Nothing)))) |> Maybe.withDefault False
+      in
+      if isMainDefined then [implicitMain] else []
+      )))
+    |. spaces
+    |. end))
+
 
 --==============================================================================
 -- Exports

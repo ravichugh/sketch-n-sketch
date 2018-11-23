@@ -445,6 +445,23 @@ builtinEnv =
                                                [(originalIndex + index, ListElemUpdate (vHtmlTextDiffs <| VStringDiffs d))]))
                                           revDiffs)
                                      ) newMany newManyDiffs)) resAccRevValRevDiffs originalIndex)
+                                     {- let subaux index newMany newManyDiffs revValsRevDiffs = -- Treats deletions of texts as deletions of node.
+                                          revValsRevDiffs |>
+                                          Results.andThen ((\newMany newManyDiffs index (revVals, revDiffs) ->
+                                          case (newMany, newManyDiffs) of
+                                           (headNewMany :: tailNewMany, headNewManyDiffs :: tailNewManyDiffs) ->
+                                             let default = subaux (index + 1) tailNewMany tailNewManyDiffs (ok1 (
+                                                             (Vb.htmlText (Vb.fromVal original) headNewMany) :: revVals,
+                                                             if headNewManyDiffs == [] then revDiffs else
+                                                               (index, ListElemUpdate (vHtmlTextDiffs <| VStringDiffs headNewManyDiffs))::revDiffs)) in
+                                             case (headNewMany, headNewManyDiffs) of
+                                               ("", [StringUpdate  _ _ 0]) ->
+                                                 default |> Results.andAlso
+                                                   (subaux (index + 1) tailNewMany tailNewManyDiffs (ok1 (
+                                                     revVals, (index, ListElemDelete 1)::revDiffs)))
+                                               _ -> default
+                                           _ -> ok1 (revVals, revDiffs)) newMany newManyDiffs index)
+                                     in subaux originalIndex newMany newManyDiffs resAccRevValRevDiffs) resAccRevValRevDiffs originalIndex) -}
                                    |> aux (originalIndex + List.length manyTexts) (outputIndex + 1) originalTail oldTail newTail tailDiffs
                                  (_, Nothing) ->
                                    Err <| "In a html text node, cannot update anything else than the text itself. Got " ++ toString textDiffs

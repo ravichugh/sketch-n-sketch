@@ -3556,64 +3556,26 @@ List =
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
   in
-  -- This filter lens supports insertions and deletions in output
-  let filter f l =
-    case l of
-      [] -> l
-      head::tail ->
-         let cond = f head in
-         let result =
-           if cond then head :: filter f tail
-           else filter f tail
-         in
-         { apply (l, result) = result
-           update {input, outputNew, diffs = VListDiffs ds} =
-             let defaultNewInputDiffs = ((l, outputNew), Just (VRecordDiffs {
-                      _2 = VListDiffs ds})) in
-             let newDiffs firstDiff tailDiffs = case tailDiffs of
-               [] -> VRecordDiffs {
-                 _1 = firstDiff}
-               _ -> VRecordDiffs {
-                 _1 = firstDiff
-                 _2 = VListDiffs tailDiffs}
-             in
-             case ds of
-                (0, ListElemDelete count)::tailDiffs ->
-                  let firstDiff = VListDiffs (LensLess.List.take count (LensLess.List.concatMap (\\(i, lElem) ->
-                      if f lElem then [(i, ListElemDelete 1)] else []) (zipWithIndex l))) in
-                  Ok (InputsWithDiffs [
-                    ((tail, if cond then head :: outputNew else outputNew),
-                      Just (newDiffs firstDiff tailDiffs))])
-                (0, ListElemInsert count)::tailDiffs ->
-                  let (newElems, otherElems) = LensLess.List.split count outputNew in
-                  let firstDiff = VListDiffs [(0, ListElemInsert count)] in
-                  if cond then -- unambiguous
-                    Ok (InputsWithDiffs [
-                      ((newElems ++ l, otherElems), Just (newDiffs firstDiff tailDiffs)),
-                      defaultNewInputDiffs])
-                  else -- ambiguous, we can insert before or after the removed element.
-                    Ok (InputsWithDiffs [
-                      ((newElems ++ l, otherElems), Just (newDiffs firstDiff tailDiffs)),
-                      defaultNewInputDiffs
-                      ])
-                _ -> Ok (InputsWithDiffs[defaultNewInputDiffs])
-         }.apply (l, result)
-  in
   let length x = len x
   in
   let nth =
     nth
   in
   let mapi f xs = map f (zipWithIndex xs) in
-  let mapiWithDefault default f xs = mapWithDefault default f (zipWithIndex xs) in
+  let mapiWithDefault default f xs = mapWithDefault (0, default) f (zipWithIndex xs) in
+  let mapiWithReverse reverse f xs = mapWithReverse (\\x -> (0, reverse x)) f (zipWithIndex xs) in
   let indexedMap f xs =
     mapi (\\(i,x) -> f i x) xs
   in
   let indexedMapWithDefault default f xs =
     mapiWithDefault default (\\(i,x) -> f i x) xs
   in
-  let concatMap =
-    concatMap
+  let indexedMapWithReverse reverse f xs =
+    mapiWithReverse reverse (\\(i, x) -> f i x) xs
+  in
+  let concatMap f l = case l of
+    [] -> l
+    head :: tail -> f head ++ concatMap f tail
   in
   let indexedConcatMap f l =
     let aux i l = case l of
@@ -3642,6 +3604,16 @@ List =
         in
         Ok (InputsWithDiffs [(l1 ++ l2, finalDiffs)])
     }.apply l
+  in
+  -- This filter lens supports insertions and deletions in output
+  let filter f l =
+        case l of
+          [] -> l
+          _ ->
+             let ([head] as head1, tail) = split 1 l in
+             let cond = f head in
+             if cond then head1 ++ filter f tail
+             else filter f tail
   in
   -- In this version of foldl, the function f accepts a 1-element list instead of just the element.
   -- This enable programmers to insert or delete values from the accumulator.
@@ -3877,6 +3849,7 @@ List =
     nth = nth
     indexedMap = indexedMap
     indexedMapWithDefault = indexedMapWithDefault
+    indexedMapWithReverse = indexedMapWithReverse
     indexedConcatMap = indexedConcatMap
     concatMap = concatMap
     concatMap_ = concatMap_
@@ -4556,48 +4529,180 @@ Html =
   -- Takes a 1-element node list, and whatever this element is replaced by.
   -- In the reverse direction, modifies the element but also propagates its deletion to the list
   -- or insertions of new elements.
+  let mergeMatch: String -> Diffs -> Match -> String
+      mergeMatch originalMatch mDiffs m =
+       case mDiffs of
+         VRecordDiffs dDiffs ->
+           let matchLength = String.length originalMatch in
+           let gatherDiffs groups starts groupDiffs =
+             let combineDiffs i groupDiffs accDiffs =
+               case groupDiffs of
+                 [] -> accDiffs
+                 (j, d)::tdgd ->
+                   if i < j then combineDiffs (i + 1) groupDiffs accDiffs
+                   else case d of
+                       ListElemUpdate ud ->
+                         let startInMatch = nth starts i - m.index in
+                         case ud of
+                           VStringDiffs sds ->
+                             let (_, concreteUpdates) =  List.foldl (\\(StringUpdate start end replacement) (offset, accDiffs) ->
+                                 (offset + replacement - (end - start),
+                                  accDiffs ++ [ConcreteUpdate
+                                                 (start + startInMatch)
+                                                 (end + startInMatch)
+                                                 (String.substring (start + offset) (start + replacement + offset) (nth groups i))
+                                              ])
+                               ) (0, []) sds
+                             in combineDiffs (i + 1) tdgd (accDiffs ++ concreteUpdates)
+                           _ -> error (\"Expected string diffs, got \" + toString ud)
+                       ListElemInsert _ -> error \"Not possible ot insert match groups\"
+                       ListElemDelete _ -> error \"Not possible to delete match groups\"
+             in
+             combineDiffs 0 groupDiffs []
+           in
+           let totalUpdates = (case dDiffs of
+             { group = VListDiffs groupDiffs} ->
+               gatherDiffs m.group m.start groupDiffs
+             _ -> []) ++ (case dDiffs of
+             { submatches = VListDiffs groupDiffs} ->
+               gatherDiffs m.submatches (List.drop 1 m.start) groupDiffs
+             _ -> []) ++ (case dDiffs of
+             {match = matchDiffs} ->
+               gatherDiffs [m.match] [m.index] [(0, ListElemUpdate matchDiffs)]
+             _ -> [])
+           in
+           let concreteUpdates = totalUpdates |>
+                sortBy (\\(ConcreteUpdate s1 _ _) (ConcreteUpdate s2 _ _) -> s1 <= s2) |>
+                List.foldl (\\((ConcreteUpdate start end replacement) as a) (accConcreteUpdates, minStartIndex) ->
+                  if start >= minStartIndex && end <= matchLength then
+                    (a::accConcreteUpdates, end)
+                  else
+                    (accConcreteUpdates, minStartIndex)
+                  ) ([], 0) |>
+                Tuple.first
+           in
+           List.foldl (\\(ConcreteUpdate start end replacement) match ->
+             String.take start match + replacement + String.drop end match)
+               originalMatch concreteUpdates
+  in
+  -- Split the text into Text [[\"TEXT\", unchanged text]] and Match (match)
+  -- On the other direction, recombines the nodes of Text and Match
+  -- Allows to back-propagate insertions and deletions of nodes
+  let findAugmentedInterleavings number regex ([[\"TEXT\", text]] as tNodes) =
+        let interleavings = findInterleavings number regex text in
+        let rev = List.foldl (\\elem acc -> case elem of
+            Left text -> Text [[\"TEXT\", text]] :: acc
+            Right match -> Match match :: acc
+          ) [] interleavings
+        in
+        let augmentedInterleavings = List.reverse rev in
+        let allMatches: List (Int, Match)
+            allMatches = List.concatMap (case of Match match -> [(match.number, match)]; _ -> []) augmentedInterleavings in
+        Update.lens {
+          apply tNodes = augmentedInterleavings
+          update ({outputNew, diffs} as uInput) = -- We should extract all the new matches
+            case diffs of
+              VListDiffs ds ->
+                let rebuild i outputNew ds newInput =
+                   case ds of
+                     [] ->
+                       case outputNew of
+                         [] ->
+                           Ok (Inputs [__mergeHtmlText__ newInput])
+                         Text nodes :: outputNewTail ->
+                           newInput ++ nodes |>
+                           rebuild (i + 1) outputNewTail ds
+                         Match m :: outputNewTail ->
+                           newInput ++ [[\"TEXT\", m.match]] |>
+                           rebuild (i + 1) outputNewTail ds
+                     (j, ld)::tds ->
+                       if i < j then
+                         case outputNew of
+                         Text nodes :: outputNewTail ->
+                           newInput ++ nodes |>
+                           rebuild (i + 1) outputNewTail ds
+                         Match m :: outputNewTail ->
+                           newInput ++ [[\"TEXT\", m.match]] |>
+                           rebuild (i + 1) outputNewTail ds
+                         [] ->
+                           Err (\"Unexpected end of findAugmentedInterleavings.outputNew\" + toString uInput)
+                       else case ld of
+                         ListElemUpdate u  ->
+                           case outputNew of
+                             Text nodes :: outputNewTail ->
+                               newInput ++ nodes |>
+                               rebuild (i + 1) outputNewTail tds
+                             Match m :: outputNewTail ->
+                               case u of
+                                 VRecordDiffs {args = VRecordDiffs { _1 = mDiffs } } ->
+                                   let originalMatch = (listDict.get m.number allMatches |> Maybe.withDefault m).match in
+                                   newInput ++ [[\"TEXT\", mergeMatch originalMatch mDiffs m]] |>
+                                   rebuild (i + 1) outputNewTail tds
+                                 _ -> Err (\"Unexpected findAugmentedInterleavings diffs: \" + toString u)
+                             [] ->
+                               Err (\"Unexpected end of findAugmentedInterleavings.outputNew\" + toString uInput)
+
+                         ListElemInsert n  ->
+                           let tailDiffs = if n == 1 then tds else (j, ListElemInsert (n - 1)) :: tds in
+                           case outputNew of
+                             [] ->
+                               Err (\"Expected inserted elements, got nothing\")
+                             Text nodes :: outputNewTail ->
+                               newInput ++ nodes |>
+                               rebuild i outputNewTail tailDiffs
+                             Match m :: outputNewTail ->
+                               newInput ++ [[\"TEXT\", m.match]] |>
+                               rebuild i outputNewTail tailDiffs
+
+                         ListElemDelete n  ->
+                           rebuild (i + n) outputNew tds newInput
+                in
+                  rebuild 0 outputNew ds []
+              _ -> Err (\"Expected VListDiffs, got \" + toString diffs)
+        } tNodes
+  in
   let insertionDeletionUpdatesTo  = Update.lens2 {
-    apply (node1List, node1) = [node1]
-    update {input=(node1List, node1), outputNew=newNodes, diffs} =
-      case diffs of
-        VListDiffs listDiffs ->
-          let aux i newNodes listDiffs newNode1List newNode1ListDiffs newNode1 mbNode1Diffs =
-            case listDiffs of
-              [] ->
-                Ok (InputsWithDiffs [(
-                  (newNode1List, newNode1),
-                  Update.pairDiff2
-                    (if newNode1ListDiffs == [] then
-                      Nothing
-                     else Just (VListDiffs newNode1ListDiffs))
-                    mbNode1Diffs
-                )])
-              (j, d)::diffTail ->
-                if i < j then -- i == 0 and j == 1
-                  let (skipped, remainingNodes) = List.split 1 newNodes in
-                  aux j remainingNodes listDiffs (newNode1List ++ skipped) newNode1ListDiffs newNode1 mbNode1Diffs
-                else
-                  case d of
-                    ListElemInsert x ->
-                      let (inserted, remainingNodes) = List.split x newNodes in
-                      let insertionDiffs = newNode1ListDiffs ++ [(j, ListElemInsert x)] in
-                      aux j remainingNodes diffTail
-                        (newNode1List ++ inserted) insertionDiffs newNode1 mbNode1Diffs
+      apply (node1List, node1) = [node1]
+      update {input=(node1List, node1), outputNew=newNodes, diffs} =
+        case diffs of
+          VListDiffs listDiffs ->
+            let aux i newNodes listDiffs newNode1List newNode1ListDiffs newNode1 mbNode1Diffs =
+              case listDiffs of
+                [] ->
+                  Ok (InputsWithDiffs [(
+                    (newNode1List, newNode1),
+                    Update.pairDiff2
+                      (if newNode1ListDiffs == [] then
+                        Nothing
+                       else Just (VListDiffs newNode1ListDiffs))
+                      mbNode1Diffs
+                  )])
+                (j, d)::diffTail ->
+                  if i < j then -- i == 0 and j == 1
+                    let (skipped, remainingNodes) = List.split 1 newNodes in
+                    aux j remainingNodes listDiffs (newNode1List ++ skipped) newNode1ListDiffs newNode1 mbNode1Diffs
+                  else
+                    case d of
+                      ListElemInsert x ->
+                        let (inserted, remainingNodes) = List.split x newNodes in
+                        let insertionDiffs = newNode1ListDiffs ++ [(j, ListElemInsert x)] in
+                        aux j remainingNodes diffTail
+                          (newNode1List ++ inserted) insertionDiffs newNode1 mbNode1Diffs
 
-                    ListElemUpdate x ->
-                      let newNode1_ :: remainingNodes = newNodes in
-                      aux (j + 1) remainingNodes diffTail
-                        (newNode1List ++ node1List) newNode1ListDiffs newNode1_ (Just x)
+                      ListElemUpdate x ->
+                        let newNode1_ :: remainingNodes = newNodes in
+                        aux (j + 1) remainingNodes diffTail
+                          (newNode1List ++ node1List) newNode1ListDiffs newNode1_ (Just x)
 
-                    ListElemDelete 1 -> -- Only the element can be deleted.
-                      let deletionDiffs = newNode1ListDiffs ++ [(0, ListElemDelete 1)] in
-                      aux (j + 1) newNodes diffTail
-                        newNode1List deletionDiffs node1 Nothing
+                      ListElemDelete 1 -> -- Only the element can be deleted.
+                        let deletionDiffs = newNode1ListDiffs ++ [(0, ListElemDelete 1)] in
+                        aux (j + 1) newNodes diffTail
+                          newNode1List deletionDiffs node1 Nothing
 
-                    _ -> Err <| \"Unexpected diff for insertionDeletionUpdatesTo:\" ++ toString d
-          in aux 0 newNodes listDiffs [] [] node1 Nothing
-        _ -> Err <| \"Expected VListDiffs for insertionDeletionUpdatesTo, got \" ++ toString diffs
-    }
+                      _ -> Err <| \"Unexpected diff for insertionDeletionUpdatesTo:\" ++ toString d
+            in aux 0 newNodes listDiffs [] [] node1 Nothing
+          _ -> Err <| \"Expected VListDiffs for insertionDeletionUpdatesTo, got \" ++ toString diffs
+      }
   in
   let  -- Takes a list of nodes, returns a list of nodes.
     replaceNodesIf nodePred regex replacement nodes =
@@ -4605,12 +4710,11 @@ Html =
         if not (nodePred node) then node1List else
         case node of
           [\"TEXT\", text] ->
-            findInterleavings 0 regex text
+            findAugmentedInterleavings 0 regex node1List
               |> List.concatMap_ identity (\\[head] as headList ->
               case head of
-                Left str ->
-                  insertionDeletionUpdatesTo node1List [\"TEXT\", str]
-                Right match -> replacement match
+                Text nodes -> nodes
+                Match match -> replacement match
             ) |> __mergeHtmlText__ |> List.filter (/= [\"TEXT\", \"\"])
           [tag, attrs, children] ->
             insertionDeletionUpdatesTo node1List [tag, attrs, replaceNodesIf nodePred regex replacement children]
@@ -4632,33 +4736,36 @@ Html =
   let replace  = replaceIf (\\_ -> True)
   in
   let replaceNodesAsTextIf nodePred regex replacement nodes =
-       let children = nodes |> List.filter (case of [_, _, _] -> True; _ -> False) in
-       let nodesAsText = nodes |> List.foldl (\\n (acc, i) -> case n of
-         [\"TEXT\", t] -> (acc + t, i)
-         [tag, _, _] -> (acc ++ \"\"\"<|#@i#@tag#|>\"\"\", i + 1)) (\"\", 0) |> Tuple.first
+       let nodesAsText = nodes |> List.indexedMapWithReverse identity (\\i n -> case n of
+         [\"TEXT\", t] -> n
+         [tag, _, _] -> [\"TEXT\", \"\"\"<|#@i#@tag#|>\"\"\"]) |> __mergeHtmlText__
        in
        -- Takes a list of nodes, and replaces each <|(number)|> by the matching node in the top-level text nodes.
        -- Calls replaceNodesAsTextIf on the result.
-       let reinsertNodes nodes = replaceNodesIf (\\_ -> True) \"\"\"<\\|#(\\d+)#\\w+#\\|>\"\"\" (\\m ->
-          [nth children (String.toInt (nth m.group 1))]) nodes in
+       let reinsertNodes insideNodes = replaceNodesIf (\\_ -> True) \"\"\"<\\|#(\\d+)#\\w+#\\|>\"\"\" (\\m ->
+          Update.sizeFreeze [nth nodes (String.toInt (nth m.group 1))]) insideNodes in
        let reinsertNodesInText text = reinsertNodes [[\"TEXT\", text]] in
        -- Takes a string and replaces  each <|(number)|> by the matching node in the top-level text nodes.
        let reinsertNodesInText text = reinsertNodes [[\"TEXT\", text]] in
        -- Takes a string and replace each <|(number)|> by the node in raw format (i.e. printed as HTML)
-       let reinsertNodesRaw nodes = replaceNodesIf (\\_ -> True) \"\"\"<\\|#(\\d+)#\\w+#\\|>\"\"\" (\\m ->
-         let oldNode = nth children (String.toInt (nth m.group 1)) in
+       let reinsertNodesRaw insideNodes = replaceNodesIf (\\_ -> True) \"\"\"<\\|#(\\d+)#\\w+#\\|>\"\"\" (\\m ->
+         let oldNode = nth nodes (String.toInt (nth m.group 1)) in
          [[\"TEXT\", valToHTMLSource oldNode]]
-       ) nodes in
+       ) insideNodes in
        let reinsertNodesRawInText text = reinsertNodesRaw [[\"TEXT\", text]] in
-       findInterleavings 0 regex nodesAsText |>
+       nodesAsText |>
+       findAugmentedInterleavings 0 regex |>
        List.concatMap (\\head ->
          case head of
-           Left str -> reinsertNodesInText str
-           Right m ->  reinsertNodes (replacement { m | reinsertNodesRawInText = reinsertNodesRawInText})
-       ) |> __mergeHtmlText__ |> List.filter (/= [\"TEXT\", \"\"]) |>
-       List.map (\\node -> case node of
+           Text nodes -> reinsertNodes nodes
+           Match m ->  reinsertNodes (replacement { m | reinsertNodesRawInText = reinsertNodesRawInText})
+       ) |> __mergeHtmlText__ |>
+       List.filter (\\a -> a /= [\"TEXT\", \"\"]) |>
+       List.mapWithReverse identity (\\node -> case node of
          [\"TEXT\", _] -> node
-         [tag, attrs, children] -> if nodePred node then [tag, attrs, replaceNodesAsTextIf nodePred regex replacement children] else node)
+         [tag, attrs, children] ->
+           if nodePred node then [tag, attrs,
+             replaceNodesAsTextIf nodePred regex replacement children] else node)
   in
   let replaceNodesAsText regex replacement nodes = replaceNodesAsTextIf (\\_ -> True) regex replacement nodes
   in
@@ -4749,6 +4856,90 @@ Html =
             Ok (Inputs [(finalHtmlNode, newTranslations)])
       } htmlNode translations
   in
+  let markdown node =
+      let
+          regexFootnotes = \"\"\"\\r?\\n\\[\\^([^\\]]+)\\]:\\s*((?:(?!\\r?\\n\\r?\\n)[\\s\\S])+)\"\"\"
+          regexReferences = \"\"\"\\r?\\n\\[(?!\\^)([^\\]\\\\]+)\\]:\\s*(\\S+)\"\"\"
+          footnotes = find regexFootnotes node
+                       |> List.map (\\m -> (nth m.group 1, nth m.group 2))
+                       |> List.indexedMap (\\i (name, value) -> (name, (i + 1, value)))
+          references = find regexReferences node
+                       |> List.map (\\m -> (nth m.group 1, nth m.group 2))
+          notCode = case of [\"code\", _, _] -> False; _ -> True
+          notTitle = case of [tag, _, _] -> not (Regex.matchIn \"\"\"h\\d\"\"\" tag); _ -> True
+          notList = case of [tag, _, _] -> tag /= \"ul\" && tag /= \"ol\"; _ -> True
+          notPara = case of [\"p\", _, _] -> False; _ -> True
+          notA = case of [\"a\", _, _] -> False; _ -> True
+          r: String -> (Match -> List HtmlNode) -> HtmlNode -> HtmlNode
+          r  = replaceAsTextIf notCode
+          r2 = replaceAsTextIf (\\x -> notCode x && notTitle x && notList x && notPara x)
+          ra = replaceAsTextIf (\\x -> notCode x && notA x)
+          lregex = \"\"\"(?:\\r?\\n|^)((?:(?![\\r\\n])\\s)*)(\\*|-|\\d+\\.)(\\s+)((?:.*)(?:\\r?\\n\\1  ?\\3(?:.*))*(?:\\r?\\n\\1(?:\\*|-|\\d+\\.)\\3(?:.*)(?:\\r?\\n\\1 \\3(?:.*))*)*)\"\"\"
+          handleLists node  =
+            r lregex (
+              \\m -> let indent = nth m.group 1
+                        afterindent = nth m.group 3
+                        ul_ol = case nth m.group 2 of \"*\" -> \"ul\"; \"-\" -> \"ul\"; _ -> \"ol\"
+                        elements =
+                          Regex.split \"\"\"\\r?\\n@indent(?:\\*|-|\\d+\\.)@afterindent\"\"\" (nth m.group 4)
+                    in
+                    [<@ul_ol>@(List.map (\\elem -> <li>@elem</li>) elements)</@>]) node
+      in (
+      node
+      |> r \"\"\"@regexReferences|@regexFootnotes\"\"\" (\\m -> [])
+      |> (\\result -> -- Expand footnotes
+        if List.length footnotes == 0 then result
+        else case result of
+          [tag, attrs, children] ->
+            [tag, attrs, children ++ Update.sizeFreeze [
+              <div class=\"footnotes\"><hr><ol>@(footnotes |>
+                List.map (\\(name, (n, value)) ->
+                  <li id=\"\"\"fn@n\"\"\"><p>@value<a href=\"\"\"#fnref@n\"\"\">↩</a></p></li>
+                ))</ol></div>]
+            ])
+      |> r \"\"\"(```)([\\s\\S]*?)\\1(?!`)|((?:\\r?\\n    .*)+)\"\"\" (\\m ->
+        if nth m.group 1 == \"\" then
+          nth m.group 3 |>
+          Regex.extract \"\"\"\\r?\\n    ([\\s\\S]*)\"\"\" |>
+          Maybe.map (\\[code] ->
+                  [<pre><code>@(Regex.split \"\"\"\\r?\\n    \"\"\" code |> String.join \"\\n\" |> String.trim |> m.reinsertNodesRawInText)</code></pre>])
+          |> Maybe.withDefault [[\"TEXT\", m.match]]
+        else [
+        <pre><code>@(nth m.group 2 |> String.trim |> m.reinsertNodesRawInText)</code></pre>])
+      |> r \"\"\"(^|\\r?\\n)(#+)\\s*([^\\r\\n]*)\"\"\" (\\m -> [[\"TEXT\", nth m.group 1], <@(\"\"\"h@(String.length (nth m.group 2))\"\"\")>@(nth m.group 3)</@>])
+      |> handleLists --|> (\\x -> let _ = Debug.log (\"Paragraph phase\") () in x)
+      |> r2 \"\"\"(\\r?\\n *\\r?\\n(?:\\\\noindent\\r?\\n)?|^)((?=\\s*\\w|\\S)[\\s\\S]*?)(?=(\\r?\\n *\\r?\\n|\\r?\\n$|$))\"\"\" (
+        \\m ->
+          --let _ = Debug.log m.match () in
+          if nth m.group 1 == \"\" && nth m.group 3 == \"\" -- titles and images should not be paragraphs.
+           || Regex.matchIn \"\"\"^\\s*<\\|#\\d+#(?:h\\d|ul|ol|p|pre)#\\|>\\s*$\"\"\" (nth m.group 2) then [[\"TEXT\", m.match]] else  [<p>@(nth m.group 2)</p>]) --|> (\\x -> let _ = Debug.log (\"End of paragraph phase:\" + valToHTMLSource x) () in x)
+      |> ra \"\"\"\\[([^\\]\\\\]+)\\](\\^?)(\\(|\\[)([^\\)\\]]+)(\\)|\\])|(?:http|ftp|https)://(?:[\\w_-]+(?:(?:\\.[\\w_-]+)+))(?:[\\w.,@@?^=%&:/~+#-]*[\\w@@?^=%&/~+#-])?\"\"\" (\\m -> [ -- Direct and indirect References + syntax ^ to open in external page.
+        case nth m.group 3 of
+          \"(\" -> <a href=(nth m.group 4) @(if nth m.group 2 == \"^\" then [[\"target\", \"_blank\"]] else [])>@(nth m.group 1)</a>
+          \"[\" -> listDict.get (nth m.group 4) references |> case of
+                Just link -> <a href=link>@(nth m.group 1)</a>
+                Nothing -> [\"TEXT\", m.match]
+          _ -> <a href=m.match>@(m.match)</a>
+          ])
+      |> r \"\"\"\\[\\^([^\\]]+)\\]\"\"\" (\\m ->  -- Footnotes
+        listDict.get (nth m.group 1) footnotes |> case of
+          Just (n, key) -> [ <a href=\"\"\"#fn@n\"\"\" class=\"footnoteRef\" id=\"\"\"fnref@n\"\"\"><sup>@n</sup></a>]
+          Nothing -> [[\"TEXT\", m.match]])
+      |> r \"(`)(?=[^\\\\s`])(.*?)\\\\1\" (\\m -> [<code>@(nth m.group 2 |> m.reinsertNodesRawInText)</code>])
+      |> r \"\"\"(\\*{1,3}|_{1,3})(?=[^\\s\\*_])((?:(?!\\\\\\*|\\_).)*?)\\1\"\"\" (\\m -> [
+        case nth m.group 1 |> String.length of
+          1 -> <em>@(nth m.group 2)</em>
+          2 -> <strong>@(nth m.group 2)</strong>
+          _ -> <em><strong>@(nth m.group 2)</strong></em>])
+      |> r \"\"\"&mdash;|\\\\\\*|\\\\_|\\\\\\[|\\\\\\]\"\"\" (\\m -> [[\"TEXT\", case m.match of
+        \"&mdash;\" -> \"—\"
+        \"\\\\*\" -> String.drop 1 m.match
+        \"\\\\_\" -> String.drop 1 m.match
+        \"\\\\[\" -> String.drop 1 m.match
+        \"\\\\]\" -> String.drop 1 m.match
+        ]])
+      )
+  in
   { textNode = textNode
     p = textElementHelper \"p\"
     th = textElementHelper \"th\"
@@ -4780,6 +4971,7 @@ Html =
     input = input
     observeCopyValueToAttribute = observeCopyValueToAttribute
     onChangeAttribute = onChangeAttribute
+    findAugmentedInterleavings = findAugmentedInterleavings
     replace = replace
     replaceIf = replaceIf
     replaceNodes = replaceNodes
@@ -4788,6 +4980,7 @@ Html =
     replaceAsText = replaceAsText
     replaceNodesAsTextIf = replaceNodesAsTextIf
     replaceNodesAsText = replaceNodesAsText
+    markdown = markdown
     find = find
     foldAndReplace = foldAndReplace
     filter = filter
