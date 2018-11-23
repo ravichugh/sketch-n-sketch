@@ -4736,6 +4736,7 @@ Html =
   let replace  = replaceIf (\\_ -> True)
   in
   let replaceNodesAsTextIf nodePred regex replacement nodes =
+       if nodes == [] then nodes else
        let nodesAsText = nodes |> List.indexedMapWithReverse identity (\\i n -> case n of
          [\"TEXT\", t] -> n
          [tag, _, _] -> [\"TEXT\", \"\"\"<|#@i#@tag#|>\"\"\"]) |> __mergeHtmlText__
