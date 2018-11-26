@@ -2180,6 +2180,7 @@ String =
           _ -> "")
         notincode = """(?!(?:(?!<code>)[\s\S])*</code>)"""
         notinulol = """(?!(?:(?!<[uo]l>)[\s\S])*</[uo]l>)"""
+        notinattr = """(?!(?:(?!<)[\s\S])*>)"""
         regexFootnotes = """\r?\n\[\^@notincode([^\]]+)\]:\s*@notincode((?:(?!\r?\n\r?\n)[\s\S])+)@notincode"""
         regexReferences = """\r?\n\[(?!\^)([^\]\\]+)\]:\s*@notincode(\S+)@notincode"""
         footnotes = Regex.find regexFootnotes text
@@ -2220,7 +2221,7 @@ String =
                     List.map handleLists elements
                     |> joinAndSplitBack """</li><li>@notinulol""" "</li><li>")</li>@insertAfter</@ul_ol>"""
     in (text
-        |> r """(```)([\s\S]*?)\1(?!`)|((?:\r?\n    .*)+)""" (\m ->
+        |> r """(```)([\s\S]*?)\1(?!`)|((?:(?:\r?\n *\r?\n|^)    .*)+)""" (\m ->
           if nth m.group 1 == "" then
             nth m.group 3 |>
             Regex.extract """\r?\n    ([\s\S]*)""" |>
@@ -2247,7 +2248,7 @@ String =
         \m ->
           if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
            || Regex.matchIn """^\s*<\|#\d+#(?:h\d|ul|ol|p|pre)#\|>\s*$""" (nth m.group 2) then m.match else Update.expressionFreeze """@(nth m.group 1)<p>@(nth m.group 2)</p>""")
-      |> r """\[([^\]\\]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])|(?:http|ftp|https)://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?@notincode""" (\m ->  -- Direct and indirect References + syntax ^ to open in external page.
+      |> r """\[([^\]\\]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])|(?:http|ftp|https)://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?@notincode@notinattr""" (\m ->  -- Direct and indirect References + syntax ^ to open in external page.
         case nth m.group 3 of
           "(" -> Update.expressionFreeze """<a href="@(nth m.group 4)" @(if nth m.group 2 == "^" then """target="_blank"""" else "")>@(nth m.group 1)</a>"""
           "[" -> listDict.get (nth m.group 4) references |> case of
@@ -2264,13 +2265,15 @@ String =
           1 -> Update.expressionFreeze """<em>@(nth m.group 2)</em>"""
           2 -> Update.expressionFreeze """<strong>@(nth m.group 2)</strong>"""
           _ -> Update.expressionFreeze """<em><strong>@(nth m.group 2)</strong></em>""")
-      |> r """&mdash;|\\\*|\\_|\\\[|\\\]""" (\m -> [["TEXT", case m.match of
+      |> r """(&mdash;|\\\*|\\_|\\\[|\\\]|  \r?\n)@notincode""" (\m -> case m.match of
         "&mdash;" -> "—"
         "\\*" -> drop 1 m.match
         "\\_" -> drop 1 m.match
         "\\[" -> drop 1 m.match
         "\\]" -> drop 1 m.match
-        ]])
+        "  \r\n" -> "<br>"
+        "  \n" -> "<br>"
+        )
       )
     in
   { toInt = toInt
@@ -2519,7 +2522,7 @@ html string = {
             else [name, content]
             ) attrs
         , map domap children]
-      HTMLComment {args = [content]} -> ["comment", [["display", "none"]], [["TEXT", content]]]
+      HTMLComment {args = {_1=content}} -> ["comment", [["display", "none"]], [["TEXT", content]]]
     in map domap trees
 
   update {input, oldOutput, newOutput, diffs} =
