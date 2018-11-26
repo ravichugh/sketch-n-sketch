@@ -4052,6 +4052,9 @@ String =
             let addition = makeSize (if input == \"\" then \"#\" else input) increment in
             Ok (InputsWithDiffs [(input + addition, Just (VStringDiffs [StringUpdate oldOutput oldOutput increment]))])
         }.apply x
+      trim s = case extractFirstIn \"^\\\\s*([\\\\s\\\\S]*?)\\\\s*$\" s of
+                 Just [trimmed] -> trimmed
+                 _ -> s
   in
   let markdown text =
     let escapeHtml = Regex.replace \"[<>&]\" (case of
@@ -4069,7 +4072,7 @@ String =
                      |> List.map (\\m -> (nth m 1, nth m 2))
                      |> List.indexedMap (\\i (name, value) -> (name, (i + 1, value)))
         references = Regex.find regexReferences text
-                     |> List.map (Debug.log \"m\" >> \\m -> (nth m 1, nth m 2))
+                     |> List.map (\\m -> (nth m 1, nth m 2))
         r  = Regex.replace
         lregex = \"\"\"(?:\\r?\\n|^)((?:(?![\\r\\n])\\s)*)(\\*|-|\\d+\\.)(\\s+)((?:@notincode.*)(?:\\r?\\n\\1  ?\\3(?:@notincode.*))*(?:\\r?\\n\\1(?:\\*|-|\\d+\\.)\\3(?:@notincode.*)(?:\\r?\\n\\1 \\3(?:@notincode.*))*)*)@notincode\"\"\"
         handleLists text  =
@@ -4077,7 +4080,7 @@ String =
             \\m -> let indent = nth m.group 1
                       afterindent = nth m.group 3
                       symbol = nth m.group 2
-                      ul_ol = Update.debug \"ul_ol\" <| Update.bijection
+                      ul_ol = Update.bijection
                                (case of \"*\" -> \"ul\"; \"-\" -> \"ul\"; _ -> \"ol\")
                                (case of
                                  \"ul\" -> if symbol == \"*\" || symbol == \"-\" then symbol else \"*\"
@@ -4168,9 +4171,7 @@ String =
     drop = drop
     dropLeft = drop
     dropRight = dropRight
-    trim s = case extractFirstIn \"^\\\\s*([\\\\s\\\\S]*?)\\\\s*$\" s of
-      Just [trimmed] -> trimmed
-      Nothing -> s
+    trim = trim
     sprintf = sprintf
     uncons s = case extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" s of
       Just [x, y] -> Just (x, y)
