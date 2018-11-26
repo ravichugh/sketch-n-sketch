@@ -2302,6 +2302,9 @@ Result =
   {
     map = map
     andThen = andThen
+    withDefault default res = case res of
+      Err _ -> default
+      Ok x ->  x
   }
 
 --------------------------------------------------------------------------------
@@ -4013,42 +4016,151 @@ String =
           Ok (Inputs [outputNew])
     }.apply x
   in
-  { toInt x =
-      { apply x = strToInt x
-      , unapply output = Just (toString output)
-      }.apply x
-    toFloat x =
-      { apply x = strToFloat x -- TODO: Recognize other types of float (e.g. NaN, infinity, 1e10, negatives...)
-        unapply output = Just (toString output)
-      }.apply x
-    join delimiter x =
-      if delimiter == \"\" then join_ x
-      else join__ delimiter x
-    -- In the forward direction, it joins the string.
-    -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
-    joinAndSplitBack delimiter x = if delimiter == \"\" then join_ x else {
-        apply x = join__ delimiter x
-        update {output, oldOutput, diffs} =
-          Ok (Inputs [Regex.split delimiter output])
-      }.apply x
-    length x = {
-      apply x = len (explode x)
-      update {input, oldOutput, newOutput} =
-        if newOutput < oldOutput then
-          Ok (InputsWithDiffs [(take newOutput input, Just (VStringDiffs [StringUpdate newOutput oldOutput 0]))])
-        else if newOutput == oldOutput then
-          Ok (InputsWithDiffs [(input, Nothing)])
-        else
-          let makeSize s targetLength =
-            let n = length s in
-            if n < targetLength then makeSize (s + s) targetLength
-            else if n == targetLength then s
-            else take targetLength s
-          in
-          let increment = newOutput - oldOutput in
-          let addition = makeSize (if input == \"\" then \"#\" else input) increment in
-          Ok (InputsWithDiffs [(input + addition, Just (VStringDiffs [StringUpdate oldOutput oldOutput increment]))])
-      }.apply x
+  let toInt x =
+        { apply x = strToInt x
+        , unapply output = Just (toString output)
+        }.apply x
+      toFloat x =
+        { apply x = strToFloat x -- TODO: Recognize other types of float (e.g. NaN, infinity, 1e10, negatives...)
+          unapply output = Just (toString output)
+        }.apply x
+      join delimiter x =
+        if delimiter == \"\" then join_ x
+        else join__ delimiter x
+      -- In the forward direction, it joins the string.
+      -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
+      joinAndSplitBack regexSplit delimiter x = if delimiter == \"\" then join_ x else {
+          apply x = join__ delimiter x
+          update {output, oldOutput, diffs} =
+            Ok (Inputs [Regex.split regexSplit output])
+        }.apply x
+      length x = {
+        apply x = len (explode x)
+        update {input, oldOutput, newOutput} =
+          if newOutput < oldOutput then
+            Ok (InputsWithDiffs [(take newOutput input, Just (VStringDiffs [StringUpdate newOutput oldOutput 0]))])
+          else if newOutput == oldOutput then
+            Ok (InputsWithDiffs [(input, Nothing)])
+          else
+            let makeSize s targetLength =
+              let n = length s in
+              if n < targetLength then makeSize (s + s) targetLength
+              else if n == targetLength then s
+              else take targetLength s
+            in
+            let increment = newOutput - oldOutput in
+            let addition = makeSize (if input == \"\" then \"#\" else input) increment in
+            Ok (InputsWithDiffs [(input + addition, Just (VStringDiffs [StringUpdate oldOutput oldOutput increment]))])
+        }.apply x
+  in
+  let markdown text =
+    let escapeHtml = Regex.replace \"[<>&]\" (case of
+          {match = \"<\"} -> freeze \"&lt;\"
+          {match = \">\"} -> freeze \"&gt;\"
+          {match = \"&\"} -> freeze \"&amp;\")
+        escapeAttribute = Regex.replace \"\\r?\\n|\\\"\" (case of
+          \"\\\"\" -> \"\\\\\\\"\"
+          _ -> \"\")
+        notincode = \"\"\"(?!(?:(?!<code>)[\\s\\S])*</code>)\"\"\"
+        notinulol = \"\"\"(?!(?:(?!<[uo]l>)[\\s\\S])*</[uo]l>)\"\"\"
+        regexFootnotes = \"\"\"\\r?\\n\\[\\^@notincode([^\\]]+)\\]:\\s*@notincode((?:(?!\\r?\\n\\r?\\n)[\\s\\S])+)@notincode\"\"\"
+        regexReferences = \"\"\"\\r?\\n\\[(?!\\^)([^\\]\\\\]+)\\]:\\s*@notincode(\\S+)@notincode\"\"\"
+        footnotes = Regex.find regexFootnotes text
+                     |> List.map (\\m -> (nth m 1, nth m 2))
+                     |> List.indexedMap (\\i (name, value) -> (name, (i + 1, value)))
+        references = Regex.find regexReferences text
+                     |> List.map (Debug.log \"m\" >> \\m -> (nth m 1, nth m 2))
+        r  = Regex.replace
+        lregex = \"\"\"(?:\\r?\\n|^)((?:(?![\\r\\n])\\s)*)(\\*|-|\\d+\\.)(\\s+)((?:@notincode.*)(?:\\r?\\n\\1  ?\\3(?:@notincode.*))*(?:\\r?\\n\\1(?:\\*|-|\\d+\\.)\\3(?:@notincode.*)(?:\\r?\\n\\1 \\3(?:@notincode.*))*)*)@notincode\"\"\"
+        handleLists text  =
+          flip (r lregex) text <|
+            \\m -> let indent = nth m.group 1
+                      afterindent = nth m.group 3
+                      symbol = nth m.group 2
+                      ul_ol = Update.debug \"ul_ol\" <| Update.bijection
+                               (case of \"*\" -> \"ul\"; \"-\" -> \"ul\"; _ -> \"ol\")
+                               (case of
+                                 \"ul\" -> if symbol == \"*\" || symbol == \"-\" then symbol else \"*\"
+                                 \"ol\" -> if symbol == \"*\" || symbol == \"-\" then \"1.\" else symbol
+                                 x -> error \"\"\"tag name '@x' not compatible with ul or ol\"\"\")
+                               symbol
+                      elements =
+                        Regex.split \"\"\"\\r?\\n@indent(?:\\*|-|\\d+\\.)@afterindent\"\"\" (nth m.group 4)
+                      insertionPoint callback = Update.lens {
+                        apply elements = \"\"
+                        update {input=elements, output} =
+                          case Regex.extract \"\"\"^<li>([\\s\\S]*)</li>$\"\"\" output of
+                            Just [content] ->
+                              Ok (Inputs [callback elements (Regex.split \"\"\"</li><li>\"\"\" content)]) -- TODO: Precompute diffs (insertions)
+                            _->
+                              Err (\"Can only insert <li> elements to lists, got \" + output)
+                      } elements
+                      insertAfter = insertionPoint (append)
+                      insertBefore = insertionPoint (flip append)
+                  in
+                  Update.expressionFreeze <|
+                  \"\"\"<@ul_ol>@insertBefore<li>@(
+                    List.map handleLists elements
+                    |> joinAndSplitBack \"\"\"</li><li>@notinulol\"\"\" \"</li><li>\")</li>@insertAfter</@ul_ol>\"\"\"
+    in (text
+        |> r \"\"\"(```)([\\s\\S]*?)\\1(?!`)|((?:\\r?\\n    .*)+)\"\"\" (\\m ->
+          if nth m.group 1 == \"\" then
+            nth m.group 3 |>
+            Regex.extract \"\"\"\\r?\\n    ([\\s\\S]*)\"\"\" |>
+            Maybe.map (\\[code] ->
+                    \"\"\"<pre><code>@(Regex.split \"\"\"\\r?\\n    \"\"\" code |> join \"\\n\" |> trim |> escapeHtml)</code></pre>\"\"\")
+            |> Maybe.withDefault m.match
+          else
+          \"\"\"<pre><code>@(nth m.group 2 |> trim |> escapeHtml)</code></pre>\"\"\")
+        |> r \"\"\"(`)(?=[^\\s`])(@notincode.*?)\\1@notincode\"\"\" (\\m -> \"\"\"<code>@(nth m.group 2 |> escapeHtml)</code>\"\"\")
+        |> r \"\"\"(?:@regexReferences|@regexFootnotes)@notincode\"\"\" (\\m -> \"\")
+        |> (\\result -> -- Expand footnotes
+          if List.length footnotes == 0 then result
+          else result + \"\"\"
+<div class=\"footnotes\"><hr><ol>@(footnotes |>
+                List.map (\\(name, (n, value)) ->
+                  \"\"\"<li id=\"fn@n\"><p>@value<a href=\"#fnref@n\">↩</a></p></li>\"\"\"
+                ) |> join \"\")</ol></div>\"\"\"
+           )
+      |> r \"\"\"(^|\\r?\\n)(#+)\\s*(@notincode[^\\r\\n]*)@notincode\"\"\" (\\m ->
+        let hlevel = \"\"\"h@(length (nth m.group 2))\"\"\" in
+        Update.expressionFreeze \"\"\"@(nth m.group 1)<@hlevel>@(nth m.group 3)</@hlevel>\"\"\")
+      |> handleLists
+      |> r \"\"\"(?:(\\r?\\n *\\r?\\n)(?:\\\\noindent\\r?\\n)?|^)((?=\\s*\\w|\\S)@notincode[\\s\\S]*?)(?=(\\r?\\n *\\r?\\n|\\r?\\n$|$))@notincode\"\"\" (
+        \\m ->
+          if nth m.group 1 == \"\" && nth m.group 3 == \"\" -- titles and images should not be paragraphs.
+           || Regex.matchIn \"\"\"^\\s*<\\|#\\d+#(?:h\\d|ul|ol|p|pre)#\\|>\\s*$\"\"\" (nth m.group 2) then m.match else Update.expressionFreeze \"\"\"@(nth m.group 1)<p>@(nth m.group 2)</p>\"\"\")
+      |> r \"\"\"\\[([^\\]\\\\]+)\\](\\^?)(\\(|\\[)([^\\)\\]]+)(\\)|\\])|(?:http|ftp|https)://(?:[\\w_-]+(?:(?:\\.[\\w_-]+)+))(?:[\\w.,@@?^=%&:/~+#-]*[\\w@@?^=%&/~+#-])?@notincode\"\"\" (\\m ->  -- Direct and indirect References + syntax ^ to open in external page.
+        case nth m.group 3 of
+          \"(\" -> Update.expressionFreeze \"\"\"<a href=\"@(nth m.group 4)\" @(if nth m.group 2 == \"^\" then \"\"\"target=\"_blank\"\"\"\" else \"\")>@(nth m.group 1)</a>\"\"\"
+          \"[\" -> listDict.get (nth m.group 4) references |> case of
+                Just link -> Update.expressionFreeze \"\"\"<a href=\"@link\">@(nth m.group 1)</a>\"\"\"
+                Nothing -> m.match
+          _ -> \"\"\"<a href=\"@(m.match)\">@(m.match)</a>\"\"\"
+          )
+      |> r \"\"\"\\[\\^(@notincode[^\\]]+)\\]@notincode\"\"\" (\\m ->  -- Footnotes
+        listDict.get (nth m.group 1) footnotes |> case of
+          Just (n, key) -> Update.expressionFreeze \"\"\"<a href=\"#fn@n\" title=\"@(escapeAttribute key)\" class=\"footnoteRef\" id=\"fnref@n\"><sup>@n</sup></a>\"\"\"
+          Nothing -> m.match)
+      |> r \"\"\"(\\*{1,3}|_{1,3})(?=[^\\s\\*_])(@notincode(?:(?!\\\\\\*|\\_).)*?)\\1@notincode\"\"\" (\\m ->
+        case nth m.group 1 |> length of
+          1 -> Update.expressionFreeze \"\"\"<em>@(nth m.group 2)</em>\"\"\"
+          2 -> Update.expressionFreeze \"\"\"<strong>@(nth m.group 2)</strong>\"\"\"
+          _ -> Update.expressionFreeze \"\"\"<em><strong>@(nth m.group 2)</strong></em>\"\"\")
+      |> r \"\"\"&mdash;|\\\\\\*|\\\\_|\\\\\\[|\\\\\\]\"\"\" (\\m -> [[\"TEXT\", case m.match of
+        \"&mdash;\" -> \"—\"
+        \"\\\\*\" -> drop 1 m.match
+        \"\\\\_\" -> drop 1 m.match
+        \"\\\\[\" -> drop 1 m.match
+        \"\\\\]\" -> drop 1 m.match
+        ]])
+      )
+    in
+  { toInt = toInt
+    toFloat = toFloat
+    join = join
+    joinAndSplitBack = joinAndSplitBack
+    length = length
     substring = substring
     slice = substring
     take = take
@@ -4074,6 +4186,7 @@ String =
            Just [padding, str] -> Ok (Inputs [str])
            Nothing -> Err \"String.pad could not complete\"
     }
+    markdown = markdown
   }
 
 
@@ -4125,7 +4238,7 @@ Maybe =
         Just x -> Just (f x)
       update = case of
         {outputOld=Just x, outputNew=Nothing} ->
-          Ok (InputsWithDiffs [((f, Nothing), Update.mbPairDiffs Nothing VConstDiffs)])
+          Ok (InputsWithDiffs [((f, Nothing), Update.mbPairDiffs (Nothing, Just VConstDiffs))])
         uInput -> Update.default apply uInput
     }
 
@@ -4136,7 +4249,7 @@ Maybe =
         Just x -> Just (f x)
       update = case of
         {outputOld=Just x, outputNew=Nothing} ->
-           Ok (InputsWithDiffs [((f, Nothing), Update.mbPairDiffs Nothing VConstDiffs)])
+           Ok (InputsWithDiffs [((f, Nothing), Update.mbPairDiffs (Nothing, Just VConstDiffs))])
         {outputOld=Nothing, outputNew=Just x} ->
            case Update.updateApp {fun (_, f, x) = f x, input = (default, f, default), outputNew = x} of
              Err msg -> Err msg
