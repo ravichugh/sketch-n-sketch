@@ -10,7 +10,7 @@ const fs = require("fs")
 const sns = require("sketch-n-sketch")
 
 var source = fs.readFileSync(__dirname + "/generate.elm", "utf8");
-var result = sns.evaluateEnv({v:1})(source + `
+var result = sns.objEnv.string.evaluate({v:1})(source + `
 
 toWriteRaw |> List.map (\\(name, htmlvalue) ->
   __jsEval__ """(function() {

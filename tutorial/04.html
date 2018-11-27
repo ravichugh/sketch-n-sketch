@@ -120,8 +120,8 @@ it ourselves:</p>
     ([[ x | xs ] | rest]  [x | (ourConcat [ xs | rest ])]))))</code></pre><p>Notice that we say <code>defrec</code>, rather than <code>def</code>, because the definition of
 <code>ourConcat</code> recursively calls itself. This function takes a <code>listOfLists</code> and
 returns something based on which of the following three patterns it matches:
-<ul><li>if <code>listOfLists</code> is empty...<ul><li>then their concatenation is the empty list </li></ul></li><li>if the first list in <code>listOfLists</code> is empty...<ul><li>then the concatenation is defined by recursively concatenating the <code>rest</code></li></ul>
-    of the lists in <code>listOfLists</code></li><li>if the first list has some head element <code>x</code> and tail <code>xs</code>...<ul><li>then the concatenation includes <code>x</code> plus everything in <code>xs</code> and <code>rest</code>.</li></ul></li></ul></p><p>If <code>ourConcat</code> is called with anything besides a list, then this function will
+<ul><li>if <code>listOfLists</code> is empty...<pre><code>* then their concatenation is the empty list</code></pre></li><li>if the first list in <code>listOfLists</code> is empty...<pre><code>* then the concatenation is defined by recursively concatenating the `rest`
+of the lists in `listOfLists`</code></pre></li><li>if the first list has some head element <code>x</code> and tail <code>xs</code>...<pre><code>* then the concatenation includes `x` plus everything in `xs` and `rest`.</code></pre></li></ul></p><p>If <code>ourConcat</code> is called with anything besides a list, then this function will
 crash at run-time (by design).  If you have functional programming experience,
 this will likely look like a standard recursive definition — albeit with a
 different syntax than you're used to.</p>
@@ -310,16 +310,12 @@ at a time.</p><p>When generating your own paths, make sure that the final comman
 begins with a "moveto" command and that the last point of each section is
 interacting with the first point of the next section exactly how you would like
 it to be. Now it's time for you to set sail.</p><p><strong>Exercise 4.6:</strong> Your mission, should you choose to accept it, is the following:
-<ol><li>Pick a design that would be difficult or impossible to create using only basic
-    shapes. Anything that involves non-circular curves or a large number of
-    contiguous edges is a good candidate. One option is to choose an
-    existing logo design of a favorite organization of yours or your place of work.
-    Having an image of such a design on hand will be helpful for reference.</li><li>Find a subset of the design that can be expressed as a path and in terms of
-    just a few parameters. Write a function that genereates that portion of the
-    path. It is okay if it's only part of the overall design that can be expressed in
-    this way.</li><li>Complete the remainder of the path that is associated with this generated subset.</li><li>Continue the above two steps until all paths in the design have been
-    completed.</li><li>Specify the remainder of the design, attempting to share as many parameters
-    that are logically linked between the paths and these elements.</li></ol></p><p>We encourage you to be amibitious with this exercise! Paths open up a world of
+<ol><li>Pick a design that would be difficult or impossible to create using only basic<pre><code>shapes. Anything that involves non-circular curves or a large number of
+contiguous edges is a good candidate. One option is to choose an
+existing logo design of a favorite organization of yours or your place of work.
+Having an image of such a design on hand will be helpful for reference.</code></pre></li><li>Find a subset of the design that can be expressed as a path and in terms of<pre><code>just a few parameters. Write a function that genereates that portion of the
+path. It is okay if it's only part of the overall design that can be expressed in
+this way.</code></pre></li><li>Complete the remainder of the path that is associated with this generated subset.</li><li>Continue the above two steps until all paths in the design have been<pre><code>completed.</code></pre></li><li>Specify the remainder of the design, attempting to share as many parameters<pre><code>that are logically linked between the paths and these elements.</code></pre></li></ol></p><p>We encourage you to be amibitious with this exercise! Paths open up a world of
 possiblities for expressing different graphics and is one of the places where
 being able to directly manipulate designs along with programmatic specification
 really shines. Don't forget to use the <a href="http://www.w3.org/TR/SVG11/paths.html">SVG path specification</a>

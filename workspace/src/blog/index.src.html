@@ -34,7 +34,7 @@
                   |> Maybe.map (\[title] -> title)
                   |> Maybe.withDefaultLazy (\() -> """[Missing title in @filename]""")
              in
-             <li><tt>@date:</tt> <a href="@finalname">@title</a></li>
+             <li><tt>@date:</tt> <a href="""@finalname""">@title</a></li>
            ))
         </ul>
       </div>
