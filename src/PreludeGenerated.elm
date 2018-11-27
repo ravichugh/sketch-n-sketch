@@ -4146,7 +4146,7 @@ String =
         listDict.get (nth m.group 1) footnotes |> case of
           Just (n, key) -> Update.expressionFreeze \"\"\"<a href=\"#fn@n\" title=\"@(escapeAttribute key)\" class=\"footnoteRef\" id=\"fnref@n\"><sup>@n</sup></a>\"\"\"
           Nothing -> m.match)
-      |> r \"\"\"(\\*{1,3}|_{1,3})(?=[^\\s\\*_])(@notincode(?:(?!\\\\\\*|\\_).)*?)\\1@notincode\"\"\" (\\m ->
+      |> r \"\"\"(\\*{1,3}|_{1,3})(?=[^\\s\\*_])(@notincode(?:(?!\\\\\\*|\\_).)*?)\\1@notincode@notinattr\"\"\" (\\m ->
         case nth m.group 1 |> length of
           1 -> Update.expressionFreeze \"\"\"<em>@(nth m.group 2)</em>\"\"\"
           2 -> Update.expressionFreeze \"\"\"<strong>@(nth m.group 2)</strong>\"\"\"
