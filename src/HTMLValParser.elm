@@ -150,6 +150,8 @@ styleAttrToElmViewInLeo vb (name, content) =
     Vb.viewtuple2 Vb.string (Vb.list (Vb.viewtuple2 Vb.string Vb.string)) vb (name,
       explodeStyleValue content |> List.map (\(_, name, _, value, _) -> (name, value)))
 
+{-
+-- Removes trailing newlines of HTMLInner for better HTML rendering
 filterHTMLInnerWhitespace: List HTMLNode -> List HTMLNode
 filterHTMLInnerWhitespace nodes =
   let aux: List HTMLNode -> List HTMLNode -> List HTMLNode
@@ -166,6 +168,7 @@ filterHTMLInnerWhitespace nodes =
                aux (replaceInfo head (HTMLInner newTxt) :: revAcc) tail
            _ -> aux (head:: revAcc) tail
   in aux [] nodes
+-}
 
 htmlNodeToElmViewInLeo: Vb.Vb -> HTMLNode -> Val
 htmlNodeToElmViewInLeo vb tree =
@@ -184,7 +187,7 @@ htmlNodeToElmViewInLeo vb tree =
             HTMLAttributeNoValue -> (name.val, "")
             HTMLAttributeExp _ _ -> ("internal-error", "unable-to-render-HTMLAttributeExp")
               ) attrs
-        , filterHTMLInnerWhitespace children)
+        , children)
     HTMLComment commentStyle ->
        let contentToVal content =
          Vb.viewtuple3 Vb.string (Vb.list styleAttrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
