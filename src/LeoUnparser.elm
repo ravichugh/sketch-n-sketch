@@ -958,12 +958,14 @@ unparseHtmlNode e = case (unwrapExp e) of
           EBase _ (EString _ content) -> (content, content)
           _ -> ("@" ++ unparse tagExp, "@")
     in
-    "<" ++ tagStart ++ unparseHtmlAttributes attrExp ++spaceBeforeEndOpeningTag.val ++ (case spaceBeforeTail.val of
-      " " -> -- Auto-closing
+    "<" ++ tagStart ++ unparseHtmlAttributes attrExp ++spaceBeforeEndOpeningTag.val ++ (
+      if spaceBeforeTail.val == LeoParser.encoding_autoclosing then
         "/>"
-      "  " ->  -- void closing
+      else if spaceBeforeTail.val == LeoParser.encoding_voidclosing then
         ">"
-      _ -> -- Normal closing if the tag is ok
+      else if spaceBeforeTail.val == LeoParser.encoding_forgotclosing then
+        ">" ++ unparseHtmlChildList childExp
+      else  -- Normal closing if the tag is ok
         if HTMLParser.isVoidElement tagStart then
           ">"
         else
