@@ -564,14 +564,13 @@ printAttrs prettyPrint l = case l of
   _  -> String.concat (List.map (printAttr prettyPrint) l)
 
 printAttrRaw prettyPrint (k,v) =
-  " " ++ k ++ "=" ++ Utils.delimit "\"" "\"" (Regex.replace Regex.All (Regex.regex "&|\\\\|\"|'|\n|\r|\t") (\m ->
+  " " ++ k ++ "=" ++ Utils.delimit "\"" "\"" (Regex.replace Regex.All (Regex.regex "\\\\|\"|'|\n|\r|\t") (\m ->
     case m.match of
       "\\" -> if prettyPrint then "\\\\" else "\\"
       "'" -> if prettyPrint then "'" else "&#39;"
       "\"" -> if prettyPrint then "\\\"" else "&quot;"
       "\n" -> if prettyPrint then "\\n" else "&#10;"
       "\r" -> if prettyPrint then "\\r" else "&#13;"
-      "&" -> if prettyPrint then "&" else "&amp;"
       "\t" -> if prettyPrint then "\\t" else "\t"
       e -> e
   ) v)

@@ -5156,39 +5156,64 @@ jsCode = {
 
 nodejs = {
   fileread = Update.lens {
-    apply name =
-      __jsEval__ \"\"\"
-        (function() {
-          const fs = require(\"fs\");
-          if(fs.existsSync(@(jsCode.stringOf name)))
-            return @(jsCode.datatypeOf \"x\" \"Just\" [\"\"\"fs.readFileSync(@(jsCode.stringOf name), \"utf-8\")\"\"\"]);
-          else
-            return @(jsCode.datatypeOf \"x\" \"Nothing\" []);
-        })()\"\"\"
-    update = case of
-      {input=name, outputOld, outputNew=Just content} ->
-        let
-          mbCreateDir = case outputOld of
-            Nothing -> __jsEval__ \"\"\"
-              const fs = require(\"fs\");
-              var pathToFile = @(jsCode.stringOf name);
-              var filePathSplit = pathToFile.split('/');
-              var dirName = \"\";
-              for (var index = 0; index < filePathSplit.length - 1; index++) {
-                  dirName += filePathSplit[index]+'/';
-                  if (!fs.existsSync(dirName))
-                      fs.mkdirSync(dirName);
-              }\"\"\" -- Create the file's directory structure.
-            Just oldContent -> \"\"
-          written = __jsEval__ \"\"\"const fs = require(\"fs\");
-            fs.writeFileSync(@(jsCode.stringOf name), @(jsCode.stringOf content), \"utf-8\"); 1\"\"\"
-        in Ok (InputsWithDiffs [(name, Nothing)])
-      {input=name, outputOld=Just _, outputNew=Nothing} ->  -- Delete the file
-         let deleted = __jsEval__ \"\"\"const fs = require(\"fs\");
-           fs.unlinkSync(@(jsCode.stringOf name)); 1\"\"\" in
-         Ok (InputsWithDiffs [(name, Nothing)])
-      {input=name} -> Ok (InputsWithDiffs [(name, Nothing)])
-  }
+      apply name =
+        __jsEval__ \"\"\"
+          (function() {
+            const fs = require(\"fs\");
+            exports.fileOperations = exports.fileOperations || [];
+            for (var i = exports.fileOperations.length - 1; i >= 0; i--) {
+              var [op, elems] = exports.fileOperations[i];
+              if(op == \"write\" && elems._1 == @(jsCode.stringOf name)) {
+                return @(jsCode.datatypeOf \"x\" \"Just\" [\"elems._2\"]);
+              }
+            }
+            if(fs.existsSync(@(jsCode.stringOf name)))
+              return @(jsCode.datatypeOf \"x\" \"Just\" [\"\"\"fs.readFileSync(@(jsCode.stringOf name), \"utf-8\")\"\"\"]);
+            else
+              return @(jsCode.datatypeOf \"x\" \"Nothing\" []);
+          })()\"\"\"
+      update = case of
+        {input=name, outputOld, outputNew=Just content} ->
+          let
+            mbCreateDir = case outputOld of
+              Nothing -> __jsEval__ \"\"\"
+                const fs = require(\"fs\");
+                var pathToFile = @(jsCode.stringOf name);
+                var filePathSplit = pathToFile.split('/');
+                var dirName = \"\";
+                for (var index = 0; index < filePathSplit.length - 1; index++) {
+                    dirName += filePathSplit[index]+'/';
+                    if (!fs.existsSync(dirName))
+                        fs.mkdirSync(dirName);
+                }\"\"\" -- Create the file's directory structure.
+              Just oldContent -> \"\"
+            written = __jsEval__ \"\"\"
+              if(typeof exports == \"object\" &&
+                 typeof exports.params == \"object\" &&
+                 exports.params.delayedWrite) {
+                exports.fileOperations = exports.fileOperations || [];
+                exports.fileOperations.push([\"write\", @(jsCode.tupleOf \"x\" [jsCode.stringOf name, jsCode.stringOf content])]);
+              } else {
+                const fs = require(\"fs\");
+                fs.writeFileSync(@(jsCode.stringOf name), @(jsCode.stringOf content), \"utf-8\");
+              }
+              1\"\"\"
+          in Ok (InputsWithDiffs [(name, Nothing)])
+        {input=name, outputOld=Just _, outputNew=Nothing} ->  -- Delete the file
+           let deleted = __jsEval__ \"\"\"
+             if(typeof exports == \"object\" &&
+                 typeof exports.params == \"object\" &&
+                 exports.params.delayedWrite) {
+                exports.fileOperations = exports.fileOperations || [];
+                exports.fileOperations.push([\"unlink\", @(jsCode.stringOf name)]);
+             } else {
+               const fs = require(\"fs\");
+               fs.unlinkSync(@(jsCode.stringOf name));
+             }
+             1\"\"\" in
+           Ok (InputsWithDiffs [(name, Nothing)])
+        {input=name} -> Ok (InputsWithDiffs [(name, Nothing)])
+    }
 
   listdir: String -> List String
   listdir foldername = __jsEval__ \"\"\"
