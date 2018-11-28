@@ -29,12 +29,12 @@ handleposts root kind =
       -- Html.parse -- Should I do 
     in
     __evaluate__ (("content", finalcontent)::("root", root)::("load", load root)::initEnv) posttemplate
-    |> (case of Ok x -> x; Err msg -> <error>Error: @msg</error>) |> (\x -> let _ = Debug.log "writing" """../@kind/@finalname""" in x)
+    |> (case of Ok x -> x; Err msg -> <error>Error: @msg</error>) |> (\x -> let _ = Debug.log "recomputing" """../@kind/@finalname""" in x)
     |> ((,) """../@kind/@finalname""")
     )
 
 expandSkeleton root file outtarget =
-  (Debug.log "writing " outtarget, load root file)
+  (Debug.log "recomputing " outtarget, load root file)
 
 toWriteVal =
   (handleposts ".." "blog") ++
@@ -58,4 +58,4 @@ _ = toWriteVal |> List.map (\(name, content) ->
     _ -> ""
   in aux content) |> String.join "" |> (\x -> if x /= "" then Debug.log """Warning:@x""" () else ())
 
-toWriteRaw = toWriteVal |> List.map (\(name, content) -> (name, valToHTMLSource content))
+toWriteRaw = toWriteVal |> List.map (\(name, content) -> (name, "<!DOCTYPE html>\\n" + valToHTMLSource content))
