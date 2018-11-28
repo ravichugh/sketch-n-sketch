@@ -2247,7 +2247,7 @@ String =
       |> r """(?:(\r?\n *\r?\n)(?:\\noindent\r?\n)?|^)((?=\s*\w|\S)@notincode[\s\S]*?)(?=(\r?\n *\r?\n|\r?\n$|$))@notincode""" (
         \m ->
           if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
-           || Regex.matchIn """<(?:h\d|ul|ol|p|pre)>""" (nth m.group 2) then m.match else Update.expressionFreeze """@(nth m.group 1)<p>@(nth m.group 2)</p>""")
+           || Regex.matchIn """</?(?:h\d|ul|ol|p|pre|center)>""" (nth m.group 2) then m.match else Update.expressionFreeze """@(nth m.group 1)<p>@(nth m.group 2)</p>""")
       |> r """\[([^\]\\]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])|(?:http|ftp|https)://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?@notincode@notinattr""" (\m ->  -- Direct and indirect References + syntax ^ to open in external page.
         case nth m.group 3 of
           "(" -> Update.expressionFreeze """<a href="@(nth m.group 4)" @(if nth m.group 2 == "^" then """target="_blank"""" else "")>@(nth m.group 1)</a>"""
@@ -3145,7 +3145,7 @@ Html =
         \m ->
           --let _ = Debug.log m.match () in
           if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
-           || Regex.matchIn """^\s*<\|#\d+#(?:h\d|ul|ol|p|pre)#\|>\s*$""" (nth m.group 2) then [["TEXT", m.match]] else  [<p>@(nth m.group 2)</p>]) --|> (\x -> let _ = Debug.log ("End of paragraph phase:" + valToHTMLSource x) () in x)
+           || Regex.matchIn """^\s*<\|#\d+#(?:h\d|ul|ol|p|pre|center)#\|>\s*$""" (nth m.group 2) then [["TEXT", m.match]] else  [<p>@(nth m.group 2)</p>]) --|> (\x -> let _ = Debug.log ("End of paragraph phase:" + valToHTMLSource x) () in x)
       |> ra """\[([^\]\\]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])|(?:http|ftp|https)://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?""" (\m -> [ -- Direct and indirect References + syntax ^ to open in external page.
         case nth m.group 3 of
           "(" -> <a href=(nth m.group 4) @(if nth m.group 2 == "^" then [["target", "_blank"]] else [])>@(nth m.group 1)</a>
