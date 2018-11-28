@@ -44,6 +44,10 @@ toWriteVal =
 , expandSkeleton ".."  "src/blog/index.src.html"                        "../blog/index.html"
 , expandSkeleton ".."  "src/tutorial/index.src.html"                    "../tutorial/index.html"
 , expandSkeleton "../.." "src/tutorial/icfp-2018/index.src.html" "../tutorial/icfp-2018/index.html"
+{-
+, expandSkeleton "../.." "src/tutorial/icfp-2018/index.src.html" "../tutorial/icfp-2018/index.html"
+, expandSkeleton "../.." "src/misc/pldi2016-artifact.src.html" "../releases/v0.4.1/pldi2016-artifact.html"
+-}
 ]
 
 _ = toWriteVal |> List.map (\(name, content) -> 
