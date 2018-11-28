@@ -15,7 +15,7 @@ var result = sns.objEnv.string.evaluate({v:1})(source + `
 toWriteRaw |> List.map (\\(name, htmlvalue) ->
   __jsEval__ """(function() {
     const fs = require("fs");
-    fs.writeFileSync(@(jsCode.stringOf(name)), '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">\\n' + @(jsCode.stringOf(htmlvalue)), "utf8");
+    fs.writeFileSync(@(jsCode.stringOf(name)), '<!DOCTYPE html>\\n' + @(jsCode.stringOf(htmlvalue)), "utf8");
   })()"""
 )`)
 
