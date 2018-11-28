@@ -17,11 +17,11 @@ if(result.ctor == "Ok") {
   var writtenFiles = result._0;
   var newWrittenFiles = [];
   for(var i = 0; i < writtenFiles.length; i++) {
-    var {_0: name, _1: content} = writtenFiles[i];
+    var {_1: name, _2: content} = writtenFiles[i];
     var newContent = fs.readFileSync(name, "utf8");
-    newWrittenFiles.push({'$t_ctor': 'Tuple2', _0: name, _1: newContent});
+    newWrittenFiles.push({'$t_ctor': 'Tuple2', _1: name, _2: newContent});
   }
-  var newWrittenFilesVal = sns.nativeToVal(newRittenFiles);
+  var newWrittenFilesVal = sns.nativeToVal(newWrittenFiles);
   sns.objEnv.string.update({v:1})(source)(newWrittenFilesVal);
   console.log("Done", sns.fileOperations);
 } else {
