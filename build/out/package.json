@@ -1,0 +1,35 @@
+{
+  "name": "sketch-n-sketch",
+  "version": "1.0.10",
+  "description": "Bidirectional programming library that sketch-n-sketch relies on",
+  "main": "sns.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "bidirectional",
+    "programming",
+    "lens",
+    "elm"
+  ],
+  "homepage": "https://github.com/ravichugh/sketch-n-sketch",
+  "bugs": "https://github.com/ravichugh/sketch-n-sketch/issues",
+  "author": "Mikael Mayer <mikael.mayer@polytechnique.org>",
+  "contributors": [
+    {
+      "name": "Ravi Chugh"
+    },
+    {
+      "name": "Brian Hempel"
+    },
+    {
+      "name": "Justin Lubin"
+    }
+  ],
+  "license": "SEE LICENSE IN LICENSE.md",
+  "files": [
+    "sns.js",
+    "README.md",
+    "LICENSE.md"
+  ]
+}
