@@ -183,3 +183,5 @@ toNativeArray = Native.ImpureGoodies.toNativeArray
 hideType: a -> b
 hideType = Native.ImpureGoodies.hideType
 
+fromHtmlEntity: String -> Maybe String
+fromHtmlEntity = Native.ImpureGoodies.fromHtmlEntity

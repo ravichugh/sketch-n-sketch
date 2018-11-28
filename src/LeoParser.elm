@@ -840,12 +840,13 @@ childrenToExp lastPos wasInterpolated children =
     head::tail ->
       let newWasInterpolation = case head.val of
         HTMLParser.HTMLListNodeExp _ -> True
+        HTMLParser.HTMLEntity _ _ -> True
         _ -> wasInterpolated
       in
       htmlToExp head |> andThen (\headExp ->
         childrenToExp head.end newWasInterpolation tail |> andThen (\(end, isInterpolation, tailExp) ->
           case unwrapExp (Expr headExp) of
-            EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp
+            EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp or a HTMLEntity
                let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") headExp.end tailExp.start in
                succeed <| (,,) end isInterpolation <| withInfo (exp_ <| EApp space0 appendFun [
                  Expr headExp, Expr tailExp] InfixApp space0) headExp.start tailExp.end
@@ -895,6 +896,15 @@ htmlToExp node =
             )
     HTMLParser.HTMLComment commentStyle ->
       fail <| "Line " ++ toString node.start.line ++ ": comments are not supported by Leo at this moment. Got " ++ HTMLParser.unparseNode node
+    HTMLParser.HTMLEntity entityRendered entity ->
+      let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") node.start node.start in
+      succeed <| withInfo (exp_ <| EApp space0 appendFun [
+        Expr <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) node.start node.start,
+        Expr <| withInfo (exp_ <| EApp space1 (Expr <| withInfo (exp_ <| EVar space1  "__htmlEntity__") node.start node.start) [
+          Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entityRendered)) node.start node.start,
+          Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entity)) node.start node.end] SpaceApp space0) node.start node.end
+        ] InfixApp space0 ) node.start node.end
+
     HTMLParser.HTMLListNodeExp e ->
       let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") node.start node.start in
       succeed <| withInfo (exp_ <| EApp space0 appendFun [

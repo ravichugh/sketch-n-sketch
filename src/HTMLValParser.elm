@@ -70,11 +70,17 @@ htmlNodeToVal vb n = case n.val of
       LessBangDashDash_DashDashGreater content -> Vb.constructor vb "LessBangDashDash_DashDashGreater" [Vb.string vb content]
     ]
   HTMLListNodeExp _ -> Vb.constructor vb "HTMLListNodeExpNotSupportedHere" []
+  HTMLEntity entityRendered entity ->
+    Vb.constructor vb "HTMLEntity" [Vb.string vb entityRendered, Vb.string vb entity]
 
 valToHtmlNode: Val -> Result String HTMLNode
 valToHtmlNode v =
   Result.map (withDummyInfo) <|
   case Vu.constructor Ok v of
+  Ok ("HTMLEntity", [entityRenderedv, entityv]) ->
+    Vu.string entityRenderedv |> Result.andThen (\entityRendered ->
+      Vu.string entityv |> Result.map (\entity ->
+        HTMLEntity entityRendered entity))
   Ok ("HTMLInner", [i]) -> Vu.string i |> Result.map HTMLInner
   Ok ("HTMLElement", [tagNameV, attrsV, ws1V, endOpV, childrenV, closingV]) ->
     Result.map3
@@ -165,13 +171,8 @@ htmlNodeToElmViewInLeo: Vb.Vb -> HTMLNode -> Val
 htmlNodeToElmViewInLeo vb tree =
   case tree.val of
     HTMLInner inner -> Vb.viewtuple2 Vb.string  Vb.string vb ("TEXT", Regex.replace Regex.All
-       (Regex.regex "&nbsp;|&amp;|&lt;|&gt;|</[^>]*>")
-       (\{match} -> case match of
-         "&nbsp;" -> " "
-         "&amp;" -> "&"
-         "&lt;" -> "<"
-         "&gt;" -> ">"
-         _ -> "") inner)
+       (Regex.regex "</[^>]*>")
+       (\{match} -> "") inner)
     HTMLElement tagName attrs ws1 endOp children closing ->
         Vb.viewtuple3 Vb.string (Vb.list styleAttrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
           unparseTagName tagName
@@ -198,3 +199,6 @@ htmlNodeToElmViewInLeo vb tree =
          LessBangDashDash_DashDashGreater content -> contentToVal content
     HTMLListNodeExp _ ->
       Vb.viewtuple2 Vb.string Vb.string vb ("TEXT", "[internal error, cannot render HTMLListNodeExp]")
+    HTMLEntity entityRendered entity ->
+      htmlNodeToElmViewInLeo vb {tree | val = HTMLInner entityRendered }
+

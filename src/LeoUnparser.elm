@@ -888,14 +888,25 @@ unparseHtmlChildList childExp =
           case (unwrapExp e1) of
             EApp _ _ [eLeft, eToRenderwrapped] _ _ ->
               let rightRendered = unparseHtmlChildList eRight in
-              let interpolated = case (unwrapExp eToRenderwrapped) of
-                EApp  _ _ [eToRender] _ _ -> unparse eToRender
-                _ ->                         unparse eToRenderwrapped
+              let mbEntity = case unwrapExp eToRenderwrapped of
+                EApp  _ _ [entityRendered, entity] _ _ -> --  __htmlEntity__
+                   case unwrapExp entity of
+                     EBase _ (EString _ content) -> Just content
+                     _ -> Nothing
+                _ -> Nothing
               in
-              if noInterpolationConflict interpolated rightRendered then
-                unparseHtmlChildList eLeft ++ "@" ++ interpolated ++ rightRendered
-              else
-                unparseHtmlChildList eLeft ++ "@(" ++ interpolated ++ ")" ++ rightRendered
+              case mbEntity of
+                Just entity ->
+                  unparseHtmlChildList eLeft ++ entity ++ rightRendered -- No interpolation for entities
+                Nothing ->
+                  let interpolated = case unwrapExp eToRenderwrapped of
+                    EApp  _ _ [eToRender] _ _ -> unparse eToRender -- __mbwraphtmlnode__
+                    _ ->                         unparse eToRenderwrapped
+                  in
+                  if noInterpolationConflict interpolated rightRendered then
+                    unparseHtmlChildList eLeft ++ "@" ++ interpolated ++ rightRendered
+                  else
+                    unparseHtmlChildList eLeft ++ "@(" ++ interpolated ++ ")" ++ rightRendered
             _  -> "@(" ++ unparse childExp ++ ")"
         _  -> "@(" ++ unparse childExp ++ ")"
 

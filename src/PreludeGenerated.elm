@@ -4388,8 +4388,8 @@ html string = {
   apply trees =
     let domap tree = case tree of
       HTMLInner v -> [\"TEXT\",
-        replaceAllIn \"&nbsp;|&amp;|&lt;|&gt;|</[^>]*>\" (\\{match} ->
-          case match of \"&nbsp;\" -> \" \"; \"&amp;\" -> \"&\"; \"&lt;\" -> \"<\"; \"&gt;\" -> \">\"; _ -> \"\") v]
+        replaceAllIn \"</[^>]*>\" (\\{match} -> \"\") v]
+      HTMLEntity entityRendered entity -> [\"TEXT\", entityRendered]
       HTMLElement tagName attrs ws1 endOp children closing ->
         [ tagName
         , map (case of
@@ -4502,6 +4502,7 @@ html string = {
           --Debug.start (\"onUpdate\" + toString (oldOutput, newOutput, diffs, index)) <| \\_ ->
           let newInputElems = case (inputElem, oldOutput, newOutput) of
             ( HTMLInner v, _, [\"TEXT\",v2]) -> Ok [toHTMLInner v2]
+            ( HTMLEntity entityRendered entity, _, [\"TEXT\", v2]) -> Ok [HTMLEntity v2 v2]
             ( HTMLElement tagName attrs ws1 endOp children closing,
               [tag1, attrs1, children1], [tag2, attrs2, children2] ) ->
                if tag2 == tagName || attrs1 == attrs2 || children2 == children1  then

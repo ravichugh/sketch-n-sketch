@@ -11,7 +11,8 @@ module HTMLParser exposing (parseHTMLString,
   unparseTagName,
   unparseNode,
   unparseHtmlNodesDiffs,
-  parseOneNode)
+  parseOneNode,
+  entityToString)
 
 import Char
 import Set exposing (Set)
@@ -30,6 +31,8 @@ import Regex
 import Parser
 import Parser.LanguageKit as LanguageKit
 import Info exposing (WithInfo)
+
+import ImpureGoodies
 
 type NameSpace  = HTML | Foreign
 
@@ -56,6 +59,7 @@ type HTMLEndOpeningStyle = RegularEndOpening {- usually > -} | SlashEndOpening {
 
 type alias HTMLNode = WithInfo HTMLNode_
 type HTMLNode_ = HTMLInner String
+               | HTMLEntity {-Entity rendered-} String {-Entity raw -} String
                | HTMLElement HTMLTag (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
                | HTMLComment HTMLCommentStyle
                | HTMLListNodeExp (WithInfo Exp_)
@@ -68,6 +72,28 @@ type ParsingMode = Raw |
     attributevalue: Parser WS -> ParserI Exp_,
     attributelist: ParserI Exp_,
     childlist: Parser WS -> ParserI Exp_}
+
+entityToString: String -> String
+entityToString entity =
+  case Regex.find (Regex.AtMost 1) (Regex.regex "^&#x0*([a-fA-F0-9]+);?$") entity of
+    [m] -> List.head m.submatches
+           |> Maybe.andThen identity
+           |> Maybe.andThen (\hex-> ImpureGoodies.fromHtmlEntity ("x" ++ hex))
+           |> Maybe.withDefault entity
+    _ ->
+  case Regex.find (Regex.AtMost 1) (Regex.regex "^&#0*([0-9]+);?$") entity of
+     [m] -> List.head m.submatches
+            |> Maybe.andThen identity
+            |> Maybe.andThen (\dec -> ImpureGoodies.fromHtmlEntity dec)
+            |> Maybe.withDefault entity
+     _ ->
+  case Regex.find (Regex.AtMost 1) (Regex.regex "^(&\\w+;?)$") entity of
+      [m] ->
+         List.head m.submatches
+         |> Maybe.andThen identity
+         |> Maybe.andThen (\name ->  ImpureGoodies.fromHtmlEntity name)
+         |> Maybe.withDefault entity
+      _ -> entity
 
 voidElements: Set String
 voidElements =
@@ -236,6 +262,49 @@ nodeStart =
   delayedCommit
     (symbol "<")
     (keep oneOrMore (\c -> not (isSpace c) && c /= '/' && c /= '>' && c /= '!' && c /= '?'))
+
+parseHTMLEntity: Bool -> Parser HTMLNode
+parseHTMLEntity insideAttribute =
+  inContext "HTML entity" <|
+  trackInfo <|
+    succeed identity
+    |. symbol "&"
+    |= (lookAhead (source (
+         oneOf [
+           symbol "#x"
+           |. ignore (AtLeast 1) Char.isHexDigit
+         , symbol "#"
+           |. ignore (AtLeast 1) Char.isDigit
+         , ignore (AtLeast 1) (\x -> Char.isLower x || Char.isUpper x || Char.isDigit x)
+         , succeed ()
+         ]
+         |. optional (symbol ";"))) |> andThen
+      (\result -> -- Find out which part we have to consume.
+        let default matched = map (\x -> HTMLEntity (entityToString ("&" ++ x)) ("&" ++ x))  (source (symbol matched)) in
+        if result |> String.startsWith "#" then
+          default result
+        else -- Let's find out the named entities.
+          let aux matched =
+            if matched == "" then succeed (HTMLInner "&") else
+            case ImpureGoodies.fromHtmlEntity ("&" ++ matched) of
+               Nothing -> aux (String.left (String.length matched - 1) matched)
+               Just x ->
+                 if insideAttribute then
+                   oneOf [
+                     succeed identity
+                     |. lookAhead (
+                       delayedCommitMap (\a b -> ())
+                         (symbol matched)
+                         (keep (Exactly 1) (\c ->
+                           Char.isUpper c || Char.isLower c || Char.isDigit c ||
+                             c == '=')))
+                     |= succeed (HTMLInner "&"),
+                     default matched]
+                 else
+                   default matched
+          in aux result
+      ))
+
 {--
 parsed("a</j  >b") == "ab"
 parsed("<j>a<:b></j>b") == "<j>a&lt;:b&gt;</j>b"
@@ -253,7 +322,7 @@ parseHTMLInner parsingMode untilEndTagNames =
     Raw -> "[a-zA-Z]"
     _ -> "[a-zA-Z@]"
   in
-  let regexToParseUntil = Regex.regex <| "<" ++ tagNameStarts++"|<\\?|<!|</ |$" ++ maybeBreakOnAt ++
+  let regexToParseUntil = Regex.regex <| "<" ++ tagNameStarts++"|&|<\\?|<!|</ |$" ++ maybeBreakOnAt ++
     (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "") in
   inContext "Inner HTML" <|
   trackInfo <|
@@ -344,6 +413,7 @@ parseNode parsingMode surroundingTagNames namespace =
     let defaultParsers = [
       parseHTMLElement parsingMode surroundingTagNames namespace,
       parseHTMLComment,
+      parseHTMLEntity False,
       parseHTMLInner parsingMode surroundingTagNames
     ] in
     case parsingMode of
@@ -429,6 +499,7 @@ unparseTagName tagName =
 unparseNode: HTMLNode -> String
 unparseNode node = case node.val of
   HTMLInner s -> s
+  HTMLEntity entityRendered entity -> entity
   HTMLElement tagName attrs ws1 endOp children closing ->
     let tagNameStr = unparseTagName tagName in
     "<" ++ tagNameStr  ++ String.join "" (List.map unparseAttr attrs) ++ ws1.val ++ (unparseEndOp endOp closing) ++ ">" ++
