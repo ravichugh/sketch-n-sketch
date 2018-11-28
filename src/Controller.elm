@@ -173,6 +173,8 @@ import Json.Decode as JSDecode
 
 import Lazy
 
+import ValUnbuilder as Vu
+
 --------------------------------------------------------------------------------
 
 debugLog = Config.debugLog Config.debugController
@@ -2773,7 +2775,18 @@ decodeElem: JSDecode.Decoder Val
 decodeElem =
   JSDecode.lazy <| \_ ->
   JSDecode.map3 (\tag attrs children ->
-     vList [vStr tag, attrs, children])
+     if tag == "comment" then
+       case Vu.list Vu.identity attrs of
+         Ok (head :: tail) ->
+           case Vu.viewtuple2 Vu.string Vu.string head of
+             Ok (("title", content)) ->
+                let result = vList [vStr "COMMENT", vStr content] in
+                let _ = Debug.log "comment resolved:" (LangUtils.valToString result) in
+                result
+             _ -> vList [vStr tag, attrs, children]
+         _ -> vList [vStr tag, attrs, children]
+     else
+       vList [vStr tag, attrs, children])
      (JSDecode.index 0 JSDecode.string)
      (JSDecode.index 1 decodeAttributes)
      (JSDecode.index 2 decodeChildList)
@@ -2782,11 +2795,20 @@ decodeText: JSDecode.Decoder Val
 decodeText = JSDecode.lazy <| \_ ->
   JSDecode.string |> JSDecode.map (\str -> vList [vStr "TEXT", vStr str])
 
+decodeComment: JSDecode.Decoder Val
+decodeComment = JSDecode.lazy <| \_ ->
+  JSDecode.lazy <| \_ ->
+    JSDecode.map2 (\_ content ->
+       vList [vStr "COMMENT", vStr content])
+       (JSDecode.index 0 JSDecode.string)
+       (JSDecode.index 1 JSDecode.string)
+
 decodeElemChild =
   JSDecode.lazy <| \_ ->
     JSDecode.oneOf [
-      decodeElem,
-      decodeText
+      decodeElem, -- If 3 elements in the array
+      decodeComment, -- If only 2 elements in the array
+      decodeText -- If the element is some string.
     ]
 
 integrateValue: List Int -> Val -> Val -> Result String Val
@@ -2823,7 +2845,7 @@ msgValuePathUpdate (nodeAttrsOrChild, path, newEncodedValue) =
             newValueResult =
              JSDecode.decodeValue decoder newEncodedValue |> --Result.map (\x -> let _ = Debug.log ("Decoded Value: " ++ LangUtils.valToString x) () in x) |>
                 Result.andThen (\newSubValue ->
-                 --let _ = Debug.log (toString path ++ ":" ++ LangUtils.valToString newSubValue) () in
+                 let _ = Debug.log (toString path ++ ":" ++ LangUtils.valToString newSubValue) () in
                  integrateValue path valueToUpdate newSubValue)
         in
         { m

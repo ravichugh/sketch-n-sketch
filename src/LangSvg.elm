@@ -59,6 +59,7 @@ import Either exposing (Either(..))
 import ImpureGoodies
 import Syntax exposing (Syntax)
 import HTMLParser
+import ValBuilder as Vb
 
 ------------------------------------------------------------------------------
 
@@ -196,17 +197,29 @@ valToIndexedTree_ : Val -> RootedIndexedTree -> Result String RootedIndexedTree
 valToIndexedTree_ v (nextId, d) =
   let thunk () =
     case v.v_ of
-      VList vs -> case List.map .v_ vs of
-
+       VList vs -> case List.map .v_ vs of
         [VBase (VString "TEXT"), VBase (VString s)] ->
           let node = { interpreted = TextNode s, val = v } in
           Ok (1 + nextId, Dict.insert nextId node d)
 
+        [VBase (VString "COMMENT"), VBase (VString s)] ->
+          List.map valToAttr [
+                Vb.viewtuple2 Vb.string Vb.string (Vb.fromVal v)
+                  ("title", s),
+                Vb.viewtuple2 Vb.string (Vb.list (Vb.viewtuple2 Vb.string Vb.string)) (Vb.fromVal v)
+                  ("style", [("display", "none")])]
+          |> Utils.projOk
+          |> Result.map (\attrs ->
+            let node = { interpreted =
+                 SvgNode "comment" attrs [], val = v } in
+            (1 + nextId, Dict.insert nextId node d)
+          )
+
         [VBase (VString kind), VList vs1, VList vs2] ->
           let processChild vi acc =
             case acc of
-              Err s -> acc
-              Ok (a_nextId, a_graph , a_children) ->
+               Err s -> acc
+               Ok (a_nextId, a_graph , a_children) ->
                 valToIndexedTree_ vi (a_nextId, a_graph)
                 |> Result.map (\(a_nextId_,a_graph_) ->
                     let a_children_ = (a_nextId_ - 1) :: a_children in
@@ -229,7 +242,7 @@ valToIndexedTree_ v (nextId, d) =
 
         _ -> expectedButGot "an SVG node" (valToString v)
 
-      _ -> expectedButGot "an SVG node" (valToString v)
+       _ -> expectedButGot "an SVG node" (valToString v)
   in
   ImpureGoodies.crashToError thunk
   |> Utils.unwrapNestedResult
@@ -681,6 +694,8 @@ valToHTMLSource namespace v =
       (VBase (VString "TEXT"), VBase (VString s)) ->
         let content = ImpureGoodies.htmlescape s in
         Ok <| Regex.replace Regex.All (Regex.regex "&gt;") (\_ -> ">") content -- useful for styles
+      (VBase (VString "COMMENT"), VBase (VString content)) ->
+        Ok <| "<!--" ++ content ++ "-->"
       _ -> Err <| "Don't know how to convert this 2-element list to an HTML node : " ++ valToString v
     VList [tag, attrs, content] -> case (tag.v_, attrs.v_, content.v_) of
       (VBase (VString kind), VList l1, VList l2) ->

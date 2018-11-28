@@ -925,11 +925,34 @@ unparseHtmlTextContent content =
 
 unparseHtmlNode: Exp -> String
 unparseHtmlNode e = case (unwrapExp e) of
-  EList _ [text, (_, content)] _ Nothing _ ->
-    case (unwrapExp content) of
-      EBase _ (EString _ content) -> unparseHtmlTextContent content
-      EVar _ varname -> "@" ++ varname
-      x -> "@[" ++ unparse e ++ "]"
+  EList unparseData [(_, typ), (_, content)] _ Nothing _ ->
+    case unwrapExp typ of
+      EBase _ (EString _ "COMMENT") ->
+        case unwrapExp content of
+          EBase _ (EString _ content) ->
+            let (opening, closing) = case Regex.find (Regex.AtMost 1) (Regex.regex "\\{-(.*):(.*)-\\}") unparseData.val of
+              [m] ->
+                 case m.submatches of
+                  [Just opening, Just closing] ->
+                    if opening == "<" && not (String.startsWith "?" content) then
+                      ("<!--", "-->")
+                    else if opening == "</" && not (String.startsWith " " content) then
+                      ("<!--", "-->")
+                    else if opening == "<!" && String.startsWith "--" content then
+                      ("<!--", "-->")
+                    else
+                      (opening, closing)
+                  _ -> ("<!--", "-->")
+              _ -> ("<!--", "-->")
+            in
+             opening ++ content ++ closing
+          x -> "@[" ++ unparse e ++ "]"
+
+      _ -> -- EBase _ (EString _ "TEXT") ->
+        case unwrapExp content of
+          EBase _ (EString _ content) -> unparseHtmlTextContent content
+          EVar _ varname -> "@" ++ varname
+          x -> "@[" ++ unparse e ++ "]"
   EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->
     let (tagStart, tagEnd) = case (unwrapExp tagExp) of
           EBase _ (EString _ content) -> (content, content)
@@ -955,6 +978,7 @@ unparseAnyHtml e =
     EList _ [(_, text), (_, content)] _ Nothing _ ->
       case eStrUnapply text of
         Just "TEXT" -> unparseHtmlNode e
+        Just "COMMENT" -> unparseHtmlNode e
         Just _ -> -- It's an attribute
           unparseHtmlAttributes (eList [e] Nothing)
         Nothing -> unparse e

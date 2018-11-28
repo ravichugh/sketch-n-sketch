@@ -760,7 +760,22 @@ htmlText  source        htmltext =
   let origin = replaceInfo source << exp_ in
   origin <| EList space0 [
     (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" "TEXT")) source.start source.start),
-    (space0, Expr <| origin <| EBase space0 (EString "\"" (ImpureGoodies.htmlunescape htmltext)))] space0 Nothing space0
+    (space0, Expr <| origin <| EBase space0 (EString "\"" htmltext))] space0 Nothing space0
+
+htmlComment: WithInfo a -> HTMLParser.HTMLCommentStyle -> WithInfo Exp_
+htmlComment source comment =
+  let origin = replaceInfo source << exp_ in
+  let (opening, closing, string) = case comment of
+    HTMLParser.Less_Greater string -> ("<", ">", string) -- The string must start with a question mark
+    HTMLParser.LessSlash_Greater string -> ("</", ">", string)  -- The string must start with a space
+    HTMLParser.LessBang_Greater string -> ("<!", ">", string) -- The string must not start with two dashes
+    HTMLParser.LessBangDashDash_DashDashGreater string -> ("<!--", "-->", string) -- The string must not contain -->
+  in
+  let startString = let i = source.start in { i | col = source.start.col + String.length opening } in
+  let endString   = let i = source.end in {i | col = source.start.col - String.length closing} in
+  origin <| EList (withInfo ("{-"++opening++":"++closing++"-}") source.start source.start) [
+    (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" "COMMENT")) source.start source.start),
+    (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" string)) startString endString)] space0 Nothing space0
 
 htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->   Bool ->     Bool ->     WS ->                  WithInfo Exp_
 htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing spaceAfterTagClosing =
@@ -895,7 +910,7 @@ htmlToExp node =
               )
             )
     HTMLParser.HTMLComment commentStyle ->
-      fail <| "Line " ++ toString node.start.line ++ ": comments are not supported by Leo at this moment. Got " ++ HTMLParser.unparseNode node
+      succeed <| htmlComment node commentStyle
     HTMLParser.HTMLEntity entityRendered entity ->
       let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") node.start node.start in
       succeed <| withInfo (exp_ <| EApp space0 appendFun [

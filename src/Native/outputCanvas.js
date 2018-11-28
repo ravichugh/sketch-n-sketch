@@ -266,7 +266,7 @@ function listenForUpdatesToOutputValues() {
         }
       }
 			
-      if (mutation.type == "attributes") {
+      if (mutation.type == "attributes" && mutation.target.tagName !== "COMMENT") {
         if(!isAttributeTransient(mutation.attributeName) && !isAttributeIgnored(mutation.attributeName)) {
           var path = getPathUntilOutput(mutation.target)
           if(path != null) {

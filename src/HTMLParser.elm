@@ -149,10 +149,10 @@ parseHTMLComment =
       |= keep oneOrMore (\c -> c /= '>')
       |. symbol ">"
     , succeed identity
-      |. lookAhead (symbol "!")
+      |. symbol "!"
       |= oneOf [
           succeed LessBangDashDash_DashDashGreater
-          |. lookAhead (symbol "--")
+          |. symbol "--"
           |= keepUntilRegex (Regex.regex "-->")
           |. symbol "-->"
           , succeed LessBang_Greater
@@ -160,8 +160,8 @@ parseHTMLComment =
           |. symbol ">"
         ]
     , succeed LessSlash_Greater
-      |. lookAhead (symbol "/ ") -- Requires a space.
-      |. symbol "."
+      |. lookAhead (symbol "/ ")
+      |. symbol "/"
       |= keep oneOrMore (\c -> c /= '>')
       |. symbol ">"
     ])
