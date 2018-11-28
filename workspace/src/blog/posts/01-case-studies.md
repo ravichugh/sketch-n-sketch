@@ -31,7 +31,7 @@ effectively program and manipulate several designs that would be difficult
 using existing direct manipulation tools, such as Illustrator and PowerPoint.
 The rest of this article will describe several case studies to
 back up this claim. You may want to
-[open Sketch-N-Sketch in a new tab]^(../releases/v0.0/)
+<a href="@root/releases/v0.0/" target="_blank">open Sketch-N-Sketch in a new tab</a>
 and try out the [examples][Examples] along with the discussion.
 If you find yourself in a bind (syntactically), the `little`
 [Syntax Guide][SyntaxGuide] and standard [`Prelude`][Prelude] may help.
@@ -60,7 +60,7 @@ together in real-time.
 (svg nBoxes)
 ```
 
-<img class="img_on_right" src="../static/images/post01/three-boxes.png" />
+<img class="img_on_right" src="@root/static/images/post01/three-boxes.png" />
 
 The screenshot on the right shows the ***zones*** (interior, edges, corners, etc.)
 displayed to the user. When multiple program updates may be assigned to a user
@@ -331,7 +331,7 @@ path. Then, we use `makePath` to construct two paths out of these lists.
 Now the task is to define the list of points for each path.
 We would like to do this visually by directly manipulating points
 into the desired positions, but we need some points to begin with.
-As is, \verb+grayPts+ and \verb+greenPts+ are empty, so there are
+As is, `grayPts` and `greenPts` are empty, so there are
 no shapes to render.
 
 One option is to use a text editor to populate the list with dummy

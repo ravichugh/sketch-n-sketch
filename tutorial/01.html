@@ -30,9 +30,13 @@
 
       <div class="content_wide">
       <div class="blog_post">
-      <span><h1>Step 1: Hello, Prodirect Manipulation World!</h1><p><br>
+      <span><h1>Step 1: Hello, Prodirect Manipulation World!</h1>
+
+<br>
 Welcome to the first lesson for Sketch-n-Sketch. In this lesson, you will:
-<ul><li>Learn the basics of the Sketch-n-Sketch programming language and interface,</li><li>Work through a "hello, world" example, and</li><li>Create your own simple designs.</li></ul></p><p>Let's get started.
+<ul><li>Learn the basics of the Sketch-n-Sketch programming language and interface,</li><li>Work through a "hello, world" example, and</li><li>Create your own simple designs.</li></ul>
+
+<p>Let's get started.
 As you work through the tutorial, we recommend that you keep
 <a href="http://ravichugh.github.io/sketch-n-sketch/releases/v0.6.1/">Sketch-n-Sketch v0.6.1</a> open in a separate tab or window and try out all
 the sample interactions as you read. We'll sometimes drop in a "<strong>Practice</strong>"
@@ -40,16 +44,22 @@ marker to provide a gentle reminder, and we'll use an "<strong>Exercise</strong>
 you really should stop, drop, and roll over to your Sketch-n-Sketch tab to try
 out something in-depth.</p>
 
-<h3>Warm-up</h3><p>To preview the basics, let's jump right in.
+<h3>Warm-up</h3>
+
+<p>To preview the basics, let's jump right in.
 When you load the program, you start with a blank slate.
 Notice that there is some code on the left (the "code pane") and
 an SVG canvas on the right (the "canvas pane"). There are also drawing tools
-in the top left corner.</p><p>First, try drawing a square. Notice that the code for the square has
+in the top left corner.</p>
+
+<p>First, try drawing a square. Notice that the code for the square has
 been generated in the editor. Try moving around the square to see how
 the code continues to change. Try dragging the edges or the corners
 of the square to resize it. Try double-clicking the square to change it's
 colour. Now, intead of using the canvas pane to modify one of the features
-you just played around with, modify the code.</p><p>From these very simple interactions, we see that there are two ways to
+you just played around with, modify the code.</p>
+
+<p>From these very simple interactions, we see that there are two ways to
 modify a program in Sketch-n-Sketch: by directly manipulating the canvas,
 and by editing the source program in the code pane.
 In the rest of this article, we will describe the basics of how to use
@@ -58,13 +68,17 @@ In the rest of this article, we will describe the basics of how to use
 (c) the direct manipulation capabilities.</p>
 
 
-<h3>The Interface</h3><p>As you've noticed, Sketch-n-Sketch is a tool that runs completely in the web
+<h3>The Interface</h3>
+
+<p>As you've noticed, Sketch-n-Sketch is a tool that runs completely in the web
 browser. We have tested the tool in Chrome and Firefox in several
 configurations, but we have less experience using it in IE and Edge.
 If you run into any issues, <a href="https://github.com/ravichugh/sketch-n-sketch/issues">please let us know</a> and try using a
 different browser in the meantime.</p>
 
-<h4>Overview of Buttons and Menus</h4><p>We will briefly describe all of the components of the user interface up front
+<h4>Overview of Buttons and Menus</h4>
+
+<p>We will briefly describe all of the components of the user interface up front
 for reference, but don't worry too much about all of the details — you
 will get plenty of practice throughout the tutorial. For now, the most important
 thing to remember is what you already know: that a program can be modified
@@ -73,31 +87,45 @@ canvas pane). You may edit in only one of these two modes at a time. The canvas
 pane has a faint orange border when it is active and a faint gray border when it
 is inactive.</p>
 
-<p><img align="right" width="450px" style="padding: 0 20px 0 20px;" src="../static/images/tutorial/01/sketch-n-sketch.png"></p><p>Between the code and canvas panes is a column of buttons, as well as a dropdown
+<p><!-- TODO make a better figure showing the differences --></p>
+
+<p><img align="right" width="450px" style="padding: 0 20px 0 20px;" src="../static/images/tutorial/01/sketch-n-sketch.png"></p>
+
+<p>Between the code and canvas panes is a column of buttons, as well as a dropdown
 menu that is used to load different examples and working documents into your
-active editing environment.</p><p>The Save and Save As buttons work similarly to how they work in desktop
+active editing environment.</p>
+
+<p>The Save and Save As buttons work similarly to how they work in desktop
 applications, and allow you to save your work to be resumed during a different
 session. The Reload button reloads your active document to the last save that
 was made. The Undo and Redo buttons allow you to rewind your history of edits,
-including those changes made both via programmatic and direct manipulation.</p><p>Below the canvas is an [Out] button that allows you to toggle between viewing
+including those changes made both via programmatic and direct manipulation.</p>
+
+<p>Below the canvas is an [Out] button that allows you to toggle between viewing
 the output of your program as a visual canvas (the default) or as a "raw" SVG
 definition. The latter allows you to copy-and-paste the raw SVG and export your
 design to, for example, a local <code>.svg</code> file on your machine or into a
 conventional SVG editor, such as <a href="http://svg-edit.googlecode.com/svn/branches/stable/editor/svg-editor.html"><code>svg-edit</code></a>.</p>
 
-<h4>Saving Files Locally</h4><p>There are two kinds of examples listed in the dropdown menu: "Built-In" examples
+<h4>Saving Files Locally</h4>
+
+<p>There are two kinds of examples listed in the dropdown menu: "Built-In" examples
 that are are provided with Sketch-n-Sketch, and "Local Saves" which are
 user-created files that persist across browser sessions. Sketch-n-Sketch does
 not currently provide support for working directly with the file system, so you
 will not be able to view your work outside of Sketch-n-Sketch. When you first
 launch Sketch-n-Sketch, there are no local saves to display in the dropdown
 menu. Once you create your own local saves, they will appear in a labeled
-section at the top of the dropdown list.</p><p>Loading and saving examples should be pretty straightforward. The Save As button
+section at the top of the dropdown list.</p>
+
+<p>Loading and saving examples should be pretty straightforward. The Save As button
 creates a copy of the current example, the Save button saves changes to the
 current (locally saved) example, and Reload discards any outstanding changes
 since the last saved version, without issuing a confirmation prompt.
 (<strong>Practice 1.1:</strong> Now is a
-good time to try creating your first local example.)</p><p>
+good time to try creating your first local example.)</p>
+
+<p><!-- TODO they now have to click "new", also the order should be changed -->
 To load a different example, simply click on the dropdown menu and select one.
 When doing this, any outstanding, unsaved changes to the current example are
 discarded (again, without warning in the current implementation). If you select
@@ -105,45 +133,86 @@ a built-in example, the program will be displayed in the code pane and its
 output will be rendered to the canvas pane. If you select a local save, the
 program will be displayed but <em>not</em> its output. After all, you may have saved a
 document that was not complete and would not compile! So, just hit the Run Code
-button when you are ready.</p><p>Okay, there's one more thing... we promise this time! If you would like to delete
+button when you are ready.</p>
+
+<p>Okay, there's one more thing... we promise this time! If you would like to delete
 all your locally saved examples, select *Clear Local Saves* from the bottom of
 the dropdown menu. Be careful, there's no prompt to let you change your mind,
 and when they're gone, they're gone for good!</p>
 
-<h4>Customizing the UI</h4><p>The interface also allows for a degree of customization by dragging around
+<h4>Customizing the UI</h4>
+
+<p>The interface also allows for a degree of customization by dragging around
 the menus and the red circles associated to the canvas and code editor.
 Go ahead and fiddle around with these options now.</p>
 
+<!--
+<h4>Keyboard Shortcuts</h4>
 
+<p>There are keyboard shortcuts for most of the actions that we've described. They
+are by no means necessary, but if you would like to use them, the tables below
+explain them. In the rest of the tutorial, we'll usually refer to the intended
+actions that are associated with the buttons and keyboard shortcuts.</p>
 
-<h3>Programming in Little</h3><p>Programs in Sketch-n-Sketch are written in an untyped, little, programming
+<p>| Keypresses   |   Active Pane  | Meaning                                     |
+|:-------------|:---------------|:-----------------------------|
+| <code>e</code>          |   Canvas       | Enter Edit Mode   						   |
+| <code>z</code>          |   Canvas       | Undo 									   |
+| <code>y</code>          |   Canvas       | Redo                                        |
+| <code>g</code> or <code>h</code>   |   Canvas       | Toggle Zones                                |
+| <code>o</code>          |   Canvas       | Toggle Output Type                          |
+| <code>s</code>          |   Canvas       | Save                                        |
+| <code>a</code>          |   Canvas       | Save As                                     |
+| <code>p</code>          |   Canvas       | Switch Orientation                          |
+| Arrow Keys   |   Canvas       | Switch Orientation and Adjust Pane Size  |
+| <code>Meta+Shift</code> |   Code         | Run Code   						   |</p>
+
+<p>Here, <code>Meta</code> refers to <code>Alt</code> on Windows and <code>Command</code> on Mac OS X. The code box
+provides its own keyboard shortcuts which depend on your particular browser
+settings. If you want to use the keyboard shortcuts that come with the fancy code
+editor, refer to <a href="https://github.com/ajaxorg/ace/wiki/Default-Keyboard-Shortcuts">this page</a>.
+-->
+
+<h3>Programming in Little</h3>
+
+<p>Programs in Sketch-n-Sketch are written in an untyped, little, programming
 language we call Little. We have chosen to use a minimalist syntax in Little
 that should feel familiar to anyone who has used a lisp-like language. If not,
 don't worry! The simple syntax will be introduced through a series
 of examples. If you would like to see a more complete, technical summary of
-Little, check out this <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md">syntax reference</a>.</p><p>The general structure of most Little programs is the
+Little, check out this <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md">syntax reference</a>.</p>
+
+<p>The general structure of most Little programs is the
 definition and calculation of everything you need for your graphic design, followed by
 a final "main" expression that puts together an entire
 <a href="https://en.wikipedia.org/wiki/Scalable_Vector_Graphics">SVG image</a>.
 The simplest such Little program is the following:</p>
 
-<pre><code>(svg [])</code></pre><p>This program calls the <code>svg</code> function to draw a canvas with the given (empty)
+<pre><code>(svg [])</code></pre>
+
+<p>This program calls the <code>svg</code> function to draw a canvas with the given (empty)
 list of shapes. <strong>Practice 1.2:</strong> Go ahead and enter Edit Mode while on the
 *Scratch* example, delete the contents, and type in the code above. Then, run
-the code.  Congratulations, you've just written your first Little program!</p><p>Most kinds of expressions in Little, such as the function call in the program
+the code.  Congratulations, you've just written your first Little program!</p>
+
+<p>Most kinds of expressions in Little, such as the function call in the program
 above, must be surrounded by parentheses. The parentheses must be included, and
 extra ones are not permitted. For example, both <code>((svg []))</code> and <code>(svg ([]))</code>
 are invalid Little expressions. Try these out to see how Sketch-n-Sketch
-becomes very angry when you try to run invalid programs.</p><p>
-A blank canvas is uninteresting, so let's add some shapes. There are several
+becomes very angry when you try to run invalid programs.
+<!--</p>
+
+<p>A blank canvas is uninteresting, so let's add some shapes. There are several
 built-in functions for making shapes. For example, the <code>rect</code> function can
 be called as follows:</p>
 
-<pre><code>(rect color xpos ypos width height)</code></pre><p>The <code>xpos</code> and <code>ypos</code> arguments specify the x-position and y-position of the
+<pre><code>(rect color xpos ypos width height)</code></pre>
+
+<p>The <code>xpos</code> and <code>ypos</code> arguments specify the x-position and y-position of the
 top left corner of the rectangle, respectively; <code>width</code> and <code>height</code> specify
 the width and height of the rectangle, respectively; and <code>color</code> specifies the
 color of the shape. The <code>color</code> argument can be specified using any color
-string recognized by <a href="http://www.w3schools.com/cssref/css_colorsfull.asp">CSS</a>
+string recognized by <a href="http://www.w3schools.com/cssref/css_colorsfull.asp" >CSS</a>
 or as a list of four numbers representing RGBA values. (The next lesson will
 also introduce a notion called "color numbers" in Sketch-n-Sketch.) The position,
 width, and height values must be numbers. So, all of the following are different
@@ -152,21 +221,29 @@ ways of defining the same rectangle:</p>
 <pre><code>(rect 'Blue' 100 100 200 200)
 (rect 'blue' 100.0 100.0 200.0 200.0)
 (rect '#0000FF' (+ 50 50) 100 200 200)
-(rect [0 0 255 1.0] 100 100.0 (/ 400 2) 200)</code></pre><p>In fact, the following list expression is another way to represent the same
+(rect [0 0 255 1.0] 100 100.0 (/ 400 2) 200)</code></pre>
+
+<p>In fact, the following list expression is another way to represent the same
 rectangle without calling the <code>rect</code> function; we will talk more about this
 "internal" representation in a subsequent article:</p>
 
-<pre><code>[ 'rect' [['color' 'blue'] ['x' 100] ['y' 100] ['width' 200] ['height' 200]] [] ]</code></pre><p>Enter Edit Mode, and place the rectangle into the empty <code>svg</code> definition that we
+<pre><code>[ 'rect' [['color' 'blue'] ['x' 100] ['y' 100] ['width' 200] ['height' 200]] [] ]</code></pre>
+
+<p>Enter Edit Mode, and place the rectangle into the empty <code>svg</code> definition that we
 have from before:</p>
 
-<pre><code>(svg [(rect 'lightblue' 200 200 300 150)])</code></pre><p>Now, run the program. There's your rectangle! Try experimenting with different
+<pre><code>(svg [(rect 'lightblue' 200 200 300 150)])</code></pre>
+
+<p>Now, run the program. There's your rectangle! Try experimenting with different
 colors, positions, and sizes for your shape. Also try providing some invalid
 arguments and see what happens. (Note: We try to handle most errors gracefully
 and, in the worst case, detect when Sketch-n-Sketch crashes and relaunch the
 tool in a similar state. However, there are still bugs, of course, but we hope
 they don't get in the way of your exploration too much.)</p>
 
-<h4>Helper Definitions</h4><p>Adding shapes one at a time is difficult and inefficient for any more than a
+<h4>Helper Definitions</h4>
+
+<p>Adding shapes one at a time is difficult and inefficient for any more than a
 handful of shapes, especially if the shapes share attributes in common. To aid
 in this, we can create our own names for structures that we intend to reuse.
 This is done by defining variables using the built-in <code>def</code> and <code>let</code>
@@ -174,11 +251,15 @@ expressions. The syntax of these kinds of expressions is as follows:</p>
 
 <pre><code>(def pattern patternDefinition) remainderOfProgram
 
-(let pattern patternDefinition remainderOfProgram)</code></pre><p>They are very similar, and differ only in their intended use; <code>def</code> is meant for
+(let pattern patternDefinition remainderOfProgram)</code></pre>
+
+<p>They are very similar, and differ only in their intended use; <code>def</code> is meant for
 "top-level" definitions that will be used for the remainder of the program
 after it, and <code>let</code> is meant for more localized definitions within a <code>def</code>. This
 distinction will become clear as you become more familiar with the tool. For
-now, just remember that you cannot put a <code>def</code> inside of another <code>def</code>.</p><p>The <code>pattern</code> in the above definitions can either be a bare variable name or a
+now, just remember that you cannot put a <code>def</code> inside of another <code>def</code>.</p>
+
+<p>The <code>pattern</code> in the above definitions can either be a bare variable name or a
 list of patterns, each of which can be a bare variable name or another list of
 patterns. So, the following definitions all assign the values <code>10</code>, <code>20</code>, and
 <code>30</code> to the names <code>x</code>, <code>y</code>, and <code>z</code>:</p>
@@ -189,7 +270,9 @@ patterns. So, the following definitions all assign the values <code>10</code>, <
 
 <pre><code>(def [x y z] [10 20 30])</code></pre>
 
-<pre><code>(def [[x y] z] [[10 20] 30])</code></pre><p>These variables can also be defined using a sequence of nested
+<pre><code>(def [[x y] z] [[10 20] 30])</code></pre>
+
+<p>These variables can also be defined using a sequence of nested
 <code>let</code>-expressions, as follows:</p>
 
 <pre><code>(let x 10
@@ -200,14 +283,18 @@ patterns. So, the following definitions all assign the values <code>10</code>, <
 
   restOfProgram
 
-)))</code></pre><p>Notice how the parentheses "build up" at the end.
+)))</code></pre>
+
+<p>Notice how the parentheses "build up" at the end.
 Yet another way of writing the same expression:</p>
 
 <pre><code>(let [x y z] [10 20 30]
 
   restOfProgram
 
-)</code></pre><p>Let's put these to use by giving a name to our rectangle, then using that
+)</code></pre>
+
+<p>Let's put these to use by giving a name to our rectangle, then using that
 instead of the function when we put it in the call to the <code>svg</code> function. One
 way we could do this is as follows. Note that single-line comments in Little are
 specified using the semi-colon character.</p>
@@ -217,11 +304,15 @@ specified using the semi-colon character.</p>
 (def myRectangle (rect 'lightblue' 100 100 60 130))
 
 ; Main SVG expression
-(svg [myRectangle])</code></pre><p>Much better than before! Try using <code>let</code> instead of <code>def</code> and notice the
-difference.<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a></p>
+(svg [myRectangle])</code></pre>
+
+<p>Much better than before! Try using <code>let</code> instead of <code>def</code> and notice the
+difference.<a href="#fn2" title="To get a sense for why the `def` syntax was introduced, see the endof[this](https://github.com/ravichugh/sketch-n-sketch/blob/6e3874b0b44e121dba8423d3b41b832cd8bb6429/src/Prelude.elm#L106)old version of Prelude, where there are a lot of functions in play." class="footnoteRef" id="fnref2"><sup>2</sup></a></p>
 
 
-<h4>Function Definitions</h4><p>Let's now try defining several rectangles that look the same, evenly spaced in
+<h4>Function Definitions</h4>
+
+<p>Let's now try defining several rectangles that look the same, evenly spaced in
 the horizontal direction. One approach is the following:</p>
 
 <pre><code>; Top-level definitions
@@ -230,73 +321,112 @@ the horizontal direction. One approach is the following:</p>
 (def myRectangle2 (rect 'lightblue' 400 100 60 130))
 
 ; Main SVG expression
-(svg [myRectangle0 myRectangle1 myRectangle2])</code></pre><p>Although this does, in fact, draw three evenly-spaced rectangles, the
+(svg [myRectangle0 myRectangle1 myRectangle2])</code></pre>
+
+<p>Although this does, in fact, draw three evenly-spaced rectangles, the
 copy-and-pasted code makes it difficult to change the overall program. What if
 we wanted to change a single property of the pattern, such as the color of the
-boxes or the separation between them?</p><p><strong>Exercise 1.1:</strong> To demonstrate the
+boxes or the separation between them?</p>
+
+<p><strong>Exercise 1.1:</strong> To demonstrate the
 problem, try changing the height of all three boxes, and then change their
 positions so that they are spaced 274 pixels apart rather than 150.
-After that, add a fourth, identical, evenly-spaced box.</p><p>As structured, our only option for such changes is to modify
+After that, add a fourth, identical, evenly-spaced box.</p>
+
+<p>As structured, our only option for such changes is to modify
 multiple places in the program. Yuck! Much better would be to
 refactor the program so that the common attributes are written once and to
-define a function that computes the ones that differ.</p><p>The syntax for defining a function (also known as an "anonymous function"
+define a function that computes the ones that differ.</p>
+
+<p>The syntax for defining a function (also known as an "anonymous function"
 or "lambda" if you're familiar with functional programming) is the following:</p>
 
-<pre><code>(\argumentPattern functionBody)</code></pre><p>The backslash character is what indicates that this Little expression (which
+<pre><code>(\argumentPattern functionBody)</code></pre>
+
+<p>The backslash character is what indicates that this Little expression (which
 requires parentheses, like most expressions) is a function definition. This
 function expression takes a single argument variable or pattern. To define a
 function that takes multiple arguments, write the following:</p>
 
-<pre><code>(\(argumentPattern1 argumentPattern2 ... argumentPatternN) functionBody)</code></pre><p>The arguments are each defined in terms of patterns and multiple arguments are
+<pre><code>(\(argumentPattern1 argumentPattern2 ... argumentPatternN) functionBody)</code></pre>
+
+<p>The arguments are each defined in terms of patterns and multiple arguments are
 contained in parentheses and separated by spaces. The names for these arguments
 can then be used in the following expression. For example, a function that takes
 in variables <code>x</code> and <code>y</code> then returns their sum would be as follows:</p>
 
-<pre><code>(\(x y) (+ x y))</code></pre><p>Functions are often bound to a variable using a <code>def</code> (or <code>let</code>) so that they
-can be referred to by names.</p><p>So, to define a function <code>placeRectangle</code> that places each rectangle at a given
+<pre><code>(\(x y) (+ x y))</code></pre>
+
+<p>Functions are often bound to a variable using a <code>def</code> (or <code>let</code>) so that they
+can be referred to by names.</p>
+
+<p>So, to define a function <code>placeRectangle</code> that places each rectangle at a given
 x-position, we could write the following:</p>
 
 <pre><code>(def placeRectangle (\xpos
-   (rect 'lightblue' xpos 100 60 130)))</code></pre><p><img align="right" width="350px" style="padding: 0 0px 0 20px;" src="../static/images/tutorial/01/three-boxes.png"></p><p>Notice how <code>placeRectangle</code> takes an argument for the sole attribute,
+   (rect 'lightblue' xpos 100 60 130)))</code></pre>
+
+<p><img align="right" width="350px" style="padding: 0 0px 0 20px;"
+     src="../static/images/tutorial/01/three-boxes.png"/></p>
+
+<p>Notice how <code>placeRectangle</code> takes an argument for the sole attribute,
 namely, the x-position, that is different among the three boxes above.
 Now, we can finish the program by rewriting the "main" expression
 from before to the following:</p>
 
 <pre><code>(svg [(placeRectangle 100)
       (placeRectangle 250)
-      (placeRectangle 400)])</code></pre><p>This version is much easier to modify because a lot of the boilerplate
+      (placeRectangle 400)])</code></pre>
+
+<p>This version is much easier to modify because a lot of the boilerplate
 code has been eliminated.</p>
 
-<h4>Mapping Over Lists</h4><p>One more thing we can do to improve our program is to eliminate having to
+<h4>Mapping Over Lists</h4>
+
+<p>One more thing we can do to improve our program is to eliminate having to
 explicilty call <code>placeRectangle</code> each time we want another box. Instead,
 we can apply the <code>map</code> function, which takes the following form:</p>
 
-<pre><code>(map function list)</code></pre><p>What <code>map</code> does is apply the <code>function</code> to each element in
-the <code>list</code>, and returns the list consisting of the results.<a href="#fn2" class="footnoteRef" id="fnref2"><sup>2</sup></a> So, we
+<pre><code>(map function list)</code></pre>
+
+<p>What <code>map</code> does is apply the <code>function</code> to each element in
+the <code>list</code>, and returns the list consisting of the results.<a href="#fn3" title="Just like in functional programming languages like Elm andHaskell, and similarly to the `map` method in JavaScript." class="footnoteRef" id="fnref3"><sup>3</sup></a> So, we
 can define a name that represents many rectangles and then use that instead of
 writing a whole bunch of names. We could do this in the following manner:</p>
 
 
 <pre><code>(def placeRectangle (\xpos (rect 'lightblue' xpos 100 60 130)))
-(svg (map placeRectangle [100 250 400]))</code></pre><p>This concise program describes three similar rectangles, and if, we want to
+(svg (map placeRectangle [100 250 400]))</code></pre>
+
+<p>This concise program describes three similar rectangles, and if, we want to
 change any of the shared attributes of the rectangles, like their color, we only
 need to change <em>one definition</em> as opposed to three. Note that there is no
 longer the list brackets around the argument to <code>svg</code>, because the output of <code>map</code>
-is already a list.</p><p><strong>Exercise 1.2:</strong> Redo the tasks from Exercise 1.1, this time starting from the
+is already a list.</p>
+
+<p><strong>Exercise 1.2:</strong> Redo the tasks from Exercise 1.1, this time starting from the
 program above with <code>placeRectangle</code> and <code>map</code>.</p>
 
-<h3>Direct Manipulation</h3><p>Although we hand-rolled the Little language specifically for Sketch-n-Sketch,
+<h3>Direct Manipulation</h3>
+
+<p>Although we hand-rolled the Little language specifically for Sketch-n-Sketch,
 it's a pretty standard untyped, functional language extended with support for
 SVG images. The major novel component of Sketch-n-Sketch is that the editor
-allows you to directly manipulate the output generated by a program.</p><p>If you haven't already tried, go ahead and try clicking and dragging the boxes
+allows you to directly manipulate the output generated by a program.</p>
+
+<p>If you haven't already tried, go ahead and try clicking and dragging the boxes
 of the output after running the code and observing what happens to the input
 source program. To see all of the ways you can manipulate your shapes, toggle
 the Zones option from Hidden to Basic. Even when hidden, the basic zones are
-active and can be manipulated.</p><p>Each zone is tied to particular attributes of a shape. For
+active and can be manipulated.</p>
+
+<p>Each zone is tied to particular attributes of a shape. For
 example, the "Interior" zone of a rectangle is tied to its x- and y-positions,
 and the "Bottom Right Corner" zone is tied to its width and height. As you
 directly manipulate a zone, Sketch-n-Sketch figures out what to modify in
-your program to match your changes, all in real-time!</p><p>Try dragging the interior of one of the boxes. Notice how the appropriate
+your program to match your changes, all in real-time!</p>
+
+<p>Try dragging the interior of one of the boxes. Notice how the appropriate
 x-position in the program is changed when dragging the mouse to the right or
 left. More interestingly, the y-position of <em>all</em> the boxes change when dragging
 the mouse up or down. This is because our program was defined such that all
@@ -305,16 +435,22 @@ above). So, in response to your change to one rectangle, Sketch-n-Sketch figures
 out that the only option is to change that constant, which (after re-running the
 program) changes all the rectangles. In this way, Sketch-n-Sketch modifies your
 program without altering or "breaking" any of the high-level structure of the
-program.</p><p>This kind of synchronization between a Little program and an updated SVG canvas
+program.</p>
+
+<p>This kind of synchronization between a Little program and an updated SVG canvas
 can become subtle as programs get more complicated. As a way to help you
 understand what effects your direct manipulation will have, Sketch-n-Sketch uses
 the following color schemes for syntax highlighting. Whenever you mouse over a zone, the constants that
-will be changed by manipulating that zone are highlighted in <span class="hoverYellow">yellow</span> in the source code. When actually manipulating
-that zone, the constants that are being changed are highlighted in <span class="hoverGreen">green</span>. Constants that went into the calculation of
+will be changed by manipulating that zone are highlighted in <span
+class="hoverYellow">yellow</span> in the source code. When actually manipulating
+that zone, the constants that are being changed are highlighted in <span
+class="hoverGreen">green</span>. Constants that went into the calculation of
 that attribute but will not be changed by your manipulating them are highlighted
 in <span class="hoverGray">gray</span> and constants for which changes could not
 be deduced are highlighted in <span class="hoverRed">red</span> (more on the
-meanings of these last two colors in later lessons).</p><p><strong>Exercise 1.3:</strong> Different shapes come with different attributes that can be
+meanings of these last two colors in later lessons).</p>
+
+<p><strong>Exercise 1.3:</strong> Different shapes come with different attributes that can be
 manipulated. Redefine your <code>placeRectangle</code> function to place a circle instead,
 and then examine the different zones that are available to you. As a reference
 for what the <code>circle</code> function takes as arguments, take a look at
@@ -324,10 +460,20 @@ more examples of Little code, you can also dig in through these definitions
 themselves. Note that you can also view this library in the "example" called
 *Prelude* in the dropdown menu.</p>
 
+<p><!--[^colornum]: This is not a standard represenation for colors, and is defined
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/src/Utils.elm#L207" >here</a>.
+Further investigation into implementation details for how constants are
+substituted should quickly reveal why we chose one number to represent color in
+this case.--></p>
 
+<h3>Summary</h3>
 
-<h3>Summary</h3><p>Whew! You now should have a sense for how to specify your own shapes, names, and
-functions in Little.</p><p><img align="right" width="350px" style="padding: 0 0px 0 20px;" src="../static/images/tutorial/01/grid-boxes.png"></p><p><strong>Exercise 1.4:</strong> To further exercise your knowledge, go ahead and perform the
+<p>Whew! You now should have a sense for how to specify your own shapes, names, and
+functions in Little.</p>
+
+<p><img align="right" width="350px" style="padding: 0 0px 0 20px;" src="../static/images/tutorial/01/grid-boxes.png"></p>
+
+<strong>Exercise 1.4:</strong> To further exercise your knowledge, go ahead and perform the
 following tasks before proceeding to the next lesson:
 <ul><li>Change your placement function to take in the y-value of the shape instead of
   the x-value. This should result in your shapes being placed in a vertical line
@@ -337,16 +483,27 @@ following tasks before proceeding to the next lesson:
   such as <code>[[100 100] [200 100] ... ]</code>. If you take this approach, then your
   mapping function should be defined with the form <code>(\[x y] ...)</code>
   — notice the square brackets instead of the parentheses we have seen
-  before — which "extracts" the two values from each point in the list.</li></ul></p>
+  before — which "extracts" the two values from each point in the list.</li></ul>
 
 
 <h3>Next Up: <a href="02.html">Step 2</a></h3>
 
-<p><div class="footnotes"><hr><ol><li id="fn1"><p>To get a sense for why the <code>def</code> syntax was introduced, see the end
+<p><!-- TODO change the version if necessary --></p>
+
+
+<div class="footnotes"><hr><ol><li id="fn1"><p>Technically speaking, the
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/src/Eval.elm#L48">output</a>
+is of an <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/src/Lang.elm#L77">internal
+type</a>
+called `Val` that is then
+<a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/src/InterfaceView2.elm#L124">rendered</a>
+to SVG, but it can be thought of as SVG, as it <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/src/LangSvg.elm#L360">mimics the structure of
+SVG</a>
+and mostly just carries additional metadata.--><a href="#fnref1">↩</a></p></li><li id="fn2"><p>To get a sense for why the `def` syntax was introduced, see the end
 of
 <a href="https://github.com/ravichugh/sketch-n-sketch/blob/6e3874b0b44e121dba8423d3b41b832cd8bb6429/src/Prelude.elm#L106">this</a>
-old version of Prelude, where there are a lot of functions in play.<a href="#fnref1">↩</a></p></li><li id="fn2"><p>Just like in functional programming languages like Elm and
-Haskell, and similarly to the <code>map</code> method in JavaScript.<a href="#fnref2">↩</a></p></li></ol></div></p></span>
+old version of Prelude, where there are a lot of functions in play.<a href="#fnref2">↩</a></p></li><li id="fn3"><p>Just like in functional programming languages like Elm and
+Haskell, and similarly to the `map` method in JavaScript.<a href="#fnref3">↩</a></p></li></ol></div></span>
       </div>
       </div>
 

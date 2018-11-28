@@ -30,38 +30,78 @@
 
       <div class="content_wide">
       <div class="blog_post">
-      <span><h1>Step 4: Lines and Paths</h1><p><br>
+      <span><h1>Step 4: Lines and Paths</h1>
+
+<br>
 Welcome to the fourth lesson in the Sketch-n-Sketch tutorial.
 We will cover:
 <ul><li>How to use the <code>line</code> function to make simple line segments and our own
   version of the polygon function,</li><li>How to use the <code>path</code> function to create arbitrary forms,</li><li>How to introduce parameters into the <code>path</code> function as a
-  useful design pattern, and</li><li>How to programmaticaly generate paths to make complex designs.</li></ul></p><p>Along the way, you will also learn a little more about the programming
+  useful design pattern, and</li><li>How to programmaticaly generate paths to make complex designs.</li></ul>
+
+<p>Along the way, you will also learn a little more about the programming
 features in Little.</p>
 
+<!--
+What we will cover in this lesson:
+<ul><li>How to use <code>line</code></li><li>Understand how <code>path</code> works, and the particular concerns that come with it.</li></ul>
 
+<p>Key aspects to <code>path</code>:</p>
 
+<p>That it's a list of movement commands in basically the same fashion that the
+normal SVG path is specified.</p>
 
+<p>How to read the documentation for all the different curve types and such.
+(www.w3.org/TR/SVG/paths.html</p>
 
-<h3>Drawing Lines</h3><p>One kind of basic SVG shape that we have not mentioned is a finite line segment.
+<p>Paths start withe a <code>moveto</code>, usually ends with a <code>closepath</code> (for closed
+shapes, not for open ones). In between are either <code>lineto</code> or curve commands.</p>
+
+<p>They allow for the creation of any shape, and most designs will probably end up
+incorporating them in some fashion. In Sketch-n-Sketch, they end up being used
+in a few ways, each with their own attributes:
+-->
+
+<!--
+<h3>Using <code>line</code> and <code>case</code></h3>
+-->
+
+<h3>Drawing Lines</h3>
+
+<p>One kind of basic SVG shape that we have not mentioned is a finite line segment.
 Just like the other basic shapes, there is a built-in function that allows the
 creation of the appropriate SVG node, naturally called <code>line</code>:</p>
 
-<pre><code>(line fill w x1 y1 x2 y2)</code></pre><p>This creates a line from the point <code>(x1,y1)</code> to <code>(x2,y2)</code> with the color <code>fill</code>
+<pre><code>(line fill w x1 y1 x2 y2)</code></pre>
+
+<p>This creates a line from the point <code>(x1,y1)</code> to <code>(x2,y2)</code> with the color <code>fill</code>
 and width <code>w</code>. This function works very well for making very simple line
-segments between shapes.</p><p>We can also draw polygons by linking line segments together. In fact, let's do
+segments between shapes.</p>
+
+<p>We can also draw polygons by linking line segments together. In fact, let's do
 just that. Our goal is to write a function <code>ourPolygon</code> that, given a list of
 points <code>[[x1 y1] [x2 y2] ... ]</code>, creates the outline of a polygon by drawing
 line segments between all the adjacent points. To do this, we will need to
 introduce a couple more programming features in Little.</p>
 
 
+<p><!--
+used to approximate a rotated rectangle if
+the width is set particularly wide, as the endcaps of the line are rectangular
+and there is no limit on how wide the line segment can be. To draw a polygon,
+you could link these line segments together one at a time around the perimeter
+of the shape.
+--></p>
 
+<h4><code>case</code> Expressions and Recursive Functions</h4>
 
-<h4><code>case</code> Expressions and Recursive Functions</h4><p>We want our <code>ourPolygon</code> function to work no matter how many points are provided
+<p>We want our <code>ourPolygon</code> function to work no matter how many points are provided
 in the input list. To achieve this, we will write a <em>recursive</em> function that
 walks through each point in the list and "does its thing," where "its thing"
 will fall into different cases depending on what the list of points happens
-to look like. Let's start with the latter.</p><p>The built-in <code>case</code> function takes an <code>expressionToExamine</code> and a
+to look like. Let's start with the latter.</p>
+
+<p>The built-in <code>case</code> function takes an <code>expressionToExamine</code> and a
 sequence of <em>branches</em> to evaluate depending on what <em>pattern</em>
 <code>expressionToExamine</code> matches:</p>
 
@@ -69,24 +109,34 @@ sequence of <em>branches</em> to evaluate depending on what <em>pattern</em>
   (pattern1 returnThisIfExpressionMatchesPattern1)
   (pattern2 returnThisIfExpressionMatchesPattern2)
   ...
-  (_        returnThisIfExpressionMatchesNoPatterns))</code></pre><p>The extra newlines and spaces between the cases are optional but often make
+  (_        returnThisIfExpressionMatchesNoPatterns))</code></pre>
+
+<p>The extra newlines and spaces between the cases are optional but often make
 these expressions easier to read. As you've probably come to expect by now, all
 of the parentheses — around the entire expression and around each of the
-branches — are required.</p><p>The idea behind this expression is that if <code>expressionToExamine</code> matches one of
+branches — are required.</p>
+
+<p>The idea behind this expression is that if <code>expressionToExamine</code> matches one of
 the patterns, then the expression that is associated with that pattern is
 returned. The patterns are checked from the top down, and an underscore <code>_</code>
 matches anything. If you don't have too much experience with functional
 languages, you can think of <code>case</code> statements as somewhat analogous to
 if-expressions found in most programming languages. However, <code>case</code> is
 generalized to work on more than just Boolean values and with more than just
-two different branches.</p><p>Pattern matching is most often useful for dealing with lists, for which there
+two different branches.</p>
+
+<p>Pattern matching is most often useful for dealing with lists, for which there
 are two kinds of patterns. First, a list pattern of the form <code>[x1 ... xn]</code>
 matches lists with exactly <code>n</code> elements. Second, a list pattern of the form `[x1
 ... xn | xrest]` matches lists with at least <code>n</code> elements, where all extra
 elements (if any) get bound to the variable <code>xrest</code>. You can think of this
 second kind of pattern as matching the first <code>n</code> elements from the "head" of the
-list and then giving the name <code>xrest</code> to the "tail" of the list.</p><p><strong>Thought Exercise:</strong> Can you guess what the Little expressions `[e1 ...
-en]` and <code>[e1 ... en | erest]</code> mean?</p><p>Here is a sample <code>case</code> function and some example inputs, where the comments
+list and then giving the name <code>xrest</code> to the "tail" of the list.</p>
+
+<p><strong>Thought Exercise:</strong> Can you guess what the Little expressions `[e1 ...
+en]` and <code>[e1 ... en | erest]</code> mean?</p>
+
+<p>Here is a sample <code>case</code> function and some example inputs, where the comments
 below describe which patterns get matched:</p>
 
 <pre><code>(case inputList
@@ -105,9 +155,13 @@ below describe which patterns get matched:</p>
 ;  [ [ 2 4 ] ]                matches pattern 5
 ;  [ [ 2 3 4 ] ]              matches pattern 6
 ;  'oh my, i am not a list'   matches pattern 6
-;  3.14                       matches pattern 6</code></pre><p>Since Little does not enforce any type constraints, the catch-all pattern '<code>_</code>'
+;  3.14                       matches pattern 6</code></pre>
+
+<p>Since Little does not enforce any type constraints, the catch-all pattern '<code>_</code>'
 can match any kind of input — even ones that you may sometimes not
-want to operate on at all, so be careful when using it!</p><p>A very common pattern that you will encounter is to use <code>case</code> in recursive
+want to operate on at all, so be careful when using it!</p>
+
+<p>A very common pattern that you will encounter is to use <code>case</code> in recursive
 functions that operate on lists by defining a base case for the empty list and a
 case for non-empty lists. Remember the built-in <code>concat</code> function that takes a
 list of lists and concatenates them into a single list? Here's how we can define
@@ -117,16 +171,22 @@ it ourselves:</p>
   (case listOfLists
     ([]                   [])
     ([[] | rest]          (ourConcat rest))
-    ([[ x | xs ] | rest]  [x | (ourConcat [ xs | rest ])]))))</code></pre><p>Notice that we say <code>defrec</code>, rather than <code>def</code>, because the definition of
+    ([[ x | xs ] | rest]  [x | (ourConcat [ xs | rest ])]))))</code></pre>
+
+Notice that we say <code>defrec</code>, rather than <code>def</code>, because the definition of
 <code>ourConcat</code> recursively calls itself. This function takes a <code>listOfLists</code> and
 returns something based on which of the following three patterns it matches:
-<ul><li>if <code>listOfLists</code> is empty...<pre><code>* then their concatenation is the empty list</code></pre></li><li>if the first list in <code>listOfLists</code> is empty...<pre><code>* then the concatenation is defined by recursively concatenating the `rest`
-of the lists in `listOfLists`</code></pre></li><li>if the first list has some head element <code>x</code> and tail <code>xs</code>...<pre><code>* then the concatenation includes `x` plus everything in `xs` and `rest`.</code></pre></li></ul></p><p>If <code>ourConcat</code> is called with anything besides a list, then this function will
+<ul><li>if <code>listOfLists</code> is empty...<ul><li>then their concatenation is the empty list </li></ul></li><li>if the first list in <code>listOfLists</code> is empty...<ul><li>then the concatenation is defined by recursively concatenating the <code>rest</code></li></ul>
+    of the lists in <code>listOfLists</code></li><li>if the first list has some head element <code>x</code> and tail <code>xs</code>...<ul><li>then the concatenation includes <code>x</code> plus everything in <code>xs</code> and <code>rest</code>.</li></ul></li></ul>
+
+<p>If <code>ourConcat</code> is called with anything besides a list, then this function will
 crash at run-time (by design).  If you have functional programming experience,
 this will likely look like a standard recursive definition — albeit with a
 different syntax than you're used to.</p>
 
-<h4>Drawing Polygons</h4><p>With the knowledge of how to write functions that operate on lists, we can now
+<h4>Drawing Polygons</h4>
+
+<p>With the knowledge of how to write functions that operate on lists, we can now
 return to the task of creating a polygon out of a list of points.  Our approach
 is to draw a <code>line</code> between each pair of points, as well as the first and last
 ones:</p>
@@ -143,47 +203,67 @@ ones:</p>
   (case points
     ([]              [])
     ([lonelyPoint]   [])
-    ([first | rest]  (ourPolygon_ first first rest)))))</code></pre><p>Awesome! Our function <code>ourPolygon</code> handles preparing the arguments for the
+    ([first | rest]  (ourPolygon_ first first rest)))))</code></pre>
+
+<p>Awesome! Our function <code>ourPolygon</code> handles preparing the arguments for the
 helper function, <code>ourPolygon_</code> which then operates recursively on the elements
 of points list. As it operates on each point, it connects it with a black line
-to the previous point.</p><p><strong>Practice 4.1:</strong> Try out this program with a list of points in Sketch-n-Sketch to
-draw some polygons.</p><p><strong>Exercise 4.1:</strong> Here's an excuse to get more practice with this syntax. As it
+to the previous point.</p>
+
+<p><strong>Practice 4.1:</strong> Try out this program with a list of points in Sketch-n-Sketch to
+draw some polygons.</p>
+
+<p><strong>Exercise 4.1:</strong> Here's an excuse to get more practice with this syntax. As it
 is, calling <code>ourPolygon</code> with the list of points <code>[[10 10] [50 50]]</code> draws two
 nearly-identical line segments. Add an additional case in <code>ourPolygon_</code> that
-results in only one line segment is drawn.</p><p><strong>Exercise 4.2 (Optional):</strong> If you know what "fold" or "reduce" means and if you're
+results in only one line segment is drawn.</p>
+
+<p><strong>Exercise 4.2 (Optional):</strong> If you know what "fold" or "reduce" means and if you're
 feeling ambitious, redefine <code>ourPolygon</code> to use the built-in <code>foldl</code> or <code>foldr</code>
 functions instead. This exercise is completely optional for the purposes of this
 tutorial.</p>
 
-<h3>Basic Path Commands</h3><p>Implementing <code>ourPolygon</code> was a good excuse to learn more about Little. But
+<h3>Basic Path Commands</h3>
+
+<p>Implementing <code>ourPolygon</code> was a good excuse to learn more about Little. But
 because polygons are so common, it should be no surprise that they are primitive
 in SVG. Therefore, Little also provides a <code>polygon</code> function to match; check
-out <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> if you'd like to see how to use it.</p><p>Although drawing polygons with straight edges is useful, one often wants curved
+out <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/prelude.little">Prelude</a> if you'd like to see how to use it.</p>
+
+<p>Although drawing polygons with straight edges is useful, one often wants curved
 edges as well. For this, SVG offers a more general <code>path</code> primitive that
 subsumes <code>line</code> and <code>polygon</code> because it can also draw curved lines. The goal
 of this next section is to get you familiar enough with SVG paths so that
 you will be comfortable exploring all of the functionality the
-<a href="http://www.w3.org/TR/SVG11/paths.html">specification</a> has to offer.</p><p>The general structure of an SVG path is a list of draw commands, each of which
+<a href="http://www.w3.org/TR/SVG11/paths.html">specification</a> has to offer.</p>
+
+<p>The general structure of an SVG path is a list of draw commands, each of which
 has associated "control points" that are interpreted, or evaluated, in order to
 draw the shape. This list of commands is put into a <code>path</code> node in SVG with some
 additional attributes, and then the browser handles the rendering of the overall
 path. Sketch-n-Sketch supports manipulation of the control points of a path for
 all of the most commonly used commands, which allows for intuitive direct
-manipulation of SVG paths.<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a> To create an SVG path node in
+manipulation of SVG paths.<a href="#fn1" title="The interpretation of supported commands can be foundin the Sketch-n-Sketch source[here](https://github.com/ravichugh/sketch-n-sketch/blob/master/src/LangSvg.elm#L117)." class="footnoteRef" id="fnref1"><sup>1</sup></a> To create an SVG path node in
 Little, the <code>path</code> function can be invoked with arguments of the following form:</p>
 
-<pre><code>(path fillColor lineColor lineThickness pathCommands)</code></pre><p>
+<pre><code>(path fillColor lineColor lineThickness pathCommands)</code></pre>
+
+
 The arguments can be interpreted as follows:
 <ul><li><code>fillColor</code> represents the color of the interior of the path (<code>'none'</code> is a
   valid entry to specify no fill),</li><li><code>lineColor</code> represents the color of the path itself (again, <code>'none'</code> is a
   valid entry for no border),</li><li><code>lineThickness</code> represents the thickness of the border that <code>lineColor</code>
   colors, and</li><li><code>pathCommands</code> is a list of commands with their control points that define the
-  SVG path.</li></ul></p><p>In general, the list of path commands for any given path begins with a "moveto"
+  SVG path.</li></ul>
+
+<p>In general, the list of path commands for any given path begins with a "moveto"
 command, which sets the "cursor" for the path to that location without drawing
 anything. Then, there is a sequence of draw commands which may optinally be
 followed by a "closepath" command which connects the end of the path back to the
 beginning.  There are fancier things you can do with SVG paths, but even these
-commands are enough to make some complicated shapes and forms.</p><p>Here is an example path which draws a square with a light blue fill and a gray
+commands are enough to make some complicated shapes and forms.</p>
+
+<p>Here is an example path which draws a square with a light blue fill and a gray
 outline:</p>
 
 <pre><code>(path 'lightblue' 'gray' 5 
@@ -191,21 +271,27 @@ outline:</p>
     'L' 200 100
     'L' 200 200
     'L' 100 200
-    'Z' ])</code></pre><p>We begin the path command list with a "moveto", denoted by a captial
-<code>'M'</code>.<a href="#fn2" class="footnoteRef" id="fnref2"><sup>2</sup></a> Then, we have three successive "lineto" commands, denoted by a
+    'Z' ])</code></pre>
+
+<p>We begin the path command list with a "moveto", denoted by a captial
+<code>'M'</code>.<a href="#fn2" title="If you are already familiar with SVG paths, note thatSketch-n-Sketch currently supports path commands with absolute coordinates(commands with uppercase letters) but not relative coordinates (commands withlowercase letters)." class="footnoteRef" id="fnref2"><sup>2</sup></a> Then, we have three successive "lineto" commands, denoted by a
 capital <code>'L'</code>, which draw three edges starting from the initial <code>(100,100)</code>
 coordinate going clockwise around a square with edge length <code>100</code>. Then, we end
 the command list with a "closepath" command, indicated with a capital <code>'Z'</code>.
 This draws an edge back to the start at <code>(100,100)</code>. This syntax mirrors the
 syntax defined in the SVG path specification linked above, so you can use it as a
-reference for how to specify all the control points for each command.</p><p>
+reference for how to specify all the control points for each command.</p>
+
+<p>
 Notice that the list of path commands above contains different "types" of
 values, namely, strings and numbers. This is no problem in Little, because
 there are no types. As a result, we have chosen this representation of path
 commands because we can, and because it makes it easier to copy-and-paste sample
-paths from any "raw" SVG path examples to Little.</p><p>This is definitely nicer than using a whole bunch of line segments like we did
+paths from any "raw" SVG path examples to Little.</p>
+
+<p>This is definitely nicer than using a whole bunch of line segments like we did
 before! What's especialy nice is that SVG paths also have support for specifying
-a variety of curves. Here we will demonstrate only the quadratic B&amp;eacute;zier curve,
+a variety of curves. Here we will demonstrate only the quadratic Bézier curve,
 which is the simplest type of curve to define and is specified with a <code>'Q'</code>.
 Below is an example that draws an unfilled, sinusoidal-looking curve.</p>
 
@@ -217,13 +303,19 @@ Below is an example that draws an unfilled, sinusoidal-looking curve.</p>
       'Q' 450 350
           500 300 ]))
 
-(svg [curve])</code></pre><p><strong>Practice 4.2:</strong> Go ahead and enter this into a document in Sketch-n-Sketch,
+(svg [curve])</code></pre>
+
+<p><strong>Practice 4.2:</strong> Go ahead and enter this into a document in Sketch-n-Sketch,
 and turn on the basic zones. See the points that are off of the line? Try
 manipulating them. These are the control points for the first and second
-quadratic curves, respectively.</p><p><strong>Exercise 4.3:</strong> Now that you've seen how basic paths work, it's your turn. Try
+quadratic curves, respectively.</p>
+
+<p><strong>Exercise 4.3:</strong> Now that you've seen how basic paths work, it's your turn. Try
 experimenting with mixing <code>'L'</code> and <code>'Q'</code> commands. For example, you may try
 drawing your favorite letter of the alphabet — just make sure it has at least
-one curve in it!</p><p>After that, look at some of the built-in examples that use paths in this way,
+one curve in it!</p>
+
+<p>After that, look at some of the built-in examples that use paths in this way,
 such as the Chicago Botanic Garden Logo or the Eye Icon. In these designs, you
 will notice that there are many variables defined as top-level definitions that
 are directly or near-directly dropped in to the coordinate positions inside of
@@ -232,16 +324,20 @@ play, which can get unwieldy. However, sometimes there is no way to avoid having
 a lot of parameters at once, as a complicated design (such as the Eye Icon)
 inherently requires them. </p>
 
-<h3>Advanced Programming with Paths</h3><p>So far we have seen how Sketch-n-Sketch works with basic paths, but the tool
+<h3>Advanced Programming with Paths</h3>
+
+<p>So far we have seen how Sketch-n-Sketch works with basic paths, but the tool
 also supports and displays control for the other sorts of curves in a similar
-fashion.<a href="#fn3" class="footnoteRef" id="fnref3"><sup>3</sup></a> Because SVG paths can become quite complex, we have found that
+fashion.<a href="#fn3" title="For an in depth look at the various sorts of paths and how to usetheir specific commands, we recommend that you check out the Mozilla DeveloperNetwork [tutorial](https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths) on the subject." class="footnoteRef" id="fnref3"><sup>3</sup></a> Because SVG paths can become quite complex, we have found that
 working with them by mixing programmatic and direct manipulation is one area
 where Sketch-n-Sketch excels. Our built-in examples include many involved
 designs that rely heavily on paths. Next, we identify two design patterns that
 we have found to be useful.</p>
 
 
-<h4>Parameters in Paths</h4><p>Often times the specification for a path can be improved upon by introducing a
+<h4>Parameters in Paths</h4>
+
+<p>Often times the specification for a path can be improved upon by introducing a
 parameter that is shared by some or all the points. For example, if we knew that
 we wanted our curve to have both the up and down portions to have the same
 amplitude and that we would like the curves to be evenly spaced between each
@@ -256,12 +352,16 @@ other, we could redefine it in the following way:</p>
       'Q' (+ x0 (* 1.5! spacing)) (+ y0 amplitude)
           (+ x0 (* 2! spacing)) y0 ]))
 
-(svg [curve])</code></pre><p><strong>Practice 4.3:</strong> Enter the above into your document and manipulate the control
+(svg [curve])</code></pre>
+
+<p><strong>Practice 4.3:</strong> Enter the above into your document and manipulate the control
 points as before. You should now see that your changes affect the other parts of
 the path that depend upon the same parameters. Depending on your design, this
 can be a great improvement over defining each portion individually both in terms
 of number of parameters that are in play as well as adjusting attributes shared
-by many portions of your path.</p><p>Quite a few of the built-in examples that utilize paths fall into this pattern
+by many portions of your path.</p>
+
+<p>Quite a few of the built-in examples that utilize paths fall into this pattern
 of design, including Active Trans, the Haskell.org logo, POP-PL logo, and the
 Wikimedia logo. The Active Trans logo is a particularly good example of this.
 Switch to it and look at the definition for <code>grayPts</code>.  Notice how all of the
@@ -271,14 +371,20 @@ and down together. Since the skyline profile of the design is meant to be fixed,
 this allows for easy direct manipulation of a design characteristic that would
 otherwise by very annoying to change manually. While you're at at, see how that
 example uses a "button" (which is just a slider that controls a Boolean value)
-to allow two different versions of the logo to be manipulated in sync.</p><p><strong>Exercise 4.4 (Optional):</strong> Modify the Active Trans logo so that each of the
-buildings rise and fall independently rather than as one unit.</p><p><strong>Exercise 4.5:</strong> Go ahead and define your own path in terms of a parameter that
+to allow two different versions of the logo to be manipulated in sync.</p>
+
+<p><strong>Exercise 4.4 (Optional):</strong> Modify the Active Trans logo so that each of the
+buildings rise and fall independently rather than as one unit.</p>
+
+<p><strong>Exercise 4.5:</strong> Go ahead and define your own path in terms of a parameter that
 is shared between all or some of the points. Try to use at least one curve and
 one straight line in your design, but you can keep it fairly simple for now. If
 you'd like to continue with the alphabetic theme, you might select a letter that
 has some symmetry to it (such as S or B).</p>
 
-<h4>Generating Paths</h4><p>While the former design pattern is suitable for a lot of the graphics that you
+<h4>Generating Paths</h4>
+
+<p>While the former design pattern is suitable for a lot of the graphics that you
 will work with, there are certain types of designs that lend themselves to a
 program structure that <em>generates</em> a path instead of being specified by hand.
 This could be for a few different reasons, including that the path is such that
@@ -286,7 +392,9 @@ the control points are tedious to write by hand, the path has such a large
 number of control points as to be unwieldy to edit, or that the user would like
 to experiment with different numbers of control points, which cannot be
 accomplished without changing the number of path commands, which can only be
-done either by hand or if the list of commands is being generated by a function.</p><p>A good example of the parameters being tedious to specify by hand is in the Pie
+done either by hand or if the list of commands is being generated by a function.</p>
+
+<p>A good example of the parameters being tedious to specify by hand is in the Pie
 Chart example. Notice that each wedge is a path with a specific fill
 and edge style, but that they all share exactly the same structure in terms of
 how the "pie slice" is defined (two straight edges with a circular curve). So,
@@ -296,7 +404,9 @@ consuming, repetitive, and difficult to add or remove a pie slice, the <code>wed
 function takes care of all of that. That function is then
 mapped over the unique information for each wedge, saving the user the trouble
 of writing it all themselves and making the program drastically more extensible.
-Furthermore, this allows for a much more dynamic design than is otherwise possible.</p><p>In the case of Pie Chart, each path is completely specified by one function,
+Furthermore, this allows for a much more dynamic design than is otherwise possible.</p>
+
+<p>In the case of Pie Chart, each path is completely specified by one function,
 meaning that the initial "moveto" and "closepath" statement is encapsulated in
 the function definition. However, in the Sailboat example, the situation is
 different. As the waves are intended to be all one path, the commands to create
@@ -306,32 +416,52 @@ number of times that the wave should be dependent is determined both by the
 width of the wave and the overall width of the graphic. So, the number of
 control points and path commands that are involved need to be able to change. As
 such, the function <code>mkwaves</code> is defined such that it builds up the path one wave
-at a time.</p><p>When generating your own paths, make sure that the final command list
+at a time.</p>
+
+<p>When generating your own paths, make sure that the final command list
 begins with a "moveto" command and that the last point of each section is
 interacting with the first point of the next section exactly how you would like
-it to be. Now it's time for you to set sail.</p><p><strong>Exercise 4.6:</strong> Your mission, should you choose to accept it, is the following:
-<ol><li>Pick a design that would be difficult or impossible to create using only basic<pre><code>shapes. Anything that involves non-circular curves or a large number of
-contiguous edges is a good candidate. One option is to choose an
-existing logo design of a favorite organization of yours or your place of work.
-Having an image of such a design on hand will be helpful for reference.</code></pre></li><li>Find a subset of the design that can be expressed as a path and in terms of<pre><code>just a few parameters. Write a function that genereates that portion of the
-path. It is okay if it's only part of the overall design that can be expressed in
-this way.</code></pre></li><li>Complete the remainder of the path that is associated with this generated subset.</li><li>Continue the above two steps until all paths in the design have been<pre><code>completed.</code></pre></li><li>Specify the remainder of the design, attempting to share as many parameters<pre><code>that are logically linked between the paths and these elements.</code></pre></li></ol></p><p>We encourage you to be amibitious with this exercise! Paths open up a world of
+it to be. Now it's time for you to set sail.</p>
+
+<strong>Exercise 4.6:</strong> Your mission, should you choose to accept it, is the following:
+<ol><li>Pick a design that would be difficult or impossible to create using only basic
+    shapes. Anything that involves non-circular curves or a large number of
+    contiguous edges is a good candidate. One option is to choose an
+    existing logo design of a favorite organization of yours or your place of work.
+    Having an image of such a design on hand will be helpful for reference.</li><li>Find a subset of the design that can be expressed as a path and in terms of
+    just a few parameters. Write a function that genereates that portion of the
+    path. It is okay if it's only part of the overall design that can be expressed in
+    this way.</li><li>Complete the remainder of the path that is associated with this generated subset.</li><li>Continue the above two steps until all paths in the design have been
+    completed.</li><li>Specify the remainder of the design, attempting to share as many parameters
+    that are logically linked between the paths and these elements.</li></ol>
+
+<p>We encourage you to be amibitious with this exercise! Paths open up a world of
 possiblities for expressing different graphics and is one of the places where
 being able to directly manipulate designs along with programmatic specification
 really shines. Don't forget to use the <a href="http://www.w3.org/TR/SVG11/paths.html">SVG path specification</a>
 as a reference for the path commands and to use the practices or built-in examples we
 discussed above if you get stuck on syntax.</p>
 
+<!--
+<h3>Survey</h3>
+
+<p><iframe
+   src="https://docs.google.com/forms/d/1x_3asGDGlrVoozexLjWQdYlgwveRzr_Xbx5oCj8BlMg/viewform?embedded=true"
+   width="750" height="1500" frameborder="0" marginheight="0" marginwidth="0">Loading...</iframe>
+<br>
+-->
+
+<h3>Next Up: <a href="05.html">Step 5</a> <!-- (or <a href="exit.html" >Exit Survey</a>) --></h3>
 
 
-<h3>Next Up: <a href="05.html">Step 5</a> </h3><p><div class="footnotes"><hr><ol><li id="fn1"><p>The interpretation of supported commands can be found
+<div class="footnotes"><hr><ol><li id="fn1"><p>The interpretation of supported commands can be found
 in the Sketch-n-Sketch source
 <a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/src/LangSvg.elm#L117">here</a>.<a href="#fnref1">↩</a></p></li><li id="fn2"><p>If you are already familiar with SVG paths, note that
 Sketch-n-Sketch currently supports path commands with absolute coordinates
 (commands with uppercase letters) but not relative coordinates (commands with
 lowercase letters).<a href="#fnref2">↩</a></p></li><li id="fn3"><p>For an in depth look at the various sorts of paths and how to use
 their specific commands, we recommend that you check out the Mozilla Developer
-Network <a href="https://developer.mozilla.org/en-&#13;&#10;US/docs/Web/SVG/Tutorial/Paths">tutorial</a> on the subject.<a href="#fnref3">↩</a></p></li></ol></div></p></span>
+Network <a href="https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths">tutorial</a> on the subject.<a href="#fnref3">↩</a></p></li></ol></div></span>
       </div>
       </div>
 

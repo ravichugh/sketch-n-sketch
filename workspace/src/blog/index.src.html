@@ -14,15 +14,16 @@
       <div class="post0">
         <h3>Posts</h3>
         <ul class="nobullets">
-          @(nodejs.listdircontent "src/blog/posts"
+          @(nodejs.listdircontent "src/blog/posts" |> List.reverse
            |> List.map (\(filename, filecontent) ->
              let date = Regex.extract """\*((\w+) (\d+), (\d\d\d\d))\*""" filecontent |>
                 Maybe.map (\[date, month, day, year] ->
                   let
                     monthnumericRaw = List.indexOf month ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
                     monthnumeric = if (monthnumericRaw < 10) then """0@monthnumericRaw""" else """@monthnumericRaw"""
+                    daynumeric = if (String.length day <= 1) then """0@day""" else day
                   in
-                   """@(monthnumeric).@(day).@year"""
+                   """@(monthnumeric).@(daynumeric).@year"""
                  ) |>
                 Maybe.withDefaultLazy (\() -> "Date not found in " + filename)
              in
@@ -31,8 +32,12 @@
                   |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
              in
              let title = Regex.extract """# ([^\r\n]+)""" filecontent
-                  |> Maybe.map (\[title] -> title)
-                  |> Maybe.withDefaultLazy (\() -> """[Missing title in @filename]""")
+                  |> Maybe.map (\[title] ->
+                    __evaluate__ __CurrentEnv__ """<span>@title</span>""" |>
+                    case of
+                      Ok [_, _, children] -> children
+                      Err x -> <error>@x</error>)
+                  |> Maybe.withDefaultLazy (\() -> <error>[Missing title in @filename]</error>)
              in
              <li><tt>@date:</tt> <a href="""@finalname""">@title</a></li>
            ))

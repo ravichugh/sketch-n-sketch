@@ -22,11 +22,7 @@ handleposts root kind =
          |> Maybe.map (\[name] -> name + ".html")
          |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
     in
-    let contentwithoutcomments = 
-         filecontent
-         |> Regex.replace """(```)([\s\S]*?)\1(?!`)""" (\m -> Regex.replace "<" "&lt;" m.match)
-         |> Regex.replace """<!--[\s\S]*?-->""" (\m -> freeze "") in
-    let finalcontent = __evaluate__ (("root", root) :: initEnv) (Update.expressionFreeze """@q3@contentwithoutcomments@q3""") |>
+    let finalcontent = __evaluate__ (("root", root) :: initEnv) (Update.expressionFreeze """@q3@filecontent@q3""") |>
       (case of Ok x -> String.markdown x; Err msg -> """<error>@msg</error>""") |>
       (\x -> __evaluate__ initEnv """<span>@x</span>""") |> 
       (case of Ok x -> x; Err msg -> <error>@msg</error>)
