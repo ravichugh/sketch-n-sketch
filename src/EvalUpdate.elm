@@ -651,11 +651,21 @@ builtinEnv =
             _ -> Err <| "__mbstylesplit__ takes a string or a List, got " ++ valToString newVal
     )
   , ("valToHTMLSource", builtinVal "EvalUpdate.valToHTMLSource" <|
-       VFun "__mbstylesplit__" ["style_str"] (oneArg "__mbstylesplit__" <| \original ->
+       VFun "valToHTMLSource" ["htmlNode"] (oneArg "valToHTMLSource" <| \original ->
           LangSvg.valToHTMLSource HTMLParser.HTML original
           |> Result.map (\str -> replaceV_ original (VBase (VString str)))
           |> Result.map (flip (,) [])
-       ) Nothing)
+       ) <| Just <| oneArgUpdate "valToHTMLSource" <| \original oldOutput newOutput diffs ->
+          case Vu.string newOutput |> Result.andThen (LangSvg.htmlSourceToVal HTMLParser.HTML) of
+            Err msg -> Err msg
+            Ok result ->
+              case defaultVDiffs original result of
+                Err msg -> Err <| "Error while computing the diffs for valToHTMLSource: " ++ msg
+                Ok ds ->
+                  Ok (ds |> LazyList.map (\mbd -> case mbd of
+                    Nothing -> ([result], [])
+                    Just d -> ([result], [(0, d)])))
+       )
   ]
 
 oneArg: String -> (Val -> Result String a) -> (List Val -> Result String a)

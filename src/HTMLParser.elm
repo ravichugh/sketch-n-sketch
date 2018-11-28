@@ -12,6 +12,7 @@ module HTMLParser exposing (parseHTMLString,
   unparseNode,
   unparseHtmlNodesDiffs,
   parseOneNode,
+  parseNode,
   entityToString)
 
 import Char

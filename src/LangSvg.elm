@@ -11,6 +11,7 @@ module LangSvg exposing
   , valToIndexedTree
   , printHTML, printRawHTML, printAttr
   , valToHTMLSource
+  , htmlSourceToVal
   , compileAttr, compileAttrs
   , desugarShapeAttrs
   , buildSvgSimple
@@ -60,6 +61,9 @@ import ImpureGoodies
 import Syntax exposing (Syntax)
 import HTMLParser
 import ValBuilder as Vb
+import Parser
+import ParserUtils
+import HTMLValParser
 
 ------------------------------------------------------------------------------
 
@@ -685,6 +689,14 @@ strAVal a = case a.interpreted of
 strPoints : List Point -> String
 strPoints l =
   Utils.spaces (List.map strPoint l)
+
+htmlSourceToVal: HTMLParser.NameSpace -> String -> Result String Val
+htmlSourceToVal namespace source =
+  Parser.run (HTMLParser.parseNode HTMLParser.Raw [] namespace) source
+  |> Result.mapError ParserUtils.showError
+  |> Result.map (
+    HTMLValParser.htmlNodeToElmViewInLeo (builtinVal "LangSvg")
+  )
 
 -- Direct translation from Val to HTML or SVG source
 valToHTMLSource: HTMLParser.NameSpace -> Val -> Result String String
