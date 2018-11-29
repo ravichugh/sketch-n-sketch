@@ -841,27 +841,57 @@ unparseHtmlAttributes: Exp -> String
 unparseHtmlAttributes attrExp =
   case eListUnapply attrExp of
     Just attrs ->
-      attrs |> List.map (\attr -> case (unwrapExp attr) of
-        EList attrNameSpace [(_, attrName), (attrEqSpace, attrValue)] _ Nothing _ ->
+      attrs |> List.map (\attr -> case unwrapExp attr of
+        EList attrNameSpace [(atEncoded, attrName), (spBeforeEq, attrValue)] spAfterEq Nothing _ ->
+          let atAfterEqual = if atEncoded.val == " " then "@" else ""  in
           let beforeSpace = if attrNameSpace.val == "" then " " else attrNameSpace.val in
           case unwrapExp attrName of
             EBase _ (EString _ attrNameStr) ->
-              let attrValueToConsider = case attrNameStr of
+              let attrValueToConsider = case attrNameStr of -- Removes __mbstylesplit__
                 "style" -> eAppUnapply1 attrValue |> Maybe.map Tuple.second |> Maybe.withDefault attrValue
                 _ -> attrValue
               in
-              case (unwrapExp attrValueToConsider) of
+              let default () =
+                beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++
+                   wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
+                     OpRight dummyExp attrValueToConsider (unparse attrValueToConsider)
+              in
+              case unwrapExp attrValueToConsider of
                 EBase spIfNoValue (EString _ attrValueStr) ->
                   if attrValueStr == "" && spIfNoValue.val == " " then
                     beforeSpace ++ attrNameStr
                   else
-                    beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++
+                    beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++
                        wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
                          OpRight dummyExp attrValueToConsider (unparse attrValueToConsider)
-                _ ->
-                  beforeSpace ++ attrNameStr ++ attrEqSpace.val ++ "=" ++
-                    wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
-                        OpRight dummyExp attrValueToConsider (unparse attrValueToConsider)
+                EApp precedingWs maybeHtmlAttributeWrap [elem] _ _ ->
+                  case unwrapExp maybeHtmlAttributeWrap of
+                    EVar _ "__htmlRawAttribute__" ->
+                      let unparseHtmlStringContent elem = case unwrapExp elem of
+                        EBase _ (EString _ content) -> Ok content
+                        EOp _ _ maybePlus [left, right] _ ->
+                           if maybePlus.val == Plus then
+                             Result.map2 (++) (unparseHtmlStringContent left) (unparseHtmlStringContent right)
+                           else Err "Unexpected AST. reverting to standard rendering"
+                        EApp _ maybeHtmlEntity [rendered, raw] _ _ ->
+                           case unwrapExp maybeHtmlEntity of
+                            EVar _ "__htmlStrEntity__" ->
+                              case unwrapExp raw of
+                                EBase _ (EString _ content) -> Ok content
+                                _ -> Err "Unexpected AST. Reverting to standard rendering"
+                            _ -> Err "Unexpected AST. Reverting to standard rendering"
+                        _ -> Err "Unexpected AST. Reverting to standard rendering"
+                      in
+                      let quoteChar = if precedingWs.val == " " then "\"" else "'" in
+                      case unparseHtmlStringContent elem  of
+                        Err _ -> default ()
+                        Ok unparsedContent ->
+                          let rawcontent = unparsedContent |> Regex.replace (Regex.All) (Regex.regex quoteChar) (\m ->
+                            if m.match == "\"" then "&quot;" else "&#39;")
+                          in
+                          beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ quoteChar ++ rawcontent ++ quoteChar
+                    _ -> default ()
+                _ -> default ()
             _ -> " @[" ++ unparse attr ++"]"
         _ -> " @[" ++ unparse attr ++"]"
       ) |> String.join ""

@@ -817,27 +817,27 @@ attrsToExp lastPos attrs =
       case head.val of
         HTMLParser.HTMLAttribute sp nameInfo value ->
           let nameExp = replaceInfo nameInfo <| exp_ <| EBase space0 (EString "\"" nameInfo.val) in
-          let attrValueSpace =
+          let attrSpaceAtValue =
             case value.val of
                HTMLParser.HTMLAttributeNoValue ->
                  -- Hack: space1 is here to tell that it's a NoValue.
-                 Ok (space0, withDummyExp_Info <| EBase space1 <| EString "\"" "")
-               HTMLParser.HTMLAttributeExp s e ->
+                 Ok (space0, space0, HTMLParser.AtAbsent, withDummyExp_Info <| EBase space1 <| EString "\"" "")
+               HTMLParser.HTMLAttributeExp spBeforeEq spAfterEq atPresence e ->
                  -- Normally, all the space is inside s
                  let final_e = case nameInfo.val of
                       "style" -> replaceInfo e <| exp_ <| EApp space0 (Expr <| withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [Expr e] SpaceApp space0
                       _ -> e
                  in
-                 Ok (s, final_e)
+                 Ok (spBeforeEq, spAfterEq, atPresence, final_e)
                _ -> Err <| "[Internal error] Tried to convert " ++ toString head ++ " to an Exp"
           in
-          case attrValueSpace of
+          case attrSpaceAtValue of
             Err msg -> fail msg
-            Ok (attrSpace, attrValue) ->
+            Ok (spBeforeEq, spAfterEq, atPresence, attrValue) ->
               let thisAttribute = replaceInfo head <| exp_ <| EList sp [
-                 (space0, Expr nameExp),
-                 (attrSpace, Expr attrValue)
-                 ] space0 Nothing space0
+                 (if atPresence == HTMLParser.AtAbsent then space0 else space1, Expr nameExp),
+                 (spBeforeEq, Expr attrValue)
+                 ] spAfterEq Nothing space0
               in
               attrsToExp head.end tail |> andThen (\tailAttrExp ->
                 case appendToLeft (space0, Expr thisAttribute) (Expr tailAttrExp) of
@@ -991,6 +991,23 @@ htmlliteral =
            (oneOf [identifier, source <| symbol "@"])))
       |= HTMLParser.parseOneNode (HTMLParser.Interpolation
         { attributevalue = inContext "HTML attribute value" << wrapWithSyntax LeoSyntax << (\apparg -> map always <| expressionWithoutGreater spaces 0 NoSpace)
+        , attributerawvalue = \quoteCharStr content ->
+            let contentAsExprs = content |> List.map (\l -> case l.val of
+                 HTMLParser.HTMLAttributeStringRaw raw -> Expr (replaceInfo l (exp_ (EBase space0 (EString quoteCharStr raw))))
+                 HTMLParser.HTMLAttributeEntity entityRendered entity ->
+                   Expr <| withInfo (exp_ <| EApp space1 (Expr <| withInfo (exp_ <| EVar space1  "__htmlStrEntity__") l.start l.start) [
+                     Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entityRendered)) l.start l.start,
+                     Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entity)) l.start l.end] SpaceApp space0) l.start l.end)
+            in
+            let precedingWs = if quoteCharStr == "\"" then space1 else space0 in
+            case contentAsExprs of
+              [] -> withDummyExpInfo (EBase space0 (EString quoteCharStr ""))
+              ((Expr h) as head) :: tail ->
+                Expr <| withDummyInfo (exp_ <| EApp precedingWs (Expr <| withInfo (exp_ <| EVar space1  "__htmlRawAttribute__") h.start h.start) [
+                  List.foldl (\((Expr ee1) as e1) ((Expr ee2) as e2) ->
+                    Expr <| withInfo (exp_ <| EOp space0 space0 (withDummyInfo Plus) [e2, e1] space0) ee1.start ee2.end
+                  ) head tail
+                ] SpaceApp space0)
         , attributelist = inContext "HTML special attribute list" <| wrapWithSyntax LeoSyntax <| simpleExpression 0 NoSpace
         , childlist = inContext "HTML special child list" << wrapWithSyntax LeoSyntax << (\spaceapparg ->
               oneOf [

@@ -4382,10 +4382,23 @@ updateOutputToResults c = case c of
   Ok (InputsWithDiffs id) -> Ok (List.unzip id |> Tuple.first)
   Err msg -> Err msg
 
+ -- Much simpler version, does not handle @ symbols wells.
+htmlViaEval =
+  let c = __CurrentEnv__ in
+  \\string -> case __evaluate__ c <| Update.expressionFreeze \"\"\"<span>@(Regex.replace \"@\" (\\m ->
+     { apply match = \"&#64;\"
+       update {outputNew} = Ok (Inputs [(outputNew)])
+     }.apply m.match) string)</span>\"\"\" of
+    Ok [_, _, children] -> children
+    _ -> error \"Parsing HTML failed:\"
+
 -- Returns a list of HTML nodes parsed from a string. It uses the API for loosely parsing HTML
 -- Example: html \"Hello<b>world</b>\" returns [[\"TEXT\",\"Hello\"],[\"b\",[], [[\"TEXT\", \"world\"]]]]
 html string = {
   apply trees =
+    let unwrapcontent elems = List.map (case of
+      HTMLAttributeStringRaw raw -> raw
+      HTMLAttributeEntity rendered _ -> rendered) elems |> String.join \"\" in
     let domap tree = case tree of
       HTMLInner v -> [\"TEXT\",
         replaceAllIn \"</[^>]*>\" (\\{match} -> \"\") v]
@@ -4395,8 +4408,8 @@ html string = {
         , map (case of
           HTMLAttribute ws0 name value ->
             let (name, content) = case value of
-              HTMLAttributeUnquoted _ _ content -> (name, content)
-              HTMLAttributeString _ _ _ content -> (name, content)
+              HTMLAttributeUnquoted _ _ content -> (name, unwrapcontent content)
+              HTMLAttributeString _ _ _ content -> (name, unwrapcontent content)
               HTMLAttributeNoValue -> (name, \"\")
             in
             if name == \"style\" then
@@ -4427,6 +4440,7 @@ html string = {
       [tag, attrs, children] -> HTMLElement tag (map toHTMLAttribute attrs) \"\"
            RegularEndOpening (map toHTMLNode children) (RegularClosing \"\")
     in
+    let reconcile oldAttrElems newString = [HTMLAttributeStringRaw newString] in
     let mergeAttrs input oldOutput newOutput diffs =
       Update.foldDiff {
         start =
@@ -4452,11 +4466,11 @@ html string = {
                HTMLAttributeUnquoted sp1 sp2 v ->
                  case extractFirstIn \"\\\\s\" realValue2 of
                    Nothing ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeUnquoted sp1 sp2 realValue2)
+                     HTMLAttribute sp0 name2 (HTMLAttributeUnquoted sp1 sp2 (reconcile v realValue2))
                    _ ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 \"\\\"\" realValue2)
+                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 \"\\\"\" (reconcile v realValue2))
                HTMLAttributeString sp1 sp2 delim v ->
-                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 delim realValue2)
+                     HTMLAttribute sp0 name2 (HTMLAttributeString sp1 sp2 delim (reconcile v realValue2))
                HTMLAttributeNoValue ->
                   if value2 == \"\" then HTMLAttribute sp0 name2 (HTMLAttributeNoValue)
                   else toHTMLAttribute [name2, value2]
@@ -5081,6 +5095,7 @@ Html =
     text = textInner
     br = [\"br\", [], []]
     parse = html
+    parseViaEval = htmlViaEval
     freshTag = freshTag
     forceRefresh = forceRefresh
     integerRefresh = integerRefresh

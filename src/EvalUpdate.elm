@@ -494,6 +494,26 @@ builtinEnv =
              (1, VStringDiffs [StringUpdate 0 (String.length entityS) (String.length escapedNewValS)])])
         _ -> Err <| "Expected strings as arguments and [[\"TEXT\", _]] as return of __htmlEntity__, got __htmlEntity__ " ++ valToString entityRendered ++ ", " ++ valToString entity ++ " updated by " ++ valToString newVal
     )
+  , ("__htmlStrEntity__", builtinVal "EvalUpdate.__htmlStrEntity__" <|
+    VFun "__htmlStrEntity__" ["entityRendered", "entity"] (twoArgs "__htmlStrEntity__" <| \entityRendered entity ->
+      Ok (entityRendered, [])
+    ) <| Just <| twoArgsUpdate "__htmlStrEntity__" <| \entityRendered entity oldVal newVal diffs ->
+      case (entityRendered.v_, entity.v_, newVal.v_) of
+        (VBase (VString entityRenderedS), VBase (VString entityS), VBase (VString newValS)) ->
+          let escapedNewValS= newValS in
+          let newEntity = replaceV_ newVal <| VBase (VString escapedNewValS) in
+          let newEntityRenderedS = newValS in
+          let newEntityRendered = replaceV_ newVal <| VBase <| VString newEntityRenderedS in
+          ok1 ([newEntityRendered, newEntity],
+            [(0, VStringDiffs [StringUpdate 0 (String.length entityRenderedS) (String.length newEntityRenderedS)]),
+             (1, VStringDiffs [StringUpdate 0 (String.length entityS) (String.length escapedNewValS)])])
+        _ -> Err <| "Expected strings as arguments and as return of __htmlStrEntity__, got __htmlStrEntity__ " ++ valToString entityRendered ++ ", " ++ valToString entity ++ " updated by " ++ valToString newVal
+    )
+  , ("__htmlRawAttribute__", builtinVal "EvalUpdate.__htmlRawAttribute__" <|
+     VFun "__htmlRawAttribute__" ["content"] (oneArg "__htmlRawAttribute__" <| \arg ->
+       Ok (arg, [])
+     ) <| Just <| oneArgUpdate "__htmlRawAttribute__" <| \arg oldVal newVal diffs ->
+       ok1 ([newVal], [(0, diffs)]))
   , ("__mbwraphtmlnode__", builtinVal "EvalUpdate.__mbwraphtmlnode__" <|
      VFun "__mbwraphtmlnode__" ["string_node_listnode"] (oneArg "string_node_listnode" <| \original ->
        case original.v_ of

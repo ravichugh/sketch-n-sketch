@@ -3,6 +3,7 @@ module HTMLParser exposing (parseHTMLString,
   HTMLNode_(..),
   HTMLAttribute_(..),
   HTMLAttributeValue_(..),
+  HTMLAttributeStringElem_(..),
   HTMLTag(..),
   ParsingMode(..),
   isVoidElement, isForeignElement,
@@ -13,7 +14,9 @@ module HTMLParser exposing (parseHTMLString,
   unparseHtmlNodesDiffs,
   parseOneNode,
   parseNode,
-  entityToString)
+  entityToString,
+  interpretAttrValueContent,
+  AtPresence(..))
 
 import Char
 import Set exposing (Set)
@@ -32,17 +35,25 @@ import Regex
 import Parser
 import Parser.LanguageKit as LanguageKit
 import Info exposing (WithInfo)
+import Either
 
 import ImpureGoodies
 
 type NameSpace  = HTML | Foreign
 
+type alias HTMLAttributeStringElem = WithInfo HTMLAttributeStringElem_
+type HTMLAttributeStringElem_ =
+      HTMLAttributeStringRaw String
+    | HTMLAttributeEntity {-Entity rendered-} String {-Entity raw -} String
+
 type alias HTMLAttributeValue = WithInfo HTMLAttributeValue_
 type HTMLAttributeValue_ =
-    HTMLAttributeUnquoted WS WS String
-  | HTMLAttributeString WS WS String {-Delimiter char-}  String
+    HTMLAttributeUnquoted WS {-Equal sign-} WS (List HTMLAttributeStringElem)
+  | HTMLAttributeString WS {-Equal sign-} WS String {-Delimiter char-}  (List HTMLAttributeStringElem)
   | HTMLAttributeNoValue
-  | HTMLAttributeExp WS (WithInfo Exp_)
+  | HTMLAttributeExp WS {-Equal sign-} WS AtPresence (WithInfo Exp_)
+
+type AtPresence = AtPresent | AtAbsent
 
 type alias HTMLAttribute = WithInfo HTMLAttribute_
 type HTMLAttribute_ =
@@ -71,6 +82,7 @@ type ParsingMode = Raw |
   Interpolation {
     tagName: ParserI Exp_,
     attributevalue: Parser WS -> ParserI Exp_,
+    attributerawvalue: String -> List HTMLAttributeStringElem -> Exp,
     attributelist: ParserI Exp_,
     childlist: Parser WS -> ParserI Exp_}
 
@@ -188,6 +200,36 @@ parseHtmlAttributeName = inContext "HTML attribute name" <| trackInfo <|
     (\c -> c /= '>' && c /= '<' && c /= ',' && c /= '/' && not (isSpace c))
     (\c -> c /= '>' && c /= '<' && c /= ',' && c /= '/' && c /= '=' && not (isSpace c)) (Set.fromList [])
 
+parseHTMLAttributeStringContent: (Char -> Bool) -> Parser (List HTMLAttributeStringElem)
+parseHTMLAttributeStringContent isEndChar =
+  let aux: List HTMLAttributeStringElem -> Parser (List HTMLAttributeStringElem)
+      aux revPreviousElems =
+    oneOf [
+       keep (AtLeast 1) (\c -> not (isEndChar c) && c /= '&') |> trackInfo |> andThen (\s ->
+         aux (replaceInfo s (HTMLAttributeStringRaw s.val) :: revPreviousElems)
+       )
+    ,  parseHTMLEntity True |> andThen (\s -> case s.val of
+        Err x -> aux (replaceInfo s (HTMLAttributeStringRaw x) :: revPreviousElems)
+        Ok (rendered, raw) ->
+          aux (replaceInfo s (HTMLAttributeEntity rendered raw) :: revPreviousElems))
+    ,  succeed (List.reverse revPreviousElems |> mergeHTMLAttributeStringRaw)
+    ]
+  in aux []
+
+parseHTMLAttributeString: Parser (String, List HTMLAttributeStringElem)
+parseHTMLAttributeString =
+  oneOf [
+      source (symbol "\"")
+    , source (symbol "\'")
+  ] |> andThen (\quoteCharStr ->
+    let quoteChar = ImpureGoodies.stringCharAt 0 quoteCharStr |> Maybe.withDefault '\"' in
+    parseHTMLAttributeStringContent (\c -> c == quoteChar)
+    |> andThen (\l ->
+      succeed identity
+      |. symbol quoteCharStr
+      |= succeed (quoteCharStr, l)
+    ))
+
 -- parse("<div> i<j =b / =hello=abc /a/ div / /> d") == "<div> i<j =b="" =hello="abc" a="" div=""> d</j></div>"
 parseHtmlAttributeValue: ParsingMode -> Parser HTMLAttributeValue
 parseHtmlAttributeValue parsingMode =
@@ -200,30 +242,41 @@ parseHtmlAttributeValue parsingMode =
              |. (symbol "=")
              |= spaces
              |= oneOf [
-               (trackInfo <| singleLineString) |> map (\strInfo sp1 sp2 ->
-                 let {val} = strInfo in
-                 let (quoteChar, content) = val in
-                   replaceInfo strInfo <| HTMLAttributeString sp1 sp2 quoteChar content),
-               ignore oneOrMore (\c -> not (isSpace c) && c /= '>') |> source |> trackInfo |>
-               map (\contentInfo sp1 sp2 ->
-                 let {val} = contentInfo in
-                 replaceInfo contentInfo <| HTMLAttributeUnquoted sp1 sp2 val)
+                 parseHTMLAttributeString |> trackInfo |> map (\attrString sp1 sp2 ->
+                   let (quoteChar, content) = attrString.val in
+                     replaceInfo attrString <| HTMLAttributeString sp1 sp2 quoteChar content)
+                 , parseHTMLAttributeStringContent (\c -> isSpace c || c == '>') |> trackInfo |>
+                   map (\contentInfo sp1 sp2 ->
+                     replaceInfo contentInfo <| HTMLAttributeUnquoted sp1 sp2 contentInfo.val)
              ]
           ),
         trackInfo <| succeed HTMLAttributeNoValue
       ]
-    Interpolation {attributevalue} ->
+    Interpolation {attributevalue, attributerawvalue} ->
       trackInfo <| oneOf [
-        delayedCommitMap (\s b -> b s)
-        spaces
-        (succeed (flip HTMLAttributeExp)
-          |. symbol "="
-          |. optional (symbol "@")
-          |= attributevalue nospace
-         )
-        , succeed identity
-          |. oneOf [lookAhead (symbol " "), lookAhead (symbol ">"), lookAhead (symbol "/"), lookAhead (symbol "\r"), lookAhead (symbol "\n")]
-          |= succeed HTMLAttributeNoValue
+          delayedCommitMap (\spBeforeEq builder -> builder spBeforeEq)
+          spaces
+          (succeed (\spAfterEq (atPresence, value) spBeforeEq -> HTMLAttributeExp spBeforeEq spAfterEq atPresence value)
+            |. symbol "="
+            |= spaces
+            |= (optional (symbol "@") |> andThen (\maybeAt ->
+              let atPresence = Maybe.map (always AtPresent) maybeAt |> Maybe.withDefault AtAbsent in
+              map ((,) atPresence) <|
+              oneOf ((if atPresence == AtAbsent then [
+                  delayedCommitMap (\x y -> y)
+                    (lookAhead (oneOf [symbol "\"", symbol "'"]))
+                    (succeed (\attrString ->
+                             let (quoteChar, content) = attrString.val in
+                             let (Expr x) = attributerawvalue quoteChar content in
+                             { x | start = attrString.start, end = attrString.end}
+                        )
+                     |. negativeLookAhead (symbol "\"\"\"")
+                     |= (parseHTMLAttributeString |> trackInfo)) ] else []) ++
+                [attributevalue nospace
+                ])
+            ))
+           )
+        , succeed HTMLAttributeNoValue
       ]
 
 
@@ -264,7 +317,7 @@ nodeStart =
     (symbol "<")
     (keep oneOrMore (\c -> not (isSpace c) && c /= '/' && c /= '>' && c /= '!' && c /= '?'))
 
-parseHTMLEntity: Bool -> Parser HTMLNode
+parseHTMLEntity: Bool -> ParserI (Result String (String, String)) -- Errs are raw strings containing the "&", whereas Ok contain the interpreted and raw entity
 parseHTMLEntity insideAttribute =
   inContext "HTML entity" <|
   trackInfo <|
@@ -281,26 +334,27 @@ parseHTMLEntity insideAttribute =
          ]
          |. optional (symbol ";"))) |> andThen
       (\result -> -- Find out which part we have to consume.
-        let default matched = map (\x -> HTMLEntity (entityToString ("&" ++ x)) ("&" ++ x))  (source (symbol matched)) in
+        let default matched = map (\x -> Ok (entityToString ("&" ++ x), "&" ++ x))  (source (symbol matched)) in
         if result |> String.startsWith "#" then
           default result
         else -- Let's find out the named entities.
           let aux matched =
-            if matched == "" then succeed (HTMLInner "&") else
+            if matched == "" then succeed (Err "&") else
             case ImpureGoodies.fromHtmlEntity ("&" ++ matched) of
                Nothing -> aux (String.left (String.length matched - 1) matched)
                Just x ->
-                 if insideAttribute then
+                 let lastChar = String.right 1 matched in
+                 if insideAttribute && lastChar /= ";" then
                    oneOf [
-                     succeed identity
-                     |. lookAhead (
-                       delayedCommitMap (\a b -> ())
-                         (symbol matched)
-                         (keep (Exactly 1) (\c ->
-                           Char.isUpper c || Char.isLower c || Char.isDigit c ||
-                             c == '=')))
-                     |= succeed (HTMLInner "&"),
-                     default matched]
+                       succeed identity
+                       |. lookAhead (
+                         delayedCommitMap (\a b -> ())
+                           (symbol matched)
+                           (keep (Exactly 1) (\c ->
+                             Char.isUpper c || Char.isLower c || Char.isDigit c ||
+                               c == '=')))
+                       |= succeed (Err "&")
+                     , default matched]
                  else
                    default matched
           in aux result
@@ -353,6 +407,16 @@ parseHTMLAttribute parsingMode =
             |. symbol "@"
             |= attributelist),
             defaultAttributeParser]
+
+mergeHTMLAttributeStringRaw: List HTMLAttributeStringElem -> List HTMLAttributeStringElem
+mergeHTMLAttributeStringRaw children = case children of
+  h1 :: h2 :: tail ->
+    case (h1.val, h2.val) of
+      (HTMLAttributeStringRaw s1, HTMLAttributeStringRaw s2) ->
+        mergeHTMLAttributeStringRaw (withInfo (HTMLAttributeStringRaw (s1 ++ s2)) h1.start h2.end :: tail)
+      (_, HTMLAttributeStringRaw s2) -> h1 :: mergeHTMLAttributeStringRaw (h2 :: tail)
+      _ -> h1 :: h2 :: mergeHTMLAttributeStringRaw tail
+  _ -> children
 
 mergeInners: List HTMLNode -> List HTMLNode
 mergeInners children = case children of
@@ -414,7 +478,9 @@ parseNode parsingMode surroundingTagNames namespace =
     let defaultParsers = [
       parseHTMLElement parsingMode surroundingTagNames namespace,
       parseHTMLComment,
-      parseHTMLEntity False,
+      parseHTMLEntity False |> map (\entity -> case entity.val of
+         Err x -> replaceInfo entity <| HTMLInner x
+         Ok (rendered, raw) -> replaceInfo entity <| HTMLEntity rendered raw),
       parseHTMLInner parsingMode surroundingTagNames
     ] in
     case parsingMode of
@@ -441,14 +507,31 @@ parseHTMLString s =
   run parseTopLevelNodez s
 
 
+unparseAttrValueStringElem: HTMLAttributeStringElem -> String
+unparseAttrValueStringElem elem = case elem.val of
+  HTMLAttributeStringRaw x -> x
+  HTMLAttributeEntity rendered x -> x
+
+interpretAttrValueStringElem: HTMLAttributeStringElem -> String
+interpretAttrValueStringElem elem = case elem.val of
+  HTMLAttributeStringRaw x -> x
+  HTMLAttributeEntity rendered x -> rendered
+
+
+unparseAttrValueContent: List HTMLAttributeStringElem -> String
+unparseAttrValueContent content = content |> List.map unparseAttrValueStringElem |> String.join ""
+
+interpretAttrValueContent: List HTMLAttributeStringElem -> String
+interpretAttrValueContent content = content |> List.map interpretAttrValueStringElem |> String.join ""
 
 unparseAttrValue: HTMLAttributeValue -> String
 unparseAttrValue value =
   case value.val of
-    HTMLAttributeUnquoted ws1 ws2 content -> ws1.val ++ "=" ++ ws2.val ++ content
-    HTMLAttributeString ws1 ws2 delimiter content -> ws1.val ++ "=" ++ ws2.val ++ delimiter ++ ParserUtils.unparseStringContent delimiter content ++ delimiter
+    HTMLAttributeUnquoted ws1 ws2 content -> ws1.val ++ "=" ++ ws2.val ++ unparseAttrValueContent content
+    HTMLAttributeString ws1 ws2 delimiter content ->
+      ws1.val ++ "=" ++ ws2.val ++ delimiter ++ unparseAttrValueContent content ++ delimiter
     HTMLAttributeNoValue -> ""
-    HTMLAttributeExp _ _ -> "[Internal error] Don't know how to unparse an HTMLAttributeExp here"
+    HTMLAttributeExp _ _ _ _ -> "[Internal error] Don't know how to unparse an HTMLAttributeExp here"
 
 unparseAttr: HTMLAttribute -> String
 unparseAttr a = case a.val of
@@ -684,6 +767,32 @@ unparseStrContent quoteChar  content1  content2  offset mbvdiffs =
       in aux 0 stringDiffs content1splitted []
     Just d -> Err <| "Expected VStringDiffs for a string, got " ++ toString d
 
+unparseAttrValueStringElemDiff: HTMLAttributeStringElem -> HTMLAttributeStringElem -> Unparser
+unparseAttrValueStringElemDiff oldattrelem newattrelem offset mbd =
+  case mbd of
+    Nothing ->
+      let str = unparseAttrValueStringElem newattrelem in
+      Ok (str, offset + String.length str, [])
+    Just d ->
+      case (oldattrelem.val, newattrelem.val, contructorVDiffs d) of
+        (_, _, Err msg) -> Err msg
+        (HTMLAttributeStringRaw content, HTMLAttributeStringRaw content2, Ok ds) ->
+          unparseConstructor "HTMLAttributeStringRaw" offset ds [
+            UnparseArgument <| unparseStr content content2
+          ]
+        (HTMLAttributeEntity rendered content, HTMLAttributeEntity rendered2 content2, Ok ds) ->
+          unparseConstructor "HTMLAttributeEntity" offset ds [
+            UnparseArgument <| unparseStr content content2
+          ]
+        (HTMLAttributeEntity rendered content, HTMLAttributeStringRaw content2, Ok ds) ->
+          unparseConstructor "HTMLAttributeStringRaw" offset ds [
+            UnparseArgument <| unparseStr content content2
+          ]
+        (HTMLAttributeStringRaw content, HTMLAttributeEntity rendered2 content2, Ok ds) ->
+          unparseConstructor "HTMLAttributeEntity" offset ds [
+            UnparseArgument <| unparseStr content content2
+          ]
+
 unparseAttrValueDiff: HTMLAttributeValue -> HTMLAttributeValue -> Unparser
 unparseAttrValueDiff oldAttrVal newAttrVal offset mbd =
   case mbd of
@@ -698,7 +807,7 @@ unparseAttrValueDiff oldAttrVal newAttrVal offset mbd =
             UnparseArgument <| unparseStr ws1.val ws12.val,
             UnparseSymbol "=",
             UnparseArgument <| unparseStr ws2.val ws22.val,
-            UnparseArgument <| unparseStr content content2
+            UnparseArgument <| unparseList unparseAttrValueStringElemDiff unparseAttrValueStringElem content content2
           ]
         (HTMLAttributeString ws1 ws2 delimiter content, HTMLAttributeString ws12 ws22 delimiter2 content2, Ok ds) ->
           unparseConstructor "HTMLAttributeString" offset ds [
@@ -706,7 +815,7 @@ unparseAttrValueDiff oldAttrVal newAttrVal offset mbd =
             UnparseSymbol "=",
             UnparseArgument <| unparseStr ws2.val ws22.val,
             UnparseArgument <| unparseStr delimiter delimiter2,
-            UnparseArgument <| unparseStrContent delimiter content content2,
+            UnparseArgument <| unparseList unparseAttrValueStringElemDiff unparseAttrValueStringElem content content2,
             UnparseSymbol delimiter2
           ]
         (HTMLAttributeNoValue, HTMLAttributeNoValue, Ok ds) ->
