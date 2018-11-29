@@ -1758,6 +1758,14 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
     in
     (backDisc, frontDisc)
   in
+  let dotIsVisible =
+    (shapeKind == "point" || not (objectIsCurrentlyBeingManipulated model id)) -- Show proper point widgets during live sync.
+       && (alwaysShowDot ||
+           List.member id model.selectedShapes ||
+           Set.member id model.hoveredShapes ||
+           Set.member thisCrosshair model.hoveredCrosshairs ||
+           model.tool /= Cursor)
+  in
   let xyDot =
     let isContextOutputPoint model xVal yVal =
       model.inputVal
@@ -1770,21 +1778,12 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
       (model.contextInputVals |> List.any (valToMaybeXYVals >> Maybe.map (\(inXVal, inYVal) -> Provenance.valsSame xVal inXVal && Provenance.valsSame yVal inYVal) >> Maybe.withDefault False))
     in
     let dotFill =
-      case (isShapeBeingDrawnSnappingToPoint model xVal yVal, List.member id model.selectedShapes, isContextInputPoint model xVal yVal, isContextOutputPoint model xVal yVal) of
-        (True, _, _, _)    -> colorPointSelected
-        (_, True, _, _)    -> pointZoneStylesFillSelected model id
-        (_, _, True, True) -> colorInputAndOutput
-        (_, _, True, _)    -> colorInput
-        (_, _, _, True)    -> colorOutput
-        _                  -> pointZoneStyles.fill.shown
-    in
-    let isVisible =
-      (shapeKind == "point" || not (objectIsCurrentlyBeingManipulated model id)) -- Show proper point widgets during live sync.
-         && (alwaysShowDot ||
-             List.member id model.selectedShapes ||
-             Set.member id model.hoveredShapes ||
-             Set.member thisCrosshair model.hoveredCrosshairs ||
-             model.tool /= Cursor)
+      case (isShapeBeingDrawnSnappingToPoint model xVal yVal, isContextInputPoint model xVal yVal, isContextOutputPoint model xVal yVal) of
+        (True, _, _)    -> colorPointSelected
+        (_, True, True) -> colorInputAndOutput
+        (_, True, _)    -> colorInput
+        (_, _, True)    -> colorOutput
+        _               -> pointZoneStyles.fill.shown
     in
     let extraAttrs =
       if model.tool == Cursor then
@@ -1804,7 +1803,21 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
             let newModel = if model.mouseMode == MouseNothing then startDrawing model maybeClickable else model in -- maybeClickable for drag drawings
             { newModel | mouseState = (Just False, { x = x, y = y }, maybeClickable) } ] -- maybeClickable for click drawings (poly/path)
     in
-    Draw.svgXYDot 1 (x, y) dotFill isVisible extraAttrs
+    Draw.svgXYDot 1 (x, y) dotFill dotIsVisible extraAttrs
+  in
+  let perhapsDotHalo =
+    if dotIsVisible && List.member id model.selectedShapes then
+      [ svgCircle <|
+          [ LangSvg.attr "cx" (toString x) , LangSvg.attr "cy" (toString y)
+          , LangSvg.attr "fill" (pointZoneStylesFillSelected model id)
+          , LangSvg.attr "r" <|
+              if dotIsVisible
+              then (toString <| pointZoneStyles.radius + 6)
+              else "0"
+          ]
+      ]
+    else
+      []
   in
   let perhapsPointPatWidget =
     perhapsPatOrExpInOutput
@@ -1879,7 +1892,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xNumTr xVal
           { model |  deuceState = { emptyDeuceState | hoveredWidgets = Utils.maybeToList maybeHoveredEId |> List.map DeuceWidgets.DeuceExp } }
       ] ++ perhapsFaded
     )
-    ([backDisc, xLine, yLine, frontDisc] ++ perhapsPointPatWidget ++ perhapsXPatWidget ++ perhapsYPatWidget ++ [xyDot])
+    ([backDisc, xLine, yLine, frontDisc] ++ perhapsPointPatWidget ++ perhapsXPatWidget ++ perhapsYPatWidget ++ perhapsDotHalo ++ [xyDot])
 
 perhapsZoneSelectLine : Num -> Model -> LangSvg.NodeId -> ShapeWidgets.ShapeFeature -> (Num, Num) -> (Num, Num) -> List (Svg Msg)
 perhapsZoneSelectLine sideLength model nodeId shapeFeature pt1 pt2 =
