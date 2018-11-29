@@ -905,34 +905,37 @@ newFunctionCallExp fName model pt1 pt2 =
             -- |> Debug.log "(ptsUnused, argMaybeExpsTwoPoints)"
           in
           -- See if func can take 1 Point + some distance(s)
-          let (ptUsed, widthUsed, heightUsed, argMaybeExpsPointWidthHeight) =
+          let ((x1Used, y1Used), widthUsed, heightUsed, argMaybeExpsPointWidthHeight) =
             let maxId = FastParser.maxId model.inputExp in
             let x1y1Exp = makePointExpFromPointWithSnap pt1 |> FastParser.freshenFrom (maxId + 1) in
+            let (x1Exp, y1Exp) = x1y1Exp |> expEffectiveExp |> LangTools.expToListHeads |> List.map ensureWhitespaceExp |> Utils.unwrap2 in -- grab them this way to make sure they are freshened; makePointExpFromPointWithSnap removes the whitespace before x1Exp
             let maybeX1Y1Vals = Eval.simpleEvalToMaybeVal x1y1Exp |> Maybe.andThen valToMaybeXYVals in
             let ((x1Int, _), (y1Int, _)) = pt1 in
             let ((x2Int, _), (y2Int, _)) = pt2 in
             let majorAxis = if abs (x2Int - x1Int) >= abs (y2Int - y1Int) then X else Y in -- For circle drawing which is the "Radius"?
             argTypes
             |> Utils.foldl
-                (False, False, False, [])
-                (\argType (pointUsed, widthUsed, heightUsed, argMaybeExps) ->
-                  case ( pointUsed               , Types.isPointType argType
+                ((False, False), False, False, [])
+                (\argType ((x1Used, y1Used), widthUsed, heightUsed, argMaybeExps) ->
+                  case ( (x1Used, y1Used)        , Types.isPointType argType, (Types.typeToRoles argType |> Set.member "X", Types.typeToRoles argType |> Set.member "Y")
                        , widthUsed               , Types.typeToRoles argType |> Utils.anyOverlapListSet ["Width", "HalfWidth", "HorizontalDistance"]
                        , heightUsed              , Types.typeToRoles argType |> Utils.anyOverlapListSet ["Height", "HalfHeight", "VerticalDistance"]
                        , heightUsed || widthUsed , Types.typeToRoles argType |> Set.member "Radius"
                        ) of
-                    (False, True, _, _, _, _, _, _) -> (True,      widthUsed, heightUsed, argMaybeExps ++ [Just x1y1Exp])
-                    (_, _, False, True, _, _, _, _) -> (pointUsed, True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals X pt2 pt1)])
-                    (_, _, _, _, False, True, _, _) -> (pointUsed, widthUsed, True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals Y pt2 pt1)])
-                    (_, _, _, _, _, _, False, True) -> (pointUsed, True,      True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals majorAxis pt2 pt1)])
-                    _                               -> (pointUsed, widthUsed, heightUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
+                    ((False, False), True, (_, _), _, _, _, _, _, _) -> ((True,   True),   widthUsed, heightUsed, argMaybeExps ++ [Just x1y1Exp])
+                    ((False, _), False, (True, _), _, _, _, _, _, _) -> ((True,   y1Used), widthUsed, heightUsed, argMaybeExps ++ [Just x1Exp])
+                    ((_, False), False, (_, True), _, _, _, _, _, _) -> ((x1Used, True),   widthUsed, heightUsed, argMaybeExps ++ [Just y1Exp])
+                    ((_, _), _, (_, _), False, True, _, _, _, _)     -> ((x1Used, y1Used), True,      heightUsed, argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals X pt2 pt1)])
+                    ((_, _), _, (_, _), _, _, False, True, _, _)     -> ((x1Used, y1Used), widthUsed, True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals Y pt2 pt1)])
+                    ((_, _), _, (_, _), _, _, _, _, False, True)     -> ((x1Used, y1Used), True,      True,       argMaybeExps ++ [Just (makeAxisDifferenceExpFromPointsWithSnap maybeX1Y1Vals majorAxis pt2 pt1)])
+                    _                                                -> ((x1Used, y1Used), widthUsed, heightUsed, argMaybeExps ++ [TypeDirectedFunctionUtils.maybeFillInArgPrimitive argType])
                 )
             -- |> Debug.log "(ptUsed, widthUsed, heightUsed, argMaybeExpsPointWidthHeight)"
           in
           let perhapsPointAnnotation = if Types.isPointType returnType then identity else identity in -- eAsPoint
           Utils.orMaybe
               (Utils.projJusts argMaybeExpsTwoPoints        |> Utils.filterMaybe (always (ptsUnused == [])))
-              (Utils.projJusts argMaybeExpsPointWidthHeight |> Utils.filterMaybe (always (ptUsed && (widthUsed || heightUsed))))
+              (Utils.projJusts argMaybeExpsPointWidthHeight |> Utils.filterMaybe (always (x1Used && y1Used && (widthUsed || heightUsed))))
           |> Maybe.map (\argExps -> (perhapsPointAnnotation (eCall fName argExps), returnType))
 
         Nothing -> Debug.crash <| "Draw.newFunctionCallExp bad function type: " ++ Syntax.typeUnparser Syntax.Elm funcType
@@ -1091,16 +1094,22 @@ getDrawableFunctions model =
 -- Dual is in newFunctionCallExp where the args are actually filled in.
 isDrawableType : Type -> Bool
 isDrawableType tipe =
+  let typeCountWithAnyOfRoles roles inputTypes =
+    Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet roles) inputTypes
+  in
+  let atLeastOneDistanceArg inputTypes =
+    typeCountWithAnyOfRoles ["Width",  "HalfWidth", "HorizontalDistance"] inputTypes >= 1 ||
+    typeCountWithAnyOfRoles ["Height", "HalfHeight", "VerticalDistance"] inputTypes >= 1 ||
+    typeCountWithAnyOfRoles ["Radius"] inputTypes >= 1
+  in
   case Types.typeToMaybeArgTypesAndReturnType tipe of
     Just (inputTypes, _) ->
       Utils.count Types.isPointType inputTypes >= 2 ||
-      (
-        Utils.count Types.isPointType inputTypes >= 1 &&
-        (
-          Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet ["Width",  "HalfWidth", "HorizontalDistance"])  inputTypes >= 1 ||
-          Utils.count (Types.typeToRoles >> Utils.anyOverlapListSet ["Height", "HalfHeight", "VerticalDistance"]) inputTypes >= 1 ||
-          Utils.count (Types.typeToRoles >> Set.member "Radius") inputTypes >= 1
-        )
+      (Utils.count Types.isPointType inputTypes >= 1 && atLeastOneDistanceArg inputTypes) ||
+      ( Utils.count Types.isPointType inputTypes == 0 &&
+        typeCountWithAnyOfRoles ["X"] inputTypes == 1 &&
+        typeCountWithAnyOfRoles ["Y"] inputTypes == 1 &&
+        atLeastOneDistanceArg inputTypes
       )
 
     _ ->

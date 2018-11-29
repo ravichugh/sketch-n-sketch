@@ -1416,6 +1416,13 @@ expToListParts exp =
     _                                 -> Debug.crash <| "LangTools.expToListParts exp is not an EList: " ++ unparseWithIds exp
 
 
+expToListHeads : Exp -> List Exp
+expToListHeads exp =
+  case exp.val.e__ of
+    EList ws1 heads ws2 maybeTail ws3 -> List.map Tuple.second heads
+    _                                 -> Debug.crash <| "LangTools.expToListHeads exp is not an EList: " ++ unparseWithIds exp
+
+
 expToMaybeListHeads : Exp -> Maybe (List Exp)
 expToMaybeListHeads exp =
   case exp.val.e__ of
