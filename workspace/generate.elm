@@ -36,7 +36,7 @@ handleposts root kind =
 expandSkeleton root file outtarget =
   (Debug.log "recomputing " outtarget, load root file)
 
-toWriteVal =
+toWriteVal = 
   (handleposts ".." "blog") ++
   (handleposts ".." "tutorial")  ++ [
   expandSkeleton "."   "src/index.src.html"                             "../index.html"
@@ -58,4 +58,6 @@ _ = toWriteVal |> List.map (\(name, content) ->
     _ -> ""
   in aux content) |> String.join "" |> (\x -> if x /= "" then Debug.log """Warning:@x""" () else ())
 
-toWriteRaw = toWriteVal |> List.map (\(name, content) -> (name, "<!DOCTYPE html>\\n" + valToHTMLSource content))
+toWriteRaw = toWriteVal |> List.map (\(name, content) -> (name, "<!DOCTYPE html>\n" + valToHTMLSource content))
+
+toWriteRaw

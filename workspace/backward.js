@@ -4,9 +4,9 @@ const sns = require("sketch-n-sketch")
 sns.params = sns.params || {};
 sns.params.delayedWrite = true;
 
-var source = fs.readFileSync(__dirname + "/generate.elm", "utf8") + `
+filename = __dirname + "/generate.elm";
 
-toWriteRaw`;
+var source = fs.readFileSync(filename, "utf8");
 
 var result = sns.process(sns.objEnv.string.evaluate({write:"False"})(source))(
   sns.valToNative
@@ -22,8 +22,37 @@ if(result.ctor == "Ok") {
     newWrittenFiles.push({'$t_ctor': 'Tuple2', _1: name, _2: newContent});
   }
   var newWrittenFilesVal = sns.nativeToVal(newWrittenFiles);
-  sns.objEnv.string.update({v:1})(source)(newWrittenFilesVal);
-  console.log("Done", sns.fileOperations);
+  var resSolutions = sns.objEnv.string.update({v:1})(source)(newWrittenFilesVal);
+  if(resSolutions.ctor == "Ok") {
+    var solutions = resSolutions._0;
+    if(sns.lazyList.nonEmpty(solutions)) {
+      var {_1: newenv, _2: headSolution} = sns.lazyList.head(solutions);
+      var headOperations = sns.fileOperations;
+      if(headSolution != source) {
+        headOperations.push(["write", [filename, headSolution]]);
+      }
+      sns.fileOperations = [];
+      // Check for ambiguity.
+      var tailSolutions = sns.lazyList.tail(solutions);
+      if(sns.lazyList.isEmpty(tailSolutions)) {
+        console.log("No ambiguity found", headOperations);
+        
+      } else {
+        var {_1: newenv2, _2: headSolution2} = sns.lazyList.head(solutions);
+        var headOperations2 = sns.fileOperations;
+        if(headSolution2 != source) {
+          headOperations2.push(["write", [filename, headSolution2]]);
+        }
+        console.log("Ambiguity detected");
+        console.log("Solution #1", headOperations);
+        console.log("Solution #2", headOperations2);
+      }
+    } else {
+      console.log("Error while updating, solution array is empty");
+    }
+  } else {
+    console.log("Error while updating: " + resSolutions._0);
+  }
 } else {
   console.log("error", result._0)
 }
