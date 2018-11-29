@@ -17,7 +17,7 @@ function applyOperations(operations) {
   for(var i = 0; i < operations.length; i++) {
     var [kind, action] = operations[i];
     if(kind == "write") {
-      var [name, content] = action;
+      var {_1: name, _2: content} = action;
       fs.writeFileSync(name, content, "utf8");
     } else if (kind == "delete") {
       var name = action;
@@ -41,10 +41,10 @@ if(result.ctor == "Ok") {
   if(resSolutions.ctor == "Ok") {
     var solutions = resSolutions._0;
     if(sns.lazyList.nonEmpty(solutions)) {
-      var {_1: newenv, _2: headSolution} = sns.lazyList.head(solutions);
+      var {_0: newenv, _1: headSolution} = sns.lazyList.head(solutions);
       var headOperations = sns.fileOperations;
       if(headSolution != source) {
-        headOperations.push(["write", [filename, headSolution]]);
+        headOperations.push(["write", {_1: filename, _2: headSolution}]);
       }
       sns.fileOperations = [];
       // Check for ambiguity.
@@ -53,10 +53,10 @@ if(result.ctor == "Ok") {
         console.log("No ambiguity found -- Applying the transformations");
         applyOperations(headOperations);
       } else {
-        var {_1: newenv2, _2: headSolution2} = sns.lazyList.head(solutions);
+        var {_0: newenv2, _1: headSolution2} = sns.lazyList.head(solutions);
         var headOperations2 = sns.fileOperations;
         if(headSolution2 != source) {
-          headOperations2.push(["write", [filename, headSolution2]]);
+          headOperations2.push(["write", {_1: filename, _2: headSolution2}]);
         }
         console.log("Ambiguity detected");
         console.log("Solution #1", headOperations);
