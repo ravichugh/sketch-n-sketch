@@ -48,11 +48,13 @@ if(result.ctor == "Ok") {
       }
       sns.fileOperations = [];
       // Check for ambiguity.
+      console.log("Checking for ambiguity");
       var tailSolutions = sns.lazyList.tail(solutions);
       if(sns.lazyList.isEmpty(tailSolutions)) {
         console.log("No ambiguity found -- Applying the transformations");
         applyOperations(headOperations);
       } else {
+        console.log("Ambiguity found -- Computing the second solution");
         var {_0: newenv2, _1: headSolution2} = sns.lazyList.head(solutions);
         var headOperations2 = sns.fileOperations;
         if(headSolution2 != source) {
