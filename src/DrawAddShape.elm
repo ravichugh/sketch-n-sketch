@@ -50,7 +50,7 @@ maybeShapeCountAndListItemCountInContextOutput model program =
 -- 6. Finally, use list the others do not depend on.
 addShape
   :  { a | showPreludeOffsets : Bool, slideNumber : Int, movieNumber : Int, movieTime : Float, syntax : Syntax.Syntax, solutionsCache : Solver.SolutionsCache, syncOptions : Sync.Options, maybeEnv : Maybe Env, editingContext : Maybe (EId, b) }
-  -> (Exp -> Bool) -> Maybe String -> Exp -> Maybe Int -> Maybe Int -> Maybe Int -> Maybe Int -> Bool -> Exp -> Exp
+  -> (Exp -> Bool) -> Maybe String -> Exp -> Maybe Int -> Maybe Int -> Maybe Int -> Maybe Int -> Bool -> Exp -> List Exp
 addShape
   model
   targetListFilter
@@ -222,7 +222,7 @@ addShape
       -- 5. Keep those programs that result in one more shape in the output.
       |> List.filter
           (\(listEId, newProgram) ->
-            let _ = LangTools.logProgram "checking candidate" newProgram in
+            -- let _ = LangTools.logProgram "checking candidate" newProgram in
             areCrashingProgramsOkay ||
             case maybeShapeCountAndListItemCountInContextOutput model newProgram of
               Just (newShapeCount, newListItemsCount) ->
@@ -255,7 +255,7 @@ addShape
     --     2. Prefer shorter programs.
     (listEIds, _) = List.unzip listEIdWithPossiblePrograms
     grossDependencies = StaticAnalysis.grossDependencies originalProgram
-    (_, bestProgram) =
+    (_, rankedNewPrograms) =
       listEIdWithPossiblePrograms
       |> List.sortBy
           (\(listEId, candidateProgram) ->
@@ -270,8 +270,7 @@ addShape
             in
             sortKey
           )
-      |> List.head
-      |> Maybe.withDefault (-1, originalProgram)
-
+      |> List.unzip
   in
-  bestProgram
+  rankedNewPrograms
+  -- |> LangTools.logProgram "DrawAddShape.addShape result"

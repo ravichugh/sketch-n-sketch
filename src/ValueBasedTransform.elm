@@ -1255,7 +1255,7 @@ repeat_ program showPreludeOffsets editingContext maybeEnv maybeMakePointsExpAnd
       { slideNumber    = slideNumber
       , movieNumber    = movieNumber
       , movieTime      = movieTime
-      , syntax         = Syntax.Elm
+      , syntax         = Syntax.Elm -- Syntax is dummy; we abort on unparsable code
       , solutionsCache = solutionsCache
       , syncOptions    = syncOptions
       , showPreludeOffsets = showPreludeOffsets
@@ -1265,9 +1265,9 @@ repeat_ program showPreludeOffsets editingContext maybeEnv maybeMakePointsExpAnd
 
     drawingScopeEId = FocusedEditingContext.eidAtEndOfDrawingContext editingContext program
   in
-  case InterfaceModel.runAndResolve_ model program of -- Syntax is dummy; we abort on unparsable code
+  case InterfaceModel.runAndResolveAtContext model program of
     Err s -> []
-    Ok (_, widgets, slate, _) ->
+    Ok (_, widgets, (_, shapeTree) as slate, _, _) ->
       let
         -- Step 1: Find points in provenance of selected shape.
 
@@ -1455,22 +1455,26 @@ repeat_ program showPreludeOffsets editingContext maybeEnv maybeMakePointsExpAnd
                         in
                         [ eCall "map"       [eVar itemFuncUniqueName, pointsExp] |> replacePrecedingWhitespace "\n" |> indent "  "
                         , eCall "concatMap" [eVar itemFuncUniqueName, pointsExp] |> replacePrecedingWhitespace "\n" |> indent "  "
-                        ] |> List.filterMap
+                        ] |> List.concatMap
                             (\repeatGroupCall ->
                               -- Step 5: Replace the shape in the shape list with the shapes produced by the map call.
                               -- let _ = Utils.log <| "Attempting to add\n" ++ Syntax.unparser Syntax.Elm repeatGroupCall ++ "\nto\n" ++ Syntax.unparser Syntax.Elm programWithFuncButNoCallFreshArgsRewritten in
                               let
-                                programWithRepeatCall =
+                                programsWithRepeatCall =
                                   DrawAddShape.addShape model (\list -> not <| Set.member list.val.eid eidsInNewAbstraction) (Just repeatGroupName) repeatGroupCall Nothing Nothing Nothing Nothing True programWithFuncButNoCallFreshArgsRewritten
                               in
-                              if LangUnparser.unparseWithUniformWhitespace True True programWithRepeatCall == programWithCallAndFuncUnparsed then
-                                -- let _ = Utils.log "Failed." in
-                                Nothing
-                              else
-                                -- let _ = Utils.log <| "Possible Success! (might be a crashing program)\n" ++ Syntax.unparser Syntax.Elm programWithRepeatCall in
-                                Just <|
-                                  ( programWithRepeatCall
-                                  , "Repeat " ++ itemFuncName ++ " " ++ repeatingOverWhatDesc
+                              programsWithRepeatCall
+                              |> List.filterMap
+                                  (\programWithRepeatCall ->
+                                    if LangUnparser.unparseWithUniformWhitespace True True programWithRepeatCall == programWithCallAndFuncUnparsed then
+                                      -- let _ = Utils.log "Failed." in
+                                      Nothing
+                                    else
+                                      -- let _ = Utils.log <| "Possible Success! (might be a crashing program)\n" ++ Syntax.unparser Syntax.Elm programWithRepeatCall in
+                                      Just <|
+                                        ( programWithRepeatCall
+                                        , "Repeat " ++ itemFuncName ++ " " ++ repeatingOverWhatDesc
+                                        )
                                   )
                             )
 
@@ -1492,16 +1496,13 @@ repeat_ program showPreludeOffsets editingContext maybeEnv maybeMakePointsExpAnd
       -- unique name problem resolution (which may obviate some crashes), we should now do crash filtering.
       --
       -- Also remove results that screw up the SVG output (if original output was SVG).
-      let shapeCountBefore =
-        case InterfaceModel.runAndResolveAtContext model program of
-          Err _                           -> 0
-          Ok (_, _, (_, shapeTree), _, _) -> Dict.size shapeTree
-      in
+      let shapeCountBefore = Dict.size shapeTree in
       abstractedCandidatePrograms
       |> List.filter
           (\synthesisResult ->
+            Debug.log "It ran okay?" <|
             case InterfaceModel.runAndResolveAtContext model (logProgram "Testing candidate for crashing:" <| InterfaceModel.resultExp synthesisResult) of
-              Err s                                          -> False
+              Err s                                          -> let _ = Utils.log s in False
               Ok (_, widgets, (_, shapeTree) as slate, _, _) -> if shapeCountBefore > 1 then Dict.size shapeTree > 1 else True -- Top level 'svg' is an element
           )
 
