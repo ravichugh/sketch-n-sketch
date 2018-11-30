@@ -770,10 +770,13 @@ getTypeParametersBinding funArgStyle binding_  =
   (strParameters, binding)
 
 
-multilineRegexEscape = Regex.regex <| "@"
+multilineRegexEscape = Regex.regex <| "@|\"\"\""
 
 unparseLongStringContent s =
-  Regex.replace  Regex.All multilineRegexEscape (\m -> "@@") s
+  Regex.replace  Regex.All multilineRegexEscape (\m -> case m.match of
+    "@" -> "@@"
+    "\"\"\"" -> "@(\"\\\"\\\"\\\"\")" -- Interpolation of triple quotes itself
+    _ -> m.match) s
 
 --Parses and unparses long interpolated strings.
 multilineContentUnparse : Exp -> String

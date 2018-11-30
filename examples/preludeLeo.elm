@@ -3297,6 +3297,7 @@ jsCode = {
 }
 
 nodejs = {
+  fileread: String -> Maybe String
   fileread = Update.lens {
       apply name =
         __jsEval__ """
@@ -3309,9 +3310,13 @@ nodejs = {
                 return @(jsCode.datatypeOf "x" "Just" ["elems._2"]);
               }
             }
-            if(fs.existsSync(@(jsCode.stringOf name)))
-              return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync(@(jsCode.stringOf name), "utf-8")"""]);
-            else
+            if(fs.existsSync(@(jsCode.stringOf name))) { // TODO: Atomic read
+              if(fs.lstatSync(@(jsCode.stringOf name)).isDirectory()) {
+                return @(jsCode.datatypeOf "x" "Nothing" []);
+              } else {
+                return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync(@(jsCode.stringOf name), "utf-8")"""]);
+              }
+            } else
               return @(jsCode.datatypeOf "x" "Nothing" []);
           })()"""
       update = case of
@@ -3359,23 +3364,46 @@ nodejs = {
 
   listdir: String -> List String
   listdir foldername = __jsEval__ """
-          (function() {
-            const fs = require("fs");
-            const path = require('path');
-            var filesfolders =
-              fs.readdirSync(@(jsCode.stringOf foldername));
-            return filesfolders.filter(filename => {
-               var filename = @(jsCode.stringOf foldername) + "/" + filename;
-               var stat = fs.lstatSync(filename);
-               return !stat.isDirectory() }
-            )
-          })()
-        """
+      (function() {
+        const fs = require("fs");
+        const path = require('path');
+        var name = @(jsCode.stringOf foldername);
+        if(name == "") name = ".";
+        if(fs.existsSync(name) && fs.lstatSync(name).isDirectory()) {
+          var filesfolders =
+            fs.readdirSync(name);
+          return filesfolders;
+        } else {
+          return []
+        }
+      })()
+    """
 
+  listdircontent: String -> List (String, String)
   listdircontent foldername = listdir foldername |>
+    List.filter (\name -> isfile """@foldername/@name""") |>
     List.map (\name ->
       let fullname = """@foldername/@name""" in
       (name, fileread fullname |> Maybe.withDefault (freeze """Unknown file @fullname""")))
+
+  isdir: String -> Bool
+  isdir name = __jsEval__ """
+      (function() {
+        const fs = require("fs");
+        const path = require('path');
+        const name = @(jsCode.stringOf name);
+        return name == "." || fs.existsSync(name) && fs.lstatSync(@(jsCode.stringOf name)).isDirectory();
+      })()
+    """
+
+  isfile: String -> Bool
+  isfile name = __jsEval__ """
+      (function() {
+        const fs = require("fs");
+        const path = require('path');
+        return fs.existsSync(@(jsCode.stringOf name)) && fs.lstatSync(@(jsCode.stringOf name)).isFile();
+      })()
+    """
 }
 
 -- Because we base decisions on random numbers,
