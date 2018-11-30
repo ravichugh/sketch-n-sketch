@@ -1150,7 +1150,7 @@ stringDiffsToString2: ParensStyle -> String -> LastEdit -> Pos   -> String -> St
 stringDiffsToString2  renderingStyle indent    lastEdit    lastPos  quoteChar original  modified  diffs =
   let renderChars = case renderingStyle of
      LongStringSyntax -> LeoUnparser.unparseLongStringContent
-     HtmlSyntax -> LeoUnparser.unparseHtmlTextContent
+     HtmlSyntax -> LeoUnparser.unparseHtmlTextContent False
      _ -> ParserUtils.unparseStringContent quoteChar
   in
   let initialLine = lastPos.line in

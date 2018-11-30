@@ -213,10 +213,9 @@ htmlNodeToElmViewInLeo vb tree =
         , children)
     HTMLComment commentStyle ->
        let contentToVal content =
-         Vb.viewtuple3 Vb.string (Vb.list styleAttrToElmViewInLeo) (Vb.list htmlNodeToElmViewInLeo) vb (
-            "comment",
-            [("display", "none")],
-            [replaceInfo tree (HTMLInner content)])
+         Vb.viewtuple2 Vb.string Vb.string vb (
+            "COMMENT",
+            content)
        in
        case commentStyle of
          Less_Greater content -> contentToVal content

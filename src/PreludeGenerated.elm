@@ -4106,16 +4106,29 @@ String =
                   \"\"\"<@ul_ol>@insertBefore<li>@(
                     List.map handleLists elements
                     |> joinAndSplitBack \"\"\"</li><li>@notinulol\"\"\" \"</li><li>\")</li>@insertAfter</@ul_ol>\"\"\"
+
+        handleblockquotes text =
+          Regex.replace \"\"\"(?:(?:\\r?\\n|^)>.*)+@notincode\"\"\" (\\m ->
+           Regex.extract \"\"\"(\\r?\\n|^)>([\\s\\S]*)\"\"\" m.match
+           |> Maybe.map (\\[newline, content] ->
+             let quoteContent =
+                  Regex.replace \"\"\"(\\r?\\n)> *\"\"\" (\\m -> nth m.group 1) content
+             in
+             let recursivecontent = quoteContent |> Debug.log \"quotecontent\" |> handleblockquotes in
+             Update.expressionFreeze \"\"\"@newline<blockquote>@recursivecontent</blockquote>\"\"\"
+           ) |> Maybe.withDefault m.match
+          ) text
     in (text
-        |> r \"\"\"(```)([\\s\\S]*?)\\1(?!`)|((?:(?:\\r?\\n *\\r?\\n|^)    .*)+)\"\"\" (\\m ->
+        |> r \"\"\"(```)([\\s\\S]*?)\\1(?!`)|(\\r?\\n *|^ *)((?:\\r?\\n    .*)+)\"\"\" (\\m ->
           if nth m.group 1 == \"\" then
-            nth m.group 3 |>
-            Regex.extract \"\"\"\\r?\\n    ([\\s\\S]*)\"\"\" |>
+            nth m.group 4 |>
+            Regex.extract \"\"\"^\\r?\\n    ([\\s\\S]*)$\"\"\" |>
             Maybe.map (\\[code] ->
-                    \"\"\"<pre><code>@(Regex.split \"\"\"\\r?\\n    \"\"\" code |> join \"\\n\" |> trim |> escapeHtml)</code></pre>\"\"\")
+                    nth m.group 3 + \"\"\"<pre><code>@(Regex.split \"\"\"\\r?\\n    \"\"\" code |> join \"\\n\" |> trim |> escapeHtml)</code></pre>\"\"\")
             |> Maybe.withDefault m.match
           else
           \"\"\"<pre><code>@(nth m.group 2 |> trim |> escapeHtml)</code></pre>\"\"\")
+        |> handleblockquotes
         |> r \"\"\"(`)(?=[^\\s`])(@notincode.*?)\\1@notincode\"\"\" (\\m -> \"\"\"<code>@(nth m.group 2 |> escapeHtml)</code>\"\"\")
         |> r \"\"\"(?:@regexReferences|@regexFootnotes)@notincode\"\"\" (\\m -> \"\")
         |> (\\result -> -- Expand footnotes

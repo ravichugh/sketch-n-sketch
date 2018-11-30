@@ -664,7 +664,7 @@ unparse e =
             ++ "\"\"\""
         HtmlSyntax ->
           wsBefore.val
-            ++ unparseHtmlNode innerExpression
+            ++ unparseHtmlNode False innerExpression
         LeoSyntax ->
            -- We just unparse the inner expression as regular parentheses
            -- This is normally never called from here.
@@ -902,22 +902,22 @@ unparseHtmlAttributes attrExp =
         Nothing -> " @("++unparse attrExp++")"
       _ -> " @("++unparse attrExp++")"
 
-unparseHtmlChildList: Exp -> String
-unparseHtmlChildList childExp =
+unparseHtmlChildList: Bool -> Exp -> String
+unparseHtmlChildList isRaw childExp =
   case eListUnapply childExp of
     Just children ->
-      children |> List.map unparseHtmlNode |> String.join ""
+      children |> List.map (unparseHtmlNode isRaw) |> String.join ""
     Nothing ->
       case unwrapExp childExp of
         EApp _ v [ex] SpaceApp _ ->
           case unwrapExp v of
             EVar _ "__mergeHtmlText__" ->
-              unparseHtmlChildList ex
+              unparseHtmlChildList isRaw ex
             _ -> "@(" ++ unparse childExp ++ ")"
         EApp _ _ [e1, eRight] _ _ ->
-          case (unwrapExp e1) of
+          case unwrapExp e1 of
             EApp _ _ [eLeft, eToRenderwrapped] _ _ ->
-              let rightRendered = unparseHtmlChildList eRight in
+              let rightRendered = unparseHtmlChildList isRaw eRight in
               let mbEntity = case unwrapExp eToRenderwrapped of
                 EApp  _ _ [entityRendered, entity] _ _ -> --  __htmlEntity__
                    case unwrapExp entity of
@@ -927,16 +927,16 @@ unparseHtmlChildList childExp =
               in
               case mbEntity of
                 Just entity ->
-                  unparseHtmlChildList eLeft ++ entity ++ rightRendered -- No interpolation for entities
+                  unparseHtmlChildList isRaw eLeft ++ entity ++ rightRendered -- No interpolation for entities
                 Nothing ->
                   let interpolated = case unwrapExp eToRenderwrapped of
                     EApp  _ _ [eToRender] _ _ -> unparse eToRender -- __mbwraphtmlnode__
                     _ ->                         unparse eToRenderwrapped
                   in
                   if noInterpolationConflict interpolated rightRendered then
-                    unparseHtmlChildList eLeft ++ "@" ++ interpolated ++ rightRendered
+                    unparseHtmlChildList isRaw eLeft ++ "@" ++ interpolated ++ rightRendered
                   else
-                    unparseHtmlChildList eLeft ++ "@(" ++ interpolated ++ ")" ++ rightRendered
+                    unparseHtmlChildList isRaw eLeft ++ "@(" ++ interpolated ++ ")" ++ rightRendered
             _  -> "@(" ++ unparse childExp ++ ")"
         _  -> "@(" ++ unparse childExp ++ ")"
 
@@ -944,17 +944,18 @@ htmlContentRegexEscape = Regex.regex <| "@"
 
 regexExcape = Regex.regex "&(?=\\w+)|<(?!\\s)|>(?!\\s)"
 
-unparseHtmlTextContent content =
+unparseHtmlTextContent isRaw content =
+  content |>
+  (if isRaw then identity else Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@")) |>
   Regex.replace Regex.All regexExcape (\m -> case m.match of
     "&" -> "&amp;"
     "<" -> "&lt;"
     ">" -> "&gt;"
     _ -> m.match
-  ) <|
-  Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@") <| content
+  )
 
-unparseHtmlNode: Exp -> String
-unparseHtmlNode e = case (unwrapExp e) of
+unparseHtmlNode: Bool -> Exp -> String
+unparseHtmlNode isRaw e = case (unwrapExp e) of
   EList unparseData [(_, typ), (_, content)] _ Nothing _ ->
     case unwrapExp typ of
       EBase _ (EString _ "COMMENT") ->
@@ -980,7 +981,7 @@ unparseHtmlNode e = case (unwrapExp e) of
 
       _ -> -- EBase _ (EString _ "TEXT") ->
         case unwrapExp content of
-          EBase _ (EString _ content) -> unparseHtmlTextContent content
+          EBase _ (EString _ content) -> unparseHtmlTextContent isRaw content
           EVar _ varname -> "@" ++ varname
           x -> "@[" ++ unparse e ++ "]"
   EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->
@@ -988,18 +989,19 @@ unparseHtmlNode e = case (unwrapExp e) of
           EBase _ (EString _ content) -> (content, content)
           _ -> ("@" ++ unparse tagExp, "@")
     in
+    let isRaw = tagStart == "raw" in
     "<" ++ tagStart ++ unparseHtmlAttributes attrExp ++spaceBeforeEndOpeningTag.val ++ (
       if spaceBeforeTail.val == LeoParser.encoding_autoclosing then
         "/>"
       else if spaceBeforeTail.val == LeoParser.encoding_voidclosing then
         ">"
       else if spaceBeforeTail.val == LeoParser.encoding_forgotclosing then
-        ">" ++ unparseHtmlChildList childExp
+        ">" ++ unparseHtmlChildList isRaw childExp
       else  -- Normal closing if the tag is ok
         if HTMLParser.isVoidElement tagStart then
           ">"
         else
-          ">" ++ unparseHtmlChildList childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
+          ">" ++ unparseHtmlChildList isRaw childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
     )
   _ -> "@[" ++ unparse e ++ "]"
 
@@ -1009,8 +1011,8 @@ unparseAnyHtml e =
   case (unwrapExp e) of
     EList _ [(_, text), (_, content)] _ Nothing _ ->
       case eStrUnapply text of
-        Just "TEXT" -> unparseHtmlNode e
-        Just "COMMENT" -> unparseHtmlNode e
+        Just "TEXT" -> unparseHtmlNode False e
+        Just "COMMENT" -> unparseHtmlNode False e
         Just _ -> -- It's an attribute
           unparseHtmlAttributes (eList [e] Nothing)
         Nothing -> unparse e
@@ -1018,16 +1020,16 @@ unparseAnyHtml e =
       case eStrUnapply tag of
         Just _ -> -- Just to make sure the second is a list
           case eListUnapply attr of
-            Just _ ->  unparseHtmlNode e
+            Just _ ->  unparseHtmlNode False e
             Nothing -> case eAppUnapply2 attr of
               Just  (fun, left, right) -> case eVarUnapply fun of
-                Just "++" ->  unparseHtmlNode e
+                Just "++" ->  unparseHtmlNode False e
                 _ -> unparse e
               _ -> unparse e
         Nothing -> case (unwrapExp tag) of
-          EParens _ inner LeoSyntax _-> unparseHtmlNode e
+          EParens _ inner LeoSyntax _-> unparseHtmlNode False e
           _ -> unparse e
-    _ -> unparseHtmlChildList e
+    _ -> unparseHtmlChildList False e
 
 -- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-contained
 getExpPrecedence: Exp -> Maybe Int

@@ -214,7 +214,6 @@ builtinEnv =
                              newEnv.changes |> Utils.findFirst (\(i, _) -> i >= envLength) |> Utils.maybeIsEmpty
                            )
                          |> Results.andThen (\(newEnv, newProg) ->
-                           let _ = Debug.log "#1" () in
                            let x = Syntax.unparser Syntax.Leo newProg.val in
                            let newProgram = replaceV_ oldProgram <| VBase <| VString x in
                            let newEnvValue = newEnv.val |> Vb.list (Vb.tuple2 Vb.string Vb.identity) (Vb.fromVal oldpEnv) in

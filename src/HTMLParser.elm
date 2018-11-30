@@ -433,6 +433,10 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
   inContext "HTML Element" <| trackInfo <| (
     nodeElementStart parsingMode
     |> andThen (\(tagNode, tagName) ->
+       let newParsingMode = case tagNode of
+         HTMLTagString {val} -> if val == "raw" then Raw else parsingMode
+         _ -> parsingMode
+       in
        succeed (\attrs sp1 (endOpeningStyle, children, closingStyle)  ->
              HTMLElement tagNode attrs sp1 endOpeningStyle (mergeInners children) closingStyle)
        |= repeat zeroOrMore (parseHTMLAttribute parsingMode)
@@ -459,7 +463,7 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
               )
             |= optional (symbol "/")
             |. symbol ">"
-            |= repeat zeroOrMore (parseNode parsingMode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
+            |= repeat zeroOrMore (parseNode newParsingMode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
             |= optional (try <|
                  succeed (\sp -> RegularClosing sp)
                  |. symbol "</"
