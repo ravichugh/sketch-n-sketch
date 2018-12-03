@@ -5278,7 +5278,7 @@ nodejs = {
         const fs = require(\"fs\");
         const path = require('path');
         const name = @(jsCode.stringOf name);
-        return name == \".\" || fs.existsSync(name) && fs.lstatSync(@(jsCode.stringOf name)).isDirectory();
+        return name == \"\" || fs.existsSync(name) && fs.lstatSync(@(jsCode.stringOf name)).isDirectory();
       })()
     \"\"\"
 
