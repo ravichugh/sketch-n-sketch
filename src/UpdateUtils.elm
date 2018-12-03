@@ -2089,7 +2089,7 @@ mergeString original modified1 diffs1 modified2 diffs2 =
              let offsetIncrease1 = replaced1 - (end1 - start1) in
              (str, revAccDiffs) |>
              aux originalOffset  (modified1Offset + offsetIncrease1) modified2Offset tail1 diffs2
-  in aux 0 0 0 diffs1 diffs2 ("", [])
+  in aux 0 0 0 diffs1 diffs2 (original, [])
 
 -- Guarantees that
 -- * If updated lists have equal size, elements will be merged aligned.
