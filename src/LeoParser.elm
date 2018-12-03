@@ -829,6 +829,9 @@ attrsToExp lastPos attrs =
                       _ -> e
                  in
                  Ok (spBeforeEq, spAfterEq, atPresence, final_e)
+               HTMLParser.HTMLAttributeString spBeforeEq spAfterEq delimiter elems ->
+                 let (Expr attrValue) = htmlAttribElemsToExp delimiter elems in
+                 Ok (spBeforeEq, spAfterEq, HTMLParser.AtAbsent, attrValue)
                _ -> Err <| "[Internal error] Tried to convert " ++ toString head ++ " to an Exp"
           in
           case attrSpaceAtValue of
@@ -980,6 +983,25 @@ addRightApplications parser =
       |= spaces
       |= (simpleExpression 0 NoSpace |> addParenthesizedParameters))
 
+htmlAttribElemsToExp: String -> List HTMLParser.HTMLAttributeStringElem -> Exp
+htmlAttribElemsToExp quoteCharStr content =
+  let contentAsExprs = content |> List.map (\l -> case l.val of
+       HTMLParser.HTMLAttributeStringRaw raw -> Expr (replaceInfo l (exp_ (EBase space0 (EString quoteCharStr raw))))
+       HTMLParser.HTMLAttributeEntity entityRendered entity ->
+         Expr <| withInfo (exp_ <| EApp space1 (Expr <| withInfo (exp_ <| EVar space1  "__htmlStrEntity__") l.start l.start) [
+           Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entityRendered)) l.start l.start,
+           Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entity)) l.start l.end] SpaceApp space0) l.start l.end)
+  in
+  let precedingWs = if quoteCharStr == "\"" then space1 else space0 in
+  case contentAsExprs of
+    [] -> withDummyExpInfo (EBase space0 (EString quoteCharStr ""))
+    ((Expr h) as head) :: tail ->
+      Expr <| withDummyInfo (exp_ <| EApp precedingWs (Expr <| withInfo (exp_ <| EVar space1  "__htmlRawAttribute__") h.start h.start) [
+        List.foldl (\((Expr ee1) as e1) ((Expr ee2) as e2) ->
+          Expr <| withInfo (exp_ <| EOp space0 space0 (withDummyInfo Plus) [e2, e1] space0) ee1.start ee2.end
+        ) head tail
+      ] SpaceApp space0)
+
 htmlliteral: Parser (WS -> WithInfo Exp_)
 htmlliteral =
   inContext "html literal" <|
@@ -991,23 +1013,7 @@ htmlliteral =
            (oneOf [identifier, source <| symbol "@"])))
       |= HTMLParser.parseOneNode (HTMLParser.Interpolation
         { attributevalue = inContext "HTML attribute value" << wrapWithSyntax LeoSyntax << (\apparg -> map always <| expressionWithoutGreater spaces 0 NoSpace)
-        , attributerawvalue = \quoteCharStr content ->
-            let contentAsExprs = content |> List.map (\l -> case l.val of
-                 HTMLParser.HTMLAttributeStringRaw raw -> Expr (replaceInfo l (exp_ (EBase space0 (EString quoteCharStr raw))))
-                 HTMLParser.HTMLAttributeEntity entityRendered entity ->
-                   Expr <| withInfo (exp_ <| EApp space1 (Expr <| withInfo (exp_ <| EVar space1  "__htmlStrEntity__") l.start l.start) [
-                     Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entityRendered)) l.start l.start,
-                     Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entity)) l.start l.end] SpaceApp space0) l.start l.end)
-            in
-            let precedingWs = if quoteCharStr == "\"" then space1 else space0 in
-            case contentAsExprs of
-              [] -> withDummyExpInfo (EBase space0 (EString quoteCharStr ""))
-              ((Expr h) as head) :: tail ->
-                Expr <| withDummyInfo (exp_ <| EApp precedingWs (Expr <| withInfo (exp_ <| EVar space1  "__htmlRawAttribute__") h.start h.start) [
-                  List.foldl (\((Expr ee1) as e1) ((Expr ee2) as e2) ->
-                    Expr <| withInfo (exp_ <| EOp space0 space0 (withDummyInfo Plus) [e2, e1] space0) ee1.start ee2.end
-                  ) head tail
-                ] SpaceApp space0)
+        , attributerawvalue = htmlAttribElemsToExp
         , attributelist = inContext "HTML special attribute list" <| wrapWithSyntax LeoSyntax <| simpleExpression 0 NoSpace
         , childlist = inContext "HTML special child list" << wrapWithSyntax LeoSyntax << (\spaceapparg ->
               oneOf [

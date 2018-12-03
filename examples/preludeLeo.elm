@@ -2510,12 +2510,8 @@ updateOutputToResults c = case c of
   Err msg -> Err msg
 
  -- Much simpler version, does not handle @ symbols wells.
-htmlViaEval =
-  let c = __CurrentEnv__ in
-  \string -> case __evaluate__ c <| Update.expressionFreeze """<span>@(Regex.replace "@" (\m ->
-     { apply match = "&#64;"
-       update {outputNew} = Ok (Inputs [(outputNew)])
-     }.apply m.match) string)</span>""" of
+htmlViaEval string =
+  case __evaluate__ [("append", append)] <| Update.expressionFreeze """<raw>@string</raw>""" of
     Ok [_, _, children] -> children
     _ -> error "Parsing HTML failed:"
 
