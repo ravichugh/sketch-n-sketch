@@ -992,19 +992,19 @@ unparseHtmlNode isRaw e = case (unwrapExp e) of
           EBase _ (EString _ content) -> (content, content)
           _ -> ("@" ++ unparse tagExp, "@")
     in
-    let isRaw = tagStart == "raw" in
+    let newIsRaw = isRaw || tagStart == "raw" in
     "<" ++ tagStart ++ unparseHtmlAttributes attrExp ++spaceBeforeEndOpeningTag.val ++ (
       if spaceBeforeTail.val == LeoParser.encoding_autoclosing then
         "/>"
       else if spaceBeforeTail.val == LeoParser.encoding_voidclosing then
         ">"
       else if spaceBeforeTail.val == LeoParser.encoding_forgotclosing then
-        ">" ++ unparseHtmlChildList isRaw childExp
+        ">" ++ unparseHtmlChildList newIsRaw childExp
       else  -- Normal closing if the tag is ok
         if HTMLParser.isVoidElement tagStart then
           ">"
         else
-          ">" ++ unparseHtmlChildList isRaw childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
+          ">" ++ unparseHtmlChildList newIsRaw childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
     )
   _ -> "@[" ++ unparse e ++ "]"
 
@@ -1021,9 +1021,9 @@ unparseAnyHtml e =
         Nothing -> unparse e
     EList _ [(_, tag), (_, attr), (_, children)] _ Nothing _ ->
       case eStrUnapply tag of
-        Just _ -> -- Just to make sure the second is a list
+        Just tagStr -> -- Just to make sure the second is a list
           case eListUnapply attr of
-            Just _ ->  unparseHtmlNode False e
+            Just _ ->  unparseHtmlNode (tagStr == "raw") e
             Nothing -> case eAppUnapply2 attr of
               Just  (fun, left, right) -> case eVarUnapply fun of
                 Just "++" ->  unparseHtmlNode False e
