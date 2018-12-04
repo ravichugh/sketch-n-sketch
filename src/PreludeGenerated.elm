@@ -4149,9 +4149,9 @@ String =
            || Regex.matchIn \"\"\"</?(?:h\\d|ul|ol|p|pre|center)>\"\"\" (nth m.group 2) then m.match else Update.expressionFreeze \"\"\"@(nth m.group 1)<p>@(nth m.group 2)</p>\"\"\")
       |> r \"\"\"\\[([^\\]\\\\]+)\\](\\^?)(\\(|\\[)([^\\)\\]]+)(\\)|\\])|(?:http|ftp|https)://(?:[\\w_-]+(?:(?:\\.[\\w_-]+)+))(?:[\\w.,@@?^=%&:/~+#-]*[\\w@@?^=%&/~+#-])?@notincode@notinattr\"\"\" (\\m ->  -- Direct and indirect References + syntax ^ to open in external page.
         case nth m.group 3 of
-          \"(\" -> Update.expressionFreeze \"\"\"<a href=\"@(nth m.group 4)\" @(if nth m.group 2 == \"^\" then \"\"\"target=\"_blank\"\"\"\" else \"\")>@(escapeHtml <| nth m.group 1)</a>\"\"\"
+          \"(\" -> Update.expressionFreeze \"\"\"<a href=\"@(nth m.group 4)\" @(if nth m.group 2 == \"^\" then \"\"\"target=\"_blank\"\"\"\" else \"\")>@(nth m.group 1)</a>\"\"\"
           \"[\" -> listDict.get (nth m.group 4) references |> case of
-                Just link -> Update.expressionFreeze \"\"\"<a href=\"@link\">@(escapeHtml <| nth m.group 1)</a>\"\"\"
+                Just link -> Update.expressionFreeze \"\"\"<a href=\"@link\">@(nth m.group 1)</a>\"\"\"
                 Nothing -> m.match
           _ -> \"\"\"<a href=\"@(m.match)\">@(escapeHtml m.match)</a>\"\"\"
           )
