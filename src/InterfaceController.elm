@@ -2145,14 +2145,19 @@ doGroup old =
                     False -- areCrashingProgramsOkay
                 |> List.map freshen
 
+              -- If unable to add to the output, then perhaps that's okay (may just some point widgets selected).
+              programsPerhapsWithListInOutput =
+                if programsWithListInOutput == []
+                then [freshen programWithListHolesFilled]
+                else programsWithListInOutput
             in
-            programsWithListInOutput
+            programsPerhapsWithListInOutput
             |> List.concatMap
-                (\programWithListInOutput ->
+                (\programPerhapsWithListInOutput ->
                   let
-                    -- _ = logProgram "programWithListInOutput" programWithListInOutput
+                    -- _ = logProgram "programPerhapsWithListInOutput" programPerhapsWithListInOutput
 
-                    groupBoundExp = LangTools.justFindExpByEId programWithListInOutput insertedBoundExpEId
+                    groupBoundExp = LangTools.justFindExpByEId programPerhapsWithListInOutput insertedBoundExpEId
 
                     -- 4. We need the originals to not appear in the output.
                     -- Need to do this late in the pipeline here in case newVariableVisibleTo inserted variables into shape list where previously there was a more literal expression in the shape list.
@@ -2165,7 +2170,7 @@ doGroup old =
                       |> Maybe.withDefault groupBoundExp
 
                     programWithOriginalUsesRemoved =
-                      let (oldShapeCount, oldListItemsCount) = DrawAddShape.maybeShapeCountAndListItemCountInContextOutput old programWithListInOutput |> Maybe.withDefault (0, 0) in
+                      let (oldShapeCount, oldListItemsCount) = DrawAddShape.maybeShapeCountAndListItemCountInContextOutput old programPerhapsWithListInOutput |> Maybe.withDefault (0, 0) in
                       -- For each var EId in the inserted Tuple, try to find and remove a use of it that thus decreases the output size.
                       insertedTuple
                       |> childExps
@@ -2173,7 +2178,7 @@ doGroup old =
                       |> List.filter isVar
                       |> List.map (.val >> .eid)
                       |> Utils.foldl
-                          programWithListInOutput
+                          programPerhapsWithListInOutput
                           (\varEIdInTuple program ->
                             let possibleUsageEIdsToRemove =
                               LangTools.allVarUsages varEIdInTuple program
