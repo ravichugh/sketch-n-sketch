@@ -2699,7 +2699,9 @@ Update =
     pairDiff4 = pairDiff4
     mbPairDiffs = mbPairDiffs
     Regex = {
-        replace regex replacement string diffs = updateReplace
+        -- Performs replacements on a string with differences but also return those differences along with the old ones.
+        replace: String -> (Match -> String) -> String -> Diffs -> (String, Diffs)
+        replace regex replacement string diffs = updateReplace regex replacement string diffs
       }
     mapInserted fun modifiedStr diffs =
        let aux offset d strAcc = case d of
@@ -2708,7 +2710,7 @@ Update =
          let left = String.take (start + offset) strAcc in
          let right =  String.dropLeft (start + offset + String.length inserted) strAcc in
          let newInserted = fun inserted in
-         left + newInserted + right |>
+         (if newInserted /= inserted then left + newInserted + right else strAcc) |>
          aux (offset + String.length newInserted - (end - start)) dtail
        in
        aux 0 (strDiffToConcreteDiff modifiedStr diffs) modifiedStr
@@ -4192,10 +4194,6 @@ String =
     uncons s = case extractFirstIn \"^([\\\\s\\\\S])([\\\\s\\\\S]*)$\" s of
       Just [x, y] -> Just (x, y)
       Nothing -> Nothing
-    update = {
-      freezeLeft = freezeLeft
-      freezeRight = freezeRight
-    }
     padLeft n c = Update.lens {
       apply s = (List.range 1 (n - length s) |> List.map (always c) |> join \"\") + s
       update {outputNew} =
@@ -4204,6 +4202,41 @@ String =
            Nothing -> Err \"String.pad could not complete\"
     }
     markdown = markdown
+
+    update = {
+        freezeLeft = freezeLeft
+        freezeRight = freezeRight
+        onInsert callbackOnInserted string = Update.lens {
+          apply string = string
+          update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
+            let aux offset outputNewUpdated revDiffsUpdated oldDiffs = case oldDiffs of
+              [] -> Ok (InputsWithDiffs [
+                (outputNewUpdated, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
+              ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
+                let inserted = substring (start + offset) (start + offset + replaced) outputNewUpdated in
+                let newInserted = callbackOnInserted inserted in
+                let lengthNewInserted = length newInserted in
+                let newOffset = offset + lengthNewInserted - (end - start) in
+                let (newOutputNewUpdated, newDiff) = if inserted /= newInserted then
+                   ( take (start + offset) outputNewUpdated +
+                     newInserted + drop (start + offset + replaced) outputNewUpdated
+                   , StringUpdate start end lengthNewInserted)
+                   else (outputNewUpdated, headDiff)
+                in
+                aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs
+             in aux 0 outputNew [] sDiffs
+         } string
+    }
+
+    newlines = {
+      isCRLF = Regex.matchIn \"\\r\\n\"
+      toUnix string =
+        if isCRLF string then
+          Regex.replace \"\\r\" (\\_ -> freeze \"\") string
+          |> update.onInsert (Regex.replace \"\\n\" (\\_ -> \"\\r\\n\"))
+        else
+          string
+    }
   }
 
 
