@@ -21,7 +21,7 @@
     "url": "https://github.com/RaviChugh/Sketch-n-Sketch.git"
   },
   "dependencies": {
-    "sketch-n-sketch": "^1.0.23"
+    "sketch-n-sketch": "^1.0.24"
   },
   "files": [
     "generate.js",
