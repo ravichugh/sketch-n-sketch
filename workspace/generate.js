@@ -204,7 +204,7 @@ function doWatch(filesToWrite, valFilesToWrite, source) {
                 unwatchEverything();
                 [filesToWrite, valFilesToWrite, source] = doUpdate(filesToWrite, valFilesToWrite, source);
                 doWatch(filesToWrite, valFilesToWrite, source);
-              })(filesToWrite, valFilesToWrite, source), 100); // Time for all changes to be recorded
+              })(filesToWrite, valFilesToWrite, source), 500); // Time for all changes to be recorded
           }
       })(filesToWrite, valFilesToWrite, source));
     watchers.push(watcher);
@@ -219,7 +219,7 @@ function doWatch(filesToWrite, valFilesToWrite, source) {
         unwatchEverything();
         var [filesToWrite, source] = computeAndWrite();
         doWatch(filesToWrite, source);
-      }, 100); // Time for all changes to be recorded
+      }, 500); // Time for all changes to be recorded
     
   }));
   console.log("Watching for changes on inputs or outputs...")
