@@ -36,16 +36,21 @@ Plug-in an environment of constants (as a JavaScript object):
 
     objEnv.evaluate: JSObj -> Exp -> Result String Val
     objEnv.update: JSObj -> Exp -> Val -> Result String (LazyList (JSObj, Exp))
+    objEnv.updateWithOld: JSObj -> Exp -> Val -> Val -> Result String (LazyList (JSObj, Exp))
 
 Combine parse and evaluate steps directly:
 
     string.evaluate: String -> Result String Val
     string.update: String -> Val -> Result String (LazyList String)
+    string.updateWithOld: String -> Val -> Val -> Result String (LazyList String)
 
 Plug-in an environment of constants AND combine parse and evaluate (`string.objEnv.` is also a valid prefix):
 
     objEnv.string.evaluate: JSObj -> String -> Result String Val
     objEnv.string.update: JSObj -> String -> Val -> Result String (LazyList (JSObj, String))
+    objEnv.string.updateWithOld: JSObj -> String -> Val -> Val -> Result String (LazyList (JSObj, String))
+
+`update` and `updateWithOld` are doing the same thing, except that the first `Val` of `updateWithOld` should be the previously computed value and the second `Val` the new value, whereas `update` only takes in the new value and recomputes the old value itself.
 
 ## Basic API Example usage
 
@@ -166,7 +171,7 @@ Here is how you can use it.
     // Displays '<span>Hello world</span>'
     console.log(outHTML._0);
 
-## Package Sketch-n-sketch for npm (node.js):
+## Contributing: Package Sketch-n-sketch for npm (node.js):
 
 After building Sketch-n-sketch, go to `build/out` and run
 

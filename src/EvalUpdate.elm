@@ -941,13 +941,26 @@ updateRaw env exp newVal =
   |> Result.andThen (\oldVal ->
     updateEnvExp env exp oldVal newVal)
 
+resultWithNativeEnv = LazyList.map (\(newEnv, newExp) ->
+        (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", newExp))
+
+resultStringWithNativeEnv = LazyList.map (\(newEnv, newExp) ->
+        (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", unparse newExp))
+
 updateEnv: objectAsEnvOfConsts -> Exp -> Val -> Results String (objectAsEnvOfConsts, Exp)
 updateEnv objectAsEnvOfConsts exp newVal =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (\env ->
     updateRaw env exp newVal
-    |> Result.map (LazyList.map (\(newEnv, newExp) ->
-              (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", newExp)))
+    |> Result.map resultWithNativeEnv
+    )
+
+updateEnvWithOld: objectAsEnvOfConsts -> Exp -> Val -> Val -> Results String (objectAsEnvOfConsts, Exp)
+updateEnvWithOld objectAsEnvOfConsts exp oldVal newVal =
+  objectToEnv objectAsEnvOfConsts
+  |> Result.andThen (\env ->
+    updateEnvExp env exp oldVal newVal
+    |> Result.map resultWithNativeEnv
     )
 
 updateString: String -> Val -> Results String String
@@ -958,6 +971,13 @@ updateString strSource newVal =
     |> Result.map (LazyList.map (\(newenv, newExp) ->
               unparse newExp)))
 
+updateStringWithOld: String -> Val -> Val -> Results String String
+updateStringWithOld strSource  oldVal newVal =
+    parse strSource
+    |> Result.andThen (\exp ->
+    updateEnvExp [] exp oldVal newVal
+    |> Result.map (LazyList.map (\(newenv, newExp) -> unparse newExp)))
+
 updateEnvString: objectAsEnvOfConsts -> String -> Val -> Results String (objectAsEnvOfConsts2, String)
 updateEnvString objectAsEnvOfConsts strSource newVal =
   objectToEnv objectAsEnvOfConsts
@@ -965,13 +985,22 @@ updateEnvString objectAsEnvOfConsts strSource newVal =
     parse strSource
     |> Result.andThen (\exp ->
     updateRaw env exp newVal
-    |> Result.map (LazyList.map (\(newEnv, newExp) ->
-              (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", unparse newExp)))
+    |> Result.map resultStringWithNativeEnv
     ))
 
+updateEnvStringWithOld: objectAsEnvOfConsts -> String -> Val -> Val -> Results String (objectAsEnvOfConsts2, String)
+updateEnvStringWithOld objectAsEnvOfConsts strSource oldVal newVal =
+  objectToEnv objectAsEnvOfConsts
+  |> Result.andThen (\env ->
+    parse strSource
+    |> Result.andThen (\exp ->
+    updateEnvExp env exp oldVal newVal
+    |> Result.map resultStringWithNativeEnv
+    ))
 type alias StringObjEnvType envA envB envC = {
     evaluate: envA -> String -> Result String Val,
-    update: envB -> String -> Val -> Results String (envC, String)
+    update: envB -> String -> Val -> Results String (envC, String),
+    updateWithOld: envB -> String -> Val -> Val -> Results String (envC, String)
   }
 
 stringObjEnv: StringObjEnvType envA envB envC
@@ -979,12 +1008,14 @@ stringObjEnv = {
     -- JSObj -> StringSource-> Result StringError Val
     evaluate = evaluateEnvString, -- Takes an object (environment) and a string, returns a Val
     -- JSObj -> StringSource-> Val -> Result StringError (LazyList (JSObj, String))
-    update = updateEnvString -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
+    update = updateEnvString, -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
+    updateWithOld = updateEnvStringWithOld
   }
 
 type alias StringType envA envB envC  = {
     evaluate: String -> Result String Val,
     update: String -> Val -> Results String String,
+    updateWithOld: String -> Val -> Val -> Results String String,
     objEnv: StringObjEnvType envA envB envC
   }
 string: StringType envA envB envC
@@ -993,18 +1024,21 @@ string = {
     evaluate = evaluateString, -- Takes a string, returns a Val
     -- StringSource -> Val -> Result StringError (LazyList StringSource)
     update = updateString, -- Takes a string (program), a new val, returns a list of new strings (programs=
+    updateWithOld = updateStringWithOld,
     objEnv = stringObjEnv
   }
 
 type alias ObjEnvType envA envB envC = {
     evaluate: envA -> Exp -> Result String Val,
     update: envB -> Exp -> Val -> Results String (envB, Exp),
+    updateWithOld: envB -> Exp -> Val -> Val -> Results String (envB, Exp),
     string: StringObjEnvType envA envB envC
   }
 objEnv: ObjEnvType envA envB envC
 objEnv = {
     evaluate = evaluateEnv,
     update = updateEnv,
+    updateWithOld = updateEnvWithOld,
     string = stringObjEnv
   }
 

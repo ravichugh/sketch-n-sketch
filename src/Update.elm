@@ -119,6 +119,52 @@ update callbacks forks updateStack =
     UpdateCriticalError msg -> -- Immediately stops without looking for new solutions
       Err msg
 
+{-
+isTrivialExp: Exp -> Bool
+isTrivialExp (Expr exp_) = case unwrapExp exp_ of
+  EConst _ _ _ _ -> True
+  EBase _ _ -> True
+  EVar _ _ -> True
+  EFun _ _ -> True
+  EHole _ _ -> True
+  _ -> False
+
+childrenConvertibleToANF: Exp -> (List Exp, List Exp -> Exp)
+childrenConvertibleToANF exp = Debug.crash "not implemented"
+
+maybeANF: Exp -> List Exp -> (List LetExp -> List Exp -> Exp) -> Exp
+maybeANF exp subExprs callback =
+  let aux: String -> Int -> Exp -> List Exp ->
+              List LetExp -> List Exp ->   (List LetExp -> List Exp -> Exp) -> Exp
+      aux  prefix    i      exp    subExprs
+              revAccLetExps  revAccSubExprs callback =
+    case subExprs of
+       [] ->
+         if List.isEmpty revAccLetExps then
+           Nothing
+         else
+           Just (callback (List.reverse revAccLetExps) (List.reverse revAccSubExprs))
+       subExprHead :: subExprTail ->
+         if isTrivialExp subExprHead then
+           aux prefix (i + 1) exp subExprTail revAccLetExps (subExprHead :: revAccSubExprs) callback
+         else
+           let (children, rebuilder) = childrenConvertibleToANF subExprHead in
+           aux (prefix + toString i + "_") 1 children [] [] <| \letExps newChildren ->
+             let newSubExprHead =
+                   if List.isEmpty letExps then subExprHead else rebuilder newChildren
+             in
+             aux
+
+
+           let headName = prefix + toString i in
+           aux prefix (i + 1) exp subExprTail (
+             LetExp Nothing (ws "\n") (pVar headName) FunArgAsPats (ws " ") subExprHead)
+             (eVar headName :: revAccSubExprs) callback
+  in aux "arg" 1 exp subExprs [] [] callback
+
+-}
+
+
 getUpdateStackOp : Env -> Exp -> PrevLets -> PrevOutput -> Output -> VDiffs -> UpdateStack
 getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
    let e = Expr exp_ in
@@ -1204,23 +1250,41 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        updateOpMultiple "op" env opArgs (\newOpArgs -> ret <| EOp sp1 spo op newOpArgs sp2) [] vs (LazyList.map (Tuple.mapSecond tupleDiffsToDiffs) ll)
 
      ECase sp1 input branches sp2 ->
-       case doEvalw env input of
-         Err msg -> UpdateCriticalError msg
-         Ok ((inputVal, _), inputValEnv) ->
-           case branchWithInversion env inputVal branches of
-             Nothing -> UpdateCriticalError <| "Match error: " ++ valToString inputVal ++ " on branches " ++ Syntax.unparser Syntax.Leo e
-             Just ((branchEnv, branchExp), envValBranchBuilder) ->
-               updateContinue "ECase" branchEnv branchExp [] oldVal newVal diffs <| \upUpdatedEnv upExp ->
-                 let (newBranchUpdatedEnv, newInputVal, newInputValDiffs, nBranches, nBranchesDiffs) = envValBranchBuilder (upUpdatedEnv, upExp) in
-                 let input_update = case newInputValDiffs of
-                   Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp input Nothing)
-                   Just m -> updateContinue "ECase 2" env input (keepLets env inputValEnv) inputVal newInputVal m
-                 in
-                 input_update <| \newInputUpdatedEnv newInputUpdatedExp ->
-                   let finalUpdatedEnv = UpdatedEnv.merge env newBranchUpdatedEnv newInputUpdatedEnv in
-                   let finalExp = ret <| ECase sp1 newInputUpdatedExp.val nBranches sp2 in
-                   let finalChanges = UpdateUtils.combineEChildDiffs <| (0, newInputUpdatedExp.changes)::(UpdateUtils.offset 1 nBranchesDiffs) in
-                   updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
+       -- To prevent the evaluation of the subexpressions of input twice,
+       -- once for evaluation and once when doing back-propagation,
+       -- we need to lift non-trivial subexpressions of input as assignments.
+      {-if hasNontrivialSubexpressions input then
+         let varName = "caseInput" in
+         let newExp = eLet [(varName, input)] <|
+               replaceE__ e <| ECase sp1 (eVar varName) branches sp2) in
+         updateContinue "ECase-rewrite" env newExp [] oldVal newVal diffs <| \updatedEnv updatedExp ->
+           case eLetUnapply updatedExp.val of
+             Just (_, _, Declarations _ _ _ [(_, [LetExp _ _ _ _ _ newInput])], _, newCase) ->
+               case unwrapExp newCase of
+                 ECase newSp1 _ newBranches newsp2 ->
+                   let finalExp = replaceE__ e <| ECase newSp1 newInput newBranches newsp2 in
+                   let finalChanges = case updatedExp.changes of
+                        Nothing -> Nothing
+                        Just (EChildDiffs eDiffs) ->
+                          eDiffs
+                   updateResult updatedEnv <| UpdatedExp finalExp
+       -}
+       doEvalwUpdate env input <|
+         \((inputVal, _), inputValEnv) ->
+       case branchWithInversion env inputVal branches of
+         Nothing -> UpdateCriticalError <| "Match error: " ++ valToString inputVal ++ " on branches " ++ Syntax.unparser Syntax.Leo e
+         Just ((branchEnv, branchExp), envValBranchBuilder) ->
+           updateContinue "ECase" branchEnv branchExp [] oldVal newVal diffs <| \upUpdatedEnv upExp ->
+             let (newBranchUpdatedEnv, newInputVal, newInputValDiffs, nBranches, nBranchesDiffs) = envValBranchBuilder (upUpdatedEnv, upExp) in
+             let input_update = case newInputValDiffs of
+               Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp input Nothing)
+               Just m -> updateContinue "ECase 2" env input (keepLets env inputValEnv) inputVal newInputVal m
+             in
+             input_update <| \newInputUpdatedEnv newInputUpdatedExp ->
+               let finalUpdatedEnv = UpdatedEnv.merge env newBranchUpdatedEnv newInputUpdatedEnv in
+               let finalExp = ret <| ECase sp1 newInputUpdatedExp.val nBranches sp2 in
+               let finalChanges = UpdateUtils.combineEChildDiffs <| (0, newInputUpdatedExp.changes)::(UpdateUtils.offset 1 nBranchesDiffs) in
+               updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
 
      ELet sp1 letKind ((Declarations po types anns letexpsGroups) as decls) wsIn body ->
        updateDeclarations env prevLets decls <| \envBody remainingPrevLets finishUpdateDeclarations ->
@@ -1875,6 +1939,11 @@ vList    = val << VList
 -- vDict    = val << VDict
 
 doEvalw = Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo
+
+doEvalwUpdate env exp callback =
+  case Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo env exp of
+    Err msg -> UpdateCriticalError msg
+    Ok x -> callback x
 
 --------------------------------------------------------------------------------
 -- Updated value from changes through text-based value editor
