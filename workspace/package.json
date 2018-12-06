@@ -1,0 +1,31 @@
+{
+  "name": "sketch-n-sketch-website",
+  "version": "1.0.0",
+  "description": "The sketch-n-sketch website",
+  "main": "bin/generate.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "bidirectional",
+    "web"
+  ],
+  "homepage": "http://ravichugh.github.io/sketch-n-sketch/",
+  "bugs": "https://github.com/RaviChugh/Sketch-n-Sketch/issues",
+  "author": "Ravi Chugh <rchugh@uchicago.edu>",
+  "contributors" : [
+    "Mikael Mayer <mikael.mayer@polytechnique.org>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RaviChugh/Sketch-n-Sketch.git"
+  },
+  "dependencies": {
+    "sketch-n-sketch": "^1.0.22"
+  },
+  "files": [
+    "generate.js",
+    "generate.elm",
+    "README.md"
+  ]
+}
