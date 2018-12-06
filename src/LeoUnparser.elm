@@ -18,6 +18,7 @@ import Regex
 import ParserUtils exposing (unparseStringContent)
 import ImpureGoodies
 import HTMLParser
+import Char
 
 --------------------------------------------------------------------------------
 -- Simple Values
@@ -970,7 +971,9 @@ unparseHtmlNode isRaw e = case (unwrapExp e) of
                   [Just opening, Just closing] ->
                     if opening == "<" && not (String.startsWith "?" content) then
                       ("<!--", "-->")
-                    else if opening == "</" && not (String.startsWith " " content) then
+                    else if opening == "</" && (case String.uncons content of
+                              Just (c, _) -> Char.isUpper c || Char.isLower c || c == '@'
+                              _ -> False) then
                       ("<!--", "-->")
                     else if opening == "<!" && String.startsWith "--" content then
                       ("<!--", "-->")
