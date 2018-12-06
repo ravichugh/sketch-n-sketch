@@ -1,8 +1,11 @@
 all:
-	node forward.js
+	node generate.js --watch --autosync
 
-back:
-	node back.js
+input:
+	node generate.js --backward
 
-reverse:
-	node back.js
+output:
+	node generate.js --forward
+
+watch:
+	node generate.js --watch --autosync
