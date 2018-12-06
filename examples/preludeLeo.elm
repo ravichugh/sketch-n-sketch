@@ -2224,13 +2224,13 @@ String =
                     |> joinAndSplitBack """</li><li>@notinulol""" "</li><li>")</li>@insertAfter</@ul_ol>"""
 
         handleblockquotes text =
-          Regex.replace """(?:(?:\r?\n|^)>.*)+@notincode""" (\m ->
+          Regex.replace """(?:(?:\r?\n|^)>(?!.*</.*).*)+@notincode""" (\m ->
            Regex.extract """(\r?\n|^)>([\s\S]*)""" m.match
            |> Maybe.map (\[newline, content] ->
              let quoteContent =
                   Regex.replace """(\r?\n)> *""" (\m -> nth m.group 1) content
              in
-             let recursivecontent = quoteContent |> Debug.log "quotecontent" |> handleblockquotes in
+             let recursivecontent = quoteContent |> handleblockquotes in
              Update.expressionFreeze """@newline<blockquote>@recursivecontent</blockquote>"""
            ) |> Maybe.withDefault m.match
           ) text
