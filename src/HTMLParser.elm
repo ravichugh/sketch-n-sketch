@@ -107,7 +107,11 @@ entityToString entity =
          |> Maybe.andThen identity
          |> Maybe.andThen (\name ->  ImpureGoodies.fromHtmlEntity name)
          |> Maybe.withDefault entity
-      _ -> entity
+      _ ->
+  case Regex.find (Regex.AtMost 1) (Regex.regex "^</[\\s\\S]*>?$") entity of
+       [m] -> ""
+       _ ->
+        entity
 
 voidElements: Set String
 voidElements =
@@ -174,7 +178,8 @@ parseHTMLComment =
           |. symbol ">"
         ]
     , succeed LessSlash_Greater
-      |. lookAhead (symbol "/ ")
+      |. lookAhead (delayedCommitMap (\_ _ -> ()) (symbol "/") (
+            keep (Exactly 1) (\c -> not (Char.isUpper c) && not (Char.isLower c))))
       |. symbol "/"
       |= keep oneOrMore (\c -> c /= '>')
       |. symbol ">"
@@ -209,7 +214,7 @@ parseHTMLAttributeStringContent isEndChar =
        keep (AtLeast 1) (\c -> not (isEndChar c) && c /= '&') |> trackInfo |> andThen (\s ->
          aux (replaceInfo s (HTMLAttributeStringRaw s.val) :: revPreviousElems)
        )
-    ,  parseHTMLEntity True |> andThen (\s -> case s.val of
+    ,  parseHTMLEntity True [] |> andThen (\s -> case s.val of
         Err x -> aux (replaceInfo s (HTMLAttributeStringRaw x) :: revPreviousElems)
         Ok (rendered, raw) ->
           aux (replaceInfo s (HTMLAttributeEntity rendered raw) :: revPreviousElems))
@@ -290,15 +295,17 @@ isLetter c = Regex.contains letterRegex (String.fromChar c)
 -- parse(""<br/> d") == "<br> d"
 -- parse(""<img/> d") == "<img> d"
 
+parseTagName: Parser String
+parseTagName =
+  succeed (\a b -> a ++ b)
+  |= keep (Exactly 1) isLetter
+  |= keep zeroOrMore (\c -> not (isSpace c) && c /= '/' && c /= '>')
+
 nodeElementStart: ParsingMode -> Parser (HTMLTag, String)
 nodeElementStart parsingMode =
   let defaultParser =
     succeed (\x -> (HTMLTagString x, x.val))
-    |= (trackInfo <|
-       (succeed (\a b -> a ++ b)
-       |= keep (Exactly 1) isLetter)
-       |= keep zeroOrMore (\c -> not (isSpace c) && c /= '/' && c /= '>')
-       )
+    |= trackInfo parseTagName
   in
   delayedCommit
     (symbol "<") <|
@@ -318,11 +325,26 @@ nodeStart =
     (symbol "<")
     (keep oneOrMore (\c -> not (isSpace c) && c /= '/' && c /= '>' && c /= '!' && c /= '?'))
 
-parseHTMLEntity: Bool -> ParserI (Result String (String, String)) -- Errs are raw strings containing the "&", whereas Ok contain the interpreted and raw entity
-parseHTMLEntity insideAttribute =
+parseHTMLEntity: Bool -> List String -> ParserI (Result String (String, String)) -- Errs are raw strings containing the "&", whereas Ok contain the interpreted and raw entity
+parseHTMLEntity insideAttribute untilEndTagNames =
   inContext "HTML entity" <|
   trackInfo <|
-    succeed identity
+    oneOf <| (if not insideAttribute then [
+      delayedCommitAndThen (\_ wrongClosingTag ->
+        Ok ("", wrongClosingTag))
+      (source <| (
+           symbol "</"
+        |. parseTagName -- No space here, because else it would be a comment.
+        |. keep zeroOrMore (\c -> c /= '>')
+        |. optional (symbol ">")))
+      (\endTagName ->
+        let tagNamesRegex= untilEndTagNames |> List.map (\et -> "</" ++ Regex.escape et ++ "\\s*>") |> String.join "|" in
+        if Regex.contains (Regex.regex tagNamesRegex) endTagName then
+          fail "it's a true closing tag"
+        else
+          succeed endTagName
+      ) ] else []) ++
+      [succeed identity
     |. symbol "&"
     |= (lookAhead (source (
          oneOf [
@@ -359,7 +381,7 @@ parseHTMLEntity insideAttribute =
                  else
                    default matched
           in aux result
-      ))
+      ))]
 
 {--
 parsed("a</j  >b") == "ab"
@@ -378,7 +400,7 @@ parseHTMLInner parsingMode untilEndTagNames =
     Raw -> "[a-zA-Z]"
     _ -> "[a-zA-Z@]"
   in
-  let regexToParseUntil = Regex.regex <| "<" ++ tagNameStarts++"|&|<\\?|<!|</ |$" ++ maybeBreakOnAt ++
+  let regexToParseUntil = Regex.regex <| "<" ++ tagNameStarts++"|&|<\\?|<!|</|$" ++ maybeBreakOnAt ++
     (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "") in
   inContext "Inner HTML" <|
   trackInfo <|
@@ -483,7 +505,7 @@ parseNode parsingMode surroundingTagNames namespace =
     let defaultParsers = [
       parseHTMLElement parsingMode surroundingTagNames namespace,
       parseHTMLComment,
-      parseHTMLEntity False |> map (\entity -> case entity.val of
+      parseHTMLEntity False surroundingTagNames |> map (\entity -> case entity.val of
          Err x -> replaceInfo entity <| HTMLInner x
          Ok (rendered, raw) -> replaceInfo entity <| HTMLEntity rendered raw),
       parseHTMLInner parsingMode surroundingTagNames
