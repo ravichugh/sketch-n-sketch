@@ -59,9 +59,14 @@ function writeFiles(filesToWrite) {
   console.log("Written all re-rendered results");
 }
 
-if(!watch && forward) {
+function computeAndWrite(willwrite) {
   var [filesToWrite, source] = computeForward();
   if(filesToWrite) writeFiles(filesToWrite);
+  return [filesToWrite, source];
+}
+
+if(!watch && forward) {
+  computeAndWrite();
   return;
 }
 
@@ -78,7 +83,7 @@ function applyUpdateOperations(operations) {
     }
   }
   // Now compute the pipeline forward
-  return computeForward();
+  return computeAndWrite();
 }
 
 // Given the output of the pipeline, reads the disk and computes [the new output, if the output has changed]
@@ -173,6 +178,7 @@ var changeTimer = false;
 var watchers = [];
 
 function unwatchEverything() {
+  console.log("Unwatching files");
   for(var i = 0; i < watchers.length; i++) {
     watchers[i].close();
   }
@@ -200,7 +206,7 @@ function doWatch(filesToWrite) {
             
           }
       });
-    watchers.push(watch);
+    watchers.push(watcher);
   }
   watchers.push(fs.watch(inputDir, {recursive: true}, (eventType, generateElmScript) => {
     if(changeTimer) {
@@ -210,12 +216,12 @@ function doWatch(filesToWrite) {
       setTimeout(() => {
         changeTimer = false;
         unwatchEverything();
-        var [filesToWrite, source] = computeForward();
-        writeFiles(filesToWrite);
+        var [filesToWrite, source] = computeAndWrite();
         doWatch(filesToWrite);
       }, 100); // Time for all changes to be recorded
     
-  }))
+  }));
+  console.log("Watching for changes on inputs or outputs...")
 }
 
 
