@@ -36,18 +36,19 @@ sns.params = sns.params || {};
 sns.params.delayedWrite = true;
 var generateElmScript = __dirname + "/generate.elm";
 
-// Returns the set of files to be written and the source of the script used
+// Returns the set of files to be written, its representation as a Val, and the source of the script used
 function computeForward(willwrite) {
   if(typeof willwrite == "undefined") willwrite = true;
   var source = fs.readFileSync(generateElmScript, "utf8");
-  var result = sns.process(sns.objEnv.string.evaluate({willwrite:willwrite})(source))(sns.valToNative);
+  var valResult = sns.objEnv.string.evaluate({willwrite:willwrite})(source);
+  var result = sns.process(valResult)(sns.valToNative);
 
   if(result.ctor == "Ok") {
     var filesToWrite = result._0;
-    return [filesToWrite, source];
+    return [filesToWrite, valResult._0, source];
   } else {
     console.log("error while evaluating", result._0)
-    return [false, false];
+    return [false, false, false];
   }
 }
 
@@ -60,9 +61,9 @@ function writeFiles(filesToWrite) {
 }
 
 function computeAndWrite(willwrite) {
-  var [filesToWrite, source] = computeForward();
+  var [filesToWrite, valFilesToWrite, source] = computeForward();
   if(filesToWrite) writeFiles(filesToWrite);
-  return [filesToWrite, source];
+  return [filesToWrite, valFilesToWrite, source];
 }
 
 if(!watch && forward) {
@@ -99,9 +100,9 @@ function getNewOutput(filesToWrite) {
   return [newFilesToWrite, hasChanged];
 }
 
-function doUpdate(filesToWrite, source) {
+function doUpdate(filesToWrite, valFilesToWrite, source) {
   sns.fileOperations = [];
-  [filesToWrite, source] = filesToWrite ? [filesToWrite, source] : computeForward();
+  [filesToWrite, filesToWriteVal, source] = filesToWrite ? [filesToWrite, valFilesToWrite, source] : computeForward();
   if(!filesToWrite) return [false, false];
   var [newFilesToWrite, hasChanged] = getNewOutput(filesToWrite);
   if(!hasChanged) {
@@ -109,18 +110,18 @@ function doUpdate(filesToWrite, source) {
     if(!watch) {
       console.log("Finished!")
     }
-    return [filesToWrite, source];
+    return [filesToWrite, filesToWriteVal, source];
   }
   var newFilesToWriteVal = sns.nativeToVal(newFilesToWrite);
-  var resSolutions = sns.objEnv.string.update({v:1})(source)(newFilesToWriteVal);
+  var resSolutions = sns.objEnv.string.updateWithOld({v:1})(source)(filesToWriteVal)(newFilesToWriteVal);
   if(resSolutions.ctor == "Err") {
     console.log("Error while updating: " + resSolutions._0);
-    return [filesToWrite, source];
+    return [filesToWrite, filesToWriteVal, source];
   }
   var solutions = resSolutions._0;
   if(!sns.lazyList.nonEmpty(solutions)) {
     console.log("Error while updating, solution array is empty");
-    return [filesToWrite, source];
+    return [filesToWrite, filesToWriteVal, source];
   }
   var {_0: newenv, _1: headSolution} = sns.lazyList.head(solutions);
   var headOperations = sns.fileOperations;
@@ -153,18 +154,19 @@ function doUpdate(filesToWrite, source) {
       output: process.stdout,
       terminal: false
     });
+    var returnValue;
     rl.on('line', function(line){
        if(line == "1") {
-         filesToWrite = applyUpdateOperations(headOperations);
+         returnValue = applyUpdateOperations(headOperations);
          rl.close();
        } else if(line == "2") {
-         filesToWrite = applyUpdateOperations(headOperations2);
+         returnValue = applyUpdateOperations(headOperations2);
          rl.close();
        } else {
          console.log("Input not recognized. 1 or 2?");
        }
     })
-    return [filesToWrite, source];
+    return returnValue;
   }
 }
 
@@ -185,26 +187,26 @@ function unwatchEverything() {
   watchers = [];
 }
 
-function doWatch(filesToWrite, source) {
+function doWatch(filesToWrite, valFilesToWrite, source) {
   if(!filesToWrite) return;
 
   for(var i = 0; i < filesToWrite.length; i++) {
     var {_1: name, _2: content} = filesToWrite[i];
     var watcher =
-      fs.watch(name, ((filesToWrite, source) => (eventType, filename) => {
+      fs.watch(name, ((filesToWrite, valFilesToWrite, source) => (eventType, filename) => {
           if(eventType == "change") {
             if(changeTimer) {
               clearTimeout(changeTimer);
             }
             changeTimer =
-              setTimeout(((filesToWrite, source) => () => {
+              setTimeout(((filesToWrite, valFilesToWrite, source) => () => {
                 changeTimer = false;
                 unwatchEverything();
-                [filesToWrite, source] = doUpdate(filesToWrite, source);
-                doWatch(filesToWrite, source);
-              })(filesToWrite, source), 100); // Time for all changes to be recorded
+                [filesToWrite, valFilesToWrite, source] = doUpdate(filesToWrite, valFilesToWrite, source);
+                doWatch(filesToWrite, valFilesToWrite, source);
+              })(filesToWrite, valFilesToWrite, source), 100); // Time for all changes to be recorded
           }
-      })(filesToWrite, source));
+      })(filesToWrite, valFilesToWrite, source));
     watchers.push(watcher);
   }
   watchers.push(fs.watch(inputDir, {recursive: true}, (eventType, generateElmScript) => {
@@ -227,13 +229,14 @@ function doWatch(filesToWrite, source) {
 if(watch) {
   var filesToWrite;
   var source;
+  var valFilesToWrite;
   if(backward && !forward) {
-    [filesToWrite, source] = doUpdate();
+    [filesToWrite, valFilesToWrite, source] = doUpdate();
   }
-  var [filesToWrite, source] = backward && !forward ? [filesToWrite, source] : computeForward();
+  var [filesToWrite, valFilesToWrite, source] = backward && !forward ? [filesToWrite, valFilesToWrite, source] : computeForward();
   if((!backward || forward) && filesToWrite) { // Do the initial file write to make sure everything is consistent.
     writeFiles(filesToWrite);
   }
   console.log("watching with !filesToWrite", !filesToWrite);
-  doWatch(filesToWrite, source);
+  doWatch(filesToWrite, valFilesToWrite, source);
 }

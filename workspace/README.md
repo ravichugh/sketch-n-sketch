@@ -1,10 +1,22 @@
 # Sketch-n-Sketch website generator
 
-## Quick launch
+## Change the website visually
+
+Install editor with `npm install -g http-server-editor`.
+Then, in the folder above, containing `index.html`, run
+
+    editor
+
+Editor allows to back-propage visual changes to the HTML generated files.
+To further back-propagate these changes to the real source files, open a new command line and follow the instructions below:
+
+## Website bigeneration
+
+Make sure you have the latest version of sketch-n-sketch by running `npm install -g sketch-n-sketch`.  
+To regenerate the website and listen to changes in output or input, run:
 
     make
 
-It will first regenerate the website, and then automatically propagate changes from the inputs to the outputs and vice-versa.
 `make` or `make watch` actually runs the command:
 
     node generate.js --watch --autosync
