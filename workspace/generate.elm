@@ -36,9 +36,9 @@ handleposts root kind =
 expandSkeleton root file outtarget =
   (Debug.log "recomputing " outtarget, load root file)
 
-toWriteVal = 
-  (handleposts ".." "blog") ++
-  (handleposts ".." "tutorial")  ++ [
+postsToWrite = handleposts ".." "blog"
+tutsToWrite = handleposts ".." "tutorial"
+skToWrite = [
   expandSkeleton "."   "src/index.src.html"                             "../index.html"
 , expandSkeleton ".."  "src/releases/index.src.html"                    "../releases/index.html"
 , expandSkeleton ".."  "src/blog/index.src.html"                        "../blog/index.html"
@@ -49,6 +49,8 @@ toWriteVal =
 , expandSkeleton "../.." "src/misc/pldi2016-artifact.src.html" "../releases/v0.4.1/pldi2016-artifact.html"
 -}
 ]
+
+toWriteVal = postsToWrite ++ tutsToWrite  ++ skToWrite
 
 _ = toWriteVal |> List.map (\(name, content) -> 
   let aux node = case node of

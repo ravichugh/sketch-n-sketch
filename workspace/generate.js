@@ -99,9 +99,9 @@ function getNewOutput(filesToWrite) {
   return [newFilesToWrite, hasChanged];
 }
 
-function doUpdate() {
+function doUpdate(filesToWrite, source) {
   sns.fileOperations = [];
-  var [filesToWrite, source] = computeForward();
+  [filesToWrite, source] = filesToWrite ? [filesToWrite, source] : computeForward();
   if(!filesToWrite) return [false, false];
   var [newFilesToWrite, hasChanged] = getNewOutput(filesToWrite);
   if(!hasChanged) {
@@ -185,27 +185,26 @@ function unwatchEverything() {
   watchers = [];
 }
 
-function doWatch(filesToWrite) {
+function doWatch(filesToWrite, source) {
   if(!filesToWrite) return;
 
   for(var i = 0; i < filesToWrite.length; i++) {
     var {_1: name, _2: content} = filesToWrite[i];
     var watcher =
-      fs.watch(name, (eventType, filename) => {
+      fs.watch(name, ((filesToWrite, source) => (eventType, filename) => {
           if(eventType == "change") {
             if(changeTimer) {
               clearTimeout(changeTimer);
             }
             changeTimer =
-              setTimeout(() => {
+              setTimeout(((filesToWrite, source) => () => {
                 changeTimer = false;
                 unwatchEverything();
-                var [filesToWrite, source] = doUpdate();
-                doWatch(filesToWrite);
-              }, 100); // Time for all changes to be recorded
-            
+                [filesToWrite, source] = doUpdate(filesToWrite, source);
+                doWatch(filesToWrite, source);
+              })(filesToWrite, source), 100); // Time for all changes to be recorded
           }
-      });
+      })(filesToWrite, source));
     watchers.push(watcher);
   }
   watchers.push(fs.watch(inputDir, {recursive: true}, (eventType, generateElmScript) => {
@@ -217,7 +216,7 @@ function doWatch(filesToWrite) {
         changeTimer = false;
         unwatchEverything();
         var [filesToWrite, source] = computeAndWrite();
-        doWatch(filesToWrite);
+        doWatch(filesToWrite, source);
       }, 100); // Time for all changes to be recorded
     
   }));
@@ -226,12 +225,15 @@ function doWatch(filesToWrite) {
 
 
 if(watch) {
+  var filesToWrite;
+  var source;
   if(backward && !forward) {
-    doUpdate();
+    [filesToWrite, source] = doUpdate();
   }
-  var [filesToWrite, source] = computeForward();
+  var [filesToWrite, source] = backward && !forward ? [filesToWrite, source] : computeForward();
   if((!backward || forward) && filesToWrite) { // Do the initial file write to make sure everything is consistent.
     writeFiles(filesToWrite);
   }
-  doWatch(filesToWrite);
+  console.log("watching with !filesToWrite", !filesToWrite);
+  doWatch(filesToWrite, source);
 }
