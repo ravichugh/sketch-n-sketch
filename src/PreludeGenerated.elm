@@ -6891,7 +6891,7 @@ tutorialUtils = {
 
 -- The type checker relies on the name of this definition.
 let dummyPreludeMain = [\"svg\", [], []] in dummyPreludeMain
-
+    
 """
 
 

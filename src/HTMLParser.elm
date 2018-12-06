@@ -179,7 +179,7 @@ parseHTMLComment =
         ]
     , succeed LessSlash_Greater
       |. lookAhead (delayedCommitMap (\_ _ -> ()) (symbol "/") (
-            keep (Exactly 1) (\c -> not (Char.isUpper c) && not (Char.isLower c))))
+            keep (Exactly 1) (\c -> not (Char.isUpper c) && not (Char.isLower c) && c /= '@')))
       |. symbol "/"
       |= keep oneOrMore (\c -> c /= '>')
       |. symbol ">"
