@@ -98,7 +98,7 @@ max i j = if i >= j then i else j
 --min: (-> Num Num Num)
 min i j = if i < j then i else j
 
---type Order = LT | EQ | GT
+type Order = LT | EQ | GT
 
 compare a b = if a < b then LT else if a == b then EQ else GT
 
@@ -1751,6 +1751,16 @@ List = {
       head::tail -> reverseInsert tail (head::revAcc)
 
   sum l = foldl (\x y -> x + y) 0 l
+  product l = foldl (\x y -> x * y) 1 l
+
+  maximum l = case l of
+    [] -> Nothing
+    h :: t -> Just (foldl (\x y -> if x > y then x else y) h t)
+
+  minimum l = case l of
+    [] -> Nothing
+    h :: t -> Just (foldl (\x y -> if x < y then x else y) h t)
+
   range min max = if min > max then [] else min :: range (min + 1) max
 
   mapFirstSuccess f l = case l of
@@ -1983,6 +1993,41 @@ List = {
   nil = nil
   cons = cons
   foldl = foldl
+  foldr = foldr
+
+  scanl : (a -> b -> b) -> b -> List a -> List b
+  scanl f acc list = case list of
+    [] -> [acc]
+    head :: tail -> acc :: scanl f (f head acc) tail
+
+  scanr : (a -> b -> b) -> b -> List a -> List b
+  scanr f acc list = case list of
+    [] -> [acc]
+    head :: tail ->
+      let headAcc::tailAcc = scanr f acc tail in
+      f head headAcc :: headAcc :: tailAcc
+
+  sort : List comparable -> List comparable
+  sort = sortBy identity
+
+  sortBy : (a -> comparable) -> List a -> List a
+  sortBy f xs =
+    let ins x ys =
+      case ys of
+        []    -> [x]
+        y::ys -> if f x < f y then x :: y :: ys else y :: ins x ys
+    in
+    foldl ins [] xs
+
+  sortWith : (a -> a -> Order) -> List a -> List a
+  sortWith f xs =
+    let ins x ys =
+      case ys of
+        []    -> [x]
+        y::ys -> if f x y == LT then x :: y :: ys else y :: ins x ys
+    in
+    foldl ins [] xs
+
   zipWithIndex = zipWithIndex
   member = contains
   last = LensLess.List.last
