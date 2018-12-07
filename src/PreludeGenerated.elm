@@ -3547,57 +3547,57 @@ Set = {
 --------------------------------------------------------------------------------
 -- List (all operations should be lenses) --
 
-List =
-  let reverse =
+List = {
+  reverse =
     let r = LensLess.List.reverse in
     -- TODO: reverse the differences as well !
     \\l -> { apply l = r l, update {output}= Ok (Inputs [r output])}.apply l
-  in
-  let simpleMap = LensLess.List.map
-  in
-  let filterMap f l = case l of
+
+  simpleMap = LensLess.List.map
+
+  filterMap f l = case l of
     [] -> []
     (head :: tail) -> case f head of
       Nothing -> filterMap f tail
       Just newHead -> newHead :: filterMap f tail
-  in
-  let length x = len x
-  in
-  let nth =
-    nth
-  in
-  let mapi f xs = map f (zipWithIndex xs) in
-  let mapiWithDefault default f xs = mapWithDefault (0, default) f (zipWithIndex xs) in
-  let mapiWithReverse reverse f xs = mapWithReverse (\\x -> (0, reverse x)) f (zipWithIndex xs) in
-  let indexedMap f xs =
+
+  length x = len x
+
+  nth = nth
+
+  (mapi) f xs = map f (zipWithIndex xs)
+  (mapiWithDefault) default f xs = mapWithDefault (0, default) f (zipWithIndex xs)
+  (mapiWithReverse) reverse f xs = mapWithReverse (\\x -> (0, reverse x)) f (zipWithIndex xs)
+
+  indexedMap f xs =
     mapi (\\(i,x) -> f i x) xs
-  in
-  let indexedMapWithDefault default f xs =
+
+  indexedMapWithDefault default f xs =
     mapiWithDefault default (\\(i,x) -> f i x) xs
-  in
-  let indexedMapWithReverse reverse f xs =
+
+  indexedMapWithReverse reverse f xs =
     mapiWithReverse reverse (\\(i, x) -> f i x) xs
-  in
-  let concatMap f l = case l of
-    [] -> l
+
+  concatMap f l = case l of
+    [] -> []
     head :: tail -> f head ++ concatMap f tail
-  in
-  let indexedConcatMap f l =
+
+  indexedConcatMap f l =
     let aux i l = case l of
       [] -> []
       head :: tail -> f i head ++ aux (i + 1) tail
     in aux 0 l
-  in
-  let cartesianProductWith f xs ys =
+
+  cartesianProductWith f xs ys =
     concatMap (\\x -> map (\\y -> f x y) ys) xs
-  in
-  let unzip xys =
+
+  unzip xys =
     case xys of
       []          -> ([], [])
       (x,y)::rest -> let (xs,ys) = unzip rest in
                      (x::xs, y::ys)
-  in
-  let split n l = {
+
+  split n l = Update.lens {
       apply l = LensLess.List.split n l
       update {output = (l1, l2), diffs} =
         let finalDiffs = case diffs of
@@ -3608,10 +3608,10 @@ List =
           _ -> Nothing
         in
         Ok (InputsWithDiffs [(l1 ++ l2, finalDiffs)])
-    }.apply l
-  in
+    } l
+
   -- This filter lens supports insertions and deletions in output
-  let filter f l =
+  filter f l =
         case l of
           [] -> l
           _ ->
@@ -3619,40 +3619,42 @@ List =
              let cond = f head in
              if cond then head1 ++ filter f tail
              else filter f tail
-  in
+
   -- In this version of foldl, the function f accepts a 1-element list instead of just the element.
   -- This enable programmers to insert or delete values from the accumulator.
-  let foldl2 f b l =
+  foldl2 f b l =
     let aux b l = case l of
       [] -> b
       _ ->
         let (h1, t1) = split 1 l in
         aux (f h1 b) t1
     in aux b l
-  in
-  let reverseInsert elements revAcc =
+
+  -- Pushes the elements to the head of the reverse accumulator revAcc in O(elements) time
+  reverseInsert elements revAcc =
     case elements of
       [] -> revAcc
       head::tail -> reverseInsert tail (head::revAcc)
-  in
-  let sum l = foldl (\\x y -> x + y) 0 l in
-  let range min max = if min > max then [] else min :: range (min + 1) max in
-  let find f l = case l of [] -> Nothing; head :: tail -> if f head then Just head else find f tail in
-  let mapFirstSuccess f l = case l of
+
+  sum l = foldl (\\x y -> x + y) 0 l
+  range min max = if min > max then [] else min :: range (min + 1) max
+
+  mapFirstSuccess f l = case l of
     [] -> Nothing
     head :: tail -> case f head of
       Nothing -> mapFirstSuccess f tail
       x -> x
-  in
-  let contains n =
+
+  contains n =
     let aux l = case l of
       [] -> False
       head::tail -> if head == n then True else aux tail
     in aux
-  in
-  let -- Contrary to concatMap, concatMap_ supports insertion and deletions of elements.
-      -- It requires a function to indicate what to do when inserting in empty lists.
-      concatMap_ insert_in_empty f l =
+
+  -- Contrary to concatMap, concatMap_ supports insertion and deletions of elements.
+  -- It requires a function to indicate what to do when inserting in empty lists.
+  -- f takes a 1-element list but can push back many elements or remove them
+  concatMap_ insert_in_empty f l =
         case l of -- Insertion to an emptylist.
           [] -> { apply l = []
                   update {input=l, outputNew=lp} = Ok (Inputs [insert_in_empty lp])
@@ -3715,10 +3717,10 @@ List =
                    [])
               ) |> Update.resultValuesWithDiffs
           }.apply (f, oldAcc, headList, dummyBool)) (Update.freeze [], Update.softFreeze False) l
-  in
-  let indices l = range 0 (length l - 1) in
-  let isEmpty l = l == [] in
-  let head l = {
+
+  indices l = range 0 (length l - 1)
+  isEmpty l = l == []
+  head = Update.lens {
     apply l = case l of
       h :: l -> Just h
       _ -> Nothing
@@ -3731,9 +3733,9 @@ List =
       ([], Just newH, _) ->
         Ok (InputsWithDiffs [([newH], Just (VListDiffs [(0, ListElemInsert 1)]))])
       (_, _, _) -> Err (\"Inconsistent diffs in List.head\" ++ toString diffs)
-    }.apply l
-  in
-  let tail l =  {
+    }
+
+  tail =  Update.lens {
     apply l = case l of
       h :: l -> Just l
       _ -> Nothing
@@ -3746,18 +3748,19 @@ List =
       ([], Just newTail, _) ->
         Err \"I don't know how to insert a new tail where there was none originally.\"
       (_, _, _) -> Err (\"Inconsistent diffs in List.head\" ++ toString diffs)
-    }.apply l
-  in
-  let take n l =
+    }
+
+  take n l =
     let (taken, remaining) = split n l in
     taken
-  in
-  let drop n l =
+
+  drop n l =
     let (taken, remaining) = split n l in
     remaining
-  in
-  let singleton elem = [elem] in
-  let repeat n a =
+
+  singleton elem = [elem]
+
+  repeat n a =
     {apply (n, a) =
       let aux i = if i == 0 then [] else a :: aux (i - 1)
       in aux n
@@ -3790,23 +3793,23 @@ List =
        let (nA, nDiffsA) = __merge__ a mergeEnabled in
        Ok (InputsWithDiffs [((nNew, nA), Update.mbPairDiffs (nNewDiffs, nDiffsA))])
     }.apply (n, a)
-  in
-  let insertAt index newElem elements =
+
+  insertAt index newElem elements =
     let (before, after) = split index elements in
     before ++ [newElem] ++ after
-  in
-  let removeAt index elements =
+
+  removeAt index elements =
     let (before, after) = split index elements in
     case after of
       [] -> Nothing
       elem::afterTail ->
         Just (elem, before ++ afterTail)
-  in
-  let -- Given two converters cA and cB, a list and a target, finds an element
-      -- of the list that, converted using cA, equals target. Returns cB of this element.
-      -- In the reverse direction, it finds the cB of the new output and returns the cA.
-      findByAReturnB: (a -> b) -> (a -> c) -> b -> List a -> Maybe c
-      findByAReturnB =
+
+  -- Given two converters cA and cB, a list and a target, finds an element
+  -- of the list that, converted using cA, equals target. Returns cB of this element.
+  -- In the reverse direction, it finds the cB of the new output and returns the cA.
+  findByAReturnB: (a -> b) -> (a -> c) -> b -> List a -> Maybe c
+  findByAReturnB =
         Update.lens4 {
           apply (cA, cB, target, l) =
             let aux l = case l of
@@ -3827,74 +3830,57 @@ List =
             -- To ways to update: Either find the new B in the list and return A
             -- Or just regular update (to change the name)
         }
-  in
-  let find pred list = case list of
+
+  find pred list = case list of
     [] -> Nothing
     head :: tail -> if pred head then Just head else find pred tail
-  in
-  let indexWhere pred list =
+
+  indexWhere pred list =
     let aux n list = case list of
       head :: tail -> if pred head then n else aux (n + 1) tail
       _ -> -1
     in
     aux 0 list
-  in
-  let indexOf value  = indexWhere ((==) value) in
+
+  indexOf value  = indexWhere ((==) value)
+
   -- TODO: Continue to insert List functions from Elm (http://package.elm-lang.org/packages/elm-lang/core/latest/List#range)
-  { indexWhere = indexWhere
-    indexOf = indexOf
-    simpleMap = simpleMap
-    map = map
-    mapWithDefault = mapWithDefault
-    mapWithReverse = mapWithReverse
-    map2 = map2 -- TOOD: Make it a lens that supports insertion?
-    nil = nil
-    cons = cons
-    length = length
-    nth = nth
-    indexedMap = indexedMap
-    indexedMapWithDefault = indexedMapWithDefault
-    indexedMapWithReverse = indexedMapWithReverse
-    indexedConcatMap = indexedConcatMap
-    concatMap = concatMap
-    concatMap_ = concatMap_
-    cartesianProductWith = cartesianProductWith
-    unzip = unzip
-    split = split
-    reverseInsert = reverseInsert
-    reverse = reverse
-    take = take
-    drop = drop
-    foldl = foldl
-    foldl2 = foldl2
-    filterMap = filterMap
-    filter = filter
-    findByAReturnB = findByAReturnB
-    sum = sum
-    range = range
-    zipWithIndex = zipWithIndex
-    indices = indices
-    find = find
-    mapFirstSuccess = mapFirstSuccess
-    contains = contains
-    member = contains
-    isEmpty = isEmpty
-    head = head
-    tail = tail
-    singleton = singleton
-    repeat = repeat
-    insertAt = insertAt
-    removeAt = removeAt
-    last = LensLess.List.last
+  map = map
 
-    all pred list = case list of
-      [] -> True
-      hd :: tl -> if pred hd then all pred tl else False
+  append = append
 
-    any pred list = case list of
-      [] -> False
-      hd :: tl -> if pred hd then True else any pred tl
-  }
+  concat = concatMap identity
+
+  intersperse elem list = drop 1 (concatMap_ identity (\\headAsList -> elem :: headAsList)) list
+
+  partition pred list = case list of
+    [] -> (list, list)
+    _ ->
+     let ([head] as headList, tail) = split 1 list in
+     let (ok, notok) = partition pred tail in
+     if pred head then
+       (headList ++ ok, notok)
+     else
+       (ok, headList ++ notok)
+
+  mapWithDefault = mapWithDefault
+  mapWithReverse = mapWithReverse
+  map2 = map2 -- TOOD: Make it a lens that supports insertion?
+  nil = nil
+  cons = cons
+  foldl = foldl
+  zipWithIndex = zipWithIndex
+  member = contains
+  last = LensLess.List.last
+
+  all pred list = case list of
+    [] -> True
+    hd :: tl -> if pred hd then all pred tl else False
+
+  any pred list = case list of
+    [] -> False
+    hd :: tl -> if pred hd then True else any pred tl
+}
 
 
 --------------------------------------------------------------------------------
@@ -4391,20 +4377,6 @@ Editor = {}
 
 -- HTML
 
-
--- Returns a list of one text element from a string, and updates by taking all the pasted text.
-textInner s = {
-  apply s = [[\"TEXT\", s]]
-  update {output} =
-    let textOf = case of
-      [\"TEXT\", s]::tail -> s + textOf tail
-      [tag, attrs, children]::tail ->
-        textOf children + textOf tail
-      _ -> \"\"
-    in
-    Ok (Inputs [textOf output])
-}.apply s
-
 --------------------------------------------------------------------------------
 -- Html.html
 
@@ -4613,45 +4585,79 @@ html string = {
 
 
 --------------------------------------------------------------------------------
--- Html
+-- Html module
 
-Html =
-  let textNode text =
-    [\"TEXT\", text]
-  in
-  let textElementHelper tag styles attrs text =
-    [ tag,  [\"style\", styles] :: attrs , textInner text ]
-  in
-  let elementHelper tag styles attrs children =
+Html = {
+  -- Returns a list of one text element from a string, and updates by taking all the pasted text.
+  text = Update.lens {
+    apply s = [[\"TEXT\", s]]
+    update {output} =
+      let textOf = case of
+        [\"TEXT\", s]::tail -> s + textOf tail
+        [tag, attrs, children]::tail ->
+          textOf children + textOf tail
+        _ -> \"\"
+      in
+      Ok (Inputs [textOf output])
+  }
+
+  textNode text = [\"TEXT\", text]
+
+  (textElementHelper) tag styles attrs textContent =
+    [ tag,  [\"style\", styles] :: attrs , text textContent ]
+
+  p = textElementHelper \"p\"
+  th = textElementHelper \"th\"
+  td = textElementHelper \"td\"
+  h1 = textElementHelper \"h1\"
+  h2 = textElementHelper \"h2\"
+  h3 = textElementHelper \"h3\"
+  h4 = textElementHelper \"h4\"
+  h5 = textElementHelper \"h5\"
+  h6 = textElementHelper \"h6\"
+
+  (elementHelper) tag styles attrs children =
     [ tag,  [\"style\", styles] :: attrs , children ]
-  in
-  let freshTag x = {
+
+  div = elementHelper \"div\"
+  tr = elementHelper \"tr\"
+  table = elementHelper \"table\"
+  span = elementHelper \"span\"
+  b= elementHelper \"b\"
+  i= elementHelper \"i\"
+  li = elementHelper \"li\"
+  ul = elementHelper \"ul\"
+  br = [\"br\", [], []]
+
+  element = elementHelper
+
+  parse = html
+  parseViaEval = htmlViaEval
+
+  freshTag = Update.lens {
     apply x = \"dummy\" + toString (getCurrentTime x)
-    update {input} = Ok (InputsWithDiffs [(input, Nothing)]) }.apply x
-  in
-  let integerRefresh i node =
-    [\"\"\"span@i\"\"\", [], [node]]
-  in
-  let forceRefresh node =
-    [freshTag True, [], [node]]
-  in
-  --TODO: Allow the option to be modifiable
-  let option value selected content =
+    update {input} = Ok (InputsWithDiffs [(input, Nothing)]) }
+
+  integerRefresh i node = [\"\"\"span@i\"\"\", [], [node]]
+
+  forceRefresh node = [freshTag True, [], [node]]
+
+  (option) value selected content =
     <option v=value @(
       Update.bijection
         (\\selected -> if selected then [[\"selected\",\"selected\"]] else [])
         ((==) []) selected
     )>@content</option>
-  in
-  let select attributes strArray index =
+
+  select attributes strArray index =
     let options = List.indexedMap (\\i opt ->
         option (toString i) (i == index) [[\"TEXT\", opt]]
       ) strArray
     in
     <select selected-index=(toString index)
       onchange=\"this.setAttribute('selected-index', this.selectedIndex)\" @attributes>@options</select>
-  in
-  let checkbox text title isChecked =
+
+  checkbox text title isChecked =
       let id = \"checkbox-\"+Regex.replace \"[^\\\\w]\" \"\" text in
       [\"span\", [], [
         [\"label\", [[\"class\",\"switch\"],[\"title\", title]], [
@@ -4667,23 +4673,30 @@ Html =
         ]],
         [\"label\", [[\"for\",id], [\"title\", title]], [[\"TEXT\", text]]]
       ]]
-  in
-  let onClickCallback model controller =  {
+
+  -- Do not use if the view DOM is not totally re-rendered.
+  onChangeAttribute model controller =
+    Update.lens {
+      apply model = \"\"
+      update {input, outputNew} = Ok (Inputs [controller input outputNew])
+    } model
+
+  onClickCallback model controller =  Update.lens {
     apply model = \"\"\"/*@getCurrentTime*/this.setAttribute('onclick', \" \" + this.getAttribute('onclick'))\"\"\"
     update {input, outputNew} =
       if String.take 1 outputNew == \" \" then
       Ok (Inputs [controller model])
       else
       Ok (InputsWithDiffs [(input, Nothing)])
-    }.apply model
-  in
-  let button name title model controller =
+    } model
+
+  button name title model controller =
     <button title=title onclick=(onClickCallback model controller)>@name</button>
-  in
-  let input tpe value =
+
+  input tpe value =
     <input type=tpe value=value v=value onchange=\"this.setAttribute('v', this.value)\">
-  in
-  let observeCopyValueToAttribute query attribute =
+
+  observeCopyValueToAttribute query attribute =
     <script>
       function handleMutation(mutations) {
         mutations.forEach(function(mutation) {
@@ -4694,148 +4707,143 @@ Html =
       for (i = 0; i &lt; textAreas.length; i++)
         textAreasObserver.observe(textAreas[i], {attributes: true});
     </script>
-  in
-  let onChangeAttribute model controller =
-    { apply model = \"\"
-      update {input, outputNew} = Ok (Inputs [controller input outputNew])
-    }.apply model
-  in
+
   -- Takes a 1-element node list, and whatever this element is replaced by.
   -- In the reverse direction, modifies the element but also propagates its deletion to the list
   -- or insertions of new elements.
-  let mergeMatch: String -> Diffs -> Match -> String
-      mergeMatch originalMatch mDiffs m =
-       case mDiffs of
-         VRecordDiffs dDiffs ->
-           let matchLength = String.length originalMatch in
-           let gatherDiffs groups starts groupDiffs =
-             let combineDiffs i groupDiffs accDiffs =
-               case groupDiffs of
-                 [] -> accDiffs
-                 (j, d)::tdgd ->
-                   if i < j then combineDiffs (i + 1) groupDiffs accDiffs
-                   else case d of
-                       ListElemUpdate ud ->
-                         let startInMatch = nth starts i - m.index in
-                         case ud of
-                           VStringDiffs sds ->
-                             let (_, concreteUpdates) =  List.foldl (\\(StringUpdate start end replacement) (offset, accDiffs) ->
-                                 (offset + replacement - (end - start),
-                                  accDiffs ++ [ConcreteUpdate
-                                                 (start + startInMatch)
-                                                 (end + startInMatch)
-                                                 (String.substring (start + offset) (start + replacement + offset) (nth groups i))
-                                              ])
-                               ) (0, []) sds
-                             in combineDiffs (i + 1) tdgd (accDiffs ++ concreteUpdates)
-                           _ -> error (\"Expected string diffs, got \" + toString ud)
-                       ListElemInsert _ -> error \"Not possible ot insert match groups\"
-                       ListElemDelete _ -> error \"Not possible to delete match groups\"
-             in
-             combineDiffs 0 groupDiffs []
+  mergeMatch: String -> Diffs -> Match -> String
+  (mergeMatch) originalMatch mDiffs m =
+     case mDiffs of
+       VRecordDiffs dDiffs ->
+         let matchLength = String.length originalMatch in
+         let gatherDiffs groups starts groupDiffs =
+           let combineDiffs i groupDiffs accDiffs =
+             case groupDiffs of
+               [] -> accDiffs
+               (j, d)::tdgd ->
+                 if i < j then combineDiffs (i + 1) groupDiffs accDiffs
+                 else case d of
+                     ListElemUpdate ud ->
+                       let startInMatch = nth starts i - m.index in
+                       case ud of
+                         VStringDiffs sds ->
+                           let (_, concreteUpdates) =  List.foldl (\\(StringUpdate start end replacement) (offset, accDiffs) ->
+                               (offset + replacement - (end - start),
+                                accDiffs ++ [ConcreteUpdate
+                                               (start + startInMatch)
+                                               (end + startInMatch)
+                                               (String.substring (start + offset) (start + replacement + offset) (nth groups i))
+                                            ])
+                             ) (0, []) sds
+                           in combineDiffs (i + 1) tdgd (accDiffs ++ concreteUpdates)
+                         _ -> error (\"Expected string diffs, got \" + toString ud)
+                     ListElemInsert _ -> error \"Not possible ot insert match groups\"
+                     ListElemDelete _ -> error \"Not possible to delete match groups\"
            in
-           let totalUpdates = (case dDiffs of
-             { group = VListDiffs groupDiffs} ->
-               gatherDiffs m.group m.start groupDiffs
-             _ -> []) ++ (case dDiffs of
-             { submatches = VListDiffs groupDiffs} ->
-               gatherDiffs m.submatches (List.drop 1 m.start) groupDiffs
-             _ -> []) ++ (case dDiffs of
-             {match = matchDiffs} ->
-               gatherDiffs [m.match] [m.index] [(0, ListElemUpdate matchDiffs)]
-             _ -> [])
-           in
-           let concreteUpdates = totalUpdates |>
-                sortBy (\\(ConcreteUpdate s1 _ _) (ConcreteUpdate s2 _ _) -> s1 <= s2) |>
-                List.foldl (\\((ConcreteUpdate start end replacement) as a) (accConcreteUpdates, minStartIndex) ->
-                  if start >= minStartIndex && end <= matchLength then
-                    (a::accConcreteUpdates, end)
-                  else
-                    (accConcreteUpdates, minStartIndex)
-                  ) ([], 0) |>
-                Tuple.first
-           in
-           List.foldl (\\(ConcreteUpdate start end replacement) match ->
-             String.take start match + replacement + String.drop end match)
-               originalMatch concreteUpdates
-  in
+           combineDiffs 0 groupDiffs []
+         in
+         let totalUpdates = (case dDiffs of
+           { group = VListDiffs groupDiffs} ->
+             gatherDiffs m.group m.start groupDiffs
+           _ -> []) ++ (case dDiffs of
+           { submatches = VListDiffs groupDiffs} ->
+             gatherDiffs m.submatches (List.drop 1 m.start) groupDiffs
+           _ -> []) ++ (case dDiffs of
+           {match = matchDiffs} ->
+             gatherDiffs [m.match] [m.index] [(0, ListElemUpdate matchDiffs)]
+           _ -> [])
+         in
+         let concreteUpdates = totalUpdates |>
+              sortBy (\\(ConcreteUpdate s1 _ _) (ConcreteUpdate s2 _ _) -> s1 <= s2) |>
+              List.foldl (\\((ConcreteUpdate start end replacement) as a) (accConcreteUpdates, minStartIndex) ->
+                if start >= minStartIndex && end <= matchLength then
+                  (a::accConcreteUpdates, end)
+                else
+                  (accConcreteUpdates, minStartIndex)
+                ) ([], 0) |>
+              Tuple.first
+         in
+         List.foldl (\\(ConcreteUpdate start end replacement) match ->
+           String.take start match + replacement + String.drop end match)
+             originalMatch concreteUpdates
+
   -- Split the text into Text [[\"TEXT\", unchanged text]] and Match (match)
   -- On the other direction, recombines the nodes of Text and Match
   -- Allows to back-propagate insertions and deletions of nodes
-  let findAugmentedInterleavings number regex ([[\"TEXT\", text]] as tNodes) =
-        let interleavings = findInterleavings number regex text in
-        let rev = List.foldl (\\elem acc -> case elem of
-            Left text -> Text [[\"TEXT\", text]] :: acc
-            Right match -> Match match :: acc
-          ) [] interleavings
-        in
-        let augmentedInterleavings = List.reverse rev in
-        let allMatches: List (Int, Match)
-            allMatches = List.concatMap (case of Match match -> [(match.number, match)]; _ -> []) augmentedInterleavings in
-        Update.lens {
-          apply tNodes = augmentedInterleavings
-          update ({outputNew, diffs} as uInput) = -- We should extract all the new matches
-            case diffs of
-              VListDiffs ds ->
-                let rebuild i outputNew ds newInput =
-                   case ds of
+  findAugmentedInterleavings number regex ([[\"TEXT\", text]] as tNodes) =
+    let interleavings = findInterleavings number regex text in
+    let rev = List.foldl (\\elem acc -> case elem of
+        Left text -> Text [[\"TEXT\", text]] :: acc
+        Right match -> Match match :: acc
+      ) [] interleavings
+    in
+    let augmentedInterleavings = List.reverse rev in
+    let allMatches: List (Int, Match)
+        allMatches = List.concatMap (case of Match match -> [(match.number, match)]; _ -> []) augmentedInterleavings in
+    Update.lens {
+      apply tNodes = augmentedInterleavings
+      update ({outputNew, diffs} as uInput) = -- We should extract all the new matches
+        case diffs of
+          VListDiffs ds ->
+            let rebuild i outputNew ds newInput =
+               case ds of
+                 [] ->
+                   case outputNew of
                      [] ->
+                       Ok (Inputs [__mergeHtmlText__ newInput])
+                     Text nodes :: outputNewTail ->
+                       newInput ++ nodes |>
+                       rebuild (i + 1) outputNewTail ds
+                     Match m :: outputNewTail ->
+                       newInput ++ [[\"TEXT\", m.match]] |>
+                       rebuild (i + 1) outputNewTail ds
+                 (j, ld)::tds ->
+                   if i < j then
+                     case outputNew of
+                     Text nodes :: outputNewTail ->
+                       newInput ++ nodes |>
+                       rebuild (i + 1) outputNewTail ds
+                     Match m :: outputNewTail ->
+                       newInput ++ [[\"TEXT\", m.match]] |>
+                       rebuild (i + 1) outputNewTail ds
+                     [] ->
+                       Err (\"Unexpected end of findAugmentedInterleavings.outputNew\" + toString uInput)
+                   else case ld of
+                     ListElemUpdate u  ->
                        case outputNew of
-                         [] ->
-                           Ok (Inputs [__mergeHtmlText__ newInput])
                          Text nodes :: outputNewTail ->
                            newInput ++ nodes |>
-                           rebuild (i + 1) outputNewTail ds
+                           rebuild (i + 1) outputNewTail tds
                          Match m :: outputNewTail ->
-                           newInput ++ [[\"TEXT\", m.match]] |>
-                           rebuild (i + 1) outputNewTail ds
-                     (j, ld)::tds ->
-                       if i < j then
-                         case outputNew of
-                         Text nodes :: outputNewTail ->
-                           newInput ++ nodes |>
-                           rebuild (i + 1) outputNewTail ds
-                         Match m :: outputNewTail ->
-                           newInput ++ [[\"TEXT\", m.match]] |>
-                           rebuild (i + 1) outputNewTail ds
+                           case u of
+                             VRecordDiffs {args = VRecordDiffs { _1 = mDiffs } } ->
+                               let originalMatch = (listDict.get m.number allMatches |> Maybe.withDefault m).match in
+                               newInput ++ [[\"TEXT\", mergeMatch originalMatch mDiffs m]] |>
+                               rebuild (i + 1) outputNewTail tds
+                             _ -> Err (\"Unexpected findAugmentedInterleavings diffs: \" + toString u)
                          [] ->
                            Err (\"Unexpected end of findAugmentedInterleavings.outputNew\" + toString uInput)
-                       else case ld of
-                         ListElemUpdate u  ->
-                           case outputNew of
-                             Text nodes :: outputNewTail ->
-                               newInput ++ nodes |>
-                               rebuild (i + 1) outputNewTail tds
-                             Match m :: outputNewTail ->
-                               case u of
-                                 VRecordDiffs {args = VRecordDiffs { _1 = mDiffs } } ->
-                                   let originalMatch = (listDict.get m.number allMatches |> Maybe.withDefault m).match in
-                                   newInput ++ [[\"TEXT\", mergeMatch originalMatch mDiffs m]] |>
-                                   rebuild (i + 1) outputNewTail tds
-                                 _ -> Err (\"Unexpected findAugmentedInterleavings diffs: \" + toString u)
-                             [] ->
-                               Err (\"Unexpected end of findAugmentedInterleavings.outputNew\" + toString uInput)
 
-                         ListElemInsert n  ->
-                           let tailDiffs = if n == 1 then tds else (j, ListElemInsert (n - 1)) :: tds in
-                           case outputNew of
-                             [] ->
-                               Err (\"Expected inserted elements, got nothing\")
-                             Text nodes :: outputNewTail ->
-                               newInput ++ nodes |>
-                               rebuild i outputNewTail tailDiffs
-                             Match m :: outputNewTail ->
-                               newInput ++ [[\"TEXT\", m.match]] |>
-                               rebuild i outputNewTail tailDiffs
+                     ListElemInsert n  ->
+                       let tailDiffs = if n == 1 then tds else (j, ListElemInsert (n - 1)) :: tds in
+                       case outputNew of
+                         [] ->
+                           Err (\"Expected inserted elements, got nothing\")
+                         Text nodes :: outputNewTail ->
+                           newInput ++ nodes |>
+                           rebuild i outputNewTail tailDiffs
+                         Match m :: outputNewTail ->
+                           newInput ++ [[\"TEXT\", m.match]] |>
+                           rebuild i outputNewTail tailDiffs
 
-                         ListElemDelete n  ->
-                           rebuild (i + n) outputNew tds newInput
-                in
-                  rebuild 0 outputNew ds []
-              _ -> Err (\"Expected VListDiffs, got \" + toString diffs)
-        } tNodes
-  in
-  let insertionDeletionUpdatesTo  = Update.lens2 {
+                     ListElemDelete n  ->
+                       rebuild (i + n) outputNew tds newInput
+            in
+              rebuild 0 outputNew ds []
+          _ -> Err (\"Expected VListDiffs, got \" + toString diffs)
+    } tNodes
+
+  (insertionDeletionUpdatesTo) = Update.lens2 {
       apply (node1List, node1) = [node1]
       update {input=(node1List, node1), outputNew=newNodes, diffs} =
         case diffs of
@@ -4877,9 +4885,9 @@ Html =
             in aux 0 newNodes listDiffs [] [] node1 Nothing
           _ -> Err <| \"Expected VListDiffs for insertionDeletionUpdatesTo, got \" ++ toString diffs
       }
-  in
-  let  -- Takes a list of nodes, returns a list of nodes.
-    replaceNodesIf nodePred regex replacement nodes =
+
+  -- Takes a list of nodes, returns a list of nodes.
+  replaceNodesIf nodePred regex replacement nodes =
       List.concatMap_ identity (\\[node] as node1List ->
         if not (nodePred node) then node1List else
         case node of
@@ -4893,23 +4901,23 @@ Html =
           [tag, attrs, children] ->
             insertionDeletionUpdatesTo node1List [tag, attrs, replaceNodesIf nodePred regex replacement children]
       ) nodes
-  in
-  let  -- Takes a list of nodes, returns a list of nodes.
-    replaceNodes  = replaceNodesIf (\\_ -> True)
-  in
+
+  -- Takes a list of nodes, returns a list of nodes.
+  replaceNodes = replaceNodesIf (\\_ -> True)
+
   {- Given
      * a regex
      * a replacement function that takes a string match and returns a list of Html nodes
      * a node
      This functions returns a node, (excepted if the top-level node is a [\"TEXT\", _] and is splitted.
   -}
-  let replaceIf nodePred regex replacement node = case replaceNodesIf nodePred regex replacement [node] of
+  replaceIf nodePred regex replacement node = case replaceNodesIf nodePred regex replacement [node] of
        [x] -> x
        y -> y
-  in
-  let replace  = replaceIf (\\_ -> True)
-  in
-  let replaceNodesAsTextIf nodePred regex replacement nodes =
+
+  replace  = replaceIf (\\_ -> True)
+
+  replaceNodesAsTextIf nodePred regex replacement nodes =
        if nodes == [] then nodes else
        let nodesAsText = nodes |> List.indexedMapWithReverse identity (\\i n -> case n of
          [\"TEXT\", t] -> n
@@ -4941,16 +4949,16 @@ Html =
          [tag, attrs, children] ->
            if nodePred node then [tag, attrs,
              replaceNodesAsTextIf nodePred regex replacement children] else node)
-  in
-  let replaceNodesAsText regex replacement nodes = replaceNodesAsTextIf (\\_ -> True) regex replacement nodes
-  in
-  let replaceAsTextIf nodePred regex replacement node = case replaceNodesAsTextIf nodePred regex replacement [node] of
+
+  replaceNodesAsText regex replacement nodes = replaceNodesAsTextIf (\\_ -> True) regex replacement nodes
+
+  replaceAsTextIf nodePred regex replacement node = case replaceNodesAsTextIf nodePred regex replacement [node] of
         [x] -> x
         y -> y
-  in
-  let replaceAsText = replaceAsTextIf (\\_ -> True)
-  in
-  let find regex node =
+
+  replaceAsText = replaceAsTextIf (\\_ -> True)
+
+  find regex node =
     let aux node = case node of
        [\"TEXT\", text] ->
          findInterleavings 0 regex text
@@ -4961,10 +4969,10 @@ Html =
        [tag, attrs, children] ->
          List.concatMap aux children
     in aux node
-  in
-  let -- Takes a regex, a function that accepts a match and an accumulator and returns a list of nodes and the new accumulator's value.
-      -- a starting accumulator and a starting node. Returns the final accumulator and the final node.
-      foldAndReplace regex matchAccToNewNodesNewAcc startAcc node =
+
+  -- Takes a regex, a function that accepts a match and an accumulator and returns a list of nodes and the new accumulator's value.
+  -- a starting accumulator and a starting node. Returns the final accumulator and the final node.
+  foldAndReplace regex matchAccToNewNodesNewAcc startAcc node =
           let aux acc node = case node of
              [\"TEXT\", text] ->
                findInterleavings 0 regex text
@@ -4984,20 +4992,19 @@ Html =
           in case aux startAcc node of
             ([node], acc)-> (node, acc)
             r -> r
-  in
-  let
-    isEmptyText = case of
+
+  isEmptyText = case of
         [\"TEXT\", x] -> Regex.matchIn \"^\\\\s*$\" x
         _ -> False
 
-    filter pred elemList =
+  filter pred elemList =
         List.concatMap (case of
           [tagName, attrs, children] as elem ->
             if pred elem then [[tagName, attrs, filter pred children]]
             else []
           elem -> if pred elem then [elem] else []) elemList
-  in
-  let translate =
+
+  translate =
     let freshVarName name i dictionary =
       if name == \"\" then freshVarName \"translation\" i dictionary else
       let suffix = if i == 0 then \"\" else toString i in
@@ -5030,8 +5037,8 @@ Html =
           |> \\(finalHtmlNode, _, newTranslations) ->
             Ok (Inputs [(finalHtmlNode, newTranslations)])
       } htmlNode translations
-  in
-  let markdown node =
+
+  markdown node =
       let
           regexFootnotes = \"\"\"\\r?\\n\\[\\^([^\\]]+)\\]:\\s*((?:(?!\\r?\\n\\r?\\n)[\\s\\S])+)\"\"\"
           regexReferences = \"\"\"\\r?\\n\\[(?!\\^)([^\\]\\\\]+)\\]:\\s*(\\S+)\"\"\"
@@ -5114,56 +5121,8 @@ Html =
         \"\\\\]\" -> String.drop 1 m.match
         ]])
       )
-  in
-  { textNode = textNode
-    p = textElementHelper \"p\"
-    th = textElementHelper \"th\"
-    td = textElementHelper \"td\"
-    h1 = textElementHelper \"h1\"
-    h2 = textElementHelper \"h2\"
-    h3 = textElementHelper \"h3\"
-    h4 = textElementHelper \"h4\"
-    h5 = textElementHelper \"h5\"
-    h6 = textElementHelper \"h6\"
-    div = elementHelper \"div\"
-    tr = elementHelper \"tr\"
-    table = elementHelper \"table\"
-    span = elementHelper \"span\"
-    b= elementHelper \"b\"
-    i= elementHelper \"i\"
-    li = elementHelper \"li\"
-    ul = elementHelper \"ul\"
-    element = elementHelper
-    text = textInner
-    br = [\"br\", [], []]
-    parse = html
-    parseViaEval = htmlViaEval
-    freshTag = freshTag
-    forceRefresh = forceRefresh
-    integerRefresh = integerRefresh
-    select = select
-    checkbox = checkbox
-    button = button
-    input = input
-    observeCopyValueToAttribute = observeCopyValueToAttribute
-    onChangeAttribute = onChangeAttribute
-    findAugmentedInterleavings = findAugmentedInterleavings
-    replace = replace
-    replaceIf = replaceIf
-    replaceNodes = replaceNodes
-    replaceNodesIf = replaceNodesIf
-    replaceAsTextIf = replaceAsTextIf
-    replaceAsText = replaceAsText
-    replaceNodesAsTextIf = replaceNodesAsTextIf
-    replaceNodesAsText = replaceNodesAsText
-    markdown = markdown
-    find = find
-    foldAndReplace = foldAndReplace
-    filter = filter
-    isEmptyText = isEmptyText
-    onClickCallback = onClickCallback
 
-    scriptFindEnclosing tagName varnameWhatToDo = \"\"\"
+  scriptFindEnclosing tagName varnameWhatToDo = \"\"\"
       var elem = this
       while(elem != null && elem.tagName.toLowerCase() != \"@tagName\")
         elem = elem.parentElement;
@@ -5173,18 +5132,16 @@ Html =
         @(varnameWhatToDo \"elem\")
       }\"\"\"
 
-    buttonToDuplicateEnclosing tagNameToDuplicate attrs children =
+  buttonToDuplicateEnclosing tagNameToDuplicate attrs children =
       <button onclick=(scriptFindEnclosing(tagNameToDuplicate)(\\v ->
           \"\"\"@(v).parentElement.insertBefore(@(v).cloneNode(true), @(v))\"\"\"))
       @attrs>@children</button>
 
-    buttonToDeleteEnclosing tagNameToDelete attrs children=
+  buttonToDeleteEnclosing tagNameToDelete attrs children=
       <button onclick=(scriptFindEnclosing(tagNameToDelete)(\\v ->
           \"\"\"@(v).remove()\"\"\"))
       @attrs>@children</button>
-
-    translate = translate
-  }
+}
 
 --------------------------------------------------------------------------------
 -- Javascript
@@ -6891,7 +6848,7 @@ tutorialUtils = {
 
 -- The type checker relies on the name of this definition.
 let dummyPreludeMain = [\"svg\", [], []] in dummyPreludeMain
-    
+
 """
 
 

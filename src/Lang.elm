@@ -4114,6 +4114,20 @@ identifiersListInPat pat =
     PParens _ p _               -> identifiersListInPat p
     PColonType _ p _ _          -> identifiersListInPat p
 
+-- Same as identifiersListInPat, except that top-level patterns in parentheses are not considered public
+publicIdentifiersListIntPat: Pat -> List Ident
+publicIdentifiersListIntPat pat =
+  case pat.val.p__ of
+    PVar _ ident _              -> [ident]
+    PList _ pats _ (Just pat) _ -> List.concatMap identifiersListInPat (pat::pats)
+    PList _ pats _ Nothing    _ -> List.concatMap identifiersListInPat pats
+    PAs _ p1 _ p2               -> (identifiersListInPat p1) ++ (identifiersListInPat p2)
+    PRecord _ pvalues _         -> List.concatMap identifiersListInPat (Utils.recordValues pvalues)
+    PConst _ _                  -> []
+    PBase _ _                   -> []
+    PWildcard _                 -> []
+    PParens _ _ _               -> [] -- The only difference with identifiersListInPat
+    PColonType _ p _ _          -> identifiersListInPat p
 
 identifiersListInPats : List Pat -> List Ident
 identifiersListInPats pats =

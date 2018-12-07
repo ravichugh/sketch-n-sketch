@@ -318,7 +318,7 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
     computeResInitDictWidgets <| \v d ws ->
     evalDeclarations options syntax env bt_ declarations <| \newEnv widgets ->
        -- Find the value of each newly added ident and adds it to records.
-       let ids = letexpsGroups |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
+       let ids = letexpsGroups |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ _) -> publicIdentifiersListIntPat p) in
        let kvs = VRecord (Dict.union (ids |> Set.fromList |> Set.map (
          \i -> (i, lookupVar syntax newEnv (e::bt) i e_start |> Utils.fromOk "Record variable"))
              |> Set.toList |> Dict.fromList) d) in

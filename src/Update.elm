@@ -455,7 +455,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                if not <| List.isEmpty errors then
                  UpdateCriticalError <| String.join ", " errors ++ "is not allowed. Maybe you wanted to use dictionaries?"
                else
-                 let declsIdentifiersList = letexpsGroups |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ _) -> identifiersListInPat p) in
+                 let declsIdentifiersList = letexpsGroups |> elemsOf |> List.concatMap (\(LetExp _ _ p _ _ _) -> publicIdentifiersListIntPat p) in
                  let declsIdentifiers = Set.fromList declsIdentifiersList in
                  let isDeclarationIdentifier = flip Set.member declsIdentifiers in
                  let prevLetsDecls =
