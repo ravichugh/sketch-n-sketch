@@ -100,28 +100,32 @@ function getNewOutput(filesToWrite) {
   return [newFilesToWrite, hasChanged];
 }
 
-function doUpdate(filesToWrite, valFilesToWrite, source) {
+function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
+  if(typeof callback == "undefined") {
+    console.log("doUpdate should have a callback");
+    return;
+  }
   sns.fileOperations = [];
   [filesToWrite, filesToWriteVal, source] = filesToWrite ? [filesToWrite, valFilesToWrite, source] : computeForward();
-  if(!filesToWrite) return [false, false];
+  if(!filesToWrite) return callback(false, false, false);
   var [newFilesToWrite, hasChanged] = getNewOutput(filesToWrite);
   if(!hasChanged) {
     console.log("Output website not modified.");
     if(!watch) {
       console.log("Finished!")
     }
-    return [filesToWrite, filesToWriteVal, source];
+    return callback(filesToWrite, filesToWriteVal, source);
   }
   var newFilesToWriteVal = sns.nativeToVal(newFilesToWrite);
   var resSolutions = sns.objEnv.string.updateWithOld({v:1})(source)(filesToWriteVal)(newFilesToWriteVal);
   if(resSolutions.ctor == "Err") {
     console.log("Error while updating: " + resSolutions._0);
-    return [filesToWrite, filesToWriteVal, source];
+    return callback(filesToWrite, filesToWriteVal, source);
   }
   var solutions = resSolutions._0;
   if(!sns.lazyList.nonEmpty(solutions)) {
     console.log("Error while updating, solution array is empty");
-    return [filesToWrite, filesToWriteVal, source];
+    return callback(filesToWrite, filesToWriteVal, source);
   }
   var {_0: newenv, _1: headSolution} = sns.lazyList.head(solutions);
   var headOperations = sns.fileOperations;
@@ -134,7 +138,8 @@ function doUpdate(filesToWrite, valFilesToWrite, source) {
   var tailSolutions = autosync ? {ctor: "Nil"} : sns.lazyList.tail(solutions);
   if(autosync || sns.lazyList.isEmpty(tailSolutions)) {
     console.log((autosync ? "--autosync not checking for ambiguities" : "No ambiguity found ") + "-- Applying the transformations");
-    return applyUpdateOperations(headOperations);
+    [a, b, c] = applyUpdateOperations(headOperations);
+    return callback(a, b, c);
   } else {
     console.log("Ambiguity found -- Computing the second solution");
     var {_0: newenv2, _1: headSolution2} = sns.lazyList.head(solutions);
@@ -147,31 +152,32 @@ function doUpdate(filesToWrite, valFilesToWrite, source) {
     console.log("Solution #1", headOperations);
     console.log("Solution #2", headOperations2);
     
-    console.log("Which one should I apply? 1 or 2?");
+    console.log("Which one should I apply? 1 or 2? Display more? revert?");
     
     var rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
       terminal: false
     });
-    var returnValue;
     rl.on('line', function(line){
        if(line == "1") {
-         returnValue = applyUpdateOperations(headOperations);
          rl.close();
+         [a, b, c] = applyUpdateOperations(headOperations);
+         callback(a, b, c);
        } else if(line == "2") {
-         returnValue = applyUpdateOperations(headOperations2);
          rl.close();
+         [a, b, c] = applyUpdateOperations(headOperations2);
+         callback(a, b, c);
        } else {
-         console.log("Input not recognized. 1 or 2?");
+         console.log("Input not recognized. '1', '2', 'More', 'more', 'display more', 'Display more', 'revert', 'Revert', 'cancel', 'Cancel' accepted.");
        }
     })
-    return returnValue;
+    return [];
   }
 }
 
 if(!watch && backward) {
-  doUpdate();
+  doUpdate(false, false, false, () => {});
   return;
 }
 
@@ -202,8 +208,7 @@ function doWatch(filesToWrite, valFilesToWrite, source) {
               setTimeout(((filesToWrite, valFilesToWrite, source) => () => {
                 changeTimer = false;
                 unwatchEverything();
-                [filesToWrite, valFilesToWrite, source] = doUpdate(filesToWrite, valFilesToWrite, source);
-                doWatch(filesToWrite, valFilesToWrite, source);
+                doUpdate(filesToWrite, valFilesToWrite, source, doWatch);
               })(filesToWrite, valFilesToWrite, source), 500); // Time for all changes to be recorded
           }
       })(filesToWrite, valFilesToWrite, source));
@@ -230,13 +235,19 @@ if(watch) {
   var filesToWrite;
   var source;
   var valFilesToWrite;
+  var continuation = (filesToWrite, valFilesToWrite, source) => {
+    var [filesToWrite, valFilesToWrite, source] = filesToWrite ? [filesToWrite, valFilesToWrite, source] : computeForward();
+    if((!backward || forward) && filesToWrite) { // Do the initial file write to make sure everything is consistent.
+      writeFiles(filesToWrite);
+    }
+    console.log("watching with !filesToWrite", !filesToWrite);
+    doWatch(filesToWrite, valFilesToWrite, source);
+  }
   if(backward && !forward) {
-    [filesToWrite, valFilesToWrite, source] = doUpdate();
+    doUpdate(false, false, false, continuation);
+  } else {
+    continuation(false, false, false);
   }
-  var [filesToWrite, valFilesToWrite, source] = backward && !forward ? [filesToWrite, valFilesToWrite, source] : computeForward();
-  if((!backward || forward) && filesToWrite) { // Do the initial file write to make sure everything is consistent.
-    writeFiles(filesToWrite);
-  }
-  console.log("watching with !filesToWrite", !filesToWrite);
-  doWatch(filesToWrite, valFilesToWrite, source);
+  
+  
 }
