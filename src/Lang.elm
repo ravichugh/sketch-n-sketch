@@ -2638,6 +2638,10 @@ vHtmlNodeUnapply v = case vListUnapply v of
 
 vStringUnapply = vStrUnapply
 
+vRecordUnapply v = case v.v_ of
+  VRecord d -> Just d
+  _ -> Nothing
+
 vRecordUnapplyField field v = case v.v_ of
   VRecord d -> Dict.get field d
   _ -> Nothing

@@ -575,33 +575,32 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                     _ -> default ()
              _ -> UpdateCriticalError ("Expected Record, got " ++ valToString vRecord)
 
-     EApp sp0 (Expr e1_) e2s appType sp1 ->
-       let e1 = Expr e1_ in
+     EApp sp0 (Expr e1_ as e1) e2s appType sp1 ->
        let isFreezing e1 =
          --Debug.log ("Testing if " ++ unparse e1 ++ " is freezing:") <|
          case (unwrapExp e1) of
          EVar _ "freeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
          ESelect _ e _ _ "freeze" -> case (unwrapExp e) of
-           EVar _ "Update" -> True
-           _ -> False
+            EVar _ "Update" -> True
+            _ -> False
          _ -> False
        in
        let isFreezingExpression e1 =
          case (unwrapExp e1) of
-           EVar _ "expressionFreeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
-           ESelect _ e _ _ "expressionFreeze" -> case (unwrapExp e) of
-             EVar _ "Update" -> True
-             _ -> False
-           _ -> False
+            EVar _ "expressionFreeze" -> True --Special meaning of freeze. Just check that it takes only one argument and that it's the identity.
+            ESelect _ e _ _ "expressionFreeze" -> case (unwrapExp e) of
+              EVar _ "Update" -> True
+              _ -> False
+            _ -> False
         in
        let continueIfNotFrozen = if isFreezing e1 then
-         --case e2s of
-           --[argument] -> -- Since we call this function only if there is a difference, freeze will fail !
+            --case e2s of
+            --[argument] -> -- Since we call this function only if there is a difference, freeze will fail !
              --if valEqual oldVal newVal then -- OK, that's the correct freeze semantics
              --  \continuation -> updateResultSameEnvExp env e
              --else
          \continuation -> UpdateFails <| "Hit a freeze (line " ++ toString exp_.start.line ++ ")" --: You are trying to update " ++ unparse e ++ " (line " ++ toString exp_.start.line ++ ") with a value '" ++ valToString newVal ++ "' that is different from the value that it produced: '" ++ valToString oldVal ++ "'"
-           --_ -> \continuation -> continuation()
+            --_ -> \continuation -> continuation()
          else \continuation -> continuation()
        in
        continueIfNotFrozen <| \_ ->
@@ -638,7 +637,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                               ("oldOutput", oldVal)] -- Redundant
                                       in
                                       case fieldUpdateClosure.v_ of
-                                        VClosure recEnv [pat] body env ->
+                                         VClosure recEnv [pat] body env ->
                                           if pat |> patternExtractsField (\f ->
                                             f == "diffs" || f ==  "diff" || f == "outDiff" || f == "diffOut") then
                                             let diffsVal = -- ImpureGoodies.logTimedRun ".update vDiffsToVal" <| \_ ->
@@ -650,7 +649,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                               ("diffOut", diffsVal) -- Redundant
                                             ]
                                           else base
-                                        _ ->
+                                         _ ->
                                           base
                                     in
                                     let customArgument = Vb.record Vb.identity (Vb.fromVal vArg) <|
@@ -674,23 +673,23 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                               Ok newInputs ->
                                             let diffListRes: Results String (Val, Maybe VDiffs)
                                                 diffListRes = case newInputs of
-                                              Inputs valuesList ->
-                                                  let vArgStr = valToString vArg in
-                                                  Ok (LazyList.fromList valuesList)
-                                                  |> Results.andThen (\v ->
-                                                    defaultVDiffs vArg v |> Results.map (\mbDiffs -> (v, mbDiffs)))
-                                              InputsWithDiffs newInputsWithDiffs -> Ok (LazyList.fromList newInputsWithDiffs)
+                                                  Inputs valuesList ->
+                                                      let vArgStr = valToString vArg in
+                                                      Ok (LazyList.fromList valuesList)
+                                                      |> Results.andThen (\v ->
+                                                        defaultVDiffs vArg v |> Results.map (\mbDiffs -> (v, mbDiffs)))
+                                                  InputsWithDiffs newInputsWithDiffs -> Ok (LazyList.fromList newInputsWithDiffs)
                                             in
                                             updateManys diffListRes <| \(head, mbHeadDiff) ->
-                                              let continuation = case mbHeadDiff of
-                                                Just headDiff -> updateContinue ".update" env argument [] vArg head headDiff
-                                                Nothing -> \_ -> updateResultSameEnvExp env e
-                                              in
-                                              continuation <|
-                                                \newUpdatedEnvArg newUpdatedArg ->
-                                                let newExp = ret <| EApp sp0 (ret <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
-                                                let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
-                                                updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
+                                               let continuation = case mbHeadDiff of
+                                                 Just headDiff -> updateContinue ".update" env argument [] vArg head headDiff
+                                                 Nothing -> \_ -> updateResultSameEnvExp env e
+                                               in
+                                               continuation <|
+                                                 \newUpdatedEnvArg newUpdatedArg ->
+                                                 let newExp = ret <| EApp sp0 (ret <| ESelect es0 eRecord es1 es2 "apply") [newUpdatedArg.val] appType sp1 in
+                                                 let newChanges = newUpdatedArg.changes |> Maybe.map (\changes -> EChildDiffs [(1, changes)]) in
+                                                 updateResult newUpdatedEnvArg (UpdatedExp newExp newChanges)
                            in
                            updateMaybeFirst2 "after testing update, testing unapply" (not isApplyFrozen) mbUpdateField <| \_ ->
                              case Dict.get "unapply" d of
@@ -768,6 +767,12 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                         rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
              _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". ")
          else
+         let updateAppResult newE1UpdatedEnv newUpdatedE1 newE2sUpdatedEnv newUpdatedE2s =
+           let finalUpdatedEnv = UpdatedEnv.merge env newE1UpdatedEnv newE2sUpdatedEnv in
+           let finalExp = ret <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1 in
+           let finalChanges = UpdateUtils.combineAppChanges newUpdatedE1.changes newUpdatedE2s.changes in
+           updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
+         in
          case doEvalw env e1 of
            Err s       -> UpdateCriticalError s
            Ok ((v1, _),v1Env) ->
@@ -815,10 +820,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        if isFreezingExpression e1 && newUpdatedE2s.changes /= Nothing then
                          UpdateFails <| "Hit an expressionFreeze on line " ++ toString (e1_.start.line) ++ " (cannot modify expression, only variables' values)"
                        else
-                       let finalUpdatedEnv = UpdatedEnv.merge env newE1UpdatedEnv newE2sUpdatedEnv in
-                       let finalExp = ret <| EApp sp0 newUpdatedE1.val newUpdatedE2s.val appType sp1 in
-                       let finalChanges = UpdateUtils.combineAppChanges newUpdatedE1.changes newUpdatedE2s.changes in
-                       updateResult finalUpdatedEnv <| UpdatedExp finalExp finalChanges
+                       updateAppResult newE1UpdatedEnv newUpdatedE1 newE2sUpdatedEnv newUpdatedE2s
                      in
                      case conssWithInversion (e1psUsed, v2s) <|
                            Just (closureEnv, identity) of
@@ -899,8 +901,91 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                updateOpMultiple "vfun" env (e1::e2s) (\funAndNewE2s ->
                                      ret <| EApp sp0 e1 (Utils.tail "vfun" funAndNewE2s) appType sp1
                                    ) [] (v1::v2s) llWithDiffResult
-
-               _ -> UpdateCriticalError <| strPos e1_.start ++ " not a function"
+               VRecord keyValues ->
+                 case (vRecordUnapplyField ctorDataType v1 |> Maybe.andThen vStringUnapply,
+                       vRecordUnapplyField ctorArgs v1 |> Maybe.andThen vRecordUnapply,
+                       vRecordUnapplyField ctorDataType oldVal |> Maybe.andThen vStringUnapply,
+                       vRecordUnapplyField ctorArgs oldVal |> Maybe.andThen vRecordUnapply,
+                       vRecordUnapplyField ctorDataType newVal |> Maybe.andThen vStringUnapply,
+                       vRecordUnapplyField ctorArgs newVal |> Maybe.andThen vRecordUnapply) of
+                   (Just name, Just args, Just oldName, Just oldArgs, Just newName, Just newArgs) -> -- let's add n more argument to the datatype, as if it was partially applied
+                     if name /= newName then
+                       UpdateCriticalError <| strPos e1_.start ++ " cannot push back a " ++ newName ++ " to replace a partiall call to " ++ name
+                     else
+                     if oldName /= newName then
+                       UpdateCriticalError <| strPos e1_.start ++ " cannot push back a " ++ newName ++ " to replace a partiall call to " ++ name
+                     else
+                       let existingArgsSize = Dict.size args in
+                       case diffs of
+                         VRecordDiffs ds ->
+                           case Dict.get ctorArgs ds of
+                             Nothing ->
+                               updateResultSameEnvExp env e
+                             Just (VRecordDiffs dsArgs) ->
+                               let newE1Diffs =
+                                    Dict.filter (\name _ ->
+                                      nameToArg name |> Result.map (\x -> x <= existingArgsSize) |> Result.withDefault False) dsArgs
+                               in
+                               let newE2sDiffs =
+                                    Dict.filter (\name _ ->
+                                      nameToArg name |> Result.map (\x -> x > existingArgsSize) |> Result.withDefault False) dsArgs
+                               in
+                               let e1_updater = if Dict.isEmpty newE1Diffs then
+                                   \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp e1 Nothing)
+                                 else
+                                  let oldDatatypeDict = vRecordUnapply oldVal |> Utils.maybeWithDefaultLazy (\_ ->
+                                        Dict.fromList [(ctorDataType, vStr name)]
+                                      )
+                                      newDatatypeDict = vRecordUnapply newVal |> Utils.maybeWithDefaultLazy (\_ ->
+                                        Dict.fromList [(ctorDataType, vStr name)]
+                                      )
+                                  in
+                                  let oldValE1 = replaceV_ v1 <| VRecord (oldDatatypeDict |>
+                                             Dict.insert ctorArgs (replaceV_ v1 <|
+                                               VRecord (Dict.filter (\name _ ->
+                                                 nameToArg name |> Result.map (\x -> x <= existingArgsSize) |> Result.withDefault False) oldArgs))) in
+                                  let newValE1 = replaceV_ v1 <| VRecord (newDatatypeDict |>
+                                             Dict.insert ctorArgs (replaceV_ v1 <|
+                                               VRecord (Dict.filter (\name _ ->
+                                                 nameToArg name |> Result.map (\x -> x <= existingArgsSize) |> Result.withDefault False) newArgs))) in
+                                  let v1pdiffs = VRecordDiffs (Dict.insert ctorArgs (VRecordDiffs  newE1Diffs) ds) in
+                                  updateContinue "EApp-Datatype-1" env e1 [] oldValE1 newValE1 v1pdiffs
+                               in
+                               let e2s_updater = if Dict.isEmpty newE2sDiffs then
+                                  \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple e2s Nothing)
+                                 else
+                                  let diffIndexToArgName diffIndex = argName (diffIndex + existingArgsSize + 1) in
+                                  let aux: Int ->   List Exp -> (List (Exp, Val, Output), TupleDiffs VDiffs) -> Result String (List (Exp, Val, Output), TupleDiffs VDiffs)
+                                      aux diffIndex arguments   (revAccExpValOut, revAccDiffs) = case arguments of
+                                         arg :: argTail ->
+                                           let name = diffIndexToArgName diffIndex in
+                                           let newRevAccDiffs = case Dict.get name newE2sDiffs of
+                                              Nothing -> revAccDiffs
+                                              Just d -> (diffIndex, d) :: revAccDiffs
+                                           in
+                                           case (Dict.get name oldArgs, Dict.get name newArgs) of
+                                             (Just oldValArg, Just newValArg) ->
+                                               aux (diffIndex + 1) argTail ((arg, oldValArg, newValArg)::revAccExpValOut, newRevAccDiffs)
+                                             (Nothing, _) ->
+                                               Err <| strPos e1_.start ++ "Wrong number of arguments when updating, missing " ++ name ++ " in the old value"
+                                             (_, Nothing) ->
+                                               Err <| strPos e1_.start ++ "Wrong number of arguments when updating, missing " ++ name ++ " in the new value"
+                                         [] -> Ok (List.reverse revAccExpValOut, List.reverse revAccDiffs)
+                                  in
+                                  case aux 0 e2s ([], []) of
+                                    Ok (esOldNew, esDiffs) ->
+                                      updateContinueMultiple "EApp-Datatype-2" env [] esOldNew esDiffs
+                                    Err msg ->
+                                      \continuation -> UpdateCriticalError msg
+                               in
+                               e1_updater <| \newE1UpdatedEnv newUpdatedE1 ->
+                               e2s_updater <| \newE2sUpdatedEnv newUpdatedE2s ->
+                                 updateAppResult newE1UpdatedEnv newUpdatedE1 newE2sUpdatedEnv newUpdatedE2s
+                             Just x -> UpdateFails <| strPos e1_.start ++  "The diffs for the args of a datatype has to be a VRecordDiffs, got " ++ toString x
+                         _ -> UpdateFails <| strPos e1_.start ++  "When partially applying a datatype, cannot accept something other than VRecordDiffs as diffs. Got " ++ toString diffs
+                   _ ->
+                     UpdateCriticalError <| strPos e1_.start ++ " not a function or a partially applied datatype"
+               _ -> UpdateCriticalError <| strPos e1_.start ++ " not a function or a partially applied datatype"
      EIf sp0 cond sp1 thn sp2 els sp3 ->
        case doEvalw env cond of
          Ok ((v, _), _) ->

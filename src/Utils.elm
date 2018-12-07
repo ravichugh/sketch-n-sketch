@@ -150,6 +150,8 @@ maybeWithLazyDefault mba callback = case mba of
   Just a -> a
   Nothing -> callback ()
 
+maybeWithDefaultLazy = Basics.flip maybeWithLazyDefault
+
 resultOrElseLazy: (() -> Result err ok) -> Result err ok -> Result err ok
 resultOrElseLazy rb ra = case ra of
   Ok x -> ra

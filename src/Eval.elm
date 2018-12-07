@@ -411,15 +411,17 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
                     (List.map (withDummyExpInfo << EVar space1) <| argList) SpaceApp sp0) ((name, v1)::env)
              in evalVApp funconverted ws es
            else let
-             (arguments, remaining) = Utils.split arity es
-             aux arguments revArgVals revArgWidgets = case arguments of
+             (arguments, remaining) =
+               Utils.split arity es
+
+             aux arguments revArgVals revArgWidgets =
+               case arguments of
                arg :: argTail ->
                  evalContinue options syntax env bt_ arg <| \((argVal, argWidgets), _) ->
                    aux argTail (argVal :: revArgVals) (Utils.reverseInsert argWidgets revArgWidgets)
                [] -> let
                  argumentsVal = List.reverse revArgVals
-                 basicResult = evalDef argumentsVal |> Result.map (\((v,_) as result) ->
-                   addProvenanceToValWidgets [v] result) in
+                 basicResult = evalDef argumentsVal in
                  case basicResult of
                    Err s -> errorWithBacktrace syntax bt_ s
                    Ok ((v, newWs) as vw) ->
@@ -427,10 +429,27 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
                        evalVApp v (List.reverse <| Utils.reverseInsert newWs revArgWidgets) remaining
                      else
                        evalReturn (vw, env) in
-             aux arguments [] (List.reverse ws)
 
+             aux arguments [] (List.reverse ws)
+         VRecord keyValues ->
+           case (vRecordUnapplyField ctorDataType v1, vRecordUnapplyField ctorArgs v1 |> Maybe.andThen vRecordUnapply) of
+             (Just _, Just args) -> -- let's add n more argument to the datatype, as if it was partially applied
+               let positionArgToAdd = Dict.size args + 1 in
+               let aux: Int -> List Exp -> Dict.Dict String Val -> Widgets -> EvalStack
+                   aux n arguments newArgs revArgWidgets = case arguments of
+                     arg :: argTail ->
+                       evalContinue options syntax env bt_ arg <| \((argVal, argWidgets), _) ->
+                         aux (n + 1) argTail (Dict.insert (argName n) argVal newArgs) (Utils.reverseInsert argWidgets revArgWidgets)
+                     [] -> let
+                       basicResult = replaceV_ v1 <|  VRecord (Dict.insert ctorArgs (replaceV_ v1 <| VRecord newArgs) keyValues)
+                       vw = (basicResult, List.reverse revArgWidgets) in
+
+                       evalReturn (vw, env)
+               in aux positionArgToAdd es args (List.reverse ws)
+             _ ->
+               errorWithBacktrace syntax (e::bt) <| strPos exp1_.start ++ " not a function or a partially applied datatype"
          _ ->
-           errorWithBacktrace syntax (e::bt) <| strPos exp1_.start ++ " not a function" in
+           errorWithBacktrace syntax (e::bt) <| strPos exp1_.start ++ " not a function or a partially applied datatype" in
     evalVApp v1 [] es
 
   ELet wsLet lk declarations _ e2 ->
