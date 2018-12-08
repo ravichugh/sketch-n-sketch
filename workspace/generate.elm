@@ -1,10 +1,12 @@
 initEnv = __CurrentEnv__
 
+fs = nodejs.delayed fileOperations
+
 load root path = 
   let loadraw path = 
-        nodejs.fileread path
+        fs.read path
         |> Maybe.map (\x ->
-           __evaluate__ ([("root", root), ("load", load root)] ++ initEnv) (Regex.replace """<!--[\s\S]*?-->""" (\m -> freeze "") x)
+           __evaluate__ ([("root", root), ("load", load root)] ++ initEnv) x
            |> case of Ok x -> x; Err msg -> <error>@msg</error>)
         |> Maybe.withDefaultLazy (\_ -> <error>file @path not found</error>)
   in
@@ -13,10 +15,10 @@ load root path =
 q3 = "\"\"\""
   
 handleposts root kind =
-  let posttemplate = nodejs.fileread """src/@kind/post-template.src.html""" |>
+  let posttemplate = fs.read """src/@kind/post-template.src.html""" |>
        Maybe.withDefault """<error>src/@kind/post-template.src.html not found</error>"""
   in
-  nodejs.listdircontent """src/@kind/posts"""
+  fs.listdircontent """src/@kind/posts"""
   |> List.map (\(filename, filecontent) -> -- let _ = Debug.log """@filename""" () in
     let finalname = Regex.extract """^(.*)\.md$""" filename
          |> Maybe.map (\[name] -> name + ".html")
@@ -26,7 +28,6 @@ handleposts root kind =
       (case of Ok x -> String.markdown x; Err msg -> """<error>@msg</error>""") |>
       (\x -> __evaluate__ initEnv """<span>@x</span>""") |> 
       (case of Ok x -> x; Err msg -> <error>@msg</error>)
-      -- Html.parse -- Should I do 
     in
     __evaluate__ (("content", finalcontent)::("root", root)::("load", load root)::initEnv) posttemplate
     |> (case of Ok x -> x; Err msg -> <error>Error: @msg</error>) |> (\x -> let _ = Debug.log "recomputing" """../@kind/@finalname""" in x)

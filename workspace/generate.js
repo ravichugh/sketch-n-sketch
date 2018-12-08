@@ -32,8 +32,6 @@ const inputDir = getParam("--input", ".")
 const readline = require('readline');
 const fs = require("fs")
 const sns = require("sketch-n-sketch")
-sns.params = sns.params || {};
-sns.params.delayedWrite = true;
 var generateElmScript = __dirname + "/generate.elm";
 
 // Returns the set of files to be written, its representation as a Val, and the source of the script used
@@ -71,16 +69,66 @@ if(!watch && forward) {
   return;
 }
 
-// Apply the operations gathered by an update.
-function applyUpdateOperations(operations) {
+function stringDiffSummary(oldString, newString, stringDiffs) {
+  if(stringDiffs["$d_ctor"] == "Nothing") return "";
+  var listStringDiffs = stringDiffs.args._1.args._1; // It's a VStringDiffs
+  var offset = 0;
+  var summary = "";
+  for(var i = 0; i < listStringDiffs.length; i++) {
+    var {args: {_1: start, _2: end, _3: replaced}} = listStringDiffs[i];
+    var removed = oldString.substring(start, end);
+    var inserted = newString.substring(start + offset, start + offset + replaced);
+    var beforeRemoved = oldString.substring(0, start);
+    var linesBeforeRemoved = beforeRemoved.split(/\r\n|\r|\n/);
+    var lineNumber = linesBeforeRemoved.length;
+    var charNumber = linesBeforeRemoved[linesBeforeRemoved.length - 1].length + 1;
+    summary += "L" + lineNumber + "C" + charNumber + ", "
+    if(removed == "")
+      summary += "inserted '" + inserted + "'";
+    else if(inserted == "")
+      summary += "removed '" + removed + "'";
+    else
+      summary += "removed '" + removed + "', inserted '"+ inserted +"'";
+  }
+  return summary;
+}
+
+function fileOperationSummary(operations) {
+  if(operations == null) return "";
+  var summary = "";
   for(var i = 0; i < operations.length; i++) {
-    var [kind, action] = operations[i];
-    if(kind == "write") {
-      var {_1: name, _2: content} = action;
-      fs.writeFileSync(name, content, "utf8");
-    } else if (kind == "delete") {
-      var name = action;
-      fs.unlinkSync(name);
+    var {_1: path, _2: action} = operations[i];
+    if(summary != "") summary += "\n";
+    if(action["$d_ctor"] == "Write") {
+      summary += "Modify " + path + ", " + stringDiffSummary(action.args._1, action.args._2, action.args._3);
+    } else if(action["$d_ctor"] == "Create") {
+      summary += "Created " + path;
+    } else if(action["$d_ctor"] == "Rename") {
+      summary += "Renamed " + path + " to " + action.args._1;
+    } else if(action["$d_ctor"] == "Delete") {
+      summary += "Deleted " + path;
+    } else {
+      console.log("unrecognized action:", action);
+    }
+  }
+  return summary;
+}
+
+// Apply the given operations to the file system. TODO: Merge different writes to a single file.
+function applyOperations(operations) {
+  for(var i = 0; i < operations.length; i++) {
+    var {_1: path, _2: action} = operations[i];
+    if(action["$d_ctor"] == "Write") {
+      fs.writeFileSync(path, action.args._2, "utf8");
+    } else if(action["$d_ctor"] == "Create") {
+      // TODO: Create the path if necessary
+      fs.writeFileSync(path, action.args._1, "utf8");
+    } else if(action["$d_ctor"] == "Rename") {
+      fs.renameSync(path, action.args._1);
+    } else if(action["$d_ctor"] == "Delete") {
+      fs.unlinkSync(path);
+    } else {
+      console.log("unrecognized action:", action);
     }
   }
   // Now compute the pipeline forward
@@ -105,7 +153,6 @@ function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
     console.log("doUpdate should have a callback");
     return;
   }
-  sns.fileOperations = [];
   [filesToWrite, filesToWriteVal, source] = filesToWrite ? [filesToWrite, valFilesToWrite, source] : computeForward();
   if(!filesToWrite) return callback(false, false, false);
   var [newFilesToWrite, hasChanged] = getNewOutput(filesToWrite);
@@ -117,7 +164,8 @@ function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
     return callback(filesToWrite, filesToWriteVal, source);
   }
   var newFilesToWriteVal = sns.nativeToVal(newFilesToWrite);
-  var resSolutions = sns.objEnv.string.updateWithOld({v:1})(source)(filesToWriteVal)(newFilesToWriteVal);
+  var resSolutions = sns.objEnv.string.updateWithOld({v:1, fileOperations: []})(source)(filesToWriteVal)(newFilesToWriteVal);
+  console.log("finished to update");
   if(resSolutions.ctor == "Err") {
     console.log("Error while updating: " + resSolutions._0);
     return callback(filesToWrite, filesToWriteVal, source);
@@ -127,30 +175,28 @@ function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
     console.log("Error while updating, solution array is empty");
     return callback(filesToWrite, filesToWriteVal, source);
   }
-  var {_0: newenv, _1: headSolution} = sns.lazyList.head(solutions);
-  var headOperations = sns.fileOperations;
+  var {_0: newEnv, _1: headSolution} = sns.lazyList.head(solutions);
+  var headOperations = newEnv.fileOperations;
   if(headSolution != source) {
     headOperations.push(["write", {_1: generateElmScript, _2: headSolution}]);
   }
   // Check for ambiguity.
   console.log("Checking for ambiguity");
-  sns.fileOperations = [];
   var tailSolutions = autosync ? {ctor: "Nil"} : sns.lazyList.tail(solutions);
   if(autosync || sns.lazyList.isEmpty(tailSolutions)) {
     console.log((autosync ? "--autosync not checking for ambiguities" : "No ambiguity found ") + "-- Applying the transformations");
-    [a, b, c] = applyUpdateOperations(headOperations);
+    [a, b, c] = applyOperations(headOperations);
     return callback(a, b, c);
   } else {
     console.log("Ambiguity found -- Computing the second solution");
-    var {_0: newenv2, _1: headSolution2} = sns.lazyList.head(solutions);
-    var headOperations2 = sns.fileOperations;
-    sns.fileOperations = [];
+    var {_0: newEnv2, _1: headSolution2} = sns.lazyList.head(solutions);
+    var headOperations2 = newEnv2.fileOperations;
     if(headSolution2 != source) {
       headOperations2.push(["write", {_1: generateElmScript, _2: headSolution2}]);
     }
     console.log("Ambiguity detected");
-    console.log("Solution #1", headOperations);
-    console.log("Solution #2", headOperations2);
+    console.log("Solution #1", fileOperationSummary(headOperations));
+    console.log("Solution #2", fileOperationSummary(headOperations2));
     
     console.log("Which one should I apply? 1 or 2? Display more? revert?");
     
@@ -162,11 +208,11 @@ function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
     rl.on('line', function(line){
        if(line == "1") {
          rl.close();
-         [a, b, c] = applyUpdateOperations(headOperations);
+         [a, b, c] = applyOperations(headOperations);
          callback(a, b, c);
        } else if(line == "2") {
          rl.close();
-         [a, b, c] = applyUpdateOperations(headOperations2);
+         [a, b, c] = applyOperations(headOperations2);
          callback(a, b, c);
        } else {
          console.log("Input not recognized. '1', '2', 'More', 'more', 'display more', 'Display more', 'revert', 'Revert', 'cancel', 'Cancel' accepted.");
