@@ -463,7 +463,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                       [] -> List.reverse revAcc
                       hd :: tailIdentifiers ->
                         if List.member hd tailIdentifiers then List.reverse revAcc
-                        else aux tailIdentifiers ((hd, Dict.get hd dOut |> Utils.fromJust_ "Update.ERecord.prevLetsDecls")::revAcc)
+                        else aux tailIdentifiers ((hd, Dict.get hd dOld |> Utils.fromJust_ "Update.ERecord.prevLetsDecls")::revAcc)
                    in aux declsIdentifiersList  []
                  in
                  case diffs of

@@ -2724,16 +2724,17 @@ doCallUpdate m =
                  )
               --|> (\x -> let _ = Debug.log "Finished to diff the solutions" () in x)
           in
-          let aux: LazyList (String, Exp, List Exp, Maybe EDiffs) -> Maybe EDiffs -> Maybe SynthesisResult
-              aux ll prevChanges = case ll of
+          let aux: LazyList (String, Exp, List Exp, Maybe EDiffs) -> Maybe String -> Maybe SynthesisResult
+              aux ll prevSolution = case ll of
             LazyList.Nil -> Nothing
             LazyList.Cons (diffResult, newCode, diffs, changes) lazyTail ->
-              if changes == prevChanges then -- remove duplicates
+              let thisSolution = Syntax.unparser Syntax.Leo newCode in
+              if Just thisSolution == prevSolution then -- remove duplicates only if the final Exp is the same
                 Just <| synthesisResultDiffsLazy "Hover for more solutions..." m.inputExp [] <| \_ ->
-                  aux (Lazy.force lazyTail) prevChanges
+                  aux (Lazy.force lazyTail) (Just thisSolution)
               else
                 Just <| synthesisResultDiffsLazy diffResult newCode diffs <| \_ ->
-                  aux (Lazy.force lazyTail) changes
+                  aux (Lazy.force lazyTail) (Just thisSolution)
           in
           case aux filteredResults Nothing of
             Nothing ->

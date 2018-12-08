@@ -3328,73 +3328,147 @@ jsCode = {
 }
 
 nodejs = {
-  fileread: String -> Maybe String
-  fileread = Update.lens {
-      apply name =
-        __jsEval__ """
-          (function() {
-            const fs = require("fs");
-            exports.fileOperations = exports.fileOperations || [];
-            for (var i = exports.fileOperations.length - 1; i >= 0; i--) {
-              var [op, elems] = exports.fileOperations[i];
-              if(op == "write" && elems._1 == @(jsCode.stringOf name)) {
-                return @(jsCode.datatypeOf "x" "Just" ["elems._2"]);
-              }
-            }
-            if(fs.existsSync(@(jsCode.stringOf name))) { // TODO: Atomic read
-              if(fs.lstatSync(@(jsCode.stringOf name)).isDirectory()) {
-                return @(jsCode.datatypeOf "x" "Nothing" []);
-              } else {
-                return @(jsCode.datatypeOf "x" "Just" ["""fs.readFileSync(@(jsCode.stringOf name), "utf-8")"""]);
-              }
-            } else
-              return @(jsCode.datatypeOf "x" "Nothing" []);
-          })()"""
-      update = case of
-        {input=name, outputOld, outputNew=Just content} ->
-          let
-            mbCreateDir = case outputOld of
-              Nothing -> __jsEval__ """
-                const fs = require("fs");
-                var pathToFile = @(jsCode.stringOf name);
-                var filePathSplit = pathToFile.split('/');
-                var dirName = "";
-                for (var index = 0; index < filePathSplit.length - 1; index++) {
-                    dirName += filePathSplit[index]+'/';
-                    if (!fs.existsSync(dirName))
-                        fs.mkdirSync(dirName);
-                }""" -- Create the file's directory structure.
-              Just oldContent -> ""
-            written = __jsEval__ """
-              if(typeof exports == "object" &&
-                 typeof exports.params == "object" &&
-                 exports.params.delayedWrite) {
-                exports.fileOperations = exports.fileOperations || [];
-                exports.fileOperations.push(["write", @(jsCode.tupleOf "x" [jsCode.stringOf name, jsCode.stringOf content])]);
-              } else {
-                const fs = require("fs");
-                fs.writeFileSync(@(jsCode.stringOf name), @(jsCode.stringOf content), "utf-8");
-              }
-              1"""
-          in Ok (InputsWithDiffs [(name, Nothing)])
-        {input=name, outputOld=Just _, outputNew=Nothing} ->  -- Delete the file
-           let deleted = __jsEval__ """
-             if(typeof exports == "object" &&
-                 typeof exports.params == "object" &&
-                 exports.params.delayedWrite) {
-                exports.fileOperations = exports.fileOperations || [];
-                exports.fileOperations.push(["unlink", @(jsCode.stringOf name)]);
-             } else {
-               const fs = require("fs");
-               fs.unlinkSync(@(jsCode.stringOf name));
-             }
-             1""" in
-           Ok (InputsWithDiffs [(name, Nothing)])
-        {input=name} -> Ok (InputsWithDiffs [(name, Nothing)])
-    }
+  (nothingJs) = jsCode.datatypeOf "x" "Nothing" []
+  (justJs) arg = jsCode.datatypeOf "x" "Just" [arg]
+  (fsjs) defaultValue prog = __jsEval__ """
+    (function() {
+      if(!require) return @defaultValue;
+      const fs = require("fs");
+      if(!fs) return @defaultValue;
+      @prog
+    })()"""
 
-  listdir: String -> List String
-  listdir foldername = __jsEval__ """
+  (onlyRead) name = fsjs nothingJs """
+      const name = @(jsCode.stringOf name);
+      if(!fs) return @nothingJs;
+      if(fs.existsSync(name)) { // TODO: Atomic read
+        if(fs.lstatSync(name).isDirectory()) {
+          return @nothingJs;
+        } else {
+          return @(justJs "fs.readFileSync(name, 'utf-8')");
+        }
+      } else return @nothingJs;"""
+
+  type FileOperation = Write {-old-} String {-new-} String Diffs |
+                       Rename {-newName-} String |
+                       Create {-content-} String |
+                       Delete
+  type alias ListFileOperations = List ({-filename-}String, FileOperation)
+
+  -- Consumes all update values by writing to the file system. Use this only if you don't need to display ambiguity.
+  directFileOperations: ListFileOperations
+  directFileOperations = Update.lens {
+    apply = identity
+    update {outputNew} =
+     List.foldl (\(name, action) b ->
+      let write name contentOld content =
+        let mbCreateDir = case contentOld of
+             Nothing -> fsjs "0" """
+               var pathToFile = @(jsCode.stringOf name);
+               var filePathSplit = pathToFile.split('/');
+               var dirName = "";
+               for (var index = 0; index < filePathSplit.length - 1; index++) {
+                  dirName += filePathSplit[index]+'/';
+                  if (!fs.existsSync(dirName))
+                      fs.mkdirSync(dirName);
+               }
+               return 1;""" -- Create the file's directory structure.
+             Just oldContent -> ""
+            written = fsjs "0" """
+              fs.writeFileSync(@(jsCode.stringOf name), @(jsCode.stringOf content), "utf-8");
+              return 1;"""
+        in ()
+      in
+      let _ = case action of
+        Write oldContent newContent diffs -> write name (Just oldcontent) newContent
+        Create content -> write name Nothing content
+        Delete -> fsjs "0" """
+            fs.unlinkSync(@(jsCode.stringOf name));
+            return 1;"""
+        Rename newName -> fsjs "0" """
+            fs.renameSync(@(jsCode.stringOf name), @(jsCode.stringOf newName));
+            return 1;"""
+      in b) (Ok <| InputsWithDiffs [([], Nothing)]) outputNew
+  } []
+
+  type alias FileSystemUtils = {
+    read: String -> Maybe String,
+    listdir: String -> List String,
+    listdircontent: String -> List (String, String),
+    isdir: String -> Bool,
+    isfile: String -> Bool
+  }
+
+  {- nodejs.delayed fileOperations   provides a file system utility that, on update,
+     does not change the files directly but fills an array of fileOperations (create, write, delete, rename)
+     Careful! It does not (yet)make sense to update if fileOperations is not empty, only to run the program.
+     This means if you have pending file operations as input, they might be overriden and the diffs will not be in sync.
+
+     If you want these operations to be written on disk immediately
+     (e.g. you don't need to ask ambiguity questions),
+     ust build the file system using:
+
+     nodejs.delayed nodejs.directFileOperations
+     -}
+  delayed: ListFileOperations -> FileSystemUtils
+  delayed fileOperations = {
+    (fileOperationsRaw) = Update.lens {
+      apply = identity
+      (remove) name = List.filter (\(otherName, _) -> otherName /= name)
+      update {input=fileOperations, outputNew} =
+        let process outputNew revAcc = case outputNew of
+          [] -> Ok <| Inputs [List.reverse revAcc]
+          (name, action) :: tail ->
+            case action of
+              Delete -> process (remove name tail) ((name, action) :: remove name revAcc)
+              Create content -> process (remove name tail) ((name, action) :: remove name revAcc)
+              Write oldContent newContent diffs ->
+                let (sameName, otherNames) = List.partition (\(otherName, _) -> name == otherName) tail in
+                let extractedWrites = List.concatMap (\(_, action) -> case action of
+                     Write oldContent newContent diffs -> [(newContent, Just diffs)]
+                     _ -> []) sameName in
+                let (finalContent, finalDiffs) =
+                      Update.merge oldContent ((newContent, Just diffs) :: extractedWrites)
+                in
+                let finalAction =
+                  case listDict.get name fileOperations of
+                    Just (Create content) -> Create finalContent
+                    _ -> Write oldContent finalContent finalDiffs
+                in
+                process otherNames ((name, finalAction) :: revAcc)
+              Rename newName ->
+                if List.all (\(_, action) -> case action of Rename _ -> True) tail then
+                  process tail ((name, action)::revAcc)
+                else
+                  process (tail ++ [(name, action)]) revAcc
+        in process outputNew []
+    } fileOperations
+
+    read: String -> Maybe String
+    read filename = Update.lens {
+      apply fileOperations = case listDict.get filename fileOperations of
+        Just (Write oldContent newContent diffs) -> Just newContent
+        Just (Create content) -> Just content
+        Just (Delete) -> Nothing
+        Just (Rename _) -> Nothing
+        Nothing -> onlyRead filename
+      update  = case of
+        {input=fileOperations, outputOld = Just x , outputNew = Nothing} ->
+          Ok <| InputsWithDiffs [((filename, Delete) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
+        {input=fileOperations, outputOld = Just oldContent, outputNew = Just newContent, diffs} ->
+          let contentDiffs = case diffs of
+            VRecordDiffs { args = VRecordDiffs { _1 = d } } -> d
+            _ -> VStringDiffs []
+          in
+           Ok <| InputsWithDiffs [((filename, Write oldContent newContent contentDiffs) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
+        {input=fileOperations, outputOld = Nothing, outputNew = Just newContent} ->
+           Ok <| InputsWithDiffs [((filename, Create newContent) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
+        {input=fileOperations} ->
+          Ok (InputsWithDiffs [(fileOperations, Nothing)])
+      } fileOperationsRaw
+
+    listdir: String -> List String
+    listdir foldername = __jsEval__ """
       (function() {
         const fs = require("fs");
         const path = require('path');
@@ -3410,15 +3484,15 @@ nodejs = {
       })()
     """
 
-  listdircontent: String -> List (String, String)
-  listdircontent foldername = listdir foldername |>
-    List.filter (\name -> isfile """@foldername/@name""") |>
-    List.map (\name ->
+    listdircontent: String -> List (String, String)
+    listdircontent foldername = listdir foldername |>
+      List.filter (\name -> isfile """@foldername/@name""") |>
+      List.map (\name ->
       let fullname = """@foldername/@name""" in
-      (name, fileread fullname |> Maybe.withDefault (freeze """Unknown file @fullname""")))
+      (name, read fullname |> Maybe.withDefault (freeze """Unknown file @fullname""")))
 
-  isdir: String -> Bool
-  isdir name = __jsEval__ """
+    isdir: String -> Bool
+    isdir name = __jsEval__ """
       (function() {
         const fs = require("fs");
         const path = require('path');
@@ -3426,15 +3500,19 @@ nodejs = {
         return name == "" || fs.existsSync(name) && fs.lstatSync(@(jsCode.stringOf name)).isDirectory();
       })()
     """
+    isfolder = isdir
+    isdirectory = isdir
 
-  isfile: String -> Bool
-  isfile name = __jsEval__ """
+    isfile: String -> Bool
+    isfile name = __jsEval__ """
       (function() {
         const fs = require("fs");
         const path = require('path');
         return fs.existsSync(@(jsCode.stringOf name)) && fs.lstatSync(@(jsCode.stringOf name)).isFile();
       })()
     """
+    isFile = isfile
+  }
 }
 
 -- Because we base decisions on random numbers,
