@@ -38,7 +38,7 @@ var generateElmScript = __dirname + "/generate.elm";
 function computeForward(willwrite) {
   if(typeof willwrite == "undefined") willwrite = true;
   var source = fs.readFileSync(generateElmScript, "utf8");
-  var valResult = sns.objEnv.string.evaluate({willwrite:willwrite})(source);
+  var valResult = sns.objEnv.string.evaluate({willwrite:willwrite, fileOperations:[]})(source);
   var result = sns.process(valResult)(sns.valToNative);
 
   if(result.ctor == "Ok") {
@@ -189,7 +189,7 @@ function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
     return callback(a, b, c);
   } else {
     console.log("Ambiguity found -- Computing the second solution");
-    var {_0: newEnv2, _1: headSolution2} = sns.lazyList.head(solutions);
+    var {_0: newEnv2, _1: headSolution2} = sns.lazyList.head(tailSolutions);
     var headOperations2 = newEnv2.fileOperations;
     if(headSolution2 != source) {
       headOperations2.push(["write", {_1: generateElmScript, _2: headSolution2}]);

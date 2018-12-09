@@ -61,7 +61,7 @@
         </ul>
 -->
         <ul class="nobullets">
-          @(nodejs.listdircontent "src/tutorial/posts"
+          @(fs.listdircontent "src/tutorial/posts"
            |> List.filter (\(filename, _) ->
              Regex.matchIn """^\d+\.md""" filename)
            |> List.indexedMap (\i (filename, filecontent) ->

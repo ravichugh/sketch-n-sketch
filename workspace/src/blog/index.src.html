@@ -12,7 +12,7 @@
       <div class="post0">
         <h3>Posts</h3>
         <ul class="nobullets">
-          @(nodejs.listdircontent "src/blog/posts" |> List.reverse
+          @(fs.listdircontent "src/blog/posts" |> List.reverse
            |> List.map (\(filename, filecontent) ->
              let date = Regex.extract """\*((\w+) (\d+), (\d\d\d\d))\*""" filecontent |>
                 Maybe.map (\[date, month, day, year] ->

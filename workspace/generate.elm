@@ -6,7 +6,7 @@ load root path =
   let loadraw path = 
         fs.read path
         |> Maybe.map (\x ->
-           __evaluate__ ([("root", root), ("load", load root)] ++ initEnv) x
+           __evaluate__ ([("root", root), ("load", load root), ("fs", fs)] ++ initEnv) x
            |> case of Ok x -> x; Err msg -> <error>@msg</error>)
         |> Maybe.withDefaultLazy (\_ -> <error>file @path not found</error>)
   in
