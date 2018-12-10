@@ -2,17 +2,18 @@ SHELL := /bin/bash
 
 all: install
 	cd ..; editor&
-	node generate.js --watch --autosync
+	hyde --watch --autosync
 
 input:
-	node generate.js --backward
+	hyde --backward
 
 output:
-	node generate.js --forward
+	hyde
 
 watch:
-	node generate.js --watch --autosync
+	hyde --watch --autosync
 
 install:
 	npm install
 	npm install -g http-server-editor
+	npm install -g hyde-build-tool
