@@ -763,25 +763,6 @@ menuBar model =
 
     viewMenu =
       menu "View" <|
-        [ [ disableableTextButton True "Main Layer" Controller.msgNoop
-          , disableableTextButton True "Widget Layer" Controller.msgNoop
-          , simpleBooleanButton model.showGhosts "Show Widgets" Controller.msgSetGhostsShown
-          , simpleBooleanButton model.showPreludeOffsets "Show Offset Widgets from Prelude" Controller.msgSetPreludeOffsetsShown
-          -- , hoverMenu "Ghost Layer" <|
-          --     booleanOption
-          --       model.showGhosts
-          --       "On"
-          --       "Off"
-          --       Controller.msgSetGhostsShown
-          ]
-        , [ simpleTextButton
-              "Reset Interface Layout"
-              Controller.msgResetInterfaceLayout
-          ]
-        ]
-
-    optionsMenu =
-      menu "Options" <|
         [ [ hoverMenu "Font Size"
               [ simpleTextRadioButton
                   ( case model.codeBoxInfo.fontSize of
@@ -885,7 +866,50 @@ menuBar model =
                   "Dark"
                   (Controller.msgSetColorScheme Dark)
               ]
-          , hoverMenu "Auto-Run"
+          ]
+        , [ disableableTextButton True "Main Layer" Controller.msgNoop
+          , disableableTextButton True "Widget Layer" Controller.msgNoop
+          , simpleBooleanButton model.showGhosts "Show Widgets" Controller.msgSetGhostsShown
+          , simpleBooleanButton model.showPreludeOffsets "Show Offset Widgets from Prelude" Controller.msgSetPreludeOffsetsShown
+          , hoverMenu "Output Type"
+              [ simpleTextRadioButton
+                  ( case model.outputMode of
+                      Live ->
+                        True
+                      _ ->
+                        False
+                  )
+                  "Graphics"
+                  Controller.msgSetOutputLive
+              , simpleTextRadioButton
+                  ( case model.outputMode of
+                      Print _ ->
+                        True
+                      _ ->
+                        False
+                  )
+                  "Text"
+                  Controller.msgSetOutputPrint
+              , simpleTextRadioButton
+                  ( case model.outputMode of
+                      ShowValue ->
+                        True
+                      _ ->
+                        False
+                  )
+                  "Value Editor"
+                  Controller.msgSetOutputShowValue
+              ]
+          ]
+        , [ simpleTextButton
+              "Reset Interface Layout"
+              Controller.msgResetInterfaceLayout
+          ]
+        ]
+
+    optionsMenu =
+      menu "Options" <|
+        [ [ hoverMenu "Auto-Run"
               [ disableableTextButton
                   True "Every second" Controller.msgNoop
               , disableableTextButton
@@ -1056,36 +1080,6 @@ menuBar model =
                     (Controller.msgSetSyntax Syntax.Little)
                 ]
             ]
-        , [ hoverMenu "Output Type"
-              [ simpleTextRadioButton
-                  ( case model.outputMode of
-                      Live ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Graphics"
-                  Controller.msgSetOutputLive
-              , simpleTextRadioButton
-                  ( case model.outputMode of
-                      Print _ ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Text"
-                  Controller.msgSetOutputPrint
-              , simpleTextRadioButton
-                  ( case model.outputMode of
-                      ShowValue ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Value Editor"
-                  Controller.msgSetOutputShowValue
-              ]
-          ]
         ]
 
   in
