@@ -177,9 +177,24 @@ function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
   }
   var {_0: newEnv, _1: headSolution} = sns.lazyList.head(solutions);
   var headOperations = newEnv.fileOperations;
-  if(headSolution != source) {
-    headOperations.push(["write", {_1: generateElmScript, _2: headSolution}]);
+  function maybeAddGeneratorDiff(operations, oldSource, newSource) {
+    if(newSource != oldSource) { // server file itself modified from the update method
+      var d =
+        sns.process(sns.objEnv.string.evaluate({x: oldSource, y: newSource})(`__diff__ x y`))(sns.valToNative)
+      var diffssource = 
+        d.ctor == "Ok" ? d._0 ? d._0.args ? d._0.args._1 ? d._0.args._1.args ? d._0.args._1.args._1 ? d._0.args._1.args._1 :
+          false : false : false : false : false : false;
+
+      operations.unshift(
+        {"$t_ctor": "Tuple2",
+         _1: serverFile,
+         _2: {"$d_ctor": "Write",
+         args: {_1: oldSource, _2: newSource, _3: diffssource}}
+         });
+    }
   }
+  
+  maybeAddGeneratorDiff(headOperations, source, headSolution);
   // Check for ambiguity.
   console.log("Checking for ambiguity");
   var tailSolutions = autosync ? {ctor: "Nil"} : sns.lazyList.tail(solutions);
@@ -188,36 +203,56 @@ function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
     [a, b, c] = applyOperations(headOperations);
     return callback(a, b, c);
   } else {
+    var solutions = [headOperations];
     console.log("Ambiguity found -- Computing the second solution");
-    var {_0: newEnv2, _1: headSolution2} = sns.lazyList.head(tailSolutions);
-    var headOperations2 = newEnv2.fileOperations;
-    if(headSolution2 != source) {
-      headOperations2.push(["write", {_1: generateElmScript, _2: headSolution2}]);
+    var solutionsRemaining = tailSolutions;
+    var oneMoreSolution = () => {
+      var {_0: alternativeEnv, _1: alternativeSolution} = sns.lazyList.head(solutionsRemaining);
+      var alternativeOperations = alternativeEnv.fileOperations;
+      maybeAddGeneratorDiff(alternativeOperations, source, alternativeSolution);
+      solutions.push(alternativeOperations);
     }
+    
     console.log("Ambiguity detected");
-    console.log("Solution #1", fileOperationSummary(headOperations));
-    console.log("Solution #2", fileOperationSummary(headOperations2));
     
-    console.log("Which one should I apply? 1 or 2? Display more? revert?");
-    
-    var rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      terminal: false
-    });
-    rl.on('line', function(line){
-       if(line == "1") {
-         rl.close();
-         [a, b, c] = applyOperations(headOperations);
-         callback(a, b, c);
-       } else if(line == "2") {
-         rl.close();
-         [a, b, c] = applyOperations(headOperations2);
-         callback(a, b, c);
-       } else {
-         console.log("Input not recognized. '1', '2', 'More', 'more', 'display more', 'Display more', 'revert', 'Revert', 'cancel', 'Cancel' accepted.");
-       }
-    })
+    function askSolutions() {
+      for(var i = 0; i < solutions.length; i++) {
+        console.log(`Solution #${i+1}`, fileOperationSummary(solutions[i]));
+      }
+      
+      console.log(`Which solution number should I apply?${solutionsRemaining !== false ? ' Find [more] solutions?': ''} [cancel]?`);
+      
+      var rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+        terminal: false
+      });
+      rl.on('line', function(line){
+        if(line.toLowerCase() == "more" && solutionsRemaining !== false) {
+          rl.close();
+          solutionsRemaining = sns.lazyList.tail(solutionsRemaining);
+          if(sns.lazyList.isEmpty(solutionsRemaining)) {
+            console.log("No other solution found")
+            solutionsRemaining = false;
+          } else {
+            oneMoreSolution();
+          }
+        } else if(line.toLowerCase() == "cancel") {
+          rl.close();
+          callback(filesToWrite, valFilesToWrite, source);
+        } else {
+          var selectedSolution = solutions[parseInt(line) - 1];
+          if(selectedSolution != null) {
+            rl.close();
+            [a, b, c] = applyOperations(selectedSolution);
+            callback(a, b, c);
+          } else {
+            console.log(`Input not recognized.
+${solutions.map((elem, index) => "" + (index + 1)).join(", ")}${solutionsRemaining !== false ? ', [more]': ''} or 'cancel' accepted.`);
+          }
+        }
+      })
+    }
     return [];
   }
 }
