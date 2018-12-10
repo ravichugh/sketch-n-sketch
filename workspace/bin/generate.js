@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 function existsParam(x) {
   return typeof process.argv.find(elem => elem == x) !== "undefined";
 }
@@ -12,32 +14,35 @@ function getParam(x, defaultValue) {
 
 if(existsParam("--help") || existsParam("-h") || process.argv.length == 2) {
   console.log("Syntax:");
-  console.log("node generate.js [--forward OR --backward] [--watch] [--autosync] [--input=dir]");
+  console.log("node generate.js [--backward] [--watch [--input=dir] [--forward]] [--autosync] task");
   console.log("");
-  console.log("  -f, --forward   : Once, compute the outputs from the inputs");
-  console.log("  -b, --backward  : Once, back-propagates changes from the outputs to the inputs");
-  console.log("  -w, --watch     : Continually, watches for changes in the inputs and outputs");
+  console.log("  -b, --backward  : Once, back-propagates changes from the outputs to the inputs.");
+  console.log("  -w, --watch     : Continually, watches for changes in the inputs and outputs.");
   console.log("                If --backward is set, then it will immediately start to back-propagate changes.");
-  console.log("                Else it regenerates the websites and listens to changes");
-  console.log("  -a, --autosync  : If an ambiguity is found, choose the most likely solution");
+  console.log("                Else it regenerates the websites and listens to changes.");
+  console.log("                If -f, --forward is set, the generation will not happen backward.");
+  console.log("  -a, --autosync  : If an ambiguity is found, choose the most likely solution.");
   console.log("  --input=dir     : The directory from which to listen to changes in inputs. Default: .");
   return;
 }
-const watch = existsParam("--watch") || existsParam("-w");
+const watch    = existsParam("--watch")    || existsParam("-w");
 const autosync = existsParam("--autosync") || existsParam("-a");
-const forward = existsParam("--forward") || existsParam("-f");
+const forward  = existsParam("--forward")  || existsParam("-f");
 const backward = existsParam("--backward") || existsParam("-b");
-const inputDir = getParam("--input", ".")
+const inputDir = getParam("--input", ".");
+const task = process.argv[process.argv.length - 1];
+if(process.argv.length == 2)
 
 const readline = require('readline');
 const fs = require("fs")
 const sns = require("sketch-n-sketch")
-var generateElmScript = __dirname + "/generate.elm";
+var generateElmScript = "./make.elm";
+var task = "all";
 
 // Returns the set of files to be written, its representation as a Val, and the source of the script used
 function computeForward(willwrite) {
   if(typeof willwrite == "undefined") willwrite = true;
-  var source = fs.readFileSync(generateElmScript, "utf8");
+  var source = fs.readFileSync(generateElmScript, "utf8") + "\n\n" + task;
   var valResult = sns.objEnv.string.evaluate({willwrite:willwrite, fileOperations:[]})(source);
   var result = sns.process(valResult)(sns.valToNative);
 
@@ -52,8 +57,15 @@ function computeForward(willwrite) {
 
 function writeFiles(filesToWrite) {
   for(var i = 0; i < filesToWrite.length; i++) {
-    var {_1: name, _2: content} = filesToWrite[i];
-    fs.writeFileSync(name, content, "utf8");
+    var fw = filesToWrite[i];
+    if(fw.ctor == "Write") {
+      var {_1: name, _2: content} = fw.args;
+      fs.writeFileSync(name, content, "utf8");
+    } else if(fw.ctor == "Error") {
+      console.log(fw.args._1);
+    } else {
+      console.log("Unrecognized Geditor command. Only 'Write name content' and 'Error msg' are suppported at this moment. ", fw);
+    }
   }
   console.log("Written all re-rendered results");
 }
@@ -64,7 +76,7 @@ function computeAndWrite(willwrite) {
   return [filesToWrite, valFilesToWrite, source];
 }
 
-if(!watch && forward) {
+if(!watch && !backward) {
   computeAndWrite();
   return;
 }
@@ -257,7 +269,7 @@ ${solutions.map((elem, index) => "" + (index + 1)).join(", ")}${solutionsRemaini
   }
 }
 
-if(!watch && backward) {
+if(!watch && backward) { // !watch would have been sufficient because here, watch || backward
   doUpdate(false, false, false, () => {});
   return;
 }
@@ -276,24 +288,25 @@ function unwatchEverything() {
 
 function doWatch(filesToWrite, valFilesToWrite, source) {
   if(!filesToWrite) return;
-
-  for(var i = 0; i < filesToWrite.length; i++) {
-    var {_1: name, _2: content} = filesToWrite[i];
-    var watcher =
-      fs.watch(name, ((filesToWrite, valFilesToWrite, source) => (eventType, filename) => {
-          if(eventType == "change") {
-            if(changeTimer) {
-              clearTimeout(changeTimer);
+  if(!forward) {
+    for(var i = 0; i < filesToWrite.length; i++) {
+      var {_1: name, _2: content} = filesToWrite[i];
+      var watcher =
+        fs.watch(name, ((filesToWrite, valFilesToWrite, source) => (eventType, filename) => {
+            if(eventType == "change") {
+              if(changeTimer) {
+                clearTimeout(changeTimer);
+              }
+              changeTimer =
+                setTimeout(((filesToWrite, valFilesToWrite, source) => () => {
+                  changeTimer = false;
+                  unwatchEverything();
+                  doUpdate(filesToWrite, valFilesToWrite, source, doWatch);
+                })(filesToWrite, valFilesToWrite, source), 500); // Time for all changes to be recorded
             }
-            changeTimer =
-              setTimeout(((filesToWrite, valFilesToWrite, source) => () => {
-                changeTimer = false;
-                unwatchEverything();
-                doUpdate(filesToWrite, valFilesToWrite, source, doWatch);
-              })(filesToWrite, valFilesToWrite, source), 500); // Time for all changes to be recorded
-          }
-      })(filesToWrite, valFilesToWrite, source));
-    watchers.push(watcher);
+        })(filesToWrite, valFilesToWrite, source));
+      watchers.push(watcher);
+    }
   }
   watchers.push(fs.watch(inputDir, {recursive: true}, (eventType, generateElmScript) => {
     if(changeTimer) {
@@ -318,13 +331,13 @@ if(watch) {
   var valFilesToWrite;
   var continuation = (filesToWrite, valFilesToWrite, source) => {
     var [filesToWrite, valFilesToWrite, source] = filesToWrite ? [filesToWrite, valFilesToWrite, source] : computeForward();
-    if((!backward || forward) && filesToWrite) { // Do the initial file write to make sure everything is consistent.
+    if((!backward) && filesToWrite) { // Do the initial file write to make sure everything is consistent.
       writeFiles(filesToWrite);
     }
     console.log("watching with !filesToWrite", !filesToWrite);
     doWatch(filesToWrite, valFilesToWrite, source);
   }
-  if(backward && !forward) {
+  if(backward) {
     doUpdate(false, false, false, continuation);
   } else {
     continuation(false, false, false);
