@@ -2098,6 +2098,21 @@ always x _ = x
 --flip: (forall (a b c) (-> (-> a b c) (-> b a c)))
 flip f = \\x y -> f y x
 
+flips = {
+  moveArg n m f =
+    if n == 1 && m == 1 then f
+    else if n > 1 && m > 1 then
+       \\x -> moveArg (n-1) (m-1) (f x)
+    else if n == 1 then   -- Here m > 1
+      moveArg 2 m (\\x y -> f y x)
+    else -- m == 1 && n > 1
+      \\x y -> (moveArg n 2 f) y x
+
+  ab_ba = moveArg 1 2 -- same as flip
+  abc_bca = moveArg 1 3
+  abcd_bcda = moveArg 1 4
+}
+
 curry f a b = f (a,b)
 uncurry f (a,b) = f a b
 
@@ -2290,22 +2305,71 @@ LensLess =
       }
   }
 
-Result =
-  let map f res = case res of
+Result = {
+  type Result err ok = Err err | Ok ok
+
+  map: (a -> b) -> Result err a -> Result err b
+  map f res = case res of
     Err msg -> res
     Ok x -> Ok (f x)
-  in
-  let andThen f res = case res of
+
+  mapError err err2: (err -> err2) -> forall a. Result err a -> Result err2 a
+  mapError f res = case res of
+    Err msg -> res
+    Ok x -> Ok (f x)
+
+  andThen: (a -> Result err b) -> Result err a -> Result err b
+  andThen f res = case res of
     Err msg -> res
     Ok x -> f x
-  in
-  {
-    map = map
-    andThen = andThen
-    withDefault default res = case res of
-      Err _ -> default
-      Ok x ->  x
-  }
+
+  toMaybe: Result err ok -> Maybe ok
+  toMaybe res = case res of
+    Err msg -> Nothing
+    Ok x -> Just x
+
+  fromMaybe: err -> Maybe ok -> Result err ok
+  fromMaybe err res = case res of
+    Nothing -> Err err
+    Just x -> Ok x
+
+  fromMaybeLazy: (() -> err) -> Maybe ok -> Result err ok
+  fromMaybeLazy msgBuilder = case of
+    Just x -> Ok x
+    Nothing -> Err (msgBuilder ())
+
+  withDefault: ok -> Result err ok -> ok
+  withDefault defaultValue res = case res of
+    Err x -> defaultValue
+    Ok x -> x
+
+  (errn) n msg = if n == 1 then Err msg else \\_ -> errn (n - 1) msg
+
+  --Variable arity function. mapn 1 == map, mapn 2 == map2, etc.
+  --Dependently typed.
+  mapn n = if n == 1 then map else
+    \\f res -> case res of
+      Err msg -> errn n msg
+      Ok r -> mapn (n - 1) (f r)
+
+  map2 = mapn 2
+  map3 = mapn 3
+  map4 = mapn 4
+
+  andThenn n = if n == 1 then andThen else
+    \\f res -> case res of
+      Err msg -> errn n msg
+      Ok r -> andThenn (n - 1) (f r)
+
+  andThen2 = andThenn 2
+  andThen3 = andThenn 3
+  andThen4 = andThenn 4
+
+  withDefaultMapError: (b -> a) -> Result a b -> a
+  withDefaultMapError f = case of
+    Ok x -> x
+    Err msg -> f msg
+}
 
 --------------------------------------------------------------------------------
 -- Update --
@@ -3036,46 +3100,6 @@ ListLenses =
     zipWithIndex = zipWithIndex
     indexedMap = indexedMap
   }
-
--- TODO: Create lens-enabled versions.
-Result = {
-  type Result err ok = Err err | Ok ok
-
-  map: (a -> b) -> Result err a -> Result err b
-  map f res = case res of
-    Err msg -> res
-    Ok x -> Ok (f x)
-
-  map2: (a -> b -> c) -> Result err a -> Result err b -> Result err c
-  map2 f resA resB = case resA of
-    Err msg -> res
-    Ok a -> map (f a) resB
-
-  map3: (a -> b -> c -> d) -> Result err a -> Result err b -> Result err c -> Result err d
-  map3 f resA resB resC = case resA of
-    Err msg -> res
-    Ok a -> map2 (f a) resB resC
-
-  andThen: (a -> Result err b) -> Result err a -> Result err b
-  andThen f res = case res of
-    Err msg -> res
-    Ok x -> f x
-
-  toMaybe: Result err ok -> Maybe ok
-  toMaybe res = case res of
-    Err msg -> Nothing
-    Ok x -> Just x
-
-  fromMaybe: err -> Maybe ok -> Result err ok
-  fromMaybe err res = case res of
-    Nothing -> Err err
-    Just x -> Ok x
-
-  withDefault: ok -> Result err ok -> ok
-  withDefault defaultValue res = case res of
-    Err x -> defaultValue
-    Ok x -> x
-}
 
 --------------------------------------------------------------------------------
 -- TODO (re-)organize this section into modules
@@ -3925,12 +3949,16 @@ List = {
   any pred list = case list of
     [] -> False
     hd :: tl -> if pred hd then True else any pred tl
+
+  projOks list = case list of
+    [] -> Ok []
+    head :: tail ->
+      Result.andThen2 (\\x y -> Ok (x :: y)) head (projOks tail)
 }
 
 
 --------------------------------------------------------------------------------
 -- String --
-
 String =
   let strToInt =
     let d = Dict.fromList [(\"0\", 0), (\"1\", 1), (\"2\", 2), (\"3\", 3), (\"4\", 4), (\"5\", 5), (\"6\", 6), (\"7\", 7), (\"8\", 8), (\"9\", 9)] in
@@ -4268,6 +4296,8 @@ String =
         else
           string
     }
+
+    q3 = \"\\\"\\\"\\\"\" -- To interpolate triple quotes into strings
   }
 
 

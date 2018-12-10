@@ -1352,7 +1352,9 @@ variableType : Parser (WS -> Type)
 variableType =
   inContext "variable type" <|
     mapWSType_ <|
-      transferInfo (flip TVar) littleIdentifier
+      delayedCommitMap (\a b -> b)
+        (negativeLookAhead (symbol "forall"))
+        (transferInfo (flip TVar) littleIdentifier)
 
 dataType : Parser (WS -> Type)
 dataType =
@@ -1429,16 +1431,14 @@ forallType minStartCol =
   in
     inContext "forall type" <|
       lazy <| \_ ->
-        mapWSType_ <|
-          parenBlock
-            ( \wsBefore (qs, t) wsEnd ->
-                TForall wsBefore qs t wsEnd
-            )
-            ( succeed (,)
-                |. keywordWithSpace "forall"
-                |= quantifiers
-                |= typ spaces minStartCol
-            )
+        mapWSType_ <| trackInfo <|
+          ( succeed (\qs spDot t wsBefore -> TForall wsBefore qs t spDot)
+              |. keywordWithSpace "forall"
+              |= quantifiers
+              |= spaces
+              |. symbol "."
+              |= typ spaces minStartCol
+          )
 
 --------------------------------------------------------------------------------
 -- Union Type
