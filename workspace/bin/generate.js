@@ -1,10 +1,23 @@
 #!/usr/bin/env node
 
+args = process.argv.slice(2);
+endParamIndex = args.findIndex(elem => !elem.startsWith("-"));
+params = endParamIndex == -1 ? args : args.slice(0, endParamIndex);
+notparams = endParamIndex == -1 ? [] : args.slice(endParamIndex);
+
 function existsParam(x) {
-  return typeof process.argv.find(elem => elem == x) !== "undefined";
+  return typeof params.find(elem => elem == x) !== "undefined";
 }
 function getParam(x, defaultValue) {
-  var param = process.argv.find(elem => elem.startsWith(x));
+  var param = params.find(elem => elem.startsWith(x));
+  if(typeof param !== "undefined") {
+    return param.substring(x.length + 1);
+  } else {
+    return defaultValue;
+  }
+}
+function getTask(x, defaultValue) {
+  var param = params.find(elem => elem.startsWith(x));
   if(typeof param !== "undefined") {
     return param.substring(x.length + 1);
   } else {
@@ -12,17 +25,25 @@ function getParam(x, defaultValue) {
   }
 }
 
-if(existsParam("--help") || existsParam("-h") || process.argv.length == 2) {
-  console.log("Syntax:");
-  console.log("node generate.js [--backward] [--watch [--input=dir] [--forward]] [--autosync] task");
-  console.log("");
-  console.log("  -b, --backward  : Once, back-propagates changes from the outputs to the inputs.");
-  console.log("  -w, --watch     : Continually, watches for changes in the inputs and outputs.");
-  console.log("                If --backward is set, then it will immediately start to back-propagate changes.");
-  console.log("                Else it regenerates the websites and listens to changes.");
-  console.log("                If -f, --forward is set, the generation will not happen backward.");
-  console.log("  -a, --autosync  : If an ambiguity is found, choose the most likely solution.");
-  console.log("  --input=dir     : The directory from which to listen to changes in inputs. Default: .");
+if(existsParam("--help") || existsParam("-h")) {
+  console.log(`Syntax:
+forge [--backward] [--watch [--input=dir] [--forward]] [--autosync] task
+
+Executes the task command (arbitrary Elm program) after interpreting the file "forge.elm" in scope.
+
+  -b, --backward  : Once, back-propagates changes from the outputs to the inputs.
+  -w, --watch     : Continually, watches for changes in the inputs and outputs.
+                If --backward is set, then it will immediately start to back-propagate changes.
+                Else it regenerates the websites and listens to changes.
+                If -f, --forward is set, the generation will not happen backward.
+  -a, --autosync  : If an ambiguity is found, choose the most likely solution.
+  --input=dir     : The directory from which to listen to changes in inputs. Default: .
+
+Built-in tasks commands:
+
+  forge tasks                  : List the available tasks
+  forge tasks module           : List the available tasks inside module
+  forge tasks module.submodule : List the available tasks inside module's submodule`);
   return;
 }
 const watch    = existsParam("--watch")    || existsParam("-w");
@@ -30,14 +51,35 @@ const autosync = existsParam("--autosync") || existsParam("-a");
 const forward  = existsParam("--forward")  || existsParam("-f");
 const backward = existsParam("--backward") || existsParam("-b");
 const inputDir = getParam("--input", ".");
-const task = process.argv[process.argv.length - 1];
-if(process.argv.length == 2)
+if(notparams.length == 0) {
+  var task = "all";
+}
+else {
+  var task = notparams.join " ";
+}
 
 const readline = require('readline');
 const fs = require("fs")
 const sns = require("sketch-n-sketch")
-var generateElmScript = "./make.elm";
-var task = "all";
+var generateElmScript = "./forge.elm";
+if(notparams.length >= 1 && notparams[0] == "tasks") {
+  var sublevel = notparams.length >= 2 ? "." + notparams[1] : "";
+  var source = fs.readFileSync("{" + generateElmScript + "}" + sublevel, "utf8");
+  var valResult = sns.objEnv.string.evaluate({willwrite:false, fileOperations:[]})(source);
+  var result = sns.process(valResult)(sns.valToNative);
+  if(result.ctor == "Ok") {
+    var tasks = Object.keys(result._0);
+    console.log("List of available tasks" + (sublevel != "" ? " from notparams[1]" : "") + ":")
+    for(var i = 0; i < tasks.length; i++) {
+      console.log("  " + tasks[i]);
+    }
+    return;
+  } else {
+    console.log("error while evaluating", result._0)
+    return;
+  }
+  return;
+}
 
 // Returns the set of files to be written, its representation as a Val, and the source of the script used
 function computeForward(willwrite) {
