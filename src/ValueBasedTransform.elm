@@ -417,7 +417,8 @@ makeEqual showPreludeOffsets syntax solutionsCache originalExp selectedFeatures 
   let equalizeAll priorResults featuresAndEquations =
     -- equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions
     let (features, featureEqns) = List.unzip featuresAndEquations in
-    let descriptionPrefix = features |> List.map ShapeWidgets.featureDesc |> String.join " = " in
+    -- let descriptionPrefix = features |> List.map ShapeWidgets.featureDesc |> String.join " = " in
+    let descriptionPrefix = "" in
     priorResults
     |> List.concatMap
         (\({description, exp, maybeTermShape, dependentLocIds, removedLocIdToMathExp} as priorResult) ->
@@ -662,7 +663,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
         Solver.solve solutionsCache equations dependentLocIds
         |> List.filter (\solution -> List.length solution > 0)
         -- |> Debug.log ("solutions for dependentLocIds " ++ toString dependentLocIds)
-        |> List.map (\solution -> (solution, "by removing " ++ Utils.toSentence dependentIdentDescs))
+        |> List.map (\solution -> (solution, "Equalize by removing " ++ Utils.toSentence dependentIdentDescs))
 
       (Relate, [(dependentLocId, _, _) as dependentLoc]) ->
         let dependentIdentDesc = locDescription originalExp dependentLoc in
