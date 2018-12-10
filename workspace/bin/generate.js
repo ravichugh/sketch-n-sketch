@@ -27,9 +27,9 @@ function getTask(x, defaultValue) {
 
 if(existsParam("--help") || existsParam("-h")) {
   console.log(`Syntax:
-forge [--backward] [--watch [--input=dir] [--forward]] [--autosync] task
+hyde [--backward] [--watch [--input=dir] [--forward]] [--autosync] task
 
-Executes the task command (arbitrary Elm program) after interpreting the file "forge.elm" in scope.
+Executes the task command (arbitrary Elm program) after interpreting the file "hydefile" or "hydefile.elm" in scope.
 
   -b, --backward  : Once, back-propagates changes from the outputs to the inputs.
   -w, --watch     : Continually, watches for changes in the inputs and outputs.
@@ -39,15 +39,15 @@ Executes the task command (arbitrary Elm program) after interpreting the file "f
   -a, --autosync  : If an ambiguity is found, choose the most likely solution.
   --input=dir     : The directory from which to listen to changes in inputs. Default: .
 
-Built-in tasks commands:
+Exploring the build:
 
-  forge tasks                  : List the available tasks
-  forge tasks module           : List the available tasks inside module
-  forge tasks module.submodule : List the available tasks inside module's submodule`);
+  hyde resolve _                  : List the available tasks
+  hyde resolve module._           : List the available tasks inside module
+  hyde resolve module.submodule._ : List the available tasks inside module's submodule`);
   return;
 }
 const watch    = existsParam("--watch")    || existsParam("-w");
-const autosync = existsParam("--autosync") || existsParam("-a");
+var autosync   = existsParam("--autosync") || existsParam("-a");
 const forward  = existsParam("--forward")  || existsParam("-f");
 const backward = existsParam("--backward") || existsParam("-b");
 const inputDir = getParam("--input", ".");
@@ -55,23 +55,74 @@ if(notparams.length == 0) {
   var task = "all";
 }
 else {
-  var task = notparams.join " ";
+  var task = notparams.join(" ");
 }
 
 const readline = require('readline');
 const fs = require("fs")
-const sns = require("sketch-n-sketch")
-var generateElmScript = "./forge.elm";
-if(notparams.length >= 1 && notparams[0] == "tasks") {
-  var sublevel = notparams.length >= 2 ? "." + notparams[1] : "";
-  var source = fs.readFileSync("{" + generateElmScript + "}" + sublevel, "utf8");
-  var valResult = sns.objEnv.string.evaluate({willwrite:false, fileOperations:[]})(source);
+const sns = require("sketch-n-sketch");
+
+var bootstrappedSource = `
+-- Input: listTasks   True/False if the list of tasks should be displayed
+-- Input: sublevel    Under which submodule should we list tasks
+-- Input: task        The task to execute
+-- Output: List (Write filename filecontent | Err errormessage)
+
+(fs) = nodejs.delayed fileOperations
+initEnv = __CurrentEnv__
+
+fs.read("hydefile.elm")
+|> Maybe.orElse (fs.read "hydefile")
+|> case of
+  Just source ->
+    if listTasks then
+      Update.freeze "{\\n" + source + Update.freeze "\\n}" + sublevel
+      |> __evaluate__ (("willwrite", False)::initEnv)
+      |> Result.withDefaultMapError error
+    else
+    source + Update.freeze "\\n\\n" + task
+    |> __evaluate__ (("willwrite", willwrite)::initEnv)
+    |> Result.withDefaultMapError error
+    |> case of
+      {} as x -> [x] -- In case there is just one file write.
+      x -> x
+  Nothing -> error "No 'hydefile' or 'hydefile.elm' found. Please create one."`
+
+if(notparams.length >= 1 && notparams[0] == "resolve") {
+  var sublevel = "";
+  var parentPrefix = "";
+  var filter = () => true;
+  var filterStr = "";
+  if(notparams.length >= 2) {
+    var target = notparams[1];
+    if(target.endsWith("._")) {
+      var common = target.substring(0, target.length - 2)
+      parentPrefix = common + ".";
+      sublevel = "." + common;
+      filterStr = " inside " + common;
+    } else if(target.endsWith("_") && target.indexOf(".") >= 0) {
+      sublevel = "." + target.replace(/\.[^\.]*$/g, "");
+      var prefix = target.substring(0, target.length - 1);
+      parentPrefix = target.replace(/^(.*\.)[^\.]*$/g, (match, p1) => p1);
+      filter = (elem) => elem.startsWith(prefix);
+      filterStr = " starting with " + prefix;
+    } else if(target.endsWith("_")) {
+      var prefix = target.substring(0, target.length - 1);
+      console.log("prefix", prefix)
+      filter = (elem) => elem.startsWith(prefix);
+      filterStr = " starting with " + prefix;
+    }
+  }
+  var valResult = sns.objEnv.string.evaluate({willwrite:false, fileOperations:[], listTasks: true, sublevel: sublevel})(bootstrappedSource);
   var result = sns.process(valResult)(sns.valToNative);
   if(result.ctor == "Ok") {
     var tasks = Object.keys(result._0);
-    console.log("List of available tasks" + (sublevel != "" ? " from notparams[1]" : "") + ":")
+    console.log("List of available tasks" + filterStr + ":")
     for(var i = 0; i < tasks.length; i++) {
-      console.log("  " + tasks[i]);
+      var givenTask = parentPrefix + tasks[i]
+      if(filter(givenTask)) {
+        console.log("  hyde " + givenTask + (givenTask == "all" ? "  (equivalent to 'hyde' only)" : ""));
+      }
     }
     return;
   } else {
@@ -81,41 +132,40 @@ if(notparams.length >= 1 && notparams[0] == "tasks") {
   return;
 }
 
-// Returns the set of files to be written, its representation as a Val, and the source of the script used
+// Returns the set of files to be written and its representation as a Val
 function computeForward(willwrite) {
   if(typeof willwrite == "undefined") willwrite = true;
-  var source = fs.readFileSync(generateElmScript, "utf8") + "\n\n" + task;
-  var valResult = sns.objEnv.string.evaluate({willwrite:willwrite, fileOperations:[]})(source);
+  var valResult = sns.objEnv.string.evaluate({willwrite:willwrite, fileOperations:[], listTasks: false, task: task})(bootstrappedSource);
   var result = sns.process(valResult)(sns.valToNative);
 
   if(result.ctor == "Ok") {
     var filesToWrite = result._0;
-    return [filesToWrite, valResult._0, source];
+    return [filesToWrite, valResult._0];
   } else {
     console.log("error while evaluating", result._0)
-    return [false, false, false];
+    return [false, false];
   }
 }
 
 function writeFiles(filesToWrite) {
   for(var i = 0; i < filesToWrite.length; i++) {
     var fw = filesToWrite[i];
-    if(fw.ctor == "Write") {
+    if(fw["$d_ctor"] == "Write") {
       var {_1: name, _2: content} = fw.args;
       fs.writeFileSync(name, content, "utf8");
-    } else if(fw.ctor == "Error") {
+    } else if(fw["$d_ctor"] == "Error") {
       console.log(fw.args._1);
     } else {
       console.log("Unrecognized Geditor command. Only 'Write name content' and 'Error msg' are suppported at this moment. ", fw);
     }
   }
-  console.log("Written all re-rendered results");
+  console.log("Written " + filesToWrite.length + " file" + (filesToWrite.length > 1 ? "s" : ""));
 }
 
 function computeAndWrite(willwrite) {
-  var [filesToWrite, valFilesToWrite, source] = computeForward();
+  var [filesToWrite, valFilesToWrite] = computeForward();
   if(filesToWrite) writeFiles(filesToWrite);
-  return [filesToWrite, valFilesToWrite, source];
+  return [filesToWrite, valFilesToWrite];
 }
 
 if(!watch && !backward) {
@@ -136,13 +186,14 @@ function stringDiffSummary(oldString, newString, stringDiffs) {
     var linesBeforeRemoved = beforeRemoved.split(/\r\n|\r|\n/);
     var lineNumber = linesBeforeRemoved.length;
     var charNumber = linesBeforeRemoved[linesBeforeRemoved.length - 1].length + 1;
-    summary += "L" + lineNumber + "C" + charNumber + ", "
+    summary += " L" + lineNumber + "C" + charNumber + ", "
     if(removed == "")
       summary += "inserted '" + inserted + "'";
     else if(inserted == "")
       summary += "removed '" + removed + "'";
     else
       summary += "removed '" + removed + "', inserted '"+ inserted +"'";
+    offset += replaced - (end - start);
   }
   return summary;
 }
@@ -194,44 +245,49 @@ function getNewOutput(filesToWrite) {
   var newFilesToWrite = [];
   var hasChanged = false;
   for(var i = 0; i < filesToWrite.length; i++) {
-    var {_1: name, _2: content} = filesToWrite[i];
-    var newContent = fs.readFileSync(name, "utf8");
-    if(newContent != content) hasChanged = true;
-    newFilesToWrite.push({'$t_ctor': 'Tuple2', _1: name, _2: newContent});
+    var action = filesToWrite[i];
+    if(action["$d_ctor"] == "Write") {
+      var {_1: name, _2: content} = action.args;  
+      var newContent = fs.readFileSync(name, "utf8");
+      if(newContent != content) hasChanged = true;
+      newFilesToWrite.push({'$d_ctor': 'Write', args: {_1: name, _2: newContent}});
+    } else {
+      newFilesToWrite.push(action);
+    }
   }
   return [newFilesToWrite, hasChanged];
 }
 
-function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
+function doUpdate(filesToWrite, valFilesToWrite, callback) {
   if(typeof callback == "undefined") {
     console.log("doUpdate should have a callback");
     return;
   }
-  [filesToWrite, filesToWriteVal, source] = filesToWrite ? [filesToWrite, valFilesToWrite, source] : computeForward();
+  [filesToWrite, filesToWriteVal] = filesToWrite ? [filesToWrite, valFilesToWrite] : computeForward();
   if(!filesToWrite) return callback(false, false, false);
   var [newFilesToWrite, hasChanged] = getNewOutput(filesToWrite);
   if(!hasChanged) {
-    console.log("Output website not modified.");
+    console.log("No modifications found.");
     if(!watch) {
-      console.log("Finished!")
+      console.log("Done.")
     }
-    return callback(filesToWrite, filesToWriteVal, source);
+    return callback(filesToWrite, filesToWriteVal);
   }
   var newFilesToWriteVal = sns.nativeToVal(newFilesToWrite);
-  var resSolutions = sns.objEnv.string.updateWithOld({v:1, fileOperations: []})(source)(filesToWriteVal)(newFilesToWriteVal);
+  var resSolutions = sns.objEnv.string.updateWithOld({willwrite:false, fileOperations: [], listTasks: false, task: task})(bootstrappedSource)(filesToWriteVal)(newFilesToWriteVal);
   console.log("finished to update");
   if(resSolutions.ctor == "Err") {
     console.log("Error while updating: " + resSolutions._0);
-    return callback(filesToWrite, filesToWriteVal, source);
+    return callback(filesToWrite, filesToWriteVal);
   }
   var solutions = resSolutions._0;
   if(!sns.lazyList.nonEmpty(solutions)) {
     console.log("Error while updating, solution array is empty");
-    return callback(filesToWrite, filesToWriteVal, source);
+    return callback(filesToWrite, filesToWriteVal);
   }
-  var {_0: newEnv, _1: headSolution} = sns.lazyList.head(solutions);
+  var {_0: newEnv, _1: updatedBootstrappedSource} = sns.lazyList.head(solutions);
   var headOperations = newEnv.fileOperations;
-  function maybeAddGeneratorDiff(operations, oldSource, newSource) {
+  /*function maybeAddGeneratorDiff(operations, oldSource, newSource) {
     if(newSource != oldSource) { // server file itself modified from the update method
       var d =
         sns.process(sns.objEnv.string.evaluate({x: oldSource, y: newSource})(`__diff__ x y`))(sns.valToNative)
@@ -246,73 +302,98 @@ function doUpdate(filesToWrite, valFilesToWrite, source, callback) {
          args: {_1: oldSource, _2: newSource, _3: diffssource}}
          });
     }
-  }
-  
-  maybeAddGeneratorDiff(headOperations, source, headSolution);
+  }*/
+  if(bootstrappedSource != updatedBootstrappedSource) {
+    console.log("Warning: Cannot update the bootstrapped source of Hyde. Got ", updatedBootstrappedSource);
+  }  
+  // maybeAddGeneratorDiff(headOperations, bootstrappedSource, updatedBootstrappedSource);
   // Check for ambiguity.
   console.log("Checking for ambiguity");
   var tailSolutions = autosync ? {ctor: "Nil"} : sns.lazyList.tail(solutions);
   if(autosync || sns.lazyList.isEmpty(tailSolutions)) {
     console.log((autosync ? "--autosync not checking for ambiguities" : "No ambiguity found ") + "-- Applying the transformations");
-    [a, b, c] = applyOperations(headOperations);
-    return callback(a, b, c);
+    [a, b] = applyOperations(headOperations);
+    return callback(a, b);
   } else {
     var solutions = [headOperations];
     console.log("Ambiguity found -- Computing the second solution");
     var solutionsRemaining = tailSolutions;
     var oneMoreSolution = () => {
-      var {_0: alternativeEnv, _1: alternativeSolution} = sns.lazyList.head(solutionsRemaining);
+      var {_0: alternativeEnv, _1: alternativeBootstrappedSource} = sns.lazyList.head(solutionsRemaining);
       var alternativeOperations = alternativeEnv.fileOperations;
-      maybeAddGeneratorDiff(alternativeOperations, source, alternativeSolution);
+      if(bootstrappedSource != alternativeBootstrappedSource) {
+        console.log("Warning: Cannot update the bootstrapped source of Hyde. Got ", alternativeBootstrappedSource);
+      } 
+      //maybeAddGeneratorDiff(alternativeOperations, source, alternativeSolution);
       solutions.push(alternativeOperations);
     }
+    oneMoreSolution();
     
     console.log("Ambiguity detected");
     
     function askSolutions() {
-      for(var i = 0; i < solutions.length; i++) {
-        console.log(`Solution #${i+1}`, fileOperationSummary(solutions[i]));
+      function showQuestion() {
+        for(var i = 0; i < solutions.length; i++) {
+          console.log(`Solution #${i+1}:`, fileOperationSummary(solutions[i]));
+        }
+        
+        console.log(`Which solution number should I apply? Other possibilities:${solutionsRemaining !== false ? "\n  Find [m]ore solutions?": ''}${!autosync ? "\n  Enable [a]utosync?" : ''}
+  [w]ait for other changes?
+  [r]evert changes made to outputs?`);
       }
-      
-      console.log(`Which solution number should I apply?${solutionsRemaining !== false ? ' Find [more] solutions?': ''} [cancel]?`);
-      
+      showQuestion();
+
       var rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
         terminal: false
       });
       rl.on('line', function(line){
-        if(line.toLowerCase() == "more" && solutionsRemaining !== false) {
-          rl.close();
+        if((line.toLowerCase() == "autosync" || line.toLowerCase() == "a" || line.toLowerCase() == "auto") && !autosync) {
+          autosync = true;
+          console.log("Autosync activated. Next time, use the --autosync option to prevent questionning.");
+          console.log("Choosing the first solution for this question.");
+          line = "1";
+        }
+        if((line.toLowerCase() == "more" || line.toLowerCase() == "m") && solutionsRemaining !== false) {
           solutionsRemaining = sns.lazyList.tail(solutionsRemaining);
           if(sns.lazyList.isEmpty(solutionsRemaining)) {
             console.log("No other solution found")
             solutionsRemaining = false;
           } else {
+            console.log("one more solution found");
             oneMoreSolution();
           }
-        } else if(line.toLowerCase() == "cancel") {
+          showQuestion();
+        } else if(line.toLowerCase() == "revert" || line.toLowerCase() == "r") {
+          console.log("Overwriting output files with their original value...");
+          [a, b] = computeAndWrite(true);
           rl.close();
-          callback(filesToWrite, valFilesToWrite, source);
+          callback(a, b);
+        } else if(line.toLowerCase() == "wait" || line.toLowerCase() == "w") {
+          console.log("Waiting for other changes...");
+          rl.close();
+          callback(filesToWrite, valFilesToWrite);
         } else {
           var selectedSolution = solutions[parseInt(line) - 1];
           if(selectedSolution != null) {
             rl.close();
-            [a, b, c] = applyOperations(selectedSolution);
-            callback(a, b, c);
+            [a, b] = applyOperations(selectedSolution);
+            callback(a, b);
           } else {
-            console.log(`Input not recognized.
-${solutions.map((elem, index) => "" + (index + 1)).join(", ")}${solutionsRemaining !== false ? ', [more]': ''} or 'cancel' accepted.`);
+            console.log("Input not recognized:" + line);
+            showQuestion();
           }
         }
       })
     }
+    askSolutions();
     return [];
   }
 }
 
 if(!watch && backward) { // !watch would have been sufficient because here, watch || backward
-  doUpdate(false, false, false, () => {});
+  doUpdate(false, false, () => {});
   return;
 }
 
@@ -321,33 +402,36 @@ var changeTimer = false;
 var watchers = [];
 
 function unwatchEverything() {
-  console.log("Unwatching files");
+  console.log("Paused watching changes to files");
   for(var i = 0; i < watchers.length; i++) {
     watchers[i].close();
   }
   watchers = [];
 }
 
-function doWatch(filesToWrite, valFilesToWrite, source) {
+function doWatch(filesToWrite, valFilesToWrite) {
   if(!filesToWrite) return;
   if(!forward) {
     for(var i = 0; i < filesToWrite.length; i++) {
-      var {_1: name, _2: content} = filesToWrite[i];
-      var watcher =
-        fs.watch(name, ((filesToWrite, valFilesToWrite, source) => (eventType, filename) => {
-            if(eventType == "change") {
-              if(changeTimer) {
-                clearTimeout(changeTimer);
+      var action = filesToWrite[i];
+      if(action["$d_ctor"] == "Write") {
+        var {_1: name, _2: content} = action.args;  
+        var watcher =
+          fs.watch(name, ((filesToWrite, valFilesToWrite) => (eventType, filename) => {
+              if(eventType == "change") {
+                if(changeTimer) {
+                  clearTimeout(changeTimer);
+                }
+                changeTimer =
+                  setTimeout(((filesToWrite, valFilesToWrite) => () => {
+                    changeTimer = false;
+                    unwatchEverything();
+                    doUpdate(filesToWrite, valFilesToWrite, doWatch);
+                  })(filesToWrite, valFilesToWrite), 500); // Time for all changes to be recorded
               }
-              changeTimer =
-                setTimeout(((filesToWrite, valFilesToWrite, source) => () => {
-                  changeTimer = false;
-                  unwatchEverything();
-                  doUpdate(filesToWrite, valFilesToWrite, source, doWatch);
-                })(filesToWrite, valFilesToWrite, source), 500); // Time for all changes to be recorded
-            }
-        })(filesToWrite, valFilesToWrite, source));
-      watchers.push(watcher);
+          })(filesToWrite, valFilesToWrite));
+        watchers.push(watcher);
+      }
     }
   }
   watchers.push(fs.watch(inputDir, {recursive: true}, (eventType, generateElmScript) => {
@@ -358,8 +442,8 @@ function doWatch(filesToWrite, valFilesToWrite, source) {
       setTimeout(() => {
         changeTimer = false;
         unwatchEverything();
-        var [filesToWrite, source] = computeAndWrite();
-        doWatch(filesToWrite, source);
+        var [filesToWrite, valFilesToWrite] = computeAndWrite();
+        doWatch(filesToWrite, valFilesToWrite);
       }, 500); // Time for all changes to be recorded
     
   }));
@@ -369,15 +453,13 @@ function doWatch(filesToWrite, valFilesToWrite, source) {
 
 if(watch) {
   var filesToWrite;
-  var source;
   var valFilesToWrite;
-  var continuation = (filesToWrite, valFilesToWrite, source) => {
-    var [filesToWrite, valFilesToWrite, source] = filesToWrite ? [filesToWrite, valFilesToWrite, source] : computeForward();
+  var continuation = (filesToWrite, valFilesToWrite) => {
+    var [filesToWrite, valFilesToWrite] = filesToWrite ? [filesToWrite, valFilesToWrite] : computeForward();
     if((!backward) && filesToWrite) { // Do the initial file write to make sure everything is consistent.
       writeFiles(filesToWrite);
     }
-    console.log("watching with !filesToWrite", !filesToWrite);
-    doWatch(filesToWrite, valFilesToWrite, source);
+    doWatch(filesToWrite, valFilesToWrite);
   }
   if(backward) {
     doUpdate(false, false, false, continuation);

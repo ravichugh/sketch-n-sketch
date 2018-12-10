@@ -1,8 +1,7 @@
 {
-  "name": "sketch-n-sketch-website",
+  "name": "hyde-build-tool",
   "version": "1.0.0",
   "description": "The sketch-n-sketch website",
-  "main": "bin/generate.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -21,11 +20,14 @@
     "url": "https://github.com/RaviChugh/Sketch-n-Sketch.git"
   },
   "dependencies": {
-    "sketch-n-sketch": "^1.1.2"
+    "sketch-n-sketch": "^1.1.3"
+  },
+  "bin": {
+    "hyde": "bin/generate.js",
+    "hbt": "bin/generate.js"
   },
   "files": [
-    "generate.js",
-    "generate.elm",
+    "bin/generate.js",
     "README.md"
   ]
 }
