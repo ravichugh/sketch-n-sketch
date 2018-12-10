@@ -716,7 +716,7 @@ preludeEnv = Utils.fromOk "Eval.preludeEnv" <| preludeEnvRes
 run : Syntax -> Exp -> Result String (Val, Widgets)
 run syntax e =
 -- doEval syntax initEnv e |> Result.map Tuple.first
-  ImpureGoodies.logTimedRun "Eval.run" <| \() ->
+  -- ImpureGoodies.logTimedRun "Eval.run" <| \() ->
     Eval.doEval Eval.withParentsProvenanceWidgets syntax preludeEnv e |> Result.map Tuple.first
 
 runWithEnv : Syntax -> Exp -> Result String ((Val, Widgets), Env)

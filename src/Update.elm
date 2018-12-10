@@ -738,13 +738,13 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                               ("x", newV1)::("y", newV2)::newEnv ->
                                 let eLeft_continue =
                                   case diffsAt 0 newAugEnv.changes of
-                                    Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eLeft Nothing)
-                                    Just d -> updateContinue "left of ++" env eLeft [] v1 newV1 d
+                                     Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eLeft Nothing)
+                                     Just d -> updateContinue "left of ++" env eLeft [] v1 newV1 d
                                 in
                                 let eRight_continue =
                                   case diffsAt 1 newAugEnv.changes of
-                                    Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eRight Nothing)
-                                    Just d -> updateContinue "right of ++" env eRight [] v2 newV2 d
+                                     Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp eRight Nothing)
+                                     Just d -> updateContinue "right of ++" env eRight [] v2 newV2 d
                                 in
                                 let finalEnv = dropDiffs 2 newAugEnv.changes in
                                 eLeft_continue <| \newELeftEnv newELeft ->
@@ -808,17 +808,17 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        let updatedEnv_ = if recNames == [] then updatedExpandedEnv_ else UpdatedEnv.expandRecEnvReverse recNames env_ updatedExpandedEnv_ in
                        let (newV1, newV1Diffs) = updatedVal.unapply <| updated.vClosure (replaceV_ v1) recNames e1ps updatedBody updatedEnv_ in
                        let e1_updater = case newV1Diffs of
-                         Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp e1 Nothing)
-                         Just v1Diffs -> updateContinue ("VClosure1 partial app") env e1 (keepLets env v1Env) v1 newV1 v1Diffs
+                          Nothing -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp e1 Nothing)
+                          Just v1Diffs -> updateContinue ("VClosure1 partial app") env e1 (keepLets env v1Env) v1 newV1 v1Diffs
                        in
                        let e2s_updater = case newV2sDiffs of
-                         [] -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple e2s Nothing)
-                         v2sDiffs -> updateContinueMultiple "args of partial app" env [] (Utils.zip3 e2s v2s newV2s) v2sDiffs
+                          [] -> \continuation -> continuation (UpdatedEnv.original env) (UpdatedExpTuple e2s Nothing)
+                          v2sDiffs -> updateContinueMultiple "args of partial app" env [] (Utils.zip3 e2s v2s newV2s) v2sDiffs
                        in
                        e1_updater  <| \newE1UpdatedEnv newUpdatedE1 ->
                        e2s_updater <| \newE2sUpdatedEnv newUpdatedE2s ->
                        if isFreezingExpression e1 && newUpdatedE2s.changes /= Nothing then
-                         UpdateFails <| "Hit an expressionFreeze on line " ++ toString (e1_.start.line) ++ " (cannot modify expression, only variables' values)"
+                          UpdateFails <| "Hit an expressionFreeze on line " ++ toString (e1_.start.line) ++ " (cannot modify expression, only variables' values)"
                        else
                        updateAppResult newE1UpdatedEnv newUpdatedE1 newE2sUpdatedEnv newUpdatedE2s
                      in
@@ -827,14 +827,14 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        Just (insideEnv, consBuilder) ->
                          let withUpdatedInsideEnvAndBody continuation =
                            if ne1ps > ne2 then -- Less arguments than expected, hence partial application.
-                             --insideEnv should align with updatedEnvOut_, but we don't need insideEnv itself
-                             case (newVal.v_, diffs) of
-                               (VClosure _ psOut outBody envOut_, VClosureDiffs modifEnv modifBody) ->
+                              --insideEnv should align with updatedEnvOut_, but we don't need insideEnv itself
+                              case (newVal.v_, diffs) of
+                                (VClosure _ psOut outBody envOut_, VClosureDiffs modifEnv modifBody) ->
                                   continuation (UpdatedEnv envOut_ modifEnv) (UpdatedExp outBody modifBody)
-                               _ ->
+                                _ ->
                                   UpdateCriticalError <| strPos e1_.start ++ "Expected a closure in output, got " ++ valToString newVal ++ " and diffs " ++ toString diffs
                            else
-                             updateContinue "VClosure3" insideEnv eBody [] oldVal newVal diffs continuation
+                              updateContinue "VClosure3" insideEnv eBody [] oldVal newVal diffs continuation
                          in
                          withUpdatedInsideEnvAndBody <| propagateAppFunArguments consBuilder
                        _  -> UpdateCriticalError <| "[internal error] " ++ strPos e1_.start ++ " bad environment, internal error in update"
@@ -881,7 +881,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                            case unwrapExp newUpdatedBody.val of
                              EApp _ funreconverted newEs _ _ ->
                                if expEqual funreconverted funconverted then
-                                 let finalExp = ret <| EApp sp0 e1 newEs SpaceApp sp1 in
+                                 let finalExp = ret <| EApp sp0 e1 newEs appType sp1 in
                                  let finalChanges = newUpdatedBody.changes in
                                  updateResult newUpdatedEnv <| UpdatedExp finalExp finalChanges
                                else UpdateFails "Cannot modify the definition of a built-in function"
