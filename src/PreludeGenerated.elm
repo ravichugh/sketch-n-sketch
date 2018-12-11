@@ -4145,7 +4145,10 @@ String =
     update = {
         freezeLeft = freezeLeft
         freezeRight = freezeRight
-        onInsert callbackOnInserted string = Update.lens {
+        onInsert callbackOnInserted string =
+          onInsertLeftRight (\\left inserted right -> callbackOnInserted inserted) string
+
+        onInsertLeftRight callbackOnLeftInsertedRight string = Update.lens {
           apply string = string
           update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
             let aux offset outputNewUpdated revDiffsUpdated oldDiffs = case oldDiffs of
@@ -4153,7 +4156,9 @@ String =
                 (outputNewUpdated, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
               ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
                 let inserted = substring (start + offset) (start + offset + replaced) outputNewUpdated in
-                let newInserted = callbackOnInserted inserted in
+                let left = take (start+offset) outputNewUpdated in
+                let right = drop (start+offset+replaced) outputNewUpdated in
+                let newInserted = callbackOnLeftInsertedRight left inserted right in
                 let lengthNewInserted = length newInserted in
                 let newOffset = offset + lengthNewInserted - (end - start) in
                 let (newOutputNewUpdated, newDiff) = if inserted /= newInserted then
@@ -4165,6 +4170,31 @@ String =
                 aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs
              in aux 0 outputNew [] sDiffs
          } string
+
+        fixTagUpdates string = Update.lens {
+           apply string = string
+           update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
+             let aux offset revDiffsUpdated oldDiffs = case oldDiffs of
+               [] -> Ok (InputsWithDiffs [
+                 (outputNew, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
+               ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
+                 let inserted = substring (start + offset) (start + offset + replaced) outputNew in
+                 let right = drop (start + offset + replaced) outputNew in
+                 let left = take (start + offset) outputNew in
+                 let newOffset = offset + replaced - (end - start) in
+                 let newDiff =
+                      if Regex.matchIn \"^><\" inserted  && Regex.matchIn \"^>\" right then
+                        StringUpdate (start + 1) (end + 1) replaced
+                      else if Regex.matchIn \"<$\" left && Regex.matchIn \"><$\" inserted then
+                        StringUpdate (start - 1) (end - 1) replaced
+                      else if Regex.matchIn \"</$\" left && Regex.matchIn \"></$\" inserted then
+                        StringUpdate (start - 2) (end - 2) replaced
+                      else
+                        headDiff
+                 in
+                 aux newOffset (newDiff::revDiffsUpdated) tailOldDiffs
+              in aux 0 [] sDiffs
+          } string
     }
 
     newlines = {
@@ -4294,11 +4324,40 @@ String =
         \"  \\r\\n\" -> \"<br>\"
         \"  \\n\" -> \"<br>\"
         )
-      |> update.onInsert (\\inserted ->
-        case Regex.extract \"</p>\\\\s*<p>(.*)\" inserted of
-          Just [value] -> \"\\n\\n\" + value
-          _ -> inserted
+      |> update.onInsertLeftRight (\\left inserted right ->
+        let
+          inserted =
+            Regex.replace \"\"\"<(b|i|em|strong)>(?=\\S)((?:(?!</\\1\\s*>).)*\\S)</\\1\\s*>\"\"\" (\\m ->
+              let tag = nth m.group 1
+                  content = nth m.group 2
+              in if tag == \"b\" || tag == \"strong\" then
+                \"**\" + content + \"**\"
+              else
+                \"*\" + content + \"*\"
+            ) inserted
+          inserted = case Regex.extract \"\"\"^([\\s\\S]*)</p>\\s*<p>([\\s\\S]*)$\"\"\" inserted of
+            Just [before, after] -> before + \"\\n\\n\" + after
+            _ -> inserted
+          inserted = case Regex.extract \"\"\"^([\\s\\S]*)<div>([\\s\\S]*)</div>([\\s\\S]*)$\"\"\" inserted of
+            Just [before, paragraph, after] ->
+               before + \"\\n\\n\" + paragraph + after
+            _ -> inserted
+          inserted = case Regex.extract \"\"\"^([\\s\\S]*)<(/?)(b|i|strong|em)\\s*>([\\s\\S]*)$\"\"\" inserted of
+            Just [before, mbSlash, bi, after] ->
+              let mdtag = if bi == \"b\" || bi == \"strong\" then \"**\" else \"*\" in
+              let mdtagregex = if bi == \"b\" then \"\\\\*\\\\*\" else \"\\\\*\" in
+              if mbSlash == \"\" && Regex.matchIn \"\"\"^\\S(?:(?!</@bi\\s*>).)*?\\S</@bi\\s*>\"\"\" (after + right) then
+                before + mdtag + after
+              else if mbSlash == \"/\" && Regex.matchIn \"\"\"@mdtagregex\\S(?:(?!@mdtagregex).)*?$\"\"\" (left + before) then
+                before + mdtag + after
+              else inserted
+            _ -> inserted
+          inserted = case Regex.extract \"\"\"^<a href=\"(.*)\">(.*)</a>$\"\"\" inserted of
+            Just [url, text] -> \"[\" + text + \"](\"+ url +\")\"
+            _ -> inserted
+        in inserted
         )
+      |> update.fixTagUpdates
       )
 
     q3 = \"\\\"\\\"\\\"\" -- To interpolate triple quotes into strings

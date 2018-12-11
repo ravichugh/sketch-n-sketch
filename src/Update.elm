@@ -931,14 +931,14 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                       nameToArg name |> Result.map (\x -> x > existingArgsSize) |> Result.withDefault False) dsArgs
                                in
                                let e1_updater = if Dict.isEmpty newE1Diffs then
-                                   \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp e1 Nothing)
+                                    \continuation -> continuation (UpdatedEnv.original env) (UpdatedExp e1 Nothing)
                                  else
                                   let oldDatatypeDict = vRecordUnapply oldVal |> Utils.maybeWithDefaultLazy (\_ ->
                                         Dict.fromList [(ctorDataType, vStr name)]
-                                      )
+                                       )
                                       newDatatypeDict = vRecordUnapply newVal |> Utils.maybeWithDefaultLazy (\_ ->
-                                        Dict.fromList [(ctorDataType, vStr name)]
-                                      )
+                                         Dict.fromList [(ctorDataType, vStr name)]
+                                       )
                                   in
                                   let oldValE1 = replaceV_ v1 <| VRecord (oldDatatypeDict |>
                                              Dict.insert ctorArgs (replaceV_ v1 <|
