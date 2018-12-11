@@ -2231,85 +2231,145 @@ String =
                  Just [trimmed] -> trimmed
                  _ -> s
   in
-  let markdown text =
-    let escapeHtml = Regex.replace "[<>&]" (case of
-          {match = "<"} -> freeze "&lt;"
-          {match = ">"} -> freeze "&gt;"
-          {match = "&"} -> freeze "&amp;")
-        escapeAttribute = Regex.replace "\r?\n|\"" (case of
-          "\"" -> "\\\""
-          _ -> "")
-        notincode = """(?!(?:(?!<code>)[\s\S])*</code>)"""
-        notinulol = """(?!(?:(?!<[uo]l>)[\s\S])*</[uo]l>)"""
-        notinattr = """(?!(?:(?!<)[\s\S])*>)"""
-        regexFootnotes = """\r?\n\[\^@notincode([^\]]+)\]:\s*@notincode((?:(?!\r?\n\r?\n)[\s\S])+)@notincode"""
-        regexReferences = """\r?\n\[(?!\^)([^\]\\]+)\]:\s*@notincode(\S+)@notincode"""
-        footnotes = Regex.find regexFootnotes text
-                     |> List.map (\m -> (nth m 1, nth m 2))
-                     |> List.indexedMap (\i (name, value) -> (name, (i + 1, value)))
-        references = Regex.find regexReferences text
-                     |> List.map (\m -> (nth m 1, nth m 2))
-        r  = Regex.replace
-        lregex = """(?:\r?\n|^)((?:(?![\r\n])\s)*)(\*|-|\d+\.)(\s+)((?:@notincode.*)(?:\r?\n\1  ?\3(?:@notincode.*))*(?:\r?\n\1(?:\*|-|\d+\.)\3(?:@notincode.*)(?:\r?\n\1 \3(?:@notincode.*))*)*)@notincode"""
-        handleLists text  =
-          flip (r lregex) text <|
-            \m -> let indent = nth m.group 1
-                      afterindent = nth m.group 3
-                      symbol = nth m.group 2
-                      ul_ol = Update.bijection
-                               (case of "*" -> "ul"; "-" -> "ul"; _ -> "ol")
-                               (case of
-                                 "ul" -> if symbol == "*" || symbol == "-" then symbol else "*"
-                                 "ol" -> if symbol == "*" || symbol == "-" then "1." else symbol
-                                 x -> error """tag name '@x' not compatible with ul or ol""")
-                               symbol
-                      elements =
-                        Regex.split """\r?\n@indent(?:\*|-|\d+\.)@afterindent""" (nth m.group 4)
-                      insertionPoint callback = Update.lens {
-                        apply elements = ""
-                        update {input=elements, output} =
-                          case Regex.extract """^<li>([\s\S]*)</li>$""" output of
-                            Just [content] ->
-                              Ok (Inputs [callback elements (Regex.split """</li><li>""" content)]) -- TODO: Precompute diffs (insertions)
-                            _->
-                              Err ("Can only insert <li> elements to lists, got " + output)
-                      } elements
-                      insertAfter = insertionPoint (append)
-                      insertBefore = insertionPoint (flip append)
-                  in
-                  Update.expressionFreeze <|
-                  """<@ul_ol>@insertBefore<li>@(
-                    List.map handleLists elements
-                    |> joinAndSplitBack """</li><li>@notinulol""" "</li><li>")</li>@insertAfter</@ul_ol>"""
+  { toInt = toInt
+    toFloat = toFloat
+    join = join
+    joinAndSplitBack = joinAndSplitBack
+    length = length
+    substring = substring
+    slice = substring
+    take = take
+    left = take
+    drop = drop
+    dropLeft = drop
+    dropRight = dropRight
+    trim = trim
+    sprintf = sprintf
+    uncons s = case extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s of
+      Just [x, y] -> Just (x, y)
+      Nothing -> Nothing
+    padLeft n c = Update.lens {
+      apply s = (List.range 1 (n - length s) |> List.map (always c) |> join "") + s
+      update {outputNew} =
+         case extractFirstIn ("^(" + c + ")*([\\s\\S]*)$") outputNew of
+           Just [padding, str] -> Ok (Inputs [str])
+           Nothing -> Err "String.pad could not complete"
+    }
 
-        handleblockquotes text =
-          Regex.replace """(?:(?:\r?\n|^)>(?!.*</.*).*)+@notincode""" (\m ->
-           Regex.extract """(\r?\n|^)>([\s\S]*)""" m.match
-           |> Maybe.map (\[newline, content] ->
-             let quoteContent =
-                  Regex.replace """(\r?\n)> *""" (\m -> nth m.group 1) content
-             in
-             let recursivecontent = quoteContent |> handleblockquotes in
-             Update.expressionFreeze """@newline<blockquote>@recursivecontent</blockquote>"""
-           ) |> Maybe.withDefault m.match
-          ) text
-    in (text
-        |> r """(```)([\s\S]*?)\1(?!`)|(\r?\n *|^ *)((?:\r?\n    .*)+)""" (\m ->
-          if nth m.group 1 == "" then
-            nth m.group 4 |>
-            Regex.extract """^\r?\n    ([\s\S]*)$""" |>
-            Maybe.map (\[code] ->
-                    nth m.group 3 + """<pre><code>@(Regex.split """\r?\n    """ code |> join "\n" |> trim |> escapeHtml)</code></pre>""")
-            |> Maybe.withDefault m.match
-          else
-          """<pre><code>@(nth m.group 2 |> trim |> escapeHtml)</code></pre>""")
-        |> handleblockquotes
-        |> r """(`)(?=[^\s`])(@notincode.*?)\1@notincode""" (\m -> """<code>@(nth m.group 2 |> escapeHtml)</code>""")
-        |> r """(?:@regexReferences|@regexFootnotes)@notincode""" (\m -> "")
-        |> (\result -> -- Expand footnotes
-          if List.length footnotes == 0 then result
-          else result + """
-<div class="footnotes"><hr><ol>@(footnotes |>
+    update = {
+        freezeLeft = freezeLeft
+        freezeRight = freezeRight
+        onInsert callbackOnInserted string = Update.lens {
+          apply string = string
+          update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
+            let aux offset outputNewUpdated revDiffsUpdated oldDiffs = case oldDiffs of
+              [] -> Ok (InputsWithDiffs [
+                (outputNewUpdated, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
+              ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
+                let inserted = substring (start + offset) (start + offset + replaced) outputNewUpdated in
+                let newInserted = callbackOnInserted inserted in
+                let lengthNewInserted = length newInserted in
+                let newOffset = offset + lengthNewInserted - (end - start) in
+                let (newOutputNewUpdated, newDiff) = if inserted /= newInserted then
+                   ( take (start + offset) outputNewUpdated +
+                     newInserted + drop (start + offset + replaced) outputNewUpdated
+                   , StringUpdate start end lengthNewInserted)
+                   else (outputNewUpdated, headDiff)
+                in
+                aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs
+             in aux 0 outputNew [] sDiffs
+         } string
+    }
+
+    newlines = {
+      isCRLF = Regex.matchIn "\r\n"
+      toUnix string =
+        if isCRLF string then
+          Regex.replace "\r" (\_ -> freeze "") string
+          |> update.onInsert (Regex.replace "\n" (\_ -> "\r\n"))
+        else
+          string
+    }
+
+    markdown text =
+      let escapeHtml = Regex.replace "[<>&]" (case of
+            {match = "<"} -> freeze "&lt;"
+            {match = ">"} -> freeze "&gt;"
+            {match = "&"} -> freeze "&amp;")
+          escapeAttribute = Regex.replace "\r?\n|\"" (case of
+            "\"" -> "\\\""
+            _ -> "")
+          notincode = """(?!(?:(?!<code>)[\s\S])*</code>)"""
+          notinulol = """(?!(?:(?!<[uo]l>)[\s\S])*</[uo]l>)"""
+          notinattr = """(?!(?:(?!<)[\s\S])*>)"""
+          regexFootnotes = """\r?\n\[\^@notincode([^\]]+)\]:\s*@notincode((?:(?!\r?\n\r?\n)[\s\S])+)@notincode"""
+          regexReferences = """\r?\n\[(?!\^)([^\]\\]+)\]:\s*@notincode(\S+)@notincode"""
+          footnotes = Regex.find regexFootnotes text
+                       |> List.map (\m -> (nth m 1, nth m 2))
+                       |> List.indexedMap (\i (name, value) -> (name, (i + 1, value)))
+          references = Regex.find regexReferences text
+                       |> List.map (\m -> (nth m 1, nth m 2))
+          r  = Regex.replace
+          lregex = """(?:\r?\n|^)((?:(?![\r\n])\s)*)(\*|-|\d+\.)(\s+)((?:@notincode.*)(?:\r?\n\1  ?\3(?:@notincode.*))*(?:\r?\n\1(?:\*|-|\d+\.)\3(?:@notincode.*)(?:\r?\n\1 \3(?:@notincode.*))*)*)@notincode"""
+          handleLists text  =
+            flip (r lregex) text <|
+              \m -> let indent = nth m.group 1
+                        afterindent = nth m.group 3
+                        symbol = nth m.group 2
+                        ul_ol = Update.bijection
+                                 (case of "*" -> "ul"; "-" -> "ul"; _ -> "ol")
+                                 (case of
+                                   "ul" -> if symbol == "*" || symbol == "-" then symbol else "*"
+                                   "ol" -> if symbol == "*" || symbol == "-" then "1." else symbol
+                                   x -> error """tag name '@x' not compatible with ul or ol""")
+                                 symbol
+                        elements =
+                          Regex.split """\r?\n@indent(?:\*|-|\d+\.)@afterindent""" (nth m.group 4)
+                        insertionPoint callback = Update.lens {
+                          apply elements = ""
+                          update {input=elements, output} =
+                            case Regex.extract """^<li>([\s\S]*)</li>$""" output of
+                              Just [content] ->
+                                Ok (Inputs [callback elements (Regex.split """</li><li>""" content)]) -- TODO: Precompute diffs (insertions)
+                              _->
+                                Err ("Can only insert <li> elements to lists, got " + output)
+                        } elements
+                        insertAfter = insertionPoint (append)
+                        insertBefore = insertionPoint (flip append)
+                    in
+                    Update.expressionFreeze <|
+                    """<@ul_ol>@insertBefore<li>@(
+                      List.map handleLists elements
+                      |> joinAndSplitBack """</li><li>@notinulol""" "</li><li>")</li>@insertAfter</@ul_ol>"""
+
+          handleblockquotes text =
+            Regex.replace """(?:(?:\r?\n|^)>(?!.*</.*).*)+@notincode""" (\m ->
+             Regex.extract """(\r?\n|^)>([\s\S]*)""" m.match
+             |> Maybe.map (\[newline, content] ->
+               let quoteContent =
+                    Regex.replace """(\r?\n)> *""" (\m -> nth m.group 1) content
+               in
+               let recursivecontent = quoteContent |> handleblockquotes in
+               Update.expressionFreeze """@newline<blockquote>@recursivecontent</blockquote>"""
+             ) |> Maybe.withDefault m.match
+            ) text
+      in (text
+      |> r """(```)([\s\S]*?)\1(?!`)|(\r?\n *|^ *)((?:\r?\n    .*)+)""" (\m ->
+        if nth m.group 1 == "" then
+          nth m.group 4 |>
+          Regex.extract """^\r?\n    ([\s\S]*)$""" |>
+          Maybe.map (\[code] ->
+                  nth m.group 3 + """<pre><code>@(Regex.split """\r?\n    """ code |> join "\n" |> trim |> escapeHtml)</code></pre>""")
+          |> Maybe.withDefault m.match
+        else
+        """<pre><code>@(nth m.group 2 |> trim |> escapeHtml)</code></pre>""")
+      |> handleblockquotes
+      |> r """(`)(?=[^\s`])(@notincode.*?)\1@notincode""" (\m -> """<code>@(nth m.group 2 |> escapeHtml)</code>""")
+      |> r """(?:@regexReferences|@regexFootnotes)@notincode""" (\m -> "")
+      |> (\result -> -- Expand footnotes
+        if List.length footnotes == 0 then result
+        else result + """
+    <div class="footnotes"><hr><ol>@(footnotes |>
                 List.map (\(name, (n, value)) ->
                   """<li id="fn@n"><p>@value<a href="#fnref@n">↩</a></p></li>"""
                 ) |> join "")</ol></div>"""
@@ -2348,68 +2408,12 @@ String =
         "  \r\n" -> "<br>"
         "  \n" -> "<br>"
         )
+      |> update.onInsert (\inserted ->
+        case Regex.extract "</p>\\s*<p>(.*)" inserted of
+          Just [value] -> "\n\n" + value
+          _ -> inserted
+        )
       )
-    in
-  { toInt = toInt
-    toFloat = toFloat
-    join = join
-    joinAndSplitBack = joinAndSplitBack
-    length = length
-    substring = substring
-    slice = substring
-    take = take
-    left = take
-    drop = drop
-    dropLeft = drop
-    dropRight = dropRight
-    trim = trim
-    sprintf = sprintf
-    uncons s = case extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s of
-      Just [x, y] -> Just (x, y)
-      Nothing -> Nothing
-    padLeft n c = Update.lens {
-      apply s = (List.range 1 (n - length s) |> List.map (always c) |> join "") + s
-      update {outputNew} =
-         case extractFirstIn ("^(" + c + ")*([\\s\\S]*)$") outputNew of
-           Just [padding, str] -> Ok (Inputs [str])
-           Nothing -> Err "String.pad could not complete"
-    }
-    markdown = markdown
-
-    update = {
-        freezeLeft = freezeLeft
-        freezeRight = freezeRight
-        onInsert callbackOnInserted string = Update.lens {
-          apply string = string
-          update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
-            let aux offset outputNewUpdated revDiffsUpdated oldDiffs = case oldDiffs of
-              [] -> Ok (InputsWithDiffs [
-                (outputNewUpdated, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
-              ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
-                let inserted = substring (start + offset) (start + offset + replaced) outputNewUpdated in
-                let newInserted = callbackOnInserted inserted in
-                let lengthNewInserted = length newInserted in
-                let newOffset = offset + lengthNewInserted - (end - start) in
-                let (newOutputNewUpdated, newDiff) = if inserted /= newInserted then
-                   ( take (start + offset) outputNewUpdated +
-                     newInserted + drop (start + offset + replaced) outputNewUpdated
-                   , StringUpdate start end lengthNewInserted)
-                   else (outputNewUpdated, headDiff)
-                in
-                aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs
-             in aux 0 outputNew [] sDiffs
-         } string
-    }
-
-    newlines = {
-      isCRLF = Regex.matchIn "\r\n"
-      toUnix string =
-        if isCRLF string then
-          Regex.replace "\r" (\_ -> freeze "") string
-          |> update.onInsert (Regex.replace "\n" (\_ -> "\r\n"))
-        else
-          string
-    }
 
     q3 = "\"\"\"" -- To interpolate triple quotes into strings
   }
