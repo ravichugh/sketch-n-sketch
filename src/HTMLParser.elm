@@ -17,7 +17,8 @@ module HTMLParser exposing (parseHTMLString,
   parseNode,
   entityToString,
   interpretAttrValueContent,
-  AtPresence(..))
+  AtPresence(..),
+  printAttrValueRaw)
 
 import Char
 import Set exposing (Set)
@@ -973,3 +974,16 @@ unparseHtmlNodesDiffs: Maybe VDiffs-> List HTMLNode -> List HTMLNode -> Result S
 unparseHtmlNodesDiffs diffs oldNodes newNodes =
   unparseList unparseNodeDiffs unparseNode oldNodes newNodes 0 diffs |> Result.map (\(s, _, l) -> (s, l))
   --|>  Debug.log ("unparseHtmlNodesDiffs " ++toString diffs ++ " " ++ toString oldNodes ++ " " ++ toString newNodes)
+
+
+printAttrValueRaw prettyPrint v =  Utils.delimit "\"" "\"" (Regex.replace Regex.All (Regex.regex "\\\\|\"|'|\n|\r|\t|&") (\m ->
+  case m.match of
+    "\\" -> if prettyPrint then "\\\\" else "\\"
+    "'" -> if prettyPrint then "'" else "&#39;"
+    "\"" -> if prettyPrint then "\\\"" else "&quot;"
+    "\n" -> if prettyPrint then "\\n" else "&#10;"
+    "\r" -> if prettyPrint then "\\r" else "&#13;"
+    "\t" -> if prettyPrint then "\\t" else "\t"
+    "&" -> if prettyPrint then "&" else "&amp;"
+    e -> e
+  ) v)

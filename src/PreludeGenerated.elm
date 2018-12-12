@@ -4310,11 +4310,23 @@ String =
         listDict.get (nth m.group 1) footnotes |> case of
           Just (n, key) -> Update.expressionFreeze \"\"\"<a href=\"#fn@n\" title=\"@(escapeAttribute key)\" class=\"footnoteRef\" id=\"fnref@n\"><sup>@n</sup></a>\"\"\"
           Nothing -> m.match)
-      |> r \"\"\"(\\*{1,3}|_{1,3})(?=[^\\s\\*_])(@notincode(?:(?!\\\\\\*|\\_).)*?)\\1@notincode@notinattr\"\"\" (\\m ->
-        case nth m.group 1 |> length of
-          1 -> Update.expressionFreeze \"\"\"<em>@(nth m.group 2)</em>\"\"\"
-          2 -> Update.expressionFreeze \"\"\"<strong>@(nth m.group 2)</strong>\"\"\"
-          _ -> Update.expressionFreeze \"\"\"<em><strong>@(nth m.group 2)</strong></em>\"\"\")
+      |> r \"\"\"(\\*{1,3}|_{1,3})(?=[^\\s\\*_])(@notincode(?:(?!\\\\\\*|\\_).)*?)(\\1)@notincode@notinattr\"\"\" (\\m ->
+        let content = nth m.group 2 in
+        let n = nth m.group 1 |> length in
+        let m = nth m.group 3 |> length in
+        let (start, end)= Update.lens2 {
+          apply (n, m) = case n of
+            1 -> (\"<em>\", \"</em>\")
+            2 -> (\"<strong>\", \"</strong>\")
+            3 -> (\"<em><strong>\", \"</strong></em>\")
+          update {outputNew=(start,end)} = case (start, end) of
+            (\"\", \"\") -> Ok (Inputs [(0, 0)])
+            (\"<span>\", \"</span>\") -> Ok (Inputs [(0, 0)])
+            (\"<em>\", \"</em>\") -> Ok (Inputs [(1, 1)])
+            (\"<strong>\", \"</strong>\") -> Ok (Inputs [(2, 2)])
+            _ -> Err \"Cannot touch em and strong tags directly. For now, just delete and replace the text without italics/bold\"
+        } n m
+        in start + content + end)
       |> r \"\"\"(&mdash;|\\\\\\*|\\\\_|\\\\\\[|\\\\\\]|  \\r?\\n)@notincode\"\"\" (\\m -> case m.match of
         \"&mdash;\" -> \"—\"
         \"\\\\*\" -> drop 1 m.match

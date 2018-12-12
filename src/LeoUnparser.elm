@@ -841,13 +841,13 @@ noInterpolationConflict varString rightString =
 ------------------------
 dummyExp = withDummyExpInfo <| EApp space0 (eVar "x") [] SpaceApp space0
 
-unparseHtmlAttributes: Exp -> String
-unparseHtmlAttributes attrExp =
+unparseHtmlAttributes: Bool -> Exp -> String
+unparseHtmlAttributes isRaw attrExp =
   case eListUnapply attrExp of
     Just attrs ->
       attrs |> List.map (\attr -> case unwrapExp attr of
         EList attrNameSpace [(atEncoded, attrName), (spBeforeEq, attrValue)] spAfterEq Nothing _ ->
-          let atAfterEqual = if atEncoded.val == " " then "@" else ""  in
+          let atAfterEqual = if atEncoded.val == " " && not isRaw then "@" else ""  in
           let beforeSpace = if attrNameSpace.val == "" then " " else attrNameSpace.val in
           case unwrapExp attrName of
             EBase _ (EString _ attrNameStr) ->
@@ -856,9 +856,29 @@ unparseHtmlAttributes attrExp =
                 _ -> attrValue
               in
               let default () =
+                let defaultValue () = unparse attrValueToConsider in
+                let value = if isRaw && attrNameStr == "style" then -- Get rid of lists if the name is style
+                     case unwrapExp  attrValueToConsider of
+                       EList _ elems _ _ _ ->
+                         let resUnparsed =
+                              List.map (\(ws, elem) -> case unwrapExp elem of
+                                EList _ [(_, styleName), (_, styleValue)] _ _ _ ->
+                                  case (eStrUnapply styleName, eStrUnapply styleValue) of
+                                    (Just sName, Just sValue) -> Ok (sName, sValue)
+                                    _ -> Err "not a valid style key/value pair"
+                                _ -> Err "not a valid style key/value pair"
+                                  ) elems |> Utils.projOk
+                         in
+                         case resUnparsed of
+                           Err _ -> defaultValue ()
+                           Ok listPairStringString-> HTMLParser.printAttrValueRaw False<|
+                             LangParserUtils.implodeStyleValue listPairStringString
+                       _ -> defaultValue ()
+                     else defaultValue ()
+                in
                 beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++
                    wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
-                     OpRight dummyExp attrValueToConsider (unparse attrValueToConsider)
+                     OpRight dummyExp attrValueToConsider value
               in
               case unwrapExp attrValueToConsider of
                 EBase spIfNoValue (EString _ attrValueStr) ->
@@ -902,7 +922,7 @@ unparseHtmlAttributes attrExp =
     Nothing -> case (unwrapExp attrExp) of
       EApp sp _ [e1, e2] _ _ -> case eAppUnapply2 e1 of
         Just (_, eleft, e) ->
-          unparseHtmlAttributes eleft ++ sp.val ++ "@" ++ unparse e ++ unparseHtmlAttributes e2
+          unparseHtmlAttributes isRaw eleft ++ sp.val ++ "@" ++ unparse e ++ unparseHtmlAttributes isRaw e2
         Nothing -> " @("++unparse attrExp++")"
       _ -> " @("++unparse attrExp++")"
 
@@ -996,7 +1016,7 @@ unparseHtmlNode isRaw e = case (unwrapExp e) of
           _ -> ("@" ++ unparse tagExp, "@")
     in
     let newIsRaw = isRaw || tagStart == "raw" in
-    "<" ++ tagStart ++ unparseHtmlAttributes attrExp ++spaceBeforeEndOpeningTag.val ++ (
+    "<" ++ tagStart ++ unparseHtmlAttributes isRaw attrExp ++spaceBeforeEndOpeningTag.val ++ (
       if spaceBeforeTail.val == LeoParser.encoding_autoclosing then
         "/>"
       else if spaceBeforeTail.val == LeoParser.encoding_voidclosing then
@@ -1020,7 +1040,7 @@ unparseAnyHtml e =
         Just "TEXT" -> unparseHtmlNode False e
         Just "COMMENT" -> unparseHtmlNode False e
         Just _ -> -- It's an attribute
-          unparseHtmlAttributes (eList [e] Nothing)
+          unparseHtmlAttributes False (eList [e] Nothing)
         Nothing -> unparse e
     EList _ [(_, tag), (_, attr), (_, children)] _ Nothing _ ->
       case eStrUnapply tag of
