@@ -3,6 +3,7 @@ module TypeDirectedFunctionUtils exposing (..)
 import AlgorithmJish
 import FocusedEditingContext
 import Lang exposing (..)
+import LangTools
 import Syntax
 import Types
 import Utils
@@ -20,16 +21,26 @@ getFunctionsByPredicateOnType hasDesiredType idToTypeAndContextThunk program edi
   let viewerEId = FocusedEditingContext.eidAtEndOfDrawingContext editingContext program in
   case Dict.get viewerEId idToTypeAndContextThunk of
     Just (_, typingContextThunk) ->
-      let typingContext = typingContextThunk () in
-      let typesInScope = typingContext |> Utils.removeShadowedKeys in
-      typingContext
-      -- |> List.map
-      --     (\(ident, tipe) ->
-      --       let _ = Debug.log ident (Syntax.typeWithRolesUnparser Syntax.Elm tipe) in
-      --       (ident, tipe)
-      --     )
-      |> List.filter (\(ident, tipe) -> hasDesiredType tipe)
-      |> List.map (Tuple.mapSecond Types.prettify)
+      let
+        programIdentifiersAtScope =
+          LangTools.visibleIdentifiersAtPredicateNoPrelude program (.val >> .eid >> (==) viewerEId)
+
+        typingContext = typingContextThunk ()
+
+        (programFunctions, preludeFunctions) =
+          typingContext
+          |> Utils.removeShadowedKeys
+          -- |> List.map
+          --     (\(ident, tipe) ->
+          --       let _ = Debug.log ident (Syntax.typeWithRolesUnparser Syntax.Elm tipe) in
+          --       (ident, tipe)
+          --     )
+          |> List.filter (\(ident, tipe) -> hasDesiredType tipe)
+          |> List.map (Tuple.mapSecond Types.prettify)
+          |> List.reverse -- Typing context was reverse order.
+          |> List.partition (\(ident, _) -> Set.member ident programIdentifiersAtScope)
+      in
+      programFunctions ++ preludeFunctions
 
     Nothing ->
       []
