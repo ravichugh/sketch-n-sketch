@@ -35,10 +35,9 @@ match (p,v) = case (p.val.p__, v.v_) of
     if n > m then Nothing
     else
       let (vs1,vs2) = Utils.split n vs in
-      -- Provenance for list tails is wrong because we don't have ADT-based list construction.
       let vRest =
         { v_ = VList vs2
-        , provenance = Provenance [] (eApp (eVar0 "drop") [provenanceExp v.provenance, eConstDummyLoc (toFloat n)]) [v] vs2
+        , provenance = Provenance (eApp (eVar0 "drop") [provenanceExp v.provenance, eConstDummyLoc (toFloat n)]) [v] -- TODO: should be based on "drop" prelude function and a dummy int. Doesn't matter for selected val -> program EId determination.
         , parents = Parents []
         }
       in
@@ -145,7 +144,7 @@ simpleEvalToMaybeVal e = eval False Nothing runUntilTheEnd Syntax.Elm initEnv []
 eval : Bool -> Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Backtrace -> PBEHolesSeenRefCell -> Exp -> Result String ((Val, Widgets), Maybe Env)
 eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCell e =
 
-  let makeProvenance basedOn premises = Provenance env e basedOn premises in
+  let makeProvenance basedOn = Provenance e basedOn in
 
   -- Deeply tag value's children to say the child flowed through here.
   --
@@ -184,17 +183,18 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
   let retEnvHere = retEnv Nothing in
 
   -- Only use introduceVal, ret, or retBoth for new values (i.e. not var lookups): they do not preserve parents
-  let introduceVal basedOn premises v_               = addParent <| Val v_ (makeProvenance basedOn premises) (Parents []) in
-  let retBoth basedOn premises (v_, ws) deeperRetEnv = ((introduceVal basedOn premises v_, ws), retEnv deeperRetEnv) in
-  let ret basedOn premises v_                        = retBoth basedOn premises (v_, []) Nothing in
+  let introduceVal basedOn v_               = addParent <| Val v_ (makeProvenance basedOn) (Parents []) in
+  let retBoth basedOn (v_, ws) deeperRetEnv = ((introduceVal basedOn v_, ws), retEnv deeperRetEnv) in
+  let ret basedOn v_                        = retBoth basedOn (v_, []) Nothing in
 
-  let retV basedOn premises v                        = ((addParent { v | provenance = makeProvenance basedOn premises}, []), retEnvHere) in
-  let retVBoth basedOn premises (v, ws) deeperRetEnv = ((addParent { v | provenance = makeProvenance basedOn premises}, ws), retEnv deeperRetEnv) in
-  let addParentToRet ((v,ws),envOut)                      = ((addParent v, ws), envOut) in
-  let addProvenanceToRet basedOn premises ((v,ws),envOut) = ((addParent { v | provenance = makeProvenance basedOn premises}, ws), envOut) in
-  let addWidgets ws1 ((v1,ws2),env1)                      = ((v1, ws1 ++ ws2), env1) in
-  let attachEarlierRetEnv earlierRetEnv ((v1,ws1), env1)  = ((v1, ws1), Utils.orMaybe env1 earlierRetEnv) in
-  let attachLaterRetEnv laterRetEnv ((v1,ws1), env1)      = ((v1, ws1), Utils.orMaybe laterRetEnv env1) in
+  let retV basedOn v                             = ((addParent { v | provenance = makeProvenance basedOn}, []), retEnvHere) in
+  let retVBoth basedOn (v, ws) deeperRetEnv      = ((addParent { v | provenance = makeProvenance basedOn}, ws), retEnv deeperRetEnv) in
+  -- let retAddWs ws1 (v1, ws2)                     = (v1, ws1 ++ ws2) in
+  let addParentToRet ((v,ws),envOut)             = ((addParent v, ws), envOut) in
+  let addProvenanceToRet basedOn ((v,ws),envOut) = ((addParent { v | provenance = makeProvenance basedOn}, ws), envOut) in
+  let addWidgets ws1 ((v1,ws2),env1)             = ((v1, ws1 ++ ws2), env1) in
+  let attachEarlierRetEnv earlierRetEnv ((v1,ws1), env1) = ((v1, ws1), Utils.orMaybe env1 earlierRetEnv) in
+  let attachLaterRetEnv laterRetEnv ((v1,ws1), env1) = ((v1, ws1), Utils.orMaybe laterRetEnv env1) in
 
 
 
@@ -238,7 +238,7 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
 
   EConst _ n loc wd ->
     let v_ = VConst Nothing (n, TrLoc loc) in
-    let retVal = introduceVal [] [] v_ in
+    let retVal = introduceVal [] v_ in
     case wd.val of
       NoWidgetDecl         -> Ok ((retVal, []), retEnvHere)
       IntSlider a _ b mcap hidden ->
@@ -248,9 +248,9 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
         let widget = WNumSlider a.val b.val (mkCap mcap loc) n retVal loc hidden in
         Ok ((retVal, [widget]), retEnvHere)
 
-  EBase _ v     -> Ok <| ret [] [] <| VBase (eBaseToVBase v)
-  EVar _ x      -> Result.map (\v -> retV [v] [] v) <| lookupVar syntax env (e::bt) x e.start
-  EFun _ ps e _ -> Ok <| ret [] [] <| VClosure Nothing ps e env
+  EBase _ v     -> Ok <| ret [] <| VBase (eBaseToVBase v)
+  EVar _ x      -> Result.map (\v -> retV [v] v) <| lookupVar syntax env (e::bt) x e.start
+  EFun _ ps e _ -> Ok <| ret [] <| VClosure Nothing ps e env
   EOp _ op es _ -> Result.map (\(res, deeperRetEnv) -> addParentToRet (res, retEnv deeperRetEnv)) <| evalOp showPreludeOffsets maybeRetEnvEId abortPred syntax env e (e::bt) pbeHolesSeenRefCell op es
 
   EList _ es _ m _ ->
@@ -271,15 +271,15 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
                 let taggedV1 = {v1 | v_ = VConst (Just coordinateInfo1) nt1} in
                 let taggedV2 = {v2 | v_ = VConst (Just (Y, nt1, taggedV1)) nt2} in
                 let _ = ImpureGoodies.mutateRecordField coordinateInfo1 "_2" taggedV2 in
-                Ok <| retBoth vs vs (VList [taggedV1, taggedV2], ws) deeperRetEnv
-              _ -> Ok <| retBoth vs vs (VList vs, ws) deeperRetEnv
-          (Nothing, _, _)   -> Ok <| retBoth vs vs (VList vs, ws) deeperRetEnv
+                Ok <| retBoth vs (VList [taggedV1, taggedV2], ws) deeperRetEnv
+              _ -> Ok <| retBoth vs (VList vs, ws) deeperRetEnv
+          (Nothing, _, _)   -> Ok <| retBoth vs (VList vs, ws) deeperRetEnv
           (Just rest, _, _) ->
             case recurse rest of
               Err s -> Err s
               Ok ((vRest, ws_), deeperRetEnv_) ->
                 case vRest.v_ of
-                  VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_) (Utils.orMaybe deeperRetEnv_ deeperRetEnv)
+                  VList vs_ -> Ok <| retBoth (vs ++ [vRest]) (VList (vs ++ vs_), ws ++ ws_) (Utils.orMaybe deeperRetEnv_ deeperRetEnv)
                   _         -> errorWithBacktrace syntax (e::bt) <| strPos rest.start ++ " rest expression not a list."
 
   -- Alternatively, could choose not to add a basedOn record for if/case/typecase (simply pass value through, maybe add parent)
@@ -289,8 +289,8 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
       Err s -> Err s
       Ok ((v1,ws1), deeperRetEnv1) ->
         case v1.v_ of
-          VBase (VBool True)  -> Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| attachEarlierRetEnv deeperRetEnv1 <| addProvenanceToRet [v] [v1, v] <| addWidgets ws1 result) <| recurse e2 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
-          VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| attachEarlierRetEnv deeperRetEnv1 <| addProvenanceToRet [v] [v1, v] <| addWidgets ws1 result) <| recurse e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          VBase (VBool True)  -> Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| attachEarlierRetEnv deeperRetEnv1 <| addProvenanceToRet [v] <| addWidgets ws1 result) <| recurse e2 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          VBase (VBool False) -> Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| attachEarlierRetEnv deeperRetEnv1 <| addProvenanceToRet [v] <| addWidgets ws1 result) <| recurse e3 -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           _                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " if-exp expected a Bool but got something else."
 
   ECase _ e1 bs _ ->
@@ -299,7 +299,7 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
       Ok ((v1,ws1), deeperRetEnv1) ->
         case evalBranches showPreludeOffsets maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell v1 bs of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
-          Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] [v1, v2] (v2, ws1 ++ ws2) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s                               -> Err s
           _                                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive case statement"
 
@@ -309,7 +309,7 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
       Ok ((v1,ws1), deeperRetEnv1) ->
         case evalTBranches showPreludeOffsets maybeRetEnvEId abortPred syntax env bt_ pbeHolesSeenRefCell v1 tbranches of
           -- retVBoth and not addProvenanceToRet b/c only lets should return inner env
-          Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] [v1, v2] (v2, ws1 ++ ws2) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
+          Ok (Just ((v2,ws2), deeperRetEnv2)) -> Ok <| retVBoth [v2] (v2, ws1 ++ ws2) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1) -- Provenence basedOn vals control-flow agnostic: do not include scrutinee
           Err s                               -> Err s
           _                                   -> errorWithBacktrace syntax (e::bt) <| strPos e1.start ++ " non-exhaustive typecase statement"
 
@@ -349,7 +349,7 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
                 else
                   []
               in
-              retVBoth [fRetVal] ([v1] ++ argVals ++ [fRetVal]) (fRetVal, perhapsPointWidgetsFromPrelude ++ ws1 ++ fRetWs ++ perhapsCallWidget) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1)
+              retVBoth [fRetVal] (fRetVal, perhapsPointWidgetsFromPrelude ++ ws1 ++ fRetWs ++ perhapsCallWidget) (Utils.orMaybe deeperRetEnv2 deeperRetEnv1)
             )
 
           _ ->
@@ -364,7 +364,7 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
             -- Don't add provenance: fine to say value is just from the let body.
             -- (We consider equations to be mobile).
             eval showPreludeOffsets maybeRetEnvEId abortPred syntax env_ bt_ pbeHolesSeenRefCell e2
-            |> Result.map (addWidgets ws1 >> attachEarlierRetEnv deeperRetEnv1 >> attachLaterRetEnv retEnvHere >> (\(((bodyVal,_),_) as ret) -> addProvenanceToRet [bodyVal] [v1, bodyVal] ret))
+            |> Result.map (addWidgets ws1 >> attachEarlierRetEnv deeperRetEnv1 >> attachLaterRetEnv retEnvHere)
 
           Nothing   ->
             errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " could not match pattern " ++ (Syntax.patternUnparser syntax >> Utils.squish) p ++ " with " ++ strVal v1
@@ -383,7 +383,7 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
               -- (We consider equations to be mobile).
               Just env_ ->
                 eval showPreludeOffsets maybeRetEnvEId abortPred syntax env_ bt_ pbeHolesSeenRefCell e2
-                |> Result.map (addWidgets ws1 >> attachEarlierRetEnv deeperRetEnv1 >> attachLaterRetEnv retEnvHere >> (\(((bodyVal,_),_) as ret) -> addProvenanceToRet [bodyVal] [v1, bodyVal] ret))
+                |> Result.map (addWidgets ws1 >> attachEarlierRetEnv deeperRetEnv1 >> attachLaterRetEnv retEnvHere)
 
               _ ->
                 errorWithBacktrace syntax (e::bt) <| strPos e.start ++ "bad ELet"
@@ -429,10 +429,10 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
   EHole _ (HoleNamed "terminationCondition") ->
     let parentIf = List.head bt |> Maybe.withDefault (eHoleNamed " * Nothing * ") in
     if Utils.count ((==) parentIf) bt >= 2 -- Recurse once.
-    then Ok <| ret [] [] <| VBase (VBool True)
-    else Ok <| ret [] [] <| VBase (VBool False)
+    then Ok <| ret [] <| VBase (VBool True)
+    else Ok <| ret [] <| VBase (VBool False)
 
-  EHole _ (HoleVal val)        -> Ok <| retV [val] [] val -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
+  EHole _ (HoleVal val)        -> Ok <| retV [val] val -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
   EHole _ (HoleLoc locId)      -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " loc hole " ++ toString locId ++ "!"
   EHole _ HoleEmpty            -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
   EHole _ (HolePredicate _)    -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"
@@ -453,7 +453,7 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
           pbeHoleSeenAfterEval = (e, env, evaledResult |> Result.map (\((v,_),_)-> v))
           _ = ImpureGoodies.mutateRecordField pbeHolesSeenRefCell "pbeHolesSeen" (Utils.replacei holesSeenIToReplace pbeHoleSeenAfterEval pbeHolesSeenRefCell.pbeHolesSeen)
         in
-        Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| addProvenanceToRet [v] [v] result) <| evaledResult
+        Result.map (\(((v,_),_) as result) -> attachLaterRetEnv retEnvHere <| addProvenanceToRet [v] result) <| evaledResult
 
       Nothing ->
         errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " encountered PBE hole too many times—no more examples to use for evaluation!"
@@ -474,7 +474,7 @@ evalOp showPreludeOffsets maybeRetEnvEId abortPred syntax env e bt pbeHolesSeenR
           <| "Bad arguments to " ++ strOp op ++ " operator " ++ strPos opStart
           ++ ":\n" ++ Utils.lines (Utils.zip vs es |> List.map (\(v,e) -> (strVal v) ++ " from " ++ (Syntax.unparser syntax e)))
       in
-      let addProvenance val_   = Val val_ (Provenance env e vs vs) (Parents []) in
+      let addProvenance val_   = Val val_ (Provenance e vs) (Parents []) in
       let addProvenanceOk val_ = Ok (addProvenance val_) in
       let nullaryOp args retVal_ =
         case args of
@@ -549,9 +549,8 @@ evalOp showPreludeOffsets maybeRetEnvEId abortPred syntax env e bt pbeHolesSeenR
               |> List.map String.fromChar
               |> Utils.mapi0
                   (\(i, charStr) ->
-                    -- Again, this provenance is wrong because we have flat rather than ADT-based lists.
                     { v_ = VBase (VString charStr)
-                    , provenance = Provenance [] (eCall "nth" [e, eConstDummyLoc (toFloat i)]) vs vs
+                    , provenance = Provenance (eCall "nth" [e, eConstDummyLoc (toFloat i)]) vs
                     , parents = Parents []
                     }
                   )

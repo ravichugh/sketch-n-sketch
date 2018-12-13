@@ -260,7 +260,6 @@ type alias Token = WithInfo String
 
 type alias Caption = Maybe (WithInfo String)
 
-
 type alias Val = { v_ : Val_, provenance : Provenance, parents : Parents }
 
 valParents val = let (Parents parents) = val.parents in parents
@@ -307,14 +306,10 @@ allTraceLocs trace =
     TrLoc loc     -> [loc]
     TrOp _ traces -> List.concatMap allTraceLocs traces
 
--- First (List Val) is vals immediately used to calculate this, this "basedOn" provenance, like traces, ignores control flow.
--- Second (List Val) is the premises of the evaluation derivation; includes the control flow
-type Provenance = Provenance Env Exp (List Val) (List Val)
+type Provenance = Provenance Exp (List Val) -- (List Val) is vals immediately used to calculate this; "basedOn" provenance, like traces, ignores control flow.
 
-provenanceEnv         (Provenance env exp basedOn premises) = env
-provenanceExp         (Provenance env exp basedOn premises) = exp
-provenanceBasedOn     (Provenance env exp basedOn premises) = basedOn
-provenancePremiseVals (Provenance env exp basedOn premises) = premises
+provenanceExp     (Provenance exp basedOn) = exp
+provenanceBasedOn (Provenance exp basedOn) = basedOn
 
 -- If using these, you may also want expEffectiveExp and friends.
 valExp : Val -> Exp
@@ -1867,7 +1862,7 @@ dummyTrace_ b = TrLoc (dummyLoc_ b)
 dummyLoc        = dummyLoc_ unann
 dummyLocFrozen  = dummyLoc_ frozen
 dummyTrace      = dummyTrace_ unann
-dummyProvenance = Provenance [] (eTuple0 []) [] []
+dummyProvenance = Provenance (eTuple0 []) []
 
 -- TODO interacts badly with auto-abstracted variable names...
 dummyLocWithDebugInfo : Frozen -> Num -> Loc

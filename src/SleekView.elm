@@ -34,7 +34,6 @@ import OutputTools exposing (OutputTool)
 
 import SleekLayout exposing (px, half)
 import Canvas
-import ShowDerivation
 import Draw
 import Sync
 import Lang exposing (Exp)
@@ -900,15 +899,6 @@ menuBar model =
                   )
                   "Value Editor"
                   Controller.msgSetOutputShowValue
-              , simpleTextRadioButton
-                  ( case model.outputMode of
-                      Derivation ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Derivation"
-                  Controller.msgSetOutputDerivation
               ]
           ]
         , [ simpleTextButton
@@ -1427,8 +1417,6 @@ outputPanel model =
               ]
               [ Html.text "Update (⌘Enter)" ]
           ]
-        (Nothing, Derivation, _) ->
-          ShowDerivation.build canvasDim model
         (Nothing, _, _) ->
           Canvas.build canvasDim model
     outputPanelWarning =
