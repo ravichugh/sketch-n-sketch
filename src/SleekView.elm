@@ -1222,46 +1222,21 @@ codePanel : Model -> Html Msg
 codePanel model =
   let
     undoButton =
-      let
-        past =
-          History.prior model.history
-        attributes =
-          case past of
-            Just snapshot ->
-              [ E.onMouseEnter <| Controller.msgPreview (Right snapshot.code)
-              , E.onMouseLeave Controller.msgClearPreview
-              ]
-
-            Nothing ->
-              []
-      in
-        textButton
-          { defaultTb
-              | attributes = attributes ++ logMouseOver "Undo"
-              , content = [Html.text "⟲ Undo"]
-              , onClick = Controller.msgUndo
-              , disabled = not <| History.hasExtendedPast model.history
-          }
+      textButton
+        { defaultTb
+            | attributes = logMouseOver "Undo"
+            , content = [Html.text "⟲ Undo"]
+            , onClick = Controller.msgUndo
+            , disabled = not <| History.hasExtendedPast model.history
+        }
     redoButton =
-      let
-        future =
-          History.next model.history
-        attributes =
-          case future of
-            Just snapshot ->
-              [ E.onMouseEnter <| Controller.msgPreview (Right snapshot.code)
-              , E.onMouseLeave Controller.msgClearPreview
-              ]
-            Nothing ->
-             []
-      in
-        textButton
-          { defaultTb
-              | attributes = attributes ++ logMouseOver "Redo"
-              , content = [Html.text "⟳ Redo"]
-              , onClick = Controller.msgRedo
-              , disabled = not <| History.hasFuture model.history
-          }
+      textButton
+        { defaultTb
+            | attributes = logMouseOver "Redo"
+            , content = [Html.text "⟳ Redo"]
+            , onClick = Controller.msgRedo
+            , disabled = not <| History.hasFuture model.history
+        }
     cleanButton =
       let
         disabled =
