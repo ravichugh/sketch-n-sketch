@@ -193,6 +193,7 @@ type OutputMode
       -- TODO put rawSvg in Model
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
   | ShowValue
+  | Derivation
   | PrintScopeGraph (Maybe String)
                       -- Nothing        after sending renderDotGraph request
                       -- Just dataURI   after receiving the encoded image

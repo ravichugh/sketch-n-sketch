@@ -381,7 +381,7 @@ type alias BoxyFeatureEquations =
 
 
 
-eqnNumTwo = EqnNum (Val (VConst Nothing (2, dummyTrace)) (Provenance (eConst0 2 dummyLoc) []) (Parents []))
+eqnNumTwo = EqnNum (Val (VConst Nothing (2, dummyTrace)) (Provenance [] (eConst0 2 dummyLoc) [] []) (Parents []))
 plus a b  = EqnOp Plus [a, b]
 minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
@@ -1063,7 +1063,7 @@ featureEquationToValTree valEqn =
       let childVals = List.map featureEquationToValTree children in
       -- Only need Provenance basedOn list and the EId of the expression (dummy here)
       { v_         = VList []
-      , provenance = Provenance (eTuple []) childVals
+      , provenance = Provenance [] (eTuple []) childVals childVals
       , parents    = Parents []
       }
 

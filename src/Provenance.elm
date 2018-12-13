@@ -189,7 +189,7 @@ pointPartsToPointValsStrict xValTree yValTree =
 -- Includes given val.
 flattenValBasedOnTree : Val -> List Val
 flattenValBasedOnTree val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   val :: List.concatMap flattenValBasedOnTree basedOnVals
 
 
@@ -455,7 +455,7 @@ valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter val
 
 valTreeToAllProgramEIdInterpretations_ : Bool -> (Exp -> Bool) -> Val -> List (Set EId)
 valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   let perhapsThisExp = if FastParser.isProgramEId exp.val.eid && expFilter exp then [Set.singleton exp.val.eid] else [] in
   basedOnVals
   |> List.map (valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter)
@@ -470,7 +470,7 @@ valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val
 -- Otherwise, returns the different ways it could be interpreted.
 valInterpretationsAllInside : List Val -> Val -> List (List Val)
 valInterpretationsAllInside vals val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   let perhapsThisVal = if List.member val vals then [[val]] else [] in
   let childrenInterps =
     -- We do want poisoning here: a child that can't be interpreted inside vals should break the entire interpretation.
@@ -484,7 +484,7 @@ valInterpretationsAllInside vals val =
 
 proximalValInterpretationsAllInside : List Val -> Val -> List (List Val)
 proximalValInterpretationsAllInside vals val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   if List.member val vals then
     [[val]]
   else if basedOnVals == [] then -- Need this branch, otherwise the base case of Utils.cartProdAll returns an empty interpretation
@@ -535,7 +535,7 @@ valsToProximalDistalPointInterpretations expFilter xValTree yValTree =
 
 isRelevantParentPoint : (Exp -> Bool) -> List Val -> Val -> Bool
 isRelevantParentPoint expFilter pointVals parent =
-  let (Provenance parentExp _) = parent.provenance in
+  let (Provenance _ parentExp _ _) = parent.provenance in
   -- Former condition should always be true; Eval won't add parent unless it's in the program.
   -- Leave it here though: eventually we will narrow contexts further.
   FastParser.isProgramEId parentExp.val.eid && List.member parent pointVals && expFilter parentExp
@@ -547,11 +547,11 @@ isRelevantParentPoint expFilter pointVals parent =
 -- Resulting interpretation may be a mix of EIds from pointVals and bare values
 valTreeToMostProximalProgramPointEIdInterpretation : (Exp -> Bool) -> List Val -> Val -> (Set EId, List Val)
 valTreeToMostProximalProgramPointEIdInterpretation expFilter pointVals val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   -- Most recent parents are at front of list.
   case valParents val |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
     Just parent ->
-      let (Provenance parentExp _) = parent.provenance in
+      let (Provenance _ parentExp _ _) = parent.provenance in
       (Set.singleton parentExp.val.eid, [parent])
 
     Nothing ->
@@ -577,7 +577,7 @@ valTreeToMostProximalProgramPointEIdInterpretation expFilter pointVals val =
 -- Resulting interpretation may be a mix of EIds from pointVals and bare values
 valTreeToMostDistalProgramPointEIdInterpretation : (Exp -> Bool) -> List Val -> Val -> (Set EId, List Val)
 valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   let (childrenInterpretations, pointValsUsed) =
     basedOnVals
     |> List.map (valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals)
@@ -591,7 +591,7 @@ valTreeToMostDistalProgramPointEIdInterpretation expFilter pointVals val =
     -- Oldest parents are at the back of the list.
     case List.reverse (valParents val) |> Utils.findFirst (isRelevantParentPoint expFilter pointVals) of
       Just parent ->
-        let (Provenance parentExp _) = parent.provenance in
+        let (Provenance _ parentExp _ _) = parent.provenance in
         (Set.singleton parentExp.val.eid, [parent])
 
       Nothing ->
@@ -618,7 +618,7 @@ pointPartsToProgramPointEIdsStrict expFilter xValTree yValTree =
 -- Interpretation closest to output value, i.e. furthest along in the program.
 valTreeToMostProximalProgramEIdInterpretation : (Exp -> Bool) -> Val -> Set EId
 valTreeToMostProximalProgramEIdInterpretation expFilter val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   if FastParser.isProgramEId exp.val.eid && expFilter exp then
     Set.singleton exp.val.eid
   else
@@ -631,7 +631,7 @@ valTreeToMostProximalProgramEIdInterpretation expFilter val =
 -- Generally constants.
 valTreeToMostDistalProgramEIdInterpretation : (Exp -> Bool) -> Val -> Set EId
 valTreeToMostDistalProgramEIdInterpretation expFilter val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   let childrenInterpretations =
     basedOnVals
     |> List.map (valTreeToMostDistalProgramEIdInterpretation expFilter)
@@ -660,7 +660,7 @@ valTreeToSingleEIdInterpretations program expFilter val =
 -- Using isPossibleSingleEIdInterpretation instead.
 valTreeToSingleEIdInterpretationsSlow : Exp -> (Exp -> Bool) -> Val -> List EId
 valTreeToSingleEIdInterpretationsSlow program expFilter val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   let perhapsThisExp = if FastParser.isProgramEId exp.val.eid && expFilter exp then [exp.val.eid] else [] in
   basedOnVals
   |> List.map (valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter)
@@ -688,14 +688,14 @@ valTreeToSingleEIdInterpretationsSlow program expFilter val =
 
 interpretationIsNonEmpty : Val -> Bool
 interpretationIsNonEmpty val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   FastParser.isProgramEId exp.val.eid || List.any interpretationIsNonEmpty basedOnVals
 
 
 -- This function is written correctly.
 isPossibleSingleEIdInterpretation : EId -> Val -> Bool
 isPossibleSingleEIdInterpretation eid val =
-  let (Provenance exp basedOnVals) = val.provenance in
+  let (Provenance env exp basedOnVals premises) = val.provenance in
   (exp.val.eid == eid && FastParser.isProgramEId exp.val.eid)
   || let relevantChildren = List.filter interpretationIsNonEmpty basedOnVals in
   case relevantChildren of

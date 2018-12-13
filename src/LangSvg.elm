@@ -923,7 +923,7 @@ type alias AnimationKey = (Int, Int, Float)
 
 -- HACK: see LocEqn.traceToMathExp...
 -- TODO: streamline Trace, MathExp, etc.
-vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance (eConstDummyLoc0 n) [], parents = Parents [] }
+vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance [] (eConstDummyLoc0 n) [] [], parents = Parents [] }
 vIntFrozen i = vNumFrozen (toFloat i)
 
 resolveToMovieCount : Bool -> Syntax -> Int -> Val -> Result String Int

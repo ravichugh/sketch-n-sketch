@@ -615,6 +615,20 @@ code {
   position: relative;
 }
 
+#outputCanvas table.derivation {
+  display: inline-block;
+  margin: 0 1em;
+  font-family: "Times New Roman", "Times", serif;
+}
+
+#outputCanvas table.derivation td {
+  text-align: center;
+}
+
+#outputCanvas table.derivation tr:first-child > td {
+  border-bottom: 1px solid black;
+}
+
 .text-hover-highlight:hover {
   fill: #38F552; /* Draw.colorPointSelected */
 }
