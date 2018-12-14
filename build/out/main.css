@@ -1388,3 +1388,15 @@ code {
 .code-object-polygon.opaque {
   opacity: 1;
 }
+
+/******************************************************************************
+ * Misc Palettes                                                              *
+ ******************************************************************************/
+
+.hidden-until-hover {
+  opacity: 0.2;
+}
+
+.hidden-until-hover:hover {
+  opacity: 1.0;
+}

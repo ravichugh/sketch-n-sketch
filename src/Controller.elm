@@ -2355,7 +2355,7 @@ doSelectSynthesisResult newExp old =
   runWithErrorHandling new newExp (\reparsed newVal newEnv newWidgets newSlate newCode ->
     -- debugLog "new model" <|
       let newer =
-      { new | inputExp             = reparsed -- newExp
+      { new | inputExp             = newExp -- reparsed -- newExp
             , inputVal             = newVal
             , inputEnv             = newEnv
             , valueEditorString    = LangUtils.valToString newVal
