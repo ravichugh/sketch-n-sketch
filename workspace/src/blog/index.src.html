@@ -11,35 +11,60 @@
       <div class="content_wide">
       <div class="post0">
         <h3>Posts</h3>
-        <ul class="nobullets">
-          @(fs.listdircontent "src/blog/posts" |> List.reverse
-           |> List.map (\(filename, filecontent) ->
-             let date = Regex.extract """\*((\w+) (\d+), (\d\d\d\d))\*""" filecontent |>
-                Maybe.map (\[date, month, day, year] ->
+        <button style="display:none" class="editor-menu" onclick="""
+var posts = document.getElementById("posts");
+var postnum = parseInt(posts.children[0].children[1].getAttribute("href")) + 1;
+if(postnum < 10) postnum = "0" + postnum
+else postnum = "" + postnum;
+
+var answer = prompt("New post title", "Your title here");
+if(answer != null && answer.length >= 4) {
+  duplicate(posts.children[0], { onBeforeInsert: newLi => {
+    var d = new Date();
+    newLi.children[0].innerText = `${('00' + (d.getMonth() + 1)).slice(-2)}.${('00' + d.getDate()).slice(-2)}.${d.getFullYear()}:`
+    var answerFilename = answer.replace(/ /g, "-").replace(/[^\w-]/g, "").toLowerCase();
+    var filename = postnum + "-" + (answerFilename == "" ? "post" : answerFilename);
+    newLi.children[0].setAttribute("ifnew", "true");
+    newLi.children[1].setAttribute("href", filename + ".html");
+    newLi.children[1].innerText = answer;
+    return newLi;
+  } });
+}
+""">New post</button>
+
+        @(["ul", [["id", "posts"], ["class", "nobullets"]], fs.listdircontent "src/blog/posts" |> List.reverse |> List.map (\(filename, filecontent) ->
+             let (date, postcontent) = Regex.extract """\*((\w+) (\d+), (\d\d\d\d))\*.*\r?\n([\s\S]*)$""" filecontent |>
+                Maybe.map (\[date, month, day, year, content] ->
                   let
                     monthnumericRaw = List.indexOf month ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-                    monthnumeric = if (monthnumericRaw < 10) then """0@monthnumericRaw""" else """@monthnumericRaw"""
-                    daynumeric = if (String.length day <= 1) then """0@day""" else day
+                    monthnumeric = String.padLeft 2 "0" """@monthnumericRaw"""
+                    daynumeric = String.padLeft 2 "0" """@day"""
                   in
-                   """@(monthnumeric).@(daynumeric).@year"""
+                  (Update.expressionFreeze """@(monthnumeric).@(daynumeric).@year""",
+                   content)
                  ) |>
-                Maybe.withDefaultLazy (\() -> "Date not found in " + filename)
+                Maybe.withDefaultLazy (\() -> ("Date not found in " + filename, Update.freeze ""))
              in
              let finalname = Regex.extract """^(.*)\.md$""" filename
-                  |> Maybe.map (\[name] -> name + ".html")
+                  |> Maybe.map (\[name] -> name + Update.freeze ".html")
                   |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
              in
              let title = Regex.extract """# ([^\r\n]+)""" filecontent
                   |> Maybe.map (\[title] ->
-                    __evaluate__ __CurrentEnv__ """<span>@title</span>""" |>
+                    __evaluate__ (__CurrentEnv__) """<span>@title</span>""" |>
                     case of
                       Ok [_, _, children] -> children
                       Err x -> <error>@x</error>)
                   |> Maybe.withDefaultLazy (\() -> <error>[Missing title in @filename]</error>)
              in
-             <li><tt>@date:</tt> <a href="""@finalname""">@title</a></li>
-           ))
-        </ul>
+             <li><tt ifnew=@(Update.lens {
+               apply p = "false"
+               update {input, outputNew} = if outputNew == "true" then
+                 Ok (Inputs ["\nTODO"])
+                 else
+                 Ok (InputsWithDiffs [(input, Nothing)])
+             } postcontent)>@date:</tt> <a href="""@finalname""" contenteditable= "false">@title</a></li>
+           )])
       </div>
       </div>
 <!--

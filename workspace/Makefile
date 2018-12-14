@@ -1,8 +1,7 @@
 SHELL := /bin/bash
 
-all: install
-	cd ..; editor&
-	hyde --watch --autosync
+all:
+	hyde --watch --autosync --serve=../
 
 input:
 	hyde --backward
