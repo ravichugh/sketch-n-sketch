@@ -384,13 +384,15 @@ synthesisHoverMenu model resultsKey title onMouseEnter disabled =
     max =
       List.length results
 
-    delta =
-      case resultsKey of
-        "Reorder in List" ->
-          max
+    revealDisabled =
+      [ "Reorder in List"
+      ]
 
-        _ ->
-          1
+    delta =
+      if List.member resultsKey revealDisabled then
+        max
+      else
+        1
 
     revealInfo =
       { delta = delta
