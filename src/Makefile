@@ -23,6 +23,7 @@ html: elm-stuff/packages
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/mode-elm.js ../build/out/
 	cp ../ace-builds/src/theme-chrome.js ../build/out/
+	cp ../diff-match-patch/diff_match_patch.js ../build/out/
 	cp ../viz.js/viz.js ../build/out/
 	mkdir -p ../build/out/img
 	cp ../img/sketch-n-sketch-logo.png ../build/out/img/
