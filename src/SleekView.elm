@@ -1623,19 +1623,33 @@ toolButton model tool =
           model cap Nothing (Msg cap (\m -> { m | mouseMode = MouseNothing, tool = tool })) btnKind False
       ]
 
+toolHeader : String -> Html Msg
+toolHeader title =
+  Html.div
+    [ Attr.class "tool-header" ]
+    [ Html.text title
+    ]
+
 functionTools : Model -> List (Html Msg)
 functionTools model =
   model.drawableFunctions
-  |> List.map
+  |> List.concatMap
       (\(funcName, funcType) ->
-        Html.div
-          [ Attr.class "tool"
-          ]
-          [ iconButton model funcName (Just <| funcName ++ " : " ++ Syntax.typeWithRolesUnparser Syntax.Elm funcType)
-              (Msg (funcName ++ " Function Tool") (\m -> { m | tool = Function funcName }))
-              (if model.tool == Function funcName then Selected else Unselected)
-              False
-          ]
+        ( -- Sad hack :(
+          if funcName == "vec2DPlus" then
+            [ toolHeader "Standard Library Tools" ]
+          else
+            []
+        ) ++
+        [ Html.div
+            [ Attr.class "tool"
+            ]
+            [ iconButton model funcName (Just <| funcName ++ " : " ++ Syntax.typeWithRolesUnparser Syntax.Elm funcType)
+                (Msg (funcName ++ " Function Tool") (\m -> { m | tool = Function funcName }))
+                (if model.tool == Function funcName then Selected else Unselected)
+                False
+            ]
+        ]
       )
 
 toolPanel : Model -> Html Msg
@@ -1656,7 +1670,8 @@ toolPanel model =
           , ("marginLeft", (px << .marginLeft) SleekLayout.toolPanel)
           ]
       ]
-      ( [ toolButton model Cursor
+      ( [ toolHeader "Built-In Tools"
+        , toolButton model Cursor
         , toolButton model PointOrOffset
         -- , toolButton model Text
         -- , toolButton model Line
@@ -1664,6 +1679,7 @@ toolPanel model =
         -- , toolButton model Oval
         , toolButton model Poly
         -- , toolButton model Path
+        , toolHeader "User-Defined Tools"
         ] ++
         functionTools model
       )

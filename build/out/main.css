@@ -663,6 +663,8 @@ code {
   display: flex;
   flex-direction: column;
   overflow-y: scroll;
+
+  background-color: var(--panel-bg-color);
 }
 
 .tool-panel .tool {
@@ -687,6 +689,19 @@ code {
 
 .tool-separator {
   height: 5px;
+}
+
+.tool-header {
+  background-color: var(--dragger-bg-color-fallback);
+  background-image: var(--dragger-bg-gradient);
+
+  font-size: 0.8em;
+  font-weight: bold;
+  text-align: center;
+
+  padding: 5px;
+
+  border-bottom: 1px solid var(--subtle-border-color);
 }
 
 /******************************************************************************
