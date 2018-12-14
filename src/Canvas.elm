@@ -367,7 +367,7 @@ patAsHTML modelRenamingInOutput showRemoverAndReorderers pat associatedShapes as
 
     Nothing ->
       let nameStr = nameCurrentlyInCode in
-      let width = nameWidth nameStr + if showRemoverAndReorderers then 25 else 0 in
+      let width = nameWidth nameStr + if showRemoverAndReorderers then 28 else 0 in
       let perhapsHoverPaddingAttr =
         case hoverPadding of
           NoHoverPadding -> []
