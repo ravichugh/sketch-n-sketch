@@ -27,7 +27,7 @@ port module InterfaceController exposing
   , msgGroup, msgDuplicate, msgMerge
   , msgReplicateBlob
   , msgToggleCodeBox
-  , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue, msgSetOutputDerivation
+  , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
   , msgSetLiveSyncDelay
   , msgStartAnimation, msgRedraw, msgTickDelta
@@ -2357,9 +2357,6 @@ msgSetOutputPrint = Msg "Set Output Print" <| \old ->
 
 msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
   { old | outputMode = ShowValue }
-
-msgSetOutputDerivation = Msg "Set Output Derivation" <| \old ->
-  { old | outputMode = Derivation }
 
 updateHeuristics : Sync.HeuristicMode -> Model -> Model
 updateHeuristics heuristic old =
