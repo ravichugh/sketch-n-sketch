@@ -75,6 +75,8 @@ port module InterfaceController exposing
   , msgReceiveDeucePopupPanelInfo
   , msgSetColorScheme
   , msgSetSyntax
+  , msgIncreaseExtraMenuAmount
+  , msgClearExtraMenuAmount
   )
 
 import Updatable exposing (Updatable)
@@ -3646,3 +3648,20 @@ msgSetSyntax newSyntax =
 
       Err _ ->
         old
+
+--------------------------------------------------------------------------------
+-- Revealer
+
+msgIncreaseExtraMenuAmount : Int -> Msg
+msgIncreaseExtraMenuAmount delta =
+  Msg "Increase Extra Menu Amount" <| \old ->
+    let
+      newAmount =
+        old.extraMenuAmount + delta
+    in
+      { old | extraMenuAmount = newAmount }
+
+msgClearExtraMenuAmount : Msg
+msgClearExtraMenuAmount =
+  Msg "Clear Extra Menu Amount" <| \old ->
+    { old | extraMenuAmount = 0 }

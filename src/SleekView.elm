@@ -267,24 +267,61 @@ generalUiButton disabled userClass title onClickHandler =
 -- Menu Bar
 --------------------------------------------------------------------------------
 
+type alias RevealInfo
+  = { delta : Int, max : Int, extra : Int }
+
+type RevealAmount
+  = Reveal RevealInfo
+  | RevealAll
+
+currentMenuAmount : RevealInfo -> Int
+currentMenuAmount { delta, extra } =
+  delta + extra
+
+revealer : RevealInfo -> Html Msg
+revealer { delta } =
+  generalHtmlHoverMenu "revealer"
+    ( [ Html.span
+          []
+          [ Html.text "Show More" ]
+      ]
+    )
+    RevealAll
+    (Controller.msgIncreaseExtraMenuAmount delta)
+    Controller.msgNoop
+    Controller.msgNoop
+    False
+    []
+
 generalHtmlHoverMenu
-  : String -> List (Html Msg) -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
+  : String -> List (Html Msg) -> RevealAmount -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
 generalHtmlHoverMenu
-  class titleHtml onMouseEnter onMouseLeave onClick disabled dropdownContent =
+  class titleHtml revealAmount onMouseEnter onMouseLeave onClick disabled dropdownContent =
     let
       (disabledFlag, realOnMouseEnter, realOnMouseLeave, realOnClick) =
         if disabled then
-          ("disabled "
+          ( "disabled "
           , Controller.msgNoop
           , Controller.msgNoop
           , Controller.msgNoop
           )
         else
-          (""
+          ( ""
           , onMouseEnter
           , onMouseLeave
           , onClick
           )
+
+      revealContent =
+        case revealAmount of
+          RevealAll ->
+            []
+
+          Reveal revealInfo ->
+            if currentMenuAmount revealInfo < revealInfo.max then
+              [ revealer revealInfo ]
+            else
+              []
     in
       Html.div
         [ Attr.class <| "hover-menu " ++ disabledFlag ++ class
@@ -314,11 +351,13 @@ generalHtmlHoverMenu
             ]
         , Html.div
             [ Attr.class "dropdown-content" ]
-            dropdownContent
+            ( dropdownContent
+                ++ revealContent
+            )
         ]
 
 generalHoverMenu
-  : String -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
+  : String -> RevealAmount -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
 generalHoverMenu titleString =
   generalHtmlHoverMenu "" [ Html.text titleString ]
 
@@ -326,6 +365,7 @@ hoverMenu : String -> (List (Html Msg)) -> Html Msg
 hoverMenu title dropdownContent =
   generalHoverMenu
     title
+    RevealAll
     Controller.msgNoop
     Controller.msgNoop
     Controller.msgNoop
@@ -334,20 +374,46 @@ hoverMenu title dropdownContent =
 
 synthesisHoverMenu : Model -> String -> String -> Msg -> Bool -> Html Msg
 synthesisHoverMenu model resultsKey title onMouseEnter disabled =
-  let cached = Dict.member resultsKey model.synthesisResultsDict in
-  generalHoverMenu
-    ( if cached -- if desired, can indicate whether this tool has been run and cached
-        then title -- ++ " ✓"
-        else title
-    )
-    ( if cached
-        then Controller.msgNoop
-        else onMouseEnter
-    )
-    Controller.msgNoop
-    Controller.msgNoop
-    disabled
-    [ synthesisResultsSelect model resultsKey ]
+  let
+    cached =
+      Dict.member resultsKey model.synthesisResultsDict
+
+    results =
+      synthesisResultsSelect model resultsKey
+
+    max =
+      List.length results
+
+    delta =
+      case resultsKey of
+        "Reorder in List" ->
+          max
+
+        _ ->
+          1
+
+    revealInfo =
+      { delta = delta
+      , max = max
+      , extra = model.extraMenuAmount
+      }
+  in
+    generalHoverMenu
+      ( if cached -- if desired, can indicate whether this tool has been run and cached
+          then title -- ++ " ✓"
+          else title
+      )
+      ( Reveal revealInfo
+      )
+      ( if cached
+          then Controller.msgNoop
+          else onMouseEnter
+      )
+      Controller.msgClearExtraMenuAmount
+      Controller.msgNoop
+      disabled
+      [ wrapSynthesisResultsSelect (List.take (currentMenuAmount revealInfo) results)
+      ]
 
 -- relateHoverMenu : Model -> String -> String -> Msg -> Html Msg
 -- relateHoverMenu model resultsKey title onMouseEnter =
@@ -420,6 +486,7 @@ deuceSynthesisResult model path isRenamer (SynthesisResult result) =
             description
         ] ++ additionalInputs
       )
+      RevealAll
       (Controller.msgHoverDeuceResult isRenamer (SynthesisResult result) path)
       (Controller.msgLeaveDeuceResult (SynthesisResult result) path)
       (Controller.msgChooseDeuceExp result.description result.exp)
@@ -436,6 +503,7 @@ deuceSynthesisResults model path isRenamer results =
             [ Html.text "Oops! Can't apply transformation after all."
             ]
         ]
+        RevealAll
         Controller.msgNoop
         Controller.msgNoop
         Controller.msgNoop
@@ -464,6 +532,7 @@ deuceHoverMenu model (index, (deuceTool, results, disabled)) =
     generalHtmlHoverMenu
       ""
       title
+      RevealAll
       Controller.msgNoop
       Controller.msgNoop
       Controller.msgNoop
@@ -1128,13 +1197,26 @@ synthesisResultHoverMenu
 synthesisResultHoverMenu resultsKey description elementPath exp nextMenu =
   generalHoverMenu
     description
+    RevealAll
     (Controller.msgHoverSynthesisResult resultsKey elementPath)
     (Controller.msgHoverSynthesisResult resultsKey <| allButLast elementPath)
     (Controller.msgSelectSynthesisResult exp)
     False
     nextMenu
 
-synthesisResultsSelect : Model -> String -> Html Msg
+
+wrappedSynthesisResultsSelect : Model -> String -> Html Msg
+wrappedSynthesisResultsSelect model resultsKey =
+  synthesisResultsSelect model resultsKey
+    |> wrapSynthesisResultsSelect
+
+wrapSynthesisResultsSelect : List (Html Msg) -> Html Msg
+wrapSynthesisResultsSelect =
+  Html.div
+    [ Attr.class "synthesis-results"
+    ]
+
+synthesisResultsSelect : Model -> String -> List (Html Msg)
 synthesisResultsSelect model resultsKey =
   let
     desc description exp isSafe sortKey =
@@ -1179,19 +1261,15 @@ synthesisResultsSelect model resultsKey =
                 )
           |> List.concat
   in
-    Html.div
-      [ Attr.class "synthesis-results"
-      ]
-      ( case Dict.get resultsKey model.synthesisResultsDict of
-          Just results ->
-            resultButtonList
-                []
-                model.hoveredSynthesisResultPathByIndices
-                results
+    case Dict.get resultsKey model.synthesisResultsDict of
+      Just results ->
+        resultButtonList
+            []
+            model.hoveredSynthesisResultPathByIndices
+            results
 
-          Nothing ->
-            [ disableableTextButton True "Synthesizing... ⏳ ⏰ 👵🏽 👴🏼 ⚰️ 🏁" Controller.msgNoop ]
-      )
+      Nothing ->
+        [ disableableTextButton True "Synthesizing... ⏳ ⏰ 👵🏽 👴🏼 ⚰️ 🏁" Controller.msgNoop ]
 
 --------------------------------------------------------------------------------
 -- Code Panel
@@ -1600,7 +1678,7 @@ synthesisAutoSearch model =
      [ Html.div
          [ Attr.class "synthesis-auto-search"
          ]
-         [ synthesisResultsSelect model "Auto-Synthesis"
+         [ wrappedSynthesisResultsSelect model "Auto-Synthesis"
          ]
      ]
   else
@@ -1621,7 +1699,7 @@ synthesisPanel model =
         [ Html.div
             [ Attr.class "dropdown-content synthesis-menu-holder"
             ]
-            [ synthesisResultsSelect model "Auto-Synthesis"
+            [ wrappedSynthesisResultsSelect model "Auto-Synthesis"
             ]
         ]
     ]

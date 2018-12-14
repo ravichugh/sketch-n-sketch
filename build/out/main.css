@@ -901,6 +901,29 @@ code {
 }
 
 /******************************************************************************
+ * Revealer                                                                   *
+ ******************************************************************************/
+
+.revealer .text-button {
+  justify-content: center;
+  font-style: italic;
+
+  padding: 7px;
+  line-height: 1.4em;
+  white-space: normal;
+
+  border-top: 1px solid var(--subtle-border-color);
+}
+
+.revealer .hover-menu-content {
+  text-align: center;
+}
+
+.revealer .hover-menu-indicator {
+  display: none;
+}
+
+/******************************************************************************
  * Deuce                                                                      *
  ******************************************************************************/
 

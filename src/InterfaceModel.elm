@@ -185,6 +185,7 @@ type alias Model =
   , lastSelectedTemplate : Maybe String
   , valueEditorString : String
   , syntax : Syntax
+  , extraMenuAmount : Int
   }
 
 type OutputMode
@@ -1196,4 +1197,5 @@ initModel =
     , lastSelectedTemplate = Nothing
     , valueEditorString = ValUnparser.strVal v
     , syntax = Syntax.Elm
+    , extraMenuAmount = 0
     }
