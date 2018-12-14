@@ -408,8 +408,9 @@ type Msg
   | Msg String (Model -> Model)
 
 
-type alias AceCodeBoxInfo = -- subset of Model
-  { code : String
+type alias AceCodeBoxInfo = -- (almost) subset of Model
+  { oldCode : String
+  , code : String
   , codeBoxInfo : CodeBoxInfo
   }
 

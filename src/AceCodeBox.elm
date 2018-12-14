@@ -32,7 +32,8 @@ sendCmd message model =
   aceCodeBoxCmd <|
     { message = message
     , info =
-        { code = Model.codeToShow model
+        { oldCode = model.code
+        , code = Model.codeToShow model
         , codeBoxInfo = model.codeBoxInfo
         }
     }

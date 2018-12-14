@@ -1171,3 +1171,28 @@ code {
 .auto-output-tools .text-button {
   display: flex;
 }
+
+/******************************************************************************
+ * Diffs
+ ******************************************************************************/
+
+
+.diff-deletion {
+  position: absolute;
+  background-color: rgba(255, 0, 0, 0.3);
+}
+
+.diff-equality {
+  position: absolute;
+}
+
+.diff-insertion {
+  position: absolute;
+  background-color: rgba(0, 255, 0, 0.3);
+}
+
+.diff-unknown {
+  position: absolute;
+  background-color: purple;
+}
+

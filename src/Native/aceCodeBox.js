@@ -133,7 +133,7 @@ function display(info) {
   // editor.resize();
   // reembed(false);
 
-  displayCode(info.code);
+  displayCode(info.code, info.oldCode);
   displayCursor(info.codeBoxInfo.cursorPos);
   // editor.selection.clearSelection(); // TODO selections
   displayMarkers(info.codeBoxInfo.highlights);
@@ -141,9 +141,84 @@ function display(info) {
   displayTooltips();
 }
 
-function displayCode(code) {
+////////////////////////////////////////////////////////////////////////////////
+// Display helpers
+
+var DELETION = -1;
+var EQUALITY = 0;
+var INSERTION = 1;
+
+var dmp = new diff_match_patch();
+function diff(oldString, newString) {
+  var diff = dmp.diff_main(oldString, newString);
+  dmp.diff_cleanupSemantic(diff);
+  return diff;
+}
+
+function advance(s) {
+  var row = 0;
+  var col = 0;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charAt(i);
+    if (c == "\n") {
+      row += 1;
+      col = 0;
+    } else {
+      col += 1;
+    }
+  }
+  return [row, col]
+}
+
+function clearMarkers() {
+  var markers = editor.getSession().getMarkers(false);
+  for (var m in markers) {
+    editor.getSession().removeMarker(m);
+  }
+}
+
+function displayCode(code, oldCode) {
   userCoding = false;
+
+  clearMarkers();
   editor.getSession().setValue(code, 0);
+  if (code != oldCode) {
+    var codeDiff = diff(oldCode, code);
+    var row = 0;
+    var col = 0;
+    for (var i = 0; i < codeDiff.length; i++) {
+      var change = codeDiff[i];
+      var kind = change[0];
+      var content = change[1];
+
+      var deltaPos = advance(content);
+      var endRow = row + deltaPos[0];
+      var endCol = deltaPos[0] == 0 ? col + deltaPos[1] : deltaPos[1];
+
+      console.log(row, col);
+      var kindClass = "diff-unknown"
+      if (kind == DELETION) {
+        kindClass = "diff-deletion";
+      } else if (kind == EQUALITY) {
+        kindClass = "diff-equality";
+      } else if (kind == INSERTION) {
+        kindClass = "diff-insertion";
+      } else {
+        console.log("Unknown diff kind '" + kind + "' for content '" + content +" '.");
+      }
+
+      editor.getSession().addMarker(
+        new Range(row, col, endRow, endCol),
+        kindClass,
+        "text",
+        false
+      );
+
+      row = endRow;
+      col = endCol;
+    }
+  }
+
   userCoding = true;
 }
 
@@ -229,6 +304,7 @@ function getEditorState() {
   var info =
     { code : editor.getSession().getDocument().getValue()
     , codeBoxInfo : codeBoxInfo
+    , oldCode : ""
     };
   return info;
 }
