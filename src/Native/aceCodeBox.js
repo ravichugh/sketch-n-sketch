@@ -149,6 +149,7 @@ var EQUALITY = 0;
 var INSERTION = 1;
 
 var dmp = new diff_match_patch();
+
 function diff(oldString, newString) {
   var diff = dmp.diff_main(oldString, newString);
   dmp.diff_cleanupSemantic(diff);
@@ -181,9 +182,17 @@ function displayCode(code, oldCode) {
   userCoding = false;
 
   clearMarkers();
-  editor.getSession().setValue(code, 0);
-  if (code != oldCode) {
+  if (code == oldCode) {
+		editor.getSession().setValue(code);
+  } else {
     var codeDiff = diff(oldCode, code);
+
+    var value = "";
+    for (var i = 0; i < codeDiff.length; i++) {
+      value += codeDiff[i][1];
+    }
+    editor.getSession().setValue(value);
+
     var row = 0;
     var col = 0;
     for (var i = 0; i < codeDiff.length; i++) {
@@ -195,7 +204,6 @@ function displayCode(code, oldCode) {
       var endRow = row + deltaPos[0];
       var endCol = deltaPos[0] == 0 ? col + deltaPos[1] : deltaPos[1];
 
-      console.log(row, col);
       var kindClass = "diff-unknown"
       if (kind == DELETION) {
         kindClass = "diff-deletion";
