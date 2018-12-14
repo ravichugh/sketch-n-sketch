@@ -268,28 +268,29 @@ generalUiButton disabled userClass title onClickHandler =
 --------------------------------------------------------------------------------
 
 type alias RevealInfo
-  = { delta : Int, max : Int, extra : Int }
+  = { shown : Int, extra : Int, max : Int }
 
 type RevealAmount
   = Reveal RevealInfo
   | RevealAll
 
 currentMenuAmount : RevealInfo -> Int
-currentMenuAmount { delta, extra } =
-  delta + extra
+currentMenuAmount { shown, extra } =
+  shown + extra
 
 revealer : RevealInfo -> Html Msg
-revealer { delta } =
+revealer revealInfo =
+  let remainingCount = revealInfo.max - currentMenuAmount revealInfo in
   generalHtmlHoverMenu "revealer"
     ( [ Html.span
           []
-          [ Html.text "Show More" ]
+          [ Html.text <| "Show " ++ toString remainingCount ++ " More" ]
       ]
     )
     RevealAll
-    (Controller.msgIncreaseExtraMenuAmount delta)
     Controller.msgNoop
     Controller.msgNoop
+    (Controller.msgIncreaseExtraMenuAmount 10)
     False
     []
 
@@ -388,16 +389,16 @@ synthesisHoverMenu model resultsKey title onMouseEnter disabled =
       [ "Reorder in List"
       ]
 
-    delta =
+    shownCount =
       if List.member resultsKey revealDisabled then
         max
       else
         1
 
     revealInfo =
-      { delta = delta
-      , max = max
+      { shown = shownCount
       , extra = model.extraMenuAmount
+      , max = max
       }
   in
     generalHoverMenu
