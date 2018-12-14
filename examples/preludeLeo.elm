@@ -3688,8 +3688,7 @@ nodejs = {
           Just Delete -> True
           _ ->
             fsjs "false" """
-              return fs.existsSync(@(jsCode.stringOf name)) && fs.lstatSync(@(jsCode.stringOf name)).isFi
-              }le();
+              return fs.existsSync(@(jsCode.stringOf name)) && fs.lstatSync(@(jsCode.stringOf name)).isFile();
         """
 
     isFile = isfile
