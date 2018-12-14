@@ -1350,10 +1350,10 @@ mapi f xs = map f (zipWithIndex xs)
 
 --nth: (forall a (-> (List a) Num (union Null a)))
 nth xs n =
-  if n < 0 then null
+  if n < 0 then error "index out of range. Use List.nthMaybe instead of nth to avoid this"
   else
     case [n, xs] of
-      [_, []]     -> null
+      [_, []]     -> error "index out of range. Use List.nthMaybe instead of nth to avoid this"
       [0, x::xs1] -> x
       [_, x::xs1] -> nth xs1 (n - 1)
 
@@ -1702,6 +1702,9 @@ List = {
   length x = len x
 
   nth = nth
+  nthMaybe n list = case list of
+    head :: tail -> if n == 0 then Just head else nthMaybe (n - 1) tail
+    [] -> Nothing
 
   (mapi) f xs = map f (zipWithIndex xs)
   (mapiWithDefault) default f xs = mapWithDefault (0, default) f (zipWithIndex xs)
@@ -1990,7 +1993,13 @@ List = {
     in
     aux 0 list
 
-  indexOf value  = indexWhere ((==) value)
+  indexOf value list = Update.lens {
+    apply value =  indexWhere ((==) value) list
+    update {input=value, outputNew=newIndex} as uInput =
+      case nthMaybe newIndex list of
+        Just newValue -> Ok (Inputs [newValue])
+        Nothing -> Err <| """Index @newIndex not found in @list"""
+  } value
 
   -- TODO: Continue to insert List functions from Elm (http://package.elm-lang.org/packages/elm-lang/core/latest/List#range)
   map = map
@@ -3457,7 +3466,8 @@ nodejs = {
   type FileOperation = Write {-old-} String {-new-} String Diffs |
                        Rename {-newName-} String |
                        Create {-content-} String |
-                       Delete
+                       Delete |
+                       CreateFolder (List String {- file names in this folder -})
   type alias ListFileOperations = List ({-filename-}String, FileOperation)
 
   -- Consumes all update values by writing to the file system. Use this only if you don't need to display ambiguity.
@@ -3546,6 +3556,8 @@ nodejs = {
                   process tail ((name, action)::revAcc)
                 else
                   process (tail ++ [(name, action)]) revAcc
+              CreateFolder content ->
+                process tail ((name, action)::revAcc)
         in process outputNew []
     } fileOperations
 
@@ -3556,7 +3568,8 @@ nodejs = {
         Just (Create content) -> Just content
         Just (Delete) -> Nothing
         Just (Rename _) -> Nothing
-        Nothing -> onlyRead filename
+        Just (CreateFolder _) -> Nothing
+        _ -> onlyRead filename
       update  = case of
         {input=fileOperations, outputOld = Just x , outputNew = Nothing} ->
           Ok <| InputsWithDiffs [((filename, Delete) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
@@ -3573,49 +3586,112 @@ nodejs = {
       } fileOperationsRaw
 
     listdir: String -> List String
-    listdir foldername = __jsEval__ """
-      (function() {
-        const fs = require("fs");
-        const path = require('path');
-        var name = @(jsCode.stringOf foldername);
-        if(name == "") name = ".";
-        if(fs.existsSync(name) && fs.lstatSync(name).isDirectory()) {
-          var filesfolders =
-            fs.readdirSync(name);
-          return filesfolders;
-        } else {
-          return []
-        }
-      })()
-    """
+    listdir foldername = Update.lens {
+      apply fileOperations = case listDict.get foldername fileOperations of
+        Just (CreateFolder content) -> content -- We can mock the file system by creating a folder in initial fileOperations
+        _ ->
+          fsjs "[]" """
+                var name = @(jsCode.stringOf foldername);
+                if(name == "") name = ".";
+                if(fs.existsSync(name) && fs.lstatSync(name).isDirectory()) {
+                  var filesfolders =
+                    fs.readdirSync(name);
+                  return filesfolders;
+                } else {
+                  return []
+                }
+            """
+      update{outputOld, outputNew, diffs} =
+        let aux i outputOld outputNew diffs fo = case diffs of
+          [] -> Ok (Inputs [fo])
+          (j, d)::diffTail ->
+            if i < j then
+              aux j (List.drop (j - i) outputOld) (List.drop (j - i) outputNew) diffs fo
+            else case d of
+              ListElemInsert count -> Err <| "fs.listdir cannot insert in reverse because it does not know if it should insert files or folders. Use fs.read instead"
+
+              ListElemDelete count ->
+                let (deleted, remaining) = List.split count outputOld in
+                fo ++ (List.map (\nameDeleted -> (foldername + "/" + nameDeleted, Delete)) deleted) |>
+                aux (i + count) remaining outputNew diffTail
+
+              ListElemUpdate nameChange ->
+                case (outputOld, outputNew) of
+                  (oldName :: outputOldTail, newName :: outputNewTail) ->
+                    fo ++ [(foldername + "/" + oldName, Rename (foldername + "/" + newName))] |>
+                    aux (i + 1) outputOldTail outputNewTail diffTail
+              _ -> Err <| """Unknown diff for listdir @d"""
+        in case diffs of
+          VListDiffs diffs -> aux 0 outputOld outputNew diffs []
+          _ -> Err <| """Don't know how to handle these list differences for listdircontent : @diffs"""
+    } fileOperations
 
     listdircontent: String -> List (String, String)
-    listdircontent foldername = listdir foldername |>
-      List.filter (\name -> isfile """@foldername/@name""") |>
-      List.map (\name ->
-      let fullname = """@foldername/@name""" in
-      (name, read fullname |> Maybe.withDefault (freeze """Unknown file @fullname""")))
+    listdircontent foldername = Update.lens {
+      apply fileOperations = listdir foldername |>
+          List.filter (\name -> isfile """@foldername/@name""") |>
+          List.map (\name ->
+          let fullname = """@foldername/@name""" in
+          (name, read fullname |> Maybe.withDefault (freeze """Unknown file @fullname""")))
+      update {outputOld, outputNew, diffs} =
+        -- Insertions can be treated as Create, and deletions as Delete.
+        -- Changing the first component can be viewed as a Rename, whereas chaging the second component as a Write.
+        let aux i outputOld outputNew diffs fo = case diffs of
+          [] -> Ok (Inputs [fo])
+          (j, d)::diffTail ->
+            if i < j then
+              aux j (List.drop (j - i) outputOld) (List.drop (j - i) outputNew) diffs fo
+            else case d of
+              ListElemInsert count ->
+                let (inserted, remaining) = List.split count outputNew in
+                fo ++ (List.map (\(nameInserted, contentInserted) -> (foldername + "/" + nameInserted, Create contentInserted)) inserted) |>
+                aux i outputOld remaining diffTail
+
+              ListElemDelete count ->
+                let (deleted, remaining) = List.split count outputOld in
+                fo ++ (List.map (\(nameDeleted, contentInserted) -> (foldername + "/" + nameDeleted, Delete)) deleted) |>
+                aux (i + count) remaining outputNew diffTail
+
+              ListElemUpdate (VRecordDiffs subd) ->
+                case (outputOld, outputNew) of
+                  ((oldName, oldContent) :: outputOldTail, (newName, newContent) :: outputNewTail) ->
+                    let
+                      fo = case subd of
+                        {_2=contentChange} -> fo ++ [(foldername + "/" + oldName, Write oldContent newContent contentChange)]
+                        _ -> fo
+                      fo = case subd of
+                        {_1=nameChange} -> fo ++ [(foldername + "/" + oldName, Rename (foldername + "/" + newName))]
+                        _ -> fo
+                    in
+                    aux (i + 1) outputOldTail outputNewTail diffTail fo
+              _ -> Err <| """Unknown diff for listdircontent: @d"""
+        in case diffs of
+           VListDiffs diffs -> aux 0 outputOld outputNew diffs []
+           _ -> Err <| """Don't know how to handle these list differences for listdircontent : @diffs"""
+    } fileOperations
 
     isdir: String -> Bool
-    isdir name = __jsEval__ """
-      (function() {
-        const fs = require("fs");
-        const path = require('path');
-        const name = @(jsCode.stringOf name);
-        return name == "" || fs.existsSync(name) && fs.lstatSync(@(jsCode.stringOf name)).isDirectory();
-      })()
-    """
+    isdir name =  case listDict.get name fileOperations of
+       Just (CreateFolder content) -> True
+       _ -> fsjs "false" """
+          const name = @(jsCode.stringOf name);
+          return name == "" || fs.existsSync(name) && fs.lstatSync(@(jsCode.stringOf name)).isDirectory();
+          """
     isfolder = isdir
     isdirectory = isdir
 
     isfile: String -> Bool
-    isfile name = __jsEval__ """
-      (function() {
-        const fs = require("fs");
-        const path = require('path');
-        return fs.existsSync(@(jsCode.stringOf name)) && fs.lstatSync(@(jsCode.stringOf name)).isFile();
-      })()
-    """
+    isfile name =
+        case listDict.get name fileOperations of
+          Just Create -> True
+          Just (Write _ _ _) -> True
+          Just Delete -> True
+          _ ->
+            fsjs "false" """
+              return fs.existsSync(@(jsCode.stringOf name)) && fs.lstatSync(@(jsCode.stringOf name)).isFi
+              }le();
+        """
+
     isFile = isfile
   }
 }
