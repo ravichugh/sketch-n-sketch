@@ -130,6 +130,7 @@ import Types
 import Syntax exposing (Syntax)
 import ElmParser
 import LangUnparser -- for comparing expressions for equivalence
+import Provenance -- for debug only, can remove later
 import History exposing (History)
 import AlgorithmJish
 
@@ -284,6 +285,8 @@ maybeClickableToPointWithSnap : (Int, Int) -> Maybe Clickable -> PointWithSnap
 maybeClickableToPointWithSnap (defaultX, defaultY) maybeClickable =
   case maybeClickable of
     Just (PointWithProvenance xVal yVal) ->
+      -- let _ = Utils.log <| "xVal provenance: " ++ Provenance.debugShow xVal in
+      -- let _ = Utils.log <| "yVal provenance: " ++ Provenance.debugShow yVal in
       ( (round (valToNum xVal), SnapVal xVal)
       , (round (valToNum yVal), SnapVal yVal)
       )
@@ -431,6 +434,38 @@ onMouseDrag lastPosition newPosition old =
   let (mx0, my0) = (newPosition.x, newPosition.y) in
   let (isOnCanvas, (mx, my)) = clickToCanvasPoint old newPosition in
   let (_, (mxLast, myLast))  = clickToCanvasPoint old lastPosition in
+  let selectableShapeFeaturesAndPositions shapeTree =
+    shapeTree
+    |> Dict.toList
+    |> List.concatMap
+        (\(nodeId, svgNode) ->
+          case svgNode.interpreted of
+            LangSvg.TextNode _ -> []
+            LangSvg.SvgNode shapeKind shapeAttrs childIds ->
+              ShapeWidgets.pointFeaturesOfShape shapeKind shapeAttrs
+              |> List.concatMap
+                  (\pf ->
+                    case ShapeWidgets.maybeEvaluateShapePointFeatureXYVals shapeKind shapeAttrs pf of
+                      Just (xVal, yVal) -> [((nodeId, XFeat pf), (xVal, yVal)), ((nodeId, YFeat pf), (xVal, yVal))]
+                      Nothing           -> []
+                  )
+        )
+  in
+  let selectableWidgetFeaturesAndPositions widgets =
+    widgets
+    |> Utils.zipi1
+    |> List.concatMap
+        (\(widgetI, widget) ->
+          let idAsShape = -2 - widgetI in
+          ShapeWidgets.pointFeaturesOfWidget widget
+          |> List.concatMap
+              (\pf ->
+                case ShapeWidgets.maybeEvaluateWidgetPointFeatureXYVals widget pf of
+                  Just (xVal, yVal) -> [((idAsShape, XFeat pf), (xVal, yVal)), ((idAsShape, YFeat pf), (xVal, yVal))]
+                  Nothing           -> []
+              )
+        )
+  in
   case old.mouseMode of
 
     MouseNothing -> old
@@ -461,38 +496,6 @@ onMouseDrag lastPosition newPosition old =
       let selectBot   = max pos1.y pos2.y in
       let selectRight = max pos1.x pos2.x in
       let (root, shapeTree) = old.slate in
-      let selectableShapeFeaturesAndPositions =
-        shapeTree
-        |> Dict.toList
-        |> List.concatMap
-            (\(nodeId, svgNode) ->
-              case svgNode.interpreted of
-                LangSvg.TextNode _ -> []
-                LangSvg.SvgNode shapeKind shapeAttrs childIds ->
-                  ShapeWidgets.pointFeaturesOfShape shapeKind shapeAttrs
-                  |> List.concatMap
-                      (\pf ->
-                        case ShapeWidgets.maybeEvaluateShapePointFeature shapeKind shapeAttrs pf of
-                          Just (x, y) -> [((nodeId, XFeat pf), (x, y)), ((nodeId, YFeat pf), (x, y))]
-                          Nothing     -> []
-                      )
-            )
-      in
-      let selectableWidgetFeaturesAndPositions =
-        old.widgets
-        |> Utils.zipi1
-        |> List.concatMap
-            (\(widgetI, widget) ->
-              let idAsShape = -2 - widgetI in
-              ShapeWidgets.pointFeaturesOfWidget widget
-              |> List.concatMap
-                  (\pf ->
-                    case ShapeWidgets.maybeEvaluateWidgetPointFeature widget pf of
-                      Just (x, y) -> [((idAsShape, XFeat pf), (x, y)), ((idAsShape, YFeat pf), (x, y))]
-                      Nothing     -> []
-                  )
-            )
-      in
       let blobsAndBounds = [] in -- Ignore for now. Blobs are going to go bye-bye.
       let blobsToSelect = [] in  -- Ignore for now. Blobs are going to go bye-bye.
       let shapesToSelect =
@@ -506,9 +509,9 @@ onMouseDrag lastPosition newPosition old =
         |> Dict.keys -- List of node ids
       in
       let featuresToSelect =
-        selectableShapeFeaturesAndPositions ++ selectableWidgetFeaturesAndPositions
-        |> List.filter (\((nodeId, shapeFeature), (x, y)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round x && round x <= selectRight && selectTop <= round y && round y <= selectBot)
-        |> List.map    (\((nodeId, shapeFeature), (x, y)) -> ShapeFeature nodeId shapeFeature)
+        selectableShapeFeaturesAndPositions shapeTree ++ selectableWidgetFeaturesAndPositions old.widgets
+        |> List.filter (\((nodeId, shapeFeature), (xVal, yVal)) -> not (List.member nodeId shapesToSelect) && selectLeft <= round (valToNum xVal) && round (valToNum xVal) <= selectRight && selectTop <= round (valToNum yVal) && round (valToNum yVal) <= selectBot)
+        |> List.map    (\((nodeId, shapeFeature), (xVal, yVal)) -> ShapeFeature nodeId shapeFeature)
       in
       if old.keysDown == [Keys.keyShift] then
         { old | selectedShapes   = Utils.multiToggleAsSet (Utils.dedup shapesToSelect) initialSelectedShapes
@@ -533,22 +536,14 @@ onMouseDrag lastPosition newPosition old =
             _             -> { old | mouseMode = MouseDrawNew (TwoPoints lastPointOnCanvas pointOnCanvas) }
 
         (_, TwoPoints startingPoint _) ->
-          -- Currently, only point widgets have the Vals on then to snap to.
-          -- Everything else has dummy vals. Need to move features to Prelude rather than hard coding.
-          -- So much work to do!
           let pointPerhapsWithSnap =
-            old.widgets
+            let (root, shapeTree) = old.slate in
+            selectableWidgetFeaturesAndPositions old.widgets ++ selectableShapeFeaturesAndPositions shapeTree
             |> Utils.mapFirstSuccess
-                (\widget ->
-                  let maybeSnapTo xVal yVal =
-                    if Utils.distance (valToNum xVal, valToNum yVal) (toFloat mx, toFloat my) <= 7.0
-                    then Just ((valToInt xVal, SnapVal xVal), (valToInt yVal, SnapVal yVal))
-                    else Nothing
-                  in
-                  case widget of
-                    WPoint _ xVal _ yVal _                -> maybeSnapTo xVal yVal
-                    WOffset1D _ _ _ _ _ _ endXVal endYVal -> maybeSnapTo endXVal endYVal
-                    _                                     -> Nothing
+                (\(_, (xVal, yVal)) ->
+                  if Utils.distance (valToNum xVal, valToNum yVal) (toFloat mx, toFloat my) <= 7.0
+                  then Just ((valToInt xVal, SnapVal xVal), (valToInt yVal, SnapVal yVal))
+                  else Nothing
                 )
             |> Maybe.withDefault ((mx, NoSnap), (my, NoSnap))
           in

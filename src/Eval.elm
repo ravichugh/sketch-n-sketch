@@ -432,7 +432,12 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
     then Ok <| ret [] <| VBase (VBool True)
     else Ok <| ret [] <| VBase (VBool False)
 
-  EHole _ (HoleVal val)        -> Ok <| retV [val] val -- I would think we should just return return the held val as is (i.e. retV [val] val) but that approach seems to sometimes cause infinite loop problems during widget deduping in postProcessWidgets below. Currently we are only evaluating expressions with holes during mouse drags while drawing new shapes AND there are snaps for that new shape. UPDATE: the infinite loop problem should be fixed, should be okay to use `retV [val] val`, changed when needed.
+  -- For value holes, can't just return the held val because it may be mutably tagged with parents which do not exist in the val's original provenance.
+  -- (This violates referential transparency and was happening with shape drawing and causing problems on hole resolution ().)
+  -- At some point that approach also cased infinite loop problems during widget deduping in postProcessWidgets below, but that was fixed.
+  -- If this approach breaks something else, then use the old approach but special case the parent tagger to skip value hole expressions.
+
+  EHole _ (HoleVal val)        -> Ok <| ret [val] val.v_ -- This version caused problems: retV [val] val
   EHole _ (HoleLoc locId)      -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " loc hole " ++ toString locId ++ "!"
   EHole _ HoleEmpty            -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " empty hole!"
   EHole _ (HolePredicate _)    -> errorWithBacktrace syntax (e::bt) <| strPos e.start ++ " predicate hole!"

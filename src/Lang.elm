@@ -243,18 +243,18 @@ isPointWidget widget =
     WPoint _ _ _ _ _ -> True
     _                -> False
 
-offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr) =
+offsetWidget1DEffectiveAmountAndEndPoint (baseX, baseY) axis sign amount =
   let (effectiveAmount, op) =
     case sign of
       Positive -> (amount, Plus)
       Negative -> (-amount, Minus)
   in
-  let ((endX, endXTr), (endY, endYTr)) =
+  let (endX, endY) =
     case axis of
-      X -> ((baseX + effectiveAmount, TrOp op [baseXTr, amountTr]), (baseY, baseYTr))
-      Y -> ((baseX, baseXTr), (baseY + effectiveAmount, TrOp op [baseYTr, amountTr]))
+      X -> (baseX + effectiveAmount, baseY)
+      Y -> (baseX, baseY + effectiveAmount)
   in
-  (effectiveAmount, ((endX, endXTr), (endY, endYTr)))
+  (effectiveAmount, (endX, endY))
 
 type alias Token = WithInfo String
 

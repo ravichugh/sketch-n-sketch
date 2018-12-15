@@ -14,6 +14,7 @@ import Eval
 import Lang exposing (..)
 import LangTools
 import LangSvg
+import LangUnparser
 import Solver
 import StaticAnalysis
 import Sync
@@ -65,7 +66,7 @@ addShape
   let
     contextExp         = FocusedEditingContext.drawingContextExp model.editingContext originalProgram
     -- _ = inferredReturnType |> List.map (Syntax.typeUnparser Syntax.Elm) |> Debug.log "inferredReturnType"
-    -- _ = Utils.log <| "addShape incoming program: " ++ Syntax.unparser Syntax.Elm originalProgram
+    -- _ = Utils.log <| "addShape incoming program: " ++ LangUnparser.unparseWithIds originalProgram
     idToTypeAndContextThunk           = AlgorithmJish.inferTypes originalProgram
     inferredReturnTypeAndContextThunk = Dict.get (expEffectiveExp contextExp).val.eid idToTypeAndContextThunk
     inferredReturnType                = inferredReturnTypeAndContextThunk |> Maybe.map Tuple.first
@@ -207,7 +208,9 @@ addShape
       in
       -- 3. Resolve value holes.
       newCandidates
+      -- |> List.map (\candidate -> let _ = Utils.log <| "addShape candidate before hole resolution: " ++ LangUnparser.unparseWithIds candidate in candidate)
       |> List.concatMap (CodeMotion.resolveValueAndLocHoles model.solutionsCache model.syncOptions model.maybeEnv)
+      -- |> List.map (\candidate -> let _ = Utils.log <| "addShape candidate after hole resolution: " ++ LangUnparser.unparseWithIds candidate in candidate)
       |> List.map ((,) listExp.val.eid)
 
     listEIdWithPossiblePrograms =

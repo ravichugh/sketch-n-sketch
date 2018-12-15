@@ -241,26 +241,34 @@ selectablePointToSelectableFeatures (nodeId, pointFeature) =
 
 maybeEvaluateShapePointFeature : ShapeKind -> List Attr -> PointFeature -> Maybe (Num, Num)
 maybeEvaluateShapePointFeature shapeKind shapeAttrs pointFeature =
+  maybeEvaluateShapePointFeatureXYVals shapeKind shapeAttrs pointFeature
+  |> Maybe.map (\(xVal, yVal) -> (valToNum xVal, valToNum yVal))
+
+
+maybeEvaluateShapePointFeatureXYVals : ShapeKind -> List Attr -> PointFeature -> Maybe (Val, Val)
+maybeEvaluateShapePointFeatureXYVals shapeKind shapeAttrs pointFeature =
   let (xEqn, yEqn) = getPointEquations shapeKind shapeAttrs pointFeature in
   case (evaluateFeatureEquation xEqn, evaluateFeatureEquation yEqn) of
-    (Just xVal, Just yVal) -> Just (valToNum xVal, valToNum yVal)
+    (Just xVal, Just yVal) -> Just (xVal, yVal)
     _                      -> Nothing
 
 
 maybeEvaluateWidgetPointFeature : Widget -> PointFeature -> Maybe (Num, Num)
 maybeEvaluateWidgetPointFeature widget pointFeature =
+  maybeEvaluateWidgetPointFeatureXYVals widget pointFeature
+  |> Maybe.map (\(xVal, yVal) -> (valToNum xVal, valToNum yVal))
+
+
+maybeEvaluateWidgetPointFeatureXYVals : Widget -> PointFeature -> Maybe (Val, Val)
+maybeEvaluateWidgetPointFeatureXYVals widget pointFeature =
   case (widget, pointFeature) of
-    (WIntSlider _ _ _ _ _ _ _, _)               -> Nothing
-    (WNumSlider _ _ _ _ _ _ _, _)               -> Nothing
-    (WPoint (x, xTr) _ (y, yTr) _ _, LonePoint) -> Just (x, y)
-    (WOffset1D (baseX, baseXTr) (baseY, baseYTr) axis sign (amount, amountTr) _ _ _, EndPoint) ->
-      let (_{- effectiveAmount -}, ((endX, _{- endXTr -}), (endY, _{- endYTr -}))) =
-        offsetWidget1DEffectiveAmountAndEndPoint ((baseX, baseXTr), (baseY, baseYTr)) axis sign (amount, amountTr)
-      in
-      Just (endX, endY)
-    (WCall _ _ _ _ _, _) -> Nothing
-    (WList _, _)         -> Nothing
-    _                    -> Debug.crash <| "bad feature for widget: " ++ toString pointFeature
+    (WIntSlider _ _ _ _ _ _ _, _)                     -> Nothing
+    (WNumSlider _ _ _ _ _ _ _, _)                     -> Nothing
+    (WPoint _ xVal _ yVal _, LonePoint)               -> Just (xVal, yVal)
+    (WOffset1D _ _ _ _ _ _ endXVal endYVal, EndPoint) -> Just (endXVal, endYVal)
+    (WCall _ _ _ _ _, _)                              -> Nothing
+    (WList _, _)                                      -> Nothing
+    _                                                 -> Debug.crash <| "bad feature for widget: " ++ toString pointFeature
 
 
 selectablePointToMaybeXY : SelectablePoint -> LangSvg.RootedIndexedTree -> Widgets -> Maybe (Num, Num)
@@ -380,8 +388,9 @@ type alias BoxyFeatureEquations =
   }
 
 
-
-eqnNumTwo = EqnNum (Val (VConst Nothing (2, dummyTrace)) (Provenance (eConst0 2 dummyLoc) []) (Parents []))
+-- Have to use a number with a locId b/c trace only records the LocId so the constant number is lost.
+-- Matters for snapping. (For Make Equal, the feature equation is regenerated based on the selected feature.)
+eqnNumTwo = EqnNum <| Utils.find "ShapeWidgets.eqnNumTwo" Eval.initEnv "two"
 plus a b  = EqnOp Plus [a, b]
 minus a b = EqnOp Minus [a, b]
 div a b   = EqnOp Div [a, b]
@@ -673,20 +682,20 @@ evaluateFeatureEquation_ =
   Utils.fromJust_ "evaluateFeatureEquation_" << evaluateFeatureEquation
 
 
-evaluateLineFeatures : List Attr -> (Num, Num, Num, Num, Num, Num)
+evaluateLineFeatures : List Attr -> (Val, Val, Val, Val, Val, Val)
 evaluateLineFeatures attrs =
   [ XFeat (Point 1), YFeat (Point 1)
   , XFeat (Point 2), YFeat (Point 2)
   , XFeat Center, YFeat Center
   ]
-  |> List.map (\shapeFeature -> shapeFeatureEquation shapeFeature "line" attrs |> evaluateFeatureEquation_ |> valToNum)
+  |> List.map (\shapeFeature -> shapeFeatureEquation shapeFeature "line" attrs |> evaluateFeatureEquation_)
   |> Utils.unwrap6
 
 
 type alias BoxyNums =
-  { left : Num , top : Num , right : Num , bot : Num , width : Num , height : Num
-  , cx : Num , cy : Num
-  , rx : Num , ry : Num , r : Num
+  { left : Val , top : Val , right : Val , bot : Val , width : Val , height : Val
+  , cx : Val , cy : Val
+  , rx : Val , ry : Val , r : Val
   }
 
 
@@ -694,25 +703,32 @@ evaluateBoxyNums : ShapeKind -> List Attr -> BoxyNums
 evaluateBoxyNums kind attrs =
   let equations = boxyFeatureEquations kind attrs in
   let (left, top, right, bot, cx, cy) =
-    ( evaluateFeatureEquation_ equations.left   |> valToNum
-    , evaluateFeatureEquation_ equations.top    |> valToNum
-    , evaluateFeatureEquation_ equations.right  |> valToNum
-    , evaluateFeatureEquation_ equations.bottom |> valToNum
-    , evaluateFeatureEquation_ equations.cx     |> valToNum
-    , evaluateFeatureEquation_ equations.cy     |> valToNum
+    ( evaluateFeatureEquation_ equations.left
+    , evaluateFeatureEquation_ equations.top
+    , evaluateFeatureEquation_ equations.right
+    , evaluateFeatureEquation_ equations.bottom
+    , evaluateFeatureEquation_ equations.cx
+    , evaluateFeatureEquation_ equations.cy
     )
   in
   let
-    width  = right - left
-    height = bot - top
-    rx     = width / 2
-    ry     = height / 2
+    widthEqn  = equations.mWidth   |> Maybe.withDefault (minus equations.right equations.left)
+    heightEqn = equations.mHeight  |> Maybe.withDefault (minus equations.bottom equations.top)
+    rxEqn     = equations.mRadiusX |> Maybe.withDefault (div widthEqn eqnNumTwo)
+    ryEqn     = equations.mRadiusY |> Maybe.withDefault (div heightEqn eqnNumTwo)
+    rEqn      = equations.mRadius  |> Maybe.withDefault rxEqn
+
+    width  = evaluateFeatureEquation_ widthEqn
+    height = evaluateFeatureEquation_ heightEqn
+    rx     = evaluateFeatureEquation_ rxEqn
+    ry     = evaluateFeatureEquation_ ryEqn
+    r      = evaluateFeatureEquation_ rEqn
   in
   { left = left, top = top, right = right, bot = bot
   , width = width, height = height
   , cx = cx, cy = cy
   , rx = rx, ry = ry
-  , r = rx
+  , r = r
   }
 
 

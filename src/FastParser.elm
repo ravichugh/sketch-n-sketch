@@ -1478,7 +1478,7 @@ isPreludeEId : EId -> Bool
 isPreludeEId eid = isActualEId eid && eid < initK
 
 isActualEId : EId -> Bool
-isActualEId eid = eid >= 0
+isActualEId eid = eid > 0
 
 isProgramEId : EId -> Bool
 isProgramEId eid = isActualEId eid && not (isPreludeEId eid)

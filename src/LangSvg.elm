@@ -17,7 +17,7 @@ module LangSvg exposing
   , evalToSvg
   , estimatedBounds, maybeInlineListOfShapes
   , strAVal
-  , aNum, aPoints, aTransform
+  , aPoints, aTransform
   , toNum, toColorNum, toTransformRot, toPath
   , valsToPath2
   , findNumishAttr, findAVal

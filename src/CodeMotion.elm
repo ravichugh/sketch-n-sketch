@@ -2813,7 +2813,8 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
             originalProgramUniqueNames
             newProgramUniqueNames
         |> Utils.findFirst isResultSafe
-        |> Maybe.map (\(SynthesisResult {exp}) -> Parser.freshen exp)
+        -- |> Maybe.map (\(SynthesisResult {exp}) -> Parser.freshen exp) -- Don't freshen: otherwise this can't compose with later transforms.
+        |> Maybe.map (\(SynthesisResult {exp}) -> exp)
       in
       let visibleNameSuggestion = expNameForEId originalProgram mobileEId in
       case maybeNewProgramWithLiftedDependenciesOldNames of
@@ -2822,15 +2823,16 @@ makeEIdVisibleToEIdsByInsertingNewBinding originalProgram mobileEId viewerEIds =
           Nothing
         Just newProgramWithLiftedDependenciesOldNames ->
           let namesToAvoid =
+            let newProgramWithLiftedDependenciesOldNamesFresh = Parser.freshen newProgramWithLiftedDependenciesOldNames in
             let finalViewerEIds =
-              newProgramWithLiftedDependenciesOldNames
+              newProgramWithLiftedDependenciesOldNamesFresh
               |> flattenExpTree
               |> List.filter (expToMaybeIdent >> (==) (Just "*EXTRACTED EXPRESSION*"))
               |> List.map (.val >> .eid)
               |> Set.fromList
               |> Set.union viewerEIds
             in
-            visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNames finalViewerEIds
+            visibleIdentifiersAtEIds newProgramWithLiftedDependenciesOldNamesFresh finalViewerEIds
           in
           let visibleName = nonCollidingName visibleNameSuggestion 2 namesToAvoid in
           Just (visibleName, insertedVarEId, renameIdentifier "*EXTRACTED EXPRESSION*" visibleName newProgramWithLiftedDependenciesOldNames)
@@ -2877,7 +2879,10 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
                 (program, locIdToNewName, locIdToVarEId)
 
           Nothing ->
-            let _ = Utils.log "liftLocsSoVisibleTo: could not convert locId to EId" in
+            let _ = Utils.log <| "liftLocsSoVisibleTo: could not convert locId " ++ toString mobileLocId ++ " to EId" in
+            let _ = Debug.log "locIdToNewName" locIdToNewName in
+            let _ = Debug.log "locIdToVarEId" locIdToVarEId in
+            let _ = Utils.log <| "program: " ++ unparseWithIds program in
             (program, locIdToNewName, locIdToVarEId)
       )
       (program, Dict.empty, Dict.empty)
@@ -3308,6 +3313,17 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
                       |> Provenance.valBasedOnTreeToProgramExp program
                       |> Maybe.andThen
                           (\parentExp ->
+                            -- let _ =
+                            --   let parentExpInProgram = LangTools.justFindExpByEId program parentExp.val.eid in
+                            --   if LangUnparser.unparseWithIds parentExpInProgram /= LangUnparser.unparseWithIds (valExp parentVal) then
+                            --     let _ = Utils.log <| "parentExpInProgram /= valExp parentVal!!" in
+                            --     let _ = Utils.log <| "parentExpInProgram: " ++ LangUnparser.unparseWithIds parentExpInProgram in
+                            --     let _ = Utils.log <| "valExp parentVal: " ++ LangUnparser.unparseWithIds (valExp parentVal) in
+                            --     ()
+                            --   else
+                            --     let _ = Utils.log <| "valExp parentVal: " ++ LangUnparser.unparseWithIds (valExp parentVal) in
+                            --     ()
+                            -- in
                             makeEIdVisibleToEIds program parentExp.val.eid (Set.singleton valHoleExp.val.eid)
                           )
                       |> Maybe.map ((,) parentVal)
@@ -3328,8 +3344,11 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
                             expToWrap.val.eid
                             (newLetFancyWhitespace insertedLetEId False destructuredPat destructuringExp expToWrap newProgram)
                     in
+                    -- let _ = Utils.log <| "resolveValueAndLocHoles candidate before destructuring: " ++ LangUnparser.unparseWithIds program in
+                    -- let _ = Utils.log <| "resolveValueAndLocHoles candidate with parent visible: " ++ LangUnparser.unparseWithIds newProgram in
                     programWithDestructuring
                     |> replaceExpNodePreservingPrecedingWhitespace valHoleExp.val.eid (eVar name |> setEId (1 + Parser.maxId programWithDestructuring))
+                    -- |> (\candidate -> let _ = Utils.log <| "resolveValueAndLocHoles candidate after destructuring: " ++ LangUnparser.unparseWithIds candidate in candidate)
 
                   Nothing ->
                     program
@@ -3365,7 +3384,8 @@ resolveValueHolesByLocLifting solutionsCache syncOptions programWithHolesUnfresh
     locIdToExp = locIdToExpFromFrozenSubstAndNewNames (Parser.substOf programWithHoles) locIdToNewName
   in
   Utils.zip holeEIds holeMathExps
-  |> List.foldl
+  |> Utils.foldl
+      programWithLocsLifted
       (\(holeEId, holeMathExp) programSoFar ->
         let filledHole =
           holeMathExp
@@ -3374,7 +3394,6 @@ resolveValueHolesByLocLifting solutionsCache syncOptions programWithHolesUnfresh
         programSoFar
         |> replaceExpNodePreservingPrecedingWhitespace holeEId filledHole
       )
-      programWithLocsLifted
   |> List.singleton
 
 

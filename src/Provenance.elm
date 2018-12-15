@@ -9,6 +9,7 @@ import Utils
 import ValUnparser
 
 import Set exposing (Set)
+import String
 
 
 nameForVal : Exp -> Val -> String
@@ -706,3 +707,14 @@ isPossibleSingleEIdInterpretation eid val =
 -- isPossibleEIdInterpretation : Exp -> EId -> Val -> Bool
 -- isPossibleEIdInterpretation program eid val =
 --
+
+
+-- Not truely a derivation tree but can sort of show it as one.
+debugShow : Val -> String
+debugShow val =
+  let
+    (Provenance exp basedOnVals) = val.provenance
+    premiseStrs   = basedOnVals |> List.map debugShow
+    conclusionStr = LangUnparser.unparseWithIds exp ++ " ⇓ " ++ ValUnparser.strVal val
+  in
+  "(" ++ String.join "; " premiseStrs ++ ") | " ++ conclusionStr

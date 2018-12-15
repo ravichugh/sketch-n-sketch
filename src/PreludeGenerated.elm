@@ -40,6 +40,9 @@ prelude =
 (def SVG (forall a [NodeKind Attrs (List a)]))
 (def Blob (List SVG))
 
+;; Needed for snapping to derived features: need a constant two with a
+;; locId so it can be regenerated from traces (which do not store original numbers)
+(def two 2)
 
 ;; The identity function - given a value, returns exactly that value
 (typ id (forall a (-> a a)))
@@ -866,8 +869,8 @@ prelude =
   ]
 ))
 
-(typ lineMidPoint (-> Line Point))
-(def lineMidPoint (\\line
+(typ lineMidpoint (-> Line Point))
+(def lineMidpoint (\\line
   (midpoint (lineStart line) (lineEnd line))
 ))
 
