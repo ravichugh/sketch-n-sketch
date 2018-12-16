@@ -2780,6 +2780,53 @@ deucePopupPanel model =
       }
 
 --------------------------------------------------------------------------------
+-- Deuce hotkey info popup
+--------------------------------------------------------------------------------
+
+deucePopupHotkeyInfo : Model -> Html Msg
+deucePopupHotkeyInfo model =
+  let
+    appearDirectionFlag =
+      if model.deucePopupPanelAbove then
+        "appear-above"
+      else
+        "appear-below"
+  in
+  popupPanel
+    { pos =
+        model.popupPanelPositions.deuce
+    , disabled =
+        model.codeEditorMode == CETypeInspector
+    , dragHandler =
+        Controller.msgDragDeucePopupPanel
+    , class =
+        "deuce-popup-panel " ++ appearDirectionFlag
+    , title =
+        [ Html.text "Hotkey info" ]
+    , content =
+        [ Html.div
+            [ Attr.class "deuce-popup-panel-content" ]
+            [ Html.ul
+                [ Attr.class "requirements-list" ]
+                [ Html.li [] [ Html.text "Left: h  Down: j  Up: k  Right: l" ]
+                , Html.li [] [ Html.text "(In menu) Left: ctrl+m  Down: ctrl+,  Up: ctrl+.  Right: ctrl+/" ]
+                , Html.li [] [ Html.text "Toggle menus: ctrl+]" ]
+                , Html.li [] [ Html.text "Select: ctrl+space" ]
+                , Html.li [] [ Html.text "Next hole: n  Previous hole: N" ]
+                , Html.li [] [ Html.text "Delete: d" ]
+                , Html.li [] [ Html.text "Rename: s" ]
+                , Html.li [] [ Html.text "Reformat (multi-line): J" ]
+                , Html.li [] [ Html.text "Add to hole end: A" ]
+                , Html.li [] [ Html.text "Create parens: (  Create list: [  Create record: {" ]
+                , Html.li [] [ Html.text "Create tuple: ," ]
+                , Html.li [] [ Html.text "Create cons (::): :  Create lambda: \\  Create application: space" ]
+                , Html.li [] [ Html.text "Create case: e  Create let: t  Create if/then/else: c" ]
+                ]
+            ]
+        ]
+    }
+
+--------------------------------------------------------------------------------
 -- Edit Code Panel
 --------------------------------------------------------------------------------
 
@@ -2914,7 +2961,7 @@ popupPanels model =
   let deucePanels =
     case model.deucePopupPanel of
       DeucePopupTools         -> [ deucePopupPanel model ]
-      DeucePopupHotKeyInfo    -> []
+      DeucePopupHotKeyInfo    -> [ deucePopupHotkeyInfo model ]
       DeucePopupKbdComplete _ -> [ deuceKeyboardPopupPanel model ]
       DeucePopupHidden        -> []
   in
