@@ -1419,7 +1419,7 @@ togglePopupPanelState old =
   let newDeucePopupPanel =
     if canShowDeucePopupPanel old then
       case old.deucePopupPanel of
-        DeucePopupHidden -> DeucePopupTools
+        DeucePopupHidden -> DeucePopupTools ""
         p                -> p
     else
       DeucePopupHidden
@@ -1431,8 +1431,8 @@ cyclePopupPanelState old =
   let newDeucePopupPanel =
     if canShowDeucePopupPanel old then
       case old.deucePopupPanel of
-        DeucePopupHidden        -> DeucePopupTools
-        DeucePopupTools         -> DeucePopupHotKeyInfo
+        DeucePopupHidden        -> DeucePopupTools ""
+        DeucePopupTools _       -> DeucePopupHotKeyInfo
         DeucePopupHotKeyInfo    -> DeucePopupHidden
         DeucePopupKbdComplete _ -> DeucePopupHidden
     else
@@ -2056,13 +2056,20 @@ msgKeyDown keyCode =
 
         else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick
                 && not currentKeyDown && mbKeyboardFocusedWidget /= Nothing then
-          if old.isDeuceTextBoxFocused then
+          let mbDeuceMenuHandled =
             if old.deucePopupPanel /= DeucePopupHidden then
               handleDeuceMenuCommand old keyCodes
             else
-              old
-          else
-            handleDeuceHotKey old keyCodes <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
+              Nothing
+          in
+          case mbDeuceMenuHandled of
+            Just deuceMenuHandled ->
+              deuceMenuHandled
+            Nothing ->
+              if not old.isDeuceTextBoxFocused then
+                handleDeuceHotKey old keyCodes <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
+              else
+                old
 
         else if
           not currentKeyDown &&
@@ -3563,7 +3570,7 @@ isCommandAnd keysDown k =
 
 resetDeuceKeyboardInfo : Model -> Model
 resetDeuceKeyboardInfo old =
-  { old | deucePopupPanel = DeucePopupTools }
+  { old | deucePopupPanel = DeucePopupTools "" }
   |> togglePopupPanelState
 
 deuceMove : DeuceWidget -> Model -> Model
@@ -3604,27 +3611,55 @@ deuceChooserUI old initText titleAndTextToTransformationResults =
       , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
     }
 
-moveSmartCompleteSelection keyboardInfo isDown =
+moveMenuCompleteSelectionVertical_ old isDown =
   let
-    {text, textToTransformationResults, smartCompleteSelection} =
-      keyboardInfo
-    textResults =
-      textToTransformationResults text
-      |> List.map transformationResultToString
-      |> Utils.applyIf isDown List.reverse
-    smartSelectionTail =
-      Utils.dropWhile ((/=) smartCompleteSelection) textResults
-    newSmartCompleteSelection =
-      case smartSelectionTail of
+    deucePopupPanel = old.deucePopupPanel
+    (textItems_, selectionText) =
+      case deucePopupPanel of
+        DeucePopupTools deuceToolsSelection ->
+          let activeToolNames =
+            old.deuceToolsAndResults
+            |> List.concatMap
+                 ( List.filterMap
+                     ( \(tool, _, _) ->
+                        if DeuceTools.isActive old.codeEditorMode tool then
+                          Just tool.name
+                        else
+                          Nothing
+                     )
+                 )
+          in
+          (activeToolNames, deuceToolsSelection)
+        DeucePopupKbdComplete deuceKeyboardPopupInfo ->
+          ( deuceKeyboardPopupInfo.textToTransformationResults deuceKeyboardPopupInfo.text
+            |> List.map transformationResultToString
+          , deuceKeyboardPopupInfo.smartCompleteSelection
+          )
+        _ ->
+          ([], "")
+    textItems = textItems_ |> Utils.applyIf isDown List.reverse
+    selectionTail = Utils.dropWhile ((/=) selectionText) textItems
+    newSelection =
+      case selectionTail of
         sel :: next :: _ ->
           -- common case: select the next child
           next
         _                ->
           -- if no such child exists, or we're at the last child, select the first
-          List.head textResults |> Maybe.withDefault smartCompleteSelection
+          List.head textItems |> Maybe.withDefault selectionText
   in
-  { keyboardInfo
-    | smartCompleteSelection = newSmartCompleteSelection
+  { old
+    | deucePopupPanel =
+        case deucePopupPanel of
+          DeucePopupTools _ ->
+            DeucePopupTools newSelection
+          DeucePopupKbdComplete deuceKeyboardPopupInfo ->
+            DeucePopupKbdComplete
+              { deuceKeyboardPopupInfo
+                | smartCompleteSelection = newSelection
+              }
+          dpp ->
+            dpp
   }
 
 codeObjectsStartingWith_ model selected patMap shouldReverse =
@@ -3681,13 +3716,12 @@ handleDeuceMoveVertical_ old selected isUp =
     _ ->
       old
 
-handleDeuceLeft old selected = handleDeuceMoveHorizontal_ old selected navFindPred_ True
-
-handleDeuceRight old selected = handleDeuceMoveHorizontal_ old selected navFindPred_ False
-
-handleDeuceUp old selected = handleDeuceMoveVertical_ old selected True
-
-handleDeuceDown old selected = handleDeuceMoveVertical_ old selected False
+handleDeuceMove old selected direction =
+  case direction of
+    DLeft  -> handleDeuceMoveHorizontal_ old selected navFindPred_ True
+    DRight -> handleDeuceMoveHorizontal_ old selected navFindPred_ False
+    DUp    -> handleDeuceMoveVertical_ old selected True
+    DDown  -> handleDeuceMoveVertical_ old selected False
 
 handleDeuceNextHoleOrWildcard old selected = handleDeuceMoveHorizontal_ old selected holeOrWildcardFindPred_ False
 
@@ -3728,13 +3762,13 @@ handleDeuceHotKey oldModel keysDown selected =
   -- Movement
 
   if List.member keysDown [[Keys.keyLeft], [Keys.keyH]] then
-    handleDeuceLeft old selected
+    handleDeuceMove old selected DLeft
   else if List.member keysDown [[Keys.keyRight], [Keys.keyL]] then
-    handleDeuceRight old selected
+    handleDeuceMove old selected DRight
   else if List.member keysDown [[Keys.keyUp], [Keys.keyK]] then
-    handleDeuceUp old selected
+    handleDeuceMove old selected DUp
   else if List.member keysDown [[Keys.keyDown], [Keys.keyJ]] then
-    handleDeuceDown old selected
+    handleDeuceMove old selected DDown
   else if keysDown == [Keys.keyN] then
     handleDeuceNextHoleOrWildcard old selected
   else if keysDown == [Keys.keyShift, Keys.keyN] then
@@ -3783,30 +3817,23 @@ handleDeuceHotKey oldModel keysDown selected =
   else
     old
 
-handleDeuceMenuCommand : Model -> List Char.KeyCode -> Model
+handleDeuceMenuCommand : Model -> List Char.KeyCode -> Maybe Model
 handleDeuceMenuCommand old keysDown =
-  let
-    -- It'd be great if we could use any familiar, home-keys-accessible binding,
-    -- but literally all of them are consumed by chrome:
-    -- Ctrl+J, Ctrl+K, Ctrl+N, Ctrl+P, and Tab
-    -- For now I've settled on Ctrl+m through Ctrl+/,
-    -- with the same behavior as h through l, but not sure what works best
-    isLeft =
-      keysDown == [Keys.keyLeft] || isCommandAnd keysDown Keys.keyM
-    isRight =
-      keysDown == [Keys.keyRight] || isCommandAnd keysDown Keys.keyForwardSlash
-    isDown =
-      keysDown == [Keys.keyDown] || isCommandAnd keysDown Keys.keyComma
-    isUp =
-      keysDown == [Keys.keyUp] || isCommandAnd keysDown Keys.keyPeriod
-  in
-  -- TODO fix up
-  if isUp then
-    old -- moveSmartCompleteSelection old False
-  else if isDown then
-    old -- moveSmartCompleteSelection old True
+  -- It'd be great if we could use any familiar, home-keys-accessible binding,
+  -- but literally all of them are consumed by chrome:
+  -- Ctrl+J, Ctrl+K, Ctrl+N, Ctrl+P, and Tab
+  -- For now I've settled on Ctrl+m through Ctrl+/,
+  -- with the same behavior as h through l, but not sure what works best
+  if isCommandAnd keysDown Keys.keyM then
+    Just old
+  else if isCommandAnd keysDown Keys.keyForwardSlash then
+    Just old
+  else if isCommandAnd keysDown Keys.keyComma then
+    Just <| moveMenuCompleteSelectionVertical_ old False
+  else if isCommandAnd keysDown Keys.keyPeriod then
+    Just <| moveMenuCompleteSelectionVertical_ old True
   else
-    old
+    Nothing
 
 --------------------------------------------------------------------------------
 -- DOT

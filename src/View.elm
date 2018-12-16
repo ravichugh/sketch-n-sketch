@@ -504,8 +504,8 @@ viewResultText rt =
           ]
 
 deuceTransformationResult :
-  Model -> List Int -> DeuceTransformation -> TransformationResult -> Html Msg
-deuceTransformationResult model path deuceTransformation transformationResult =
+  Model -> List Int -> DeuceTransformation -> Maybe String -> TransformationResult -> Html Msg
+deuceTransformationResult model path deuceTransformation mbSelectionText transformationResult =
   let
     (maybeSynthesisInfo, description) =
       case transformationResult of
@@ -563,8 +563,8 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           []
 
 deuceTransformationResults
-  : Model -> List Int -> DeuceTransformation -> List TransformationResult -> List (Html Msg)
-deuceTransformationResults model path deuceTransformation transformationResults =
+  : Model -> List Int -> DeuceTransformation -> Maybe String -> List TransformationResult -> List (Html Msg)
+deuceTransformationResults model path deuceTransformation mbSelectionText transformationResults =
   let
     mapResults () =
       Utils.mapi1
@@ -573,6 +573,7 @@ deuceTransformationResults model path deuceTransformation transformationResults 
             model
             (path ++ [i])
             deuceTransformation
+            mbSelectionText
             result
         )
         transformationResults
@@ -613,11 +614,15 @@ deuceTransformationResults model path deuceTransformation transformationResults 
     _ ->
       mapResults ()
 
-deuceHoverMenu : Bool -> Model -> (Int, CachedDeuceTool) -> Html Msg
-deuceHoverMenu alwaysShow model (index, (deuceTool, results, disabled)) =
+deuceHoverMenu : Bool -> Model -> Maybe String -> (Int, CachedDeuceTool) -> Html Msg
+deuceHoverMenu alwaysShow model mbSelectionText (index, (deuceTool, results, disabled)) =
   let
+    isSelected =
+      case mbSelectionText of
+        Just selectionText -> deuceTool.name == selectionText
+        _                  -> False
     showFlag =
-      if alwaysShow then
+      if alwaysShow || isSelected then
         "always-show"
       else
         ""
@@ -640,7 +645,7 @@ deuceHoverMenu alwaysShow model (index, (deuceTool, results, disabled)) =
       [ Html.div
           [ Attr.class "synthesis-results"
           ] <|
-          deuceTransformationResults model path deuceTool.func results
+          deuceTransformationResults model path deuceTool.func mbSelectionText results
       ]
 
 editCodeEntry : Model -> (Int, CachedDeuceTool) -> Html Msg
@@ -845,7 +850,7 @@ menuBar model =
             CTAll ->
               Just <| editCodeEntry model
             CTActive ->
-              Just <| deuceHoverMenu False model
+              Just <| deuceHoverMenu False model Nothing
             CTDisabled ->
               Nothing
       in
@@ -2728,6 +2733,11 @@ deuceKeyboardPopupPanel model =
 deucePopupPanel : Model -> Html Msg
 deucePopupPanel model =
   let
+    mbSelectionText =
+      case model.deucePopupPanel of
+        DeucePopupTools selectionText -> Just selectionText
+        _                             -> Nothing
+
     appearDirectionFlag =
       if model.deucePopupPanelAbove then
         "appear-above"
@@ -2756,7 +2766,7 @@ deucePopupPanel model =
       List.isEmpty activeTools
 
     activeToolHtmls =
-      Utils.mapi1 (deuceHoverMenu alwaysShowFlag model) activeTools
+      Utils.mapi1 (deuceHoverMenu alwaysShowFlag model mbSelectionText) activeTools
   in
     popupPanel
       { pos =
@@ -2887,7 +2897,7 @@ editCodePopupPanel model =
                   , Html.div
                       [ Attr.class "synthesis-results"
                       ] <|
-                      deuceTransformationResults model path deuceTool.func results
+                      deuceTransformationResults model path deuceTool.func Nothing results
                   ]
                 else
                   []
@@ -2960,7 +2970,7 @@ popupPanels : Model -> List (Html Msg)
 popupPanels model =
   let deucePanels =
     case model.deucePopupPanel of
-      DeucePopupTools         -> [ deucePopupPanel model ]
+      DeucePopupTools _       -> [ deucePopupPanel model ]
       DeucePopupHotKeyInfo    -> [ deucePopupHotkeyInfo model ]
       DeucePopupKbdComplete _ -> [ deuceKeyboardPopupPanel model ]
       DeucePopupHidden        -> []

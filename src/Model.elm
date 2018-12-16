@@ -79,10 +79,12 @@ type DeuceRightClickMenuMode =
   ShowPossible
 
 type DeucePopupPanel
-  = DeucePopupTools
+  = DeucePopupTools DeuceToolsSelection
   | DeucePopupHotKeyInfo
   | DeucePopupKbdComplete DeuceKeyboardPopupInfo
   | DeucePopupHidden
+
+type alias DeuceToolsSelection = String
 
 type alias DeuceKeyboardPopupInfo =
   { title : String

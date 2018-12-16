@@ -610,6 +610,12 @@ valEId val = valExp val |> expEId
 type alias Env = List (Ident, Val)
 type alias Backtrace = List Exp
 
+type Direction
+ = DUp
+ | DDown
+ | DLeft
+ | DRight
+
 --------------------------------------------------------------------------------
 -- Synthesis Results (for DeuceTools and OutputTools)
 --------------------------------------------------------------------------------
