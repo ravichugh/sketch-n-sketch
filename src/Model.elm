@@ -78,6 +78,12 @@ type TextSelectMode
 type DeuceRightClickMenuMode =
   ShowPossible
 
+type DeucePopupPanel
+  = DeucePopupTools
+  | DeucePopupHotKeyInfo
+  | DeucePopupKbdComplete DeuceKeyboardPopupInfo
+  | DeucePopupHidden
+
 type alias DeuceKeyboardPopupInfo =
   { title : String
   , text : String
@@ -198,7 +204,7 @@ type alias Model =
   , viewState : ViewState
   , toolMode : ShapeToolKind
   , popupPanelPositions : PopupPanelPositions
-  , mbDeuceKeyboardInfo : Maybe DeuceKeyboardPopupInfo
+  , deucePopupPanel : DeucePopupPanel
   , deuceRightClickMenuMode : Maybe DeuceRightClickMenuMode
   , enableDeuceBoxSelection : Bool
   , enableDeuceTextSelection : Bool
@@ -1201,14 +1207,8 @@ allowOnlySingleSelection model =
 deuceKeyboardPopupPanelTextBoxId : String
 deuceKeyboardPopupPanelTextBoxId = "deuce-keyboard-popup-panel-text-box-7331"
 
-deuceKeyboardPopupPanelShown : Model -> Bool
-deuceKeyboardPopupPanelShown model =
-  model.enableDeuceBoxSelection &&
-  model.deuceState.mbKeyboardFocusedWidget /= Nothing &&
-  model.mbDeuceKeyboardInfo /= Nothing
-
-deucePopupPanelShown : Model -> Bool
-deucePopupPanelShown model =
+canShowDeucePopupPanel : Model -> Bool
+canShowDeucePopupPanel model =
   Utils.and
     [ model.enableDeuceBoxSelection
     , Utils.or
@@ -1481,7 +1481,7 @@ initModel =
         , deuceRightClickMenu = (400, 400)
         , autoOutputTools = (400, 100)
         }
-    , mbDeuceKeyboardInfo = Nothing
+    , deucePopupPanel = DeucePopupHidden
     , deuceRightClickMenuMode = Nothing
     , enableDeuceBoxSelection = True
     , enableDeuceTextSelection = True

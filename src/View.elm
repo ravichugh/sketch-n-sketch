@@ -2641,13 +2641,15 @@ deuceKeyboardPopupPanel : Model -> Html Msg
 deuceKeyboardPopupPanel model =
   let
     {title, text, textToTransformationResults, smartCompleteSelection} =
-      model.mbDeuceKeyboardInfo |>
-      Maybe.withDefault
-        { title = "Totally broken!"
-        , text = ""
-        , textToTransformationResults = always []
-        , smartCompleteSelection = ""
-        }
+      case model.deucePopupPanel of
+        DeucePopupKbdComplete kbdInfo ->
+          kbdInfo
+        _ ->
+          { title = "Totally broken!"
+          , text = ""
+          , textToTransformationResults = always []
+          , smartCompleteSelection = ""
+          }
 
     transformationResults = textToTransformationResults text
     synthesisResults = Lang.synthesisResults transformationResults
@@ -2703,7 +2705,7 @@ deuceKeyboardPopupPanel model =
   in
   popupPanel
     { pos = pos
-    , disabled = not <| Model.deuceKeyboardPopupPanelShown model
+    , disabled = False
     , dragHandler = Controller.msgNoop
     , class = "deuce-popup-panel appear-above"
     , title = [ Html.text title ]
@@ -2759,11 +2761,7 @@ deucePopupPanel model =
     popupPanel
       { pos =
           model.popupPanelPositions.deuce
-      , disabled =
-          Utils.or
-            [ not <| Model.deucePopupPanelShown model
-            , model.codeEditorMode == CETypeInspector && noTools
-            ]
+      , disabled = model.codeEditorMode == CETypeInspector && noTools
       , dragHandler =
           Controller.msgDragDeucePopupPanel
       , class =
@@ -2913,9 +2911,15 @@ autoOutputToolsPopupPanel model =
 
 popupPanels : Model -> List (Html Msg)
 popupPanels model =
-  [ deucePopupPanel model
-  , deuceKeyboardPopupPanel model
-  , editCodePopupPanel model
+  let deucePanels =
+    case model.deucePopupPanel of
+      DeucePopupTools         -> [ deucePopupPanel model ]
+      DeucePopupHotKeyInfo    -> []
+      DeucePopupKbdComplete _ -> [ deuceKeyboardPopupPanel model ]
+      DeucePopupHidden        -> []
+  in
+  deucePanels ++
+  [ editCodePopupPanel model
   , autoOutputToolsPopupPanel model
   ]
 

@@ -1414,6 +1414,32 @@ msgTryParseRun newModel = Msg "Try Parse Run" <| \old ->
 
 --------------------------------------------------------------------------------
 
+togglePopupPanelState : Model -> Model
+togglePopupPanelState old =
+  let newDeucePopupPanel =
+    if canShowDeucePopupPanel old then
+      case old.deucePopupPanel of
+        DeucePopupHidden -> DeucePopupTools
+        p                -> p
+    else
+      DeucePopupHidden
+  in
+  { old | deucePopupPanel = newDeucePopupPanel }
+
+cyclePopupPanelState : Model -> Model
+cyclePopupPanelState old =
+  let newDeucePopupPanel =
+    if canShowDeucePopupPanel old then
+      case old.deucePopupPanel of
+        DeucePopupHidden        -> DeucePopupTools
+        DeucePopupTools         -> DeucePopupHotKeyInfo
+        DeucePopupHotKeyInfo    -> DeucePopupHidden
+        DeucePopupKbdComplete _ -> DeucePopupHidden
+    else
+      old.deucePopupPanel
+  in
+  { old | deucePopupPanel = newDeucePopupPanel }
+
 resetDeuceCacheAndReselect : Model -> (Model -> List (List CachedDeuceTool)) -> Model
 resetDeuceCacheAndReselect almostNewModel cacheRefresher =
   { almostNewModel
@@ -1421,7 +1447,9 @@ resetDeuceCacheAndReselect almostNewModel cacheRefresher =
           cacheRefresher almostNewModel
       , deuceToolResultPreviews =
           Dict.empty
-  } |> DeuceTools.reselectDeuceTool
+  }
+  |> DeuceTools.reselectDeuceTool
+  |> togglePopupPanelState
 
 resetDeucePopupPanelPosition : Model -> Model
 resetDeucePopupPanelPosition m =
@@ -1952,6 +1980,7 @@ msgKeyDown keyCode =
           old
     func veryOld =
       let
+        keyCodes = keyCode :: old.keysDown |> List.sort
         currentKeyDown =
           isKeyDown keyCode veryOld
         noughtSelectedInOutput =
@@ -1961,12 +1990,12 @@ msgKeyDown keyCode =
         (mbKeyboardFocusedWidget, old) =
           getKeyboardFocusedWidget veryOld
       in
-        if keyCode == Keys.keyEsc then
+        if keyCode == Keys.keyEsc || isCommandAnd keyCodes Keys.keyOpenBrace then
           if Model.anyDialogShown old then
             Model.closeAllDialogBoxes old
 
           else if noughtSelectedInOutput
-                    && not (deucePopupPanelShown old)
+                    && not (canShowDeucePopupPanel old)
                     && (old.codeEditorMode == CEDeuceClick || old.codeEditorMode == CETypeInspector)
                     && not currentKeyDown then
             { old | codeEditorMode = CEText }
@@ -1977,7 +2006,6 @@ msgKeyDown keyCode =
                 { old | renamingInOutput = Nothing }
                   |> Model.hideDeuceRightClickMenu
                   |> resetDeuceState
-                  |> resetDeuceKeyboardInfo
                   |> \m -> { m | deucePopupPanelAbove = True }
             in
               case (old.tool, old.mouseMode) of
@@ -1985,6 +2013,9 @@ msgKeyDown keyCode =
                 (_, MouseNothing)   -> { new | tool = Cursor }
                 (_, MouseDrawNew _) -> { new | mouseMode = MouseNothing }
                 _                   -> new
+
+        else if isCommandAnd keyCodes Keys.keyCloseBrace then
+          cyclePopupPanelState old
 
         else if somethingSelectedInOutput && keyCode == Keys.keyE && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           let newModel = doMakeEqual old in
@@ -2025,9 +2056,8 @@ msgKeyDown keyCode =
 
         else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick
                 && not currentKeyDown && mbKeyboardFocusedWidget /= Nothing then
-          let keyCodes = keyCode :: old.keysDown |> List.sort in
           if old.isDeuceTextBoxFocused then
-            if old.mbDeuceKeyboardInfo /= Nothing then
+            if old.deucePopupPanel /= DeucePopupHidden then
               handleDeuceMenuCommand old keyCodes
             else
               old
@@ -3533,7 +3563,8 @@ isCommandAnd keysDown k =
 
 resetDeuceKeyboardInfo : Model -> Model
 resetDeuceKeyboardInfo old =
-  { old | mbDeuceKeyboardInfo = Nothing }
+  { old | deucePopupPanel = DeucePopupTools }
+  |> togglePopupPanelState
 
 deuceMove : DeuceWidget -> Model -> Model
 deuceMove destWidget old =
@@ -3563,8 +3594,8 @@ deuceChooserUI old initText titleAndTextToTransformationResults =
     old
   else
     { oldReset
-      | mbDeuceKeyboardInfo =
-          Just <|
+      | deucePopupPanel =
+        DeucePopupKbdComplete
           { title = title
           , text = initText
           , textToTransformationResults = textToTransformationResults
@@ -3573,12 +3604,10 @@ deuceChooserUI old initText titleAndTextToTransformationResults =
       , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
     }
 
-moveSmartCompleteSelection old isDown =
+moveSmartCompleteSelection keyboardInfo isDown =
   let
-    oldDeuceKeyboardInfo =
-      Utils.fromJust_ "No keyboard info" old.mbDeuceKeyboardInfo
     {text, textToTransformationResults, smartCompleteSelection} =
-      oldDeuceKeyboardInfo
+      keyboardInfo
     textResults =
       textToTransformationResults text
       |> List.map transformationResultToString
@@ -3593,13 +3622,10 @@ moveSmartCompleteSelection old isDown =
         _                ->
           -- if no such child exists, or we're at the last child, select the first
           List.head textResults |> Maybe.withDefault smartCompleteSelection
-    newMbDeuceKeyboardInfo =
-      Just <|
-      { oldDeuceKeyboardInfo
-        | smartCompleteSelection = newSmartCompleteSelection
-      }
   in
-  { old | mbDeuceKeyboardInfo = newMbDeuceKeyboardInfo }
+  { keyboardInfo
+    | smartCompleteSelection = newSmartCompleteSelection
+  }
 
 codeObjectsStartingWith_ model selected patMap shouldReverse =
   E model.inputExp
@@ -3774,10 +3800,11 @@ handleDeuceMenuCommand old keysDown =
     isUp =
       keysDown == [Keys.keyUp] || isCommandAnd keysDown Keys.keyPeriod
   in
+  -- TODO fix up
   if isUp then
-    moveSmartCompleteSelection old False
+    old -- moveSmartCompleteSelection old False
   else if isDown then
-    moveSmartCompleteSelection old True
+    old -- moveSmartCompleteSelection old True
   else
     old
 
@@ -3967,12 +3994,15 @@ msgUpdateSmartCompleteTextBox text =
 msgUpdateDeuceKeyboardTextBox : String -> Msg
 msgUpdateDeuceKeyboardTextBox text =
   Msg ("Update Deuce Keyboard Text Box: " ++ text) <| \old ->
-    { old
-        | mbDeuceKeyboardInfo =
-            old.mbDeuceKeyboardInfo
-            |> Maybe.map
-              (\deuceKeyboardInfo -> { deuceKeyboardInfo | text = text })
-    }
+    case old.deucePopupPanel of
+      DeucePopupKbdComplete kbdInfo ->
+        { old
+            | deucePopupPanel =
+                DeucePopupKbdComplete
+                  { kbdInfo | text = text }
+        }
+      _ ->
+        old
 
 --------------------------------------------------------------------------------
 -- Clear Drag
@@ -4271,10 +4301,10 @@ msgReceiveDeucePopupPanelInfo dppi =
         oldY > dppi.height
     in
       -- Only update if going from False to True
-      -- Also, reset to True if the popup panel is not even shown
+      -- Also, reset to True if the popup panel cannot even be shown
       { old
           | deucePopupPanelAbove =
-              if Model.deucePopupPanelShown old then
+              if Model.canShowDeucePopupPanel old then
                 oldDeucePopupPanelAbove && newDeucePopupPanelAbove
               else
                 True
