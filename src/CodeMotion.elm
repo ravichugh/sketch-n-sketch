@@ -3185,8 +3185,6 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
 
 
     -- Now look in the program for some expression we can use to fill the val hole/loc hole.
-    --
-    --
     programWithSomeHolesResolvedByLifting =
       expandedExpsWithHoles programWithSomeHolesResolvedFromEnv
       |> Utils.foldl
@@ -3357,44 +3355,43 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
                 program
           )
   in
-  -- Resolve any remaining holes by loc lifting.
-  resolveValueHolesByLocLifting solutionsCache syncOptions programWithSomeHolesResolvedByDestructuring
+  -- Loc holes are always filled by this point.
+  -- Hopefully all value holes are as well, but that's not guaranteed.
+  let isNumericValHole = expToMaybeHoleVal >> Maybe.map valIsNum >> (==) (Just True) in
+  if programWithSomeHolesResolvedByDestructuring |> containsNode isNumericValHole then
+    -- Resolve any remaining value holes by loc lifting.
+    -- That is: inline the numeric traces of value holes, using LocId holes for the terminal numbers. Then recurse.
+    let
+      -- Don't need a fresh expression here because all holes will have EIds and that's all we need.
+      valHoles = programWithSomeHolesResolvedByDestructuring |> flattenExpTree |> List.filter isNumericValHole
+      holeVals = valHoles |> List.map expToHoleVal
+      holeEIds = valHoles |> List.map (.val >> .eid)
 
+      -- Sometimes there's 0! * x, which means we needlessly lift x. Simplify first.
+      locIdToFrozenNum =
+        allLocsAndNumbers programWithSomeHolesResolvedByDestructuring
+        |> List.filter (\(loc, n) -> Sync.locIsFrozen syncOptions loc)
+        |> List.map    (\((locId,_,_), n) -> (locId, n))
+        |> Dict.fromList
+        |> Dict.union Parser.preludeSubst
 
-resolveValueHolesByLocLifting : Solver.SolutionsCache -> Sync.Options -> Exp -> List Exp
-resolveValueHolesByLocLifting solutionsCache syncOptions programWithHolesUnfresh =
-  let
-    programWithHoles = Parser.freshen programWithHolesUnfresh -- Need EIds on all inserted expressions.
-    valHoles = programWithHoles |> flattenExpTree |> List.filter (expToMaybeHoleVal >> Maybe.map valIsNum >> (==) (Just True))
-    holeVals = programWithHoles |> flattenExpTree |> List.filterMap (expToMaybeHoleVal >> Utils.filterMaybe valIsNum)
-    holeEIds = valHoles |> List.map (.val >> .eid)
+      holeMathExps = holeVals |> List.map (valToTrace >> MathExp.traceToMathExp >>  MathExp.applySubst locIdToFrozenNum >> Solver.simplify solutionsCache)
 
-    -- Sometimes there's 0! * x, which means we needlessly lift x. Simplify first.
-    locIdToFrozenNum =
-      allLocsAndNumbers programWithHoles
-      |> List.filter (\(loc, n) -> Sync.locIsFrozen syncOptions loc)
-      |> List.map    (\((locId,_,_), n) -> (locId, n))
-      |> Dict.fromList
-      |> Dict.union Parser.preludeSubst
-
-    holeMathExps = holeVals |> List.map (valToTrace >> MathExp.traceToMathExp >>  MathExp.applySubst locIdToFrozenNum >> Solver.simplify solutionsCache)
-
-    locIdsNeeded = holeMathExps |> List.concatMap (MathExp.mathExpVarIds) |> Set.fromList
-    (programWithLocsLifted, locIdToNewName, _) = liftLocsSoVisibleTo programWithHoles locIdsNeeded (Set.fromList holeEIds)
-    locIdToExp = locIdToExpFromFrozenSubstAndNewNames (Parser.substOf programWithHoles) locIdToNewName
-  in
-  Utils.zip holeEIds holeMathExps
-  |> Utils.foldl
-      programWithLocsLifted
-      (\(holeEId, holeMathExp) programSoFar ->
-        let filledHole =
-          holeMathExp
-          |> MathExp.mathExpToExp eConstFrozen (\locId -> Utils.getWithDefault locId (eVar ("couldNotFindLocId" ++ toString locId)) locIdToExp)
-        in
-        programSoFar
-        |> replaceExpNodePreservingPrecedingWhitespace holeEId filledHole
-      )
-  |> List.singleton
+      programWithNumericValHolesReplacedByInlinedTraces =
+        Utils.zip holeEIds holeMathExps
+        |> Utils.foldl
+            programWithSomeHolesResolvedByDestructuring
+            (\(holeEId, holeMathExp) programSoFar ->
+              let inlinedTraceForValHole = holeMathExp |> MathExp.mathExpToExp eConstFrozen eHoleLoc in
+              programSoFar
+              |> replaceExpNodePreservingPrecedingWhitespace holeEId inlinedTraceForValHole
+            )
+    in
+    -- Recurse to fill in the loc holes.
+    resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithNumericValHolesReplacedByInlinedTraces
+  else
+    -- We're done. Still not sure why we return a singleton.
+    [programWithSomeHolesResolvedByDestructuring]
 
 
 -- See gatherUniqueDependencies_ below, this version returns program with
