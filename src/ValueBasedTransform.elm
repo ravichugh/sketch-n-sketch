@@ -193,12 +193,6 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
 
 
 
-evalToSlateAndWidgetsResult : Exp -> Bool -> Int -> Int -> Float -> Result String (LangSvg.RootedIndexedTree, Widgets)
-evalToSlateAndWidgetsResult exp showPreludeOffsets slideNumber movieNumber movieTime =
-  InterfaceModel.runAndResolve_ { showPreludeOffsets = showPreludeOffsets, slideNumber = slideNumber, movieNumber = movieNumber, movieTime = movieTime, syntax = Syntax.Elm } exp -- Syntax is dummy, we throw away unparse code
-  |> Result.map (\(val, widgets, slate, code) -> (slate, widgets))
-
-
 getIndexedLocIdsWithTarget originalExp locsToRevolutionize =
   let subst = substOf originalExp in
   locsToRevolutionize
@@ -229,88 +223,84 @@ indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp =
   sumOfSquares / toFloat (List.length indexedLocIdsWithTarget)
 
 
-indexedRelate : Bool -> Syntax -> Exp -> List ShapeWidgets.SelectableFeature -> List NodeId -> Int -> Int -> Float -> Sync.Options -> List InterfaceModel.SynthesisResult
-indexedRelate showPreludeOffsets syntax originalExp selectedFeatures selectedShapes slideNumber movieNumber movieTime syncOptions =
+indexedRelate : Syntax -> Exp -> List ShapeWidgets.SelectableFeature -> List NodeId -> LangSvg.RootedIndexedTree -> Widgets -> Sync.Options -> List InterfaceModel.SynthesisResult
+indexedRelate syntax originalExp selectedFeatures selectedShapes ((rootI, tree) as slate) widgets syncOptions =
   if True then
     []
   else
-  case evalToSlateAndWidgetsResult originalExp showPreludeOffsets slideNumber movieNumber movieTime of
-    Err _    -> []
-    Ok (slate, widgets) ->
-      let (_, tree) = slate in
-      let featuresToRevolutionize =
-        if List.length selectedFeatures > 0 then
-          selectedFeatures
-        else
-          selectedShapes
-          |> List.concatMap
-              (\nodeId ->
-                let (kind, attrs, _) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
-                ShapeWidgets.featuresOfShape nodeId kind attrs
-                |> List.take 1
-              )
+    let featuresToRevolutionize =
+      if List.length selectedFeatures > 0 then
+        selectedFeatures
+      else
+        selectedShapes
+        |> List.concatMap
+            (\nodeId ->
+              let (kind, attrs, _) = LangSvg.justGetSvgNode "ValueBasedTransform.indexedRelate" nodeId slate in
+              ShapeWidgets.featuresOfShape nodeId kind attrs
+              |> List.take 1
+            )
+    in
+    let locsToRevolutionize =
+      let featureEqns =
+        featuresToRevolutionize
+        |> List.map (\feature -> ShapeWidgets.featureToEquation feature tree widgets)
+        |> Utils.projJusts
+        |> Maybe.withDefault []
       in
-      let locsToRevolutionize =
-        let featureEqns =
-          featuresToRevolutionize
-          |> List.map (\feature -> ShapeWidgets.featureToEquation feature tree widgets)
-          |> Utils.projJusts
-          |> Maybe.withDefault []
+      let isRevolutionizable featureEqn =
+        List.length (equationLocs syncOptions featureEqn) == 1
+      in
+      if List.all isRevolutionizable featureEqns then
+        let locs =
+          featureEqns
+          |> List.concatMap (equationLocs syncOptions)
         in
-        let isRevolutionizable featureEqn =
-          List.length (equationLocs syncOptions featureEqn) == 1
-        in
-        if List.all isRevolutionizable featureEqns then
-          let locs =
-            featureEqns
-            |> List.concatMap (equationLocs syncOptions)
-          in
-          if locs == Utils.dedup locs then
-            locs
-          else
-            []
+        if locs == Utils.dedup locs then
+          locs
         else
           []
-      in
-      let subst = substOf originalExp in
-      let indexedLocIdsWithTarget = getIndexedLocIdsWithTarget originalExp locsToRevolutionize in
-      let possibleMathExps = stormTheBastille subst indexedLocIdsWithTarget in
-      let (_, locIds, targets) = Utils.unzip3 indexedLocIdsWithTarget in
-      let locEIds =
-        locIds
-        |> List.map (\locId -> locIdToEId originalExp locId |> Utils.fromJust_ "ValueBasedTransform.indexedRelate locEIds")
-      in
-      possibleMathExps
-      |> List.map
-          (\mathExp ->
-            let mathExpLocIds = mathExpLocIdSet mathExp in
-            let (locsLifted, locIdToNewName, locIdToVarEId) = CodeMotion.copyLocsSoVisibleTo originalExp mathExpLocIds (Set.fromList locEIds) in
-            -- let _ = Utils.log <| "locsLifted:\n" ++ unparseWithIds locsLifted in
-            let description =
-              let mathExpDesc = Syntax.unparser syntax <| mathExpToExp unann Dict.empty (Dict.insert indexLocId "i" locIdToNewName) mathExp in
-              let locDescs = locsToRevolutionize |> List.map (locDescription originalExp) in
-              "compute " ++ String.join ", " locDescs ++ " by " ++ mathExpDesc
-            in
-            let newProgram =
-              Utils.zip locIds locEIds
-              |> Utils.foldli0
-                  (\(i, (locId, originalLocEId)) priorExp ->
-                    -- If loc was copied, its original location was replaced with a var, and that's the var we want to replace.
-                    let locEId = Dict.get locId locIdToVarEId |> Maybe.withDefault originalLocEId in
-                    let mathExpExp = mathExpToExp unann (Dict.singleton indexLocId (toFloat i)) locIdToNewName mathExp in
-                    replaceExpNodeE__ByEId locEId mathExpExp.val.e__ priorExp
-                  )
-                  locsLifted
-            in
-            let distanceScore = indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp in
-            InterfaceModel.SynthesisResult <|
-              { description = description
-              , exp         = newProgram
-              , isSafe      = True
-              , sortKey     = [distanceScore]
-              , children    = Nothing
-              }
-          )
+      else
+        []
+    in
+    let subst = substOf originalExp in
+    let indexedLocIdsWithTarget = getIndexedLocIdsWithTarget originalExp locsToRevolutionize in
+    let possibleMathExps = stormTheBastille subst indexedLocIdsWithTarget in
+    let (_, locIds, targets) = Utils.unzip3 indexedLocIdsWithTarget in
+    let locEIds =
+      locIds
+      |> List.map (\locId -> locIdToEId originalExp locId |> Utils.fromJust_ "ValueBasedTransform.indexedRelate locEIds")
+    in
+    possibleMathExps
+    |> List.map
+        (\mathExp ->
+          let mathExpLocIds = mathExpLocIdSet mathExp in
+          let (locsLifted, locIdToNewName, locIdToVarEId) = CodeMotion.copyLocsSoVisibleTo originalExp mathExpLocIds (Set.fromList locEIds) in
+          -- let _ = Utils.log <| "locsLifted:\n" ++ unparseWithIds locsLifted in
+          let description =
+            let mathExpDesc = Syntax.unparser syntax <| mathExpToExp unann Dict.empty (Dict.insert indexLocId "i" locIdToNewName) mathExp in
+            let locDescs = locsToRevolutionize |> List.map (locDescription originalExp) in
+            "compute " ++ String.join ", " locDescs ++ " by " ++ mathExpDesc
+          in
+          let newProgram =
+            Utils.zip locIds locEIds
+            |> Utils.foldli0
+                (\(i, (locId, originalLocEId)) priorExp ->
+                  -- If loc was copied, its original location was replaced with a var, and that's the var we want to replace.
+                  let locEId = Dict.get locId locIdToVarEId |> Maybe.withDefault originalLocEId in
+                  let mathExpExp = mathExpToExp unann (Dict.singleton indexLocId (toFloat i)) locIdToNewName mathExp in
+                  replaceExpNodeE__ByEId locEId mathExpExp.val.e__ priorExp
+                )
+                locsLifted
+          in
+          let distanceScore = indexedRelateDistanceScore subst indexedLocIdsWithTarget mathExp in
+          InterfaceModel.SynthesisResult <|
+            { description = description
+            , exp         = newProgram
+            , isSafe      = True
+            , sortKey     = [distanceScore]
+            , children    = Nothing
+            }
+        )
 
 
 -- Generate loc mathExps that, given 0 1 2 3 etc, approximate the numbers at the given locations
@@ -395,24 +385,21 @@ rankComparedTo originalExp synthesisResults =
       )
 
 
-selectedFeaturesToFeaturesAndEquations : List ShapeWidgets.SelectableFeature -> Exp -> Bool -> Int -> Int -> Float -> List SelectedFeatureAndEquation
-selectedFeaturesToFeaturesAndEquations selectedFeatures program showPreludeOffsets slideNumber movieNumber movieTime =
-  case evalToSlateAndWidgetsResult program showPreludeOffsets slideNumber movieNumber movieTime of
-    Err s -> []
-    Ok ((rootI, tree), widgets) ->
-      selectedFeatures
-      |> List.filterMap
-          (\selectableFeature ->
-            case ShapeWidgets.featureToEquation selectableFeature tree widgets of
-              Just featureEqn -> Just (selectableFeature, featureEqn)
-              Nothing         -> Debug.crash "Could not generate an equation for " <| toString selectableFeature -- Could make this a Utils.log, we'll see.
-          )
+selectedFeaturesToFeaturesAndEquations : List ShapeWidgets.SelectableFeature -> LangSvg.RootedIndexedTree -> Widgets -> List SelectedFeatureAndEquation
+selectedFeaturesToFeaturesAndEquations selectedFeatures (rootI, tree) widgets =
+  selectedFeatures
+  |> List.filterMap
+      (\selectableFeature ->
+        case ShapeWidgets.featureToEquation selectableFeature tree widgets of
+          Just featureEqn -> Just (selectableFeature, featureEqn)
+          Nothing         -> Debug.crash "Could not generate an equation for " <| toString selectableFeature -- Could make this a Utils.log, we'll see.
+      )
 
 
-makeEqual showPreludeOffsets syntax solutionsCache originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+makeEqual syntax solutionsCache originalExp maybeEnv selectedFeatures slate widgets syncOptions =
   -- Have to convert to equations early: some transformations may move or create widgets which messes up feature indexing.
   let featuresAndEquations =
-    selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp showPreludeOffsets slideNumber movieNumber movieTime
+    selectedFeaturesToFeaturesAndEquations selectedFeatures slate widgets
   in
   let equalizeAll priorResults featuresAndEquations =
     -- equalizeOverlappingPairs syntax solutionsCache priorResults featuresAndEquations syncOptions
@@ -435,13 +422,14 @@ makeEqual showPreludeOffsets syntax solutionsCache originalExp selectedFeatures 
       syncOptions
       equalizeAll
       originalExp
+      maybeEnv
       featuresAndEquations
 
 
-relate showPreludeOffsets syntax solutionsCache originalExp selectedFeatures slideNumber movieNumber movieTime syncOptions =
+relate syntax solutionsCache originalExp maybeEnv selectedFeatures slate widgets syncOptions =
   -- Have to convert to equations early: some transformations may move or create widgets which messes up feature indexing.
   let featuresAndEquations =
-    selectedFeaturesToFeaturesAndEquations selectedFeatures originalExp showPreludeOffsets slideNumber movieNumber movieTime
+    selectedFeaturesToFeaturesAndEquations selectedFeatures slate widgets
   in
   let relateOneInTermsOfAllOthers priorResults featuresAndEquations =
     let (_, featureEqns) = List.unzip featuresAndEquations in
@@ -459,6 +447,7 @@ relate showPreludeOffsets syntax solutionsCache originalExp selectedFeatures sli
       syncOptions
       relateOneInTermsOfAllOthers
       originalExp
+      maybeEnv
       featuresAndEquations
 
 
@@ -470,9 +459,10 @@ synthesizeRelationCoordinateWiseAndSortResults
   -> Sync.Options
   -> (List PartialSynthesisResult -> List SelectedFeatureAndEquation -> List PartialSynthesisResult)
   -> Exp
+  -> Maybe Env
   -> List SelectedFeatureAndEquation
   -> List InterfaceModel.SynthesisResult
-synthesizeRelationCoordinateWiseAndSortResults solutionsCache syncOptions doSynthesis originalExp featuresAndEquations =
+synthesizeRelationCoordinateWiseAndSortResults solutionsCache syncOptions doSynthesis originalExp maybeEnv featuresAndEquations =
   let selectedPoints = featurePoints featuresAndEquations in
   let startingResult = { description = "Original", exp = originalExp, maybeTermShape = Nothing, dependentLocIds = [], removedLocIdToMathExp = [] } in
   if 2 * (List.length selectedPoints) == List.length featuresAndEquations then
@@ -485,7 +475,7 @@ synthesizeRelationCoordinateWiseAndSortResults solutionsCache syncOptions doSynt
     xysRelated
     |> List.concatMap
         (\partialResult ->
-          CodeMotion.resolveValueAndLocHoles solutionsCache syncOptions Nothing partialResult.exp
+          CodeMotion.resolveValueAndLocHoles solutionsCache syncOptions maybeEnv partialResult.exp
           |> List.map (\newExp -> { partialResult | exp = newExp })
         )
     |> rankComparedTo originalExp
@@ -495,7 +485,7 @@ synthesizeRelationCoordinateWiseAndSortResults solutionsCache syncOptions doSynt
     doSynthesis [startingResult] featuresAndEquations
     |> List.concatMap
         (\partialResult ->
-          CodeMotion.resolveValueAndLocHoles solutionsCache syncOptions Nothing partialResult.exp
+          CodeMotion.resolveValueAndLocHoles solutionsCache syncOptions maybeEnv partialResult.exp
           |> List.map (\newExp -> { partialResult | exp = newExp })
         )
     |> rankComparedTo originalExp

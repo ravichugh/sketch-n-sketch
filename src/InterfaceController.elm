@@ -1689,14 +1689,13 @@ msgMakeEqual = Msg "Make Equal" doMakeEqual
 doMakeEqual old =
   let synthesisResults =
     ValueBasedTransform.makeEqual
-        old.showPreludeOffsets
         old.syntax
         old.solutionsCache
         old.inputExp
+        old.maybeEnv
         old.selectedFeatures
-        old.slideNumber
-        old.movieNumber
-        old.movieTime
+        old.slate
+        old.widgets
         old.syncOptions
   in
   { old | synthesisResultsDict = Dict.insert "Make Equal" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
@@ -1704,14 +1703,13 @@ doMakeEqual old =
 msgRelate = Msg "Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.relate
-        old.showPreludeOffsets
         old.syntax
         old.solutionsCache
         old.inputExp
+        old.maybeEnv
         old.selectedFeatures
-        old.slideNumber
-        old.movieNumber
-        old.movieTime
+        old.slate
+        old.widgets
         old.syncOptions
   in
   { old | synthesisResultsDict = Dict.insert "Relate" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
@@ -1719,14 +1717,12 @@ msgRelate = Msg "Relate" <| \old ->
 msgIndexedRelate = Msg "Indexed Relate" <| \old ->
   let synthesisResults =
     ValueBasedTransform.indexedRelate
-        old.showPreludeOffsets
         old.syntax
         old.inputExp
         old.selectedFeatures
         old.selectedShapes
-        old.slideNumber
-        old.movieNumber
-        old.movieTime
+        old.slate
+        old.widgets
         old.syncOptions
   in
   { old | synthesisResultsDict = Dict.insert "Indexed Relate" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
