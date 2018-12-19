@@ -3441,6 +3441,7 @@ jsCode = {
       x -> "\\" + x) content + "\""
 }
 
+
 nodejs = {
   (nothingJs) = jsCode.datatypeOf "x" "Nothing" []
   (justJs) arg = jsCode.datatypeOf "x" "Just" [arg]
@@ -3452,7 +3453,16 @@ nodejs = {
       @prog
     })()"""
 
-  (onlyRead) name = fsjs nothingJs """
+  type alias BasicFileSystemUtils = {
+    read: String -> Maybe String,
+    listdir: String -> List String,
+    isdir: String -> Bool,
+    isfile: String -> Bool
+  }
+  -- Reads the file system directly without instrumentation.
+  nodeFS: BasicFileSystemUtils
+  nodeFS = {
+    read  name = fsjs nothingJs """
       const name = @(jsCode.stringOf name);
       if(!fs) return @nothingJs;
       if(fs.existsSync(name)) { // TODO: Atomic read
@@ -3462,6 +3472,25 @@ nodejs = {
           return @(justJs "fs.readFileSync(name, 'utf-8')");
         }
       } else return @nothingJs;"""
+    listdir foldername = fsjs "[]" """
+      var name = @(jsCode.stringOf foldername);
+      if(name == "") name = ".";
+      if(fs.existsSync(name) && fs.lstatSync(name).isDirectory()) {
+        var filesfolders =
+          fs.readdirSync(name);
+        return filesfolders;
+      } else {
+        return []
+      }"""
+    isdir name =
+      fsjs "false" """
+       const name = @(jsCode.stringOf name);
+       return name == "" || fs.existsSync(name) && fs.lstatSync(@(jsCode.stringOf name)).isDirectory();"""
+    isfile name =
+      fsjs "false" """
+       return fs.existsSync(@(jsCode.stringOf name)) && fs.lstatSync(@(jsCode.stringOf name)).isFile();"""
+  }
+
 
   type FileOperation = Write {-old-} String {-new-} String Diffs |
                        Rename {-newName-} String |
@@ -3471,8 +3500,8 @@ nodejs = {
   type alias ListFileOperations = List ({-filename-}String, FileOperation)
 
   -- Consumes all update values by writing to the file system. Use this only if you don't need to display ambiguity.
-  directFileOperations: ListFileOperations
-  directFileOperations = Update.lens {
+  nodeFSWrite: ListFileOperations
+  nodeFSWrite = Update.lens {
     apply = identity
     update {outputNew} =
      List.foldl (\(name, action) b ->
@@ -3506,7 +3535,74 @@ nodejs = {
       in b) (Ok <| InputsWithDiffs [([], Nothing)]) outputNew
   } []
 
-  type alias FileSystemUtils = {
+  type alias InlineFS = List ({-path-}String, File content | Folder (List String)) -> BasicFileSystemUtils
+
+  inlineFS: InlineFS -> BasicFileSystemUtils
+  inlineFS content = {
+    read name = case listDict.get name content of
+       Just (File content) -> Just content
+       _ -> Nothing
+    listdir foldername = case listDict.get foldername content of
+       Just (Folder files) -> files
+       _ -> Nothing
+    isdir name = case listDict.get name content of
+      Just (Folder _) -> True
+      _ -> False
+    isfile name = case listDict.get name content of
+      Just (File _) -> True
+      _ -> False
+  }
+
+  inlineFSWrite: InlineFS -> ListFileOperations
+  inlineFSWrite = Update.lens {
+    apply inlineFS = []
+    update {input=inlineFS, outputNew} =
+      List.foldl (\(name, action) resInlineFS ->
+        resInlineFS
+        |> Result.andThen (\inlineFS ->
+          let prev = listDict.get name inlineFS in
+          case (prev, action) of
+             (Just (Folder _), Write oldContent newContent diffs) -> Err <| "Can't write a folder as if it was a file"
+             (_,               Write oldContent newContent diffs) -> Ok <| listDict.insert name (File newContent) inlineFS
+             (Nothing, Delete) -> Err <| "Can't delete " + name + " from file system because it did not exist"
+             (_, Delete) -> listDict.delete name inlineFS |>
+                List.map (\(oname, ocontent) ->
+                  case ocontent of
+                  Folder subfiles ->
+                      (oname, Folder (List.filter (\subfile -> oname + "/" + subfile /= name) subfiles))
+                  _ -> (oname, ocontent)
+                  ) |> Ok
+             (Just x, Create content) ->  Err <| "Can't create " + name + " in file system because it did exist"
+             (_, Create newContent) ->  listDict.insert name (File newContent) inlineFS |>
+               List.map (\(oname, ocontent) ->
+                  case ocontent of
+                  Folder subfiles ->
+                      if String.left (String.length oname) name == oname then -- Starts with the folder's name
+                        let remaining = String.drop (String.length oname) name in
+                        if not (Regex.matchIn "./" remaining) && String.take 1 remaining == "/"  then
+                          (oname, Folder (subfiles ++ [String.drop 1 remaining]))
+                        else
+                          (oname, Folder subfiles)
+                      else
+                        (oname, Folder subfiles)
+                  _ -> (oname, ocontent)
+                  ) |> Ok
+             (Just x, Rename newName) -> case listDict.get newName inlineFS of
+               Just _ -> Err <| "Can't rename " + name + " to " + newName + " because it already exists"
+               _ -> inlineFS |> listDict.remove name |> listDict.insert newName x |>
+                    List.map (\(oname, ocontent) ->
+                      case ocontent of
+                      Folder subfiles ->
+                          (oname, Folder (List.map (\subfile -> if oname + "/" + subfile == name then
+                            String.drop (String.length (oname + "/")) newName else subfile)
+                          subfiles))
+                      _ -> (oname, ocontent)
+                      ) |> Ok
+             (_, Rename _) -> Err <| "Can't rename " + name + " because it did not exist"))  (Ok inlineFS) outputNew
+      |> Result.map (\x -> Inputs [x])
+  }
+
+  type alias FileSystemUtils =  {
     read: String -> Maybe String,
     listdir: String -> List String,
     listdircontent: String -> List (String, String),
@@ -3514,19 +3610,31 @@ nodejs = {
     isfile: String -> Bool
   }
 
-  {- nodejs.delayed fileOperations   provides a file system utility that, on update,
-     does not change the files directly but fills an array of fileOperations (create, write, delete, rename)
-     Careful! It does not (yet)make sense to update if fileOperations is not empty, only to run the program.
-     This means if you have pending file operations as input, they might be overriden and the diffs will not be in sync.
+  {- nodejs.delayedFS basicFS fileOperations   provides a file system utility that, on update,
+     does not change the files on disk, but fills an array of fileOperations (create, write, delete, rename)
 
-     If you want these operations to be written on disk immediately
-     (e.g. you don't need to ask ambiguity questions),
-     ust build the file system using:
+     basicFS:         To read files from disk using node.js, use `nodejs.nodeFS`
+                      To simply read an inline content, which is a
+                        list of (path, File content | Folder (list of filenames)),
+                        use `(nodjs.inlineFS content)`
+     fileOperations:  Pass `[]` to recover file operations on update.
+                        If not empty, its operations will overwrite the content of basicFS.
+                      Pass `nodejs.nodeFSWrite` if writes do not have ambiguity
+                        and should be performed immediately on disk
+                      Pass `nodejs.inlineFSWrite content` if the first argument is `nodejs.inlineFS content` and
+                        you want the content to be immediately overriden.
 
-     nodejs.delayed nodejs.directFileOperations
+     -- Sample call (put fileOperations: [] in the environment)
+     fs = nodejs.delayedFS nodejs.nodeFS fileOperations
+
+     -- Sample mock call (to locally test a file system
+     fsContent = [("test/a.txt", File "Hello"), ("test/b.txt", File "World"), ("test", Folder ["a.txt", "b.txt"])]
+     fs = nodejs.delayedFS (nodejs.inlineFS fsContent) (nodejs.inlineFSWrite fsContent)
+     fs.read "test/a.txt"
+     ...
      -}
-  delayed: ListFileOperations -> FileSystemUtils
-  delayed fileOperations = {
+  delayedFS: BasicFileSystemUtils -> ListFileOperations -> FileSystemUtils
+  delayedFS  basicFS                 fileOperations = {
     (fileOperationsRaw) = Update.lens {
       apply = identity
       (remove) name = List.filter (\(otherName, _) -> otherName /= name)
@@ -3563,13 +3671,14 @@ nodejs = {
 
     read: String -> Maybe String
     read filename = Update.lens {
-      apply fileOperations = case listDict.get filename fileOperations of
-        Just (Write oldContent newContent diffs) -> Just newContent
-        Just (Create content) -> Just content
-        Just (Delete) -> Nothing
-        Just (Rename _) -> Nothing
-        Just (CreateFolder _) -> Nothing
-        _ -> onlyRead filename
+      apply fileOperations =
+        case listDict.get filename fileOperations of
+          Just (Write oldContent newContent diffs) -> Just newContent
+          Just (Create content) -> Just content
+          Just (Delete) -> Nothing
+          Just (Rename _) -> Nothing
+          Just (CreateFolder _) -> Nothing
+          _ -> basicFS.read filename
       update  = case of
         {input=fileOperations, outputOld = Just x , outputNew = Nothing} ->
           Ok <| InputsWithDiffs [((filename, Delete) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
@@ -3589,19 +3698,8 @@ nodejs = {
     listdir foldername = Update.lens {
       apply fileOperations = case listDict.get foldername fileOperations of
         Just (CreateFolder content) -> content -- We can mock the file system by creating a folder in initial fileOperations
-        _ ->
-          fsjs "[]" """
-                var name = @(jsCode.stringOf foldername);
-                if(name == "") name = ".";
-                if(fs.existsSync(name) && fs.lstatSync(name).isDirectory()) {
-                  var filesfolders =
-                    fs.readdirSync(name);
-                  return filesfolders;
-                } else {
-                  return []
-                }
-            """
-      update{outputOld, outputNew, diffs} =
+        _ -> basicFS.listdir foldername
+      update {outputOld, outputNew, diffs} =
         let aux i outputOld outputNew diffs fo = case diffs of
           [] -> Ok (Inputs [fo])
           (j, d)::diffTail ->
@@ -3673,10 +3771,7 @@ nodejs = {
     isdir: String -> Bool
     isdir name =  case listDict.get name fileOperations of
        Just (CreateFolder content) -> True
-       _ -> fsjs "false" """
-          const name = @(jsCode.stringOf name);
-          return name == "" || fs.existsSync(name) && fs.lstatSync(@(jsCode.stringOf name)).isDirectory();
-          """
+       _ -> basicFS.isdir name
     isfolder = isdir
     isdirectory = isdir
 
@@ -3686,10 +3781,7 @@ nodejs = {
           Just Create -> True
           Just (Write _ _ _) -> True
           Just Delete -> True
-          _ ->
-            fsjs "false" """
-              return fs.existsSync(@(jsCode.stringOf name)) && fs.lstatSync(@(jsCode.stringOf name)).isFile();
-        """
+          _ -> basicFS.isfile name
 
     isFile = isfile
   }
