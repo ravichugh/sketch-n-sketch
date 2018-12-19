@@ -635,22 +635,24 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                             ("outputOld", oldVal),
                                               ("outputOriginal", oldVal), -- Redundant
                                               ("oldOutput", oldVal)] -- Redundant
-                                      in
-                                      case fieldUpdateClosure.v_ of
-                                         VClosure recEnv [pat] body env ->
-                                          if pat |> patternExtractsField (\f ->
-                                            f == "diffs" || f ==  "diff" || f == "outDiff" || f == "diffOut") then
+                                          getDiffs () =
                                             let diffsVal = -- ImpureGoodies.logTimedRun ".update vDiffsToVal" <| \_ ->
-                                              vDiffsToVal (Vb.fromVal v1) diffs in
-                                            base ++ [
+                                                 vDiffsToVal (Vb.fromVal v1) diffs in
+                                            [
                                               ("diffs", diffsVal),
                                               ("diff", diffsVal),    -- Redundant
                                               ("outDiff", diffsVal), -- Redundant
                                               ("diffOut", diffsVal) -- Redundant
                                             ]
+                                      in
+                                      case fieldUpdateClosure.v_ of
+                                         VClosure recEnv [pat] body env ->
+                                          if pat |> patternExtractsField (\f ->
+                                            f == "diffs" || f ==  "diff" || f == "outDiff" || f == "diffOut") then
+                                            base ++ getDiffs ()
                                           else base
                                          _ ->
-                                          base
+                                          base ++ getDiffs () -- VFun
                                     in
                                     let customArgument = Vb.record Vb.identity (Vb.fromVal vArg) <|
                                       Dict.fromList customArgumentList in

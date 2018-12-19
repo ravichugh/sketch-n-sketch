@@ -227,33 +227,26 @@ var _user$project$Native_ImpureGoodies = {
       return acc;
     },
 
-    fromNative: function(v) {
-      return function(stringCallback) {
-        return function(numCallback) {
-          return function(boolCallback) {
-            return function(listCallback) {
-              return function(listRecordCallback) {
-                if(typeof v == "string") return stringCallback(v);
-                if(typeof v == "number") return numCallback(v);
-                if(typeof v == "boolean") return boolCallback(v);
-                if(typeof v == "function") throw "Cannot convert a native function to a value";
-                if(typeof v == "object") {
-                  if(Array.isArray(v)) {
-                    var result = _elm_lang$core$Native_List.Nil;
-                    for(var i = v.length - 1; i >= 0; i-- ) {
-                      result = _elm_lang$core$Native_List.Cons(v[i], result)
-                    }
-                    return listCallback(result)
-                  } else {
-                    return listRecordCallback(_user$project$Native_ImpureGoodies.keyPairsOfNativeRecord(v))
-                  }
-                }
+    fromNative: (() => {
+       var rec = v => stringCallback => numCallback => boolCallback => listCallback => listRecordCallback => functionCallback => {
+          if(typeof v == "string") return stringCallback(v);
+          if(typeof v == "number") return numCallback(v);
+          if(typeof v == "boolean") return boolCallback(v);
+          if(typeof v == "function") return functionCallback(v);
+          if(typeof v == "object") {
+            if(Array.isArray(v)) {
+              var result = _elm_lang$core$Native_List.Nil;
+              for(var i = v.length - 1; i >= 0; i-- ) {
+                result = _elm_lang$core$Native_List.Cons(v[i], result)
               }
+              return listCallback(result)
+            } else {
+              return listRecordCallback(_user$project$Native_ImpureGoodies.keyPairsOfNativeRecord(v))
             }
           }
         }
-      }
-    },
+       return rec
+      })(),
 
     hideType: function(v) {
       return v;

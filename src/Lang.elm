@@ -2622,8 +2622,20 @@ eParensUnapplyIf syntax e = case (unwrapExp e) of
   EParens _ inner s _ -> if s == syntax then Just inner else Nothing
   _ -> Nothing
 
+vFunUnapply v = case v.v_ of
+  VFun name args ev up -> Just (name, args, ev, up)
+  _ -> Nothing
+
 vStrUnapply v = case v.v_ of
   VBase (VString s) -> Just s
+  _ -> Nothing
+
+vBoolUnapply v = case v.v_ of
+  VBase (VBool b) -> Just b
+  _ -> Nothing
+
+vConstUnapply v = case v.v_ of
+  VConst _ (n, _) -> Just n
   _ -> Nothing
 
 vListUnapply v = case v.v_ of

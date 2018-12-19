@@ -173,7 +173,8 @@ fromNative: a ->
   (Float -> b) ->
   (Bool -> b) ->
   (List c -> b) ->
-  (List (String, c) -> b) -> b
+  (List (String, c) -> b) ->
+  ((arg -> res) -> b) -> b
 fromNative =
   Native.ImpureGoodies.fromNative
 

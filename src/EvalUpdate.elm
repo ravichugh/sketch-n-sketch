@@ -710,8 +710,10 @@ twoArgsUpdate msg fun args a b c = case args of
 eval env e = Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo env e |> Result.map Tuple.first
 update updateStack = Update.update LazyList.Nil LazyList.Nil updateStack
 
-preludeEnvRes = Result.map Tuple.second <| (Eval.eval [] (Eval.evalContext Eval.withParentsProvenanceWidgets Syntax.Leo builtinEnv [] Parser.prelude))
-preludeEnv = Utils.fromOk "Eval.preludeEnv" <| preludeEnvRes
+preludeEnv =
+  Utils.fromOk "Eval.preludeEnv" <|
+  Result.map Tuple.second <|
+  (Eval.eval [] (Eval.evalContext Eval.withParentsProvenanceWidgets Syntax.Leo builtinEnv [] Parser.prelude))
 
 run : Syntax -> Exp -> Result String (Val, Widgets)
 run syntax e =
@@ -879,18 +881,27 @@ updateEnvExp env oldExp oldVal newVal =
          Results.map (\(newEnv, newExp) -> (List.take (List.length env) newEnv.val, newExp.val))
 
 valToNative: Val -> Result String a
-valToNative v = case Vu.string v of
-  Ok x -> Ok <| ImpureGoodies.hideType x
-  Err msg -> case Vu.num v of
-    Ok i -> Ok <| ImpureGoodies.hideType i
-    Err msg -> case Vu.bool v of
-      Ok b -> Ok <| ImpureGoodies.hideType b
-      Err msg -> case Vu.list Vu.identity v of
-        Ok l -> List.map valToNative l |> Utils.projOk |> Result.map ImpureGoodies.toNativeArray
-        Err msg -> case Vu.record valToNative v of
-          Ok d -> Ok <| ImpureGoodies.keyPairsToNativeRecord <| Dict.toList d
-          Err msg -> Err <| "I only know how to convert vals to string, ints, booleans, list and records"
-
+valToNative v = case v.v_ of
+  VBase (VString x) -> Ok <| ImpureGoodies.hideType x
+  VConst _ (i, _)   -> Ok <| ImpureGoodies.hideType i
+  VBase (VBool b)   -> Ok <| ImpureGoodies.hideType b
+  VBase (VNull)     -> Ok <| ImpureGoodies.hideType 0
+  VList l           -> List.map valToNative l |> Utils.projOk |> Result.map ImpureGoodies.toNativeArray
+  VRecord d         -> case Utils.projOk <| List.map (\(x, y) -> valToNative y |> Result.map ((,) x)) <| Dict.toList d of
+      Ok r -> Ok <| ImpureGoodies.keyPairsToNativeRecord <| r
+      Err msg -> Err msg
+  VFun name args ev up ->
+    Ok <| ImpureGoodies.hideType <| (\x ->
+      case Result.andThen (Tuple.first >> valToNative) <| ev [nativeToVal (Vb.fromVal v) x] of
+        Ok r -> ImpureGoodies.hideType r
+        Err msg -> Debug.crash <| "Native version of " ++ name ++ " function crashed with : " ++ msg)
+  VClosure recIdents pats body closureEnv ->
+    Ok <| ImpureGoodies.hideType (\x ->
+      let arg = nativeToVal (Vb.fromVal v) x in
+      case evaluateRaw [("fun", v), ("arg", arg)] (eApp (eVar "fun") [eVar "arg"]) |> Result.andThen valToNative of
+        Err msg -> Debug.crash <| "Native version of closure crashed with : " ++ msg
+        Ok result -> result)
+  _ -> Err <| "Don't know how to convert dictionaries to native values"
 
 nativeToVal: Vb.Vb -> a -> Val
 nativeToVal vb v =
@@ -900,6 +911,10 @@ nativeToVal vb v =
     (\b -> Vb.bool vb b)
     (\l -> Vb.list nativeToVal vb l)
     (\r -> Vb.record nativeToVal vb (Dict.fromList r))
+    (\f -> vb (VFun "anonymous" ["anonArg"] (oneArg "anonymous" <| \v ->
+      case valToNative v of
+        Ok nativeV -> f nativeV |> nativeToVal vb |> flip (,) [] |> Ok
+        Err msg -> Err msg) Nothing))
 
 objectToEnv: objectAsEnvOfConsts -> Result String Env
 objectToEnv objectAsEnvOfConsts =
