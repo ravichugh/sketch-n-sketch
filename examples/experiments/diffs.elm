@@ -1,4 +1,4 @@
-type Expr = Nil | Cons Expr Expr | Int Int | Var String
+type Expr = Nil | Cons Expr Expr | Int Int | Var String | Concat Expr Expr | Parens Expr
 
 type Path = List (Up | Down String)
 type Clone d = Clone Path d
@@ -6,7 +6,9 @@ type Diff = DUpdate (List (String, Diffs))
            | DNew Expr (List (String, Clone Path Diffs))
 type alias Diffs = List Diff
 
-originalList = (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) (Nil))))
+originalList = Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))
+
+originalExpr = Concat (Parens (Cons (Int 2) Nil)) (Parens (Cons (Var "a2") (Cons (Int 3) Nil)))
 
 dSame = [DUpdate []]
 
@@ -73,6 +75,8 @@ replace f e = case e of
 getChild: String Expr -> Maybe Expr
 getChild name e = case e of
   Cons e1 e2 -> if name == "hd" then Just e1 else if name == "tl" then Just e2 else Nothing
+  Concat e1 e2 -> if name == "arg1" then Just e1 else if name == "arg2" then Just e2 else Nothing
+  Parens e1 -> if name == "_1"  then Just e1 else Nothing
   _ -> Nothing
 
 -- List and result utils
@@ -99,18 +103,15 @@ applyDiffs expr diffs =
        diffs |>
        List.map (\diff -> case diff of
          DUpdate [] -> Ok [expr]
-         DUpdate l -> case expr of
-           Cons hd tl ->
-             let rnewHds = case listDict.get "hd" l of
-                   Nothing -> Ok [hd]
-                   Just ds -> aux (expr::context) hd ds
-                 rnewTls = case listDict.get "tl" l of
-                   Nothing -> Ok [tl]
-                   Just ds -> aux (expr::context) tl ds
-             in
-             Result.map2 (\newHds newTls ->
-               List.cartesianProductWith Cons (Debug.log "newHds" newHds) newTls
-             ) rnewHds rnewTls
+         DUpdate l ->
+           let recurse name subExpr = case listDict.get name l of
+              Nothing -> Ok [subExpr]
+              Just ds -> aux (expr::context) subExpr ds
+           in
+           case expr of
+           Cons hd tl -> Result.map2 (List.cartesianProductWith Cons) (recurse "hd" hd) (recurse "tl" tl)
+           Parens sub -> Result.map (List.map Parens) (recurse "_1" sub)
+           Concat e1 e2 -> Result.map2 (List.cartesianProductWith Cons) (recurse "arg1" e1) (recurse "arg2" e2)
            _ -> Err """Could not apply @(DUpdate l) to @expr"""
          DNew e cloneEnv ->
            List.foldl (\(name, Clone path diffs) resE ->
@@ -124,13 +125,219 @@ applyDiffs expr diffs =
        ) |> projOksConcat
   in aux [] expr diffs
 
+type EvalStep = EvalContinue Expr (Expr -> EvalStep) | EvalResult Expr | EvalError String  
+
+getEvalStep: Expr -> EvalStep
+getEvalStep expr = case expr of
+  Cons hd tl ->
+     EvalContinue hd <| \hdv ->
+     EvalContinue tl <| \tlv ->
+     EvalResult <| Cons hdv tlv
+  Parens sub -> EvalContinue sub EvalResult
+  Concat e1 e2 ->
+    EvalContinue e1 <| \e1v ->
+    EvalContinue e2 <| \e2v ->
+      let aux m1 m2 =
+        case m1 of
+          Nil -> Ok m2
+          Cons x1 x2 -> aux x2 m2 |> Result.map (Cons x1)
+          _ -> Err """Cannot concatenate @m1"""
+      in case aux e1v e2v of
+        Err msg -> EvalError msg
+        Ok x -> EvalResult x
+  e -> EvalResult e
+
+eval_: EvalStep -> List (Expr -> EvalStep) -> Result String Expr
+eval_ evalStep callbacks =
+  case evalStep of
+    EvalContinue what callback ->
+      --let _ = Debug.log """EvalContinue @what (1 + @(List.length callbacks) callbacks)""" () in
+      eval_ (getEvalStep what) (callback :: callbacks)
+    EvalResult x ->
+      --let _ = Debug.log """EvalResult @x (@(List.length callbacks) callbacks)""" () in
+      case callbacks of
+      head :: tail -> eval_ (head x) tail
+      [] -> Ok x
+    EvalError msg -> Err msg
+
+eval: Expr -> Result String Expr
+eval expr = eval_ (EvalContinue expr EvalResult) []
+
+simplify diff = case diff of
+  DUpdate l -> DUpdate (List.filter (\(name, subd) -> subd /= [DUpdate []]) l)
+  DNew e c -> diff
+
+-- Remove any Down - Up sequence in a path.
+simplifyPath path = case path of
+  Down x :: tail -> case simplifyPath tail of
+    Up :: tail2 -> tail2
+    y -> Down x :: y
+  x :: tail -> x :: simplifyPath tail
+  _ -> path
+
+getListLength: Expr -> Maybe Int
+getListLength expr = case expr of
+  Nil -> Just 0
+  Cons _ tail -> getListLength tail |> Maybe.map (+ 1)
+  _ -> Nothing
+
+-- Given a Down* path to a value and an Expr, computes a Down* path of expressions.
+updateDownPath: Expr -> Path -> Path
+updateDownPath expr path = case expr of
+  Parens sub -> Down "_1" :: updateDownPath sub path
+  Int x -> path
+  Var x -> path
+  Nil -> path
+  Cons hd tl -> case path of
+    (head as (Down "hd")) :: pathTail -> head :: updateDownPath hd pathTail
+    (head as (Down "tl")) :: pathTail -> head :: updateDownPath tl pathTail
+    _ -> let _ = Debug.log """updateDownPath @expr path""" () in path
+  Concat e1 e2 ->
+    case eval e1 of
+      Ok v1 ->
+        let aux v1 p = case (v1, p) of
+          (Cons hd tl, Down "tl" :: pTail) ->
+            aux tl pTail
+          (Cons hd tl, Down "hd" :: pTail) ->
+            Down "arg1" :: updateDownPath e1 path
+          (Nil, pTail) ->
+            Down "arg2" :: updateDownPath e2 pTail
+        in aux v1 path
+      Err msg -> error msg
+
+-- Given a diffs, maps all the paths that escape the structure using pathMaker
+-- pathMaker is provided only the part of the path that escapes the current scope of the Diffs
+mapEscapingPaths: (Path -> Path) -> Diffs {- Value -}-> Diffs {- Expression -}
+mapEscapingPaths pathMaker diffs = flip List.map diffs <| \diff ->
+  case diff of
+    DUpdate l ->
+      let updatedPathMaker path = case path of
+            Up :: pathTail -> Up :: pathMaker pathTail
+            _ -> path
+      in
+      DUpdate (List.map (Tuple.mapSecond <| mapEscapingPaths updatedPathMaker) l)
+    DNew insertedExp cloneEnv ->
+      DNew insertedExp <| flip List.map cloneEnv <| \(name, Clone path cdiffs) ->
+        let updatedPathMaker newPath = pathMaker (simplifyPath (path ++ newPath)) in
+        (name, Clone (pathMaker path) (mapEscapingPaths updatedPathMaker cdiffs))
+
+type UpdateStep =
+  UpdateContinue Expr Diffs (Diffs -> UpdateStep) |
+  UpdateAlternative (List (UpdateStep)) |
+  UpdateResult Diffs |
+  UpdateError String 
+
+getUpdateStep: Expr -> Diffs -> UpdateStep
+getUpdateStep expr vdiffs =
+  let mapChildrenPaths: Path {-Value starting at expression -} -> Path {- Expression-based -}
+      mapChildrenPaths remainingPath = case remainingPath of
+       Up :: ((Down x :: remainingPathTail) as tailPath)->
+         case getChild x expr of
+           Just child -> Up :: updateDownPath child tailPath
+           Nothing -> remainingPath
+       _ -> remainingPath
+  in
+  case expr of
+  Int x -> UpdateResult vdiffs
+  Var x -> UpdateResult vdiffs
+  Parens sub -> 
+    UpdateContinue sub vdiffs <| \newSubDiffsV ->
+      let addUpLevel minimumUps diffs = flip List.map diffs <| \diff ->
+        case diff of
+          DNew exp cloneEnv ->
+            DNew exp (List.map (\(name, Clone path cdiffs) -> 
+              let newPath = if List.take minimumUps path |> List.all (== Up) then Up :: path else path in
+              let newDiffs = cdiffs {- TODO: We should change the diffs by calling addUpLevel somehow -} in
+              (name, Clone newPath newDiffs)
+            ) cloneEnv)
+          DUpdate l ->
+            DUpdate (List.map (\(name, subds) ->
+                (name, addUpLevel (minimumUps + 1) subds)
+            ) l)
+      in
+      UpdateResult [DUpdate [("_1", (addUpLevel 1 newSubDiffsV))]]
+  Cons hd tl ->
+    vdiffs |> List.map (\diff -> case diff of
+     DUpdate l ->
+       let updateContinueSub name subExpr callback = case listDict.get name l of
+            Nothing -> callback dSame
+            Just ds -> UpdateContinue subExpr ds callback
+       in
+       updateContinueSub "hd" hd <| \diffsHdV ->
+       updateContinueSub "tl" tl <| \diffsTlV ->
+        let diffsHdE = mapEscapingPaths mapChildrenPaths diffsHdV
+            diffsTlE = mapEscapingPaths mapChildrenPaths diffsTlV
+        in  UpdateResult [simplify (DUpdate [("hd", diffsHdE), ("tl", diffsTlE)])]
+     DNew l -> error <| "DNew not yet supported in Cons update - coming soon !"
+    ) |> UpdateAlternative
+  Concat e1 e2 -> -- The mother of all Edit lenses.
+  
+    error <| "Concat not yet supported in update - coming soon !"
+
+type alias Callbacks = List (Diffs -> UpdateStep)
+type alias Fork = (UpdateStep, Callbacks)
+
+update_: UpdateStep -> Callbacks -> List Fork -> Result String Diffs
+update_ updateStep callbacks alternatives =
+  case updateStep of
+    UpdateContinue what diffs callback ->
+      update_ (getUpdateStep what diffs) (callback :: callbacks) alternatives
+    UpdateResult x ->
+      case callbacks of
+      head :: tail -> update_ (head x) tail alternatives
+      [] -> 
+        case alternatives of
+          (ha, ca) :: ta ->
+            case update_ ha ca ta of -- In real, there would be a lazy call to update_
+              Ok xs -> Ok (x ++ xs)
+              Err msg -> Ok x
+          [] -> Ok x
+    UpdateAlternative (head :: tail) ->
+      update_ head callbacks ((List.map (flip (,) callbacks) tail) ++ alternatives)
+    UpdateError msg -> Err msg
+
+update: Expr -> Diffs -> Result String Expr
+update expr diffs = update_ (UpdateContinue expr diffs UpdateResult) [] []
+  
+{--
 displayApplyDiffs original diffs = <span>applyDiffs<br>&nbsp;&nbsp;(@("""@original"""))<br>&nbsp;&nbsp;@("""@diffs""") =<br>&nbsp;&nbsp;@("""@(applyDiffs original diffs)""")<br><br></span>
 
 <div>
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) (Nil)))) diffs1)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) (Nil)))) diffs1bis)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) (Nil)))) diffs2)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) (Nil)))) diffs3)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) (Nil)))) diffs4)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) (Nil)))) diffs5)
+@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs1)
+@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs1bis)
+@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs2)
+@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs3)
+@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs4)
+@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs5)
 </div>
+--}
+
+{-
+<pre>@(toString <| update (Cons (Parens (Int 1)) (Parens (Cons (Var "a2") Nil))) [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]])
+-}
+
+{-
+The result should be:
+Ok [ DUpdate [ ("hd", [ DUpdate [ ("_1", [ DNew (Var "h") [ ("h", Clone [ Up, -- It can insert the first one.
+                                                                  Up,
+                                                                  Down "tl",
+                                                                  Down "_1", -- for the Parens
+                                                                  Down "hd"
+                                                                ] [ DUpdate []
+                                                                ])
+                                                  ]
+                                        ])
+                                  ]
+                        ])
+                  ]
+        ]
+
+        
+
+-}
+
+{--
+<pre>@(toString <| updateDownPath (Concat (Cons (Int 1) (Parens (Cons (Parens (Int 2)) Nil))) (Cons (Parens (Var "a2")) Nil)) [Down "tl", Down "tl", Down "hd"])
+--}
+
+<pre>@(toString <| update (Cons (Parens (Int 1)) (Parens (Cons (Parens (Var "a2")) Nil))) [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]])
