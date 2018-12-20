@@ -144,6 +144,9 @@ getDataConstructorNameString keyValues =
   let ctorString = stringifyCtorKind Lang.DataTypeCtor in
   keyValues |> Utils.maybeFind ctorString
 
+getArgConstructorNameString keyValues =
+  keyValues |> Utils.maybeFind ctorArgs
+
 -- Tries to unparse a record as a data constructor
 tryUnparseDataConstructor
   :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
@@ -1073,9 +1076,18 @@ getExpPrecedence exp =
         _ -> Nothing
     EApp _ _ _ SpaceApp _ -> Just 10
     ERecord _ _ decls _ ->
-      case decls |> getKeyValuesFromDecls |> Maybe.andThen getDataConstructorNameString of
-        Nothing -> Nothing
-        Just x -> Just 10
+      case decls |> getKeyValuesFromDecls of
+        Just keyValues ->
+          case getDataConstructorNameString keyValues of
+            Just x ->
+              case getArgConstructorNameString keyValues of
+                Just ex ->
+                  case unwrapExp ex |> eRecord__Unapply of
+                    Just (_, [], _)  -> Just 10
+                    _ -> Just 9
+                _ -> Nothing
+            Nothing -> Nothing
+        _ -> Nothing
     EColonType _ _ _ _ _           -> Just -1
     EOp _ _ operator _ _ ->
       case BinaryOperatorParser.getOperatorInfo (unparseOp operator) LeoParser.builtInPrecedenceTable of
