@@ -231,31 +231,24 @@ getUpdateStep: Expr -> Diffs -> UpdateStep
 getUpdateStep expr vdiffs =
   let mapChildrenPaths: Path {-Value starting at expression -} -> Path {- Expression-based -}
       mapChildrenPaths remainingPath = case remainingPath of
-       Up :: ((Down x :: remainingPathTail) as tailPath)->
-         case getChild x expr of
-           Just child -> Up :: updateDownPath child tailPath
-           Nothing -> remainingPath
-       _ -> remainingPath
+         Up :: ((Down x :: remainingPathTail) as tailPath)->
+           case getChild x expr of
+             Just child -> Up :: updateDownPath child tailPath
+             Nothing -> remainingPath
+         _ -> remainingPath
   in
   case expr of
   Int x -> UpdateResult vdiffs
   Var x -> UpdateResult vdiffs
   Parens sub -> 
     UpdateContinue sub vdiffs <| \newSubDiffsV ->
-      let addUpLevel minimumUps diffs = flip List.map diffs <| \diff ->
-        case diff of
-          DNew exp cloneEnv ->
-            DNew exp (List.map (\(name, Clone path cdiffs) -> 
-              let newPath = if List.take minimumUps path |> List.all (== Up) then Up :: path else path in
-              let newDiffs = cdiffs {- TODO: We should change the diffs by calling addUpLevel somehow -} in
-              (name, Clone newPath newDiffs)
-            ) cloneEnv)
-          DUpdate l ->
-            DUpdate (List.map (\(name, subds) ->
-                (name, addUpLevel (minimumUps + 1) subds)
-            ) l)
+      let mapChildrenParensPath path = case path of
+             -- If the children diffs references Up, since the parens do nothing, it defers the path to Up one more time.
+            Up :: escapingPath -> Up :: Up :: escapingPath
+            _ -> path
       in
-      UpdateResult [DUpdate [("_1", (addUpLevel 1 newSubDiffsV))]]
+      let newSubDiffsE = mapEscapingPaths mapChildrenParensPath newSubDiffsV in
+      UpdateResult [DUpdate [("_1", newSubDiffsE)]]
   Cons hd tl ->
     vdiffs |> List.map (\diff -> case diff of
      DUpdate l ->
@@ -318,26 +311,27 @@ displayApplyDiffs original diffs = <span>applyDiffs<br>&nbsp;&nbsp;(@("""@origin
 
 {-
 The result should be:
-Ok [ DUpdate [ ("hd", [ DUpdate [ ("_1", [ DNew (Var "h") [ ("h", Clone [ Up, -- It can insert the first one.
-                                                                  Up,
-                                                                  Down "tl",
-                                                                  Down "_1", -- for the Parens
-                                                                  Down "hd"
-                                                                ] [ DUpdate []
-                                                                ])
-                                                  ]
-                                        ])
-                                  ]
-                        ])
-                  ]
-        ]
-
-        
-
+Ok [ DUpdate
+    [ ("hd", [
+       DUpdate
+       [ ("_1", [
+          DNew (Var "h") [
+               ("h", Clone [ Up, --One more to escape Parens
+                             Up,
+                             Down "_1", -- Added one to enter the Parens. Not easy to obtain!
+                             Down "tl",
+                             Down "hd"
+                           ] [ DUpdate [] ])
+          ]
+         ])
+       ]
+      ])
+    ]
+  ]
 -}
 
 {--
 <pre>@(toString <| updateDownPath (Concat (Cons (Int 1) (Parens (Cons (Parens (Int 2)) Nil))) (Cons (Parens (Var "a2")) Nil)) [Down "tl", Down "tl", Down "hd"])
 --}
 
-<pre>@(toString <| update (Cons (Parens (Int 1)) (Parens (Cons (Parens (Var "a2")) Nil))) [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]])
+<pre>@(toString <| update (Parens (Cons (Parens (Int 1)) (Parens (Cons (Parens (Var "a2")) Nil)))) [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]])
