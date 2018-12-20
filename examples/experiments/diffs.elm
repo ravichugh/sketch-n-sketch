@@ -83,6 +83,7 @@ getChild name e = case e of
 projOksConcat = List.projOks >> Result.map List.concat
 
 -- The context is simply a stack of previously seen Expr
+applyDiffs: Expr -> Diffs -> Result String (List Expr)
 applyDiffs expr diffs =
   let aux: List Expr -> Expr -> Diffs -> Result String (List Expr)
       aux context expr diffs = 
@@ -183,7 +184,8 @@ getListLength expr = case expr of
 
 -- Given a Down* path to a value and an Expr, computes a Down* path of expressions.
 updateDownPath: Expr -> Path -> Path
-updateDownPath expr path = case expr of
+updateDownPath expr path = Debug.log """updateDownPath @expr @path""" <|
+  case expr of
   Parens sub -> Down "_1" :: updateDownPath sub path
   Int x -> path
   Var x -> path
@@ -231,10 +233,8 @@ getUpdateStep: Expr -> Diffs -> UpdateStep
 getUpdateStep expr vdiffs =
   let mapChildrenPaths: Path {-Value starting at expression -} -> Path {- Expression-based -}
       mapChildrenPaths remainingPath = case remainingPath of
-         Up :: ((Down x :: remainingPathTail) as tailPath)->
-           case getChild x expr of
-             Just child -> Up :: updateDownPath child tailPath
-             Nothing -> remainingPath
+         Up :: ((Down x :: _) as tailPath)->
+            Up :: updateDownPath expr tailPath
          _ -> remainingPath
   in
   case expr of
@@ -263,9 +263,10 @@ getUpdateStep expr vdiffs =
         in  UpdateResult [simplify (DUpdate [("hd", diffsHdE), ("tl", diffsTlE)])]
      DNew l -> error <| "DNew not yet supported in Cons update - coming soon !"
     ) |> UpdateAlternative
-  Concat e1 e2 -> -- The mother of all Edit lenses.
-  
-    error <| "Concat not yet supported in update - coming soon !"
+  Concat e1 e2 -> -- The mother of all Edit lenses. Not yet map, yet alone apply, but still.
+    error "concat not yet supported"
+    
+    
 
 type alias Callbacks = List (Diffs -> UpdateStep)
 type alias Fork = (UpdateStep, Callbacks)
@@ -318,9 +319,10 @@ Ok [ DUpdate
           DNew (Var "h") [
                ("h", Clone [ Up, --One more to escape Parens
                              Up,
-                             Down "_1", -- Added one to enter the Parens. Not easy to obtain!
                              Down "tl",
-                             Down "hd"
+                             Down "_1",
+                             Down "hd",
+                             Down "_1",
                            ] [ DUpdate [] ])
           ]
          ])
@@ -334,4 +336,11 @@ Ok [ DUpdate
 <pre>@(toString <| updateDownPath (Concat (Cons (Int 1) (Parens (Cons (Parens (Int 2)) Nil))) (Cons (Parens (Var "a2")) Nil)) [Down "tl", Down "tl", Down "hd"])
 --}
 
-<pre>@(toString <| update (Parens (Cons (Parens (Int 1)) (Parens (Cons (Parens (Var "a2")) Nil)))) [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]])
+originalExpr = Parens (Cons (Parens (Int 1)) (Parens (Cons (Parens (Var "a2")) Nil)))
+outputDiffs = [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]]
+
+exprDiffs = update originalExpr outputDiffs |> .args._1
+
+<pre>@(toString <| exprDiffs)</pre>
+
+--<pre>@(toString <| applyDiffs originalExpr exprDiffs)
