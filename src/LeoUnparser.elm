@@ -646,12 +646,15 @@ unparse e =
     ELet wsBefore letKind (Declarations _ _ _ letexpsGroups as decls) wsIn body ->
        if onlyImplicitMain letexpsGroups || letexpsGroups == [] && eVarUnapply body == Just "main" then ""
        else
-      wsBefore.val ++ (case letKind of
-        Let -> "let"
+      (case letKind of
+        Let -> wsBefore.val ++ "let"
         Def -> "") ++ unparseDeclarations decls ++ wsIn.val ++
       (case letKind of
         Let -> "in"
-        Def -> "") ++ unparse body
+        Def -> "") ++ unparse body ++
+      (case letKind of
+        Let -> ""
+        Def -> wsBefore.val)
 
     EParens wsBefore innerExpression pStyle wsAfter ->
       case pStyle of

@@ -2714,13 +2714,13 @@ program : Parser Exp
 program =
   optional (trackInfo (declarations 0))
   |> andThen (\declsOpt ->
-    map (\mainExp ->
+    map (\(mainExp, lastSpace) ->
       case (declsOpt, mainExp.val) of
         (Nothing, _) -> mainExp.val
         (Just decls, Expr mainExpAsWithInfoExp_) ->
-          Expr <| withInfo (exp_ <| ELet space0 Def decls.val space0 mainExp.val) decls.start mainExpAsWithInfoExp_.end
+          Expr <| withInfo (exp_ <| ELet lastSpace Def decls.val space0 mainExp.val) decls.start mainExpAsWithInfoExp_.end
     ) (
-    succeed identity
+    succeed (,)
     |= trackInfo (oneOf ([
         inContext "Main expression" <| expression spaces 0 MinIndentSpace
     ] ++ (
@@ -2733,7 +2733,7 @@ program =
       in
       if isMainDefined then [implicitMain] else []
       )))
-    |. spaces
+    |= spaces
     |. end))
 
 

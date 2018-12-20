@@ -419,7 +419,7 @@ type ExpBuilder__ t1 t2
   | EList WS (List (WS{-,-}, t1)) WS (Maybe t1) WS -- the first WS{-,-} is a dummy
   | EIf WS t1 WS{-then-} t2 WS{-else-} t2 WS{-REMOVE-}
   | ECase WS t1 (List Branch) WS
-  | ELet WS LetKind (Declarations_ t2) WS{-in or ;-} t2
+  | ELet WS{-before let or after t2 if defs -} LetKind (Declarations_ t2) WS{-in or ;-} t2
   | EColonType WS t2 WS Type WS -- type annotation
   | EParens WS t2 ParensStyle WS
   | EHole WS Hole
