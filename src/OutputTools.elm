@@ -541,7 +541,7 @@ functionBasedRepeatTools model =
   |> List.map
       (\(funcName, _) ->
         (\selections ->
-          let name = "Repeat With Function " ++ funcName in
+          let name = "Repeat with Function " ++ funcName in
           { name = name
           , shortcut = Nothing
           , kind = Multi

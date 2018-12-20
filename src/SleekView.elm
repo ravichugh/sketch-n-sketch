@@ -2369,6 +2369,26 @@ autoOutputToolsPopupPanel model =
               OutputTools.tools model
                 |> List.concatMap
                      (List.filter <| List.all Model.predicateSatisfied << .reqs)
+
+            (repetitionTools, otherTools) =
+              activeTools
+              |> List.partition (.name >> String.startsWith "Repeat ")
+
+            menus =
+              if List.length repetitionTools >= 2 then
+                let repetitionMenu =
+                  generalHoverMenu
+                      "Repeat..."
+                      RevealAll
+                      Controller.msgNoop -- onMouseEnter
+                      Controller.msgNoop
+                      Controller.msgNoop
+                      False -- disabled
+                      [Html.div [Attr.class "repeat-tools-submenu"] (List.map (outputToolEntry model) repetitionTools)]
+                in
+                List.map (outputToolEntry model) otherTools ++ [repetitionMenu]
+              else
+                otherTools ++ repetitionTools
                 |> List.map (outputToolEntry model)
           in
             if List.isEmpty activeTools then
@@ -2376,7 +2396,7 @@ autoOutputToolsPopupPanel model =
             else
               Html.div
                 []
-                activeTools
+                menus
         ]
     }
 

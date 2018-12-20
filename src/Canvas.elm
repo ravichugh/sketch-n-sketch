@@ -2054,7 +2054,7 @@ makeZonesLine model id l =
     let c = Utils.midpoint pt1 pt2 in
     let r = (Utils.distance pt1 pt2 / 2) - rotZoneDelta in
     zoneRotate model id "line" (valToNum cx, valToNum cy) r (maybeTransformCmds l) ++
-    zonesStroke model id "line" xMax yMax l
+    zonesStroke model id "line" (valToNum x2) (valToNum y2) l -- Not xMax yMax b/c then two color sliders overlap in the lambda logo example
   in
   primaryWidgets :: extraWidgets
 
