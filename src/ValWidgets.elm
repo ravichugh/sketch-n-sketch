@@ -4,6 +4,7 @@ import Lang exposing (..)
 import Provenance
 import Types
 import Utils
+-- import LangUnparser -- debug only
 
 -- Right now, just used for overlapping widget subsumption in Eval.eval
 widgetToMaybeVal : Widget -> Maybe Val
@@ -57,7 +58,9 @@ valToMaybeWidget val =
         (_::_, _)                                ->
           case Types.valToMaybeType val |> Maybe.map (.val >> .t__) of
             Just (TList _ _ _) -> Just (WList val) -- Elements of list are of a homogeneous type.
-            _                  -> Nothing          -- Elements of list are heterogenous. This excludes our pseudo-ADTs for SVG from generating widgets.
+            maybeType          ->
+              -- let _ = maybeType |> Maybe.map (Types.withDummyRangeAndNoRoles >> LangUnparser.unparseType False >> Debug.log "valToMaybeWidget fail") in
+              Nothing -- Elements of list are heterogenous. This excludes our pseudo-ADTs for SVG from generating widgets.
         _                                        -> Nothing
 
     _ -> Nothing

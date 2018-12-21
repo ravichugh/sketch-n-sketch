@@ -834,11 +834,13 @@ valToMaybeBounds val =
           case LangSvg.svgValToIndexedTree val of
             Ok (_, shapeDict) ->
               let shapeNodes = Dict.values shapeDict in
+              -- let _ = Utils.log <| "valToMaybeBounds " ++ toString (List.length shapeNodes) ++ " shape nodes" in
               shapeNodes
               |> List.filterMap maybeShapeBounds
               |> maybeEnclosureOfAllBounds
 
-            Err _ ->
+            Err errMsg ->
+              -- let _ = Utils.log <| "valToMaybeBounds vList is not shapes: " ++ errMsg in
               -- Maybe this is a list of shapes or points?
               vals
               |> List.filterMap valToMaybeBounds
@@ -866,6 +868,7 @@ maybeShapeBounds svgNode =
   case svgNode.interpreted of
     LangSvg.TextNode _ -> Nothing
     LangSvg.SvgNode shapeKind shapeAttrs childIds ->
+      -- let _ = Utils.log <| "maybeShapeBounds " ++ shapeKind in
       pointFeaturesOfShape shapeKind shapeAttrs
       |> List.filterMap (maybeEvaluateShapePointFeature shapeKind shapeAttrs)
       |> pointsToMaybeBounds
@@ -918,6 +921,7 @@ pointsToMaybeBounds points =
 
 computeAndRejiggerWidgetBounds : List Widget -> List (Maybe (Num, Num, Num, Num))
 computeAndRejiggerWidgetBounds widgets =
+  -- let _ = Debug.log "widget count" (List.length widgets) in
   widgets
   |> List.map maybeWidgetInitialBounds
   |> rejiggerWidgetBounds widgets

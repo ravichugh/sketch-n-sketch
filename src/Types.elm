@@ -429,13 +429,27 @@ valToMaybeType val =
       case vs |> List.map valToMaybeType |> Utils.projJusts of
         Just []    -> Just (tForall ["a"] (tList (tVar "a")))
         Just types ->
+          let propertyPairList = tList (tTuple [tString, (tForall ["a"] (tVar "a"))]) in
+          let isPropertyPairType t =
+            case t.val.t__ of
+              TList _ elemType _              -> elemType == tString -- This is so wrong...when will we get ADTs?
+              TTuple _ [t1, _] _ Nothing _    -> t1       == tString
+              _                               -> False
+          in
           case Utils.dedup types of
             [t] ->
-              -- Special case for points, always!
-              if List.length types == 2 && equal tNum t
-              then Just (tTuple [tNum, tNum])
-              else Just (tList t)
-            _ -> Just (tTuple types)
+              if List.length types == 2 && equal tNum t then -- Special case for points, always!
+                Just (tTuple [tNum, tNum])
+              else if isPropertyPairType t then -- Special case here for property pair lists that may be heterogenous (e.g. colors)
+                Just propertyPairList
+              else
+                Just (tList t)
+            dedupedTypes ->
+              -- Special case here for property pair lists that may be heterogenous (e.g. colors)
+              if List.all isPropertyPairType dedupedTypes
+              then Just propertyPairList
+              else Just (tTuple types)
+
         _ -> Nothing
 
     _ -> Nothing

@@ -232,6 +232,13 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
         ((v, ws |> addSubsumingPriorWidgets newWidget)
         , env
         )
+      -- Debug expressions not producing list widgets:
+      -- (Nothing, True, _) ->
+      --   case e.val.e__ of
+      --     EList _ _ _ _ _ ->
+      --       let _ = Utils.log <| "no widget from " ++ Syntax.unparser syntax e in
+      --       origRet
+      --     _ -> origRet
       _ -> origRet
   )) <|
   case e.val.e__ of
