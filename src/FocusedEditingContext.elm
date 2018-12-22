@@ -89,11 +89,11 @@ insertionLocationEIdsForContext editingContext program =
   |> Set.fromList
 
 
--- Locations for new binding should be no deeper than the currently focused scope.
-isValidInsertionLocationExpForContext : Maybe (EId, a) -> Exp -> (Exp -> Bool)
-isValidInsertionLocationExpForContext editingContext program =
-  let insertionLocationEIds = insertionLocationEIdsForContext editingContext program in
-  (\exp -> Set.member exp.val.eid insertionLocationEIds)
+-- -- Locations for new binding should be no deeper than the currently focused scope.
+-- isValidInsertionLocationExpForContext : Maybe (EId, a) -> Exp -> (Exp -> Bool)
+-- isValidInsertionLocationExpForContext editingContext program =
+--   let insertionLocationEIds = insertionLocationEIdsForContext editingContext program in
+--   (\exp -> Set.member exp.val.eid insertionLocationEIds)
 
 
 -- maybeSynthesisContext : Syntax.Syntax -> Maybe (EId, Maybe EId) -> Exp -> Maybe (Env, Maybe Ident, Exp, List Val)
@@ -145,7 +145,7 @@ evalAtContext showPreludeOffsets syntax editingContext program =
           contextExp
           |> LangTools.expToMaybeFuncBody
           |> Maybe.withDefault contextExp
-          |> expEffectiveExp
+          -- |> expEffectiveExp -- Want the env at the beginning of the function/program, before the lets.
           |> (.val >> .eid)
       in
       Eval.doEvalEarlyAbort showPreludeOffsets (Just envEId) abortPred syntax Eval.initEnv program
@@ -167,7 +167,8 @@ evalAtContext showPreludeOffsets syntax editingContext program =
           )
 
     Nothing ->
-      let envEId = (expEffectiveExp program).val.eid in
+      -- let envEId = (expEffectiveExp program).val.eid in
+      let envEId = program.val.eid in -- Want the env at the beginning of the function/program, before the lets.
       Eval.doEvalEarlyAbort showPreludeOffsets (Just envEId) Eval.runUntilTheEnd syntax Eval.initEnv program
 
 
