@@ -5584,7 +5584,22 @@ nodejs = {
     listdir foldername = Update.lens {
       apply fileOperations = case listDict.get foldername fileOperations of
         Just (CreateFolder content) -> content -- We can mock the file system by creating a folder in initial fileOperations
-        _ -> basicFS.listdir foldername
+        _ -> basicFS.listdir foldername |>
+          (if fileOperations == [] then identity else
+          List.filterMap (\\name -> case listDict.get (foldername + \"/\" + name) fileOperations of
+            Just Delete -> Nothing
+            Just (Rename newName) ->
+              let fn = foldername + \"/\" in
+              let fnLenth = String.length fn in
+              let possibleFolder = String.take fnLenth newName in
+              let possibleName = String.drop fnLenth newName in
+              if possibleFolder == fn then
+                if Regex.matchIn \"/\" possibleName then Nothing
+                else if possibleName == \"\" then Nothing
+                else Just possibleName
+              else Nothing
+            _ -> Just name
+          ))
       update {outputOld, outputNew, diffs} =
         let aux i outputOld outputNew diffs fo = case diffs of
           [] -> Ok (Inputs [fo])
