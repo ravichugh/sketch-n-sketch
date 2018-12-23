@@ -3241,12 +3241,19 @@ resolveValueAndLocHoles allowReplacementOfHoleParentExps solutionsCache syncOpti
                       |> List.filter (valExp >> expEffectiveExp >> isVar >> not) -- Only want var origins
                       |> Utils.dedupBy (valExp >> .val >> .eid)
 
+                    -- _ =
+                    --   relevantSharedParents
+                    --   |> List.map (valExp >> LangTools.logProgram "a shared parentExp")
+
                     maybeParentExp =
                       relevantSharedParents
                       |> Utils.findFirst
                           (\parentVal ->
+                            -- let _ = LangTools.logProgram "a shared parentExp" (valExp parentVal) in
                             -- This is the expensive check b/c we do some attempt at variable resolution.
-                            expMatchesEnvVal program [] expWithHoles.val.eid expWithHoles parentVal
+                            -- Oh, and throwing away the lifting :/
+                            expMatchesEnvVal program [] expWithHoles.val.eid expWithHoles parentVal -- |> Debug.log "matches?"
+                            && Utils.maybeToBool (makeEIdVisibleToEIds program (valEId parentVal) (Set.singleton (expEffectiveExp expWithHoles).val.eid))
                           )
                       |> Maybe.map valExp
                       -- |> Maybe.map (LangTools.logProgram "parentExp")
