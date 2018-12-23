@@ -3020,6 +3020,15 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
     -- Slow b/c does static variable lookups.
     expMatchesExpWithHoles : Exp -> EId -> Exp -> Exp -> Bool
     expMatchesExpWithHoles program viewerEId expWithHoles existingExp =
+      -- (\result ->
+      --   let
+      --     _ =
+      --       if not result
+      --       then Utils.log <| unparseWithIds expWithHoles ++ " does not match " ++ unparseWithIds existingExp
+      --       else ()
+      --   in
+      --   result
+      -- ) <|
       case ((expEffectiveExp expWithHoles).val.e__, existingExp.val.e__) of -- Don't do expEffectiveExp for existingExp so that the outermost existingExp is never an EComment. Recursions should call expEffectiveExp on it before recursing however.
         (EVar _ expWithHolesIdent, _) ->
           if Parser.isProgramEId viewerEId then
@@ -3220,30 +3229,49 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
                     Nothing      -> programWithLocLifted |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar ("couldNotFindHoleLocId" ++ toString holeLocId) |> setEId (1 + Parser.maxId programWithLocLifted))
 
                 _ ->
+                  -- Try lifting based on parents provenance, then try more structurally.
                   let
                     locHoleLocIds = flattenExpTree expWithHoles |> List.filterMap expToMaybeHoleLocId |> Utils.dedup
                     holeVals      = flattenExpTree expWithHoles |> List.filterMap expToMaybeHoleVal
+                    relevantSharedParents =
+                      Provenance.sharedParents holeVals
+                      |> List.filter (valExp >> .val >> .eid >> Parser.isProgramEId) -- This line is defensive: not needed under the current evaluator.
+                      |> List.filter (valExp >> expEffectiveExp >> isVar >> not) -- Only want var origins
+                      |> Utils.dedupBy (valExp >> .val >> .eid)
 
-                    -- Gross filter of exps by val hole provenance.
-                    possibleExpsFromValHoles : List Exp
-                    possibleExpsFromValHoles =
-                      case holeVals of
-                        [] -> expsForMatching program -- No constraint.
-                        _ ->
-                          let sharedParents = Provenance.sharedParents holeVals in
-                          sharedParents
-                          |> List.map valExp
-                          |> Utils.dedupBy (.val >> .eid)
+                    maybeParentExp =
+                      relevantSharedParents
+                      |> Utils.findFirst
+                          (\parentVal ->
+                            -- This is the expensive check b/c we do some attempt at variable resolution.
+                            expMatchesEnvVal program [] expWithHoles.val.eid expWithHoles parentVal
+                          )
+                      |> Maybe.map valExp
+                      -- |> Maybe.map (LangTools.logProgram "parentExp")
 
-                    -- If no value holes, this is might be a source of slowness: we're not filtering out very many expressions.
-                    -- May want to start with needed locs and look where they are used.
-                    possibleExps =
-                      possibleExpsFromValHoles
-                      |> List.filter (not << isVar << expEffectiveExp) -- Only want var origins.
+                    maybeExpToLift =
+                      case maybeParentExp of -- |> Maybe.andThen (.val >> .eid >> findExpByEId program) of
+                        Just parentExp -> Just parentExp
+                        Nothing ->
+                          let
+                            -- Try to match more syntactically.
+
+                            -- Gross filter of exps by val hole provenance.
+                            --
+                            -- If no value holes, this is might be a source of slowness: we're not filtering out very many expressions.
+                            -- May want to start with needed locs and look where they are used.
+                            possibleExpsFromValHoles : List Exp
+                            possibleExpsFromValHoles =
+                              case holeVals of
+                                [] -> expsForMatching program |> List.filter (not << isVar << expEffectiveExp) -- Only want var origins, otherwise no constraint.
+                                _  -> relevantSharedParents |> List.map valExp
+                          in
+                          possibleExpsFromValHoles
+                          |> Utils.findFirst (\existingExp -> expMatchesExpWithHoles program expWithHoles.val.eid expWithHoles existingExp)
                   in
-                  case possibleExps |> Utils.findFirst (\existingExp -> expMatchesExpWithHoles program expWithHoles.val.eid expWithHoles existingExp) of
-                    Just expInProgram ->
-                      case makeEIdVisibleToEIds program expInProgram.val.eid (Set.singleton (expEffectiveExp expWithHoles).val.eid) of
+                  case maybeExpToLift of
+                    Just expToLift ->
+                      case makeEIdVisibleToEIds program expToLift.val.eid (Set.singleton (expEffectiveExp expWithHoles).val.eid) of
                         Just (newName, _, newProgram) -> newProgram |> replaceExpNodePreservingPrecedingWhitespace (expEffectiveExp expWithHoles).val.eid (eVar newName |> setEId (1 + Parser.maxId newProgram))
                         Nothing                       -> program
                     Nothing -> program
