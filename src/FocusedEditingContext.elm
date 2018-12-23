@@ -145,7 +145,7 @@ evalAtContext showPreludeOffsets syntax editingContext program =
           contextExp
           |> LangTools.expToMaybeFuncBody
           |> Maybe.withDefault contextExp
-          -- |> expEffectiveExp -- Want the env at the beginning of the function/program, before the lets.
+          -- |> expEffectiveExp -- For hole resolution, want the env at the beginning of the function/program, before the lets.
           |> (.val >> .eid)
       in
       Eval.doEvalEarlyAbort showPreludeOffsets (Just envEId) abortPred syntax Eval.initEnv program

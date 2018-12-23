@@ -141,7 +141,18 @@ addShape
     _ = Debug.log "(oldShapeCount, oldListItemsCount)" (oldShapeCount, oldListItemsCount)
 
     (incomingShapeCount, incomingListItemsCount) =
-      Eval.doEval False model.syntax (model.maybeEnv |> Maybe.withDefault Eval.initEnv) newShapeExp
+      -- model.maybeEnv is the env at the beginning of the context---which we want later for conservatively resolving holes.
+      -- But here we need the env at the end of the context in case of custom drawing functions.
+      -- Can't just build a pseudoprogram because in that case focusing a custom drawing tool will cause a non-terminating recursive function.
+      let envAtEndOfContext =
+        let endOfContextEnvEId = (expEffectiveExp contextExp).val.eid in
+        Eval.doEvalEarlyAbort False (Just endOfContextEnvEId) (.val >> .eid >> (==) endOfContextEnvEId) model.syntax Eval.initEnv originalProgram
+        |> Result.map (\((val, widgets), maybeContextEnv, pbeHolesSeen) -> maybeContextEnv)
+        |> Result.toMaybe
+        |> Maybe.withDefault Nothing
+        |> Maybe.withDefault Eval.initEnv
+      in
+      Eval.doEval False model.syntax envAtEndOfContext newShapeExp
       |> Result.andThen
           (\((val, _), _, _) ->
             LangSvg.resolveToRootedIndexedTree False model.syntax model.slideNumber model.movieNumber model.movieTime val
