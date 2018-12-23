@@ -475,7 +475,7 @@ synthesizeRelationCoordinateWiseAndSortResults solutionsCache syncOptions doSynt
     xysRelated
     |> List.concatMap
         (\partialResult ->
-          CodeMotion.resolveValueAndLocHoles solutionsCache syncOptions maybeEnv partialResult.exp
+          CodeMotion.resolveValueAndLocHoles True solutionsCache syncOptions maybeEnv partialResult.exp
           |> List.map (\newExp -> { partialResult | exp = newExp })
         )
     |> rankComparedTo originalExp
@@ -485,7 +485,7 @@ synthesizeRelationCoordinateWiseAndSortResults solutionsCache syncOptions doSynt
     doSynthesis [startingResult] featuresAndEquations
     |> List.concatMap
         (\partialResult ->
-          CodeMotion.resolveValueAndLocHoles solutionsCache syncOptions maybeEnv partialResult.exp
+          CodeMotion.resolveValueAndLocHoles True solutionsCache syncOptions maybeEnv partialResult.exp
           |> List.map (\newExp -> { partialResult | exp = newExp })
         )
     |> rankComparedTo originalExp

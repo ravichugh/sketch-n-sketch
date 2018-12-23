@@ -2116,7 +2116,7 @@ doGroup old =
               -- but it crashes right now if we do and that's not worth resolving.
               programWithListHolesFilled =
                 programWithList
-                |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
+                |> CodeMotion.resolveValueAndLocHoles False old.solutionsCache old.syncOptions old.maybeEnv
                 |> List.head
                 |> Maybe.withDefault originalProgram
 

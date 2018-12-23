@@ -220,7 +220,7 @@ addShape
       -- 3. Resolve value holes.
       newCandidates
       -- |> List.map (\candidate -> let _ = Utils.log <| "addShape candidate before hole resolution: " ++ LangUnparser.unparseWithIds candidate in candidate)
-      |> List.concatMap (CodeMotion.resolveValueAndLocHoles model.solutionsCache model.syncOptions model.maybeEnv)
+      |> List.concatMap (CodeMotion.resolveValueAndLocHoles True model.solutionsCache model.syncOptions model.maybeEnv)
       -- |> List.map (\candidate -> let _ = Utils.log <| "addShape candidate after hole resolution: " ++ LangUnparser.unparseWithIds candidate in candidate)
       |> List.map ((,) listExp.val.eid)
 

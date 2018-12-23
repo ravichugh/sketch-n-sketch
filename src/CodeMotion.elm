@@ -2907,8 +2907,8 @@ liftLocsSoVisibleTo_ copyOriginal program mobileLocIdSet viewerEIds =
 --
 --       Unfortunately, DrawAddShape.addShape does not necessarily add to the end of the program/scope, so there's bugs
 --       waiting to happen there.
-resolveValueAndLocHoles : Solver.SolutionsCache -> Sync.Options -> Maybe Env -> Exp -> List Exp
-resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfresh =
+resolveValueAndLocHoles : Bool -> Solver.SolutionsCache -> Sync.Options -> Maybe Env -> Exp -> List Exp
+resolveValueAndLocHoles allowReplacementOfHoleParentExps solutionsCache syncOptions maybeEnv programWithHolesUnfresh =
   let
     -- _ = Utils.log <| "incoming program: " ++ unparseWithIds programWithHolesUnfresh
 
@@ -2925,8 +2925,10 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
     -- Want to see if we can de-duplicate expressions "around" a hole.
     -- This is the defintion of "around": non-control flow, non-lets, non-base vals.
     isPossibleExpandedExpForLifting exp =
-      [isNumber, isTuple, isMathOp, isVar, isParens, isComment, isValHole, isLocHole]
-      |> List.any (\pred -> pred exp)
+      List.any (\pred -> pred exp) <|
+      if allowReplacementOfHoleParentExps
+      then [isNumber, isTuple, isMathOp, isVar, isParens, isComment, isValHole, isLocHole]
+      else [isValHole, isLocHole]
 
     expsForMatching program =
       flattenExpTree program
@@ -3416,7 +3418,7 @@ resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithHolesUnfr
             )
     in
     -- Recurse to fill in the loc holes.
-    resolveValueAndLocHoles solutionsCache syncOptions maybeEnv programWithNumericValHolesReplacedByInlinedTraces
+    resolveValueAndLocHoles allowReplacementOfHoleParentExps solutionsCache syncOptions maybeEnv programWithNumericValHolesReplacedByInlinedTraces
   else
     -- We're done. Still not sure why we return a singleton.
     [programWithSomeHolesResolvedByDestructuring]

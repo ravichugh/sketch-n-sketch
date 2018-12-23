@@ -673,7 +673,7 @@ addToEndOfDrawingContext old varSuggestedName exp =
     |> LangTools.newLetAfterComments endOfDrawingContextExp.val.eid (pVar varName) exp
     |> perhapsPrepareRecursiveFunction endOfDrawingContextExp.val.eid
     |> LangTools.logProgram "addToEndOfDrawingContext about to resolve holes"
-    |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
+    |> CodeMotion.resolveValueAndLocHoles True old.solutionsCache old.syncOptions old.maybeEnv
     |> List.head
     |> Maybe.withDefault originalProgram
   in
@@ -723,7 +723,7 @@ addOffsetAndMaybePoint old pt1 amountSnap (x2Int, y2Int) =
             programWithOffsetAndPoint =
               programWithPoint
               |> LangTools.newLetAfterComments endOfDrawingContextExp.val.eid (pVar offsetName) (eOp plusOrMinus [eVar offsetFromName, offsetAmountExp])
-              |> CodeMotion.resolveValueAndLocHoles old.solutionsCache old.syncOptions old.maybeEnv
+              |> CodeMotion.resolveValueAndLocHoles True old.solutionsCache old.syncOptions old.maybeEnv
               |> List.head
               |> Maybe.withDefault originalProgram
           in
