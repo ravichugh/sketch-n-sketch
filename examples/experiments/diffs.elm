@@ -188,7 +188,8 @@ getListLength expr = case expr of
 
 -- Given a Down* path to a value and an Expr, computes a Down* path of expressions.
 updateDownPath: Expr -> Path -> Path
-updateDownPath expr path = Debug.log """updateDownPath @expr @path""" <|
+updateDownPath expr path = let _ = Debug.log """updateDownPath @expr @path""" () in
+  Debug.log """updateDownPath @expr @path = """ <|
   case expr of
   Parens sub -> Down "_1" :: updateDownPath sub path
   Int x -> path
@@ -214,20 +215,26 @@ updateDownPath expr path = Debug.log """updateDownPath @expr @path""" <|
       Err msg -> error msg
 
 -- Given a diffs, maps all the paths that escape the structure using pathMaker
--- pathMaker is provided only the part of the path that escapes the current scope of the Diffs
+-- pathMaker is provided only the part of the path that starts after the Up that
+-- escapes the current scope of the Diffs
 mapEscapingPaths: (Path -> Path) -> Diffs {- Value -}-> Diffs {- Expression -}
 mapEscapingPaths pathMaker diffs = flip List.map diffs <| \diff ->
   case diff of
     DUpdate l ->
-      let updatedPathMaker path = case path of
-            Up :: pathTail -> Up :: pathMaker pathTail
+      let updatedPathMaker path = case path of -- We ignore one more level of Up
+            Up {- To the diffs level -} :: pathTail ->
+              Up :: pathMaker pathTail
             _ -> path
       in
       DUpdate (List.map (Tuple.mapSecond <| mapEscapingPaths updatedPathMaker) l)
     DNew insertedExp cloneEnv ->
       DNew insertedExp <| flip List.map cloneEnv <| \(name, Clone path cdiffs) ->
         let updatedPathMaker newPath = pathMaker (simplifyPath (path ++ newPath)) in
-        (name, Clone (pathMaker path) (mapEscapingPaths updatedPathMaker cdiffs))
+        let newClonePath = case path of
+              Up {- out of scope -} :: pathTail -> Up :: pathMaker pathTail
+              _ -> path
+        in
+        (name, Clone newClonePath (mapEscapingPaths updatedPathMaker cdiffs))
 
 type UpdateStep =
   UpdateContinue Expr Diffs (Diffs -> UpdateStep) |
@@ -238,10 +245,13 @@ type UpdateStep =
 getUpdateStep: Expr -> Diffs -> UpdateStep
 getUpdateStep expr vdiffs =
   let mapChildrenPaths: Path {-Value starting at expression -} -> Path {- Expression-based -}
-      mapChildrenPaths remainingPath = case remainingPath of
-         Up :: ((Down x :: _) as tailPath)->
-            Up :: updateDownPath expr tailPath
-         _ -> remainingPath
+      mapChildrenPaths escapingPath =
+        let _ = Debug.log """mapChildrenPaths @escapingPath""" () in
+        case escapingPath of
+         -- If the path immediately goes down another child of this expression
+         Down x :: _ -> updateDownPath expr escapingPath
+         -- We defer this decision to the outer
+         _ -> escapingPath
   in
   let _ = Debug.log """getUpdateStep @expr @vdiffs""" () in
   case expr of
@@ -249,12 +259,7 @@ getUpdateStep expr vdiffs =
   Var x -> UpdateResult vdiffs
   Parens sub -> 
     UpdateContinue sub vdiffs <| \newSubDiffsV ->
-      let mapChildrenParensPath path = case path of
-             -- If the children diffs references Up, since the parens do nothing, it defers the path to Up one more time.
-            Up :: escapingPath -> Up :: Up :: escapingPath
-            _ -> path
-      in
-      let newSubDiffsE = mapEscapingPaths mapChildrenParensPath newSubDiffsV in
+      let newSubDiffsE = mapEscapingPaths (\escapingPath -> Up :: escapingPath) newSubDiffsV in
       UpdateResult [DUpdate [("_1", newSubDiffsE)]]
   Cons hd tl ->
     vdiffs |> List.map (\diff -> case diff of
@@ -267,7 +272,9 @@ getUpdateStep expr vdiffs =
        updateContinueSub "tl" tl <| \diffsTlRaw ->
         let diffsHdE = mapEscapingPaths mapChildrenPaths diffsHdRaw
             diffsTlE = mapEscapingPaths mapChildrenPaths diffsTlRaw
-        in  UpdateResult [simplify (DUpdate [("hd", diffsHdE), ("tl", diffsTlE)])]
+            _ = Debug.log """diffsHdRaw: @diffsHdRaw --> @diffsHdE""" ()
+        in
+        UpdateResult [simplify (DUpdate [("hd", diffsHdE), ("tl", diffsTlE)])]
      DNew l -> error <| "DNew not yet supported in Cons update - coming soon !"
     ) |> UpdateAlternative
   Concat e1 e2 -> -- The mother of all Edit lenses. Not yet map, yet alone apply, but still.
@@ -276,69 +283,72 @@ getUpdateStep expr vdiffs =
       Ok v1 -> -- We split the diffs given the original value v1
         let _ = Debug.log """v1 : @v1""" () in
         let continueWith arg1diffsV arg2diffsV =
-              let _ = Debug.log """continueWith @arg1diffsV @arg2diffsV""" () in
-              -- TODO: the relative paths of arg1diffsV and arg2diffsV are still referring to the list
-              -- We should make sure references accross the split go through the Concat expression.
-              -- So it's not only escaping paths with Up for the left, it's escaping path with too many Down "tl"
-              -- If a path from the head looks like
-              -- Up Down "tl" remaining
-              -- and the original list has size 1, the path should be converted to:
-              -- Up Up Down "arg2" remaining
-              -- If a path from the second element looks like:
-              -- up Down "tl" remaining
-              -- and the original list has size 2
-              -- the path would be transformed to
-              -- Up Up Up Down "arg2" remaining
-              let 
-                mapPathsTooLong originalV pathMaker diffs = flip List.map diffs <| \diff ->
-                  case diff of
-                    DUpdate l -> -- At this point, it cannot go deeper than 
-                      let updatedPathMaker path = Up :: pathMaker path in 
-                      DUpdate (List.map (Tuple.mapSecond <| mapPathsTooLong updatedPathMaker) l)
-                    DNew insertedExp cloneEnv ->
-                      DNew insertedExp <| flip List.map cloneEnv <| \(name, Clone path cdiffs) ->
-                        -- TODO: Not sufficient. We might want to map paths that go backwards.
-                        let updatedPathMaker newPath = pathMaker (simplifyPath (path ++ newPath)) in
-                        (name, Clone (pathMaker path) (mapEscapingPaths updatedPathMaker cdiffs))
-              in
-              let arg1diffsV2 = mapPathsTooLong v1 (\path -> Up :: Down "arg2" :: path) arg1diffsV
-                  arg2diffsV2 = arg2diffsV -- for now, should map paths going back.
-              in
               let updateContinueSub subExpr subDiffs callback =
                     case subDiffs of
                       [DUpdate []] ->  callback dSame
                       _ -> UpdateContinue subExpr subDiffs callback
               in
-              updateContinueSub e1 arg1diffsV2 <| \arg1diffsERaw ->
-              updateContinueSub e2 arg2diffsV2 <| \arg2diffsERaw ->
-               let arg1diffsE = mapEscapingPaths mapChildrenPaths arg1diffsERaw
-                   arg2diffsE = mapEscapingPaths mapChildrenPaths arg2diffsERaw
-               in
+              updateContinueSub e1 arg1diffsV <| \arg1diffsE ->
+              updateContinueSub e2 arg2diffsV <| \arg2diffsE ->
               UpdateResult <| [simplify <| DUpdate [("arg1", arg1diffsE), ("arg2", arg2diffsE)]]
         in
-        let splitDiffs v1 accDiffs rdiffs = 
-          let _ = Debug.log """splitDiffs @v1 @(accDiffs dSame) @rdiffs""" () in
-          case v1 of
-            Nil -> -- TODO: When there will be insertions, this will be modified.
-              continueWith (accDiffs dSame) (rdiffs)
-            Cons hd tl ->
-              simplifyUpdate <| UpdateAlternative <|
-              flip List.map rdiffs <| \diff ->
-                case diff of
-                  DUpdate l ->
-                    case listDict.get "tl" l of
-                      Nothing -> continueWith (accDiffs [diff]) dSame
-                      Just tlds ->
-                        let hds = case listDict.get "hd" l of
-                              Nothing -> dSame
-                              Just hds -> hds
-                        in
-                        splitDiffs tl (\tds ->
-                          accDiffs [simplify <| DUpdate [("hd", hds), ("tl", tds)]]
-                        ) tlds
-                  _ -> UpdateError "DNew not yet supported in Concat update - coming soon !"
+        let listLength v = case v of 
+             Nil -> 0
+             Cons _ tl -> 1 + listLength tl
         in
-        splitDiffs v1 (\i -> i) vdiffs
+        let sizeLeft = listLength v1 in
+        let splitDiffs n accDiffs rdiffs = 
+          let _ = Debug.log """splitDiffs @n @(accDiffs dSame) @rdiffs""" () in
+          if n == sizeLeft then
+            -- Now we need to fix rdiffs paths, because we know the length of v1
+            -- n is the size of v1
+            let fixrdiffs escapingPath = 
+              let aux numPreviousUp path =
+                if numPreviousUp > sizeLeft then -- Full escape of the original list
+                  Up {- to the concat -} :: path
+                else
+                  case path of
+                  Up :: pathTail -> aux (numPreviousUp + 1) pathTail
+                  Down "hd" :: pathTail ->
+                    {- numPreviousUp <= sizeLeft so it is rewritten as a path that goes up to the concatenation, and then-
+                       down to the left argument -}
+                      Up {-To concat expression -} :: Down "arg1" :: updateDownPath e1 (
+                        List.range 1 (sizeLeft - numPreviousUp) |>
+                        List.foldl (\_ t -> Down "tl" :: t) path)
+                  Down _ :: _ -> Debug.log "weird concat path, there is an Up followed by " path -- Weird. The path stays the same.
+              in aux 1 escapingPath
+            in continueWith (accDiffs dSame) (mapEscapingPaths fixrdiffs rdiffs)
+          else
+            simplifyUpdate <| UpdateAlternative <|
+            flip List.map rdiffs <| \diff ->
+              case diff of
+                DUpdate l ->
+                  let newHds = case listDict.get "hd" l of
+                    Nothing -> dSame
+                    Just hdds -> 
+                      let fixldiffs escapingPath =
+                        let (mbDown, pathTail) = List.split (sizeLeft - n) escapingPath in
+                        if List.length mbDown == sizeLeft - n && List.all (== (Down "tl")) mbDown then
+                          List.range 1 n |> List.foldl (\_ x -> Up :: x) (Up {- To concat -} :: Down "arg2" {- to second arg -} :: updateDownPath e2 pathTail)
+                        else
+                          let (mbUp, pathTail) = List.split n escapingPath in
+                          if List.length mbUp == n && List.all (== Up) mbUp then
+                          case pathTail of
+                            Up {- truly escape the list expr -} :: pathTail2 ->
+                              mbUp ++ (Up {- to concat expr -}) :: pathTail
+                            _ -> path
+                          else path
+                      in mapEscapingPaths fixldiffs hdds
+                  in
+                  let newAccDiffs newTds =
+                        [simplify <| DUpdate [("hd", newHds), ("tl", newTds)]]
+                  in
+                  case listDict.get "tl" l of
+                    Nothing -> continueWith (newAccDiffs dSame) dSame
+                    Just tlds -> splitDiffs (n + 1) newAccDiffs tlds
+                _ -> UpdateError "DNew not yet supported in Concat update - coming soon !"
+        in
+        splitDiffs 0 identity vdiffs
     
     
 
@@ -414,9 +424,10 @@ Ok [ DUpdate
 originalExpr = Parens (Cons (Parens (Int 1)) (Parens (Cons (Parens (Var "a2")) Nil)))
 outputDiffs = [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]]
 --}
-originalExpr = Concat (Cons (Int 2) Nil) (Cons (Var "a1") (Cons (Int 3)))
+{--}
+originalExpr = Concat (Parens (Cons (Parens (Int 2)) Nil)) (Parens (Cons (Var "a1") (Cons (Int 3) Nil)))
 outputDiffs = [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]]
-
+--}
 exprDiffs = update originalExpr outputDiffs |> .args._1
 
 <pre>@(toString <| exprDiffs)</pre>
