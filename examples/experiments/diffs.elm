@@ -303,16 +303,17 @@ getUpdateStep expr vdiffs =
             -- Now we need to fix rdiffs paths, because we know the length of v1
             -- n is the size of v1
             let fixrdiffs escapingPath = 
+              --let _ = Debug.log """fixrdiffs @escapingPath""" () in
               let aux numPreviousUp path =
                 if numPreviousUp > sizeLeft then -- Full escape of the original list
-                  Up {- to the concat -} :: path
+                  Up {- concat is like a wrap there -} :: path
                 else
                   case path of
                   Up :: pathTail -> aux (numPreviousUp + 1) pathTail
                   Down "hd" :: pathTail ->
                     {- numPreviousUp <= sizeLeft so it is rewritten as a path that goes up to the concatenation, and then-
                        down to the left argument -}
-                      Up {-To concat expression -} :: Down "arg1" :: updateDownPath e1 (
+                      Down "arg1" :: updateDownPath e1 (
                         List.range 1 (sizeLeft - numPreviousUp) |>
                         List.foldl (\_ t -> Down "tl" :: t) path)
                   Down _ :: _ -> Debug.log "weird concat path, there is an Up followed by " path -- Weird. The path stays the same.
@@ -426,10 +427,14 @@ outputDiffs = [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down
 --}
 {--}
 originalExpr = Concat (Parens (Cons (Parens (Int 2)) Nil)) (Parens (Cons (Var "a1") (Cons (Int 3) Nil)))
-outputDiffs = [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]]
+outputDiffs = [DUpdate [
+  ("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]]),
+  ("tl", [DUpdate [(
+    "hd", [DNew (Var "h") [("h", Clone [Up, Up, Down "hd"] [DUpdate []])]])
+  ]])]]
 --}
 exprDiffs = update originalExpr outputDiffs |> .args._1
 
 <pre>@(toString <| exprDiffs)</pre>
 
---<pre>@(toString <| applyDiffs originalExpr exprDiffs)</pre>
+-- <pre>@(toString <| applyDiffs originalExpr exprDiffs)</pre>
