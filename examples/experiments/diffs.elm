@@ -71,6 +71,8 @@ replace f e = case e of
   Var x -> case f x of
     Nothing -> e
     Just newE -> newE
+  Parens x -> Parens (replace f x)
+  Concat e1 e2 -> Concat (replace f e1) (replace f e2)
 
 getChild: String Expr -> Maybe Expr
 getChild name e = case e of
@@ -275,7 +277,8 @@ getUpdateStep expr vdiffs =
             _ = Debug.log """diffsHdRaw: @diffsHdRaw --> @diffsHdE""" ()
         in
         UpdateResult [simplify (DUpdate [("hd", diffsHdE), ("tl", diffsTlE)])]
-     DNew l -> error <| "DNew not yet supported in Cons update - coming soon !"
+     DNew newE cloneEnv -> UpdateResult [DNew newE <| flip List.map cloneEnv <| \(name, Clone cpath cdiffs) ->
+       (name, Clone (updateDownPath expr cpath) cdiffs)]
     ) |> UpdateAlternative
   Concat e1 e2 -> -- The mother of all Edit lenses. Not yet map, yet alone apply, but still.
     case eval e1 of    
@@ -298,10 +301,9 @@ getUpdateStep expr vdiffs =
         in
         let sizeLeft = listLength v1 in
         let splitDiffs n accDiffs rdiffs = 
-          let _ = Debug.log """splitDiffs @n @(accDiffs dSame) @rdiffs""" () in
+          --let _ = Debug.log """splitDiffs @n @(accDiffs dSame) @rdiffs""" () in
           if n == sizeLeft then
-            -- Now we need to fix rdiffs paths, because we know the length of v1
-            -- n is the size of v1
+            -- Now we need to fix rdiffs paths
             let fixrdiffs escapingPath = 
               --let _ = Debug.log """fixrdiffs @escapingPath""" () in
               let aux numPreviousUp path =
@@ -379,53 +381,10 @@ update: Expr -> Diffs -> Result String Expr
 update expr diffs = update_ (UpdateContinue expr diffs UpdateResult) [] []
   
 {--
-displayApplyDiffs original diffs = <span>applyDiffs<br>&nbsp;&nbsp;(@("""@original"""))<br>&nbsp;&nbsp;@("""@diffs""") =<br>&nbsp;&nbsp;@("""@(applyDiffs original diffs)""")<br><br></span>
-
-<div>
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs1)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs1bis)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs2)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs3)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs4)
-@(displayApplyDiffs (Cons (Var "a2") (Cons (Int 1) (Cons (Int 3) Nil))) diffs5)
-</div>
---}
-
-{-
-<pre>@(toString <| update (Cons (Parens (Int 1)) (Parens (Cons (Var "a2") Nil))) [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]])
--}
-
-{-
-The result should be:
-Ok [ DUpdate
-    [ ("hd", [
-       DUpdate
-       [ ("_1", [
-          DNew (Var "h") [
-               ("h", Clone [ Up, --One more to escape Parens
-                             Up,
-                             Down "tl",
-                             Down "_1",
-                             Down "hd",
-                             Down "_1",
-                           ] [ DUpdate [] ])
-          ]
-         ])
-       ]
-      ])
-    ]
-  ]
--}
-
-{--
-<pre>@(toString <| updateDownPath (Concat (Cons (Int 1) (Parens (Cons (Parens (Int 2)) Nil))) (Cons (Parens (Var "a2")) Nil)) [Down "tl", Down "tl", Down "hd"])
---}
-
-{--
 originalExpr = Parens (Cons (Parens (Int 1)) (Parens (Cons (Parens (Var "a2")) Nil)))
 outputDiffs = [DUpdate [("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]])]]
 --}
-{--}
+{--
 originalExpr = Concat (Parens (Cons (Parens (Int 2)) Nil)) (Parens (Cons (Var "a1") (Cons (Int 3) Nil)))
 outputDiffs = [DUpdate [
   ("hd", [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] [DUpdate []])]]),
@@ -433,8 +392,16 @@ outputDiffs = [DUpdate [
     "hd", [DNew (Var "h") [("h", Clone [Up, Up, Down "hd"] [DUpdate []])]])
   ]])]]
 --}
+{--} -- TODO: illustrate how DNew for Cons should use updateDownPath
+originalExpr = Cons (Int 1) (Parens (Concat (Cons (Parens (Var "a2")) Nil) (Cons (Int 3) Nil)))
+outputDiffs = [DNew (Cons (Var "h") (Var "t")) [
+  ("h", Clone [Down "tl", Down "hd"] dSame),
+  ("t", Clone [] dSame)]]
+--}
 exprDiffs = update originalExpr outputDiffs |> .args._1
 
-<pre>@(toString <| exprDiffs)</pre>
-
--- <pre>@(toString <| applyDiffs originalExpr exprDiffs)</pre>
+<pre><h2>diffs</h2>
+@(toString <| exprDiffs)
+<h2>result</h2>
+@(toString <| applyDiffs originalExpr exprDiffs)
+</pre>
