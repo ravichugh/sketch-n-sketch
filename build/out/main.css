@@ -598,14 +598,18 @@ code {
   bottom: 0;
 }
 
+/* Enable for mode bar separator margin */
+/*
 .mode-bar > * {
   margin-left: 3px;
 }
+*/
 
 .mode-icon-wrapper {
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
+  margin-left: 6px;
 }
 
 .mode-indicator {
@@ -629,6 +633,7 @@ code {
   height: 34px;
 
   border: 1px solid var(--subtle-border-color);
+  border-radius: 5px;
   box-sizing: border-box;
 }
 
@@ -649,7 +654,7 @@ code {
 
 .mode-separator {
   background-color: var(--subtle-border-color);
-  width: 1px;
+  width: 0px; /* Make 1px to appear */
 }
 
 /******************************************************************************
