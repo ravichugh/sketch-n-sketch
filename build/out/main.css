@@ -187,12 +187,34 @@ code {
 .icon-button {
   /* width: DYNAMIC */
   /* height: DYNAMIC */
-  /* background-color: DYNAMIC */
   cursor: pointer;
+
+  background: transparent;
+  border: none;
+
+  padding: 2px;
 }
 
 .icon-button:focus {
   outline: 0;
+}
+
+.icon-button > div {
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  border: 1px solid rgba(0, 0, 0, 0);
+  background-clip: content-box;
+}
+
+.icon-button.selected > div {
+  background-color: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 5px 0 inset #000000;
+}
+
+.icon-button:not(.selected):hover > div {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background-color: rgba(255, 255, 255, 0.5);
 }
 
 /******************************************************************************

@@ -1790,42 +1790,50 @@ outputPanel model =
 
 type ButtonKind = Regular | Selected | Unselected
 
-buttonRegularColor = "#FFFFFF"
-buttonSelectedColor = "#DDDDDD"
+buttonClass : ButtonKind -> String
+buttonClass bk =
+  case bk of
+    Regular ->
+      "regular"
+
+    Selected ->
+      "selected"
+
+    Unselected ->
+      "unselected"
 
 iconButton model iconName onClickHandler btnKind disabled =
   iconButtonExtraAttrs model iconName [] onClickHandler btnKind disabled
 
 iconButtonExtraAttrs model iconName extraAttrs onClickHandler btnKind disabled =
   let
-    color =
-      case btnKind of
-        Regular    -> buttonRegularColor
-        Unselected -> buttonRegularColor
-        Selected   -> buttonSelectedColor
     iconHtml =
       case Dict.get (Utils.naturalToCamelCase iconName) model.icons of
-        Just h -> h
-        Nothing -> Html.text iconName
-  in
-  let commonAttrs =
-    [ Attr.disabled disabled
-    , Attr.class "icon-button"
-    , Attr.style
-        [ ("width", (px << .width) Layout.iconButton)
-        , ("height", (px << .height) Layout.iconButton)
-        , ("background", color)
-        ]
-    ]
-  in
-  Html.button
-    (commonAttrs ++
-      [ handleEventAndStop "mousedown" Controller.msgNoop
+        Just h ->
+          h
+
+        Nothing ->
+          Html.text iconName
+
+    commonAttrs =
+      [ Attr.title iconName
+      , Attr.disabled disabled
+      , Attr.class <|
+          "icon-button " ++ buttonClass btnKind
+      , Attr.style
+          [ ("width", (px << .width) Layout.iconButton)
+          , ("height", (px << .height) Layout.iconButton)
+          ]
+      , handleEventAndStop "mousedown" Controller.msgNoop
       , E.onClick onClickHandler
-      , Attr.title iconName
-      ] ++
-      extraAttrs)
-    [ iconHtml ]
+      ]
+  in
+    Html.button
+      ( commonAttrs ++ extraAttrs )
+      [ Html.div
+          []
+          [ iconHtml ]
+      ]
 
 toolButton model tool =
   let
