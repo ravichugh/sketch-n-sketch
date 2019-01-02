@@ -4232,6 +4232,8 @@ String =
                         StringUpdate (start - 2) (end - 2) replaced
                       else if inserted == \"\" && Regex.matchIn \"<$\" left && Regex.matchIn \"<$\" deleted then
                         StringUpdate (start - 1) (end - 1) replaced
+                      else if inserted == \"\" && Regex.matchIn \"^>\" deleted && Regex.matchIn \"^>\" right then
+                        StringUpdate (start + 1) (end + 1) replaced
                       else
                         headDiff
                  in
