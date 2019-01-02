@@ -2027,7 +2027,6 @@ toolPanel model =
         else
         [ outputModeIndicator model
         , syncModeIndicator model
-        , toolButton model Cursor
         ]
         ) ++
         [ toolButton model Cursor
