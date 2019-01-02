@@ -1907,6 +1907,12 @@ Debug = {
     res
 }
 
+ -- Much simpler version, does not handle @ symbols wells.
+htmlViaEval string =
+  case __evaluate__ [(\"append\", append)] <| Update.expressionFreeze \"\"\"<raw>@string</raw>\"\"\" of
+    Ok [_, _, children] -> children
+    _ -> error \"Parsing HTML failed:\"
+
 -- building block for updating
 freeze x = x
 expressionFreeze x = x
@@ -3533,7 +3539,7 @@ Dict = { dictLike |
   insert k v d = __DictInsert__ k v d
 }
 
--- List of pair implementation
+-- List of pairs implementation
 listDict = { dictLike |
   empty = []
   fromList = identity
@@ -3556,6 +3562,29 @@ listDict = { dictLike |
     ((k, v) as head) :: tail -> if k == key then (k, value)::tail else head :: insert key value tail
 }
 
+
+-- List of 2-element list implementation
+attrDict = { dictLike |
+  empty = []
+  fromList = identity
+  get key = Update.lens {
+    apply list = case list of
+      [] -> Nothing
+      [k, v] :: tail -> if k == key then Just v else get key tail
+    update = case of
+      {input, outputOld = Nothing, outputNew = Just v} ->
+        Ok (Inputs [insert key v input])
+      {input, outputOld = Just _, outputNew = Nothing} ->
+        Ok (Inputs [remove key input])
+      uInput -> Update.default apply uInput
+    }
+  remove key list = case list of
+    [] -> []
+    ([k, v] as head) :: tail -> if k == key then tail else head :: remove key tail
+  insert key value list = case list of
+    [] -> [[key, value]]
+    ([k, v] as head) :: tail -> if k == key then [k, value]::tail else head :: insert key value tail
+}
 
 Set = {
   empty = __DictEmpty__
@@ -4381,9 +4410,18 @@ String =
                 before + mdtag + after
               else inserted
             _ -> inserted
-          inserted = case Regex.extract \"\"\"^<a href=\"(.*)\">(.*)</a>$\"\"\" inserted of
-            Just [url, text] -> \"[\" + text + \"](\"+ url +\")\"
-            _ -> inserted
+          inserted = Regex.replace \"\"\"<a href=\"((?:(?!</a>).)*)\">((?:(?!</a>).)*)</a>\"\"\" (\\{submatches=[url, text]} ->
+               \"[\" + text + \"](\"+ url +\")\"
+            ) inserted
+          inserted = Regex.replace \"\"\"<img[^>]+\\bsrc=[^>]+>\"\"\" (\\match ->
+             case htmlViaEval match.match of
+                [[\"img\", attrs, _]] ->
+                  let title = attrDict.get \"title\" attrs |> Maybe.map (\\x -> \" \\\"\" + x + \"\\\"\") |> Maybe.withDefault \"\"
+                      alt = attrDict.get \"alt\" attrs |> Maybe.map (\\x -> if x == \"\" then \"Image\" else x) |> Maybe.withDefault \"Image\"
+                      url = attrDict.get \"src\" attrs |> Maybe.withDefault \"url\"
+                  in
+                  \"![\" + alt + \"](\"+ url + title + \")\"
+                _ -> match.match) inserted
         in inserted
         )
       |> update.fixTagUpdates
@@ -4566,12 +4604,6 @@ updateOutputToResults c = case c of
   Ok (Inputs i) -> Ok i
   Ok (InputsWithDiffs id) -> Ok (List.unzip id |> Tuple.first)
   Err msg -> Err msg
-
- -- Much simpler version, does not handle @ symbols wells.
-htmlViaEval string =
-  case __evaluate__ [(\"append\", append)] <| Update.expressionFreeze \"\"\"<raw>@string</raw>\"\"\" of
-    Ok [_, _, children] -> children
-    _ -> error \"Parsing HTML failed:\"
 
 -- Returns a list of HTML nodes parsed from a string. It uses the API for loosely parsing HTML
 -- Example: html \"Hello<b>world</b>\" returns [[\"TEXT\",\"Hello\"],[\"b\",[], [[\"TEXT\", \"world\"]]]]
