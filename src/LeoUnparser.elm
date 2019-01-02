@@ -1014,6 +1014,10 @@ unparseHtmlNode isRaw e = case (unwrapExp e) of
       _ -> -- EBase _ (EString _ "TEXT") ->
         case unwrapExp content of
           EBase _ (EString _ content) -> unparseHtmlTextContent isRaw content
+          EParens _ subExpr LongStringSyntax _ ->
+            case unwrapExp subExpr of
+               EBase _ (EString _ content) -> unparseHtmlTextContent isRaw content
+               x -> "@[" ++ unparse e ++ "]"
           EVar _ varname -> "@" ++ varname
           x -> "@[" ++ unparse e ++ "]"
   EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->

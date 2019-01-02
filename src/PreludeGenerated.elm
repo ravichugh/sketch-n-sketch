@@ -4115,6 +4115,13 @@ String =
           Ok (Inputs [outputNew])
     }.apply x
   in
+  let makeSize s targetLength =
+    let n = length s in
+    if n < targetLength then makeSize (s + s) targetLength
+    else if n == targetLength then s
+    else take targetLength s
+  in
+  let repeat n s = if n <= 0 then \"\" else if n == 1 then s else s + repeat (n - 1) s in
   let toInt x =
         { apply x = strToInt x
         , unapply output = Just (toString output)
@@ -4141,12 +4148,6 @@ String =
           else if newOutput == oldOutput then
             Ok (InputsWithDiffs [(input, Nothing)])
           else
-            let makeSize s targetLength =
-              let n = length s in
-              if n < targetLength then makeSize (s + s) targetLength
-              else if n == targetLength then s
-              else take targetLength s
-            in
             let increment = newOutput - oldOutput in
             let addition = makeSize (if input == \"\" then \"#\" else input) increment in
             Ok (InputsWithDiffs [(input + addition, Just (VStringDiffs [StringUpdate oldOutput oldOutput increment]))])
@@ -4155,7 +4156,8 @@ String =
                  Just [trimmed] -> trimmed
                  _ -> s
   in
-  { toInt = toInt
+  { repeat = repeat
+    toInt = toInt
     toFloat = toFloat
     join = join
     joinAndSplitBack = joinAndSplitBack
@@ -4217,6 +4219,7 @@ String =
                  (outputNew, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
                ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
                  let inserted = substring (start + offset) (start + offset + replaced) outputNew in
+                 let deleted = substring start end outputOld in
                  let right = drop (start + offset + replaced) outputNew in
                  let left = take (start + offset) outputNew in
                  let newOffset = offset + replaced - (end - start) in
@@ -4227,6 +4230,8 @@ String =
                         StringUpdate (start - 1) (end - 1) replaced
                       else if Regex.matchIn \"</$\" left && Regex.matchIn \"></$\" inserted then
                         StringUpdate (start - 2) (end - 2) replaced
+                      else if inserted == \"\" && Regex.matchIn \"<$\" left && Regex.matchIn \"<$\" deleted then
+                        StringUpdate (start - 1) (end - 1) replaced
                       else
                         headDiff
                  in
@@ -4422,6 +4427,10 @@ String =
                   in
                   \"![\" + alt + \"](\"+ url + title + \")\"
                 _ -> match.match) inserted
+          inserted = Regex.replace \"<br>\" (\\m ->
+            case Regex.extract \"\"\"\\n( *(?:[\\*\\d\\.] *)*).*\"\"\" (left + take (nth m.start 0) m.match) of
+              Just [indent] -> \"  \\n\" + (repeat (length indent) \" \")
+              _ -> m.match) inserted
         in inserted
         )
       |> update.fixTagUpdates
