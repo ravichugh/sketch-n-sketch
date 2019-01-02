@@ -2421,13 +2421,21 @@ String =
         \m ->
           if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
            || Regex.matchIn """</?(?:h\d|ul|ol|p|pre|center)>""" (nth m.group 2) then m.match else Update.expressionFreeze """@(nth m.group 1)<p>@(nth m.group 2)</p>""")
-      |> r """\[([^\]\\]+)\](\^?)(\(|\[)([^\)\]]+)(\)|\])|(?:http|ftp|https)://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?@notincode@notinattr""" (\m ->  -- Direct and indirect References + syntax ^ to open in external page.
-        case nth m.group 3 of
-          "(" -> Update.expressionFreeze """<a href="@(nth m.group 4)" @(if nth m.group 2 == "^" then """target="_blank"""" else "")>@(nth m.group 1)</a>"""
-          "[" -> listDict.get (nth m.group 4) references |> case of
-                Just link -> Update.expressionFreeze """<a href="@link">@(nth m.group 1)</a>"""
-                Nothing -> m.match
-          _ -> """<a href="@(m.match)">@(escapeHtml m.match)</a>"""
+      |> r """(!?)\[([^\]\[\\]+)\](\^?)(\(|\[)([^\[\)\]\s]+)\s?"?([^\)\]"]+)?"?(?:\)|\])|(?:http|ftp|https):\/\/(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?@notincode@notinattr""" (
+        \{group=[match, picPrefix, text, targetblank, parensStyle, url, title]} ->  -- Direct and indirect References + syntax ^ to open in external page.
+        let a = if picPrefix == "!" then "img" else "a"
+            aclose = if picPrefix == "!" then "" else text + "</a>"
+            href = if picPrefix == "!" then "src" else "href"
+            t = if title == "" then "" else " title='" + title + "'"
+            targetblank = if targetblank == "^" then """ target='_blank'""" else ""
+            alt = if picPrefix == "!" then """ alt='@text'""" else ""
+        in
+        case parensStyle of
+          "(" -> Update.expressionFreeze """<@a @t @href="@url"@targetblank@alt>@aclose"""
+          "[" -> listDict.get url references |> case of
+                Just link -> Update.expressionFreeze """<@a @t @href="@link"@targetblank@alt>@aclose"""
+                Nothing -> match
+          _ -> """<a href="@match">@(escapeHtml match)</a>"""
           )
       |> r """\[\^(@notincode[^\]]+)\]@notincode""" (\m ->  -- Footnotes
         listDict.get (nth m.group 1) footnotes |> case of
