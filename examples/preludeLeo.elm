@@ -378,51 +378,70 @@ LensLess =
         andAlso = andAlso
         map = resultMap
       }
-    String =
-      let strToInt =
+    String = {
+      toInt =
         let d = __DictFromList__ [("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8), ("9", 9)] in
         let aux x =
           case extractFirstIn "^([0-9]*)([0-9])$" x of
             Just [init, last] -> (aux init)*10 + case __DictGet__ d last of
               Just x -> x
-              Nothing -> ""
+              Nothing -> 0
             Nothing -> 0
         in
-        aux
-      in
-      let join delimiter list =
+        \x ->
+          case extractFirstIn "^-(.*)$" x of
+            Just part -> 0 - aux part
+            Nothing -> aux x
+
+      join delimiter list =
         let aux acc list = case list of
           [] -> acc
           [head] -> acc + head
           (head::tail) -> aux (acc + head + freeze delimiter) tail
         in aux "" list
-      in
-      let substring start end x =
+
+      substring start end x =
         case extractFirstIn ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
           Just [substr] -> substr
           Nothing -> Debug.crash <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
-      in
-      let take length x =
+
+      take length x =
           case extractFirstIn ("^([\\s\\S]{0," + toString length + "})") x of
             Just [substr] -> substr
             Nothing -> Debug.crash <| "bad arguments to String.take " + toString length + " " + toString x
-      in
-      let drop length x =
+
+      drop length x =
         case extractFirstIn ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
                 Just [substr] -> substr
                 Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
-      in
-      let length x = len (explode x) in
-      { strToInt = strToInt
-        toInt = strToInt
-        join = join
-        substring = substring
-        slice = substring
-        take = take
-        drop = drop
-        dropLeft = drop
-        length = length
-      }
+
+      dropLeft = drop
+      dropRight length x =
+                  case extractFirstIn """^([\s\S]*?)[\s\S]{0,@length}$""" x of
+                          Just [substr] -> substr
+                          Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
+
+      length x = len (explode x)
+
+      slice = substring
+
+      toFloat s =
+        case extractFirstIn """((-?)\d+)\.(\d+)""" s of
+           Just [intPart, negative, floatPart] ->
+             let combine y = if negative == "-" then 0 - y else y in
+             toInt intPart + (combine <| toInt floatPart / (10 ^ length floatPart))
+           Nothing ->
+        case extractFirstIn """((-?)\d)(?:\.(\d*))?(?:e|E)\+?(-?\d+)""" s of -- Scientific notation
+           Just [beforeComma, negative, afterComma, exponent] ->
+             toInt beforeComma + (combine <| toInt afterComma  / (10 ^ length afterComma)) * 10 ^ (toInt exponent)
+           Nothing ->
+             toInt s
+
+      sprintf str inline = case inline of
+          a::tail -> sprintf (replaceFirstIn "%s" a str) tail
+          [] -> str
+          a -> replaceFirstIn "%s" a str
+    }
   }
 
 Result = {
@@ -841,6 +860,16 @@ Update =
     expressionFreeze x = x
     sizeFreeze = sizeFreeze
     conditionalFreeze cond = if cond then (\x -> freeze x) else identity
+
+    freezeWhen: Bool -> ((new_a, Diffs) -> String) -> a -> a
+    freezeWhen notPermission lazyMessage x = {
+      apply x = x
+      update {outputNew, diffs} =
+        if notPermission then
+          Err (lazyMessage (outputNew, diffs))
+        else
+          Ok (InputsWithDiffs [(outputNew, Just diffs)])
+    }.apply x
     foldDiff = foldDiff
     applyLens = applyLens
     lens l x = l.apply x
@@ -2111,31 +2140,11 @@ List = {
 
 --------------------------------------------------------------------------------
 -- String --
-String =
-  let strToInt =
-    let d = Dict.fromList [("0", 0), ("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8), ("9", 9)] in
-    let aux x =
-       case extractFirstIn "^([0-9]*)([0-9])$" x of
-         Just [init, last] -> (aux init)*10 + Dict.apply d last
-         Nothing -> 0
-    in
-    aux
-  in
-  let join__ delimiter list =
-    let aux acc list = case list of
-       [] -> acc
-       [head] -> acc + head
-       (head::tail) -> aux (acc + head + freeze delimiter) tail
-    in aux "" list
-  in
-  let length x = len (explode x) in
-  let strToFloat s =
-    case Regex.extract """(\d+)\.(\d+)""" s of
-       Just [intPart, floatPart] ->
-         strToInt intPart + strToInt floatPart / (10 ^ length floatPart)
-       Nothing -> strToInt s
-  in
-  let join_ x =
+String = {
+  ({toInt=strToInt, toFloat=strToFloat, join=join__}) = LensLess.String
+  (length) = LensLess.String.length -- We redefine length as a lens later in this module
+
+  (join_) x =
     -- An example of using reversible foldl to join strings without separators
     -- Here no insertion of element is possible, but we can remove elements.
     -- We use a trick to propagate a value that is never computed, in order to know if, during update,
@@ -2185,375 +2194,371 @@ String =
           ) |> Update.valuesWithDiffs
       }.apply (oldAcc, oldHeadList, dummyBool)
       ) (freeze "", Update.softFreeze False) x
-  in
-  let substring start end x =
-    case Regex.extract ("^[\\s\\S]{0," + toString start + "}([\\s\\S]{0," + toString (end - start) + "})") x of
-      Just [substr] -> substr
-      Nothing -> Debug.crash <| "bad arguments to String.substring " + toString start + " " + toString end + " " + toString x
-  in
-  let take length x =
-      case Regex.extract ("^([\\s\\S]{0," + toString length + "})") x of
-        Just [substr] -> substr
-        Nothing -> Debug.crash <| "bad arguments to String.take " + toString length + " " + toString x
-  in
-  let drop length x =
-    case Regex.extract ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
-            Just [substr] -> substr
-            Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
-  in
-  let dropRight length x =
-    case Regex.extract """^([\s\S]*?)[\s\S]{0,@length}$""" x of
-            Just [substr] -> substr
-            Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
-  in
-  let sprintf str inline = case inline of
-    a::tail -> sprintf (replaceFirstIn "%s" a str) tail
-    [] -> str
-    a -> replaceFirstIn "%s" a str
-  in
-  let freezeRight x = {
-      apply x = x
-      update {input, outputNew} =
-        if String.take String.length input outputNew == input then
-          Err ("Cannot add anything to the right of '" + input + "'")
-        else
-          Ok (Inputs [outputNew])
-    }.apply x
-  in
-  let freezeLeft x = {
-      apply x = x
-      update {input, outputNew} =
-        if String.drop (String.length outputNew - String.length input) outputNew == input then
-          Err ("Cannot add anything to the left of '" + input + "'")
-        else
-          Ok (Inputs [outputNew])
-    }.apply x
-  in
-  let makeSize s targetLength =
+
+  {substring,
+   take,
+   drop,
+   dropLeft,
+   dropRight,
+   sprintf} = LensLess.String
+
+  -- Repeats or shrinks s until it makes the given target length
+  (makeSize) s targetLength =
     let n = length s in
     if n < targetLength then makeSize (s + s) targetLength
     else if n == targetLength then s
     else take targetLength s
-  in
-  let repeat n s = if n <= 0 then "" else if n == 1 then s else s + repeat (n - 1) s in
-  let toInt x =
-        { apply x = strToInt x
-        , unapply output = Just (toString output)
-        }.apply x
-      toFloat x =
-        { apply x = strToFloat x -- TODO: Recognize other types of float (e.g. NaN, infinity, 1e10, negatives...)
-          unapply output = Just (toString output)
-        }.apply x
-      join delimiter x =
-        if delimiter == "" then join_ x
-        else join__ delimiter x
-      -- In the forward direction, it joins the string.
-      -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
-      joinAndSplitBack regexSplit delimiter x = if delimiter == "" then join_ x else {
-          apply x = join__ delimiter x
-          update {output, oldOutput, diffs} =
-            Ok (Inputs [Regex.split regexSplit output])
-        }.apply x
-      length x = {
-        apply x = len (explode x)
-        update {input, oldOutput, newOutput} =
-          if newOutput < oldOutput then
-            Ok (InputsWithDiffs [(take newOutput input, Just (VStringDiffs [StringUpdate newOutput oldOutput 0]))])
-          else if newOutput == oldOutput then
-            Ok (InputsWithDiffs [(input, Nothing)])
-          else
-            let increment = newOutput - oldOutput in
-            let addition = makeSize (if input == "" then "#" else input) increment in
-            Ok (InputsWithDiffs [(input + addition, Just (VStringDiffs [StringUpdate oldOutput oldOutput increment]))])
-        }.apply x
-      trim s = case extractFirstIn "^\\s*([\\s\\S]*?)\\s*$" s of
-                 Just [trimmed] -> trimmed
-                 _ -> s
-  in
-  { repeat = repeat
-    toInt = toInt
-    toFloat = toFloat
-    join = join
-    joinAndSplitBack = joinAndSplitBack
-    length = length
-    substring = substring
-    slice = substring
-    take = take
-    left = take
-    drop = drop
-    dropLeft = drop
-    dropRight = dropRight
-    trim = trim
-    sprintf = sprintf
-    uncons s = case extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s of
-      Just [x, y] -> Just (x, y)
-      Nothing -> Nothing
-    padLeft n c = Update.lens {
-      apply s = (List.range 1 (n - length s) |> List.map (always c) |> join "") + s
-      update {outputNew} =
-         case extractFirstIn ("^(" + c + ")*([\\s\\S]*)$") outputNew of
-           Just [padding, str] -> Ok (Inputs [str])
-           Nothing -> Err "String.pad could not complete"
-    }
 
-    update = {
-        freezeLeft = freezeLeft
-        freezeRight = freezeRight
-        onInsert callbackOnInserted string =
-          onInsertLeftRight (\left inserted right -> callbackOnInserted inserted) string
+  repeat n s = if n <= 0 then "" else if n == 1 then s else s + repeat (n - 1) s
+  slice = substring
+  left = take
+  right n x = dropLeft (max 0 ((length x) - n)) x
 
-        onInsertLeftRight callbackOnLeftInsertedRight string = Update.lens {
-          apply string = string
-          update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
-            let aux offset outputNewUpdated revDiffsUpdated oldDiffs = case oldDiffs of
-              [] -> Ok (InputsWithDiffs [
-                (outputNewUpdated, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
-              ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
-                let inserted = substring (start + offset) (start + offset + replaced) outputNewUpdated in
-                let left = take (start+offset) outputNewUpdated in
-                let right = drop (start+offset+replaced) outputNewUpdated in
-                let newInserted = callbackOnLeftInsertedRight left inserted right in
-                let lengthNewInserted = length newInserted in
-                let newOffset = offset + lengthNewInserted - (end - start) in
-                let (newOutputNewUpdated, newDiff) = if inserted /= newInserted then
-                   ( take (start + offset) outputNewUpdated +
-                     newInserted + drop (start + offset + replaced) outputNewUpdated
-                   , StringUpdate start end lengthNewInserted)
-                   else (outputNewUpdated, headDiff)
-                in
-                aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs
-             in aux 0 outputNew [] sDiffs
-         } string
+  uncons s = case extractFirstIn "^([\\s\\S])([\\s\\S]*)$" s of
+    Just [x, y] -> Just (x, y)
+    Nothing -> Nothing
 
-        fixTagUpdates string = Update.lens {
-           apply string = string
-           update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
-             let aux offset revDiffsUpdated oldDiffs = case oldDiffs of
-               [] -> Ok (InputsWithDiffs [
-                 (outputNew, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
-               ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
-                 let inserted = substring (start + offset) (start + offset + replaced) outputNew in
-                 let deleted = substring start end outputOld in
-                 let right = drop (start + offset + replaced) outputNew in
-                 let left = take (start + offset) outputNew in
-                 let newOffset = offset + replaced - (end - start) in
-                 let newDiff =
-                      if Regex.matchIn "^><" inserted  && Regex.matchIn "^>" right then
-                        StringUpdate (start + 1) (end + 1) replaced
-                      else if Regex.matchIn "<$" left && Regex.matchIn "><$" inserted then
-                        StringUpdate (start - 1) (end - 1) replaced
-                      else if Regex.matchIn "</$" left && Regex.matchIn "></$" inserted then
-                        StringUpdate (start - 2) (end - 2) replaced
-                      else if inserted == "" && Regex.matchIn "<$" left && Regex.matchIn "<$" deleted then
-                        StringUpdate (start - 1) (end - 1) replaced
-                      else if inserted == "" && Regex.matchIn "^>" deleted && Regex.matchIn "^>" right then
-                        StringUpdate (start + 1) (end + 1) replaced
-                      else
-                        headDiff
-                 in
-                 aux newOffset (newDiff::revDiffsUpdated) tailOldDiffs
-              in aux 0 [] sDiffs
-          } string
-    }
-
-    newlines = {
-      isCRLF = Regex.matchIn "\r\n"
-      toUnix string =
-        if isCRLF string then
-          Regex.replace "\r" (\_ -> freeze "") string
-          |> update.onInsert (Regex.replace "\n" (\_ -> "\r\n"))
-        else
-          string
-    }
-
-    markdown text =
-      let escapeHtml = Regex.replace "[<>&]" (case of
-            {match = "<"} -> freeze "&lt;"
-            {match = ">"} -> freeze "&gt;"
-            {match = "&"} -> freeze "&amp;")
-          escapeAttribute = Regex.replace "\r?\n|\"" (case of
-            "\"" -> "\\\""
-            _ -> "")
-          notincode = """(?!(?:(?!<code>)[\s\S])*</code>)"""
-          notinulol = """(?!(?:(?!<[uo]l>)[\s\S])*</[uo]l>)"""
-          notinattr = """(?!(?:(?!<)[\s\S])*>)"""
-          regexFootnotes = """\r?\n\[\^@notincode([^\]]+)\]:\s*@notincode((?:(?!\r?\n\r?\n)[\s\S])+)@notincode"""
-          regexReferences = """\r?\n\[(?!\^)([^\]\\]+)\]:\s*@notincode(\S+)@notincode"""
-          footnotes = Regex.find regexFootnotes text
-                       |> List.map (\m -> (nth m 1, nth m 2))
-                       |> List.indexedMap (\i (name, value) -> (name, (i + 1, value)))
-          references = Regex.find regexReferences text
-                       |> List.map (\m -> (nth m 1, nth m 2))
-          r  = Regex.replace
-          lregex = """(?:\r?\n|^)((?:(?![\r\n])\s)*)(\*|-|\d+\.)(\s+)((?:@notincode.*)(?:\r?\n\1  ?\3(?:@notincode.*))*(?:\r?\n\1(?:\*|-|\d+\.)\3(?:@notincode.*)(?:\r?\n\1 \3(?:@notincode.*))*)*)@notincode"""
-          handleLists text  =
-            flip (r lregex) text <|
-              \m -> let indent = nth m.group 1
-                        afterindent = nth m.group 3
-                        symbol = nth m.group 2
-                        ul_ol = Update.bijection
-                                 (case of "*" -> "ul"; "-" -> "ul"; _ -> "ol")
-                                 (case of
-                                   "ul" -> if symbol == "*" || symbol == "-" then symbol else "*"
-                                   "ol" -> if symbol == "*" || symbol == "-" then "1." else symbol
-                                   x -> error """tag name '@x' not compatible with ul or ol""")
-                                 symbol
-                        elements =
-                          Regex.split """\r?\n@indent(?:\*|-|\d+\.)@afterindent""" (nth m.group 4)
-                        insertionPoint callback = Update.lens {
-                          apply elements = ""
-                          update {input=elements, output} =
-                            case Regex.extract """^<li>([\s\S]*)</li>$""" output of
-                              Just [content] ->
-                                Ok (Inputs [callback elements (Regex.split """</li><li>""" content)]) -- TODO: Precompute diffs (insertions)
-                              _->
-                                Err ("Can only insert <li> elements to lists, got " + output)
-                        } elements
-                        insertAfter = insertionPoint (append)
-                        insertBefore = insertionPoint (flip append)
-                    in
-                    Update.expressionFreeze <|
-                    """<@ul_ol>@insertBefore<li>@(
-                      List.map handleLists elements
-                      |> joinAndSplitBack """</li><li>@notinulol""" "</li><li>")</li>@insertAfter</@ul_ol>"""
-
-          handleblockquotes text =
-            Regex.replace """(?:(?:\r?\n|^)>(?!.*</.*).*)+@notincode""" (\m ->
-             Regex.extract """(\r?\n|^)>([\s\S]*)""" m.match
-             |> Maybe.map (\[newline, content] ->
-               let quoteContent =
-                    Regex.replace """(\r?\n)> *""" (\m -> nth m.group 1) content
-               in
-               let recursivecontent = quoteContent |> handleblockquotes in
-               Update.expressionFreeze """@newline<blockquote>@recursivecontent</blockquote>"""
-             ) |> Maybe.withDefault m.match
-            ) text
-      in (text
-      |> r """(```)([\s\S]*?)\1(?!`)|(\r?\n *|^ *)((?:\r?\n    .*)+)""" (\m ->
-        if nth m.group 1 == "" then
-          nth m.group 4 |>
-          Regex.extract """^\r?\n    ([\s\S]*)$""" |>
-          Maybe.map (\[code] ->
-                  nth m.group 3 + """<pre><code>@(Regex.split """\r?\n    """ code |> join "\n" |> trim |> escapeHtml)</code></pre>""")
-          |> Maybe.withDefault m.match
-        else
-        """<pre><code>@(nth m.group 2 |> trim |> escapeHtml)</code></pre>""")
-      |> handleblockquotes
-      |> r """(`)(?=[^\s`])(@notincode.*?)\1@notincode""" (\m -> """<code>@(nth m.group 2 |> escapeHtml)</code>""")
-      |> r """(?:@regexReferences|@regexFootnotes)@notincode""" (\m -> "")
-      |> (\result -> -- Expand footnotes
-        if List.length footnotes == 0 then result
-        else result + """
-    <div class="footnotes"><hr><ol>@(footnotes |>
-                List.map (\(name, (n, value)) ->
-                  """<li id="fn@n"><p>@value<a href="#fnref@n">↩</a></p></li>"""
-                ) |> join "")</ol></div>"""
-           )
-      |> r """(^|\r?\n)(#+)\s*(@notincode[^\r\n]*)@notincode""" (\m ->
-        let hlevel = """h@(length (nth m.group 2))""" in
-        Update.expressionFreeze """@(nth m.group 1)<@hlevel>@(nth m.group 3)</@hlevel>""")
-      |> handleLists
-      |> r """(?:(\r?\n *\r?\n)(?:\\noindent\r?\n)?|^)((?=\s*\w|\S)@notincode[\s\S]*?)(?=(\r?\n *\r?\n|\r?\n$|$))@notincode""" (
-        \m ->
-          if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
-           || Regex.matchIn """</?(?:h\d|ul|ol|p|pre|center)>""" (nth m.group 2) then m.match else Update.expressionFreeze """@(nth m.group 1)<p>@(nth m.group 2)</p>""")
-      |> r """(!?)\[([^\]\[\\]+)\](\^?)(\(|\[)([^\[\)\]\s]+)\s?"?([^\)\]"]+)?"?(?:\)|\])|(?:http|ftp|https):\/\/(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?@notincode@notinattr""" (
-        \{group=[match, picPrefix, text, targetblank, parensStyle, url, title]} ->  -- Direct and indirect References + syntax ^ to open in external page.
-        let a = if picPrefix == "!" then "img" else "a"
-            aclose = if picPrefix == "!" then "" else text + "</a>"
-            href = if picPrefix == "!" then "src" else "href"
-            t = if title == "" then "" else " title='" + title + "'"
-            targetblank = if targetblank == "^" then """ target='_blank'""" else ""
-            alt = if picPrefix == "!" then """ alt='@text'""" else ""
-        in
-        case parensStyle of
-          "(" -> Update.expressionFreeze """<@a @t @href="@url"@targetblank@alt>@aclose"""
-          "[" -> listDict.get url references |> case of
-                Just link -> Update.expressionFreeze """<@a @t @href="@link"@targetblank@alt>@aclose"""
-                Nothing -> match
-          _ -> """<a href="@match">@(escapeHtml match)</a>"""
-          )
-      |> r """\[\^(@notincode[^\]]+)\]@notincode""" (\m ->  -- Footnotes
-        listDict.get (nth m.group 1) footnotes |> case of
-          Just (n, key) -> Update.expressionFreeze """<a href="#fn@n" title="@(escapeAttribute key)" class="footnoteRef" id="fnref@n"><sup>@n</sup></a>"""
-          Nothing -> m.match)
-      |> r """(\*{1,3}|_{1,3})(?=[^\s\*_])(@notincode(?:(?!\\\*|\_).)*?)(\1)@notincode@notinattr""" (\m ->
-        let content = nth m.group 2 in
-        let n = nth m.group 1 |> length in
-        let m = nth m.group 3 |> length in
-        let (start, end)= Update.lens2 {
-          apply (n, m) = case n of
-            1 -> ("<em>", "</em>")
-            2 -> ("<strong>", "</strong>")
-            3 -> ("<em><strong>", "</strong></em>")
-          update {outputNew=(start,end)} = case (start, end) of
-            ("", "") -> Ok (Inputs [(0, 0)])
-            ("<span>", "</span>") -> Ok (Inputs [(0, 0)])
-            ("<em>", "</em>") -> Ok (Inputs [(1, 1)])
-            ("<strong>", "</strong>") -> Ok (Inputs [(2, 2)])
-            _ -> Err "Cannot touch em and strong tags directly. For now, just delete and replace the text without italics/bold"
-        } n m
-        in start + content + end)
-      |> r """(&mdash;|\\\*|\\_|\\\[|\\\]|  \r?\n)@notincode""" (\m -> case m.match of
-        "&mdash;" -> "—"
-        "\\*" -> drop 1 m.match
-        "\\_" -> drop 1 m.match
-        "\\[" -> drop 1 m.match
-        "\\]" -> drop 1 m.match
-        "  \r\n" -> "<br>"
-        "  \n" -> "<br>"
-        )
-      |> update.onInsertLeftRight (\left inserted right ->
-        let
-          inserted =
-            Regex.replace """<(b|i|em|strong)>(?=\S)((?:(?!</\1\s*>).)*\S)</\1\s*>""" (\m ->
-              let tag = nth m.group 1
-                  content = nth m.group 2
-              in if tag == "b" || tag == "strong" then
-                "**" + content + "**"
-              else
-                "*" + content + "*"
-            ) inserted
-          inserted = case Regex.extract """^([\s\S]*)</p>\s*<p>([\s\S]*)$""" inserted of
-            Just [before, after] -> before + "\n\n" + after
-            _ -> inserted
-          inserted = case Regex.extract """^([\s\S]*)<div>([\s\S]*)</div>([\s\S]*)$""" inserted of
-            Just [before, paragraph, after] ->
-               before + "\n\n" + paragraph + after
-            _ -> inserted
-          inserted = case Regex.extract """^([\s\S]*)<(/?)(b|i|strong|em)\s*>([\s\S]*)$""" inserted of
-            Just [before, mbSlash, bi, after] ->
-              let mdtag = if bi == "b" || bi == "strong" then "**" else "*" in
-              let mdtagregex = if bi == "b" then "\\*\\*" else "\\*" in
-              if mbSlash == "" && Regex.matchIn """^\S(?:(?!</@bi\s*>).)*?\S</@bi\s*>""" (after + right) then
-                before + mdtag + after
-              else if mbSlash == "/" && Regex.matchIn """@mdtagregex\S(?:(?!@mdtagregex).)*?$""" (left + before) then
-                before + mdtag + after
-              else inserted
-            _ -> inserted
-          inserted = Regex.replace """<a href="((?:(?!</a>).)*)">((?:(?!</a>).)*)</a>""" (\{submatches=[url, text]} ->
-               "[" + text + "]("+ url +")"
-            ) inserted
-          inserted = Regex.replace """<img[^>]+\bsrc=[^>]+>""" (\match ->
-             case htmlViaEval match.match of
-                [["img", attrs, _]] ->
-                  let title = attrDict.get "title" attrs |> Maybe.map (\x -> " \"" + x + "\"") |> Maybe.withDefault ""
-                      alt = attrDict.get "alt" attrs |> Maybe.map (\x -> if x == "" then "Image" else x) |> Maybe.withDefault "Image"
-                      url = attrDict.get "src" attrs |> Maybe.withDefault "url"
-                  in
-                  "![" + alt + "]("+ url + title + ")"
-                _ -> match.match) inserted
-          inserted = Regex.replace "<br>" (\m ->
-            case Regex.extract """\n( *(?:[\*\d\.] *)*).*""" (left + take (nth m.start 0) m.match) of
-              Just [indent] -> "  \n" + (repeat (length indent) " ")
-              _ -> m.match) inserted
-        in inserted
-        )
-      |> update.fixTagUpdates
-      )
-
-    q3 = "\"\"\"" -- To interpolate triple quotes into strings
+  padLeft n c = Update.lens {
+    apply s = (List.range 1 (n - length s) |> List.map (always c) |> join "") + s
+    update {outputNew} =
+       case extractFirstIn ("^(" + c + ")*([\\s\\S]*)$") outputNew of
+         Just [padding, str] -> Ok (Inputs [str])
+         Nothing -> Err "String.pad could not complete"
   }
+
+  toInt = Update.lens
+    { apply x = strToInt x
+      unapply output = Just (toString output) }
+
+  toFloat = Update.lens
+      { apply x = strToFloat x -- TODO: Recognize strange floats (e.g. NaN, infinity)
+        unapply output = Just (toString output) }
+
+  join delimiter x =
+    if delimiter == "" then join_ x
+    else join__ delimiter x
+
+  -- In the forward direction, it joins the string.
+  -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
+  joinAndSplitBack regexSplit delimiter x = if delimiter == "" then join_ x else {
+        apply x = join__ delimiter x
+        update {output, oldOutput, diffs} =
+          Ok (Inputs [Regex.split regexSplit output])
+      }.apply x
+
+  length = Update.lens {
+    apply = length
+    update {input, oldOutput, newOutput} =
+      if newOutput < oldOutput then
+        Ok (InputsWithDiffs [(take newOutput input, Just (VStringDiffs [StringUpdate newOutput oldOutput 0]))])
+      else if newOutput == oldOutput then
+        Ok (InputsWithDiffs [(input, Nothing)])
+      else
+        let increment = newOutput - oldOutput in
+        let addition = makeSize (if input == "" then "#" else input) increment in
+        Ok (InputsWithDiffs [(input + addition, Just (VStringDiffs [StringUpdate oldOutput oldOutput increment]))])
+    }
+
+  trim s =
+    case extractFirstIn "^\\s*([\\s\\S]*?)\\s*$" s of
+      Just [trimmed] -> trimmed
+      _ -> s
+
+  update = {
+      freezeRight = Update.lens {
+        apply x = x
+        update {input, outputNew} =
+          if take (length input) outputNew == input then
+            Err <| "Cannot add anything to the right of '" + input + "'"
+          else
+            Ok <| Inputs [outputNew]
+      }
+
+      freezeLeft x = Update.lens {
+        apply x = x
+        update {input, outputNew} =
+          if drop (length outputNew - input) outputNew == input then
+            Err <| "Cannot add anything to the left of '" + input + "'"
+          else
+            Ok <| Inputs [outputNew]
+      }
+
+      debug tag text = onDeleteInsertLeftRight (\l d i r ->
+        Debug.log (tag + " deleted: " + toString d + ", left: " + toString (drop (max 0 (length l - 100)) l) + ", right: " + toString (take 100 r) + ", inserted:") i) text
+
+      onInsert callbackOnInserted string =
+        onDeleteInsertLeftRight (\left deleted inserted right -> callbackOnInserted inserted) string
+
+      onDeleteInsertLeftRight callbackOnLeftDeletedInsertedRight string = Update.lens {
+        apply string = string
+        update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
+          let aux offset outputNewUpdated revDiffsUpdated oldDiffs = case oldDiffs of
+            [] -> Ok (InputsWithDiffs [
+              (outputNewUpdated, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
+            ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
+              let inserted = substring (start + offset) (start + offset + replaced) outputNewUpdated in
+              let left = take (start+offset) outputNewUpdated in
+              let right = drop (start+offset+replaced) outputNewUpdated in
+              let deleted = substring start end outputOld in
+              let newInserted = callbackOnLeftDeletedInsertedRight left deleted inserted right in
+              let lengthNewInserted = length newInserted in
+              let newOffset = offset + lengthNewInserted - (end - start) in
+              let (newOutputNewUpdated, newDiff) = if inserted /= newInserted then
+                 ( take (start + offset) outputNewUpdated +
+                   newInserted + drop (start + offset + replaced) outputNewUpdated
+                 , StringUpdate start end lengthNewInserted)
+                 else (outputNewUpdated, headDiff)
+              in
+              aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs
+           in aux 0 outputNew [] sDiffs
+       } string
+
+      fixTagUpdates string = Update.lens {
+         apply string = string
+         update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
+           let aux offset revDiffsUpdated oldDiffs = case oldDiffs of
+             [] -> Ok (InputsWithDiffs [
+               (outputNew, Just (VStringDiffs (List.reverse revDiffsUpdated)))])
+             ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
+               let continueWith callback = case tailOldDiffs of
+                 StringUpdate start2 end2 replaced2 :: tailTailOldDiffs->
+                   if start2 <= end + 2 && start2 /= end then -- Second condition necessary to not merge immediate deletion/insertions
+                     if not <| Regex.matchIn "[<>]" (substring end start2 outputOld) then
+                       aux offset revDiffsUpdated (StringUpdate start end2 (replaced + replaced2 + start2 - end) :: tailTailOldDiffs)
+                     else
+                       callback ()
+                   else
+                     callback ()
+                 _ ->
+                 callback ()
+               in
+               continueWith <| \_ ->
+               let inserted = substring (start + offset) (start + offset + replaced) outputNew in
+               let deleted = substring start end outputOld in
+               let right = drop (start + offset + replaced) outputNew in
+               let rightOld = drop end outputOld in
+               let left = take (start + offset) outputNew in
+               let newOffset = offset + replaced - (end - start) in
+               if Regex.matchIn """^<[\s\S]*>$""" inserted && Regex.matchIn """^<[\s\S]*>$""" deleted then
+                 -- <img> --> <br> It should be a true replacement instead, else we'll back-propagate the transformation inside the <>
+                 aux offset revDiffsUpdated (StringUpdate start end 0 :: StringUpdate end end replaced :: tailOldDiffs)
+               else
+               let newDiff =
+                    if Regex.matchIn "^><" inserted  && Regex.matchIn "^>" right then
+                      StringUpdate (start + 1) (end + 1) replaced
+                    else if Regex.matchIn "<$" left && Regex.matchIn "><$" inserted then
+                      StringUpdate (start - 1) (end - 1) replaced
+                    else if Regex.matchIn "</$" left && Regex.matchIn "></$" inserted then
+                      StringUpdate (start - 2) (end - 2) replaced
+                    else if Regex.matchIn "<$" left && Regex.matchIn "<$" deleted then
+                      StringUpdate (start - 1) (end - 1) replaced
+                    else if Regex.matchIn "^>" deleted && Regex.matchIn "^>" right then
+                      StringUpdate (start + 1) (end + 1) replaced
+                    else if Regex.matchIn "<$" left && Regex.matchIn "^>" right && Regex.matchIn "^>" rightOld then -- We expand the replacement
+                      StringUpdate (start - 1) (end + 1) (replaced + 2)
+                    else
+                      headDiff
+               in
+               aux newOffset (newDiff::revDiffsUpdated) tailOldDiffs
+            in aux 0 [] sDiffs
+        } string
+  }
+
+  newlines = {
+    isCRLF = Regex.matchIn "\r\n"
+    toUnix string =
+      if isCRLF string then
+        Regex.replace "\r" (\_ -> freeze "") string
+        |> update.onInsert (Regex.replace "\n" (\_ -> "\r\n"))
+      else
+        string
+  }
+
+  markdown text =
+    let escapeHtml = Regex.replace "[<>&]" (case of
+          {match = "<"} -> freeze "&lt;"
+          {match = ">"} -> freeze "&gt;"
+          {match = "&"} -> freeze "&amp;")
+        escapeAttribute = Regex.replace "\r?\n|\"" (case of
+          "\"" -> "\\\""
+          _ -> "")
+        notincode = """(?!(?:(?!<code>)[\s\S])*</code>)"""
+        notinulol = """(?!(?:(?!<[uo]l>)[\s\S])*</[uo]l>)"""
+        notinattr = """(?!(?:(?!<)[\s\S])*>)"""
+        regexFootnotes = """\r?\n\[\^@notincode([^\]]+)\]:\s*@notincode((?:(?!\r?\n\r?\n)[\s\S])+)@notincode"""
+        regexReferences = """\r?\n\[(?!\^)([^\]\\]+)\]:\s*@notincode(\S+)@notincode"""
+        footnotes = Regex.find regexFootnotes text
+                     |> List.map (\m -> (nth m 1, nth m 2))
+                     |> List.indexedMap (\i (name, value) -> (name, (i + 1, value)))
+        references = Regex.find regexReferences text
+                     |> List.map (\m -> (nth m 1, nth m 2))
+        r  = Regex.replace
+        lregex = """(?:\r?\n|^)((?:(?![\r\n])\s)*)(\*|-|\d+\.)(\s+)((?:@notincode.*)(?:\r?\n\1  ?\3(?:@notincode.*))*(?:\r?\n\1(?:\*|-|\d+\.)\3(?:@notincode.*)(?:\r?\n\1 \3(?:@notincode.*))*)*)@notincode"""
+        handleLists text  =
+          flip (r lregex) text <|
+            \m -> let indent = nth m.group 1
+                      afterindent = nth m.group 3
+                      symbol = nth m.group 2
+                      ul_ol = Update.bijection
+                               (case of "*" -> "ul"; "-" -> "ul"; _ -> "ol")
+                               (case of
+                                 "ul" -> if symbol == "*" || symbol == "-" then symbol else "*"
+                                 "ol" -> if symbol == "*" || symbol == "-" then "1." else symbol
+                                 x -> error """tag name '@x' not compatible with ul or ol""")
+                               symbol
+                      elements =
+                        Regex.split """\r?\n@indent(?:\*|-|\d+\.)@afterindent""" (nth m.group 4)
+                      insertionPoint callback = Update.lens {
+                        apply elements = ""
+                        update {input=elements, output} =
+                          case Regex.extract """^<li>([\s\S]*)</li>$""" output of
+                            Just [content] ->
+                              Ok (Inputs [callback elements (Regex.split """</li><li>""" content)]) -- TODO: Precompute diffs (insertions)
+                            _->
+                              Err ("Can only insert <li> elements to lists, got " + output)
+                      } elements
+                      insertAfter = insertionPoint (append)
+                      insertBefore = insertionPoint (flip append)
+                  in
+                  Update.expressionFreeze <|
+                  """<@ul_ol>@insertBefore<li>@(
+                    List.map handleLists elements
+                    |> joinAndSplitBack """</li><li>@notinulol""" "</li><li>")</li>@insertAfter</@ul_ol>"""
+
+        handleblockquotes text =
+          Regex.replace """(?:(?:\r?\n|^)>(?!.*</.*).*)+@notincode""" (\m ->
+           Regex.extract """(\r?\n|^)>([\s\S]*)""" m.match
+           |> Maybe.map (\[newline, content] ->
+             let quoteContent =
+                  Regex.replace """(\r?\n)> *""" (\m -> nth m.group 1) content
+             in
+             let recursivecontent = quoteContent |> handleblockquotes in
+             Update.expressionFreeze """@newline<blockquote>@recursivecontent</blockquote>"""
+           ) |> Maybe.withDefault m.match
+          ) text
+    in let
+    text =
+      r """(```)([\s\S]*?)\1(?!`)|(\r?\n *|^ *)((?:\r?\n    .*)+)""" (\m ->
+      if nth m.group 1 == "" then
+        nth m.group 4 |>
+        Regex.extract """^\r?\n    ([\s\S]*)$""" |>
+        Maybe.map (\[code] ->
+                nth m.group 3 + """<pre><code>@(Regex.split """\r?\n    """ code |> join "\n" |> trim |> escapeHtml)</code></pre>""")
+        |> Maybe.withDefault m.match
+      else
+      """<pre><code>@(nth m.group 2 |> trim |> escapeHtml)</code></pre>""") text
+    text =  handleblockquotes text
+    text =  r """(`)(?=[^\s`])(@notincode.*?)\1@notincode""" (\m -> """<code>@(nth m.group 2 |> escapeHtml)</code>""") text
+    text =  r """(?:@regexReferences|@regexFootnotes)@notincode""" (\m -> "") text
+    text = -- Expand footnotes
+      if List.length footnotes == 0 then text
+      else text + """
+  <div class="footnotes"><hr><ol>@(footnotes |>
+              List.map (\(name, (n, value)) ->
+                """<li id="fn@n"><p>@value<a href="#fnref@n">↩</a></p></li>"""
+              ) |> join "")</ol></div>"""
+    text = r """(^|\r?\n)(#+)\s*(@notincode[^\r\n]*)@notincode""" (\m ->
+      let hlevel = """h@(length (nth m.group 2))""" in
+      Update.expressionFreeze """@(nth m.group 1)<@hlevel>@(nth m.group 3)</@hlevel>""") text
+    text = handleLists text
+    text = r """(?:(\r?\n *\r?\n)(?:\\noindent\r?\n)?|^)((?=\s*\w|\S)@notincode[\s\S]*?)(?=(\r?\n *\r?\n|\r?\n$|$))@notincode""" (
+      \m ->
+        if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
+         || Regex.matchIn """</?(?:h\d|ul|ol|p|pre|center)>""" (nth m.group 2) then m.match else Update.expressionFreeze """@(nth m.group 1)<p>@(nth m.group 2)</p>""") text
+    text = r """(!?)\[([^\]\[\\]+)\](\^?)(\(|\[)([^\[\)\]\s]+)\s?"?([^\)\]"]+)?"?(?:\)|\])|(?:http|ftp|https):\/\/(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?@notincode@notinattr""" (
+      \{group=[match, picPrefix, text, targetblank, parensStyle, url, title]} ->  -- Direct and indirect References + syntax ^ to open in external page.
+      let a = if picPrefix == "!" then "img" else "a"
+          aclose = if picPrefix == "!" then "" else text + "</a>"
+          href = if picPrefix == "!" then "src" else "href"
+          t = if title == "" then "" else " title='" + title + "'"
+          targetblank = if targetblank == "^" then """ target='_blank'""" else ""
+          alt = if picPrefix == "!" then """ alt='@text'""" else ""
+      in
+      case parensStyle of
+        "(" -> (Update.freezeWhen True toString (\a t href url targetblank alt aclose -> """<@a @t @href="@url"@targetblank@alt>@aclose"""))
+                  a t href url targetblank alt aclose
+        "[" -> listDict.get url references |> case of
+              Just link -> Update.expressionFreeze """<@a @t @href="@link"@targetblank@alt>@aclose"""
+              Nothing -> match
+        _ -> """<a href="@match">@(escapeHtml match)</a>"""
+        ) text
+    text = r """\[\^(@notincode[^\]]+)\]@notincode""" (\m ->  -- Footnotes
+      listDict.get (nth m.group 1) footnotes |> case of
+        Just (n, key) -> Update.expressionFreeze """<a href="#fn@n" title="@(escapeAttribute key)" class="footnoteRef" id="fnref@n"><sup>@n</sup></a>"""
+        Nothing -> m.match) text
+    text = r """(\*{1,3}|_{1,3})(?=[^\s\*_])(@notincode(?:(?!\\\*|\_).)*?)(\1)@notincode@notinattr""" (\m ->
+      let content = nth m.group 2 in
+      let n = nth m.group 1 |> length in
+      let m = nth m.group 3 |> length in
+      let (start, end)= Update.lens2 {
+        apply (n, m) = case n of
+          1 -> ("<em>", "</em>")
+          2 -> ("<strong>", "</strong>")
+          3 -> ("<em><strong>", "</strong></em>")
+        update {outputNew=(start,end)} = case (start, end) of
+          ("", "") -> Ok (Inputs [(0, 0)])
+          ("<span>", "</span>") -> Ok (Inputs [(0, 0)])
+          ("<em>", "</em>") -> Ok (Inputs [(1, 1)])
+          ("<strong>", "</strong>") -> Ok (Inputs [(2, 2)])
+          _ -> Err "Cannot touch em and strong tags directly. For now, just delete and replace the text without italics/bold"
+      } n m
+      in start + content + end) text
+    text = r """(&mdash;|\\\*|\\_|\\\[|\\\]|  \r?\n)@notincode""" (\m -> case m.match of
+      "&mdash;" -> "—"
+      "\\*" -> drop 1 m.match
+      "\\_" -> drop 1 m.match
+      "\\[" -> drop 1 m.match
+      "\\]" -> drop 1 m.match
+      "  \r\n" -> "<br>"
+      "  \n" -> "<br>"
+      ) text
+    text = update.onDeleteInsertLeftRight (\left deleted inserted right ->
+      let
+        inserted =
+          Regex.replace """<(b|i|em|strong)>(?=\S)((?:(?!</\1\s*>).)*\S)</\1\s*>""" (\m ->
+            let tag = nth m.group 1
+                content = nth m.group 2
+            in if tag == "b" || tag == "strong" then
+              "**" + content + "**"
+            else
+              "*" + content + "*"
+          ) inserted
+        inserted = case Regex.extract """^([\s\S]*)</p>\s*<p>([\s\S]*)$""" inserted of
+          Just [before, after] -> before + "\n\n" + after
+          _ -> inserted
+        inserted = case Regex.extract """^([\s\S]*)<div>([\s\S]*)</div>([\s\S]*)$""" inserted of
+          Just [before, paragraph, after] ->
+             before + "\n\n" + paragraph + after
+          _ -> inserted
+        inserted = case Regex.extract """^([\s\S]*)<(/?)(b|i|strong|em)\s*>([\s\S]*)$""" inserted of
+          Just [before, mbSlash, bi, after] ->
+            let mdtag = if bi == "b" || bi == "strong" then "**" else "*" in
+            let mdtagregex = if bi == "b" then "\\*\\*" else "\\*" in
+            if mbSlash == "" && Regex.matchIn """^\S(?:(?!</@bi\s*>).)*?\S</@bi\s*>""" (after + right) then
+              before + mdtag + after
+            else if mbSlash == "/" && Regex.matchIn """@mdtagregex\S(?:(?!@mdtagregex).)*?$""" (left + before) then
+              before + mdtag + after
+            else inserted
+          _ -> inserted
+        inserted = Regex.replace """<a href="((?:(?!</a>).)*)">((?:(?!</a>).)*)</a>""" (\{submatches=[url, text]} ->
+             "[" + text + "]("+ url +")"
+          ) inserted
+        inserted = Regex.replace """<img[^>]+\bsrc=[^>]+>""" (\match ->
+           case htmlViaEval match.match of
+              [["img", attrs, _]] ->
+                let title = attrDict.get "title" attrs |> Maybe.map (\x -> " \"" + x + "\"") |> Maybe.withDefault ""
+                    alt = attrDict.get "alt" attrs |> Maybe.map (\x -> if x == "" then "Image" else x) |> Maybe.withDefault "Image"
+                    url = attrDict.get "src" attrs |> Maybe.withDefault "url"
+                in
+                "![" + alt + "]("+ url + title + ")"
+              _ -> match.match) inserted
+      in inserted
+      ) text
+    text = update.fixTagUpdates text
+    in text
+
+  q3 = "\"\"\"" -- To interpolate triple quotes into strings
+}
 
 
 --------------------------------------------------------------------------------

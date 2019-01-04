@@ -1319,9 +1319,10 @@ pruneConcreteDiffs l =
   let aux: List (Int, Int, String) -> List (Int, Int, String)
       aux l = case l of
     ((s1, e1, ss1) as head)::(((s2, e2, ss2)::tail2) as tail1) ->
-       if e1 == s2 then
-         aux ((s1, e2, ss1 ++ ss2)::tail2)
-       else if e1 < s2 then
+       --if e1 == s2 then
+       --  aux ((s1, e2, ss1 ++ ss2)::tail2)
+       --else
+       if e1 <= s2 then
          (s1, e1, ss1) :: aux tail1
        else aux (head::tail2)
     _ -> l

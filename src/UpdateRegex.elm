@@ -58,7 +58,7 @@ join = let
            let strExps = exps |> List.map (\v -> case v.v_ of
              VBase (VString s) -> Ok s
              _ -> Err <| "join expects a list of strings, got " ++ valToString v) |>
-               Utils.projOk in
+                Utils.projOk in
            strExps |> Results.fromResult |> Results.andThen (\input ->
              let lastIndex = List.length input - 1 in
              -- startHead is the real ending position in the oldOutput of the last element considered, hence the start position of the head of input.
@@ -150,12 +150,12 @@ join = let
                        gather (if replaced == 0 then end else -1) (newHead::tail) indexInput startHead newDeltaLengthHeadInput newOffsetOutput diffTail |> Results.andThen (\(newList, newDiffTail) ->
                          let finalDiffs =
                            case newDiffTail of
-                             ((i, ListElemUpdate (VStringDiffs l))::tail) ->
-                               if i == indexInput then
-                                 (i, ListElemUpdate (VStringDiffs (thisDiff::l)))::tail
-                               else
-                                  (indexInput, ListElemUpdate (VStringDiffs [thisDiff]))::newDiffTail
-                             _ -> (indexInput, ListElemUpdate (VStringDiffs [thisDiff]))::newDiffTail
+                              ((i, ListElemUpdate (VStringDiffs l))::tail) ->
+                                if i == indexInput then
+                                   (i, ListElemUpdate (VStringDiffs (thisDiff::l)))::tail
+                                else
+                                   (indexInput, ListElemUpdate (VStringDiffs [thisDiff]))::newDiffTail
+                              _ -> (indexInput, ListElemUpdate (VStringDiffs [thisDiff]))::newDiffTail
                          in
                          ok1 (newList, finalDiffs)
                        )
@@ -286,10 +286,10 @@ lambdaToString oldConcatenationStarts valAfter vdiffs =
         let recoverSubExpressionStringDiffs e = ok1 [] in
         let recoverSubStringsDiffs e = case eAppUnapply1 e of
           Just (_, eStr) -> case eStrUnapply eStr of
-            Just s -> Just (\sd -> case sd of
-              EChildDiffs [(1, EStringDiffs l)] -> Just <| strDiffToConcreteDiff s l
-              _ -> Nothing)
-            _ -> Nothing
+             Just s -> Just (\sd -> case sd of
+               EChildDiffs [(1, EStringDiffs l)] -> Just <| strDiffToConcreteDiff s l
+               _ -> Nothing)
+             _ -> Nothing
           _ -> Nothing
         in
         recoverStringDiffs recoverSubExpressionStringDiffs recoverSubStringsDiffs oldConcatenationStarts newConcatenation listElemDiffs
