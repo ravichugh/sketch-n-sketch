@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 all:
-	hyde --watch --autosync --serve=../
+	hyde --serve=.. --autosync
 
 input:
 	hyde --backward
@@ -13,6 +13,5 @@ watch:
 	hyde --watch --autosync
 
 install:
-	npm install
 	npm install -g http-server-editor
 	npm install -g hyde-build-tool
