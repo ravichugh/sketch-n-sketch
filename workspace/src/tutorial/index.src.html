@@ -1,4 +1,27 @@
-<html xmlns="http://www.w3.org/1999/xhtml">@(load "src/head.src.html")<body>
+createEntry: Int -> (String, String) -> HtmlElement
+createEntry i (filename, filecontent) =
+   let
+     finalname =
+       Regex.extract """^(.*)\.md$""" filename
+       |> Maybe.map (\[name] -> name + ".html")
+       |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
+    
+    [step, title] =
+      Regex.extract """#\s*(Step \d+:\s*)?([^\r\n]+)""" filecontent
+      |> Maybe.withDefaultLazy (\() -> ["", """[Missing # title in @filename]"""])
+   in
+   <li>@step<a href="""@finalname""">@title</a></li>
+
+entries =
+  fs.listdircontent "src/tutorial/posts"
+  |> List.filter (\(filename, _) -> Regex.matchIn """^\d+\.md""" filename)
+  |> List.indexedMap createEntry
+
+indexContent =
+  Html.ul [] [["class", "nobullets"]] entries
+
+main =
+  <html xmlns="http://www.w3.org/1999/xhtml">@(load "src/head.src.html")<body>
   <div id="wrapper">
 
     <div id="header">
@@ -60,21 +83,7 @@
           <li>Step 0: <a href="entrance.html">Entrance Survey</a></li>
         </ul>
 -->
-        <ul class="nobullets">
-          @(fs.listdircontent "src/tutorial/posts"
-           |> List.filter (\(filename, _) ->
-             Regex.matchIn """^\d+\.md""" filename)
-           |> List.indexedMap (\i (filename, filecontent) ->
-             let finalname = Regex.extract """^(.*)\.md$""" filename
-                  |> Maybe.map (\[name] -> name + ".html")
-                  |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
-             in
-             let [step, title] = Regex.extract """#\s*(Step \d+:\s*)?([^\r\n]+)""" filecontent
-                  |> Maybe.withDefaultLazy (\() -> ["", """[Missing # title in @filename]"""])
-             in
-             <li>@step<a href="""@finalname""">@title</a></li>
-           ))
-        </ul>
+        @indexContent
 <!--
         <ul class="nobullets">
           <li>Step 6: <a href="exit.html">Exit Survey</a></li>
