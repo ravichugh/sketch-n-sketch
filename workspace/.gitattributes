@@ -1,0 +1,3 @@
+*.elm text=auto eol=lf
+*.html text=auto eol=lf
+*.md text=auto eol=lf

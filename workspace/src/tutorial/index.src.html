@@ -1,21 +1,39 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <!-- LOAD_SRC src/head.src.html -->
-</head>
-<body>
+createEntry: Int -> (String, String) -> HtmlElement
+createEntry i (filename, filecontent) =
+   let
+     finalname =
+       Regex.extract """^(.*)\.md$""" filename
+       |> Maybe.map (\[name] -> name + ".html")
+       |> Maybe.withDefaultLazy (\() -> """Filename @filename not a *.md""")
+    
+    [step, title] =
+      Regex.extract """#\s*(Step \d+:\s*)?([^\r\n]+)""" filecontent
+      |> Maybe.withDefaultLazy (\() -> ["", """[Missing # title in @filename]"""])
+   in
+   <li>@step<a href="""@finalname""">@title</a></li>
+
+entries =
+  fs.listdircontent "src/tutorial/posts"
+  |> List.filter (\(filename, _) -> Regex.matchIn """^\d+\.md""" filename)
+  |> List.indexedMap createEntry
+
+indexContent =
+  Html.ul [] [["class", "nobullets"]] entries
+
+main =
+  <html xmlns="http://www.w3.org/1999/xhtml">@(load "src/head.src.html")<body>
   <div id="wrapper">
 
     <div id="header">
       <div id="logo"> <h1>Sketch-n-Sketch [Tutorial]</h1> </div>
-      <!-- LOAD_SRC src/menu.src.html -->
+      @(load "src/menu.src.html")
     </div>
 
     <div id="page">
 
       <div class="content">
       <div class="post1">
-        <img width="220px;" style="float: left; padding: 10px;"
+        <img width="220px;" style="float: left; padding: 10px"
              src="icfp-2018/sns-tutorial-icfp-2018-logo.png" />
         <p>
           We presented introductory materials in a
@@ -65,13 +83,7 @@
           <li>Step 0: <a href="entrance.html">Entrance Survey</a></li>
         </ul>
 -->
-        <ul class="nobullets">
-          <li>Step 1: <a href="01.html">Hello, Prodirect Manipulation World!</a></li>
-          <li>Step 2: <a href="02.html">Constant vs. Computed Attributes</a></li>
-          <li>Step 3: <a href="03.html">Indirect Manipulation with UI Widgets</a></li>
-          <li>Step 4: <a href="04.html">Lines and Paths</a></li>
-          <li>Step 5: <a href="05.html">Additional SVG Functionality</a></li>
-        </ul>
+        @indexContent
 <!--
         <ul class="nobullets">
           <li>Step 6: <a href="exit.html">Exit Survey</a></li>
@@ -82,21 +94,21 @@
 
       <div id="sidebar">
         <img width="200px"
-             src="__ROOT__/static/images/tutorial/01/sketch-n-sketch.png"/>
+             src="""@root/static/images/tutorial/01/sketch-n-sketch.png"""/>
         <br><br>
 <!--
         <img width="200px"
-             src="__ROOT__/static/images/tutorial/02/logo-twice.png"/>
+             src="""@root/static/images/tutorial/02/logo-twice.png"""/>
         <br><br>
         <img width="200px"
-             src="__ROOT__/static/images/tutorial/02/chicago-flag.png"/>
+             src="""@root/static/images/tutorial/02/chicago-flag.png"""/>
         <br><br>
 -->
         <img width="200px"
-             src="__ROOT__/static/images/tutorial/03/colored-three-boxes.png"/>
+             src="""@root/static/images/tutorial/03/colored-three-boxes.png"""/>
         <br><br>
         <img width="200px"
-             src="__ROOT__/static/images/tutorial/03/circle-of-boxes-2.png"/>
+             src="""@root/static/images/tutorial/03/circle-of-boxes-2.png"""/>
       </div>
 
       <br class="clearfix" />
@@ -105,9 +117,8 @@
 
   </div> <!-- end id="wrapper" -->
 
-  <!-- LOAD_SRC src/footer.src.html -->
+  @(load "src/footer.src.html")
 
-  <!-- LOAD_SRC src/ga-tracker.src.html -->
+  @(load "src/ga-tracker.src.html")
 
-</body>
-</html>
+</body></html>

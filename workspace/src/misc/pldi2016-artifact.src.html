@@ -1,14 +1,9 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <!-- LOAD_SRC src/head.src.html -->
-</head>
-<body>
+<html xmlns="http://www.w3.org/1999/xhtml">@(load "src/head.src.html")<body>
   <div id="wrapper">
 
     <div id="header">
       <div id="logo"> <h1>Sketch-n-Sketch v0.4.1</h1> </div>
-      <!-- LOAD_SRC src/menu.src.html -->
+      @(load "src/menu.src.html")
     </div>
 
     <div id="page">
@@ -16,7 +11,7 @@
       <div class="content_wide">
       <div class="post0">
         <img width="350px" height="350px" align="right" style="padding: 0 0 30px 30px;"
-             src="__ROOT__/static/images/tutorial/01/sketch-n-sketch.png"/>
+             src="""@root/static/images/tutorial/01/sketch-n-sketch.png"""/>
         <h1>PLDI 2016 Artifact Evaluation</h1>
 
 <br>
@@ -73,7 +68,7 @@ libraries and tools.
         <h3>Quick Start</h3>
 
 <p>
-You can <a href="__ROOT__/releases/v0.4.1/index.html">try Sketch-n-Sketch</a>
+You can <a href="""@root/releases/v0.4.1/index.html""">try Sketch-n-Sketch</a>
 right away by selecting an example using the dropdown menu and then directly
 manipulating the visual output. To edit the program directly, click Edit
 Code, type some changes, and then click Run Code to re-evaluate the program.
@@ -111,7 +106,7 @@ We provide the following resources, along with rough estimates
 of how long you may decide to spend with them.
 </p>
 
-<h4><a href="__ROOT__/blog/03-user-study-videos.html">user study videos</a> (0 &ndash; 45 minutes)</h4>
+<h4><a href="""@root/blog/03-user-study-videos.html""">user study videos</a> (0 &ndash; 45 minutes)</h4>
 <p>
 Parts 1, 2, 3, and 4 (approximately 20 minutes in total) provide
 a high-level overview of Little and Sketch-n-Sketch.
@@ -152,7 +147,7 @@ A simple example that uses both:
 </p>
 
 <img align="right" width="300px" style="padding: 0 20px 0 20px;"
-     src="__ROOT__/static/images/tutorial/03/extra-zones.png"/>
+     src="""@root/static/images/tutorial/03/extra-zones.png"""/>
 
 <pre>
 (def [x y w h] [76 118 127 131])
@@ -309,9 +304,9 @@ is the entry point for assigning triggers using heuristics for disambiguation.
 
   </div> <!-- end id="wrapper" -->
 
-  <!-- LOAD_SRC src/footer.src.html -->
+  @(load "src/footer.src.html")
 
-  <!-- LOAD_SRC src/ga-tracker.src.html -->
+  @(load "src/ga-tracker.src.html")
 
 </body>
 </html>

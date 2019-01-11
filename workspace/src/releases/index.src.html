@@ -1,21 +1,16 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <!-- LOAD_SRC src/head.src.html -->
-</head>
-<body>
+<html xmlns="http://www.w3.org/1999/xhtml">@(load "src/head.src.html")<body>
   <div id="wrapper">
 
     <div id="header">
       <div id="logo"> <h1>Sketch-n-Sketch [Releases]</h1> </div>
-      <!-- LOAD_SRC src/menu.src.html -->
+      @(load "src/menu.src.html")
     </div>
 
     <div id="page">
 
       <div class="content">
       <div class="post1">
-        <h3>Latest Version: <a href="__ROOT__/releases/latest/index.html">v0.7.1</a></h3>
+        <h3>Latest Version: <a href="""@root/releases/latest/index.html""">v0.7.1</a></h3>
         <p>
           Descriptions of the major milestones and a list of
           older versions are below.
@@ -31,20 +26,20 @@
         </p>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/elm-conf-2018/">elm-conf-2018</a></tt>
+            <tt><a href="""@root/releases/elm-conf-2018/""">elm-conf-2018</a></tt>
             Structured Text Editing
             (NOTE: <em>Very</em> rough prototype.)
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/icfp-2018-html/">icfp-2018-html</a></tt>
+            <tt><a href="""@root/releases/icfp-2018-html/""">icfp-2018-html</a></tt>
             Bidirectional HTML Programming
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/icfp-2018-svg/">icfp-2018-svg</a></tt>
+            <tt><a href="""@root/releases/icfp-2018-svg/""">icfp-2018-svg</a></tt>
             Output-Directed SVG Programming
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/icfp-2018-holes/">icfp-2018-holes</a></tt>
+            <tt><a href="""@root/releases/icfp-2018-holes/""">icfp-2018-holes</a></tt>
             Structured Editing with Holes
           </li>
         </ul>
@@ -66,19 +61,19 @@
         <ul class="nobullets">
 <!--
           <li>
-            <tt><a href="__ROOT__/releases/v0.7.2/">v0.7.2</a> (Sep 2018)</tt>
+            <tt><a href="""@root/releases/v0.7.2/""">v0.7.2</a> (Sep 2018)</tt>
             Structured Text Editing, HTML Literals, etc. (ICFP Tutorial 2018 + elm-conf 2018)
           </li>
 -->
           <li>
-            <tt><a href="__ROOT__/releases/v0.7.1/">v0.7.1</a> (Jul 2018)</tt>
+            <tt><a href="""@root/releases/v0.7.1/""">v0.7.1</a> (Jul 2018)</tt>
             Small Changes (OOPSLA 2018 Paper)
           </li>
         </ul>
         <h4>Older Versions</h4>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/v0.7.0/">v0.7.0</a> (Apr 2018)</tt>
+            <tt><a href="""@root/releases/v0.7.0/""">v0.7.0</a> (Apr 2018)</tt>
             Bidirectional Evaluation; New Source and Target Languages
           </li>
         </ul>
@@ -99,7 +94,7 @@
         </p>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/v0.6.3/">v0.6.3</a> (Jan 2018)</tt>
+            <tt><a href="""@root/releases/v0.6.3/""">v0.6.3</a> (Jan 2018)</tt>
             Performance and Other Minor Improvements
           </li>
         <p>
@@ -115,18 +110,18 @@
         <h4>Older Versions</h4>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/v0.6.2/">v0.6.2</a> (Aug 2017)</tt>
+            <tt><a href="""@root/releases/v0.6.2/""">v0.6.2</a> (Aug 2017)</tt>
             Another UI Overhaul + More Code Tools (ICSE 2018 Paper)
 <!--
-            <a href="__ROOT__/blog/06-deuce-user-study.html">User Study</a>
+            <a href="""@root/blog/06-deuce-user-study.html""">User Study</a>
 -->
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.6.1/">v0.6.1</a> (Jun 2017)</tt>
+            <tt><a href="""@root/releases/v0.6.1/""">v0.6.1</a> (Jun 2017)</tt>
             Faster Parser
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.6.0/">v0.6.0</a> (Apr 2017)</tt>
+            <tt><a href="""@root/releases/v0.6.0/""">v0.6.0</a> (Apr 2017)</tt>
             New UI + Direct Manipulation Code Editing
           </li>
 <!--
@@ -153,13 +148,13 @@
         <ul class="nobullets">
 <!--
           <li>
-            <tt><a href="__ROOT__/releases/v0.5.3/">v0.5.3</a> (Oct 2016)</tt>
+            <tt><a href="""@root/releases/v0.5.3/""">v0.5.3</a> (Oct 2016)</tt>
             XXXXXXXXXXXX
             (UIST 2016 Demo)
           </li>
 -->
           <li>
-            <tt><a href="__ROOT__/releases/v0.5.2/">v0.5.2</a> (Sep 2016)</tt>
+            <tt><a href="""@root/releases/v0.5.2/""">v0.5.2</a> (Sep 2016)</tt>
             Basic Repetition
             (Strange Loop 2016 Demo)
           </li>
@@ -173,12 +168,12 @@
         <h4>Older Versions</h4>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/v0.5.1/">v0.5.1</a> (Jul 2016)</tt>
+            <tt><a href="""@root/releases/v0.5.1/""">v0.5.1</a> (Jul 2016)</tt>
             Improved Cursors; Removed Edit Code Button
             (UIST 2016 Paper)
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.5/">v0.5&nbsp;&nbsp;</a> (Apr 2016)</tt>
+            <tt><a href="""@root/releases/v0.5/""">v0.5&nbsp;&nbsp;</a> (Apr 2016)</tt>
             Tools for Drawing, Relating, and Grouping Shapes
           </li>
         </ul>
@@ -197,47 +192,47 @@
         </p>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/v0.4.2/">v0.4.2</a> (Mar 2016)</tt>
-            <!-- Small Improvements for PLDI 2016 Final Version -->
+            <tt><a href="""@root/releases/v0.4.2/""">v0.4.2</a> (Mar 2016)</tt>
+            @([] {-<!-- Small Improvements for PLDI 2016 Final Version -->-})
             Small Improvements
             (PLDI 2016 Paper)
           </li>
         </ul>
         <ul>
-          <li><a href="__ROOT__/blog/03-user-study-videos.html">User Study Videos</a></li>
-          <li><a href="__ROOT__/tutorial/index.html">Tutorial</a></li>
+          <li><a href="""@root/blog/03-user-study-videos.html""">User Study Videos</a></li>
+          <li><a href="""@root/tutorial/index.html""">Tutorial</a></li>
           <li><a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md">Syntax Guide</a></li>
         </ul>
         <h4>Older Versions</h4>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/v0.4.1/">v0.4.1</a> (Feb 2016)</tt>
+            <tt><a href="""@root/releases/v0.4.1/""">v0.4.1</a> (Feb 2016)</tt>
 <!--
             Small Improvements for PLDI 2016 Artifact Evaluation
-            (<a href="__ROOT__/releases/v0.4.1/pldi2016-artifact.html">Instructions</a>)
+            (<a href="""@root/releases/v0.4.1/pldi2016-artifact.html""">Instructions</a>)
 -->
             Small Improvements
-            (<a href="__ROOT__/releases/v0.4.1/pldi2016-artifact.html">Instructions</a>
+            (<a href="""@root/releases/v0.4.1/pldi2016-artifact.html""">Instructions</a>
               for PLDI 2016 Artifact Evaluation)
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.4/">v0.4&nbsp;&nbsp;</a> (Nov 2015)</tt>
+            <tt><a href="""@root/releases/v0.4/""">v0.4&nbsp;&nbsp;</a> (Nov 2015)</tt>
             Native Sliders; Heuristics Modes; Examples; Survey Histograms
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.3/">v0.3&nbsp;&nbsp;</a> (Sep 2015)</tt>
+            <tt><a href="""@root/releases/v0.3/""">v0.3&nbsp;&nbsp;</a> (Sep 2015)</tt>
             Small Tweaks
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.2/">v0.2&nbsp;&nbsp;</a> (Aug 2015)</tt>
+            <tt><a href="""@root/releases/v0.2/""">v0.2&nbsp;&nbsp;</a> (Aug 2015)</tt>
             Small Tweaks
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.1/">v0.1&nbsp;&nbsp;</a> (Aug 2015)</tt>
+            <tt><a href="""@root/releases/v0.1/""">v0.1&nbsp;&nbsp;</a> (Aug 2015)</tt>
             Saving Files; Color/Rotation Zones; Improved Parsing/Unparsing; etc.
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.0/">v0.0&nbsp;&nbsp;</a> (Jul 2015)</tt> Alpha Version
+            <tt><a href="""@root/releases/v0.0/""">v0.0&nbsp;&nbsp;</a> (Jul 2015)</tt> Alpha Version
           </li>
         </ul>
       </div>
@@ -249,7 +244,7 @@
         <h3>Latest Version</h3>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/v0.4.2/">v0.4.2</a> (Mar 2016)</tt>
+            <tt><a href="""@root/releases/v0.4.2/""">v0.4.2</a> (Mar 2016)</tt>
             Small Improvements for PLDI 2016 Final Version
           </li>
         </ul>
@@ -257,8 +252,8 @@
           You may find the following resources helpful:
         </p>
         <ul>
-          <li><a href="__ROOT__/blog/03-user-study-videos.html">User Study Videos</a></li>
-          <li><a href="__ROOT__/tutorial/index.html">Tutorial</a></li>
+          <li><a href="""@root/blog/03-user-study-videos.html""">User Study Videos</a></li>
+          <li><a href="""@root/tutorial/index.html""">Tutorial</a></li>
           <li><a href="https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md">Syntax Guide</a></li>
         </ul>
       </div>
@@ -269,28 +264,28 @@
         <h3>Older Versions</h3>
         <ul class="nobullets">
           <li>
-            <tt><a href="__ROOT__/releases/v0.4.1/">v0.4.1</a> (Feb 2016)</tt>
+            <tt><a href="""@root/releases/v0.4.1/""">v0.4.1</a> (Feb 2016)</tt>
             Small Improvements for PLDI 2016 Artifact Evaluation
-            (<a href="__ROOT__/releases/v0.4.1/pldi2016-artifact.html">Instructions</a>)
+            (<a href="""@root/releases/v0.4.1/pldi2016-artifact.html""">Instructions</a>)
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.4/">v0.4</a> (Nov 2015)</tt>
+            <tt><a href="""@root/releases/v0.4/""">v0.4</a> (Nov 2015)</tt>
             Native Sliders; Heuristics Modes; Examples; Survey Histograms
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.3/">v0.3</a> (Sep 2015)</tt>
+            <tt><a href="""@root/releases/v0.3/""">v0.3</a> (Sep 2015)</tt>
             Small Tweaks
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.2/">v0.2</a> (Aug 2015)</tt>
+            <tt><a href="""@root/releases/v0.2/""">v0.2</a> (Aug 2015)</tt>
             Small Tweaks
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.1/">v0.1</a> (Aug 2015)</tt>
+            <tt><a href="""@root/releases/v0.1/""">v0.1</a> (Aug 2015)</tt>
             Saving Files; Color/Rotation Zones; Improved Parsing/Unparsing; etc.
           </li>
           <li>
-            <tt><a href="__ROOT__/releases/v0.0/">v0.0</a> (Jul 2015)</tt> Alpha Version
+            <tt><a href="""@root/releases/v0.0/""">v0.0</a> (Jul 2015)</tt> Alpha Version
           </li>
         </ul>
 -->
@@ -320,39 +315,39 @@
 -->
         <p>
         <img width="220px"
-             src="__ROOT__/static/images/sns-v070-inspector.png" />
+             src="""@root/static/images/sns-v070-inspector.png""" />
         v0.7.0
         </p>
         <br>
         <p>
         <img width="220px"
-             src="__ROOT__/static/images/sns-v062-wheel.png" />
+             src="""@root/static/images/sns-v062-wheel.png""" />
         v0.6.2
         </p>
         <br>
         <p>
         <img width="220px"
-             src="__ROOT__/static/images/sns-v060-wheel.png" />
+             src="""@root/static/images/sns-v060-wheel.png""" />
         v0.6.0
         </p>
         <br>
         <p>
         <img width="220px"
-             src="__ROOT__/static/images/sns-v051-garden.png" />
+             src="""@root/static/images/sns-v051-garden.png""" />
         v0.5.1
         </p>
         <br>
         <p>
         <img width="220px"
-             src="__ROOT__/static/images/sns-wave.png" />
+             src="""@root/static/images/sns-wave.png""" />
         v0.4
         </p>
         <br>
         <p>
         <img width="225px"
-             src="__ROOT__/static/images/sns-three-boxes.png" />
+             src="""@root/static/images/sns-three-boxes.png""" />
         <img width="225px"
-             src="__ROOT__/static/images/sns-ferris-wheel.png" />
+             src="""@root/static/images/sns-ferris-wheel.png""" />
         v0.0
         </p>
       </div>
@@ -363,9 +358,8 @@
 
   </div> <!-- end id="wrapper" -->
 
-  <!-- LOAD_SRC src/footer.src.html -->
+  @(load "src/footer.src.html")
 
-  <!-- LOAD_SRC src/ga-tracker.src.html -->
+  @(load "src/ga-tracker.src.html")
 
-</body>
-</html>
+</body></html>

@@ -1,16 +1,11 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <!-- LOAD_SRC src/head.src.html -->
-</head>
-<body>
+<html xmlns="http://www.w3.org/1999/xhtml">@(load "src/head.src.html")<body>
   <div id="wrapper">
 
     <div id="header">
       <div id="logo">
         <h1>Sketch-n-Sketch</h1>
       </div>
-      <!-- LOAD_SRC src/menu.src.html -->
+      @(load "src/menu.src.html")
     </div>
 
     <div id="page">
@@ -94,9 +89,9 @@
             (<a href="https://conf.researchr.org/home/icse-2018">ICSE 2018</a>)<br>
             Brian Hempel, Justin Lubin, Grace Lu, and Ravi Chugh<br>
             [ <a href="https://www.youtube.com/watch?v=wU17sNGs_qA">video</a>
-            | <a href="__ROOT__/static/documents/deuce-icse2018-slides.pdf">slides</a>
-            | <a href="__ROOT__/blog/06-deuce-user-study.html">user study</a>
-            | <a href="__ROOT__/blog/05-deuce.html">older videos</a>
+            | <a href="""@root/static/documents/deuce-icse2018-slides.pdf""">slides</a>
+            | <a href="""@root/blog/06-deuce-user-study.html""">user study</a>
+            | <a href="""@root/blog/05-deuce.html""">older videos</a>
             ]
             <br>
             <span class="topic-tag topic-tag-reference topic-tag-ste">Structured Text Editing</span>
@@ -133,7 +128,7 @@
           <li>
             <a href="http://arxiv.org/pdf/1510.06788.pdf">
             <b>Prodirect Manipulation: Bidirectional Programming for the Masses</b></a>
-            (<a href="http://2016.icse.cs.txstate.edu/v2025">V2025</a> @
+            (<a href="http://2016.icse.cs.txstate.edu/v2025">V2025</a> @@
              <a href="http://2016.icse.cs.txstate.edu/">ICSE 2016</a>)<br>
             Ravi Chugh<br>
             [ <a href="http://people.cs.uchicago.edu/~rchugh/static/talks/v2025-prodirect.pptx.pdf">slides</a>
@@ -163,7 +158,7 @@
 
       <div id="sidebar">
         <img width="200px" height="200px"
-             src="__ROOT__/static/images/sketch-n-sketch-logo-gray.svg" />
+             src="""@root/static/images/sketch-n-sketch-logo-gray.svg""" />
       </div>
 
 <!--
@@ -185,7 +180,7 @@
           src="https://www.youtube.com/embed/SoLkTKmr4vU?start=129"
           allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
         ></iframe>
-        Mika&euml;l @ OOPSLA 2018<br>
+        Mika&euml;l @@ OOPSLA 2018<br>
         </p>
 
         <br>
@@ -194,7 +189,7 @@
         <iframe width="225" frameborder="0" allowfullscreen
           src="https://www.youtube.com/embed/-TFL6E1uSHE"
         ></iframe>
-        Ravi @ elm-conf 2018<br>
+        Ravi @@ elm-conf 2018<br>
         </p>
 
         <br>
@@ -203,7 +198,7 @@
         <iframe width="225"
           src="https://www.youtube.com/embed/wU17sNGs_qA"
         ></iframe>
-        Brian @ ICSE 2018<br> (studio recording)
+        Brian @@ ICSE 2018<br> (studio recording)
         </p>
 
         <br>
@@ -212,7 +207,7 @@
         <iframe width="225" frameborder="0" allowfullscreen
           src="https://www.youtube.com/embed/YuGVC8VqXz0"
         ></iframe>
-        Ravi @ Strange Loop 2016
+        Ravi @@ Strange Loop 2016
         </p>
 
         <br>
@@ -221,7 +216,7 @@
         <iframe width="225" frameborder="0" allowfullscreen
           src="https://www.youtube.com/embed/uegysgcsXu8"
         ></iframe>
-        Brian @ UIST 2016
+        Brian @@ UIST 2016
         </p>
 
         <br>
@@ -230,7 +225,7 @@
         <iframe width="225"
           src="https://www.youtube.com/embed/sg_MK1t1Tqg"
         ></iframe>
-        Brian @ PLDI 2016<br> (studio recording)
+        Brian @@ PLDI 2016<br> (studio recording)
         </p>
 <!--
         <p>
@@ -278,7 +273,7 @@
 -->
 <!--
         <video width="225" controls>
-          <source src="__ROOT__/static/videos/SNS-Demo-1a.mp4" type="video/mp4">
+          <source src="""@root/static/videos/SNS-Demo-1a.mp4""" type="video/mp4">
           Your browser does not support the video tag.
         </video> 
         <a href="blog/00-preview.html">Blog Post</a>
@@ -289,9 +284,9 @@
 <!--
         <h3>poster</h3>
 -->
-        <a href="__ROOT__/static/documents/sns-poster.pdf">
-          <img width="225px" src="__ROOT__/static/images/sns-poster.png"/></a>
-        Brian @ <a href="http://ceres.cs.uchicago.edu/">CERES</a> Kickoff<br>
+        <a href="""@root/static/documents/sns-poster.pdf""">
+          <img width="225px" src="""@root/static/images/sns-poster.png"""/></a>
+        Brian @@ <a href="http://ceres.cs.uchicago.edu/">CERES</a> Kickoff<br>
         January 2016
       </div>
 
@@ -301,9 +296,8 @@
 
   </div> <!-- end id="wrapper" -->
 
-  <!-- LOAD_SRC src/footer.src.html -->
+  @(load "src/footer.src.html")
 
-  <!-- LOAD_SRC src/ga-tracker.src.html -->
+  @(load "src/ga-tracker.src.html")
 
-</body>
-</html>
+</body></html>

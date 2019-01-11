@@ -1,14 +1,78 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <!-- LOAD_SRC src/head.src.html -->
-</head>
-<body>
+months: List String
+months = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+ {- 'replaceIfTrue overwrite postcontent' returns "false".
+  If the new output is "true", replaces the content of postcontent by the value of overwrite -}
+replaceIfTrue: String -> String -> String
+replaceIfTrue overwrite =
+  Update.lens {
+    apply p = "false"
+    update {input, outputNew} =
+      if outputNew == "true"
+      then Ok (Inputs ["\nTODO"])
+      else Ok (InputsWithDiffs [(input, Nothing)])
+  }
+
+-- Formats a date like January 2, 2018  to  '02.01.2018'. Also returns the 4-th element which is the content
+formatDateContent: List {-4 elements-} String -> (String {- date -}, String {- content -})
+formatDateContent [month, day, year, content] =
+  let
+    monthnumericRaw =
+      List.indexOf month months
+
+    monthnumeric =
+      String.padLeft 2 "0" (toString monthnumericRaw)
+
+    daynumeric =
+      String.padLeft 2 "0" day
+  in
+    (Update.expressionFreeze """@(monthnumeric).@(daynumeric).@year""", content)
+
+-- Converts the title to a list of HTML elements
+toHTML: List {-1-element-} String -> List HtmlElement
+toHTML [title] =
+  __evaluate__ __CurrentEnv__ """<raw>@title</raw>""" |>
+  case of
+    Ok [_, _, children] -> children
+    Err x -> [<error>@x</error>]
+
+-- Given a filename and a content, creates a <li> entry for the index.
+createEntry (filename, filecontent) =
+    let (date, postcontent) =
+           Regex.extract """\*(\w+) (\d+), (\d\d\d\d)\*.*\r?\n([\s\S]*)$""" filecontent
+           |> Maybe.map formatDateContent
+           |> Maybe.withDefaultLazy (\_ -> ("Date not found in " + filename, Update.freeze ""))
+        
+        finalname =
+           Regex.extract """^(.*)\.md$""" filename
+           |> Maybe.map (\[name] -> name + Update.freeze ".html")
+           |> Maybe.withDefaultLazy (\_ -> """Filename @filename not a *.md""")
+    
+        title = Regex.extract """# ([^\r\n]+)""" filecontent
+          |> Maybe.map toHTML
+          |> Maybe.withDefaultLazy (\_ -> [<error>[Missing title in @filename]</error>])
+    in
+      <li ifnew=@(replaceIfTrue "\nTODO" postcontent)
+        ><tt>@date:</tt> <a href="""@finalname""">@title</a></li>
+
+-- Computes the list of <li> entries
+entries = 
+  fs.listdircontent "src/blog/posts"
+  |> List.reverse
+  |> List.map createEntry
+
+-- Assembles the list of <li> entries
+indexContent =
+  Html.ul [] [["id", "posts"], ["class", "nobullets"]] entries
+
+-- The final html
+main: Html
+main = <html xmlns="http://www.w3.org/1999/xhtml">@(load "src/head.src.html")<body>
   <div id="wrapper">
 
     <div id="header">
       <div id="logo"> <h1>Sketch-n-Sketch [Blog]</h1> </div>
-      <!-- LOAD_SRC src/menu.src.html -->
+      @(load "src/menu.src.html")
     </div>
 
     <div id="page">
@@ -16,18 +80,11 @@
       <div class="content_wide">
       <div class="post0">
         <h3>Posts</h3>
-        <ul class="nobullets">
-          <li><tt>01.31.2018:</tt> <a href="06-deuce-user-study.html">Deuce User Study</a></li>
-          <li><tt>04.17.2017:</tt> <a href="05-deuce.html">Deuce: Lightweight Structured Editing in Sketch-n-Sketch</a></li>
-          <li><tt>04.13.2016:</tt> <a href="04-coffee.html">Researchers in Offices Drawing Coffee</a></li>
-          <li><tt>11.23.2015:</tt> <a href="03-user-study-videos.html">User Study Videos</a></li>
-          <li><tt>09.04.2015:</tt> <a href="02-user-study.html">User Study &mdash; Call for Participants</a></li>
-          <li><tt>07.17.2015:</tt> <a href="01-case-studies.html">Initial Case Studies</a></li>
-          <li><tt>07.09.2015:</tt> <a href="00-preview.html">Sneak Preview</a></li>
-        </ul>
-      </div>
-      </div>
+        @addPostButton
 
+        @indexContent
+      </div>
+      </div>
 <!--
       <div class="content_wide_next">
       <div class="post0">
@@ -39,7 +96,7 @@
 <!--
       <div id="sidebar">
         <img width="200px" height="200px"
-             src="__ROOT__/static/images/sketch-n-sketch-logo-gray.svg" />
+             src="@root/static/images/sketch-n-sketch-logo-gray.svg" />
       </div>
 
       <div id="sidebar_next">
@@ -52,10 +109,37 @@
     </div> <!-- end id="page" -->
 
   </div> <!-- end id="wrapper" -->
+  @(load "src/footer.src.html")
 
-  <!-- LOAD_SRC src/footer.src.html -->
+  @(load "src/ga-tracker.src.html")
+</body></html>
 
-  <!-- LOAD_SRC src/ga-tracker.src.html -->
+onNewPostButtonClickJS: String {- representing Javascript -}
+onNewPostButtonClickJS = """
+  var posts = document.getElementById("posts");
+  var postnum = parseInt(posts.children[0].children[1].getAttribute("href")) + 1;
+  if(postnum < 10) postnum = "0" + postnum
+  else postnum = "" + postnum;
+  
+  var answer = prompt("New post title", "Your title here");
+  if(answer != null && answer.length >= 4) {
+    // We use Editor's API to duplicate a node, and change the duplicated node before it's inserted.
+    duplicate(posts.children[0], { onBeforeInsert: newLi => {
+      var d = new Date();
+      newLi.setAttribute("ifnew", "true");
+      newLi.children[0].innerText = `${('00' + (d.getMonth() + 1)).slice(-2)}.${('00' + d.getDate()).slice(-2)}.${d.getFullYear()}:`
+      var answerFilename = answer.replace(/ /g, "-").replace(/[^\w-]/g, "").toLowerCase();
+      var filename = postnum + "-" + (answerFilename == "" ? "post" : answerFilename);
+      newLi.children[1].setAttribute("href", filename + ".html");
+      newLi.children[1].innerText = answer;
+      return newLi;
+    } });
+  }"""
 
-</body>
-</html>
+addPostButton: HtmlElement
+addPostButton =
+  <button
+    style="display:none"
+    class="editor-menu"
+    onclick=@(onNewPostButtonClickJS)
+  >New post</button>
