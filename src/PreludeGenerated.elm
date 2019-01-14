@@ -1911,6 +1911,7 @@ Debug = {
 htmlViaEval string =
   case __evaluate__ [(\"append\", append)] <| Update.expressionFreeze \"\"\"<raw>@string</raw>\"\"\" of
     Ok [_, _, children] -> children
+    Err msg -> error msg
     _ -> error \"Parsing HTML failed:\"
 
 -- building block for updating
@@ -2835,6 +2836,12 @@ newOutput:@newOutput
 diffs:@(strDiffToConcreteDiff newOutput diffs)\"\"\") \"end\" in
                Ok (InputsWithDiffs [(newOutput, Just diffs)])
              }.apply x
+
+     replaceInstead y x = {
+       apply y = x
+       update {outputNew,diffs} =
+         Ok (InputsWithDiffs [(outputNew, Just diffs)])
+     }.apply y
   }
 
 evaluate program =
@@ -4259,6 +4266,24 @@ String = {
       else
         string
   }
+
+  toLowerCase string =
+    Regex.replace \"[A-Z]\" (\\m ->
+      Update.replaceInstead m.match <|
+      case m.match of
+        \"A\" -> \"a\"; \"B\" -> \"b\"; \"C\" -> \"c\"; \"D\" -> \"d\"; \"E\" -> \"e\"; \"F\" -> \"f\"; \"G\" -> \"g\"; \"H\" -> \"h\"; \"I\" -> \"i\";
+        \"J\" -> \"j\"; \"K\" -> \"k\"; \"L\" -> \"l\"; \"M\" -> \"m\"; \"N\" -> \"n\"; \"O\" -> \"o\"; \"P\" -> \"p\"; \"Q\" -> \"q\"; \"R\" -> \"r\";
+        \"S\" -> \"s\"; \"T\" -> \"t\"; \"U\" -> \"u\"; \"V\" -> \"v\"; \"W\" -> \"w\"; \"X\" -> \"x\"; \"Y\" -> \"y\"; \"Z\" -> \"z\"; _ -> m.match
+      ) string
+
+  toUpperCase string =
+    Regex.replace \"[a-z]\" (\\m ->
+      Update.replaceInstead m.match <|
+      case m.match of
+        \"a\" -> \"A\"; \"b\" -> \"B\"; \"c\" -> \"C\"; \"d\" -> \"D\"; \"e\" -> \"E\"; \"f\" -> \"F\"; \"g\" -> \"G\"; \"h\" -> \"H\"; \"i\" -> \"I\";
+        \"j\" -> \"J\"; \"k\" -> \"K\"; \"l\" -> \"L\"; \"m\" -> \"M\"; \"n\" -> \"N\"; \"o\" -> \"O\"; \"p\" -> \"P\"; \"q\" -> \"Q\"; \"r\" -> \"R\";
+        \"s\" -> \"S\"; \"t\" -> \"T\"; \"u\" -> \"U\"; \"v\" -> \"V\"; \"w\" -> \"W\"; \"x\" -> \"X\"; \"y\" -> \"Y\"; \"z\" -> \"Z\"; _ -> m.match
+      ) string
 
   markdown text =
     let escapeHtml = Regex.replace \"[<>&]\" (case of

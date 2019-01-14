@@ -216,6 +216,28 @@ updateDownPath expr path = let _ = Debug.log """updateDownPath @expr @path""" ()
         in aux v1 path
       Err msg -> error msg
 
+-- transforms a value path to an expression path statically
+-- The context stores only expressions which match the Up of an value
+updateExprPath context expr path = case path of
+  Up :: pathTail ->
+    case context of
+      head :: tail -> updateExprPath tail head pathTail
+      [] -> Debug.log """updateExprPath @context @expr""" path
+  _ -> updateDownPath expr path
+
+-- Given a Down* path to a value and an Expr, computes a Down* path of expressions.
+followExprPath: List Expr -> Path -> Expr -> Maybe (List Expr, Expr)
+followExprPath context path expr =
+  case path of
+    Down x :: pathTail ->
+      case getChild x expr of
+        Just child -> followExprPath (expr :: context) pathTail child
+        Nothing -> Nothing -- Err """No child @x for @expr"""
+    Up :: pathTail -> case context of
+      head :: tail -> followExprPath tail pathTail head
+      _ -> Nothing
+    [] -> Just (context, expr)
+      
 -- Given a diffs, maps all the paths that escape the structure using pathMaker
 -- pathMaker is provided only the part of the path that starts after the Up that
 -- escapes the current scope of the Diffs
@@ -239,13 +261,13 @@ mapEscapingPaths pathMaker diffs = flip List.map diffs <| \diff ->
         (name, Clone newClonePath (mapEscapingPaths updatedPathMaker cdiffs))
 
 type UpdateStep =
-  UpdateContinue Expr Diffs (Diffs -> UpdateStep) |
+  UpdateContinue (List Expr) Expr Diffs (Diffs -> UpdateStep) |
   UpdateAlternative (List (UpdateStep)) |
   UpdateResult Diffs |
   UpdateError String 
 
-getUpdateStep: Expr -> Diffs -> UpdateStep
-getUpdateStep expr vdiffs =
+getUpdateStep: List Expr -> Expr -> Diffs -> UpdateStep
+getUpdateStep context expr vdiffs =
   let mapChildrenPaths: Path {-Value starting at expression -} -> Path {- Expression-based -}
       mapChildrenPaths escapingPath =
         let _ = Debug.log """mapChildrenPaths @escapingPath""" () in
@@ -259,8 +281,8 @@ getUpdateStep expr vdiffs =
   case expr of
   Int x -> UpdateResult vdiffs
   Var x -> UpdateResult vdiffs
-  Parens sub -> 
-    UpdateContinue sub vdiffs <| \newSubDiffsV ->
+  Parens sub -> -- context is not updated because Parens disappears in evaluation
+    UpdateContinue context sub vdiffs <| \newSubDiffsV ->
       let newSubDiffsE = mapEscapingPaths (\escapingPath -> Up :: escapingPath) newSubDiffsV in
       UpdateResult [DUpdate [("_1", newSubDiffsE)]]
   Cons hd tl ->
@@ -268,7 +290,7 @@ getUpdateStep expr vdiffs =
      DUpdate l ->
        let updateContinueSub name subExpr callback = case listDict.get name l of
             Nothing -> callback dSame
-            Just ds -> UpdateContinue subExpr ds callback
+            Just ds -> UpdateContinue (expr::context) subExpr ds callback
        in
        updateContinueSub "hd" hd <| \diffsHdRaw ->
        updateContinueSub "tl" tl <| \diffsTlRaw ->
@@ -277,8 +299,24 @@ getUpdateStep expr vdiffs =
             _ = Debug.log """diffsHdRaw: @diffsHdRaw --> @diffsHdE""" ()
         in
         UpdateResult [simplify (DUpdate [("hd", diffsHdE), ("tl", diffsTlE)])]
-     DNew newE cloneEnv -> UpdateResult [DNew newE <| flip List.map cloneEnv <| \(name, Clone cpath cdiffs) ->
-       (name, Clone (updateDownPath expr cpath) cdiffs)]
+     DNew newE cloneEnv -> 
+       let aux cloneEnv revCloneAcc  = case cloneEnv of
+         [] ->
+           UpdateResult [DNew newE (List.reverse revCloneAcc)]
+         (name, Clone cpath cdiffs)::cloneEnvTail ->
+           if cdiffs == dSame then
+             (name, Clone cpath cdiffs) :: revCloneAcc |>
+             aux cloneEnvTail
+           else
+           let updatedcpath = updateExprPath context expr cpath in
+           case followExprPath context updatedcpath expr of 
+             Nothing -> UpdateError """could not find path in context @(name, Clone updatedcpath cdiffs)"""
+             Just (newContext, subexpr) ->
+               UpdateContinue newContext subexpr cdiffs <| \newcdiffs ->
+               (name, Clone updatedcpath newcdiffs) :: revCloneAcc |>
+               aux cloneEnvTail
+       in aux cloneEnv []
+       -- TODO: what to do with cdiffs? we should walk the tree as well.
     ) |> UpdateAlternative
   Concat e1 e2 -> -- The mother of all Edit lenses. Not yet map, yet alone apply, but still.
     case eval e1 of    
@@ -287,9 +325,8 @@ getUpdateStep expr vdiffs =
         let _ = Debug.log """v1 : @v1""" () in
         let continueWith arg1diffsV arg2diffsV =
               let updateContinueSub subExpr subDiffs callback =
-                    case subDiffs of
-                      [DUpdate []] ->  callback dSame
-                      _ -> UpdateContinue subExpr subDiffs callback
+                    if subDiffs == dSame then callback dSame
+                    else UpdateContinue [] subExpr subDiffs callback
               in
               updateContinueSub e1 arg1diffsV <| \arg1diffsE ->
               updateContinueSub e2 arg2diffsV <| \arg2diffsE ->
@@ -302,10 +339,8 @@ getUpdateStep expr vdiffs =
         let sizeLeft = listLength v1 in
         let splitDiffs n accDiffs rdiffs = 
           --let _ = Debug.log """splitDiffs @n @(accDiffs dSame) @rdiffs""" () in
-          if n == sizeLeft then
-            -- Now we need to fix rdiffs paths
-            let fixrdiffs escapingPath = 
-              --let _ = Debug.log """fixrdiffs @escapingPath""" () in
+          if n == sizeLeft then -- Now we need to fix rdiffs paths
+            let fixrdiffs escapingPath =  --let _ = Debug.log """fixrdiffs @escapingPath""" () in
               let aux numPreviousUp path =
                 if numPreviousUp > sizeLeft then -- Full escape of the original list
                   Up {- concat is like a wrap there -} :: path
@@ -361,8 +396,8 @@ type alias Fork = (UpdateStep, Callbacks)
 update_: UpdateStep -> Callbacks -> List Fork -> Result String Diffs
 update_ updateStep callbacks alternatives =
   case updateStep of
-    UpdateContinue what diffs callback ->
-      update_ (getUpdateStep what diffs) (callback :: callbacks) alternatives
+    UpdateContinue context what diffs callback ->
+      update_ (getUpdateStep context what diffs) (callback :: callbacks) alternatives
     UpdateResult x ->
       case callbacks of
       head :: tail -> update_ (head x) tail alternatives
@@ -378,7 +413,7 @@ update_ updateStep callbacks alternatives =
     UpdateError msg -> Err msg
 
 update: Expr -> Diffs -> Result String Expr
-update expr diffs = update_ (UpdateContinue expr diffs UpdateResult) [] []
+update expr diffs = update_ (UpdateContinue [] expr diffs UpdateResult) [] []
   
 {--
 originalExpr = Parens (Cons (Parens (Int 1)) (Parens (Cons (Parens (Var "a2")) Nil)))
@@ -395,7 +430,7 @@ outputDiffs = [DUpdate [
 {--} -- TODO: illustrate how DNew for Cons should use updateDownPath
 originalExpr = Cons (Int 1) (Parens (Concat (Cons (Parens (Var "a2")) Nil) (Cons (Int 3) Nil)))
 outputDiffs = [DNew (Cons (Var "h") (Var "t")) [
-  ("h", Clone [Down "tl", Down "hd"] dSame),
+  ("h", Clone [Down "tl", Down "hd"] [DNew (Var "h") [("h", Clone [Up, Down "tl", Down "hd"] dSame)]]),
   ("t", Clone [] dSame)]]
 --}
 exprDiffs = update originalExpr outputDiffs |> .args._1
