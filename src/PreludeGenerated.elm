@@ -2270,7 +2270,7 @@ LensLess =
         let d = __DictFromList__ [(\"0\", 0), (\"1\", 1), (\"2\", 2), (\"3\", 3), (\"4\", 4), (\"5\", 5), (\"6\", 6), (\"7\", 7), (\"8\", 8), (\"9\", 9)] in
         let aux x =
           case extractFirstIn \"^([0-9]*)([0-9])$\" x of
-            Just [init, last] -> (aux init)*10 + case __DictGet__ d last of
+            Just [init, last] -> (aux init)*10 + case __DictGet__ last d of
               Just x -> x
               Nothing -> 0
             Nothing -> 0
