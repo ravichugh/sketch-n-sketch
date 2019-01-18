@@ -89,6 +89,7 @@ strOp op = case op of
   ToStrExceptStr-> "ToStrExceptStr"
   RegexExtractFirstIn -> "extractFirstIn"
   CurrentEnv    -> "__CurrentEnv__"
+  StrLength     -> "__strLength__"
 
 strLoc : Loc -> String
 strLoc (k, b, mx) =

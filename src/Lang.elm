@@ -196,6 +196,7 @@ type Op_
   | ToStrExceptStr -- Keeps strings, but use ToStr for everything else
   | Sqrt
   | Explode
+  | StrLength
   | DebugLog
   | NoWidgets
   --  | DictMem   -- TODO: add this
@@ -248,6 +249,7 @@ opArity op =
     Round               -> 1
     ToStr               -> 1
     ToStrExceptStr      -> 1
+    StrLength           -> 1
     Sqrt                -> 1
     Explode             -> 1
     DebugLog            -> 1

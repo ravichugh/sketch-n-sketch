@@ -422,7 +422,7 @@ LensLess =
                           Just [substr] -> substr
                           Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
 
-      length x = len (explode x)
+      length x = __strLength__ x
 
       slice = substring
 
@@ -3197,7 +3197,12 @@ Html = {
           _ -> Err ("Expected VListDiffs, got " + toString diffs)
     } tNodes
 
-  (insertionDeletionUpdatesTo) = Update.lens2 {
+  -- given a 1-element list and an element, returns the element wrapped
+  -- On the way back, back-propagates insertions and deletions to the list after applying the inverse
+  -- convertInserted,
+  -- and changes to element itself on the other side
+  insertionDeletionUpdatesTo: (b -> a) -> (List a, b) -> List b
+  insertionDeletionUpdatesTo convertInserted = Update.lens2 {
       apply (node1List, node1) = [node1]
       update {input=(node1List, node1), outputNew=newNodes, diffs} =
         case diffs of
@@ -3223,7 +3228,7 @@ Html = {
                         let (inserted, remainingNodes) = List.split x newNodes in
                         let insertionDiffs = newNode1ListDiffs ++ [(j, ListElemInsert x)] in
                         aux j remainingNodes diffTail
-                          (newNode1List ++ inserted) insertionDiffs newNode1 mbNode1Diffs
+                          (newNode1List ++ convertInserted inserted) insertionDiffs newNode1 mbNode1Diffs
 
                       ListElemUpdate x ->
                         let newNode1_ :: remainingNodes = newNodes in
@@ -3253,7 +3258,8 @@ Html = {
                 Match match -> replacement match
             ) |> __mergeHtmlText__ |> List.filter (/= ["TEXT", ""])
           [tag, attrs, children] ->
-            insertionDeletionUpdatesTo node1List [tag, attrs, replaceNodesIf nodePred regex replacement children]
+            insertionDeletionUpdatesTo identity node1List <|
+              [tag, attrs, replaceNodesIf nodePred regex replacement children]
       ) nodes
 
   -- Takes a list of nodes, returns a list of nodes.

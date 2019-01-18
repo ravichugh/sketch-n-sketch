@@ -423,6 +423,8 @@ unparseOp op =
       "ToStrExceptStr"
     RegexExtractFirstIn ->
       "extractFirstIn"
+    StrLength ->
+      "__strLength__"
 
 --------------------------------------------------------------------------------
 -- Expressions

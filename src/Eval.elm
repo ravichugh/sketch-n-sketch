@@ -635,7 +635,13 @@ evalOp syntax env e bt opWithInfo es vs wss = let
       RegexExtractFirstIn -> case vs of
         [regexp, string] ->
           evalRegexExtractFirstIn regexp string
-        _     -> mkClosureOrError () in
+        _     -> mkClosureOrError ()
+      StrLength ->
+        case vs of
+          [val] -> case val.v_ of
+            VBase (VString v) as r -> VConst Nothing (String.length v |> toFloat, dummyTrace) |> addProvenanceOk
+            _   -> mkClosureOrError ()
+          _     -> mkClosureOrError () in
   case newValRes of
     Err s     -> Err s
     Ok newVal ->

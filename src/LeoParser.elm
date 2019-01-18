@@ -1721,6 +1721,8 @@ opFromIdentifier identifier =
       Just NoWidgets
     "extractFirstIn" ->
       Just RegexExtractFirstIn
+    "__strLength__" ->
+      Just StrLength
     _ ->
       Nothing
 
