@@ -560,17 +560,18 @@ evalRegexReplaceByIn  howmany eval regexpV replacementV stringV =
            -- Commented out because dependency cycle
            -- "Got " ++  valToString regexpV ++ ", " ++ valToString replacementV ++ ", " ++ valToString stringV
 
-type Either a b = Left a | Right b
+type Either a i b = Left (a, i) | Right b
 
-eitherToVal: (Vb.Vb -> a -> Val) -> (Vb.Vb -> b -> Val) -> Vb.Vb -> Either a b -> Val
-eitherToVal subroutine1 subroutine2 vb either = case either of
-  Left a  -> Vb.constructor vb "Left" [subroutine1 vb a]
+-- Special either
+eitherToVal: (Vb.Vb -> a -> Val) -> (Vb.Vb -> i -> Val) -> (Vb.Vb -> b -> Val) -> Vb.Vb -> Either a i b -> Val
+eitherToVal subroutine1 subroutine1b subroutine2 vb either = case either of
+  Left (a, i) -> Vb.constructor vb "Left" [subroutine1 vb a, subroutine1b vb i]
   Right b ->  Vb.constructor vb "Right" [subroutine2 vb b]
 
-valToEither: (Val -> Result String a) -> (Val -> Result String b) -> Val -> Result String (Either a b)
-valToEither subroutine1 subroutine2 v = case Vu.constructor Ok v of
+valToEither: (Val -> Result String a) -> (Val -> Result String i) ->  (Val -> Result String b) -> Val -> Result String (Either a i b)
+valToEither subroutine1 subroutine1b subroutine2 v = case Vu.constructor Ok v of
   Err msg -> Err msg
-  Ok ("Left", [x]) -> subroutine1 x |> Result.map Left
+  Ok ("Left", [x, i]) -> Result.map Left <| Result.map2 (,) (subroutine1 x) (subroutine1b i)
   Ok ("Right", [x]) -> subroutine2 x |> Result.map Right
   Ok (c, s) -> Err <| "Expected Left or Right with 1 argument, got " ++ c ++ " with " ++ toString (List.length s) ++ " arguments"
 
@@ -583,11 +584,11 @@ evalRegexFindInterleavings  howmanyV regexpV stringV =
           let matches = GroupStartMap.find howmany regexp string in
           let (resultWithoutLast, lastIndex) = Utils.foldLeft ([], 0) matches <|
             \(acc, lastEnd) match ->
-               (acc ++ [Left (String.slice lastEnd match.index string),
+               (acc ++ [Left (String.slice lastEnd match.index string, lastEnd),
                         Right (gsmMatchToRegexMatch match)], match.index + String.length match.match)
           in
-          let resultUnencoded = resultWithoutLast ++ [Left <| String.dropLeft lastIndex string] in
-          let resultEncoded = Vb.list (eitherToVal Vb.string matchToVal) (Vb.fromVal stringV) resultUnencoded in
+          let resultUnencoded = resultWithoutLast ++ [Left <| (String.dropLeft lastIndex string, lastIndex)] in
+          let resultEncoded = Vb.list (eitherToVal Vb.string Vb.int matchToVal) (Vb.fromVal stringV) resultUnencoded in
           Ok (resultEncoded, [])
      _ -> Err <| "findInterleavings expects a number (0 for all) a regex (String) and the text. Got instead  " ++ valToString howmanyV ++ ", " ++ valToString regexpV ++ ", " ++ valToString stringV
            -- Commented out because dependency cycle
@@ -597,19 +598,19 @@ updateRegexFindInterleavings: Val -> Val -> Val -> PrevOutput -> Output -> VDiff
 updateRegexFindInterleavings  howmanyV regexpV stringV oldVal newVal diffs =
    case (howmanyV.v_, regexpV.v_, stringV.v_) of
       (VConst _ (n, _), VBase (VString regexp), VBase (VString string)) ->
-        let decoder = Vu.list (valToEither Vu.string valToMatch) in
+        let decoder = Vu.list (valToEither Vu.string Vu.int valToMatch) in
         case (decoder oldVal, decoder newVal, diffs) of
           (Ok oldInterleavings, Ok newInterleavings, VListDiffs ds) ->
             let (lastIndex, revOldStartsIncomplete) =
               Utils.foldLeft (0, []) oldInterleavings <|
                          \(lastStart, revAcc) eithersm -> case eithersm of
-                            Left str -> (lastStart + String.length str, lastStart::revAcc)
+                            Left (str, _) -> (lastStart + String.length str, lastStart::revAcc)
                             Right match -> (lastStart + String.length match.match, lastStart::revAcc)
             in
             let oldConcatenationStarts = List.reverse <| lastIndex :: revOldStartsIncomplete in
             let aux: Int ->
-                       List Int ->            List (Either String RegexMatch) ->
-                                                               List (Either String RegexMatch) ->
+                       List Int ->            List (Either String Int RegexMatch) ->
+                                                               List (Either String Int RegexMatch) ->
                                                                                 ListDiffs VDiffs ->
                                                                                    List (Int, Int, String) -> Results String (List Val, TupleDiffs VDiffs)
                 aux  i oldConcatenationStarts oldInterleavings newInterleavings ds newStringDiffs = case ds of
@@ -633,7 +634,7 @@ updateRegexFindInterleavings  howmanyV regexpV stringV oldVal newVal diffs =
                          let (inserted, remaining) = Utils.split count newInterleavings in
                          let insertionPoint = Utils.head "UpdateRegex" oldConcatenationStarts in
                          newStringDiffs ++ List.map (\eithersm -> case eithersm of
-                           Left string -> (insertionPoint, insertionPoint, string)
+                           Left (string, _) -> (insertionPoint, insertionPoint, string)
                            Right regexMatch -> (insertionPoint, insertionPoint, regexMatch.match)
                          ) inserted |>
                          aux i oldConcatenationStarts oldInterleavings remaining dstail
@@ -642,7 +643,7 @@ updateRegexFindInterleavings  howmanyV regexpV stringV oldVal newVal diffs =
                          let (removedStarts, keptStarts) = Utils.split count oldConcatenationStarts in
                          let (removedInterleavings, keptInterleavings) = Utils.split count oldInterleavings in
                          newStringDiffs ++ (List.map2 (\start eithersm -> case eithersm of
-                           Left string -> (start, start + String.length string, "")
+                           Left (string, _) -> (start, start + String.length string, "")
                            Right regexMatch -> (start, start + String.length regexMatch.match, "")
                          ) removedStarts removedInterleavings) |>
                          aux (i + count) keptStarts keptInterleavings newInterleavings dstail
@@ -653,7 +654,7 @@ updateRegexFindInterleavings  howmanyV regexpV stringV oldVal newVal diffs =
                              case (oldElem, newElem, vDatatypeDiffsGet "_1" du) of
                                (_, _, Nothing) ->
                                  aux (i + 1) oldStartsTail oldTail newTail dstail newStringDiffs
-                               (Left oldString, Left newString, Just (VStringDiffs sd)) ->
+                               (Left (oldString, _), Left (newString, _), Just (VStringDiffs sd)) ->
                                  newStringDiffs ++ List.map (\(s,e,ss) -> (s + oldStart, e+oldStart, ss)) (strDiffToConcreteDiff newString sd) |>
                                  aux (i + 1) oldStartsTail oldTail newTail dstail
                                (Right oldMatch, Right newMatch, mbd) ->
