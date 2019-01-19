@@ -4929,6 +4929,8 @@ Html = {
       else
       Ok (InputsWithDiffs [(input, Nothing)])
     } model
+  
+  do = onClickCallback
 
   button name title model controller =
     <button title=title onclick=(onClickCallback model controller)>@name</button>
@@ -7342,6 +7344,19 @@ tutorialUtils = {
       _ -> text_position_unknown
 }
 
+-- Utilities to invoke some of the usual browser commands
+browser = {
+  -- Refresh the output
+  refresh: String
+  refresh = \"\"\"document.querySelector(\".run\") ? document.querySelector(\".run\").click()\"\"\"
+
+  -- Returns the value of the global javascript variable or a placeholder else
+  localvar: String -> String -> String
+  localvar name initContent = 
+    __jsEval__ \"\"\"typeof @name == 'undefined' ? @initContent : @name\"\"\"
+    
+    
+}
 
 -- The type checker relies on the name of this definition.
 let dummyPreludeMain = [\"svg\", [], []] in dummyPreludeMain
