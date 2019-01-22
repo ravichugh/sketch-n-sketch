@@ -2054,8 +2054,7 @@ msgKeyDown keyCode =
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           { old | outputMode = Graphics }
 
-        else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick
-                && not currentKeyDown && mbKeyboardFocusedWidget /= Nothing then
+        else if noughtSelectedInOutput && old.codeEditorMode == CEDeuceClick && mbKeyboardFocusedWidget /= Nothing then
           let mbDeuceMenuHandled =
             if old.deucePopupPanel /= DeucePopupHidden then
               handleDeuceMenuCommand old keyCodes
