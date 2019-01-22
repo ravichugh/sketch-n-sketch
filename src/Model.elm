@@ -31,6 +31,7 @@ import History exposing (History)
 import Dict exposing (Dict)
 import Set exposing (Set)
 import Char
+import String
 import Time
 import Window
 import Mouse
@@ -84,7 +85,10 @@ type DeucePopupPanel
   | DeucePopupKbdComplete DeuceKeyboardPopupInfo
   | DeucePopupHidden
 
-type alias DeuceToolsSelection = String
+type alias DeuceToolsSelection =
+  { selection : String
+  , subSelection : String
+  }
 
 type alias DeuceKeyboardPopupInfo =
   { title : String
@@ -1208,6 +1212,10 @@ allowOnlySingleSelection model =
 
 deuceKeyboardPopupPanelTextBoxId : String
 deuceKeyboardPopupPanelTextBoxId = "deuce-keyboard-popup-panel-text-box-7331"
+
+deuceToolsMenuSelectionId : String -> String
+deuceToolsMenuSelectionId desc =
+  "deuceToolsMenuSelectionId1731-" ++ String.join "_" (String.split " " desc)
 
 canShowDeucePopupPanel : Model -> Bool
 canShowDeucePopupPanel model =

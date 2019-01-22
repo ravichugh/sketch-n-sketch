@@ -1419,7 +1419,7 @@ togglePopupPanelState old =
   let newDeucePopupPanel =
     if canShowDeucePopupPanel old then
       case old.deucePopupPanel of
-        DeucePopupHidden -> DeucePopupTools ""
+        DeucePopupHidden -> DeucePopupTools {selection = "", subSelection = ""}
         p                -> p
     else
       DeucePopupHidden
@@ -1431,7 +1431,7 @@ cyclePopupPanelState old =
   let newDeucePopupPanel =
     if canShowDeucePopupPanel old then
       case old.deucePopupPanel of
-        DeucePopupHidden        -> DeucePopupTools ""
+        DeucePopupHidden        -> DeucePopupTools {selection = "", subSelection = ""}
         DeucePopupTools _       -> DeucePopupHotKeyInfo
         DeucePopupHotKeyInfo    -> DeucePopupHidden
         DeucePopupKbdComplete _ -> DeucePopupHidden
@@ -3570,7 +3570,7 @@ isCommandAnd keysDown k =
 
 resetDeuceKeyboardInfo : Model -> Model
 resetDeuceKeyboardInfo old =
-  { old | deucePopupPanel = DeucePopupTools "" }
+  { old | deucePopupPanel = DeucePopupTools {selection = "", subSelection = ""} }
   |> togglePopupPanelState
 
 deuceMove : DeuceWidget -> Model -> Model
@@ -3611,25 +3611,87 @@ deuceChooserUI old initText titleAndTextToTransformationResults =
       , needsToFocusOn = Just deuceKeyboardPopupPanelTextBoxId
     }
 
-moveMenuCompleteSelectionVertical_ old isDown =
+toggleSubMenu old =
+  let deucePopupPanel = old.deucePopupPanel in
+  case deucePopupPanel of
+    DeucePopupTools deuceToolsSelection ->
+      if deuceToolsSelection.subSelection == "" then
+        moveMenuSelectionRight_ old
+      else
+        moveMenuSelectionLeft_ old
+    _ ->
+      old
+
+moveMenuSelectionLeft_ old =
+  let deucePopupPanel = old.deucePopupPanel in
+  case deucePopupPanel of
+    DeucePopupTools deuceToolsSelection ->
+      { old
+        | deucePopupPanel = DeucePopupTools
+            { deuceToolsSelection
+              | subSelection = ""
+            }
+        , needsToFocusOn = Nothing
+      }
+    _ ->
+      old
+
+moveMenuSelectionRight_ old =
+  let deucePopupPanel = old.deucePopupPanel in
+  case deucePopupPanel of
+    DeucePopupTools selectionInfo ->
+      let mbResults =
+        old.deuceToolsAndResults |> List.concat |> Utils.mapFirstSuccess (\(tool, results, _) ->
+          if tool.name == selectionInfo.selection then
+            Just <| List.map transformationResultToString results
+          else
+            Nothing
+        )
+      in
+      case mbResults of
+        Just (firstResult :: _) ->
+          { old
+            | deucePopupPanel = DeucePopupTools
+                { selectionInfo
+                  | subSelection = firstResult
+                }
+            , needsToFocusOn = Just <| deuceToolsMenuSelectionId firstResult
+          }
+        _ ->
+          old
+    _ ->
+      old
+
+moveMenuSelectionVertical_ old isDown =
   let
     deucePopupPanel = old.deucePopupPanel
     (textItems_, selectionText) =
       case deucePopupPanel of
-        DeucePopupTools deuceToolsSelection ->
-          let activeToolNames =
-            old.deuceToolsAndResults
-            |> List.concatMap
-                 ( List.filterMap
-                     ( \(tool, _, _) ->
-                        if DeuceTools.isActive old.codeEditorMode tool then
-                          Just tool.name
-                        else
-                          Nothing
-                     )
-                 )
-          in
-          (activeToolNames, deuceToolsSelection)
+        DeucePopupTools selectionInfo ->
+          if selectionInfo.subSelection /= "" then
+            let mbResults =
+              old.deuceToolsAndResults |> List.concat |> Utils.mapFirstSuccess (\(tool, results, _) ->
+                if tool.name == selectionInfo.selection then
+                  Just <| List.map transformationResultToString results
+                else
+                  Nothing
+              )
+            in
+            (Maybe.withDefault [] mbResults, selectionInfo.subSelection)
+          else
+            let activeToolNames =
+              old.deuceToolsAndResults
+              |> List.concatMap
+                   ( List.filterMap
+                       ( \(tool, _, _) ->
+                          if DeuceTools.isActive old.codeEditorMode tool then
+                            Just tool.name
+                          else
+                            Nothing
+                       )
+                   )
+            in
+            (activeToolNames, selectionInfo.selection)
         DeucePopupKbdComplete deuceKeyboardPopupInfo ->
           ( deuceKeyboardPopupInfo.textToTransformationResults deuceKeyboardPopupInfo.text
             |> List.map transformationResultToString
@@ -3647,19 +3709,30 @@ moveMenuCompleteSelectionVertical_ old isDown =
         _                ->
           -- if no such child exists, or we're at the last child, select the first
           List.head textItems |> Maybe.withDefault selectionText
-  in
-  { old
-    | deucePopupPanel =
-        case deucePopupPanel of
-          DeucePopupTools _ ->
-            DeucePopupTools newSelection
-          DeucePopupKbdComplete deuceKeyboardPopupInfo ->
-            DeucePopupKbdComplete
+    (newDeucePopupPanel, newNeedsToFocusOn) =
+      case deucePopupPanel of
+        DeucePopupTools selectionInfo ->
+          if selectionInfo.subSelection /= "" then
+            ( DeucePopupTools { selectionInfo | subSelection = newSelection }
+            , Just <| deuceToolsMenuSelectionId newSelection
+            )
+          else
+            ( DeucePopupTools { selectionInfo | selection = newSelection }
+            , Nothing
+            )
+        DeucePopupKbdComplete deuceKeyboardPopupInfo ->
+          ( DeucePopupKbdComplete
               { deuceKeyboardPopupInfo
                 | smartCompleteSelection = newSelection
               }
-          dpp ->
-            dpp
+            , Nothing
+          )
+        dpp ->
+          (dpp, Nothing)
+  in
+  { old
+    | deucePopupPanel = newDeucePopupPanel
+    , needsToFocusOn  = newNeedsToFocusOn
   }
 
 codeObjectsStartingWith_ model selected patMap shouldReverse =
@@ -3822,16 +3895,14 @@ handleDeuceMenuCommand old keysDown =
   -- It'd be great if we could use any familiar, home-keys-accessible binding,
   -- but literally all of them are consumed by chrome:
   -- Ctrl+J, Ctrl+K, Ctrl+N, Ctrl+P, and Tab
-  -- For now I've settled on Ctrl+m through Ctrl+/,
-  -- with the same behavior as h through l, but not sure what works best
+  -- For now I've settled on Ctrl+, and Ctrl+. for up and down,
+  -- and Ctrl+m to go into or out of a submenu.
   if isCommandAnd keysDown Keys.keyM then
-    Just old
-  else if isCommandAnd keysDown Keys.keyForwardSlash then
-    Just old
+    Just <| toggleSubMenu old
   else if isCommandAnd keysDown Keys.keyComma then
-    Just <| moveMenuCompleteSelectionVertical_ old False
+    Just <| moveMenuSelectionVertical_ old False
   else if isCommandAnd keysDown Keys.keyPeriod then
-    Just <| moveMenuCompleteSelectionVertical_ old True
+    Just <| moveMenuSelectionVertical_ old True
   else
     Nothing
 

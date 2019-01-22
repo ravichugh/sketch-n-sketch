@@ -38,7 +38,7 @@ import OutputCanvas
 import Draw
 import LangTools
 import Sync
-import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..), ResultText(..), TransformationResult(..), DeuceTransformation(..))
+import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..), ResultText(..), TransformationResult(..), DeuceTransformation(..), transformationResultToString)
 import LangSvg
 import Syntax
 import File
@@ -119,6 +119,8 @@ type alias TextButtonOptions =
   { attributes : List (Html.Attribute Msg)
   , content : (List (Html Msg))
   , onClick : Msg
+  , onKeyDn : Int -> Msg
+  , mbId : Maybe String
   , disabled : Bool
   , stopPropagation : Bool
   }
@@ -128,6 +130,8 @@ defaultTb =
   { attributes = []
   , content = []
   , onClick = Controller.msgNoop
+  , onKeyDn = always Controller.msgNoop
+  , mbId = Nothing
   , disabled = False
   , stopPropagation = False
   }
@@ -137,15 +141,17 @@ defaultTb =
 textButton : TextButtonOptions -> Html Msg
 textButton tb =
   let
-    (disabledFlag, realOnClick, realStopPropagation) =
+    (disabledFlag, realOnClick, realOnKeyDn, realStopPropagation) =
       if tb.disabled then
         (" disabled"
         , Controller.msgNoop
+        , always Controller.msgNoop
         , True
         )
       else
         (""
         , tb.onClick
+        , tb.onKeyDn
         , tb.stopPropagation
         )
   in
@@ -157,7 +163,13 @@ textButton tb =
             , preventDefault = False
             }
             (Json.succeed realOnClick)
-        ] ++ tb.attributes
+        , onKeyDown realOnKeyDn
+        ]
+        ++ tb.attributes
+        ++
+        case tb.mbId of
+          Nothing -> []
+          Just id -> [Attr.id id, Attr.tabindex 0]
       )
       tb.content
 
@@ -293,22 +305,24 @@ generalUiButton disabled userClass title onClickHandler =
 --------------------------------------------------------------------------------
 
 generalHtmlHoverMenu
-  : String -> List (Html Msg) -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
+  : Maybe String -> String -> List (Html Msg) -> Msg -> Msg -> Msg -> (Int -> Msg) -> Bool -> List (Html Msg) -> Html Msg
 generalHtmlHoverMenu
-  class titleHtml onMouseEnter onMouseLeave onClick disabled dropdownContent =
+  mbId class titleHtml onMouseEnter onMouseLeave onClick onKeyDn disabled dropdownContent =
     let
-      (disabledFlag, realOnMouseEnter, realOnMouseLeave, realOnClick) =
+      (disabledFlag, realOnMouseEnter, realOnMouseLeave, realOnClick, realOnKeyDn) =
         if disabled then
           ("disabled "
           , Controller.msgNoop
           , Controller.msgNoop
           , Controller.msgNoop
+          , always Controller.msgNoop
           )
         else
           (""
           , onMouseEnter
           , onMouseLeave
           , onClick
+          , onKeyDn
           )
     in
       Html.div
@@ -335,6 +349,8 @@ generalHtmlHoverMenu
                     , disabled = disabled
                     , stopPropagation = True
                     , onClick = realOnClick
+                    , onKeyDn = realOnKeyDn
+                    , mbId = mbId
                 }
             ]
         , Html.div
@@ -343,9 +359,9 @@ generalHtmlHoverMenu
         ]
 
 generalHoverMenu
-  : String -> Msg -> Msg -> Msg -> Bool -> List (Html Msg) -> Html Msg
+  : String -> Msg -> Msg -> Msg -> (Int -> Msg) -> Bool -> List (Html Msg) -> Html Msg
 generalHoverMenu titleString =
-  generalHtmlHoverMenu "" [ Html.text titleString ]
+  generalHtmlHoverMenu Nothing "" [ Html.text titleString ]
 
 hoverMenu : String -> (List (Html Msg)) -> Html Msg
 hoverMenu title dropdownContent =
@@ -354,6 +370,7 @@ hoverMenu title dropdownContent =
     Controller.msgNoop
     Controller.msgNoop
     Controller.msgNoop
+    (always Controller.msgNoop)
     False
     dropdownContent
 
@@ -375,6 +392,7 @@ synthesisHoverMenu model resultsKey title onMouseEnter disabled =
     )
     Controller.msgNoop
     Controller.msgNoop
+    (always Controller.msgNoop)
     disabled
     [ synthesisResultsSelect model resultsKey ]
 
@@ -504,8 +522,8 @@ viewResultText rt =
           ]
 
 deuceTransformationResult :
-  Model -> List Int -> DeuceTransformation -> Maybe String -> TransformationResult -> Html Msg
-deuceTransformationResult model path deuceTransformation mbSelectionText transformationResult =
+  Model -> List Int -> DeuceTransformation -> Maybe DeuceToolsSelection -> TransformationResult -> Html Msg
+deuceTransformationResult model path deuceTransformation mbSelectionInfo transformationResult =
   let
     (maybeSynthesisInfo, description) =
       case transformationResult of
@@ -540,6 +558,29 @@ deuceTransformationResult model path deuceTransformation mbSelectionText transfo
           ( Nothing
           , [ viewResultText resultText ]
           )
+
+    isSelected =
+      case mbSelectionInfo of
+        Just selectionInfo ->
+          transformationResultToString transformationResult == selectionInfo.subSelection
+        _ ->
+          False
+
+    class default = if isSelected then "deuce-menu-phony-hovered" else default
+
+    onKeyDn code =
+      -- Enter button
+      if code == enterKeyCode && isSelected then
+        let
+          sResultWrapped =
+            Lang.transformationToSynthesisResult transformationResult
+            |> Utils.fromJust_ "this transformation result must always have a synthesis result"
+          (SynthesisResult sResult) = sResultWrapped
+        in
+        Controller.msgChooseDeuceExp sResult.description sResult.exp
+      else
+        Controller.msgNoop
+
   in
     case maybeSynthesisInfo of
       Nothing ->
@@ -550,7 +591,8 @@ deuceTransformationResult model path deuceTransformation mbSelectionText transfo
 
       Just synthesisInfo ->
         generalHtmlHoverMenu
-          synthesisInfo.class
+          (Just <| deuceToolsMenuSelectionId <| transformationResultToString transformationResult)
+          (class synthesisInfo.class)
           ( [ Html.span
                 []
                 description
@@ -559,12 +601,13 @@ deuceTransformationResult model path deuceTransformation mbSelectionText transfo
           synthesisInfo.onMouseEnter
           synthesisInfo.onMouseLeave
           synthesisInfo.onClick
+          onKeyDn
           False
           []
 
 deuceTransformationResults
-  : Model -> List Int -> DeuceTransformation -> Maybe String -> List TransformationResult -> List (Html Msg)
-deuceTransformationResults model path deuceTransformation mbSelectionText transformationResults =
+  : Model -> List Int -> DeuceTransformation -> Maybe DeuceToolsSelection -> List TransformationResult -> List (Html Msg)
+deuceTransformationResults model path deuceTransformation mbSelectionInfo transformationResults =
   let
     mapResults () =
       Utils.mapi1
@@ -573,7 +616,7 @@ deuceTransformationResults model path deuceTransformation mbSelectionText transf
             model
             (path ++ [i])
             deuceTransformation
-            mbSelectionText
+            mbSelectionInfo
             result
         )
         transformationResults
@@ -598,7 +641,7 @@ deuceTransformationResults model path deuceTransformation mbSelectionText transf
       ]
 
     (_, []) ->
-      [ generalHtmlHoverMenu "transformation-oops"
+      [ generalHtmlHoverMenu Nothing "transformation-oops"
           [ Html.span
               []
               [ Html.text "Oops! Can't apply transformation after all."
@@ -607,6 +650,7 @@ deuceTransformationResults model path deuceTransformation mbSelectionText transf
           Controller.msgNoop
           Controller.msgNoop
           Controller.msgNoop
+          (always Controller.msgNoop)
           True
           []
       ]
@@ -614,12 +658,12 @@ deuceTransformationResults model path deuceTransformation mbSelectionText transf
     _ ->
       mapResults ()
 
-deuceHoverMenu : Bool -> Model -> Maybe String -> (Int, CachedDeuceTool) -> Html Msg
-deuceHoverMenu alwaysShow model mbSelectionText (index, (deuceTool, results, disabled)) =
+deuceHoverMenu : Bool -> Model -> Maybe DeuceToolsSelection -> (Int, CachedDeuceTool) -> Html Msg
+deuceHoverMenu alwaysShow model mbSelectionInfo (index, (deuceTool, results, disabled)) =
   let
     isSelected =
-      case mbSelectionText of
-        Just selectionText -> deuceTool.name == selectionText
+      case mbSelectionInfo of
+        Just selectionInfo -> deuceTool.name == selectionInfo.selection
         _                  -> False
     showFlag =
       if alwaysShow || isSelected then
@@ -636,16 +680,18 @@ deuceHoverMenu alwaysShow model mbSelectionText (index, (deuceTool, results, dis
         ]
   in
     generalHtmlHoverMenu
+      Nothing
       showFlag
       title
       Controller.msgNoop
       Controller.msgNoop
       Controller.msgNoop
+      (always Controller.msgNoop)
       disabled
       [ Html.div
           [ Attr.class "synthesis-results"
           ] <|
-          deuceTransformationResults model path deuceTool.func mbSelectionText results
+          deuceTransformationResults model path deuceTool.func mbSelectionInfo results
       ]
 
 editCodeEntry : Model -> (Int, CachedDeuceTool) -> Html Msg
@@ -1364,10 +1410,12 @@ synthesisResultHoverMenu
   : String -> String -> (List Int) -> Exp -> (List (Html Msg)) -> Html Msg
 synthesisResultHoverMenu resultsKey description elementPath exp nextMenu =
   generalHtmlHoverMenu
+    Nothing
     "synthesisResult" [ Html.text description ]
     (Controller.msgHoverSynthesisResult resultsKey elementPath)
     (Controller.msgHoverSynthesisResult resultsKey <| allButLast elementPath)
     (Controller.msgSelectSynthesisResult exp)
+    (always Controller.msgNoop)
     False
     nextMenu
 
@@ -2671,7 +2719,7 @@ deuceKeyboardPopupPanel model =
           else
             "expected-safe"
       in
-      generalHtmlHoverMenu class
+      generalHtmlHoverMenu Nothing class
         ( [ Html.span
               []
               [ Html.text result.description ]
@@ -2680,6 +2728,7 @@ deuceKeyboardPopupPanel model =
         Controller.msgNoop
         Controller.msgNoop
         (Controller.msgChooseDeuceExp result.description result.exp)
+        (always Controller.msgNoop)
         False
         []
 
@@ -2733,9 +2782,9 @@ deuceKeyboardPopupPanel model =
 deucePopupPanel : Model -> Html Msg
 deucePopupPanel model =
   let
-    mbSelectionText =
+    mbSelectionInfo =
       case model.deucePopupPanel of
-        DeucePopupTools selectionText -> Just selectionText
+        DeucePopupTools selectionInfo -> Just selectionInfo
         _                             -> Nothing
 
     appearDirectionFlag =
@@ -2766,7 +2815,7 @@ deucePopupPanel model =
       List.isEmpty activeTools
 
     activeToolHtmls =
-      Utils.mapi1 (deuceHoverMenu alwaysShowFlag model mbSelectionText) activeTools
+      Utils.mapi1 (deuceHoverMenu alwaysShowFlag model mbSelectionInfo) activeTools
   in
     popupPanel
       { pos =
