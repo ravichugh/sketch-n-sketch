@@ -2105,13 +2105,15 @@ mergeList submerger =
          (_, [], _) -> (List.reverse accMerged ++ modified2, (List.reverse accDiffs ++ modifs2))
          (_, _,  []) -> (List.reverse accMerged ++ modified1, (List.reverse accDiffs ++ modifs1))
          ([], (i1, m1)::t1, (i2, m2)::t2) ->
-           if i1 /= i || i2 /= i || not (List.isEmpty t1) || not (List.isEmpty t2) then
-             Debug.crash <| "Expected only at most one modification at the end of a list, got " ++ toString (i, i1, i2, t1, t2)
+           if i1 /= i || i2 /= i then
+             Debug.crash <| "Expected terminal modifications to only occur at the end of the list, got " ++ toString (i, i1, i2)
            else
              case (m1, m2) of
-               (ListElemInsert a, ListElemInsert b) ->
-                 (List.reverse accMerged ++ modified1 ++ modified2, (List.reverse accDiffs ++ modifs1 ++ modifs2))
-               _ -> Debug.crash <| "Expected two insertions, got " ++ toString (m1, m2)
+               (ListElemInsert count1, ListElemInsert count2) ->
+                 let (hdModified1, tlModified1) = Utils.split count1 modified1 in
+                 let (hdModified2, tlModified2) = Utils.split count2 modified2 in
+                 aux i (accMerged |> reverseInsert hdModified1 |> reverseInsert hdModified2, (i, ListElemInsert (count1 + count2))::accDiffs) originals tlModified1 t1 tlModified2 t2
+               _ -> Debug.crash <| "Expected two insertions at the end of the list, got " ++ toString (m1, m2)
          (oh::ot, (i1, m1)::t1, (i2, m2)::t2) ->
            if i1 == i && i2 == i then -- Edition conflict
               case (m1, m2) of
