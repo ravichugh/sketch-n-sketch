@@ -53,7 +53,9 @@ createEntry (filename, filecontent) =
           |> Maybe.withDefaultLazy (\_ -> [<error>[Missing title in @filename]</error>])
     in
       <li ifnew=@(replaceIfTrue "\nTODO" postcontent)
-        ><tt>@date:</tt> <a href="""@finalname""">@title</a></li>
+        >
+      <tt>@date:</tt><a href="""@finalname""">@title</a>
+      </li>
 
 -- Computes the list of <li> entries
 entries = 
