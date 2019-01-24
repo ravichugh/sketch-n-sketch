@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 all:
-	hyde --serve=.. --autosync
+	hyde --serve=.. --autosync --question=true --autosave=false
 
 input:
 	hyde --backward
