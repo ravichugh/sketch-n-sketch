@@ -1,59 +1,190 @@
-THE UNIVERSITY OF CHICAGO - SOFTWARE LICENSE AGREEMENT - FOR ACADEMIC NON-COMMERCIAL RESEARCH PURPOSES ONLY
-PLEASE CAREFULLY READ THE TERMS AND CONDITIONS OF THIS AGREEMENT. 
-BY DOWNLOADING THE SOFTWARE, YOU REPRESENT, WARRANT AND AGREE THAT YOU ARE AUTHORIZED BY YOUR COMPANY, EMPLOYER OR INSTITUTION TO ENTER INTO THIS AGREEMENT ON BEHALF OF YOUR COMPANY, EMPLOYER OR INSTITUTION. IF YOU DO NOT AGREE TO THE TERMS OF THIS AGREEMENT, YOU ARE NOT AUTHORIZED TO DOWNLOAD THE SOFTWARE.
-For all inquiries regarding commercial use, please contact the Polsky Center for Entrepreneurship and Innovation, University of Chicago at polskylicensing(at)uchicago.edu.
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
 
-The parties to this Sketch-n-Sketch Software License Agreement (“Agreement”) are the University of Chicago (“Licensor”) having a place of business at 5801 South Ellis Ave., Chicago, IL 60637 and your company, employer or institution (collectively “End User”).
-Licensor agrees to provide End User with Sketch-n-Sketch Software, University of Chicago reference numbers 18-T-062, a software program written by Dr. Ravi Chugh, Mr. Brian Hempel, Mr. Justin Lubin, Dr. Mikaël Mayer and colleagues (the “Software”) for End User’s academic non-commercial research purposes only, under the following conditions:
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
-1.	License
+   1. Definitions.
 
-  A.	Install, run and maintain the Software on computers housed at its facilities for use in connection with the End User’s research and development purposes
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
 
-  B.	Make one copy in machine-readable form solely for backup or archival purposes for the computers on which the Software is installed. The Software is protected by the copyright laws of the United States and other countries. As an express condition of this Agreement and the license granted hereunder, if the End User makes a backup or archival copy of the Software, the End User must reproduce on the backup or archival copy Licensor’s copyright notice and any other proprietary legends on the original copy supplied by Licensor
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
 
-2.	Restrictions
-THE END USER MAY NOT MODIFY, ADAPT, TRANSLATE, RENT, LEASE, LOAN, RESELL FOR PROFIT, DISTRIBUTE, SUBLICENSE, OR OTHERWISE ASSIGN OR TRANSFER THE SOFTWARE, OR CREATE DERIVATIVE WORKS BASED UPON THE SOFTWARE OR ANY PART THEREOF, EXCEPT AS EXPRESSLY PROVIDED IN SECTION 1 ABOVE. END USER SHALL NOT REMOVE ANY COPYRIGHT OR PATENT NOTICE OR TRADE SECRET LEGEND FROM ANY COPY OF THE SOFTWARE, AND END USER SHALL NOT ASSERT AND SHALL NOT REPRESENT TO ANY THIRD PARTY THAT IT HAS ANY OWNERSHIP RIGHTS IN, OR THE RIGHT TO SELL, TRANSFER, ASSIGN OR SUB-LICENSE THE SOFTWARE.
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
 
-3.	Conflict With Other Documents
-To the extent the terms of this Agreement conflict with the terms of any other agreement, including any license agreements, that have been executed by authorized representatives of the End User and the Licensor, the terms of this agreement shall be subordinate to the terms of those traditionally-executed documents.
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
 
-4.	Termination
-This Agreement and the license granted hereunder is effective until terminated. This Agreement and the license granted hereunder will terminate immediately without notice from Licensor if the End User fails to comply with any of the provisions of this Agreement. Any use of the Software after such termination will exceed the scope of the license granted hereunder. Upon termination the End User must destroy the Software and all copies thereof, including backup or archival copies, and the End User may terminate this Agreement and the license granted hereunder at any time by doing so.
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
 
-5.	Disclaimer of Warranties
-LICENSOR MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, UNDER THIS AGREEMENT.  IN PARTICULAR , LICENSOR DISCLAIMS ANY WARRANTY WITH RESPECT TO (I) THE LICENSED SOFTWARE, INCLUDING BUT NOT LIMITED TO, ANY REPRESENTATIONS OR WARRANTIES ABOUT THE ACCURACY, SAFETY OR USEFULNESS FOR ANY PURPOSE OF ANY INFORMATION PROVIDED BY LICENSOR TO END USER OF EITHER, WITH RESPECT TO THE LICENSED SOFTWARE AND ANY PRODUCTS DEVELOPED FROM THEM; OR (II) THE ACCURACY, SAFETY, OR USEFULNESS FOR ANY PURPOSE OF ANY PRODUCT OR PROCESS MADE OR CARRIED OUT IN ACCORDANCE WITH OR THROUGH THE USE OF THE LICENSED SOFTWARE.  IN ADDITION, UNIVERSITY SPECIFICALLY DISCLAIMS ANY IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
 
-6.	EXCLUSION OF INCIDENTAL, CONSEQUENTIAL AND CERTAIN OTHER DAMAGES
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY SPECIAL, INCIDENTAL, INDIRECT, CONSEQUENTIAL, EXEMPLORY, OR PUNITIVE DAMAGES WHATSOEVER (INCLUDING, BUT NOT LIMITED TO, DAMAGES FOR LOSS OF PROFITS OR CONFIDENTIAL OR OTHER INFORMATION, FOR BUSINESS INTERRUPTION, FOR PERSONAL INJURY, FOR LOSS OF PRIVACY, FOR FAILURE TO MEET ANY DUTY INCLUDING OF GOOD FAITH OR OF REASONABLE CARE, FOR NEGLIGENCE, AND FOR ANY OTHER PECUNIARY OR OTHER LOSS WHATSOEVER) ARISING OUT OF OR IN ANY WAY RELATED TO THE USE OF OR INABILITY TO USE THE SOFTWARE, THE PROVISION OF OR FAILURE TO PROVIDE SUPPORT SERVICES, OR OTHERWISE UNDER OR IN CONNECTION WITH ANY PROVISION OF THIS AGREEMENT, EVEN IN THE EVENT OF THE FAULT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY, BREACH OF CONTRACT OR BREACH OF WARRANTY OF LICENSOR, AND EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. LICENSOR’S LIABILITY UNDER THIS AGREEMENT AND ARISING FROM END USER’S USE OF THE SOFTWARE IS LIMITED TO THE AMOUNT OF FEES PAID BY END USER FOR THIS LICENSE AND ANY SUPPORT SERVICES PROVIDED. END USER’S EXCLUSIVE REMEDY FOR ANY CAUSE OF ACTION ARISING OUT OF THIS AGREEMENT AND ITS PERFORMANCE SHALL BE EXPRESSLY LIMITED TO REFUND OF FEES PAID, REPAIR AND/OR REPLACEMENT OF THE SOFTWARE, AT LICENSOR’S DISCRETION AND OPTION. Some jurisdictions do not allow limiting implied warranties or liability for incidental or consequential damages, and some have consumer protection laws which may supersede the above limitations. As a result, these limitations may not apply to you.
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
 
-7.	Indemnification
-End User agrees to indemnify, defend and hold harmless Licensor, Licensor’s Affiliates, and, as applicable, each of their respective present and former trustees, faculty, staff, employees, students, directors, officers, agents, successors and assigns (each a “Licensor Indemnitee”) from and against any and all judgments, losses, expenses, damages and/or liabilities (including, without limitation, any and all attorneys’ and expert witness fees and court costs), that a Licensor Indemnitee may incur from any and all claims, suits, actions and/or proceedings (collectively, “Claims”) arising out of, relating to, or incidental to (a) any act, error or omission of End User, including without limitation, any act, error, or omission of End User that results in injury or death to person, damage to property, products liability, and/or any injury to business (such as, but not limited to, business interruption or damage to reputation) arising out of, relating to, or incidental to the use of or other exploitation of the Software (b) a breach of this Agreement by End User or any allegation which, if true, would constitute a breach of this Agreement by End User, and/or (c) the use or other exploitation of the Software in the design, development, production, manufacture, sale or offer for sale, use, importation, lease, marketing, performance or promotion of any licensed product or licensed service by End User including, without limitation, claims for infringement or misappropriation of a third party’s intellectual property rights or product liability.
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
 
-8.	General
-End User shall be solely responsible for compliance with all applicable laws, rules, and regulations with respect to End User’s possession and use of the Software, including, without limitation, the Arms Export Control Act, 22 U.S.C. Section 2751 et seq. and the Export Administration Act of 1979, as amended, as well as the International Traffic in Arms Regulations (IITARs) and the Export Administration Regulations (EARs).
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
 
-Any waiver of a failure or delay in performance shall be effective only if in a writing signed by both parties, and only in accordance with its terms. The waiver of one breach or default shall not constitute the waiver of any subsequent breach or default and shall not act to amend or negate the rights of the parties under this Agreement.
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
 
-End User authorizes Licensor to identify End User in marketing literature as a “customer” of Licensor.
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
 
-This Agreement shall be governed by and construed in accordance with the laws of the state of Illinois, and the End User hereby submits to jurisdiction and venue in the courts of that state. All disputes arising out of this Agreement shall be heard exclusively in the courts of Cook County, Illinois, and the parties hereby consent to jurisdiction and venue in all such courts.
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
 
-If End User uses or attempts to use all or any part of the Software beyond the scope of the license granted hereunder, then Licensor may seek and obtain such temporary, preliminary, or permanent injunctive relief (without the necessity of filing or posting a bond or other security) as a court of competent jurisdiction may award, it being acknowledged and agreed that any breach of this Agreement will result in irreparable injury which may not likely be redressed adequately through the payment of money damages alone.
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
 
-Nothing in this Agreement creates a joint venture, partnership, principal-agent, employer/employee or mutual agency relationship between the parties. No party has any right or power under this Agreement to create any obligation, expressed or implied, on behalf of the other party.
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
 
-If any one or more of the provisions of this Agreement shall be invalid, illegal or unenforceable in any respect under any applicable statute, rule of law or public policy then such provision shall be considered inoperative to the extent of such invalidity, illegality, or unenforceability and the remainder of this Agreement shall continue in full force and effect. The parties agree to replace any such invalid, illegal or unenforceable provision with a new provision that has the most nearly similar permissible economic effect.
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
 
-Headings are included in this Agreement as a matter of convenience only and shall not be controlling with regard to the interpretation of this Agreement.
-Either party may assign this Agreement, with written notice to the other party, to a person or entity that succeeds to all or substantially all of the assigning party’s assets by way of merger, sale, corporate reorganization or otherwise, provided the successor agrees in writing to assume all the obligations stated hereunder.
-9.	Acknowledgment
-BY INSTALLING THIS SOFTWARE, THE END-USER ACKNOWLEDGES THAT IT HAS READ THIS AGREEMENT, UNDERSTANDS IT, AND AGREES TO BE BOUND BY ITS TERMS AND CONDITIONS. Should you have any questions concerning this Agreement, contact Licensor at the following address:
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
 
-George Chellapa
-Technology Commercialization
-Polsky Center for Entrepreneurship and Innovation
-University of Chicago
-1452 E 53rd St, 2nd floor
-chellapa(at)uchicago.edu
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
 
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   Copyright 2019 Ravi Chugh, Brian Hempel, Justin Lubin, Mikaël Mayer
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
