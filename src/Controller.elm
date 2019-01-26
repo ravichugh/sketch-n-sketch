@@ -96,6 +96,7 @@ import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
+import TriEval
 import Update exposing (vStr, vList)
 import UpdateUtils
 import UpdateStack
@@ -848,6 +849,16 @@ tryRun old =
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok parsedExp ->
         let
+          resultString =
+            parsedExp
+              |> TriEval.eval []
+              |> Maybe.map TriEval.unparse
+              |> Maybe.withDefault "[Error]"
+        in
+          Ok { old | outputMode = HtmlText resultString }
+
+{-
+        let
           (e, aceTypeInfo, typeChecks) =
             maybeTypeCheck old.doTypeChecking parsedExp
         in
@@ -929,6 +940,7 @@ tryRun old =
             Err s         -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
             Ok (Err s)    -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
             Ok (Ok model) -> Ok model
+-}
 
 
 --------------------------------------------------------------------------------

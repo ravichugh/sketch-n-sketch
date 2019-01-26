@@ -446,6 +446,9 @@ unExpr (Expr e) = e
 unwrapExp : Exp -> Exp__
 unwrapExp (Expr e) = e.val.e__
 
+unwrapPat : Pat -> Pat__
+unwrapPat p = p.val.p__
+
 type ParensStyle = Parens | LongStringSyntax | LeoSyntax | HtmlSyntax
 
 type Hole
