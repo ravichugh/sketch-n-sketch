@@ -480,7 +480,7 @@ getEvalStack options syntax env bt (Expr exp_ as e) =
 
   EParens _ e1 _ _      -> evalContext options syntax env bt e1
   EHole _ (ESnapHole val) -> evalReturn <| retV [val] val
-  EHole _ EEmptyHole    -> errorWithBacktrace syntax (e::bt) <| strPos e_start ++ " empty hole!"
+  EHole _ (EEmptyHole _)  -> errorWithBacktrace syntax (e::bt) <| strPos e_start ++ " empty hole!"
 
 
 evalOp : Syntax -> Env -> Exp -> Backtrace -> Op -> List Exp -> List Val -> Widgets -> Result String (Val, Widgets)

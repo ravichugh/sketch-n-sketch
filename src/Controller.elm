@@ -851,9 +851,11 @@ tryRun old =
         let
           resultString =
             parsedExp
+              |> TriEval.setHoleIds
               |> TriEval.eval []
-              |> Maybe.map TriEval.unparse
-              |> Maybe.withDefault "[Error]"
+              |> Result.map TriEval.unparse
+              |> Result.mapError (\s -> "[Error] " ++ s)
+              |> Utils.fromResult
         in
           Ok { old | outputMode = HtmlText resultString }
 
@@ -1839,7 +1841,7 @@ tryPreserveIDs_ nextAvailId old new =
         EParens wsb preservedE ps wsa
         |> return nextAvailId
       )
-    (EHole _ EEmptyHole, EHole _ EEmptyHole)       -> preserveLeaf
+    (EHole _ (EEmptyHole _), EHole _ (EEmptyHole _))       -> preserveLeaf
     (EHole _ (ESnapHole _), EHole _ (ESnapHole _)) -> preserveLeaf
     (ERecord _ oldM oldDecls _, ERecord wsb newM newDecls wsa) ->
       (case (oldM, newM) of
@@ -2051,6 +2053,9 @@ msgKeyDown keyCode =
         else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           case old.outputMode of
             Graphics  -> upstateRun old
+            HtmlText _ ->
+              let _ = Debug.log "TODO Enter" () in
+              upstateRun old
             -- ShowValue -> doCallUpdate old
             _         -> old
 

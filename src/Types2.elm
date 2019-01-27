@@ -2047,7 +2047,7 @@ inferType gamma stuff thisExp =
       in
         { newExp = newExp }
 
-    EHole _ EEmptyHole ->
+    EHole _ (EEmptyHole _) ->
       { newExp =
           thisExp
             |> setType (Just holeType)
@@ -3118,7 +3118,7 @@ duplicateDataConstructorTool inputExp selections =
                                   -- _ = Debug.log "newPat" (unparsePattern newPat)
 
                                   newHole =
-                                    EHole space0 EEmptyHole
+                                    EHole space0 (EEmptyHole 0)
                                       |> replaceE__PreservingPrecedingWhitespace e
 
                                   newBranch_ =

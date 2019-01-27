@@ -1,7 +1,9 @@
 module TriEval exposing
-  (eval, unparse)
+  (setHoleIds, eval, unparse)
 
 import Utils
+import LeoUnparser
+
 import Lang exposing (..)
 
 type alias HoleIndex =
@@ -30,7 +32,21 @@ identifierFromPat p =
     _ ->
       Nothing
 
-eval : Env -> Exp -> Maybe UnExp
+setHoleIds : Exp -> Exp
+setHoleIds =
+  let
+    setHoleId : Exp -> Int -> (Exp, Int)
+    setHoleId e holeId =
+      case unwrapExp e of
+        EHole ws (EEmptyHole _) ->
+          (replaceE__ e <| EHole ws (EEmptyHole holeId), holeId + 1)
+
+        _ ->
+          (e, 0)
+  in
+    Tuple.first << mapFoldExp setHoleId 0
+
+eval : Env -> Exp -> Result String UnExp
 eval env expr =
   let
     e =
@@ -40,11 +56,11 @@ eval env expr =
       -- E-Const
 
       EConst _ n _ _ ->
-        Just <|
+        Ok <|
           UNum n
 
       EBase _ baseVal ->
-        Just <|
+        Ok <|
           case baseVal of
             EBool b ->
               UBool b
@@ -61,70 +77,95 @@ eval env expr =
         pats
           |> List.map identifierFromPat
           |> Utils.projJusts
-          |> Maybe.map (\vars -> UFunClosure env vars body)
+          |> Result.fromMaybe "Non-identifier pattern"
+          |> Result.map (\vars -> UFunClosure env vars body)
 
       -- E-Var
 
       EVar _ x ->
-        Maybe.map Tuple.first <|
-          Utils.maybeFind x env
+        env
+          |> Utils.maybeFind x
+          |> Result.fromMaybe ("Variable not found: '" ++ x ++ "'")
+          |> Result.map Tuple.first
 
       -- E-App
 
       EApp _ ef es _ _ ->
         case eval env ef of
-          Just (UFunClosure functionEnv vars body) ->
-            es
-              |> List.map (eval env)
-              |> Utils.projJusts
-              |> Maybe.map
-                   ( List.map (\u -> (u, ()))
-                   )
-              |> Maybe.map
-                   ( \envBindings ->
-                       Utils.zip vars envBindings ++ functionEnv
-                   )
-              |> Maybe.andThen (\newEnv -> eval newEnv body)
+          Ok (UFunClosure functionEnv vars body) ->
+            if List.length vars /= List.length es then
+              Err "Partial application not supported"
+            else
+              es
+                |> List.map (eval env)
+                |> Utils.projOk
+                |> Result.map
+                     ( List.map (\u -> (u, ()))
+                     )
+                |> Result.map
+                     ( \envBindings ->
+                         Utils.zip vars envBindings ++ functionEnv
+                     )
+                |> Result.andThen (\newEnv -> eval newEnv body)
 
-          _ ->
-            Nothing
+          evaluated ->
+            Err "Not a closure"
 
       -- E-Match
 
       ECase _ e0 branches _ ->
-        Nothing -- TODO
+        Err "Case not supported" -- TODO
 
       -- E-Hole
 
-      EHole _ _ ->
-        Just <|
-          UHoleClosure env (-1, -1)
+      EHole _ hole  ->
+        case hole of
+          EEmptyHole holeId ->
+            Ok <|
+              UHoleClosure env (holeId, 0)
+
+          _ ->
+            Err "Unsupported hole type"
 
       -- Misc.
 
       EOp _ _ op args _ ->
-        Nothing
+        Err "Op not supported"
 
       EList _ args _ _ _ ->
-        Nothing
+        args
+          |> List.map (Tuple.second >> eval env)
+          |> Utils.projOk
+          |> Result.map UTuple
 
       EIf _ condition _ trueBranch _ falseBranch _ ->
-        Nothing
+        Err "If not supported"
 
       ELet _ _ _ _ _ ->
-        Nothing
+        Err "Let not supported"
 
       EColonType _ _ _ _ _ ->
-        Nothing
+        Err "Colon type not supported"
 
       EParens _ e0 _ _ ->
         eval env e0
 
       ERecord _ _ _ _ ->
-        Nothing
+        Err "Record not supported"
 
       ESelect _ _ _ _ _ ->
-        Nothing
+        Err "Select not supported"
+
+showEnv : Env -> String
+showEnv =
+  let
+    showBinding : (Ident, (UnExp, ())) -> String
+    showBinding (i, (u, _)) =
+      i ++ " → " ++ unparse u
+  in
+    List.map showBinding >> String.join ", "
+
+
 
 unparse : UnExp -> String
 unparse u =
@@ -151,10 +192,15 @@ unparse u =
         argsString =
           String.join ", " args
       in
-        "[E] " ++ "λ" ++ argsString ++ " . " ++ "e"
+        "["
+          ++ showEnv env
+          ++ "] λ"
+          ++ argsString
+          ++ " ."
+          ++ LeoUnparser.unparse body
 
     UHoleClosure env (i, j) ->
-      "[E] ??(" ++ toString i ++ ", " ++ toString j ++ ")"
+      "[" ++ showEnv env ++ "] ??(" ++ toString i ++ ", " ++ toString j ++ ")"
 
     UApp u1 u2 ->
       "(" ++ unparse u1 ++ ") " ++ unparse u2
@@ -162,7 +208,10 @@ unparse u =
     UCase u0 branches ->
       let
         unparseBranch (constructorName, varName, body) =
-          constructorName ++ " " ++ varName ++ " -> " ++ "e"
+          constructorName
+            ++ " "
+            ++ varName ++ " →"
+            ++ LeoUnparser.unparse body
       in
         "case "
           ++ unparse u0

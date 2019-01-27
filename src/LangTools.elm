@@ -2251,7 +2251,7 @@ numericLetBoundIdentifiers program =
       ELet _ _ _ _ body             -> recurse body
       EColonType _ e _ _ _          -> recurse e
       EParens _ e _ _               -> recurse e
-      EHole _ EEmptyHole            -> False
+      EHole _ (EEmptyHole _)        -> False
       EHole _ (ESnapHole val)       -> valIsNum val
   in
   let expBindings = allSimplyResolvableLetBindings program in

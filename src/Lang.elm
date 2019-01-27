@@ -451,8 +451,10 @@ unwrapPat p = p.val.p__
 
 type ParensStyle = Parens | LongStringSyntax | LeoSyntax | HtmlSyntax
 
+type alias HoleId = Int
+
 type Hole
-  = EEmptyHole
+  = EEmptyHole HoleId
   | ESnapHole Val
 
 type Type__
@@ -2476,8 +2478,8 @@ eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) s
 eListWs a b       = withDummyExpInfo <| EList space1 a space0 b space0
 eSnapHoleVal0 v   = withDummyExpInfo <| EHole space0 (ESnapHole v)
 eSnapHoleVal v    = withDummyExpInfo <| EHole space1 (ESnapHole v)
-eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 EEmptyHole
-eEmptyHoleVal     = withDummyExpInfo <| EHole space1 EEmptyHole
+eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 (EEmptyHole 0)
+eEmptyHoleVal     = withDummyExpInfo <| EHole space1 (EEmptyHole 0)
 
 eColonType (Expr e) t = withInfo (exp_ <| EColonType space1 (Expr e) space1 t space0) e.start t.end
 
@@ -3576,7 +3578,7 @@ isWord codeObject =
           True
         (EVar _ _) ->
           True
-        (EHole _ EEmptyHole) ->
+        (EHole _ (EEmptyHole _)) ->
           True
         _ ->
           False

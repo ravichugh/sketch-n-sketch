@@ -2218,7 +2218,14 @@ hole : Parser (WS -> WithInfo Exp_)
 hole =
   inContext "hole" <|
     mapWSExp_ <|
-      transferInfo (flip EHole) (trackInfo <| token "??" EEmptyHole)
+      transferInfo
+        ( flip EHole
+        )
+        ( trackInfo <|
+            succeed (EEmptyHole << Maybe.withDefault 0)
+              |. keyword "??"
+              |= optional int
+        )
 
 --------------------------------------------------------------------------------
 -- General Expressions
