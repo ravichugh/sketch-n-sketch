@@ -1625,3 +1625,7 @@ removeDuplicates =
             helper (hd :: result) tl
   in
     helper []
+
+-- Useful wrapper to force the binding of arguments in tail-recursion
+-- Should be fixed in Elm 0.19
+fixtailrec value callback = callback value
