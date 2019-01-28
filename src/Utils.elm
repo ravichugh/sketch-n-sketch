@@ -1736,3 +1736,9 @@ unzipDict =
     >> List.map (\(k, (a, b)) -> ((k, a), (k, b)))
     >> List.unzip
     >> mapFirstSecond Dict.fromList Dict.fromList
+
+--------------------------------------------------------------------------------
+
+-- Useful wrapper to force the binding of arguments in tail-recursion
+-- Should be fixed in Elm 0.19
+fixtailrec value callback = callback value

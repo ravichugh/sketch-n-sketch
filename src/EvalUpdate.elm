@@ -13,7 +13,7 @@ import HTMLValParser
 import HTMLParser
 import LangParserUtils
 import LangUtils exposing (..)
-import Utils exposing (reverseInsert)
+import Utils exposing (reverseInsert, fixtailrec)
 import Syntax exposing (Syntax)
 import LeoParser as Parser
 import Results exposing (Results, ok1, oks)
@@ -323,7 +323,12 @@ builtinEnv =
          let mergeHtmlText l = case l of
            ha::hb::tail -> case (vHtmlTextUnapply ha, vHtmlTextUnapply hb) of
               (Just a, Just b) -> mergeHtmlText <| Vb.htmlText (Vb.fromVal original) (a ++ b) :: tail
+              (Just "", Nothing) ->
+                mergeHtmlText <| (hb :: tail)
               _ -> ha :: mergeHtmlText (hb :: tail)
+           [ha] -> case vHtmlTextUnapply ha of
+              Just "" -> []
+              _ -> l
            _ -> l
          in
          case vListUnapply original of
@@ -344,14 +349,15 @@ builtinEnv =
                   Ok x -> "List of size " ++ (LazyList.toList x |> List.length |> toString)
                 )
                 ) () in-}
-             let skipStep originalCount diffs =
+             let skipStepAndOutput originalCount outputCount diffs =
                resAccRevValRevDiffs
                |> Results.map (\(revVals, revDiffs) ->
                   (Utils.reverseInsert (List.take originalCount originals) revVals,
                    revDiffs)
-                ) |> aux (originalIndex + originalCount) (outputIndex + 1)
-                   (List.drop originalCount originals) (List.drop 1 oldOutputs) (List.drop 1 newOutputs) diffs
+                ) |> aux (originalIndex + originalCount) (outputIndex + outputCount)
+                   (List.drop originalCount originals) (List.drop outputCount oldOutputs) (List.drop outputCount newOutputs) diffs
              in
+             let skipStep originalCount = skipStepAndOutput originalCount 1 in
              let insertStep count tailDiffs =
                let (inserted, newOutputTail) = Utils.split count newOutputs in
                resAccRevValRevDiffs
@@ -395,77 +401,118 @@ builtinEnv =
                           aux (originalIndex + 1) (outputIndex + 1)
                               (List.drop 1 originals) (List.drop 1 oldOutputs) (List.drop 1 newOutputs) tailDiffs
              in
-             let (consecutiveTexts, originalTail) = Utils.splitPrefix vHtmlTextUnapply originals in
-             case consecutiveTexts of
-               [] -> defaultStep ()
-               [x] -> defaultStep ()
-               manyTexts -> -- All these texts were concatenated in the output.
-                   -- The first value of outputs is the concatenation of manyTexts
-                   case diffs of
-                     [] ->
-                       case originals of
-                         [] ->
-                           resAccRevValRevDiffs
-                           |> Results.map (\(revVals, revDiffs) ->
-                              (List.reverse revVals, List.reverse revDiffs))
-                         _ -> skipStep (List.length manyTexts) []
-                     (j, diff) :: tailDiffs ->
-                       if outputIndex /= j then -- we skip all these values
-                         skipStep (List.length manyTexts) diffs
+             let (manyTexts, originalTail) = Utils.splitPrefix vHtmlTextUnapply originals in
+             let finalStep () =
+               case originals of
+                  [] ->
+                    resAccRevValRevDiffs
+                    |> Results.map (\(revVals, revDiffs) ->
+                      (List.reverse revVals, List.reverse revDiffs))
+                  _ -> skipStep (List.length manyTexts) []
+             in
+             if List.length manyTexts == 0 then defaultStep ()
+             else if List.all ((==) "") manyTexts then -- This string was deleted, so insertions could result in modifications
+               case diffs of
+                 [] -> finalStep ()
+                 (j, diff) :: tailDiffs ->
+                   if outputIndex /= j then -- we skip all these values
+                     skipStep (List.length manyTexts) diffs
+                   else
+                   case diff of
+                     ListElemDelete count ->
+                       skipStepAndOutput (List.length manyTexts) 0 diffs -- The deletion is for a further node
+                     ListElemUpdate d ->
+                       skipStepAndOutput (List.length manyTexts) 0 diffs -- The deletion is for a further node
+                     ListElemInsert count -> -- Insertion of text nodes at this point could be for
+                       if count == 0 then
+                         skipStepAndOutput 0 0 tailDiffs
                        else
-                       case diff of
-                         ListElemDelete count ->
-                           deleteStep count (List.length manyTexts) tailDiffs
-                         ListElemInsert count ->
-                           insertStep count tailDiffs
-                         ListElemUpdate textDiffs ->
-                           case (oldOutputs, newOutputs) of
-                             (_, []) -> Err <| "Inconsistent diffs, says ListElemUpdate but got no new output"
-                             ([], _) -> Err <| "Inconsistent diffs, says ListElemUpdate but got no old output"
-                             (_ :: oldTail, newHead::newTail) ->
-                               case (vHtmlTextUnapply newHead, vHtmlTextDiffsUnapply textDiffs) of
-                                 (Just newStr, Just strDiffs) ->
-                                   --let _ = Debug.log "manyTexts" manyTexts in
-                                   --let _ = Debug.log "newStr" newStr in
-                                   --let _ = Debug.log "strDiffs" strDiffs in
-                                   UpdateUtils.reverseStringConcatenationMultiple manyTexts newStr strDiffs
-                                   |> Results.andThen ((\resAccRevValRevDiffs originalIndex (newMany, newManyDiffs) ->
+                         case newOutputs of
+                           [] -> Err <| "Inconsistent diffs, says ListElemInsert but got no new output"
+                           newHead :: newTail ->
+                             let finalTailDiffs = -- One insertion is going to become an update
+                                   if count == 1 then tailDiffs
+                                   else ((j, ListElemInsert (count - 1)) :: tailDiffs) in
+                             case vHtmlTextUnapply newHead of
+                               Nothing -> -- Insertion of elements could happen before the modification of text
+                                 insertStep 1 finalTailDiffs
+                               Just newStr ->
+                                 UpdateUtils.reverseStringConcatenationMultiple manyTexts newStr [StringUpdate 0 0 (String.length newStr)]
+                                 |> Results.andThen (                    fixtailrec resAccRevValRevDiffs <| \resAccRevValRevDiffs ->fixtailrec originalIndex <| \originalIndex ->
+                                   \(newMany, newManyDiffs) ->
+                                     resAccRevValRevDiffs
+                                     |> Results.map (                    fixtailrec newMany <| \newMany -> fixtailrec newManyDiffs <| \newManyDiffs ->
+                                       \(revVals, revDiffs) ->
+                                         let newRevVals =
+                                               Utils.reverseInsert
+                                                 (List.map (Vb.htmlText (Vb.fromVal original)) newMany) revVals
+                                             newRevDiffs =
+                                               Utils.reverseInsert
+                                                 (Utils.zipWithIndex newManyDiffs
+                                                  |> List.concatMap (\(d, index) ->
+                                                    if d == [] then []
+                                                    else
+                                                      [(originalIndex + index, ListElemUpdate (vHtmlTextDiffs <| VStringDiffs d))]))
+                                                 revDiffs
+                                         in
+                                         (newRevVals, newRevDiffs)
+                                     ))
+                                 |> aux (originalIndex + List.length manyTexts) outputIndex originalTail oldOutputs newTail finalTailDiffs
+             else
+               -- All these texts were concatenated in the output.
+               -- The first value of outputs is the concatenation of manyTexts
+               case diffs of
+                 [] -> finalStep ()
+                 (j, diff) :: tailDiffs ->
+                   if outputIndex /= j then -- we skip all these values
+                     skipStep (List.length manyTexts) diffs
+                   else
+                   case diff of
+                     ListElemDelete count ->
+                       deleteStep count (List.length manyTexts) tailDiffs
+                     ListElemInsert count ->
+                       insertStep count tailDiffs
+                     ListElemUpdate textDiffs ->
+                       case (oldOutputs, newOutputs) of
+                         (_, []) -> Err <| "Inconsistent diffs, says ListElemUpdate but got no new output"
+                         ([], _) -> Err <| "Inconsistent diffs, says ListElemUpdate but got no old output"
+                         (_ :: oldTail, newHead::newTail) ->
+                           case (vHtmlTextUnapply newHead, vHtmlTextDiffsUnapply textDiffs) of
+                             (Just newStr, Just strDiffs) ->
+                               --let _ = Debug.log "manyTexts" manyTexts in
+                               --let _ = Debug.log "newStr" newStr in
+                               --let _ = Debug.log "strDiffs" strDiffs in
+                               UpdateUtils.reverseStringConcatenationMultiple manyTexts newStr strDiffs
+                               |> Results.andThen (
+                                        fixtailrec resAccRevValRevDiffs <| \resAccRevValRevDiffs ->
+                                        fixtailrec originalIndex <| \originalIndex ->
+                                   \(newMany, newManyDiffs) ->
                                      --let _ = Debug.log "newMany" newMany in
                                      --let _ = Debug.log "newManyDiffs" newManyDiffs in
                                      resAccRevValRevDiffs
-                                     |> Results.map ((\newMany newManyDiffs (revVals, revDiffs) ->
-                                       (Utils.reverseInsert
-                                         (List.map (Vb.htmlText (Vb.fromVal original)) newMany) revVals,
-                                        Utils.reverseInsert
-                                          (Utils.zipWithIndex newManyDiffs
-                                           |> List.concatMap (\(d, index) ->
-                                             if d == [] then []
-                                             else
-                                               [(originalIndex + index, ListElemUpdate (vHtmlTextDiffs <| VStringDiffs d))]))
-                                          revDiffs)
-                                     ) newMany newManyDiffs)) resAccRevValRevDiffs originalIndex)
-                                     {- let subaux index newMany newManyDiffs revValsRevDiffs = -- Treats deletions of texts as deletions of node.
-                                          revValsRevDiffs |>
-                                          Results.andThen ((\newMany newManyDiffs index (revVals, revDiffs) ->
-                                          case (newMany, newManyDiffs) of
-                                           (headNewMany :: tailNewMany, headNewManyDiffs :: tailNewManyDiffs) ->
-                                             let default = subaux (index + 1) tailNewMany tailNewManyDiffs (ok1 (
-                                                             (Vb.htmlText (Vb.fromVal original) headNewMany) :: revVals,
-                                                             if headNewManyDiffs == [] then revDiffs else
-                                                               (index, ListElemUpdate (vHtmlTextDiffs <| VStringDiffs headNewManyDiffs))::revDiffs)) in
-                                             case (headNewMany, headNewManyDiffs) of
-                                               ("", [StringUpdate  _ _ 0]) ->
-                                                 default |> Results.andAlso
-                                                   (subaux (index + 1) tailNewMany tailNewManyDiffs (ok1 (
-                                                     revVals, (index, ListElemDelete 1)::revDiffs)))
-                                               _ -> default
-                                           _ -> ok1 (revVals, revDiffs)) newMany newManyDiffs index)
-                                     in subaux originalIndex newMany newManyDiffs resAccRevValRevDiffs) resAccRevValRevDiffs originalIndex) -}
-                                   |> aux (originalIndex + List.length manyTexts) (outputIndex + 1) originalTail oldTail newTail tailDiffs
-                                 (_, Nothing) ->
-                                   Err <| "In a html text node, cannot update anything else than the text itself. Got " ++ toString textDiffs
-                                 (Nothing, _) ->
-                                   Err <| "In a html text node, cannot update with anything else than a text node. Got new value " ++ valToString newHead
+                                     |> Results.map (
+                                           fixtailrec newMany <| \newMany ->
+                                           fixtailrec newManyDiffs <| \newManyDiffs ->
+                                       \(revVals, revDiffs) ->
+                                         let newRevVals =
+                                               Utils.reverseInsert
+                                                 (List.map (Vb.htmlText (Vb.fromVal original)) newMany) revVals
+                                             newRevDiffs =
+                                               Utils.reverseInsert
+                                                 (Utils.zipWithIndex newManyDiffs
+                                                  |> List.concatMap (\(d, index) ->
+                                                    if d == [] then []
+                                                    else
+                                                      [(originalIndex + index, ListElemUpdate (vHtmlTextDiffs <| VStringDiffs d))]))
+                                                 revDiffs
+                                         in
+                                         (newRevVals, newRevDiffs)
+                                       ))
+                               |> aux (originalIndex + List.length manyTexts) (outputIndex + 1) originalTail oldTail newTail tailDiffs
+                             (_, Nothing) ->
+                               Err <| "In a html text node, cannot update anything else than the text itself. Got " ++ toString textDiffs
+                             (Nothing, _) ->
+                               Err <| "In a html text node, cannot update with anything else than a text node. Got new value " ++ valToString newHead
        in
        case (vListUnapply original, vListUnapply oldVal, vListUnapply newVal, diffs) of
          (Just originals, Just oldOutputs, Just newOutputs, VListDiffs ldiffs) ->
