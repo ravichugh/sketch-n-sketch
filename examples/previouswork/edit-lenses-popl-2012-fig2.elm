@@ -18,7 +18,7 @@ view2 = List.filter (case of
   Inr _ -> True; _ -> False) tagged |> List.map (\Inr x -> <li>@x</li>)
   
 Html.forceRefresh <|
-expressionFreeze <div>
+Update.freezeExcept (always "template") [view1, view2] <| \[view1, view2] -> <div>
   <ul style="display:inline-block">@view1</ul>
   <ul style="display:inline-block">@view2</ul>
 </div>

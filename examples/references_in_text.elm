@@ -106,7 +106,7 @@ addReferences references node =
     Maybe.withDefaultLazy (\_ -> Update.sizeFreeze
       [<abbr style="color:red" title="Unknown reference">@match</abbr>]))
     (collectedAddedReferences references node)
-  , Update.expressionFreeze <ul
+  , Update.freezeExcept (always "Cannot modify ul template") finalReferences <| \finalReferences -> <ul
   contenteditable="true">@(List.indexedMap (\i x -> <li>@(Html.text """[@(i + 1)] @x""")</li>) finalReferences)</ul>
   , Html.button "Sort references" "Sort the list of references alphabetically" applysort (\_ -> "#")
   ]

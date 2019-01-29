@@ -23,14 +23,14 @@ Debug = {
 
  -- Much simpler version, does not handle @ symbols wells.
 htmlViaEval string =
-  case __evaluate__ [("append", append)] <| Update.expressionFreeze """<raw>@string</raw>""" of
+  case __evaluate__ [("append", append)] <| Update.freezeExcept (always "Cannot modify raw template") string <| \string -> """<raw>@string</raw>""" of
     Ok [_, _, children] -> children
     Err msg -> error msg
     _ -> error "Parsing HTML failed:"
 
 -- building block for updating
 freeze x = x
-expressionFreeze x = x
+expressionFreeze x = Debug.log "expressionFreeze is deprecated. Please use Update.freezeExcept instead" x
 -----------------------------------------
 -- Building blocks functions
 
@@ -858,7 +858,7 @@ Update =
   in
   -- exports from Update module
   { freeze x = x
-    expressionFreeze x = x
+    expressionFreeze x = Debug.log "Update.expressionFreeze is deprecated. Please use Update.freezeExcept instead" x
     sizeFreeze = sizeFreeze
     conditionalFreeze cond = if cond then (\x -> freeze x) else identity
 
@@ -871,6 +871,16 @@ Update =
         else
           Ok (InputsWithDiffs [(outputNew, Just diffs)])
     }.apply x
+
+    -- Alternative to expressionFreeze. Provides a cleaner error message and enables to specify which variables to freeze on
+    -- expressionFreeze F[x] <=> freezeExcept (always "impossible") x <| \x -> F[x]
+    freezeExcept: (Diffs -> String) -> a -> (a -> b) -> b
+    freezeExcept lazyMessage arg fun = freezeWhenExcept True lazyMessage arg fun
+
+    -- More precise version of freezeExcept that accepts a condition operator
+    freezeWhenExcept: Bool -> (Diffs -> String) -> a -> (a -> b) -> b
+    freezeWhenExcept notPermission lazyMessage arg fun = (freezeWhen notPermission (\(newA, newDiffs) -> lazyMessage newDiffs) fun) arg
+
     foldDiff = foldDiff
     applyLens = applyLens
     lens l x = l.apply x
@@ -2445,7 +2455,8 @@ String = {
                       insertAfter = insertionPoint (append)
                       insertBefore = insertionPoint (flip append)
                   in
-                  Update.expressionFreeze <|
+                  Update.freezeExcept (\_ ->  "ul template")  [ul_ol, insertBefore, handleLists, elements, notinulol, insertAfter] <|
+                                                             \[ul_ol, insertBefore, handleLists, elements, notinulol, insertAfter] ->
                   """<@ul_ol>@insertBefore<li>@(
                     List.map handleLists elements
                     |> joinAndSplitBack """</li><li>@notinulol""" "</li><li>")</li>@insertAfter</@ul_ol>"""
@@ -2458,7 +2469,9 @@ String = {
                   Regex.replace """(\r?\n)> *""" (\m -> nth m.group 1) content
              in
              let recursivecontent = quoteContent |> handleblockquotes in
-             Update.expressionFreeze """@newline<blockquote>@recursivecontent</blockquote>"""
+             Update.freezeExcept (\_ -> "blockquote template") [newline, recursivecontent] <|
+                                                              \[newline, recursivecontent] ->
+             """@newline<blockquote>@recursivecontent</blockquote>"""
            ) |> Maybe.withDefault m.match
           ) text
     in let
@@ -2484,12 +2497,12 @@ String = {
               ) |> join "")</ol></div>"""
     text = r """(^|\r?\n)(#+)\s*(@notincode[^\r\n]*)@notincode""" (\m ->
       let hlevel = """h@(length (nth m.group 2))""" in
-      Update.expressionFreeze """@(nth m.group 1)<@hlevel>@(nth m.group 3)</@hlevel>""") text
+      Update.freezeExcept (always "h-template") [m, hlevel] <| \[m, hlevel] -> """@(nth m.group 1)<@hlevel>@(nth m.group 3)</@hlevel>""") text
     text = handleLists text
     text = r """(?:(\r?\n *\r?\n)(?:\\noindent\r?\n)?|^)((?=\s*\w|\S)@notincode[\s\S]*?)(?=(\r?\n *\r?\n|\r?\n$|$))@notincode""" (
       \m ->
         if nth m.group 1 == "" && nth m.group 3 == "" -- titles and images should not be paragraphs.
-         || Regex.matchIn """</?(?:h\d|ul|ol|p|pre|center)>""" (nth m.group 2) then m.match else Update.expressionFreeze """@(nth m.group 1)<p>@(nth m.group 2)</p>""") text
+         || Regex.matchIn """</?(?:h\d|ul|ol|p|pre|center)>""" (nth m.group 2) then m.match else Update.freezeExcept (always "p template") m <| \m -> """@(nth m.group 1)<p>@(nth m.group 2)</p>""") text
     text = r """(!?)\[([^\]\[\\]+)\](\^?)(\(|\[)([^\[\)\]\s]+)\s?"?([^\)\]"]+)?"?(?:\)|\])|(?:http|ftp|https):\/\/(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@@?^=%&:/~+#-]*[\w@@?^=%&/~+#-])?@notincode@notinattr""" (
       \{group=[match, picPrefix, text, targetblank, parensStyle, url, title]} ->  -- Direct and indirect References + syntax ^ to open in external page.
       let a = if picPrefix == "!" then "img" else "a"
@@ -2503,13 +2516,19 @@ String = {
         "(" -> (Update.freezeWhen True toString (\a t href url targetblank alt aclose -> """<@a @t @href="@url"@targetblank@alt>@aclose"""))
                   a t href url targetblank alt aclose
         "[" -> listDict.get url references |> case of
-              Just link -> Update.expressionFreeze """<@a @t @href="@link"@targetblank@alt>@aclose"""
+              Just link ->
+                Update.freezeExcept (always "a or img relative template")
+                  [a, t, href, link, targetblank, alt, aclose] <|
+                 \[a, t, href, link, targetblank, alt, aclose] ->
+               """<@a @t @href="@link"@targetblank@alt>@aclose"""
               Nothing -> match
-        _ -> """<a href="@match">@(escapeHtml match)</a>"""
+        _ -> Update.freezeExcept (always "full URL template") match <| \match -> """<a href="@match">@(escapeHtml match)</a>"""
         ) text
     text = r """\[\^(@notincode[^\]]+)\]@notincode""" (\m ->  -- Footnotes
       listDict.get (nth m.group 1) footnotes |> case of
-        Just (n, key) -> Update.expressionFreeze """<a href="#fn@n" title="@(escapeAttribute key)" class="footnoteRef" id="fnref@n"><sup>@n</sup></a>"""
+        Just (n, key) ->
+          Update.freezeExcept (always "footnote template") [n, key] <| \[n, key] ->
+          """<a href="#fn@n" title="@(escapeAttribute key)" class="footnoteRef" id="fnref@n"><sup>@n</sup></a>"""
         Nothing -> m.match) text
     text = r """(\*{1,3}|_{1,3})(?=[^\s\*_])(@notincode(?:(?!\\\*|\_).)*?)(\1)@notincode@notinattr""" (\m ->
       let content = nth m.group 2 in

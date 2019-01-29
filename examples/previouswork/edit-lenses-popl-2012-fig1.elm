@@ -22,7 +22,7 @@ view2 = mapWithDefault default (
   \{name, country} -> <li>@name, @country</li>) data
 
 Html.forceRefresh <|
-expressionFreeze <div>
+Update.freezeExcept (always "template") [view1, view2] <| \[view1, view2] -> <div>
   <ul>@view1</ul>
   <ul>@view2</ul>
 </div>

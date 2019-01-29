@@ -17,13 +17,13 @@ pairs = selectedImages
   )
 
 importStep = <table>
-@Update.expressionFreeze<|<tbody>@(
+@Update.freezeExcept(always "tbody template")(images)(\images-><tbody>@(
   images
   |> List.map (\Duo name url ->
      <tr><td><img src=url/></td><td>@name</td></tr>)
   |> Update.onUpdate (
      Html.filter (not << Html.isEmptyText))
-  )</tbody>
+  )</tbody>)
 </table>
 
 main = importStep
