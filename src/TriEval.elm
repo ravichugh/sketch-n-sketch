@@ -1,5 +1,5 @@
 module TriEval exposing
-  (setHoleIds, eval, unparse)
+  (eval, unparse)
 
 import Utils
 import LeoUnparser
@@ -31,20 +31,6 @@ identifierFromPat p =
 
     _ ->
       Nothing
-
-setHoleIds : Exp -> Exp
-setHoleIds =
-  let
-    setHoleId : Exp -> Int -> (Exp, Int)
-    setHoleId e holeId =
-      case unwrapExp e of
-        EHole ws (EEmptyHole _) ->
-          (replaceE__ e <| EHole ws (EEmptyHole holeId), holeId + 1)
-
-        _ ->
-          (e, 0)
-  in
-    Tuple.first << mapFoldExp setHoleId 0
 
 eval : Env -> Exp -> Result String UnExp
 eval env expr =

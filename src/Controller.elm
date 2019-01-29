@@ -851,13 +851,18 @@ tryRun old =
         let
           resultString =
             parsedExp
-              |> TriEval.setHoleIds
               |> TriEval.eval []
               |> Result.map TriEval.unparse
               |> Result.mapError (\s -> "[Error] " ++ s)
               |> Utils.fromResult
         in
-          Ok { old | outputMode = HtmlText resultString }
+          Ok
+            { old
+                | outputMode =
+                    HtmlText resultString
+                , errorBox =
+                    Nothing
+            }
 
 {-
         let

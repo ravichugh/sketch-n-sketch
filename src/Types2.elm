@@ -3118,7 +3118,7 @@ duplicateDataConstructorTool inputExp selections =
                                   -- _ = Debug.log "newPat" (unparsePattern newPat)
 
                                   newHole =
-                                    EHole space0 (EEmptyHole 0)
+                                    EHole space0 (EEmptyHole dummyHoleId)
                                       |> replaceE__PreservingPrecedingWhitespace e
 
                                   newBranch_ =

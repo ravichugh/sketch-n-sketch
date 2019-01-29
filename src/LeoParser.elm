@@ -2222,7 +2222,7 @@ hole =
         ( flip EHole
         )
         ( trackInfo <|
-            succeed (EEmptyHole << Maybe.withDefault 0)
+            succeed (EEmptyHole << Maybe.withDefault dummyHoleId)
               |. keyword "??"
               |= optional int
         )
@@ -2756,7 +2756,7 @@ program =
 
 parse : String -> Result P.Error Exp
 parse =
-  run (map freshen program)
+  run (map (setHoleIds << freshen) program)
 
 parseT : String -> Result P.Error Type
 parseT =
@@ -3099,3 +3099,22 @@ substPlusOf_ substPlus exp =
        _ -> s
   in
   foldExp accumulator substPlus exp
+
+-- Set holeId's
+
+setHoleIds : Exp -> Exp
+setHoleIds =
+  let
+    setHoleId : Exp -> Int -> (Exp, Int)
+    setHoleId e holeId =
+      case unwrapExp e of
+        EHole ws (EEmptyHole oldHoleId) ->
+          if oldHoleId == dummyHoleId then
+            (replaceE__ e <| EHole ws (EEmptyHole holeId), holeId + 1)
+          else
+            (e, holeId)
+
+        _ ->
+          (e, holeId)
+  in
+    Tuple.first << mapFoldExpTopDown setHoleId 0

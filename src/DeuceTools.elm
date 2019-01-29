@@ -265,7 +265,7 @@ addToEnd_ model tryParent exp =
     EApp wsb f args appType ws1 ->
       let
         argWsb = wsOfLast precedingWhitespace args
-        newArg = EHole argWsb (EEmptyHole 0) |> withDummyExpInfo
+        newArg = EHole argWsb (EEmptyHole dummyHoleId) |> withDummyExpInfo
       in
       EApp wsb f (args ++ [newArg]) appType ws1
       |> return
@@ -600,7 +600,7 @@ createCaseTool =
         wsb = precedingWhitespace holeExp
         maxID = LeoParser.maxId oldRoot
         (caseID, patID, branchEID) = Utils.mapThree ((+) maxID) (1, 2, 3)
-        ofExp = Expr <| withDummyExpInfoEId holeEId <| EHole space1 (EEmptyHole 0)
+        ofExp = Expr <| withDummyExpInfoEId holeEId <| EHole space1 (EEmptyHole dummyHoleId)
         pat = withDummyPatInfoPId patID <| PWildcard space0
         holeExpWithOneSpace = replacePrecedingWhitespace " " holeExp |> setEId branchEID
         caseExp wsBeforeCase wsBeforeBranch =
@@ -656,7 +656,7 @@ createLetTool =
         (letID, patID, boundExpID, parensID) = Utils.mapFour ((+) maxID) (1, 2, 3, 4)
         isTopLevel = LangTools.isTopLevelEId holeEId oldRoot
         pat = withDummyPatInfoPId patID <| PWildcard <| if isTopLevel then space0 else space1
-        boundExp = Expr <| withDummyExpInfoEId boundExpID <| EHole space1 (EEmptyHole 0)
+        boundExp = Expr <| withDummyExpInfoEId boundExpID <| EHole space1 (EEmptyHole dummyHoleId)
         newExp =
           let
             letOrDef = if isTopLevel then Def else Let
