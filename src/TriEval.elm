@@ -148,8 +148,24 @@ eval env expr =
       EIf _ condition _ trueBranch _ falseBranch _ ->
         Err "If not supported"
 
-      ELet _ _ _ _ _ ->
-        Err "Let not supported"
+      ELet _ _ decls _ body ->
+        case recordEntriesFromDeclarations decls of
+          Just entries ->
+            let
+              (parameters, eArgs) =
+                entries
+                  |> List.map (\(_, _, ident, _, exp) -> (ident, exp))
+                  |> List.unzip
+
+              uArgs =
+                eArgs
+                  |> List.map (eval env)
+                  |> Utils.projOk
+            in
+              Result.andThen (bindEval env body parameters) uArgs
+
+          Nothing ->
+            Err "Could not get record entries from let"
 
       EColonType _ _ _ _ _ ->
         Err "Colon type not supported"
@@ -159,8 +175,8 @@ eval env expr =
 
       ERecord _ _ decls _ ->
         case recordEntriesFromDeclarations decls of
-          Just fields ->
-            case tupleEncodingUnapply fields of
+          Just entries ->
+            case tupleEncodingUnapply entries of
               Just tupleEntries ->
                 tupleEntries
                   |> List.map (Tuple.second >> eval env)
