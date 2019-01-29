@@ -7,7 +7,7 @@ import LeoUnparser
 import Lang exposing (..)
 
 type alias HoleIndex =
-  (Int, Int)
+  (HoleId, Int)
 
 type UnExp
   = UConstructor Ident UnExp
@@ -17,7 +17,7 @@ type UnExp
   | UTuple (List UnExp)
   | UFunClosure Env (List Ident) {- Type -} Exp
   | UHoleClosure Env HoleIndex {- Type -}
-  | UApp UnExp UnExp
+  | UApp UnExp (List UnExp)
   | UCase UnExp (List (Ident, Ident, Exp))
 
 type alias Env =
@@ -35,6 +35,34 @@ identifierFromPat p =
 eval : Env -> Exp -> Result String UnExp
 eval env expr =
   let
+    bindEval : Env -> Exp -> List Ident -> List UnExp -> Result String UnExp
+    bindEval currentEnv body parameters arguments =
+      let
+        envExtension =
+          arguments
+            |> List.map (\u -> (u, ()))
+            |> Utils.zip parameters
+
+        newEnv =
+          envExtension ++ currentEnv
+
+        argLength =
+          List.length arguments
+
+        paramLength =
+          List.length parameters
+      in
+        case compare argLength paramLength of
+          LT ->
+            Ok <|
+              UFunClosure newEnv (List.drop argLength parameters) body
+
+          EQ ->
+            eval newEnv body
+
+          GT ->
+            Err "Supplied too many arguments"
+
     e =
       unwrapExp expr
   in
@@ -76,26 +104,22 @@ eval env expr =
 
       -- E-App
 
-      EApp _ ef es _ _ ->
-        case eval env ef of
-          Ok (UFunClosure functionEnv vars body) ->
-            if List.length vars /= List.length es then
-              Err "Partial application not supported"
-            else
-              es
-                |> List.map (eval env)
-                |> Utils.projOk
-                |> Result.map
-                     ( List.map (\u -> (u, ()))
-                     )
-                |> Result.map
-                     ( \envBindings ->
-                         Utils.zip vars envBindings ++ functionEnv
-                     )
-                |> Result.andThen (\newEnv -> eval newEnv body)
+      EApp _ eFunction eArgs _ _ ->
+        let
+          uArgs =
+            eArgs
+              |> List.map (eval env)
+              |> Utils.projOk
+        in
+          case eval env eFunction of
+            Ok (UFunClosure functionEnv parameters body) ->
+              Result.andThen (bindEval functionEnv body parameters) uArgs
 
-          evaluated ->
-            Err "Not a closure"
+            Ok ((UHoleClosure _ _) as hole) ->
+                Result.map (UApp hole) uArgs
+
+            _ ->
+              Err "Not a proper application"
 
       -- E-Match
 
@@ -196,8 +220,12 @@ unparse u =
     UHoleClosure env (i, j) ->
       "[" ++ showEnv env ++ "] ??(" ++ toString i ++ ", " ++ toString j ++ ")"
 
-    UApp u1 u2 ->
-      "(" ++ unparse u1 ++ ") " ++ unparse u2
+    UApp uFunction uArgs ->
+      let
+        parens u beginning =
+          "(" ++ beginning ++ ") " ++ unparse u
+      in
+        List.foldl parens (unparse uFunction) uArgs
 
     UCase u0 branches ->
       let
