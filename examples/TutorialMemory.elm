@@ -38,19 +38,19 @@ In sketch-n-sketch, erase the program in the left pane and replace it with the f
 @(placeholder 1)
 
 main = <table>
-@@Update.expressionFreeze<|<tbody>@@(
+@@Update.freezeExcept(always "template")(images)(\images-> <tbody>@@(
   images
   |> List.map (\Image name url ->
      <tr><td><img src=url></td><td>@@name</td></tr>)
   |> Update.onUpdate (
      Html.filter (not << Html.isEmptyText))
-  )</tbody>
+  )</tbody>)
 </table>"""
 @t.displaycode
 After clicking on "Run", you should see the below result in the right pane.  
 @t.displayevalcode
 Let us explain this code a bit.  
-First because we want to change the data, we prepend <code>@@Update.expressionFreeze</code> to the rendered table to make sure the expression itself will not be modified when we change the output, only the data.  
+First because we want to change the data, we prepend <code>@@Update.freezeExcept</code> to the rendered table to make sure the expression itself will not be modified when we change the output, only the data.
 Second, we transform the list of images to a list of <code>&lt;tr&gt;</code> rows, each containing two <code>&lt;td&gt;</code> cells. The first cell contains the image, the second cell the name.  
 Because the rows we are importing will contain whitespace, mostly newlines (which our program does not produce), we make sure to remove them with the instruction <code>Update.onUpdate (Html.filter (not &lt;< Html.isEmptyText))</code>.
 This instruction is the last one because it will be the first to execute when the program executes in reverse.

@@ -1031,14 +1031,14 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                      Result.fromMaybe "Insertions and deletions not authorized in environments" |>
                      Result.andThen (List.map (\(i, d) ->
                      case d of
-                       VRecordDiffs dict ->
-                         case (Dict.get Lang.ctorTuple dict, Dict.get "_1" dict, Dict.get "_2" dict) of
-                           (Just _, _, _) -> Err <| "Unexpected change to the tuple constructor's name"
-                           (_, Just _, _) -> Err <| "Cannot change the name of a variable"
-                           (_, _, Just d) -> Ok [(i, d)]
-                           _ -> Ok []
-                       _ ->
-                         Err <| "Expected VRecordDiffs, got " ++ toString d
+                        VRecordDiffs dict ->
+                          case (Dict.get Lang.ctorTuple dict, Dict.get "_1" dict, Dict.get "_2" dict) of
+                            (Just _, _, _) -> Err <| "Unexpected change to the tuple constructor's name"
+                            (_, Just _, _) -> Err <| "Cannot change the name of a variable"
+                            (_, _, Just d) -> Ok [(i, d)]
+                            _ -> Ok []
+                        _ ->
+                          Err <| "Expected VRecordDiffs, got " ++ toString d
                    ) >> Utils.projOk) |> Result.map (List.concatMap identity)
                    in
                    case (resNewEnv, resNewEnvDiffs) of
@@ -1052,8 +1052,9 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        case (Vu.list Vu.string oldVal, Vu.list Vu.string newVal, diffs) of
                          (Ok oldStrings, Ok newStrings, VListDiffs d) ->
                            let newResult = Vb.string (Vb.fromVal v) (String.join "" newStrings) in
-                           let resNewResultDiffs =
-                             let
+                           let
+                             resNewResultDiffs =
+                              let
                                aux: ListDiffs VDiffs -> List String -> List String ->
                                    (Int,           Int,             List StringDiffs) -> Result String VDiffs
                                aux  d                   oldStrings     newStrings
@@ -1111,7 +1112,8 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                          Ok listKeyDictKeyValues ->
                             case (newVal.v_, diffs) of
                               (VDict newDict, VDictDiffs dictDiffs) ->
-                                let (newListRev, newDiffsRev) = List.foldl (\(((k, dKey), v), i) (newListRev, newDiffsRev) ->
+                                let
+                                   (newListRev, newDiffsRev) = List.foldl (\(((k, dKey), v), i) (newListRev, newDiffsRev) ->
                                     case (Dict.get dKey dictDiffs, Dict.get dKey newDict)  of
                                       (Just VDictElemDelete, _) -> (newListRev, (i, ListElemDelete 1)::newDiffsRev)
                                       (Just (VDictElemUpdate x), Just newElem)  -> ((k, newElem)::newListRev, (i, ListElemUpdate (VRecordDiffs (Dict.fromList [("_2", x)])))::newDiffsRev)
