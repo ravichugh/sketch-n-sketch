@@ -23,7 +23,7 @@ type UnExp
 type alias Env =
   List (Ident, (UnExp, () {- Type -}))
 
-identifierFromPat : Pat -> Maybe String
+identifierFromPat : Pat -> Maybe Ident
 identifierFromPat p =
   case unwrapPat p of
     PVar _ ident _ ->
@@ -63,7 +63,7 @@ eval env expr =
         pats
           |> List.map identifierFromPat
           |> Utils.projJusts
-          |> Result.fromMaybe "Non-identifier pattern"
+          |> Result.fromMaybe "Non-identifier pattern in function"
           |> Result.map (\vars -> UFunClosure env vars body)
 
       -- E-Var
@@ -119,10 +119,7 @@ eval env expr =
         Err "Op not supported"
 
       EList _ args _ _ _ ->
-        args
-          |> List.map (Tuple.second >> eval env)
-          |> Utils.projOk
-          |> Result.map UTuple
+        Err "List not supported"
 
       EIf _ condition _ trueBranch _ falseBranch _ ->
         Err "If not supported"
@@ -136,8 +133,21 @@ eval env expr =
       EParens _ e0 _ _ ->
         eval env e0
 
-      ERecord _ _ _ _ ->
-        Err "Record not supported"
+      ERecord _ _ decls _ ->
+        case recordEntriesFromDeclarations decls of
+          Just fields ->
+            case tupleEncodingUnapply fields of
+              Just tupleEntries ->
+                tupleEntries
+                  |> List.map (Tuple.second >> eval env)
+                  |> Utils.projOk
+                  |> Result.map UTuple
+
+              Nothing ->
+                Err "Arbitrary records not supported"
+
+          Nothing ->
+            Err "Could not get record entries"
 
       ESelect _ _ _ _ _ ->
         Err "Select not supported"
@@ -150,8 +160,6 @@ showEnv =
       i ++ " → " ++ unparse u
   in
     List.map showBinding >> String.join ", "
-
-
 
 unparse : UnExp -> String
 unparse u =
