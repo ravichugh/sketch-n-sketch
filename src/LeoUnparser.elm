@@ -660,6 +660,10 @@ unparse e =
 
     EParens wsBefore innerExpression pStyle wsAfter ->
       case pStyle of
+        CustomSyntax x -> -- only for foreign parsers/unparsers
+          wsBefore.val ++ "{-CustomXyntax " ++ toString x ++ "-}(" ++
+          unparse innerExpression ++
+          wsAfter.val ++ ")"
         Parens ->
           wsBefore.val
             ++ "("

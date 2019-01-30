@@ -227,6 +227,14 @@ var _user$project$Native_ImpureGoodies = {
       return acc;
     },
 
+    fromNativeArray: function(v) {
+      var result = _elm_lang$core$Native_List.Nil;
+      for(var i = v.length - 1; i >= 0; i-- ) {
+        result = _elm_lang$core$Native_List.Cons(v[i], result)
+      }
+      return result;
+    },
+
     fromNative: (() => {
        var rec = v => stringCallback => numCallback => boolCallback => listCallback => listRecordCallback => functionCallback => {
           if(typeof v == "string") return stringCallback(v);
@@ -267,5 +275,28 @@ var _user$project$Native_ImpureGoodies = {
             return _elm_lang$core$Maybe$Nothing;
           }
         }
-      }
+      },
+
+    matchBaseValue: a => boolc => stringc => intc => {
+      if(typeof a == "boolean")
+        return {ctor: "Ok", _0: boolc(a)};
+      if(typeof a == "string")
+        return {ctor: "Ok", _0: stringc(a)};
+      if(typeof a == "number")
+        return {ctor: "Ok", _0: intc(a)};
+      else
+        return {ctor: "Err", _0: "" + a + " is not a boolean, string or number"};
+    },
+    whitespaceFromMetadata: metadata => {
+
+      var commentCompatible = JSON.stringify(metadata).replace(/\\/g,"\\\\").replace(/\{-/g,"{\\-").replace(/-\}/g,"-\\}");
+      return " {-" + commentCompatible + "-}";
+    },
+    whitespaceToMetadata: whitespace => {
+      var extracted = /^\s*\{-(.*)-}$/g.exec(whitespace);
+      if(extracted) {
+        var metadata = JSON.parse(extracted[1].replace(/\{\\-/g, "{-").replace(/-\\\}/g, "-}").replace(/\\\\/g,"\\"))
+        return metadata;
+      } else return {}
+    }
 };
