@@ -135,7 +135,7 @@ import Syntax exposing (Syntax)
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
 
-import ImpureGoodies
+import ImpureGoodies exposing (nativeDict)
 
 import VirtualDom
 
@@ -2724,19 +2724,22 @@ doCallUpdate m =
                  )
               --|> (\x -> let _ = Debug.log "Finished to diff the solutions" () in x)
           in
-          let aux: LazyList (String, Exp, List Exp, Maybe EDiffs) -> Maybe String -> Maybe SynthesisResult
-              aux ll prevSolution = case ll of
+          let aux: Bool -> Int -> LazyList (String, Exp, List Exp, Maybe EDiffs) -> nativeDict -> Maybe SynthesisResult
+              aux stopIfDuplicate i ll prevSolutions = case ll of
             LazyList.Nil -> Nothing
             LazyList.Cons (diffResult, newCode, diffs, changes) lazyTail ->
               let thisSolution = Syntax.unparser Syntax.Leo newCode in
-              if Just thisSolution == prevSolution then -- remove duplicates only if the final Exp is the same
-                Just <| synthesisResultDiffsLazy "Hover for more solutions..." m.inputExp [] <| \_ ->
-                  aux (Lazy.force lazyTail) (Just thisSolution)
-              else
+              if nativeDict.get thisSolution prevSolutions /= Nothing then -- remove duplicates only if the final Exp is the same
+                if stopIfDuplicate then
+                  Just <| synthesisResultDiffsLazy ("Solution #" ++ toString i ++ " is duplicate. Continue searching?") m.inputExp [] <| \_ ->
+                    aux False (i + 1) (Lazy.force lazyTail) prevSolutions
+                else
+                  aux False (i + 1) (Lazy.force lazyTail) prevSolutions
+              else -- either the first solution or a different solution
                 Just <| synthesisResultDiffsLazy diffResult newCode diffs <| \_ ->
-                  aux (Lazy.force lazyTail) (Just thisSolution)
+                  aux True (i + 1) (Lazy.force lazyTail) (nativeDict.insert thisSolution 1 prevSolutions)
           in
-          case aux filteredResults Nothing of
+          case aux False 1 filteredResults (nativeDict.empty ()) of
             Nothing ->
               showSolutions [revertChanges "Only Solution is Original Program"]
             Just synthesisResult ->
