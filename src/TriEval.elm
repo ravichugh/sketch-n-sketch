@@ -1,8 +1,12 @@
 module TriEval exposing
   (eval, unparse)
 
+import Dict exposing (Dict)
+
 import Utils
 import LeoUnparser
+
+import Evaluator exposing (Evaluator)
 
 import Lang exposing (..)
 
@@ -20,8 +24,15 @@ type UnExp
   | UApp UnExp (List UnExp)
   | UCase UnExp (List (Ident, Ident, Exp))
 
+type alias EvalState =
+  { nextHoleIndex : Dict HoleId Int
+  }
+
 type alias Env =
   List (Ident, (UnExp, () {- Type -}))
+
+type alias UnExpEvaluator =
+  Evaluator EvalState String UnExp
 
 identifierFromPat : Pat -> Maybe Ident
 identifierFromPat p =
@@ -32,49 +43,49 @@ identifierFromPat p =
     _ ->
       Nothing
 
-eval : Env -> Exp -> Result String UnExp
-eval env expr =
+bindingEval : Env -> Exp -> List Ident -> List UnExp -> UnExpEvaluator
+bindingEval currentEnv body parameters arguments =
   let
-    bindEval : Env -> Exp -> List Ident -> List UnExp -> Result String UnExp
-    bindEval currentEnv body parameters arguments =
-      let
-        envExtension =
-          arguments
-            |> List.map (\u -> (u, ()))
-            |> Utils.zip parameters
+    envExtension =
+      arguments
+        |> List.map (\u -> (u, ()))
+        |> Utils.zip parameters
 
-        newEnv =
-          envExtension ++ currentEnv
+    newEnv =
+      envExtension ++ currentEnv
 
-        argLength =
-          List.length arguments
+    argLength =
+      List.length arguments
 
-        paramLength =
-          List.length parameters
-      in
-        case compare argLength paramLength of
-          LT ->
-            Ok <|
-              UFunClosure newEnv (List.drop argLength parameters) body
+    paramLength =
+      List.length parameters
+  in
+    case compare argLength paramLength of
+      LT ->
+        Evaluator.succeed <|
+          UFunClosure newEnv (List.drop argLength parameters) body
 
-          EQ ->
-            eval newEnv body
+      EQ ->
+        eval newEnv body
 
-          GT ->
-            Err "Supplied too many arguments"
+      GT ->
+        Evaluator.fail "Supplied too many arguments"
 
+eval : Env -> Exp -> UnExpEvaluator
+eval env exp =
+  let
     e =
-      unwrapExp expr
+      unwrapExp exp
   in
     case e of
       -- E-Const
 
       EConst _ n _ _ ->
-        Ok <|
+        Evaluator.succeed <|
           UNum n
 
       EBase _ baseVal ->
-        Ok <|
+        Evaluator.succeed <|
           case baseVal of
             EBool b ->
               UBool b
@@ -93,6 +104,7 @@ eval env expr =
           |> Utils.projJusts
           |> Result.fromMaybe "Non-identifier pattern in function"
           |> Result.map (\vars -> UFunClosure env vars body)
+          |> Evaluator.fromResult
 
       -- E-Var
 
@@ -101,52 +113,72 @@ eval env expr =
           |> Utils.maybeFind x
           |> Result.fromMaybe ("Variable not found: '" ++ x ++ "'")
           |> Result.map Tuple.first
+          |> Evaluator.fromResult
 
       -- E-App
 
       EApp _ eFunction eArgs _ _ ->
         let
           uArgs =
-            eArgs
-              |> List.map (eval env)
-              |> Utils.projOk
+            Evaluator.mapM (eval env) eArgs
         in
-          case eval env eFunction of
-            Ok (UFunClosure functionEnv parameters body) ->
-              Result.andThen (bindEval functionEnv body parameters) uArgs
+          eval env eFunction |> Evaluator.andThen (\uFunction ->
+            case uFunction of
+              UFunClosure functionEnv parameters body ->
+                uArgs
+                  |> Evaluator.andThen (bindingEval functionEnv body parameters)
 
-            Ok ((UHoleClosure _ _) as hole) ->
-                Result.map (UApp hole) uArgs
+              UHoleClosure _ _ ->
+                Evaluator.map (UApp uFunction) uArgs
 
-            _ ->
-              Err "Not a proper application"
+              _ ->
+                Evaluator.fail "Not a proper application"
+          )
 
       -- E-Match
 
       ECase _ e0 branches _ ->
-        Err "Case not supported" -- TODO
+        Evaluator.fail "Case not supported"
 
       -- E-Hole
 
       EHole _ hole  ->
         case hole of
           EEmptyHole holeId ->
-            Ok <|
-              UHoleClosure env (holeId, 0)
+            Evaluator.get |> Evaluator.andThen (\state ->
+              let
+                freshHoleIndex =
+                  Dict.get holeId state.nextHoleIndex
+                    |> Maybe.withDefault 0
+
+                newState =
+                  { state
+                      | nextHoleIndex =
+                        Dict.insert
+                          holeId
+                          (freshHoleIndex + 1)
+                          state.nextHoleIndex
+                  }
+              in
+                Evaluator.put newState |> Evaluator.andThen (\_ ->
+                  Evaluator.succeed <|
+                    UHoleClosure env (holeId, freshHoleIndex)
+                )
+            )
 
           _ ->
-            Err "Unsupported hole type"
+            Evaluator.fail "Unsupported hole type"
 
       -- Misc.
 
       EOp _ _ op args _ ->
-        Err "Op not supported"
+        Evaluator.fail "Op not supported"
 
       EList _ args _ _ _ ->
-        Err "List not supported"
+        Evaluator.fail "List not supported"
 
       EIf _ condition _ trueBranch _ falseBranch _ ->
-        Err "If not supported"
+        Evaluator.fail "If not supported"
 
       ELet _ _ decls _ body ->
         case recordEntriesFromDeclarations decls of
@@ -158,20 +190,19 @@ eval env expr =
                   |> List.unzip
 
               uArgs =
-                eArgs
-                  |> List.map (eval env)
-                  |> Utils.projOk
+                Evaluator.mapM (eval env) eArgs
             in
-              Result.andThen (bindEval env body parameters) uArgs
+              uArgs
+                |> Evaluator.andThen (bindingEval env body parameters)
 
           Nothing ->
-            Err "Could not get record entries from let"
+            Evaluator.fail "Could not get record entries from let"
 
       EColonType _ _ _ _ _ ->
-        Err "Colon type not supported"
+        Evaluator.fail "Colon type not supported"
 
-      EParens _ e0 _ _ ->
-        eval env e0
+      EParens _ eInner _ _ ->
+        eval env eInner
 
       ERecord _ _ decls _ ->
         case recordEntriesFromDeclarations decls of
@@ -179,18 +210,17 @@ eval env expr =
             case tupleEncodingUnapply entries of
               Just tupleEntries ->
                 tupleEntries
-                  |> List.map (Tuple.second >> eval env)
-                  |> Utils.projOk
-                  |> Result.map UTuple
+                  |> Evaluator.mapM (Tuple.second >> eval env)
+                  |> Evaluator.map UTuple
 
               Nothing ->
-                Err "Arbitrary records not supported"
+                Evaluator.fail "Arbitrary records not supported"
 
           Nothing ->
-            Err "Could not get record entries"
+            Evaluator.fail "Could not get record entries"
 
       ESelect _ _ _ _ _ ->
-        Err "Select not supported"
+        Evaluator.fail "Select not supported"
 
 showEnv : Env -> String
 showEnv =

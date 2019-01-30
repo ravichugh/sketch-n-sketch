@@ -96,6 +96,7 @@ import Draw
 import ExpressionBasedTransform as ETransform
 import Sync
 import Eval
+import Evaluator
 import TriEval
 import Update exposing (vStr, vList)
 import UpdateUtils
@@ -852,7 +853,8 @@ tryRun old =
           resultString =
             parsedExp
               |> TriEval.eval []
-              |> Result.map TriEval.unparse
+              |> Evaluator.run { nextHoleIndex = Dict.empty }
+              |> Result.map (Tuple.first >> TriEval.unparse)
               |> Result.mapError (\s -> "[Error] " ++ s)
               |> Utils.fromResult
         in

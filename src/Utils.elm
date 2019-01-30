@@ -1438,6 +1438,15 @@ fromResult result =
     Err x ->
       x
 
+handleResult : (e -> t) -> (a -> t) -> Result e a -> t
+handleResult errFunction okFunction r =
+  case r of
+    Ok x ->
+      okFunction x
+
+    Err err ->
+      errFunction err
+
 dictGetFirst keys dictionary = case keys of
   [] -> Nothing
   key :: otherKeys -> case Dict.get key dictionary of
