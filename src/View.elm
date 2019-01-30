@@ -543,7 +543,7 @@ deuceTransformationResult model path deuceTransformation transformationResult =
 
         Special sr ->
           case sr of
-            ExampleProvider ->
+            ExampleProvider holeId ->
               ( Nothing
               , [ Html.text <|
                     Lang.transformationResultToString transformationResult

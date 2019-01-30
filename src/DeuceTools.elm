@@ -3258,7 +3258,16 @@ exampleProviderTool =
   genericReplaceHoleTool
     "exampleProvider"
     "Provide Example"
-    (\_ _ -> NoInputDeuceTransform (\_ -> [Special ExampleProvider]))
+    ( \_ holeExp ->
+        case unwrapExp holeExp of
+          EHole _ (EEmptyHole holeId) ->
+            NoInputDeuceTransform <| \_ ->
+              [ Special (ExampleProvider holeId)
+              ]
+
+          _ ->
+            InactiveDeuceTransform
+    )
 
 --==============================================================================
 --= EXPORTS

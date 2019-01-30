@@ -659,7 +659,7 @@ type ResultText
   | HintText String
 
 type SpecialResult
-  = ExampleProvider
+  = ExampleProvider HoleId
 
 type TransformationResult
   = -- Old behavior, just uses description
