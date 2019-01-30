@@ -77,6 +77,8 @@ port module Controller exposing
   , msgAutoSync
   , msgSetCodeEditorMode
   , msgSetDoTypeChecking
+  , msgUpdateExampleInput
+  , msgSynthesizeFromExamples
   )
 
 import Updatable exposing (Updatable)
@@ -4341,3 +4343,28 @@ msgSetCodeEditorMode mode =
   Msg "Set Code Editor Mode" <| \model ->
     let refreshedModel = refreshInputExp model in
     { refreshedModel | codeEditorMode = mode }
+
+--------------------------------------------------------------------------------
+-- Example Input
+--------------------------------------------------------------------------------
+
+msgUpdateExampleInput : HoleId -> Int -> String -> Msg
+msgUpdateExampleInput holeId index input =
+  Msg "Update Example Input" <| \model ->
+    let
+      focusedExampleInputs =
+        Dict.get holeId model.exampleInputs
+          |> Maybe.withDefault Dict.empty
+
+      newFocusedExampleInputs =
+        Dict.insert index input focusedExampleInputs
+
+      newExampleInputs =
+        Dict.insert holeId newFocusedExampleInputs model.exampleInputs
+    in
+      { model | exampleInputs = newExampleInputs }
+
+msgSynthesizeFromExamples : HoleId -> Msg
+msgSynthesizeFromExamples holeId =
+  Msg "Synthesize From Examples" <| \model ->
+    { model | outputMode = HtmlText (toString model.exampleInputs) }

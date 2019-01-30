@@ -548,14 +548,7 @@ deuceTransformationResult model path deuceTransformation transformationResult =
               case model.unExpOutput of
                 Just output ->
                   ( Nothing
-                  , [ Html.text <|
-                        Lang.transformationResultToString transformationResult
-                    , Html.br [] []
-                    , Html.br [] []
-                    , output
-                        |> TriEval.findHoles 0
-                        |> toString
-                        |> Html.text
+                  , [ viewExampleProvider holeId output
                     ]
                   )
 
@@ -584,6 +577,64 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           synthesisInfo.onClick
           False
           []
+
+viewExampleProvider : Lang.HoleId -> TriEval.UnExp -> Html Msg
+viewExampleProvider holeId output =
+  let
+    holes =
+      TriEval.findHoles holeId output
+
+    viewBinding (identifier, (u, _)) =
+      Html.li
+        [ Attr.class "env-binding"
+        ]
+        [ Html.code
+            []
+            [ Html.text <|
+                identifier ++ " → " ++ TriEval.unparse u
+            ]
+        ]
+
+    viewHole (index, env) =
+      Html.li
+        []
+        [ Html.div
+            [ Attr.class "hole-index-label"
+            ]
+            [ Html.text <|
+                "Hole " ++ toString index
+            ]
+        , Html.ul
+            [ Attr.class "hole-env"
+            ]
+            ( List.map viewBinding env
+            )
+        , Html.div
+            [ Attr.class "hole-example-input"
+            ]
+            [ Html.input
+                [ Attr.type_ "text"
+                , E.onInput (Controller.msgUpdateExampleInput holeId index)
+                ]
+                []
+            ]
+        ]
+
+    synthesizeButton =
+      Html.button
+        [ Attr.class "synthesize-button"
+        , E.onClick (Controller.msgSynthesizeFromExamples holeId)
+        ]
+        [ Html.text "Synthesize"
+        ]
+  in
+    Html.ul
+      [ Attr.class "example-provider"
+      ] <|
+      ( List.map viewHole holes
+      ) ++
+      [ synthesizeButton
+      ]
 
 deuceTransformationResults
   : Model -> List Int -> DeuceTransformation -> List TransformationResult -> List (Html Msg)

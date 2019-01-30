@@ -2,6 +2,7 @@ module TriEval exposing
   ( UnExp
   , eval
   , unparse
+  , showEnv
   , findHoles
   )
 
@@ -325,19 +326,17 @@ flatten : UnExp -> List UnExp
 flatten u =
   u :: List.concatMap flatten (children u)
 
-findHoles : HoleId -> UnExp -> List (HoleId, List (Int, Env))
+findHoles : HoleId -> UnExp -> List (Int, Env)
 findHoles holeId =
   let
     extract u =
       case u of
         UHoleClosure env (holeId, index) ->
-          [(holeId, (index, env))]
+          [(index, env)]
 
         _ ->
           []
   in
     flatten
       >> List.concatMap extract
-      >> Utils.groupBy Tuple.first
-      >> Dict.map (\_ -> List.map Tuple.second)
-      >> Dict.toList -- Is sorted by keys
+      >> List.sortBy Tuple.first
