@@ -850,11 +850,15 @@ tryRun old =
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok parsedExp ->
         let
-          resultString =
+          result =
             parsedExp
               |> TriEval.eval []
               |> Evaluator.run { nextHoleIndex = Dict.empty }
-              |> Result.map (Tuple.first >> TriEval.unparse)
+              |> Result.map Tuple.first
+
+          resultString =
+            result
+              |> Result.map TriEval.unparse
               |> Result.mapError (\s -> "[Error] " ++ s)
               |> Utils.fromResult
         in
@@ -864,6 +868,8 @@ tryRun old =
                     HtmlText resultString
                 , errorBox =
                     Nothing
+                , unExpOutput =
+                    Result.toMaybe result
             }
 
 {-

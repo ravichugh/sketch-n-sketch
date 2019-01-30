@@ -1,5 +1,9 @@
 module TriEval exposing
-  (eval, unparse)
+  ( UnExp
+  , eval
+  , unparse
+  , findHoles
+  )
 
 import Dict exposing (Dict)
 
@@ -285,3 +289,55 @@ unparse u =
           ++ unparse u0
           ++ " of "
           ++ String.join " " (List.map unparseBranch branches)
+
+
+children : UnExp -> List UnExp
+children u =
+  case u of
+    UConstructor _ arg ->
+      [arg]
+
+    UNum _ ->
+      []
+
+    UBool _ ->
+      []
+
+    UString _ ->
+      []
+
+    UTuple args ->
+      args
+
+    UFunClosure _ _ _ ->
+      []
+
+    UHoleClosure _ _ ->
+      []
+
+    UApp uFunction uArgs ->
+      uFunction :: uArgs
+
+    UCase uScrutinee _ ->
+      [uScrutinee]
+
+flatten : UnExp -> List UnExp
+flatten u =
+  u :: List.concatMap flatten (children u)
+
+findHoles : HoleId -> UnExp -> List (HoleId, List (Int, Env))
+findHoles holeId =
+  let
+    extract u =
+      case u of
+        UHoleClosure env (holeId, index) ->
+          [(holeId, (index, env))]
+
+        _ ->
+          []
+  in
+    flatten
+      >> List.concatMap extract
+      >> Utils.groupBy Tuple.first
+      >> Dict.map (\_ -> List.map Tuple.second)
+      >> Dict.toList -- Is sorted by keys

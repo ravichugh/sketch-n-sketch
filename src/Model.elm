@@ -6,6 +6,7 @@ import LeoParser
 import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
+import TriEval
 import EvalUpdate
 import Sync exposing (ZoneKey)
 import Utils
@@ -228,6 +229,7 @@ type alias Model =
   , doTypeChecking : Bool
   , isDeuceTextBoxFocused : Bool
   , needsToFocusOn : Maybe String
+  , unExpOutput : Maybe TriEval.UnExp
   }
 
 type OutputMode
@@ -1520,4 +1522,5 @@ initModel =
     , doTypeChecking = if Config.elmConfDemo then False else False
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
+    , unExpOutput = Nothing
     }

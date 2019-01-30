@@ -43,6 +43,7 @@ import LangSvg
 import Syntax
 import File
 import Eval
+import TriEval
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -544,11 +545,24 @@ deuceTransformationResult model path deuceTransformation transformationResult =
         Special sr ->
           case sr of
             ExampleProvider holeId ->
-              ( Nothing
-              , [ Html.text <|
-                    Lang.transformationResultToString transformationResult
-                ]
-              )
+              case model.unExpOutput of
+                Just output ->
+                  ( Nothing
+                  , [ Html.text <|
+                        Lang.transformationResultToString transformationResult
+                    , Html.br [] []
+                    , Html.br [] []
+                    , output
+                        |> TriEval.findHoles 0
+                        |> toString
+                        |> Html.text
+                    ]
+                  )
+
+                Nothing ->
+                  ( Nothing
+                  , []
+                  )
   in
     case maybeSynthesisInfo of
       Nothing ->

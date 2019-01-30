@@ -3254,20 +3254,25 @@ expandFormat old selections =
 --------------------------------------------------------------------------------
 
 exampleProviderTool : Model -> Selections -> DeuceTool
-exampleProviderTool =
+exampleProviderTool model selections =
   genericReplaceHoleTool
     "exampleProvider"
     "Provide Example"
     ( \_ holeExp ->
-        case unwrapExp holeExp of
-          EHole _ (EEmptyHole holeId) ->
-            NoInputDeuceTransform <| \_ ->
-              [ Special (ExampleProvider holeId)
-              ]
+        if model.unExpOutput /= Nothing then
+          case unwrapExp holeExp of
+            EHole _ (EEmptyHole holeId) ->
+              NoInputDeuceTransform <| \_ ->
+                [ Special (ExampleProvider holeId)
+                ]
 
-          _ ->
-            InactiveDeuceTransform
+            _ ->
+              InactiveDeuceTransform
+        else
+          InactiveDeuceTransform
     )
+    model
+    selections
 
 --==============================================================================
 --= EXPORTS
