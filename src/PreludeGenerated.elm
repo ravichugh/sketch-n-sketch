@@ -2793,8 +2793,10 @@ Update =
     splitStringDiffsAt = splitStringDiffsAt
     listDiffOp = listDiffOp
     updateApp  = __updateApp__
+    diff: a -> b -> Result (Maybe VDiffs)
     diff = __diff__
     -- Instead of returning Ok (Maybe VDiffs) or error, raises the error if there is one or returns the Maybe VDiffs
+    diffs: a -> b -> Maybe VDiffs
     diffs a b = case __diff__ a b of
         Err msg -> error msg
         Ok d -> d
@@ -3606,6 +3608,13 @@ listDict = { dictLike |
   insert key value list = case list of
     [] -> [(key, value)]
     ((k, v) as head) :: tail -> if k == key then (k, value)::tail else head :: insert key value tail
+
+  -- Enables the deletion of the key-value in reverse
+  insert2 ([(key, value)] as keyValue) list = case list of
+    [] -> keyValue
+    _ ->
+      let (([(k, v)] as head), tail)  = List.split 1 list in
+      if k == key then keyValue ++ tail else head ++ insert2 keyValue tail
 }
 
 
@@ -3654,11 +3663,17 @@ List = {
 
   simpleMap = LensLess.List.map
 
+  {-
   filterMap f l = case l of
     [] -> []
-    (head :: tail) -> case f head of
-      Nothing -> filterMap f tail
-      Just newHead -> newHead :: filterMap f tail
+    _ ->
+      let ([head] as headList, tail) = split 1 l in
+      case f head of
+        Nothing -> filterMap f tail
+        Just newHead -> -- TODO: Correct for deletion, but not insertions!
+          (List.map (always newHead) headList) ++ filterMap f tail
+  -}
+  filterMap f l = map f l |> filter (\\x -> x /= Nothing) |> map (\\(Just x) -> x)
 
   length x = len x
 

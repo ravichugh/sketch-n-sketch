@@ -902,7 +902,7 @@ updateRegexExtractFirstIn regexpV stringV oldVal newVal =
       let matches = GroupStartMap.find (Regex.AtMost 1) regexp string in
       case matches of
         [] ->
---          let _ = Debug.log "No match, just return original string" () in
+          let _ = Debug.log "No match! Workaround: just return original string" () in
           ok1 stringV
         m::_ ->
           case Vu.constructor Ok newVal of

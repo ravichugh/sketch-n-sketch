@@ -408,21 +408,29 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                        else -- i < elemSize then
                          case m of
                            ListElemDelete count -> -- Let's check if we can propagate this delete for the tail.
-                             case (origVals, elemsToCollect, newOutVals) of
-                               (headOrigVal::tailOrigVal, hdCollect::tlCollect, hdOut::tlOut) ->
-                                 if (List.take count tailOrigVal |> List.all (valEqual headOrigVal)) && valEqual hdOut headOrigVal then
-                                   updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) revEDiffs tlCollect tailOrigVal tlOut ((i + 1, ListElemDelete count)::tailmodif)
-                                 else
-                                   UpdateFails <| "Cannot delete elements appended to the left of a :: . Trying to remove element " ++ valToString headOrigVal
-                               _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
+                             case (origVals, elemsToCollect) of
+                               (headOrigVal::tailOrigVal, hdCollect::tlCollect) ->
+                                 case newOutVals of
+                                   hdOut::tlOut ->
+                                     if (List.take count tailOrigVal |> List.all (valEqual headOrigVal)) && valEqual hdOut headOrigVal then
+                                       updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) revEDiffs tlCollect tailOrigVal tlOut ((i + 1, ListElemDelete count)::tailmodif)
+                                     else
+                                       UpdateFails <| "Cannot delete elements appended to the left of a ::."
+                                   [] ->
+                                     UpdateFails <| "Cannot delete elements appended to the left of a ::."
+                               _ -> UpdateCriticalError <| "ListElemDelete: deleted element not found in original output"
                            ListElemInsert count ->
-                             case (origVals, elemsToCollect, newOutVals) of
-                               (headOrigVal::tailOrigVal, hdCollect::tlCollect, hdOut::tlOut) ->
-                                 if (List.take count tlOut |> List.all (valEqual hdOut)) && valEqual hdOut headOrigVal then
-                                   updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) revEDiffs tlCollect tailOrigVal tlOut ((i + 1, ListElemInsert count)::tailmodif)
-                                 else
-                                   UpdateFails <| "Cannot inserted before elements appended to the left of a :: . Trying to insert element " ++ valToString headOrigVal
-                               _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
+                             case newOutVals of
+                               hdOut::tlOut ->
+                                 case (origVals, elemsToCollect) of
+                                   (headOrigVal::tailOrigVal, hdCollect::tlCollect) ->
+                                     if (List.take count tlOut |> List.all (valEqual hdOut)) && valEqual hdOut headOrigVal then
+                                       updateDiffs (i + 1) elemSize collectedEnv (hdCollect::revElems) revEDiffs tlCollect tailOrigVal tlOut ((i + 1, ListElemInsert count)::tailmodif)
+                                     else
+                                       UpdateFails <| "Cannot insert before elements appended to the left of a ::"
+                                   (_, _) ->
+                                       UpdateFails <| "Cannot insert before elements appended to the left of a ::"
+                               _ -> UpdateCriticalError <| "ListElemInsert: inserted element not found in new output"
                            ListElemUpdate newModifs ->
                              case (origVals, elemsToCollect, newOutVals) of
                                (headOrigVal::tailOrigVal, (sp1, hdCollect)::tlCollect, hdOut::tlOut) ->
@@ -435,8 +443,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                      in
                                      updateDiffs (i + 1) elemSize updatedEnv ((sp1, newhdCollect.val)::revElems) newRevEDiffs tlCollect tailOrigVal tlOut tailmodif
                                    ) elemSize env collectedEnv revElems sp1 tlCollect tailOrigVal tlOut tailmodif
-
-                               _ -> UpdateCriticalError <| "Expected non-empty lists, got at least one empty"
+                               _ -> UpdateCriticalError <| "ListElemupdate: updated element not found in original output or new output."
               in
               updateDiffs 0 (List.length elems) (UpdatedEnv.original env) [] [] elems origVals newOutVals ldiffs
              m -> UpdateCriticalError ("Expected  a List diff, got " ++ toString m)
@@ -661,7 +668,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                                     case (
                                         --ImpureGoodies.logTimedRun (".update eval line " ++ toString e1_.start.line) <| \_ ->
                                         doEvalw xyEnv xyApplication) of
-                                      Err s -> UpdateCriticalError <| "while evaluating a lens, " ++ s
+                                      Err s -> UpdateCriticalError <| "Line " ++ toString exp_.start.line  ++ ", while evaluating a lens, " ++ s
                                       Ok ((vResult, _), _) -> -- Convert vResult to a list of results.
                                         case Vu.result valToUpdateReturn vResult |> (Utils.resultOrElseLazy (\_ ->
                                           valToUpdateReturn vResult |> Result.map (Ok << Debug.log ("/!\\ The lens line " ++ toString exp_.start.line ++ " had this returned. Please wrap it in Ok")))) of
