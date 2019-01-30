@@ -230,7 +230,7 @@ type alias Model =
   , isDeuceTextBoxFocused : Bool
   , needsToFocusOn : Maybe String
   , unExpOutput : Maybe TriEval.UnExp
-  , exampleInputs : Dict HoleId (Dict Int String)
+  , exampleInputs : Dict HoleId (Dict Int (TriEval.Env, String))
   }
 
 type OutputMode

@@ -614,7 +614,7 @@ viewExampleProvider holeId output =
             ]
             [ Html.input
                 [ Attr.type_ "text"
-                , E.onInput (Controller.msgUpdateExampleInput holeId index)
+                , E.onInput (Controller.msgUpdateExampleInput holeId index env)
                 ]
                 []
             ]

@@ -4348,8 +4348,8 @@ msgSetCodeEditorMode mode =
 -- Example Input
 --------------------------------------------------------------------------------
 
-msgUpdateExampleInput : HoleId -> Int -> String -> Msg
-msgUpdateExampleInput holeId index input =
+msgUpdateExampleInput : HoleId -> Int -> TriEval.Env -> String -> Msg
+msgUpdateExampleInput holeId index env input =
   Msg "Update Example Input" <| \model ->
     let
       focusedExampleInputs =
@@ -4357,7 +4357,7 @@ msgUpdateExampleInput holeId index input =
           |> Maybe.withDefault Dict.empty
 
       newFocusedExampleInputs =
-        Dict.insert index input focusedExampleInputs
+        Dict.insert index (env, input) focusedExampleInputs
 
       newExampleInputs =
         Dict.insert holeId newFocusedExampleInputs model.exampleInputs
@@ -4367,4 +4367,25 @@ msgUpdateExampleInput holeId index input =
 msgSynthesizeFromExamples : HoleId -> Msg
 msgSynthesizeFromExamples holeId =
   Msg "Synthesize From Examples" <| \model ->
-    { model | outputMode = HtmlText (toString model.exampleInputs) }
+    let
+      exampleInputList =
+        Dict.get holeId model.exampleInputs
+          |> Maybe.withDefault Dict.empty
+          |> Dict.toList
+
+      showExample (index, (env, input)) =
+        let
+          exampleString =
+            TriEval.parseExample input
+              |> toString
+        in
+          "Example " ++ toString index ++ ": \n"
+            ++ "[" ++ TriEval.showEnv env ++ "] "
+            ++ exampleString
+
+      tempOutput =
+        exampleInputList
+          |> List.map showExample
+          |> String.join "\n----------------------------------------\n"
+    in
+      { model | outputMode = HtmlText tempOutput }
