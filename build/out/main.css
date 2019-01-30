@@ -1415,3 +1415,52 @@ code {
 .code-object-polygon.opaque {
   opacity: 1;
 }
+
+/******************************************************************************
+ * General                                                                    *
+ ******************************************************************************/
+
+.example-provider > li {
+  margin: 10px;
+  padding: 10px;
+  list-style-type: none;
+  border-bottom: 1px solid var(--main-border-color);
+}
+
+.example-provider > li:last-child {
+  border: none;
+}
+
+.hole-index-label {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.hole-env {
+  background-color: rgba(0, 0, 0, 0.05);
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 2px dashed rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+}
+
+.hole-env > li {
+  list-style-type: none;
+}
+
+.hole-example-input {
+  margin-bottom: 10px;
+}
+
+.hole-example-input input {
+  width: 100%;
+  font-size: 1em;
+  padding: 5px;
+}
+
+.synthesize-button {
+  font-size: 1em;
+  padding: 10px;
+  width: 100%;
+}

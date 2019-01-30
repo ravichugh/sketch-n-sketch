@@ -621,11 +621,14 @@ viewExampleProvider holeId output =
         ]
 
     synthesizeButton =
-      Html.button
-        [ Attr.class "synthesize-button"
-        , E.onClick (Controller.msgSynthesizeFromExamples holeId)
-        ]
-        [ Html.text "Synthesize"
+      Html.li
+        []
+        [ Html.button
+            [ Attr.class "synthesize-button"
+            , E.onClick (Controller.msgSynthesizeFromExamples holeId)
+            ]
+            [ Html.text "Synthesize"
+            ]
         ]
   in
     Html.ul
