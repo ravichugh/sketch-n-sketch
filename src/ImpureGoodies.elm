@@ -181,8 +181,20 @@ fromNative =
 toNativeArray: List a -> c
 toNativeArray = Native.ImpureGoodies.toNativeArray
 
+fromNativeArray: c -> List a
+fromNativeArray = Native.ImpureGoodies.fromNativeArray
+
 hideType: a -> b
 hideType = Native.ImpureGoodies.hideType
 
 fromHtmlEntity: String -> Maybe String
 fromHtmlEntity = Native.ImpureGoodies.fromHtmlEntity
+
+matchBaseValue: a -> (Bool -> b) -> (String -> b) -> (Float -> b) -> Result String b
+matchBaseValue = Native.ImpureGoodies.matchBaseValue
+
+whitespaceFromMetadata: metadata -> String
+whitespaceFromMetadata = Native.ImpureGoodies.whitespaceFromMetadata
+
+whitespaceToMetadata: String -> metadata
+whitespaceToMetadata = Native.ImpureGoodies.whitespaceToMetadata

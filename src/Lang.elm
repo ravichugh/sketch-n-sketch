@@ -415,7 +415,6 @@ type ExpBuilder__ t1 t2
   | EBase WS EBaseVal
   | EVar WS Ident
   | EFun WS (List Pat) t2 WS -- WS: before (, before )
-  -- TODO remember paren whitespace for multiple pats, like TForall
   | EApp WS t1 (List t1) ApplicationType WS
   | EOp WS WS Op (List t1) WS
   | EList WS (List (WS{-,-}, t1)) WS (Maybe t1) WS -- the first WS{-,-} is a dummy
@@ -452,7 +451,7 @@ unwrapPat p = p.val.p__
 unwrapType : Type -> Type__
 unwrapType t = t.val.t__
 
-type ParensStyle = Parens | LongStringSyntax | LeoSyntax | HtmlSyntax
+type ParensStyle = Parens | LongStringSyntax | LeoSyntax | HtmlSyntax | CustomSyntax String
 
 type alias HoleId = Int
 
@@ -4412,7 +4411,8 @@ visibleIdents root e =
             Nothing             -> []
             Just ancestorBranch -> branchPat ancestorBranch |> identifiersListInPat
         ELet _ _ (Declarations _ _ _ groupedExps) _ _ ->
-          let accumulate remainingGroupedExps =
+          let
+             accumulate remainingGroupedExps =
             case remainingGroupedExps of
               [] ->
                 []
@@ -4530,6 +4530,12 @@ extractGroupInfo f isRec groups =
     let bGroup = List.map f group in
     (isRec bGroup, bGroup))
 
+mapGroup: (a -> b) -> GroupsOf a -> GroupsOf b
+mapGroup = List.map << Tuple.mapSecond << List.map
+
+lengthGroup: GroupsOf a -> Int
+lengthGroup = List.sum << List.map (List.length << Tuple.second)
+
 -- Which var idents in this exp refer to something outside this exp?
 -- This is wrong for TypeCases; TypeCase scrutinee patterns not included. TypeCase scrutinee needs to turn into an expression (done on Brainstorm branch, I believe).
 freeIdentifiers : Exp -> Set.Set Ident
@@ -4644,6 +4650,7 @@ expandRecEnv recNames closureEnv =
      )
   in
   recEnv2 ++ remainingEnv
+
 
 --------------------------------------------------------------------------------
 -- Tuple Gets

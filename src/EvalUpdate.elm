@@ -19,7 +19,7 @@ import LeoParser as Parser
 import Results exposing (Results, ok1, oks)
 import LazyList exposing (LazyList)
 import LangTools exposing (..)
-import ImpureGoodies
+import ImpureGoodies exposing (whitespaceFromMetadata, whitespaceToMetadata)
 import Set exposing (Set)
 import Dict exposing (Dict)
 import ValUnparser exposing (strVal_, strOp, strLoc)
@@ -30,6 +30,7 @@ import UpdateRegex
 import Regex
 import LangSvg
 import Lazy
+import LeoUnparser
 
 
 builtinEnv =
@@ -933,7 +934,7 @@ valToNative v = case v.v_ of
   VConst _ (i, _)   -> Ok <| ImpureGoodies.hideType i
   VBase (VBool b)   -> Ok <| ImpureGoodies.hideType b
   VBase (VNull)     -> Ok <| ImpureGoodies.hideType 0
-  VList l           -> List.map valToNative l |> Utils.projOk |> Result.map ImpureGoodies.toNativeArray
+  VList l           -> List.map valToNative l |> Utils.projOk |> Result.map toArray
   VRecord d         -> case Utils.projOk <| List.map (\(x, y) -> valToNative y |> Result.map ((,) x)) <| Dict.toList d of
       Ok r -> Ok <| ImpureGoodies.keyPairsToNativeRecord <| r
       Err msg -> Err msg
@@ -1126,6 +1127,286 @@ lazyList = {
     LazyList.Cons a lt -> Lazy.force lt
   }
 
+-- Javascript API to construct and deconstruct SNS expressions
+type alias LangApi array_metadata_name_Pat array_Declaration array_Pat array_Branch array_Exp metadata metadata2 value = {
+  eBase: metadata -> value -> Exp,
+  eVar: metadata -> String -> Exp,
+  eFun: metadata -> array_Pat -> Exp -> Exp,
+  eApp: metadata -> Exp -> array_Exp -> Exp,
+  eOp: metadata -> String -> array_Exp -> Exp,
+  eList: metadata -> array_Exp -> Exp,
+  eCons: metadata -> Exp -> Exp -> Exp,
+  eIf: metadata -> Exp -> Exp -> Exp -> Exp,
+  eCase: metadata -> Exp -> array_Branch -> Exp,
+  eLet: metadata -> Declarations -> Exp -> Exp,
+  eParens: metadata -> Exp -> String -> Exp,
+  eRecord: metadata -> Declarations -> Exp,
+  eRecordExtend: metadata -> Exp -> Declarations -> Exp,
+  eSelect: metadata -> Exp -> String -> Exp,
+  letTypeAlias: metadata -> Pat -> Type -> LetType,
+  letTypeData: metadata -> Pat -> Type -> LetType,
+  letAnnotation: metadata -> Pat -> Type -> LetAnnotation,
+  letExp: metadata -> Pat -> Exp -> LetExp,
+  declType: LetType -> Declaration,
+  declExp: LetExp -> Declaration,
+  declAnnotation: LetAnnotation -> Declaration,
+  declarations: metadata -> array_Declaration -> Declarations,
+  --declarations: metadata -> PrintOrder -> GroupsOf LetType -> List LetAnnotation -> GroupsOf LetExp -> Declarations,
+  branch: metadata -> Pat -> Exp -> Branch,
+  pVar: metadata -> String -> Pat,
+  pBase: metadata -> value -> Pat,
+  pWildcard: metadata -> Pat,
+  pList: metadata -> array_Pat -> Pat,
+  pCons: metadata -> Pat -> Pat -> Pat,
+  pRecord: metadata -> array_metadata_name_Pat {- Array {metadata, name, pat} -} -> Pat,
+  pParens: metadata -> Pat -> Pat,
+  pAs: metadata -> Pat -> Pat -> Pat,
+
+  unapply: {
+    eBase: Exp -> Maybe (metadata, value),
+    eVar: Exp -> Maybe (metadata,  String),
+    eFun: Exp -> Maybe (metadata,  array_Pat,  Exp),
+    eApp: Exp -> Maybe (metadata,  Exp,  array_Exp),
+    eOp: Exp -> Maybe (metadata,  String, array_Exp),
+    eList: Exp -> Maybe (metadata,  array_Exp),
+    eCons: Exp -> Maybe (metadata,  Exp,  Exp),
+    eIf: Exp -> Maybe (metadata,  Exp,  Exp,  Exp),
+    eCase: Exp -> Maybe (metadata,  Exp,  array_Branch),
+    eLet: Exp -> Maybe (metadata,  Declarations,  Exp),
+    eParens: Exp -> Maybe (metadata,  Exp, String),
+    eRecord: Exp -> Maybe (metadata,  Declarations),
+    eRecordExtend: Exp -> Maybe (metadata,  Exp,  Declarations),
+    eSelect: Exp -> Maybe (metadata,  Exp,  String),
+    letTypeAlias: LetType-> Maybe (metadata, Pat, Type),
+    letTypeData: LetType -> Maybe (metadata, Pat, Type),
+    letAnnotation: LetAnnotation -> (metadata, Pat, Type),
+    letExp: LetExp -> (metadata, Pat, Exp),
+    declType: Declaration -> Maybe LetType,
+    declExp: Declaration -> Maybe LetExp,
+    declAnnotation: Declaration -> Maybe LetAnnotation,
+    declarations: Declarations -> array_Declaration,
+    -- declarations: Declarations -> (metadata, PrintOrder, GroupsOf LetType, List LetAnnotation, GroupsOf LetExp),
+    branch: Branch -> (metadata, Pat, Exp),
+    pVar: Pat -> Maybe (metadata,  String),
+    pBase: Pat -> Maybe (metadata,  value),
+    pWildcard: Pat -> Maybe (metadata),
+    pList: Pat -> Maybe (metadata,  array_Pat),
+    pCons: Pat -> Maybe (metadata,  Pat,  Pat),
+    pRecord: Pat -> Maybe (metadata,  List (metadata2, String, Pat)),
+    pParens: Pat -> Maybe (metadata,  Pat),
+    pAs: Pat -> Maybe (metadata,  Pat,  Pat)
+    }
+  }
+
+wsMetadata: (WS -> x) -> (metadata -> x)
+wsMetadata callback metadata =
+  let wsb = ws <| whitespaceFromMetadata metadata in
+  callback wsb
+
+fromArray = ImpureGoodies.fromNativeArray
+toArray = ImpureGoodies.toNativeArray
+mdOf = whitespaceToMetadata << .val
+-- This API is to create programs from scratch (e.g. use an existing parser)
+-- Expressions should not be meant to be unparsed, although they could
+--lang: LangApi metadata metadata2 value
+lang: LangApi array_metadata_name_Pat array_Declaration array_Pat array_Branch array_Exp metadata metadata2 value
+lang = {
+  eBase = wsMetadata <| \wsb value ->
+    withDummyExpInfo <| Utils.fromOk "EvalUpdate" <| ImpureGoodies.matchBaseValue value
+         (EBase wsb << EBool)
+         (EBase wsb  << EString "\"")
+         (\n -> EConst wsb n dummyLoc noWidgetDecl),
+  eVar = wsMetadata <| \wsb name ->
+    withDummyExpInfo <| EVar wsb name,
+  eFun = wsMetadata <| \wsb arraypats body ->
+    withDummyExpInfo <| EFun wsb (fromArray arraypats) body space0,
+  eApp = wsMetadata <| \wsb e1 e2s ->
+    withDummyExpInfo <| EApp wsb e1 (fromArray e2s) SpaceApp space0,
+  eOp = wsMetadata <| \wsb opStr e2s ->
+    let op = withDummyRange <| Utils.fromJust_ ("The operator " ++ opStr ++ " is not supported") <| Parser.opFromIdentifier opStr in
+    withDummyExpInfo <| EOp wsb space1 op (fromArray e2s) space0,
+  eList = wsMetadata <| \wsb wsExps ->
+    withDummyExpInfo <| EList wsb (wsExps |> fromArray |> List.map ((,) space0)) space0 Nothing space0,
+  eCons = wsMetadata <| \wsb head tail ->
+    withDummyExpInfo <| EList wsb [(space0, head)] space1 (Just tail) space0,
+  eIf = wsMetadata <| \wsb cond thn els ->
+    withDummyExpInfo <| EIf wsb cond space1 thn space1 els space0,
+  eCase = wsMetadata <| \wsb input branches ->
+    withDummyExpInfo <| ECase wsb input (fromArray branches) space0,
+  eLet = wsMetadata <| \wsb declarations body ->
+    withDummyExpInfo <| ELet wsb Let declarations space1 body,
+  eParens = wsMetadata <| \wsb exp style ->
+    withDummyExpInfo <| EParens wsb exp (if style == "" then Parens else CustomSyntax style) space0,
+  eRecord = wsMetadata <| \wsb declarations ->
+    withDummyExpInfo <| ERecord wsb Nothing declarations space0,
+  eRecordExtend = wsMetadata <| \wsb previous declarations ->
+      withDummyExpInfo <| ERecord wsb (Just (previous, space1)) declarations space0,
+  eSelect = wsMetadata <| \wsb expr name ->
+    withDummyExpInfo <| ESelect wsb expr space0 space0 name,
+
+  letTypeAlias = wsMetadata <| \wsb pat t ->
+     LetType Nothing wsb Nothing pat FunArgAsPats space1 t,
+
+  letTypeData = wsMetadata <| \wsb pat t ->
+     LetType Nothing wsb (Just space1) pat FunArgAsPats space1 t,
+
+  letAnnotation = wsMetadata <| \wsb pat t ->
+     LetAnnotation Nothing wsb pat FunArgAsPats space1 t,
+
+  letExp = wsMetadata <| \wsb pat exp ->
+    LetExp Nothing wsb pat FunArgAsPats space1 exp,
+  declType = DeclType,
+  declExp = DeclExp,
+  declAnnotation = DeclAnnotation,
+
+  declarations = wsMetadata <| \wsb declarationList ->
+        case Parser.reorderDeclarations <| fromArray declarationList of
+          Err msg -> Debug.crash msg
+          Ok declarations -> declarations,
+
+  {-declarations = wsMetadata <| \wsb po letTypes letAnns letExps ->
+    let printOrder =
+          if List.length po == 0 then
+            List.range 0 (lengthGroup letTypes + List.length letAnns + lengthGroup letExps - 1)
+          else po
+    in
+    Declarations printOrder letTypes letAnns letExps,-}
+  branch = wsMetadata <| \wsb pat exp ->
+    withDummyRange <| Branch_ wsb pat exp space1,
+  pVar = wsMetadata <| \wsb name ->
+    withDummyPatInfo <| PVar wsb name noWidgetDecl,
+  pBase = wsMetadata <| \wsb value ->
+    withDummyPatInfo <| Utils.fromOk "EvalUpdate" <| ImpureGoodies.matchBaseValue value
+    (PBase wsb << EBool)
+    (PBase wsb  << EString "\"")
+    (\n -> PConst wsb n),
+  pWildcard = wsMetadata <| (withDummyPatInfo << PWildcard),
+  pList = wsMetadata <| \wsb wsPats ->
+     withDummyPatInfo <| PList wsb (fromArray wsPats) space0 Nothing space0,
+  pCons = wsMetadata <| \wsb head tail ->
+     withDummyPatInfo <| PList wsb [head] space1 (Just tail) space0,
+  pRecord = wsMetadata <| \wsb pats ->
+     withDummyPatInfo <| PRecord wsb (pats |> fromArray |> List.map (\{metadata,name,pat} ->
+       (Just space0, ws <| whitespaceFromMetadata metadata, name, space1, pat)
+     )) space0,
+  pParens = wsMetadata <| \wsb pat ->
+     withDummyPatInfo <| PParens wsb pat space0,
+  pAs = wsMetadata <| \wsb pat1 pat2 ->
+     withDummyPatInfo <| PAs wsb pat1 space1 pat2,
+  unapply = {
+    eBase = \exp -> case unwrapExp exp of
+      EConst ws n _ _    -> Just (mdOf ws, ImpureGoodies.hideType n)
+      EBase ws (EBool b) -> Just (mdOf ws, ImpureGoodies.hideType b)
+      EBase ws (EString q content) ->
+                            Just (mdOf ws, ImpureGoodies.hideType content)
+      _ -> Nothing,
+    eVar = \exp -> case unwrapExp exp of
+      EVar ws name -> Just (mdOf ws, name)
+      _ -> Nothing,
+    eFun = \exp -> case unwrapExp exp of
+      EFun wsb pats body _ -> Just (mdOf wsb, toArray pats, body)
+      _ -> Nothing,
+    eApp = \exp -> case unwrapExp exp of
+      EApp wsb e1 e2s _ _ -> Just (mdOf wsb, e1, toArray e2s)
+      _ -> Nothing,
+    eOp = \exp -> case unwrapExp exp of
+      EOp wsb _ op e2s _ -> Just (mdOf wsb, LeoUnparser.unparseOp op, toArray e2s)
+      _ -> Nothing,
+    eList = \exp -> case unwrapExp exp of
+      EList wsb elems _ Nothing _ ->
+        Just (mdOf wsb, List.map Tuple.second elems |> toArray)
+      _ -> Nothing,
+    eCons = \exp -> case unwrapExp exp of
+      EList wsb [(_, head)] _ (Just tail) _ ->
+        Just (mdOf wsb, head, tail)
+      _ -> Nothing,
+    eIf = \exp -> case unwrapExp exp of
+      EIf wsb cond _ thn _ els _ ->
+        Just (mdOf wsb, cond, thn ,els)
+      _ -> Nothing,
+    eCase = \exp -> case unwrapExp exp of
+      ECase wsb input branches _ ->
+        Just (mdOf wsb, input, toArray branches)
+      _ -> Nothing,
+    eLet = \exp -> case unwrapExp exp of
+      ELet wsb _ declarations _ body ->
+        Just (mdOf wsb, declarations, body)
+      _ -> Nothing,
+    eParens = \exp -> case unwrapExp exp of
+      EParens wsb sub (CustomSyntax syntax) _ -> Just (mdOf wsb, sub, syntax)
+      EParens wsb sub _ _ -> Just (mdOf wsb, sub, "")
+      _ -> Nothing,
+    eRecord = \exp -> case unwrapExp exp of
+      ERecord wsb Nothing declarations _ ->
+        Just (mdOf wsb, declarations)
+      _ -> Nothing,
+    eRecordExtend = \exp -> case unwrapExp exp of
+      ERecord wsb (Just (init, _)) declarations _ ->
+        Just (mdOf wsb, init, declarations)
+      _ -> Nothing,
+    eSelect = \exp -> case unwrapExp exp of
+      ESelect wsb expr _ _ name -> Just (mdOf wsb, exp, name)
+      _ -> Nothing,
+    letTypeAlias = \letType -> case letType of
+       LetType Nothing wsb Nothing pat _ _ t ->
+         Just (mdOf wsb, pat, t)
+       _ -> Nothing,
+    letTypeData = \letType -> case letType of
+      LetType Nothing wsb (Just _) pat _ _ t ->
+         Just (mdOf wsb, pat, t)
+      _ -> Nothing,
+    letAnnotation = \(LetAnnotation _ wsb pat _ _ t) -> 
+      (mdOf wsb, pat, t),
+    letExp = \(LetExp _ wsb pat _ _ exp) ->
+      (mdOf wsb, pat, exp),
+    declType = \d -> case d of
+      DeclType d -> Just d
+      _ -> Nothing,
+    declAnnotation = \d -> case d of
+      DeclAnnotation d -> Just d
+      _ -> Nothing,
+    declExp = \d -> case d of
+      DeclExp d -> Just d
+      _ -> Nothing,
+    declarations = \declarations ->
+      getDeclarationsInOrder declarations |> toArray,
+    --declarations: Declarations -> (metadata, PrintOrder, GroupsOf LetType, List LetAnnotation, GroupsOf LetExp),
+    branch = \b -> case b.val of
+      Branch_ wsb pat exp _ -> (mdOf wsb, pat, exp),
+    pVar = \p -> case p.val.p__ of
+      PVar wsb name _ -> Just (mdOf wsb, name)
+      _ -> Nothing,
+    pBase = \p -> case p.val.p__ of
+      PBase wsb (EBool b) -> Just (mdOf wsb, ImpureGoodies.hideType b)
+      PBase wsb (EString _ s) -> Just (mdOf wsb, ImpureGoodies.hideType s)
+      PConst wsb n -> Just (mdOf wsb, ImpureGoodies.hideType n)
+      _ -> Nothing,
+    pWildcard = \p -> case p.val.p__ of
+      PWildcard wsb -> Just (mdOf wsb)
+      _ -> Nothing,
+    pList = \p -> case p.val.p__ of
+      PList wsb pats _ Nothing _ ->
+        Just (mdOf wsb, toArray pats)
+      _ -> Nothing,
+    pCons = \p -> case p.val.p__ of
+      PList wsb [head] _ (Just tail) _ ->
+        Just (mdOf wsb, head, tail)
+      _ -> Nothing,
+    pRecord = \p -> case p.val.p__ of
+      PRecord wsb pats _ ->
+        Just (mdOf wsb, pats |> List.map (\(_, wsm, name, _, pat) -> {metadata=mdOf wsm, name=name, pat=pat}) |> toArray)
+      _ -> Nothing,
+    pParens = \p -> case p.val.p__ of
+      PParens wsb pat _ ->
+        Just (mdOf wsb, pat)
+      _ -> Nothing,
+    pAs = \p -> case p.val.p__ of
+      PAs wsb pat1 _ pat2 ->
+        Just (mdOf wsb, pat1, pat2)
+      _ -> Nothing
+  }
+  }
+
 api: {
   parse: String -> Result String Exp,
   evaluate: Exp -> Result String Val,
@@ -1138,7 +1419,8 @@ api: {
   valToString: Val -> String,
   valToHTMLSource: Val -> Result String String,
   string: StringType envA envB envC,
-  objEnv: ObjEnvType envA envB envC
+  objEnv: ObjEnvType envA envB envC,
+  lang: LangApi array_metadata_name_Pat array_Declaration array_Pat array_Branch array_Exp metadata metadata2 value
   }
 api = {
   -- parse: String -> Result String Exp
@@ -1161,5 +1443,6 @@ api = {
   -- Val -> Result String String
   valToHTMLSource = LangSvg.valToHTMLSource HTMLParser.HTML,
   string = string,
-  objEnv = objEnv
+  objEnv = objEnv,
+  lang = lang
   }

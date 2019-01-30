@@ -17,6 +17,7 @@ module LeoParser exposing
   , implicitVarName
   , reorderDeclarations
   , encoding_autoclosing, encoding_voidclosing, encoding_forgotclosing
+  , opFromIdentifier
   )
 
 import Char
