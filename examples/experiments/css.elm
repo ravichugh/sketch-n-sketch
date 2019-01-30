@@ -1,47 +1,71 @@
-styleSheet = """
+inlineStyle = "color: orange"
+
+styleSheets = ["""
   #outputCanvas span.colored, div .extra {
     background: #FF8;
     color: green;
   }
   #outputCanvas span {
-    color: red;
+    color: red !important;
     outline: black 1px solid;
   }
+  #outputCanvas h1 + div.wrapperdiv {
+    color: purple;
+  }""",
+  """
   #outputCanvas div.wrapperdiv {
     color: blue;
     font-family : Georgia, sans-serif;
-    font-weight: bold;
+    font-size: 3em;
   }
-  """
+  """,
+  Update.freezeExcept (always "inline style") inlineStyle <| \inlineStyle ->
+  """#outputCanvas span /*inline*/ {@inlineStyle}"""]
 
+parsedStyle = List.concatMap parseStyle styleSheets
+
+displayComputedStyles selector = 
+  Update.freezeExcept (\diffs -> "template " + toString diffs) parsedStyle <| \parsedStyle ->
+    <ul>@(List.map (\(key, (w, v)) -> 
+    let content = String.joinAndSplitBack "\\s*:\\s*" ": " [key, v] in
+    <li>@Html.text(content)</li>) <|
+    appliedStyles parsedStyle (elementOf selector))</ul>
+  
 main = Html.forceRefresh <|
   <div>
-  <div class="wrapperdiv">
-  <style>@styleSheet</style>
-  Run this file twice<br>
-  Hello <span id="testspan" class="colored">World</span>!
+  <h1>Style updater</h1>
+  @(List.map (\content -> <style>@content</style>) styleSheets)
+  <div class="wrapperdiv" title="div.wrapperdiv">
+  Hello <span style=@inlineStyle id="testspan" class="colored" title="span#testspan.colored">World</span>!
   </div>
-  <ul>
-  @(List.map (\(key, (w, v)) -> 
-    let content = String.joinAndSplitBack "\\s*:\\s*" ": " [key, v] in
-    Update.freezeExcept (always "template") content <| \content ->
-    <li>@content</li>) <|
-    appliedStyles (parseStyle styleSheet) (elementOf "#testspan"))
+  <table><tr><th>div.wrapperdiv</th><th>span#testspan.colored</th></tr>
+  <tr><td>@(displayComputedStyles "div.wrapperdiv")</td>
+      <td>@(displayComputedStyles "span#testspan")</td></tr></table>
+  Instructions:
+  <ul><li>Run this file twice, so that it can pick the styles of the span and use the selection matchers.</li>
+  <li>Observe the programs line 1-18 to visualize style changes</li>
+  </ul>
+  Interesting experiments on the span (second column):
+  <ul><li>Add an attribute 'border: 2px solid red' after the color. It can modify only the direct selectors. The third solution depicts an ambiguity about where to place in the second selector.</li>
+  <li>Add an attribute 'font-weight: bold' after the color. Because this attribute is inherited, it can be added in all three selectors. Note the differences !</li>
+  <li>Remove the !important from the color attribute. Now the color turns green.</li>
+  <li>Delete the color attribute. It correctly delete the green attribute and it becomes red again.</li>
   </ul>
   </div>
 
 type alias Style = List (key, Value)
 type alias StyleSheet = List (Space, Selector, Space, List (Space, Key, Space, Space, Value, Space))
 
-removeFinalNothings l =
+removeFinalNothings ll =
   let aux n l = case l of
         Nothing :: tail ->
-          if List.all ((==) Nothing) tail then n else aux (n + 1) tail
+          if List.all ((==) Nothing) tail then
+            Tuple.first (List.split n ll)
+          else aux (n + 1) tail
         head :: tail ->
           aux (n + 1) tail
-      n = aux 0 l
-  in
-  Tuple.first (List.split n l)
+        [] -> ll
+  in aux 0 ll
 
 specialfilterMap f l = List.map f l |> removeFinalNothings |> List.filter (\x -> x /= Nothing) |> List.map (\(Just x) -> x)
 
@@ -55,7 +79,6 @@ parseStyle styleText =
         --let selectorList = Regex.split """\s*,\s*""" selectors in
         let attrList =
               Regex.splitReverse ";" ";" attrs
-              |> Update.debug "attrs"
               |> specialfilterMap ( -- filterMap might align a Nothing with an inserted Just (e.g. when inserting), so it's better to handle the back-propagation ourselves.
                 Update.lens {
                   apply = Regex.extract """^(\s*)([^:]+?)(\s*):(\s*)([\s\S]*?)(\s*)$"""
@@ -64,7 +87,6 @@ parseStyle styleText =
                     Just [ws1,k,ws2,ws3,v,ws4] -> Ok <| Inputs [ws1 + k + ws2 + ":" + ws3 + v + ws4]
                     Nothing -> Ok <| Inputs <| [str]
                 })
-              |> Update.debug "filteredMap"
         in Just (ws0, selector, ws1, attrList)
       Nothing -> Nothing
   )
@@ -74,18 +96,21 @@ elementOf selector =
 
 -- Returns true if this element matches this selector
 matches element selector =
-  __jsEval__ <| """@(element) ? @(element).matches(@(jsCode.stringOf selector)) : false"""
+  __jsEval__ <| """@(element) ? typeof @(element).matches == 'function' ? @(element).matches(@(jsCode.stringOf selector)) : false : false"""
 
 -- Returns true if this element has a parent that matches this selector
-inherits element selector =
+parentMatch: (CountName -> ElementName -> StringReturningA) -> StringReturningA -> ElementSelector -> Selector -> A
+parentMatch ifFound ifNotfound element selector =
   __jsEval__ <| """
-    var element = @(element) ? @(element).parentNode : null;
+    var element = @(element);
     var matches = false;
-    while(element && !matches) {
-      matches = element.matches(@(jsCode.stringOf selector));
+    var count = 0;
+    while(element && !matches && typeof element.matches == "function") {
       element = element.parentNode;
+      matches = typeof element == "object" && typeof element.matches == "function" && element.matches(@(jsCode.stringOf selector));
+      count++;
     }
-    matches
+    matches ? @(ifFound "count" "element") : @ifNotfound
   """
 
 isInheritable =
@@ -96,10 +121,11 @@ isInheritable =
   
 weight = {
   tag = (+) 1
-  class = (+) 10
-  id = (+) 100
-  inline = (+) 1000
-  important = (+) 10000
+  class = (+)          10
+  id = (+)             100
+  inline = (+)         1000
+  important = (+)      10000
+  inherited = flip (-) 100000
 }
   
 -- Compute weight according to https://specifishity.com/
@@ -107,19 +133,19 @@ selectorWeight element selectors =
   Regex.split "," selectors
   |> List.map (\selector ->
     if matches element selector then
-      Regex.find """(#)[^\.\s:#]+|(\.)[^\.\s:#]+|(::)[^\.\s:#]+|(\[)[^\]]\]""" selector
-      |> List.map (\[_, id,cl,pseudo,attr] ->
-        if id /= "" then weight.id
+      Regex.find """\/\*((?:(?!\*\/).)*)\*\/|(#)[^\.\s:#]+|(\.)[^\.\s:#]+|(::)[^\.\s:#]+|(:)[^\.\s:#]+|(\[)[^\]]\]|(\w+)""" selector
+      |> List.map (\[_, comment, id,cl,pseudoels,pseudoclass, attr,tag] ->
+        if comment /= "" then if comment == "inline" then weight.inline else identity
+        else if id /= "" then weight.id
         else if cl /= "" then weight.class
-        else if pseudo /= "" then weight.class
+        else if pseudoels /= "" then weight.class
+        else if pseudoclass /= "" then identity
         else if attr /= "" then weight.class
-        else identity
+        else weight.tag
       )
       |> List.foldl (\f acc -> f acc) 0
     else 0
   ) |> List.foldl max 0
-
-importantWeight basicWeight = 100000 + basicWeight
 
 type alias WeightedStyle = (Key, (Weight, Value))
 
@@ -133,10 +159,10 @@ appliedStyles styles element =
           [ws2, key, ws3, ws4, value, ws5] =
              (key, (weight, value))
     in
-    let thisWeight = selectorWeight element selector
-        process ([[ws2, key, ws3, ws4, value, ws5]] as concKeyValue) acc = 
+    let thisWeight = selectorWeight element selector in
+    let process w ([[ws2, key, ws3, ws4, value, ws5]] as concKeyValue) acc = 
           let realWeight =
-             if Regex.matchIn "!important" value then weight.important thisWeight else thisWeight
+             if Regex.matchIn "!important" value then weight.important w else w
           in
           case listDict.get key acc of
             Just (prevWeight, prevValue) ->
@@ -146,54 +172,71 @@ appliedStyles styles element =
                 listDict.insert2 (List.map (toKeyWeightValue realWeight) concKeyValue) acc
             Nothing -> 
               listDict.insert2 (List.map (toKeyWeightValue realWeight) concKeyValue) acc
+        processElement = process thisWeight
     in
     if matches element selector then
       let result =
-            List.foldl2 process (Update.debug "acc1" acc) (Update.debug "kv1" keyValues)
+            List.foldl2 processElement acc keyValues
       in
-      Update.lens2 { -- We gather all inserted elements elsewhere and insert them directly at the end of keyValues as one solution.
-      -- Deleted elements are deleted from keyValues if there were there.
-        apply (result, kvs) = result
-        update ({input=(result, keyValues), outputOld, outputNew, diffs} as uInput) =
-         Debug.log (toString uInput) <|
-         let immediateSolution = 
-           Update.foldDiff {
-             start = ([], [], keyValues)
-             onSkip (ls, ds, kvs) {count, index, newOutputs} =
-               Ok [(ls ++ newOutputs, ds, kvs)]
-             onUpdate (ls, ds, kvs) {newOutput, index, diffs} =
-               Ok [(ls ++ [newOutput], ds ++ [(index, ListElemUpdate diffs)], kvs)]
-             onRemove (ls, ds, kvs) {oldOutput=(key, (weight, value)) as oldOutput, index} =
-               let newKvs = List.filter (\(_ :: key2 :: _ :: _ :: value2 :: _) -> key2 /= key || value2 /= value) kvs in
-               let delayedSolution =
-                     [(ls, ds ++ [(index, ListElemDelete 1)], kvs)] in
-               if List.length newKvs /= List.length kvs then
-                 Ok ([(ls ++ [oldOutput], ds, newKvs)] ++ delayedSolution)
-               else
-                 Ok delayedSolution
-             onInsert (ls, ds, kvs) {newOutput=(key, (weight, value)) as newoutput, index} =
-               let delayedSolution = 
-                  [(ls ++ [newoutput], ds ++ [(index, ListElemInsert 1)], kvs)]
-               in
-               let (ws0, ws1, ws2, ws3) = case List.last kvs of
-                 Just [ws0, _, ws1, ws2, _, ws3] -> (ws0, ws1, ws2, ws3)
-                 Nothing -> ("\n  ", "", " ", "")
-               in
-               Ok (delayedSolution ++ [(ls, ds, kvs ++ [[ws0, key, ws1, ws2, value, ws3]])])
-             onFinish x = Ok [x]
-             onGather (ls, ds, kvs) = Ok <| 
-               InputWithDiff ((ls, kvs), Update.mbPairDiffs (if ds == [] then Nothing else Just (VListDiffs ds), Update.diffs keyValues kvs))
-           } outputOld outputNew diffs
-         in
-         immediateSolution
-      } (Update.debug "result" result) (Update.debug "kv2" keyValues)
-    else if False && inherits element selector then
-      List.foldl2 (\(((_ :: key :: _)::keyTail) as keyValue) acc ->
-        if isInheritable key then
-          process keyValue acc
-        else
-          acc -- TODO: It should be possible to insert something there 
-      ) acc keyValues
-    else
-      acc
+      propagate (always True) result keyValues
+    else 
+      let mbParent = parentMatch (\countName varName -> 
+           jsCode.datatypeOf "v" "Just" [jsCode.stringOf(element) + """ + '.parentNode'.repeat(@countName)"""]
+         ) (jsCode.datatypeOf "v" "Nothing" []) element selector
+      in
+      case mbParent of
+        Nothing -> acc
+        Just parent ->
+          let processAncestor = process (selectorWeight parent selector |> weight.inherited) in
+          let result = 
+            List.foldl2 (\(((_ :: key :: _)::keyTail) as keyValue) acc ->
+              if isInheritable key then
+                processAncestor keyValue acc
+              else
+                acc 
+            ) acc keyValues
+          in
+          propagate isInheritable result keyValues
   ) (Update.freezeWhen True (\_ -> "No place where to modify the rule") []) styles
+
+propagate isKeyAdmissible =
+  Update.lens2 { -- We gather all inserted elements elsewhere and insert them directly at the end of keyValues as one solution.
+      -- Deleted elements are deleted from keyValues if there were there.
+    apply (result, kvs) = result
+    update ({input=(result, keyValues), outputOld, outputNew, diffs} as uInput) =
+     --Debug.log (toString uInput) <|
+     let immediateSolution = 
+       Update.foldDiff {
+         start = ([], [], keyValues)
+         onSkip (ls, ds, kvs) {count, index, newOutputs} =
+           Ok [(ls ++ newOutputs, ds, kvs)]
+         onUpdate (ls, ds, kvs) {newOutput, index, diffs} =
+           Ok [(ls ++ [newOutput], ds ++ [(index, ListElemUpdate diffs)], kvs)]
+         onRemove (ls, ds, kvs) {oldOutput=(key, (weight, value)) as oldOutput, index} =
+           let newKvs = List.filter (\(_ :: key2 :: _ :: _ :: value2 :: _) -> key2 /= key || value2 /= value) kvs in
+           let delayedSolution =
+                 [(ls, ds ++ [(index, ListElemDelete 1)], kvs)] in
+           if List.length newKvs /= List.length kvs && isKeyAdmissible key then
+             Ok ([(ls ++ [oldOutput], ds, newKvs)] ++ delayedSolution)
+           else
+             Ok delayedSolution
+         onInsert (ls, ds, kvs) {newOutput=(key, (weight, value)) as newoutput, index} =
+           let delayedSolution = 
+              [(ls ++ [newoutput], ds ++ [(index, ListElemInsert 1)], kvs)]
+           in
+           let (ws0, ws1, ws2, ws3) = case List.last kvs of
+             Just [ws0, _, ws1, ws2, _, ws3] -> (ws0, ws1, ws2, ws3)
+             Nothing -> ("\n  ", "", " ", "")
+           in
+           Ok (delayedSolution ++ (
+             if isKeyAdmissible key then
+               [(ls, ds, kvs ++ [[ws0, key, ws1, ws2, value, ws3]])]
+             else
+               []))
+         onFinish x = Ok [x]
+         onGather (ls, ds, kvs) = Ok <| 
+           InputWithDiff ((ls, kvs), Update.mbPairDiffs (if ds == [] then Nothing else Just (VListDiffs ds), Update.diffs keyValues kvs))
+       } outputOld outputNew diffs
+     in
+     immediateSolution
+  }
