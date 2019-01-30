@@ -3249,6 +3249,17 @@ expandFormat old selections =
     _ ->
       Nothing
 
+--------------------------------------------------------------------------------
+-- Special: Example-Filling Tool
+--------------------------------------------------------------------------------
+
+exampleProviderTool : Model -> Selections -> DeuceTool
+exampleProviderTool =
+  genericReplaceHoleTool
+    "exampleProvider"
+    "Provide Example"
+    (\_ _ -> NoInputDeuceTransform (\_ -> [Special ExampleProvider]))
+
 --==============================================================================
 --= EXPORTS
 --==============================================================================
@@ -3286,6 +3297,8 @@ toolList =
     , (\model selections -> Types2.renameDataConstructorTool model.inputExp selections)
     , (\model selections -> Types2.duplicateDataConstructorTool model.inputExp selections)
     , (\model selections -> Types2.convertToDataTypeTool model.inputExp selections)
+    ]
+  , [ exampleProviderTool
     ]
   , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
     [ createTrueTool

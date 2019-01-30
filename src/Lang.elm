@@ -658,6 +658,9 @@ type ResultText
   | TypeText String
   | HintText String
 
+type SpecialResult
+  = ExampleProvider
+
 type TransformationResult
   = -- Old behavior, just uses description
     Basic SynthesisResult
@@ -665,6 +668,8 @@ type TransformationResult
   | Fancy SynthesisResult ResultText
     -- Just a ResultText without an associated transformation
   | Label ResultText
+    -- Not a code tool, but should use Deuce UI
+  | Special SpecialResult
 
 basicTransformationResult : String -> Exp -> TransformationResult
 basicTransformationResult description exp =
@@ -681,6 +686,9 @@ transformationToSynthesisResult tr =
       Just sr
 
     Label _ ->
+      Nothing
+
+    Special _ ->
       Nothing
 
 synthesisResults : List TransformationResult -> List SynthesisResult
@@ -700,6 +708,9 @@ mapSynthesisResult f tr =
     Label rt ->
       Label rt
 
+    Special sr ->
+      Special sr
+
 extractSynthesisResultWith : (SynthesisResult -> a) -> TransformationResult -> Maybe a
 extractSynthesisResultWith f tr =
   case tr of
@@ -710,6 +721,9 @@ extractSynthesisResultWith f tr =
       Just (f sr)
 
     Label _ ->
+      Nothing
+
+    Special _ ->
       Nothing
 
 extractSynthesisResult : TransformationResult -> Maybe SynthesisResult
@@ -732,6 +746,7 @@ transformationResultToString tr =
     Basic (SynthesisResult sr) -> sr.description
     Fancy _ rt                 -> resultTextToString rt
     Label rt                   -> resultTextToString rt
+    Special sr                 -> "[Special: " ++ toString sr ++ "]"
 
 --------------------------------------------------------------------------------
 -- Predicates (for DeuceTools and OutputTools)

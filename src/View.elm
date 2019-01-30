@@ -38,7 +38,7 @@ import OutputCanvas
 import Draw
 import LangTools
 import Sync
-import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..), ResultText(..), TransformationResult(..), DeuceTransformation(..))
+import Lang exposing (Exp, PredicateValue(..), SynthesisResult(..), ResultText(..), TransformationResult(..), DeuceTransformation(..), SpecialResult(..))
 import LangSvg
 import Syntax
 import File
@@ -540,6 +540,15 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           ( Nothing
           , [ viewResultText resultText ]
           )
+
+        Special sr ->
+          case sr of
+            ExampleProvider ->
+              ( Nothing
+              , [ Html.text <|
+                    Lang.transformationResultToString transformationResult
+                ]
+              )
   in
     case maybeSynthesisInfo of
       Nothing ->
