@@ -1438,7 +1438,9 @@ code {
 }
 
 .hole-env {
+  display: inline-block;
   background-color: rgba(0, 0, 0, 0.05);
+  width: 50%;
   margin-bottom: 10px;
   padding: 10px;
   border: 2px dashed rgba(0, 0, 0, 0.3);
@@ -1450,13 +1452,16 @@ code {
 }
 
 .hole-example-input {
-  margin-bottom: 10px;
+  display: inline-block;
+  width: calc(50% - 10px);
+  margin-left: 10px;
+  vertical-align: top;
 }
 
 .hole-example-input input {
   width: 100%;
   font-size: 1em;
-  padding: 5px;
+  padding: 3px;
 }
 
 .synthesize-button {

@@ -335,12 +335,15 @@ flatten u =
   u :: List.concatMap flatten (children u)
 
 findHoles : HoleId -> UnExp -> List (Int, Env)
-findHoles holeId =
+findHoles targetHoleId =
   let
     extract u =
       case u of
         UHoleClosure env (holeId, index) ->
-          [(index, env)]
+          if holeId == targetHoleId then
+            [(index, env)]
+          else
+            []
 
         _ ->
           []
