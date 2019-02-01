@@ -15,13 +15,16 @@ commands = [
   ("Concretize", "ALT+C", "abstract elements being selected")
   ]
 
-command arg = 
+command =
+  let commands = List.map (\(a, b, c) -> (String.toLowerCase a, b, c)) commands in
+  \arg ->
   Update.freezeExcept (\d ->  """command @d""") arg <| \arg ->
-  <abbr class="command" title=@(lookup commands arg ._1 |> Maybe.map (\x -> x._2 + ", " + x._3) |> Maybe.withDefault "unknown command")>@arg</abbr>
+  <abbr class="command" title=@(lookup commands (String.toLowerCase arg) ._1 |> Maybe.map (\x -> x._2 + ", " + x._3) |> Maybe.withDefault "unknown command")>@arg</abbr>
 
 assignment varname params content =
   <div class="assignment">
-    <span class="variable">@varname</span> @(if params /= [] then " of" else [])@(List.concatMap (\p -> [["TEXT", " "], <span class="variable">@p</span>]) params) =
+    <span class="variable">@varname</span>@(if params == [] then [] else
+      [["TEXT", " of "], <div class="params">@(List.map (\p -> <span class="variable">@p</span>) params)</div>]) =
     <div class="content">@content</div>
   </div>
 
@@ -101,6 +104,13 @@ mkDoc (assignments) body =
   min-width: 2em;
   padding: 2px;
 }
+div.params {
+  display: inline-block;
+  vertical-align: middle;
+}
+div.params > span.variable {
+  display: block;
+}
 .assignment > .variable {
 }
 .variable {
@@ -109,10 +119,10 @@ mkDoc (assignments) body =
   font-weight: bold;
 }
 .abstraction {
-  background: #EEF;
+  color: rgba(0, 0, 0, 0.5);
 }
 .concretization {
-  background: #FFF;
+  color: black;
 }
 .docblock {
   padding-left: 20px;
@@ -199,7 +209,7 @@ body a {
 
 <p>No coding skills are required. Let’s start!</p>
 
-<h2>Step 1: Simple abstraction</h2>
+<h3>Step 1: Simple abstraction</h3>
 
 <p>
 MikoWord displays a blank page, in which you can immediately write something.
@@ -213,9 +223,10 @@ Welcome to MySoft 1.0!
 </div>)
 <p>
 In a regular document, every time you update MySoft’s version, you would have to update it manually everywhere.
-In MikoWord, it is easier. Select <span class="doc">MySoft 1.0</span>, and @(command "Abstract") it.
+In MikoWord, it is easier. Select <span class="doc">MySoft 1.0</span>, and @(command "abstract") it.
 </p>
-Abstracting is giving a name to something concrete. If you hover over <span class="doc">MySoft 1.0</span> in the title, you will now see the name this content has been automatically given (mysoft). The content is a mini-document in itself, but we'll see how to benefit from this feature later.
+Abstracting is giving a name to something concrete.
+If you hover over the now greyed <span class="doc">MySoft 1.0</span> in the title, you will now see the name this content has been automatically given (mysoft). The content is a mini-document in itself, but we'll see how to benefit from this feature later.
 @(mkDoc [("mysoft", ([], <span class="textvalue">MySoft 1.0</span>))]
 <div>
 <h1><span class="variable">mysoft</span> Tutorial</h1>
@@ -237,13 +248,10 @@ Rename <span class="doc">1.0</span> to <span class="doc">1.1</span>. You can ren
 <h1><span class="variable">mysoft</span> Tutorial</h1>
 Welcome to <span class="variable">mysoft</span>!
 </div>)
-Thanks to automatic correction and from now on, each time you will type mysoft followed by a space, it will replace it with <span class="doc abstraction">MySoft 1.1</span>.
-<h2>Step 2: Abstract to concrete</h2>
-<p>Let us imagine that, in your document, you want to describe a set of keyboard shortcuts as memos, and then some sample scenarios on how to use them. We want to get to something like this:</p>
-
-<p>TODO: final version</p>
-
-Let us start by creating a sample shortcut table. Create a 3x2 table, remove the borders inside it, and fill it as follow:
+Thanks to automatic correction and from now on, each time you will type mysoft followed by a space, it will replace it with <span class="doc abstraction">MySoft 1.1</span>. Don't worry about the fact that these occurrences are in gray, they will revert to their initial color once you export the document. Alternatively, you can go to settings and change the display of reusable variables.
+<h3>Step 2: Abstract to concrete</h3>
+<p>Let us imagine that, in your document, you want to describe a set of keyboard shortcuts as memos, and then some sample scenarios on how to use them.
+Let us start by creating a sample shortcut table. Create a 3x2 table, remove the borders inside it, and fill it as follow:</p>
 
 <style>
 table.kbd {
@@ -272,7 +280,7 @@ table.kbd tr:last-child {
   </table>
 </div>)
 
-We want to reuse this box. Instead of just copy-pasting it, we will abstract it so that boxes are in sync. Select the table, and @(command "Abstract"), and duplicate the abstraction as in the previous section.
+We want to reuse this box. Instead of just copy-pasting it, we will abstract it so that boxes are in sync. Select the table, @(command "abstract") it, and duplicate the abstraction as in the previous section.
 
 @(mkDoc [("table", ([], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td>Context menu</td></tr>
@@ -285,7 +293,7 @@ We want to reuse this box. Instead of just copy-pasting it, we will abstract it 
   <span class="variable">table</span>
 </div>)
 
-Now if you were to change one of the values, it would be changed anywhere. We need to specify what values we should be able to change independently. Select <span class="doc">Context menu</span> in one of the last two tables and @(command "Concretize") it. Alternatively, you could have selected it from the first table and @(command "Abstract")ed it.
+Now if you changed one of the values in any table, it would be changed anywhere. We need to specify what values we should be able to change independently. Select <span class="doc">Context menu</span> in one of the last two tables and @(command "concretize") it. Alternatively, you could have selected it from the first table and @(command "abstract")ed it. The result looks like follows:
 
 @(mkDoc [("table", (["contextmenu"], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
@@ -297,6 +305,48 @@ Now if you were to change one of the values, it would be changed anywhere. We ne
   <span class="application"><span class="variable">table</span><span>Context menu</span></span>
   <span class="application"><span class="variable">table</span><span>Context menu</span></span>
 </div>)
+
+Now if you rename the "Context Menu" from the last table to "Save", the change will remain on this table only:
+
+@(mkDoc [("table", (["contextmenu"], <table class="kbd"><tbody>
+  <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
+  <tr><td>Keyboard shortcut:</td><td>Right-click or ALT+M</td></tr>
+  <tr><td>When to use:</td><td>When caret blinks in doc</td></tr>
+  </tbody>
+  </table>))]
+<div>
+  <span class="application"><span class="variable">table</span><span>Context menu</span></span>
+  <span class="application"><span class="variable">table</span><span>Save</span></span>
+</div>)
+
+Continue and @(command "concretize") the remaining two arguments, and rename them appropriately so that you should see something like:
+
+@(mkDoc [("table", (["contextmenu", "right", "when"], <table class="kbd"><tbody>
+  <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
+  <tr><td>Keyboard shortcut:</td><td><span class="variable">right</span></td></tr>
+  <tr><td>When to use:</td><td><span class="variable">when</span></td></tr>
+  </tbody>
+  </table>))]
+<div>
+  <span class="application"><span class="variable">table</span><span
+    >Context menu</span><span
+    >Right-click or ALT+M</span><span
+    >When caret blinks in doc</span></span>
+  <span class="application"><span class="variable">table</span><span
+    >Save</span><span
+    >CTRL+S</span><span
+    >When file is not saved yet</span></span>
+</div>)
+Using this interface, if you replace "Keyboard shortcut" by "Shortcut", it will be updated everywhere. That can be very useful.
+Save your file. If you forget to save your file and your browser unexpectedly quits, a backup will always be available.
+<h3>Step 3: Advanced abstractions</h3>
+<p>In the previous section, we saw how to define memos for shortcuts. Now, we want to use these shortcut definitions to augment simple tutorials, by displaying a hint on every command that a tutorial uses. That way, users would not have to remember all these commands or look them up themselves.</p>
+
+<p>Select the last two tables, and @(command "abstract") them.
+Instead of inserting one more name, MikoWord detects that there is a repetition and instead suggest to merge these calls. Accept. You will then see the following result:
+</p>
+
+<h3>Step 4: Custom abstractions</h3>
 
 </div>
 </body></html>
