@@ -371,7 +371,7 @@ In a regular document, every time you update MySoft’s version, you would have 
 In MikoWord, it is easier. Select "<span class="doc">MySoft 1.0</span>", and @(command "abstract") it.
 </p>
 Abstracting is giving a name to something concrete.
-If you hover over the now dash-outlined "<span class="doc abstraction">MySoft 1.0</span>" in the title, you will now see that it has been assigned the name <span class="variable">mysoft</span>. The portion to the right of <span class="variable">mysoft</span> is called its <em>content</em>. The content is actually a mini-document in itself that can be further modified:
+If you hover over the now dash-colored "<span class="doc abstraction">MySoft 1.0</span>" in the title, you will now see that it has been assigned the name <span class="variable">mysoft</span>. The portion to the right of <span class="variable">mysoft</span> is called its <em>content</em>. The content is actually a mini-document in itself that can be further modified:
 @(mkDoc [("mysoft", ([], <span class="textvalue">MySoft 1.0</span>))]
 <div>
 <h1><span class="variable">mysoft</span> Tutorial</h1>
@@ -444,8 +444,8 @@ Instead of just copy-pasting it, we will abstract it so that boxes are always us
 
 If you changed one of the values in any table, the change would be propagated to the other tables. We need to specify what values we should be able to change independently. Select "<span class="doc">Context menu</span>" in one of the last two tables and @(command "concretize") it. Alternatively, you could have selected it from the first table and @(command "abstract")ed it. The result looks like follows:
 
-@(mkDoc [("table", ([<span class="variable">contextmenu</span>], <table class="kbd"><tbody>
-  <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
+@(mkDoc [("table", ([<span class="variable">B1</span>], <table class="kbd"><tbody>
+  <tr><td>Command name:</td><td><span class="variable">B1</span></td></tr>
   <tr><td>Keyboard shortcut:</td><td>Right-click or ALT+M</td></tr>
   <tr><td>When to use:</td><td>When caret blinks in doc</td></tr>
   </tbody>
@@ -457,8 +457,8 @@ If you changed one of the values in any table, the change would be propagated to
 
 Rename "<span class="doc">Context Menu</span>" from the last table to "<span class="doc">Save</span>". The change will stay on the modified table:
 
-@(mkDoc [("table", ([<span class="variable">contextmenu</span>], <table class="kbd"><tbody>
-  <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
+@(mkDoc [("table", ([<span class="variable">B1</span>], <table class="kbd"><tbody>
+  <tr><td>Command name:</td><td><span class="variable">B1</span></td></tr>
   <tr><td>Keyboard shortcut:</td><td>Right-click or ALT+M</td></tr>
   <tr><td>When to use:</td><td>When caret blinks in doc</td></tr>
   </tbody>
@@ -470,10 +470,10 @@ Rename "<span class="doc">Context Menu</span>" from the last table to "<span cla
 
 Continue and @(command "concretize") "<span class="doc">Right-click or ALT+M</span>" and "<span class="doc">When caret blinks in doc</span>", and rename them appropriately so that you obtain something like:
 
-@(mkDoc [("table", ([<span class="variable">contextmenu</span>, <span class="variable">right</span>, <span class="variable">when</span>], <table class="kbd"><tbody>
-  <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
-  <tr><td>Keyboard shortcut:</td><td><span class="variable">right</span></td></tr>
-  <tr><td>When to use:</td><td><span class="variable">when</span></td></tr>
+@(mkDoc [("table", ([<span class="variable">B1</span>, <span class="variable">B2</span>, <span class="variable">B3</span>], <table class="kbd"><tbody>
+  <tr><td>Command name:</td><td><span class="variable">B1</span></td></tr>
+  <tr><td>Keyboard shortcut:</td><td><span class="variable">B2</span></td></tr>
+  <tr><td>When to use:</td><td><span class="variable">B3</span></td></tr>
   </tbody>
   </table>))]
 <div>
@@ -487,13 +487,16 @@ Continue and @(command "concretize") "<span class="doc">Right-click or ALT+M</sp
     >When file is not saved yet</span></span>
 </div>)
 Using this interface, if you rename "Keyboard shortcut" by "Shortcut", the renaming would appear in the other tables.
-Rename <span class="variable">table</span> to <span class="variable">memo</span>, <span class="variable">contextmenu</span> to <span class="variable">name</span>, <span class="variable">right</span> to <span class="variable">shortcut</span> and <span class="variable">when</span> to <span class="variable">context</span>. Good names are always useful for later. 
+Rename <span class="variable">table</span> to <span class="variable">memo</span>, <span class="variable">B1</span> to <span class="variable">name</span>, <span class="variable">B2</span> to <span class="variable">shortcut</span> and <span class="variable">B3</span> to <span class="variable">context</span>. Good names are always useful for later.
+Alternatively, if you wanted to be able to use both names, instead of just renaming <span class="variable">B1</span>, double-click on it to the right of "<span class="doc">of </span>" and write "<span class="doc">B1 as name</span>" in the formula field.
+<br>
 Save your file. If you forget to save your file and your browser unexpectedly quits, a backup will always be available.
 <h3>Step 3: Advanced abstractions</h3>
-<p>In the previous section, we saw how to define memos for shortcuts. Now, we want to use these shortcut definitions to augment simple tutorials, by displaying a hint on every command that a tutorial uses. That way, users would not have to remember all these commands or look them up themselves.</p>
+<p>In the previous section, we saw how to define memos for shortcuts.
+We want to use these shortcut definitions to augment simple tutorials, by displaying a hint on every command that a tutorial uses. That way, users would not have to remember all these commands or look them up themselves.</p>
 
 <p>Select the last two tables, and @(command "abstract") them.
-Instead of inserting one more name, MikoWord detects that there is a repetition and instead suggest to merge these calls. Accept. You will then see the following result:
+Instead of inserting one more name, MikoWord detects that there is a repetition and instead suggest to merge these calls (<img src="FutureofProgramming-lightning.png">). Accept. You will then see the following result:
 </p>
 @(mkDoc [("items", ([], <span class="table"><span class="tuple"><span
     >Context menu</span><span
@@ -513,9 +516,9 @@ Instead of inserting one more name, MikoWord detects that there is a repetition 
 <div>
   <span class="formula">repeat(table,items)</span>
 </div>)
-As you hover over the table, you'll see that it uses a single formula to display this table: "<span class="doc">repeat table items</span>". More on this language later. If you double click on this table, you can also change this formula, as in any spreadsheet; but you can also change the value. More on this later.
+As you hover over the table, you'll see that it uses a single formula to display this table: "<span class="doc">repeat(table,items)</span>". If you double click on this table, you would be able to change this formula, as in any spreadsheet; but you can also change the value as you see it.
 <h3>Step 4: Intelligent abstractions</h3>
-Now let's write our tutorial content. In the sequel, we only display the elements that are relevant, that is, the <span class="variabl">items</span> and the tutorial's abstractions themselves.
+Now let's write our tutorial content. In the sequel, we only display relevant abstractions at the top.
 @(mkDoc [("items", ([], <span class="table"><span class="tuple"><span
     >Context menu</span><span
     >Right-click or ALT+M</span><span
@@ -531,7 +534,7 @@ After any edit, remember to Save your document.
 </div>)
 We want to display a tooltip when the user hovers "<span class="doc">Save</span>" that displays the keyboard shortcut.
 Let's add the tooltip. Select "<span class="doc">Save</span>" in the document, under the title, and @(command "abstract") it.
-Select the abstraction, and add a @(command "remark") to it. As the inline pop-up is revealed, enter "<span class="doc">CTRL+S</span>" in it, as follows.
+Select it again, and add a @(command "remark") to it. As the inline pop-up for remarks appears, enter "<span class="doc">CTRL+S</span>" in it, as follows.
 @(mkDoc [("items", ([], <span class="table"><span class="tuple"><span
     >Context menu</span><span
     >Right-click or ALT+M</span><span
@@ -583,7 +586,8 @@ After any edit, remember to <span class="application"><span class="variable">com
 </div>)
 <p>Once you will be more familiar with the language, you will be able to enter these formulas yourself (@(command "abstract"), then choose "formula" from <img src="FutureofProgramming-lightning.png">).</p>
 <p>
-Write in the document "<span class="doc">Open the </span>".
+Let us add another command in the document similar to <span class="doc">Save</span>.
+Continue to write "<span class="doc">Open the </span>" in the document.
 Copy "<span class="doc">Save</span>" with its tooltip, paste it after what you just wrote, and replace the command name by <span class="doc">Context menu</span>. The tooltip is automatically updated:</p>
 @(mkDoc [("items", ([], <span class="table"><span class="tuple"><span
     >Context menu</span><span
@@ -600,11 +604,14 @@ Copy "<span class="doc">Save</span>" with its tooltip, paste it after what you j
 <h2><span class="variable">mysoft</span>: Save actions</h2>
 After any edit, remember to <span class="application"><span class="variable">command</span><span>Save</span></span> your document. Open the <span class="application"><span class="variable">command</span><span>Context menu</span></span>
 </div>)
-You are now able to write a document with enriched content. Furthermore, when you will want to create a version for Mac, or localize the tutorial in another language, you will just have to further abstract over items, you won't have to do replacements.
+You are now able to write a document with enriched content. Furthermore, when you will want to create a version for Mac, or localize the tutorial in another language, you will just have to further abstract over items, you won't have to do search and replace.<br>
+Moreover, if at some point you want to change a remark, such as removing <span class="doc">Right-click or</span> from the remark under <span class="doc">Context menu</span>, you can do it directly in the document; it will modify it in the source and in all other places.
 
-<h3>Step 5: Custom abstraction</span>
+<h1>Epilogue</h1>
 
+I wrote this tutorial using <a href= "https://github.com/MikaelMayer/Editor">Editor</a>, a local HTTP server to edit dynamically generated webpages in the browser.
 
+Let me know what you think in the comments!
 
 </div>
 </body></html>
