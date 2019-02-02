@@ -63,8 +63,7 @@ mkAssignments context params args =
         [(p, (context, ([], a)))]
       (["span", ["class", "tuple"]::_, patChildren],
        ["span", ["class", "tuple"]::_, argChildren]) ->
-        List.map2 (mkAssignments context) patChildren argChildren
-        |> List.concatMap identity
+        mkAssignments context patChildren argChildren
       _ -> []
     ) params args
   |> List.concatMap identity
@@ -76,7 +75,6 @@ repeatDef mapping listElem =
     _ ->
       <span class="error">Not a valid table @listElem</span>
 
--- TODO: Find out why it's not working.
 abstractAssignment (name, (context, (params, content))) =
   (,) name <|
   let aux env params = case params of 
@@ -85,8 +83,9 @@ abstractAssignment (name, (context, (params, content))) =
           if env == [] then content else
           htmlPostMap (case of
             ["span", ["class", "variable"]::_, [["TEXT", name]]] ->
-              listDict.get env name
+              listDict.get name env
               |> Maybe.withDefault <span class="variable notfound">@name</span>
+            v -> v
           ) content
         p :: pTail ->
           \element ->
@@ -121,7 +120,7 @@ mkDoc (assignments) body =
       ["span", [["class", "application"]],
           ["span", [["class","variable"]], [["TEXT", name]]] :: args] ->
         listDict.get name assignments
-        |> Maybe.map (\(provenance, (params, content))  ->
+        |> Maybe.map (\(provenance, (params, content)) ->
           let newAssignments = mkAssignments context params args ++
                   assignments
           in
@@ -142,6 +141,7 @@ span.error {
   display: inline-block;
   max-height: 10em;
   overflow-y: scroll;
+  white-space: pre-wrap;
 }
 span.table {
   display: table;
@@ -326,7 +326,7 @@ Rename <span class="doc">1.0</span> to <span class="doc">1.1</span>. You can ren
 <h1><span class="variable">mysoft</span> Tutorial</h1>
 Welcome to <span class="variable">mysoft</span>!
 </div>)
-Thanks to automatic correction and from now on, each time you will type mysoft followed by a space, it will replace it with <span class="doc abstraction">MySoft 1.1</span>. Don't worry about the fact that these occurrences are in gray, they will revert to their initial color once you export the document. Alternatively, you can go to settings and change the display of reusable variables.
+Thanks to automatic correction and from now on, each time you will type <span class="doc">mysoft</span> followed by a space, it will replace it with <span class="doc abstraction">MySoft 1.1</span>. Don't worry about the fact that these occurrences are in gray, they will revert to their initial color in the you expocument's version. Alternatively, you can go to settings and change the display of reusable variables.
 <h3>Step 2: Abstract to concrete</h3>
 <p>Let us imagine that, in your document, you want to describe a set of keyboard shortcuts as memos, and then some sample scenarios on how to use them.
 Let us start by creating a sample shortcut table. Create a 3x2 table, remove the borders inside it, and fill it as follow:</p>
@@ -359,7 +359,7 @@ table.kbd tr:last-child {
   </table>
 </div>)
 
-We want to reuse this box. Instead of just copy-pasting it, we will abstract it so that boxes are in sync. Select the table, @(command "abstract") it, and duplicate the abstraction as in the previous section.
+We want to reuse this box. Instead of just copy-pasting it, we will abstract it so that boxes are in sync. Select the table, @(command "abstract") it, and copy-paste it to duplicate it as in the previous section.
 
 @(mkDoc [("table", ([], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td>Context menu</td></tr>
@@ -372,7 +372,7 @@ We want to reuse this box. Instead of just copy-pasting it, we will abstract it 
   <span class="variable">table</span>
 </div>)
 
-Now if you changed one of the values in any table, it would be changed anywhere. We need to specify what values we should be able to change independently. Select <span class="doc">Context menu</span> in one of the last two tables and @(command "concretize") it. Alternatively, you could have selected it from the first table and @(command "abstract")ed it. The result looks like follows:
+If you changed one of the values in any table, the change would be propagated to the other tables. We need to specify what values we should be able to change independently. Select <span class="doc">Context menu</span> in one of the last two tables and @(command "concretize") it. Alternatively, you could have selected it from the first table and @(command "abstract")ed it. The result looks like follows:
 
 @(mkDoc [("table", ([<span class="variable">contextmenu</span>], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
@@ -385,7 +385,7 @@ Now if you changed one of the values in any table, it would be changed anywhere.
   <span class="application"><span class="variable">table</span><span>Context menu</span></span>
 </div>)
 
-Now if you rename the "Context Menu" from the last table to "Save", the change will remain on this table only:
+Rename <span class="doc">Context Menu</span> from the last table to <span class="doc">Save</span>. The change will stay on the modified table:
 
 @(mkDoc [("table", ([<span class="variable">contextmenu</span>], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
@@ -398,7 +398,7 @@ Now if you rename the "Context Menu" from the last table to "Save", the change w
   <span class="application"><span class="variable">table</span><span>Save</span></span>
 </div>)
 
-Continue and @(command "concretize") the remaining two arguments, and rename them appropriately so that you should see something like:
+Continue and @(command "concretize") <span class="doc">Right-click or ALT+M</span> and <span class="doc">When caret blinks in doc</span>, and rename them appropriately so that you obtain something like:
 
 @(mkDoc [("table", ([<span class="variable">contextmenu</span>, <span class="variable">right</span>, <span class="variable">when</span>], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
@@ -416,7 +416,7 @@ Continue and @(command "concretize") the remaining two arguments, and rename the
     >CTRL+S</span><span
     >When file is not saved yet</span></span>
 </div>)
-Using this interface, if you replace "Keyboard shortcut" by "Shortcut", it will be updated everywhere. That can be very useful.
+Using this interface, if you rename "Keyboard shortcut" by "Shortcut", the renaming would appear in the other tables.
 Save your file. If you forget to save your file and your browser unexpectedly quits, a backup will always be available.
 <h3>Step 3: Advanced abstractions</h3>
 <p>In the previous section, we saw how to define memos for shortcuts. Now, we want to use these shortcut definitions to augment simple tutorials, by displaying a hint on every command that a tutorial uses. That way, users would not have to remember all these commands or look them up themselves.</p>
