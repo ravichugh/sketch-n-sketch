@@ -1,3 +1,5 @@
+preludeEnv = __CurrentEnv__
+
 {- @render selector elem = case __closure_unapply__ selector of
   (["implicitvar"], body) -> case Regex.extract """^\s*implicitvar._(\d)\s*$""" of
     Just [column] -> "containing " + elem + " in column " + column
@@ -49,8 +51,52 @@ Html = { Html |
     [t, attrDict.insert name value attrs, c]
 }
 
+classFromProvenance provenance =
+  if provenance == Abstract then "abstraction" else "concretization"
+
 markabstract provenance name =
-  Html.addClass (if provenance == Abstract then "abstraction" else "concretization") >> Html.addAttr "title" name
+  Html.addClass (classFromProvenance provenance) >> Html.addAttr "title" name
+
+mkAssignments context params args =
+  List.map2 (\pat a -> case (pat, a) of
+      (["span", ["class", "variable"]::_, [["TEXT", p]]], _) ->
+        [(p, (context, ([], a)))]
+      (["span", ["class", "tuple"]::_, patChildren],
+       ["span", ["class", "tuple"]::_, argChildren]) ->
+        List.map2 (mkAssignments context) patChildren argChildren
+        |> List.concatMap identity
+      _ -> []
+    ) params args
+  |> List.concatMap identity
+
+repeatDef mapping listElem =
+  case listElem of
+    ["span", ["class", "table"]::_, children] ->
+      <span class="repeat">@(List.map mapping children)</span>
+    _ ->
+      <span class="error">Not a valid table @listElem</span>
+
+-- TODO: Find out why it's not working.
+abstractAssignment (name, (context, (params, content))) =
+  (,) name <|
+  let aux env params = case params of 
+        [] -> 
+          -- TODO: Now replace the content with the env (replacements)
+          if env == [] then content else
+          htmlPostMap (case of
+            ["span", ["class", "variable"]::_, [["TEXT", name]]] ->
+              listDict.get env name
+              |> Maybe.withDefault <span class="variable notfound">@name</span>
+          ) content
+        p :: pTail ->
+          \element ->
+            let remaining =
+                 mkAssignments context [p] [element]
+                 |> List.map (\(n, (_, (_, c))) -> (n, c))
+            in
+            aux (remaining ++ env) pTail
+  in aux [] params
+          
 
 mkDoc (assignments) body =
   <div class="docwrapper">
@@ -76,15 +122,47 @@ mkDoc (assignments) body =
           ["span", [["class","variable"]], [["TEXT", name]]] :: args] ->
         listDict.get name assignments
         |> Maybe.map (\(provenance, (params, content))  ->
-          let newAssignments = List.map2 (\p a -> (p, (context, ([], a)))) params args ++ assignments in
+          let newAssignments = mkAssignments context params args ++
+                  assignments
+          in
           ((provenance, newAssignments), markabstract provenance name content)
         )
         |> Maybe.withDefault ((context, assignments), ["span", [["class","variable notfound"]], [["TEXT", name]]])
-      v -> ((context, assignments), v)
+      ["span", [["class", "formula"]], [["TEXT", formula]]] ->
+        (,) (context, assignments) <|
+        case __evaluate__ (("repeat", repeatDef) :: (List.map abstractAssignment assignments) ++ preludeEnv) formula of
+          Err msg -> <span class="error">@msg</span>
+          Ok v -> <span class=@(classFromProvenance context) title=@(formula)>@v</span>
+      _ -> ((context, assignments), n)
    ) body)
   </div></div>
 
 <html><head><meta content="text/html; charset=UTF-8" http-equiv="content-type"><style>
+span.error {
+  display: inline-block;
+  max-height: 10em;
+  overflow-y: scroll;
+}
+span.table {
+  display: table;
+  border-collapse: separate;
+}
+span.tuple {
+  display: table-row;
+}
+span.tuple:not(:first-child) {
+  border-top: 1px solid black;
+}
+span.tuple > * {
+  display: table-cell;
+  padding-left: 2px;
+  padding-right: 2px;
+  border-color: gray;
+  border-style: none;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  border-bottom: 1px solid gray;
+}
 .doc {
   font-family: Calibri, serif;
   font-size: 16px;
@@ -259,6 +337,7 @@ table.kbd {
   border-left:1px solid black;
   border-right:1px solid black;
   margin-top: 2px;
+  border-radius: 5px;
 }
 table.kbd td {
   padding: 5px;
@@ -295,7 +374,7 @@ We want to reuse this box. Instead of just copy-pasting it, we will abstract it 
 
 Now if you changed one of the values in any table, it would be changed anywhere. We need to specify what values we should be able to change independently. Select <span class="doc">Context menu</span> in one of the last two tables and @(command "concretize") it. Alternatively, you could have selected it from the first table and @(command "abstract")ed it. The result looks like follows:
 
-@(mkDoc [("table", (["contextmenu"], <table class="kbd"><tbody>
+@(mkDoc [("table", ([<span class="variable">contextmenu</span>], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
   <tr><td>Keyboard shortcut:</td><td>Right-click or ALT+M</td></tr>
   <tr><td>When to use:</td><td>When caret blinks in doc</td></tr>
@@ -308,7 +387,7 @@ Now if you changed one of the values in any table, it would be changed anywhere.
 
 Now if you rename the "Context Menu" from the last table to "Save", the change will remain on this table only:
 
-@(mkDoc [("table", (["contextmenu"], <table class="kbd"><tbody>
+@(mkDoc [("table", ([<span class="variable">contextmenu</span>], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
   <tr><td>Keyboard shortcut:</td><td>Right-click or ALT+M</td></tr>
   <tr><td>When to use:</td><td>When caret blinks in doc</td></tr>
@@ -321,7 +400,7 @@ Now if you rename the "Context Menu" from the last table to "Save", the change w
 
 Continue and @(command "concretize") the remaining two arguments, and rename them appropriately so that you should see something like:
 
-@(mkDoc [("table", (["contextmenu", "right", "when"], <table class="kbd"><tbody>
+@(mkDoc [("table", ([<span class="variable">contextmenu</span>, <span class="variable">right</span>, <span class="variable">when</span>], <table class="kbd"><tbody>
   <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
   <tr><td>Keyboard shortcut:</td><td><span class="variable">right</span></td></tr>
   <tr><td>When to use:</td><td><span class="variable">when</span></td></tr>
@@ -345,6 +424,26 @@ Save your file. If you forget to save your file and your browser unexpectedly qu
 <p>Select the last two tables, and @(command "abstract") them.
 Instead of inserting one more name, MikoWord detects that there is a repetition and instead suggest to merge these calls. Accept. You will then see the following result:
 </p>
+@(mkDoc [("items", ([], <span class="table"><span class="tuple"><span
+    >Context menu</span><span
+    >Right-click or ALT+M</span><span
+    >When caret blinks in doc</span></span><span class="tuple"
+><span
+    >Save</span><span
+    >CTRL+S</span><span
+    >When file is not saved yet</span></span></span>
+)),
+("table", ([<span class="tuple"><span class="variable">contextmenu</span><span class="variable">right</span><span class="variable">when</span></span>], <table class="kbd"><tbody>
+  <tr><td>Command name:</td><td><span class="variable">contextmenu</span></td></tr>
+  <tr><td>Keyboard shortcut:</td><td><span class="variable">right</span></td></tr>
+  <tr><td>When to use:</td><td><span class="variable">when</span></td></tr>
+  </tbody>
+  </table>))]
+<div>
+  <span class="formula">repeat table items</span>
+</div>)
+
+
 
 <h3>Step 4: Custom abstractions</h3>
 
