@@ -88,7 +88,9 @@ import Types2
 import Ace
 import ParserUtils exposing (showError)
 -- import FastParser exposing (freshen)
+import Parser as P
 import LeoParser as Parser
+import LeoUnparser
 import LangTools
 import LangUtils
 import LangSimplify
@@ -101,7 +103,8 @@ import Eval
 import Evaluator
 import TriEval
 import UnExp
-import Example
+import Example exposing (Example)
+import Synthesis
 import Update exposing (vStr, vList)
 import UpdateUtils
 import UpdateStack
@@ -4367,24 +4370,47 @@ msgSynthesizeFromExamples : (HoleId, Type) -> Msg
 msgSynthesizeFromExamples (holeId, tau) =
   Msg "Synthesize From Examples" <| \model ->
     let
+      exampleInputList : List (Int, (UnExp.Env, String))
       exampleInputList =
         Dict.get holeId model.exampleInputs
           |> Maybe.withDefault Dict.empty
           |> Dict.toList
 
-      showExample (index, (env, input)) =
+      worldsResult : Result P.Error (List (Int, Synthesis.World))
+      worldsResult =
         let
-          exampleString =
-            Example.parse input
-              |> toString
+          extract (i, (env, input)) =
+            flip Result.map (Example.parse input) <| \ex ->
+              (i, (env, ex))
         in
-          "Example " ++ toString index ++ ": \n"
-            ++ "[" ++ UnExp.unparseEnv env ++ "] "
-            ++ exampleString
+          exampleInputList
+            |> List.map extract
+            |> Utils.projOk
 
-      tempOutput =
-        exampleInputList
-          |> List.map showExample
-          |> String.join "\n----------------------------------------\n"
+      showWorld (index, (env, ex)) =
+        "World " ++ toString index ++ ": \n"
+          ++ "[" ++ UnExp.unparseEnv env ++ "] "
+          ++ toString ex
+
+      output =
+        case worldsResult of
+          Ok worlds ->
+            let
+              worldsOutput =
+                worlds
+                  |> List.map showWorld
+                  |> String.join "\n----------------------------------------\n"
+
+              synthesisOutput =
+                Synthesis.refine Synthesis.hardCodedGamma (List.map Tuple.second worlds) tau
+                  |> List.map LeoUnparser.unparse
+                  |> String.join "\n----------------------------------------\n"
+            in
+              worldsOutput
+                ++ "\n========================================\n"
+                ++ synthesisOutput
+
+          Err err ->
+            toString err
     in
-      { model | outputMode = HtmlText tempOutput }
+      { model | outputMode = HtmlText output }

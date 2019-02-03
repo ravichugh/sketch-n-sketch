@@ -13,7 +13,7 @@ module Types2 exposing
   , duplicateDataConstructorTool
 
   , TypeEnv
-  , TypeEnvElement
+  , TypeEnvElement(..)
   , lookupVar
   , varsOfGamma
   , typeEquiv

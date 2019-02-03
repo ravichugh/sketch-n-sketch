@@ -1,12 +1,41 @@
 module Synthesis exposing
-  ( guess
+  ( World
+  , guess
   , refine
+  , hardCodedGamma
   )
 
+import Example exposing (Example)
+import UnExp
+
 import Types2 as T exposing (..)
+import Lang exposing (..)
+
+import Utils
+
+--------------------------------------------------------------------------------
+-- Declarations
+--------------------------------------------------------------------------------
 
 type alias World =
-  (Env, Example)
+  (UnExp.Env, Example)
+
+hardCodedGamma : T.TypeEnv
+hardCodedGamma =
+  [ HasType (pVar "n") <|
+      Just <|
+        withDummyTypeInfo (TNum space1)
+  , HasType (pVar "b") <|
+      Just <|
+        withDummyTypeInfo (TBool space1)
+  , HasType (pVar "s") <|
+      Just <|
+        withDummyTypeInfo (TString space1)
+  ]
+
+--------------------------------------------------------------------------------
+-- Type-Directed Synthesis
+--------------------------------------------------------------------------------
 
 guess : T.TypeEnv -> Type -> List Exp
 guess gamma tau =
@@ -50,6 +79,10 @@ guess gamma tau =
         List.concatMap guessApps typesToTry
   in
     variableGuesses ++ appGuesses
+
+--------------------------------------------------------------------------------
+-- Type-and-Example-Directed Synthesis
+--------------------------------------------------------------------------------
 
 refine : T.TypeEnv -> List World -> Type -> List Exp
 refine gamma worlds tau =
