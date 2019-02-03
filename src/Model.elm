@@ -6,7 +6,7 @@ import LeoParser
 import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
-import TriEval
+import UnExp exposing (UnExp)
 import EvalUpdate
 import Sync exposing (ZoneKey)
 import Utils
@@ -229,8 +229,8 @@ type alias Model =
   , doTypeChecking : Bool
   , isDeuceTextBoxFocused : Bool
   , needsToFocusOn : Maybe String
-  , unExpOutput : Maybe TriEval.UnExp
-  , exampleInputs : Dict HoleId (Dict Int (TriEval.Env, String))
+  , unExpOutput : Maybe UnExp
+  , exampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
   }
 
 type OutputMode

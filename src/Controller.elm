@@ -100,6 +100,8 @@ import Sync
 import Eval
 import Evaluator
 import TriEval
+import UnExp
+import Example
 import Update exposing (vStr, vList)
 import UpdateUtils
 import UpdateStack
@@ -857,7 +859,7 @@ tryRun old =
 
           resultString =
             result
-              |> Result.map TriEval.unparse
+              |> Result.map UnExp.unparse
               |> Result.mapError (\s -> "[Error] " ++ s)
               |> Utils.fromResult
         in
@@ -4345,7 +4347,7 @@ msgSetCodeEditorMode mode =
 -- Example Input
 --------------------------------------------------------------------------------
 
-msgUpdateExampleInput : HoleId -> Int -> TriEval.Env -> String -> Msg
+msgUpdateExampleInput : HoleId -> Int -> UnExp.Env -> String -> Msg
 msgUpdateExampleInput holeId index env input =
   Msg "Update Example Input" <| \model ->
     let
@@ -4373,11 +4375,11 @@ msgSynthesizeFromExamples (holeId, tau) =
       showExample (index, (env, input)) =
         let
           exampleString =
-            TriEval.parseExample input
+            Example.parse input
               |> toString
         in
           "Example " ++ toString index ++ ": \n"
-            ++ "[" ++ TriEval.showEnv env ++ "] "
+            ++ "[" ++ UnExp.unparseEnv env ++ "] "
             ++ exampleString
 
       tempOutput =

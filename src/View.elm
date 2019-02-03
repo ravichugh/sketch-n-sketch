@@ -43,7 +43,7 @@ import LangSvg
 import Syntax
 import File
 import Eval
-import TriEval
+import UnExp exposing (UnExp)
 import LeoUnparser
 
 import DeuceWidgets exposing (..)
@@ -579,7 +579,7 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           False
           []
 
-viewExampleProvider : (Lang.HoleId, Lang.Type) -> TriEval.UnExp -> Html Msg
+viewExampleProvider : (Lang.HoleId, Lang.Type) -> UnExp -> Html Msg
 viewExampleProvider (holeId, tau) output =
   let
     typeInformation =
@@ -590,7 +590,7 @@ viewExampleProvider (holeId, tau) output =
         ]
 
     holes =
-      TriEval.findHoles holeId output
+      UnExp.findHoles holeId output
 
     viewBinding (identifier, (u, _)) =
       Html.li
@@ -599,7 +599,7 @@ viewExampleProvider (holeId, tau) output =
         [ Html.code
             []
             [ Html.text <|
-                identifier ++ " → " ++ TriEval.unparse u
+                identifier ++ " → " ++ UnExp.unparse u
             ]
         ]
 
