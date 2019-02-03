@@ -2222,9 +2222,12 @@ hole =
         ( flip EHole
         )
         ( trackInfo <|
-            succeed (EEmptyHole << Maybe.withDefault dummyHoleId)
+            succeed (\mi t -> EEmptyHole (Maybe.withDefault dummyHoleId mi, t))
               |. keyword "??"
               |= optional int
+              |. symbol "("
+              |= typ spaces 0
+              |. symbol ")"
         )
 
 --------------------------------------------------------------------------------
@@ -3100,7 +3103,7 @@ substPlusOf_ substPlus exp =
   in
   foldExp accumulator substPlus exp
 
--- Set holeId's
+-- Set holeIds
 
 setHoleIds : Exp -> Exp
 setHoleIds =
@@ -3108,9 +3111,9 @@ setHoleIds =
     setHoleId : Exp -> Int -> (Exp, Int)
     setHoleId e holeId =
       case unwrapExp e of
-        EHole ws (EEmptyHole oldHoleId) ->
+        EHole ws (EEmptyHole (oldHoleId, tau)) ->
           if oldHoleId == dummyHoleId then
-            (replaceE__ e <| EHole ws (EEmptyHole holeId), holeId + 1)
+            (replaceE__ e <| EHole ws (EEmptyHole (holeId, tau)), holeId + 1)
           else
             (e, holeId)
 

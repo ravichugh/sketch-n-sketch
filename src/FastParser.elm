@@ -1034,7 +1034,7 @@ hole : ParserI Exp_
 hole =
   inContext "hole" <|
     mapExp_ <|
-      paddedBefore EHole spaces (trackInfo <| token "??" (EEmptyHole dummyHoleId))
+      paddedBefore EHole spaces (trackInfo <| token "??" dummyEmptyHole)
 
 --------------------------------------------------------------------------------
 -- Type Declarations

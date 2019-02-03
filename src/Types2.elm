@@ -11,6 +11,13 @@ module Types2 exposing
   , renameTypeTool
   , renameDataConstructorTool
   , duplicateDataConstructorTool
+
+  , TypeEnv
+  , TypeEnvElement
+  , lookupVar
+  , varsOfGamma
+  , typeEquiv
+  , rebuildArrow
   )
 
 import Info exposing (WithInfo, withDummyInfo)
@@ -808,18 +815,6 @@ insertStrAnnotation pat strType exp =
 
 
 --------------------------------------------------------------------------------
-
-holeType : Type
-holeType =
-  withDummyTypeInfo <| TVar space0 "??" -- for now
-
-
-isHoleType : Type -> Bool
-isHoleType typ =
-  case typ.val.t__ of
-    TVar _ "??" -> True
-    _           -> False
-
 
 maybeHoleFiller : Type -> Maybe Exp
 maybeHoleFiller typ =
@@ -3118,7 +3113,7 @@ duplicateDataConstructorTool inputExp selections =
                                   -- _ = Debug.log "newPat" (unparsePattern newPat)
 
                                   newHole =
-                                    EHole space0 (EEmptyHole dummyHoleId)
+                                    EHole space0 dummyEmptyHole
                                       |> replaceE__PreservingPrecedingWhitespace e
 
                                   newBranch_ =

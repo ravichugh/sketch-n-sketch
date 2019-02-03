@@ -457,8 +457,22 @@ dummyHoleId : Int
 dummyHoleId = -1
 
 type Hole
-  = EEmptyHole HoleId
+  = EEmptyHole (HoleId, Type)
   | ESnapHole Val
+
+holeType : Type
+holeType =
+  withDummyTypeInfo <| TVar space0 "??" -- for now
+
+isHoleType : Type -> Bool
+isHoleType typ =
+  case typ.val.t__ of
+    TVar _ "??" -> True
+    _           -> False
+
+dummyEmptyHole : Hole
+dummyEmptyHole =
+  EEmptyHole (dummyHoleId, holeType)
 
 type Type__
   = TNum WS
@@ -659,7 +673,7 @@ type ResultText
   | HintText String
 
 type SpecialResult
-  = ExampleProvider HoleId
+  = ExampleProvider (HoleId, Type)
 
 type TransformationResult
   = -- Old behavior, just uses description
@@ -2496,8 +2510,8 @@ eList a b         = withDummyExpInfo <| EList space1 (List.map ((,) space0) a) s
 eListWs a b       = withDummyExpInfo <| EList space1 a space0 b space0
 eSnapHoleVal0 v   = withDummyExpInfo <| EHole space0 (ESnapHole v)
 eSnapHoleVal v    = withDummyExpInfo <| EHole space1 (ESnapHole v)
-eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 (EEmptyHole dummyHoleId)
-eEmptyHoleVal     = withDummyExpInfo <| EHole space1 (EEmptyHole dummyHoleId)
+eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 dummyEmptyHole
+eEmptyHoleVal     = withDummyExpInfo <| EHole space1 dummyEmptyHole
 
 eColonType (Expr e) t = withInfo (exp_ <| EColonType space1 (Expr e) space1 t space0) e.start t.end
 

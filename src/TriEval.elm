@@ -12,7 +12,7 @@ import Dict exposing (Dict)
 import Set exposing (Set)
 import Char
 
-import Parser exposing (..)
+import Parser as P exposing (Parser, (|=), (|.))
 import Parser.LanguageKit as LanguageKit
 import ParserUtils exposing (try, token, singleLineString)
 
@@ -20,8 +20,11 @@ import Utils
 import LeoUnparser
 
 import Evaluator exposing (Evaluator)
+import State exposing (State)
 
 import Lang exposing (..)
+
+import Types2 as T exposing (..)
 
 type alias HoleIndex =
   (HoleId, Int)
@@ -33,13 +36,12 @@ type UnExp
   | UString String
   | UTuple (List UnExp)
   | UFunClosure Env (List Ident) {- Type -} Exp
-  | UHoleClosure Env HoleIndex {- Type -}
+  | UHoleClosure Env HoleIndex
   | UApp UnExp (List UnExp)
-  | UCase UnExp (List (Ident, Ident, Exp))
+  | UCase Env UnExp (List (Ident, Ident, Exp))
 
 type alias EvalState =
-  { nextHoleIndex : Dict HoleId Int
-  }
+  {}
 
 type alias Env =
   List (Ident, (UnExp, () {- Type -}))
@@ -79,13 +81,13 @@ bindingEval currentEnv body parameters arguments =
           UFunClosure newEnv (List.drop argLength parameters) body
 
       EQ ->
-        eval newEnv body
+        eval_ newEnv body
 
       GT ->
         Evaluator.fail "Supplied too many arguments"
 
-eval : Env -> Exp -> UnExpEvaluator
-eval env exp =
+eval_ : Env -> Exp -> UnExpEvaluator
+eval_ env exp =
   let
     e =
       unwrapExp exp
@@ -133,9 +135,9 @@ eval env exp =
       EApp _ eFunction eArgs _ _ ->
         let
           uArgs =
-            Evaluator.mapM (eval env) eArgs
+            Evaluator.mapM (eval_ env) eArgs
         in
-          eval env eFunction |> Evaluator.andThen (\uFunction ->
+          eval_ env eFunction |> Evaluator.andThen (\uFunction ->
             case uFunction of
               UFunClosure functionEnv parameters body ->
                 uArgs
@@ -157,27 +159,9 @@ eval env exp =
 
       EHole _ hole  ->
         case hole of
-          EEmptyHole holeId ->
-            Evaluator.get |> Evaluator.andThen (\state ->
-              let
-                freshHoleIndex =
-                  Dict.get holeId state.nextHoleIndex
-                    |> Maybe.withDefault 0
-
-                newState =
-                  { state
-                      | nextHoleIndex =
-                        Dict.insert
-                          holeId
-                          (freshHoleIndex + 1)
-                          state.nextHoleIndex
-                  }
-              in
-                Evaluator.put newState |> Evaluator.andThen (\_ ->
-                  Evaluator.succeed <|
-                    UHoleClosure env (holeId, freshHoleIndex)
-                )
-            )
+          EEmptyHole (holeId, _) ->
+            Evaluator.succeed <|
+              UHoleClosure env (holeId, -1)
 
           _ ->
             Evaluator.fail "Unsupported hole type"
@@ -203,7 +187,7 @@ eval env exp =
                   |> List.unzip
 
               uArgs =
-                Evaluator.mapM (eval env) eArgs
+                Evaluator.mapM (eval_ env) eArgs
             in
               uArgs
                 |> Evaluator.andThen (bindingEval env body parameters)
@@ -215,7 +199,7 @@ eval env exp =
         Evaluator.fail "Colon type not supported"
 
       EParens _ eInner _ _ ->
-        eval env eInner
+        eval_ env eInner
 
       ERecord _ _ decls _ ->
         case recordEntriesFromDeclarations decls of
@@ -223,7 +207,7 @@ eval env exp =
             case tupleEncodingUnapply entries of
               Just tupleEntries ->
                 tupleEntries
-                  |> Evaluator.mapM (Tuple.second >> eval env)
+                  |> Evaluator.mapM (Tuple.second >> eval_ env)
                   |> Evaluator.map UTuple
 
               Nothing ->
@@ -234,6 +218,13 @@ eval env exp =
 
       ESelect _ _ _ _ _ ->
         Evaluator.fail "Select not supported"
+
+eval : Exp -> Result String UnExp
+eval =
+  eval_ []
+    >> Evaluator.run {}
+    >> Result.map Tuple.first
+    >> Result.map setHoleIndexes
 
 showEnv : Env -> String
 showEnv =
@@ -286,7 +277,7 @@ unparse u =
       in
         List.foldl parens (unparse uFunction) uArgs
 
-    UCase u0 branches ->
+    UCase env u0 branches ->
       let
         unparseBranch (constructorName, varName, body) =
           constructorName
@@ -294,11 +285,50 @@ unparse u =
             ++ varName ++ " →"
             ++ LeoUnparser.unparse body
       in
-        "case "
+        "["
+          ++ showEnv env
+          ++ "] case "
           ++ unparse u0
           ++ " of "
           ++ String.join " " (List.map unparseBranch branches)
 
+
+statefulMap : (UnExp -> State s UnExp) -> UnExp -> State s UnExp
+statefulMap f u =
+  case u of
+    UConstructor ident arg ->
+      State.map (UConstructor ident) (f arg)
+
+    UNum n ->
+      State.pure <| UNum n
+
+    UBool b ->
+      State.pure <| UBool b
+
+    UString s ->
+      State.pure <| UString s
+
+    UTuple args ->
+      State.map UTuple (State.mapM f args)
+
+    UFunClosure env params body ->
+      State.pure <| UFunClosure env params body
+
+    UHoleClosure env holeIndex ->
+      State.pure <| UHoleClosure env holeIndex
+
+    UApp uFunction uArgs ->
+      flip State.andThen (f uFunction) <| \newFunction ->
+        State.map (UApp newFunction) (State.mapM f uArgs)
+
+    UCase env uScrutinee branches ->
+      State.map
+        (\newScrutinee -> UCase env newScrutinee branches)
+        (f uScrutinee)
+
+map : (UnExp -> UnExp) -> UnExp -> UnExp
+map f =
+  statefulMap (f >> State.pure) >> State.run () >> Tuple.first
 
 children : UnExp -> List UnExp
 children u =
@@ -327,7 +357,7 @@ children u =
     UApp uFunction uArgs ->
       uFunction :: uArgs
 
-    UCase uScrutinee _ ->
+    UCase _ uScrutinee _ ->
       [uScrutinee]
 
 flatten : UnExp -> List UnExp
@@ -352,6 +382,33 @@ findHoles targetHoleId =
       >> List.concatMap extract
       >> List.sortBy Tuple.first
 
+setHoleIndexes : UnExp -> UnExp
+setHoleIndexes =
+  let
+    holeSetter : UnExp -> State (Dict HoleId Int) UnExp
+    holeSetter u =
+      case u of
+        UHoleClosure env (holeId, holeIndex) ->
+          flip State.andThen State.get <| \indexMap ->
+            let
+              freshHoleIndex =
+                Dict.get holeId indexMap
+                  |> Maybe.withDefault 0
+
+              newIndexMap =
+                Dict.insert
+                  holeId
+                  (freshHoleIndex + 1)
+                  indexMap
+            in
+              flip State.map (State.put newIndexMap) <| \_ ->
+                UHoleClosure env (holeId, freshHoleIndex)
+
+        _ ->
+          State.pure u
+  in
+    statefulMap holeSetter >> State.run Dict.empty >> Tuple.first
+
 --------------------------------------------------------------------------------
 -- Examples
 --------------------------------------------------------------------------------
@@ -366,19 +423,19 @@ type Example
 
 spaces : Parser ()
 spaces =
-  ignore zeroOrMore (\char -> char == ' ')
+  P.ignore P.zeroOrMore (\char -> char == ' ')
 
 capitalIdentifier : Parser String
 capitalIdentifier =
-  succeed (++)
-    |= keep (Exactly 1) Char.isUpper
-    |= keep zeroOrMore (\c -> Char.isUpper c || Char.isLower c)
+  P.succeed (++)
+    |= P.keep (P.Exactly 1) Char.isUpper
+    |= P.keep P.zeroOrMore (\c -> Char.isUpper c || Char.isLower c)
 
 exConstructor : Parser Example
 exConstructor =
-  lazy <| \_ ->
-    inContext "constructor example" <|
-      succeed ExConstructor
+  P.lazy <| \_ ->
+    P.inContext "constructor example" <|
+      P.succeed ExConstructor
         |= capitalIdentifier
         |= example
 
@@ -386,38 +443,38 @@ exNum : Parser Example
 exNum =
   let
     sign =
-      oneOf
-        [ succeed (-1)
-            |. symbol "-"
-        , succeed 1
+      P.oneOf
+        [ P.succeed (-1)
+            |. P.symbol "-"
+        , P.succeed 1
         ]
   in
     try <|
-      inContext "number example" <|
-        succeed (\s n -> ExNum (s * n))
+      P.inContext "number example" <|
+        P.succeed (\s n -> ExNum (s * n))
           |= sign
-          |= float
+          |= P.float
 
 exBool : Parser Example
 exBool =
-  inContext "boolean example" <|
-    map ExBool <|
-      oneOf
+  P.inContext "boolean example" <|
+    P.map ExBool <|
+      P.oneOf
         [ token "True" True
         , token "False" False
         ]
 
 exString : Parser Example
 exString =
-  inContext "string example" <|
-    map (\(_, content) -> ExString content)
+  P.inContext "string example" <|
+    P.map (\(_, content) -> ExString content)
       singleLineString
 
 exTuple : Parser Example
 exTuple =
-  lazy <| \_ ->
-    inContext "tuple example" <|
-      map ExTuple <|
+  P.lazy <| \_ ->
+    P.inContext "tuple example" <|
+      P.map ExTuple <|
         LanguageKit.sequence
           { start = "("
           , separator = ","
@@ -429,19 +486,19 @@ exTuple =
 
 exPartialFunction : Parser Example
 exPartialFunction =
-  lazy <| \_ ->
+  P.lazy <| \_ ->
     let
       binding : Parser (Example, Example)
       binding =
-        succeed (,)
+        P.succeed (,)
           |= example
           |. spaces
-          |. symbol "->"
+          |. P.symbol "->"
           |. spaces
           |= example
     in
-      inContext "partial function example" <|
-        map ExPartialFunction <|
+      P.inContext "partial function example" <|
+        P.map ExPartialFunction <|
           LanguageKit.sequence
             { start = "{"
             , separator = ","
@@ -453,8 +510,8 @@ exPartialFunction =
 
 example : Parser Example
 example =
-  lazy <| \_ ->
-    oneOf
+  P.lazy <| \_ ->
+    P.oneOf
        [ exConstructor
        , exNum
        , exBool
@@ -463,6 +520,60 @@ example =
        , exPartialFunction
        ]
 
-parseExample : String -> Result Parser.Error Example
+parseExample : String -> Result P.Error Example
 parseExample =
-  run example
+  P.run example
+
+--------------------------------------------------------------------------------
+-- Synthesis
+--------------------------------------------------------------------------------
+
+type alias World =
+  (Env, Example)
+
+guess : T.TypeEnv -> Type -> List Exp
+guess gamma tau =
+  let
+    -- EGuess-Var
+    variableGuesses =
+      let
+        typePair : Ident -> Maybe (Ident, Type)
+        typePair i =
+          T.lookupVar gamma i
+            |> Maybe.andThen (Maybe.map <| \t -> (i, t))
+      in
+        gamma
+          |> T.varsOfGamma
+          |> List.map typePair
+          |> Utils.filterJusts
+          |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
+          |> List.map (Tuple.first >> eVar0)
+
+    -- EGuess-App
+    appGuesses =
+      let
+        guessApps : Type -> List Exp
+        guessApps tau2 =
+          let
+            tau2ArrTau =
+              T.rebuildArrow ([], [tau2], tau)
+
+            e1s =
+              guess gamma tau2ArrTau
+
+            e2s =
+              refine gamma [] tau2ArrTau
+          in
+            Utils.cartProd e1s e2s
+              |> List.map (\(e1, e2) -> eApp e1 [e2])
+
+        typesToTry =
+          []
+      in
+        List.concatMap guessApps typesToTry
+  in
+    variableGuesses ++ appGuesses
+
+refine : T.TypeEnv -> List World -> Type -> List Exp
+refine gamma worlds tau =
+  []

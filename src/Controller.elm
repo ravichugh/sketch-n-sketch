@@ -853,10 +853,7 @@ tryRun old =
       Ok parsedExp ->
         let
           result =
-            parsedExp
-              |> TriEval.eval []
-              |> Evaluator.run { nextHoleIndex = Dict.empty }
-              |> Result.map Tuple.first
+            TriEval.eval parsedExp
 
           resultString =
             result
@@ -4364,8 +4361,8 @@ msgUpdateExampleInput holeId index env input =
     in
       { model | exampleInputs = newExampleInputs }
 
-msgSynthesizeFromExamples : HoleId -> Msg
-msgSynthesizeFromExamples holeId =
+msgSynthesizeFromExamples : (HoleId, Type) -> Msg
+msgSynthesizeFromExamples (holeId, tau) =
   Msg "Synthesize From Examples" <| \model ->
     let
       exampleInputList =

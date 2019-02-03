@@ -44,6 +44,7 @@ import Syntax
 import File
 import Eval
 import TriEval
+import LeoUnparser
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -578,9 +579,16 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           False
           []
 
-viewExampleProvider : Lang.HoleId -> TriEval.UnExp -> Html Msg
-viewExampleProvider holeId output =
+viewExampleProvider : (Lang.HoleId, Lang.Type) -> TriEval.UnExp -> Html Msg
+viewExampleProvider (holeId, tau) output =
   let
+    typeInformation =
+      Html.li
+        []
+        [ Html.text "Synthesizing expression of type "
+        , Html.code [] [ Html.text <| LeoUnparser.unparseType tau ]
+        ]
+
     holes =
       TriEval.findHoles holeId output
 
@@ -625,7 +633,7 @@ viewExampleProvider holeId output =
         []
         [ Html.button
             [ Attr.class "synthesize-button"
-            , E.onClick (Controller.msgSynthesizeFromExamples holeId)
+            , E.onClick (Controller.msgSynthesizeFromExamples (holeId, tau))
             ]
             [ Html.text "Synthesize"
             ]
@@ -634,6 +642,8 @@ viewExampleProvider holeId output =
     Html.ul
       [ Attr.class "example-provider"
       ] <|
+      [ typeInformation
+      ] ++
       ( List.map viewHole holes
       ) ++
       [ synthesizeButton
