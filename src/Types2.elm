@@ -898,7 +898,9 @@ inferType
     : TypeEnv
    -> Stuff
    -> Exp
-   -> { newExp: Exp }
+   -> { newExp: Exp
+      -- , holeEnv : HoleEnv
+      }
         -- the inferred Maybe Type is in newExp.val.typ
 
 inferType gamma stuff thisExp =
@@ -2056,7 +2058,9 @@ inferTypes
     : TypeEnv
    -> Stuff
    -> List Exp
-   -> { newExps: List Exp }
+   -> { newExps: List Exp
+      -- , holeEnv : HoleEnv
+      }
 inferTypes gamma stuff exps =
   let (newExps, _) =
     List.foldl (\exp (newExpsAcc,stuffAcc) ->
@@ -2074,7 +2078,10 @@ checkType
    -> Stuff
    -> Exp
    -> Type
-   -> { okay: Bool, newExp: Exp }
+   -> { okay: Bool
+      , newExp: Exp
+      -- , holeEnv : HoleEnv
+      }
 checkType gamma stuff thisExp expectedType =
   case ( (unExpr thisExp).val.e__
        , expectedType.val.t__
@@ -2219,6 +2226,14 @@ checkType gamma stuff thisExp expectedType =
             |> finishNewExp
       in
         { okay = okay, newExp = newExp }
+
+    (EHole _ (EEmptyHole (holeId, removeThisTypeArgOkayThanks)), _, _) ->
+      let _ = Debug.log "addToHoleEnv" (holeId, unparseType expectedType) in
+      { okay = True
+      , newExp =
+          thisExp
+            |> setType (Just expectedType)
+      }
 
     _ ->
       let
