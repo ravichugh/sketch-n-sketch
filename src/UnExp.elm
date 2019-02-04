@@ -108,36 +108,37 @@ unparse u =
 
 statefulMap : (UnExp -> State s UnExp) -> UnExp -> State s UnExp
 statefulMap f u =
-  case u of
-    UConstructor ident arg ->
-      State.map (UConstructor ident) (f arg)
+  flip State.andThen (f u) <| \uNew ->
+    case uNew of
+      UConstructor ident arg ->
+        State.map (UConstructor ident) (f arg)
 
-    UNum n ->
-      State.pure <| UNum n
+      UNum n ->
+        State.pure <| UNum n
 
-    UBool b ->
-      State.pure <| UBool b
+      UBool b ->
+        State.pure <| UBool b
 
-    UString s ->
-      State.pure <| UString s
+      UString s ->
+        State.pure <| UString s
 
-    UTuple args ->
-      State.map UTuple (State.mapM f args)
+      UTuple args ->
+        State.map UTuple (State.mapM f args)
 
-    UFunClosure env params body ->
-      State.pure <| UFunClosure env params body
+      UFunClosure env params body ->
+        State.pure <| UFunClosure env params body
 
-    UHoleClosure env holeIndex ->
-      State.pure <| UHoleClosure env holeIndex
+      UHoleClosure env holeIndex ->
+        State.pure <| UHoleClosure env holeIndex
 
-    UApp uFunction uArgs ->
-      flip State.andThen (f uFunction) <| \newFunction ->
-        State.map (UApp newFunction) (State.mapM f uArgs)
+      UApp uFunction uArgs ->
+        flip State.andThen (f uFunction) <| \newFunction ->
+          State.map (UApp newFunction) (State.mapM f uArgs)
 
-    UCase env uScrutinee branches ->
-      State.map
-        (\newScrutinee -> UCase env newScrutinee branches)
-        (f uScrutinee)
+      UCase env uScrutinee branches ->
+        State.map
+          (\newScrutinee -> UCase env newScrutinee branches)
+          (f uScrutinee)
 
 map : (UnExp -> UnExp) -> UnExp -> UnExp
 map f =
