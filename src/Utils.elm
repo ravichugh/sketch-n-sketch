@@ -1634,3 +1634,13 @@ removeDuplicates =
             helper (hd :: result) tl
   in
     helper []
+
+--------------------------------------------------------------------------------
+
+applyList : List (a -> b) -> a -> List b
+applyList fs x =
+  List.map (\f -> f x) fs
+
+satisfiesAll : List (a -> Bool) -> a -> Bool
+satisfiesAll predicates =
+  applyList predicates >> and

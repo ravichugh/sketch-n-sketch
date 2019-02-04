@@ -43,17 +43,20 @@ baseTypes =
   List.map (\f -> withDummyTypeInfo (f space1)) [TNum, TBool, TString]
 
 enumerateTypes : Int -> List Type
-enumerateTypes complexityCutoff =
-  let
-    argPossibilities =
-      Utils.oneOfEach (List.repeat complexityCutoff baseTypes)
+enumerateTypes complexity =
+  if complexity == 0 then
+    baseTypes
+  else
+    let
+      argPossibilities =
+        Utils.oneOfEach (List.repeat complexity baseTypes)
 
-    arrows =
-      List.map
-        (\(args, returnType) -> T.rebuildArrow ([], args, returnType))
-        (Utils.cartProd argPossibilities baseTypes)
-  in
-    arrows -- TODO add tuples
+      arrows =
+        List.map
+          (\(args, returnType) -> T.rebuildArrow ([], args, returnType))
+          (Utils.cartProd argPossibilities baseTypes)
+    in
+      enumerateTypes (complexity - 1) ++ arrows -- TODO add tuples
 
 --------------------------------------------------------------------------------
 -- Satisfaction
@@ -62,17 +65,15 @@ enumerateTypes complexityCutoff =
 satisfiesWorlds : List World -> Exp -> Bool
 satisfiesWorlds worlds =
   let
-    allSatisfy v =
-      worlds
-        |> List.map Tuple.second
-        |> List.map (flip satisfiesExample v)
-        |> Utils.and
+    satisfiesWorld : World -> Exp -> Bool
+    satisfiesWorld (env, ex) =
+      TriEval.evalWithEnv env
+        >> Result.toMaybe
+        >> Maybe.andThen UnExp.asValue
+        >> Maybe.map (satisfiesExample ex)
+        >> Maybe.withDefault False
   in
-    TriEval.eval
-      >> Result.toMaybe
-      >> Maybe.andThen UnExp.asValue
-      >> Maybe.map allSatisfy
-      >> Maybe.withDefault False
+    Utils.satisfiesAll (List.map satisfiesWorld worlds)
 
 satisfiesExample : Example -> UnVal -> Bool
 satisfiesExample ex v =
@@ -93,7 +94,6 @@ satisfiesExample ex v =
       List.map2 satisfiesExample exArgs vArgs
         |> Utils.and
 
-    -- TODO Multiple arity
     (ExPartialFunction branches, UVFunClosure env params body) ->
       let
         paramLength =
@@ -131,53 +131,75 @@ satisfiesExample ex v =
 -- Type-Directed Synthesis
 --------------------------------------------------------------------------------
 
+guess_ : Int -> T.TypeEnv -> Type -> List Exp
+guess_ depth gamma tau =
+  if depth == 0 then
+    []
+  else
+    let
+      -- EGuess-Var
+      variableGuesses =
+        let
+          typePair : Ident -> Maybe (Ident, Type)
+          typePair i =
+            T.lookupVar gamma i
+              |> Maybe.andThen (Maybe.map <| \t -> (i, t))
+        in
+          gamma
+            |> T.varsOfGamma
+            |> List.map typePair
+            |> Utils.filterJusts
+            |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
+            |> List.map (Tuple.first >> eVar0)
+
+      -- EGuess-App
+      appGuesses =
+        let
+          guessApps : Type -> List Exp
+          guessApps tau2 =
+            let
+              tau2ArrTau =
+                T.rebuildArrow ([], [tau2], tau)
+
+              e1s =
+                guess_ (depth - 1) gamma tau2ArrTau
+
+              e2s =
+                refine_ (depth - 1) gamma [] tau2ArrTau
+            in
+              Utils.cartProd e1s e2s
+                |> List.map (\(e1, e2) -> eApp e1 [e2])
+
+          -- TODO
+          typesToTry =
+            enumerateTypes 3
+        in
+          List.concatMap guessApps typesToTry
+    in
+      variableGuesses ++ appGuesses
+
 guess : T.TypeEnv -> Type -> List Exp
-guess gamma tau =
-  let
-    -- EGuess-Var
-    variableGuesses =
-      let
-        typePair : Ident -> Maybe (Ident, Type)
-        typePair i =
-          T.lookupVar gamma i
-            |> Maybe.andThen (Maybe.map <| \t -> (i, t))
-      in
-        gamma
-          |> T.varsOfGamma
-          |> List.map typePair
-          |> Utils.filterJusts
-          |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
-          |> List.map (Tuple.first >> eVar0)
-
-    -- EGuess-App
-    appGuesses =
-      let
-        guessApps : Type -> List Exp
-        guessApps tau2 =
-          let
-            tau2ArrTau =
-              T.rebuildArrow ([], [tau2], tau)
-
-            e1s =
-              guess gamma tau2ArrTau
-
-            e2s =
-              refine gamma [] tau2ArrTau
-          in
-            Utils.cartProd e1s e2s
-              |> List.map (\(e1, e2) -> eApp e1 [e2])
-
-        typesToTry =
-          enumerateTypes 5
-      in
-        List.concatMap guessApps typesToTry
-  in
-    variableGuesses ++ appGuesses
+guess =
+  guess_ 3
 
 --------------------------------------------------------------------------------
 -- Type-and-Example-Directed Synthesis
 --------------------------------------------------------------------------------
 
+refine_ : Int -> T.TypeEnv -> List World -> Type -> List Exp
+refine_ depth gamma worlds tau =
+  if depth == 0 then
+    []
+  else
+    let
+      -- IRefine-Guess
+      guessRefinement =
+        List.filter
+          (satisfiesWorlds worlds)
+          (guess_ (depth - 1) gamma tau)
+    in
+      guessRefinement
+
 refine : T.TypeEnv -> List World -> Type -> List Exp
-refine gamma worlds tau =
-  []
+refine =
+  refine_ 3
