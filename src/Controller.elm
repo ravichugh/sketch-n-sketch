@@ -4402,7 +4402,7 @@ msgSynthesizeFromExamples (holeId, tau) =
                   |> String.join "\n----------------------------------------\n"
 
               synthesisOutput =
-                Synthesis.refine Synthesis.hardCodedGamma (List.map Tuple.second worlds) tau
+                Synthesis.refine Synthesis.hardCodedGamma2 (List.map Tuple.second worlds) tau
                   |> List.map LeoUnparser.unparse
                   |> String.join "\n----------------------------------------\n"
             in
