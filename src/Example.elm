@@ -1,5 +1,5 @@
 module Example exposing
-  ( Example
+  ( Example(..)
   , parse
   )
 
@@ -8,6 +8,8 @@ import Char
 import Parser exposing (..)
 import Parser.LanguageKit as LanguageKit
 import ParserUtils exposing (try, token, singleLineString)
+
+import UnExp
 
 import Lang exposing (Ident, Num)
 
@@ -21,7 +23,7 @@ type Example
   | ExBool Bool
   | ExString String
   | ExTuple (List Example)
-  | ExPartialFunction (List (Example, Example)) -- TODO Should be (v, ex)
+  | ExPartialFunction (List (List UnExp.UnVal, Example))
 
 --------------------------------------------------------------------------------
 -- Parsing
@@ -94,10 +96,12 @@ exPartialFunction : Parser Example
 exPartialFunction =
   lazy <| \_ ->
     let
-      binding : Parser (Example, Example)
+      binding : Parser (List UnExp.UnVal, Example)
       binding =
         succeed (,)
-          |= example
+          |. example
+          -- TODO
+          |= succeed [UnExp.UVNum 1]
           |. spaces
           |. symbol "->"
           |. spaces

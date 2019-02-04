@@ -1,6 +1,8 @@
 module UnExp exposing
   ( Env
   , UnExp(..)
+  , UnVal(..)
+  , asExp, asValue
   , unparseEnv, unparse
   , statefulMap, map, children, flatten
   , findHoles
@@ -10,6 +12,8 @@ import State exposing (State)
 
 import Lang exposing (Exp, Ident, HoleId, Num)
 import LeoUnparser
+
+import Utils
 
 --------------------------------------------------------------------------------
 -- Declarations
@@ -31,6 +35,76 @@ type UnExp
   | UHoleClosure Env HoleIndex
   | UApp UnExp (List UnExp)
   | UCase Env UnExp (List (Ident, Ident, Exp))
+
+type UnVal
+  = UVConstructor Ident UnVal
+  | UVNum Num
+  | UVBool Bool
+  | UVString String
+  | UVTuple (List UnVal)
+  | UVFunClosure Env (List Ident) {- Type -} Exp
+
+--------------------------------------------------------------------------------
+-- Value Conversion
+--------------------------------------------------------------------------------
+
+asExp : UnVal -> UnExp
+asExp v =
+  case v of
+    UVConstructor ident arg ->
+      UConstructor ident (asExp arg)
+
+    UVNum n ->
+      UNum n
+
+    UVBool b ->
+      UBool b
+
+    UVString s ->
+      UString s
+
+    UVTuple args ->
+      UTuple (List.map asExp args)
+
+    UVFunClosure env params body ->
+      UFunClosure env params body
+
+asValue : UnExp -> Maybe UnVal
+asValue u =
+  case u of
+    UConstructor ident arg ->
+      Maybe.map (UVConstructor ident) (asValue arg)
+
+    UNum n ->
+      Just <|
+        UVNum n
+
+    UBool b ->
+      Just <|
+        UVBool b
+
+    UString s ->
+      Just <|
+        UVString s
+
+    UTuple args ->
+      args
+        |> List.map asValue
+        |> Utils.projJusts
+        |> Maybe.map UVTuple
+
+    UFunClosure env params body ->
+      Just <|
+        UVFunClosure env params body
+
+    UHoleClosure _ _ ->
+      Nothing
+
+    UApp _ _ ->
+      Nothing
+
+    UCase _ _ _ ->
+      Nothing
 
 --------------------------------------------------------------------------------
 -- Unparsing

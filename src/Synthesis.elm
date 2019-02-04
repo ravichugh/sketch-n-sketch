@@ -5,8 +5,9 @@ module Synthesis exposing
   , hardCodedGamma
   )
 
-import Example exposing (Example)
-import UnExp
+import Example exposing (Example(..))
+import UnExp exposing (UnExp(..), UnVal(..))
+import TriEval
 
 import Types2 as T exposing (..)
 import Lang exposing (..)
@@ -53,6 +54,78 @@ enumerateTypes complexityCutoff =
         (Utils.cartProd argPossibilities baseTypes)
   in
     arrows -- TODO add tuples
+
+--------------------------------------------------------------------------------
+-- Satisfaction
+--------------------------------------------------------------------------------
+
+satisfiesWorlds : List World -> Exp -> Bool
+satisfiesWorlds worlds =
+  let
+    allSatisfy v =
+      worlds
+        |> List.map Tuple.second
+        |> List.map (flip satisfiesExample v)
+        |> Utils.and
+  in
+    TriEval.eval
+      >> Result.toMaybe
+      >> Maybe.andThen UnExp.asValue
+      >> Maybe.map allSatisfy
+      >> Maybe.withDefault False
+
+satisfiesExample : Example -> UnVal -> Bool
+satisfiesExample ex v =
+  case (ex, v) of
+    (ExConstructor exIdent exArg, UVConstructor vIdent vArg) ->
+      exIdent == vIdent && satisfiesExample exArg vArg
+
+    (ExNum exN, UVNum vN) ->
+      exN == vN
+
+    (ExBool exB, UVBool vB) ->
+      exB == vB
+
+    (ExString exS, UVString vS) ->
+      exS == vS
+
+    (ExTuple exArgs, UVTuple vArgs) ->
+      List.map2 satisfiesExample exArgs vArgs
+        |> Utils.and
+
+    -- TODO Multiple arity
+    (ExPartialFunction branches, UVFunClosure env params body) ->
+      let
+        paramLength =
+          List.length params
+
+        checkBranch (vs, ex) =
+          let
+            envExtension =
+              Utils.zip params vs
+                |> List.map (\(x, v) -> (x, (UnExp.asExp v, ())))
+
+            newEnv =
+              envExtension ++ env
+
+            lengthCondition =
+              List.length vs == paramLength
+
+            evaluationCondition =
+              body
+                |> TriEval.evalWithEnv newEnv
+                |> Result.toMaybe
+                |> Maybe.andThen UnExp.asValue
+                |> Maybe.map (satisfiesExample ex)
+                |> Maybe.withDefault False
+          in
+            lengthCondition && evaluationCondition
+      in
+        List.map checkBranch branches
+          |> Utils.and
+
+    _ ->
+      False
 
 --------------------------------------------------------------------------------
 -- Type-Directed Synthesis

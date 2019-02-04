@@ -1,5 +1,6 @@
 module TriEval exposing
-  ( eval
+  ( evalWithEnv
+  , eval
   )
 
 import Dict exposing (Dict)
@@ -232,9 +233,13 @@ setHoleIndexes =
 -- Full Evaluation
 --------------------------------------------------------------------------------
 
-eval : Exp -> Result String UnExp
-eval =
-  eval_ []
+evalWithEnv : UnExp.Env -> Exp -> Result String UnExp
+evalWithEnv env =
+  eval_ env
     >> Evaluator.run {}
     >> Result.map Tuple.first
     >> Result.map setHoleIndexes
+
+eval : Exp -> Result String UnExp
+eval =
+  evalWithEnv []
