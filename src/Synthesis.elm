@@ -34,6 +34,27 @@ hardCodedGamma =
   ]
 
 --------------------------------------------------------------------------------
+-- Enumeration
+--------------------------------------------------------------------------------
+
+baseTypes : List Type
+baseTypes =
+  List.map (\f -> withDummyTypeInfo (f space1)) [TNum, TBool, TString]
+
+enumerateTypes : Int -> List Type
+enumerateTypes complexityCutoff =
+  let
+    argPossibilities =
+      Utils.oneOfEach (List.repeat complexityCutoff baseTypes)
+
+    arrows =
+      List.map
+        (\(args, returnType) -> T.rebuildArrow ([], args, returnType))
+        (Utils.cartProd argPossibilities baseTypes)
+  in
+    arrows -- TODO add tuples
+
+--------------------------------------------------------------------------------
 -- Type-Directed Synthesis
 --------------------------------------------------------------------------------
 
@@ -74,7 +95,7 @@ guess gamma tau =
               |> List.map (\(e1, e2) -> eApp e1 [e2])
 
         typesToTry =
-          []
+          enumerateTypes 5
       in
         List.concatMap guessApps typesToTry
   in
