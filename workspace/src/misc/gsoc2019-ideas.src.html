@@ -12,37 +12,35 @@
      <div class="content_wide">
     This is a non-exhaustive list of project ideas for Sketch-n-Sketch:
     <ul>
-    <li>Sketch-n-Sketch is the core of our approach. It features a functional programming language, Leo, and a parser, an interpreter, reverse interpreters and an unparser. Look at the videos on the home tab of this website to get a better impression of its capabilities. Some ideas to improve Sketch-n-Sketch:
+    <li><a href="https://github.com/ravichugh/sketch-n-sketch">Sketch-n-Sketch</a> is the core of our approach. It features a functional programming language, Leo, and a parser, an interpreter, reverse interpreters and an unparser. Look at the videos on the home tab of this website to get a better impression of its capabilities. Some ideas to improve Sketch-n-Sketch:
       <ul>
-        <li>Create or import a lossless PHP parser and unparser to support PHP as a front-end language</li>
-        <li>Create or import a lossless Python parser and unparser to support Python as a front-end language</li>
-        <li>Support database reading and writing, similar to the current file system</li>
-        <li>Create automatic documentation of the prelude files from its source</li>
-        <li>Implement lazily computed values</li>
-        <li>Invent and use an import function to split the (currently huge) prelude library and load functions on demand.</li>
+        <li>Create or import a <b>lossless PHP parser</b> and unparser to support PHP as a front-end language</li>
+        <li>Create or import a <b>lossless Python parser</b> and unparser to support Python as a front-end language</li>
+        <li>Support <b>database reading and writing</b> with ambigutiy.</li>
+        <li>Create <b>automatic documentation</b> of the prelude files from its source</li>
+        <li>Implement <b>lazily computed values</b></li>
+        <li>Invent and use an <b>import function</b> to split the (currently huge) prelude library and load functions on demand.</li>
       </ul>
-    <li><a href=
-              "https://github.com/MikaelMayer/Editor">Editor</a
-        > is an HTTPS server serving dynamic pages written in Leo, HTML or Markdown. It offers the possibility to edit these pages. Some ideas to improve Editor:
+    <li><a href="https://github.com/MikaelMayer/Editor">Editor</a> is an HTTPS server serving dynamic pages written in Leo, HTML or Markdown. It offers the possibility to edit these pages. Some ideas to improve Editor:
       <ul>
-        <li>Instead of reloading the new page, merge the modifications with the current user's modifications</li
-            ><li>Better UI toolkit: Design a context menu or toolbar to edit element attributes or styles, similar to the current hyperlink editor. We should also be able to select an element's parent.</li
-            ><li>Better editability: Currently, ENTER and TAB are managed by contenteditable, which is not working as expected in most browsers, making it very hard to edit a webpage's content. We want to better interpret user's actions (splitting a paragraph, nested &lt;ul&gt;...)</li
-            ><li>Interactive styling toolkit: Instead of changing only an element's inline styling attribute, we want to offer interactive ways to update also inline and external stylesheets.</li>
-            <li>Integration with github.io: Currently, Editor has to run locally. It would nice to design an online proxy that could open github.io's pages, and enable user to modify them online, using Editor's interface.</li>
-            <li>Hot reloading: Make editor detect when an html file being viewed is changed, and reload the page, possibly merging unsaved user's modifications</li>
-            <li>Database support: Enable Editor to view SQL databases and modify them.</li>
-            <li>Performance: send modifications to the page instead of the entire page</li>
+        <li>Instead of reloading the new page, <b>merge the modifications</b> with the current user's modifications</li
+            ><li><b>Better UI toolkit</b>: Design a context menu or toolbar to edit element attributes or styles, similar to the current hyperlink editor. We should also be able to select an element's parent.</li
+            ><li><b>Better editability</b>: Currently, ENTER and TAB are managed by contenteditable, which is not working as expected in most browsers, making it very hard to edit a webpage's content. We want to better interpret user's actions (splitting a paragraph, nested &lt;ul&gt;...)</li
+            ><li><b>Interactive styling toolkit</b>: Instead of changing only an element's inline styling attribute, we want to offer interactive ways to update also inline and external stylesheets.</li>
+            <li><b>Integration with github.io</b>: Currently, Editor has to run locally. It would nice to design an online proxy that could open github.io's pages, and enable user to modify them online, using Editor's interface.</li>
+            <li><b>Hot reloading</b>: Make editor detect when an html file being viewed is changed, and reload the page, possibly merging unsaved user's modifications</li>
+            <li><b>Database support</b>: Enable Editor to view SQL databases and modify them.</li>
+            <li><b>Performance</b>: send modifications to the page instead of the entire page</li>
       </ul>
     </li>
     <li><a href="https://github.com/MikaelMayer/hyde-build-tool">Hyde</a> is a reversible build tool mainly for building static websites from sources. It is agnostic, in the sense the user has to configure a hydefile to explicitly frame how to build the final html files. Some ideas to improve Hyde:
         <ul>
-        <li>Create a default hydefile to support Jekyll's websites, so that with Editor these sites become reversible</li>
+        <li>Create a default hydefile to <b>support Jekyll-powered websites</b>, so that with Editor these sites become editable.</li>
         <li>Similarly, create a default hydefile to support <a href="https://hexo.io/">Hexo</a>, <a href="https://gohugo.io/">Go hugo</a></li>
-        <li>Make hyde-powered websites on github.io editable from the browser</li>
+        <li>Make <b>hyde-powered github.io websites editable</b> from the browser, online</li>
       </ul>
         
-     </li><li><br></li>
+     </li>
     </ul>
      </div>
     
