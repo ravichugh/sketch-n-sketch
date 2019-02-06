@@ -816,7 +816,8 @@ adHocZone =
 --------------------------------------------------------------------------------
 
 tryRun : Model -> Result (Model, String, Maybe Ace.Annotation) Model
-tryRun old =
+tryRun = tryRun_ False
+tryRun_ shouldBypass old =
   let
     oldWithUpdatedHistory =
       let
@@ -910,7 +911,7 @@ tryRun old =
           case ImpureGoodies.crashToError resultThunk of
             Err s         -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
             Ok (Err s)    -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
-            Ok (Ok model) -> Ok model
+            Ok (Ok model) -> if shouldBypass then Ok oldWithUpdatedHistoryAndTypes else Ok model
 
 
 --------------------------------------------------------------------------------
@@ -1380,10 +1381,11 @@ msgUserHasTyped =
 msgOutputCanvasUpdate outputCanvasInfo = Msg "Output Canvas Update" <| \old ->
   { old | outputCanvasInfo = outputCanvasInfo }
 
-upstateRun old =
+upstateRun = upstateRun_ False
+upstateRun_ shouldBypass old =
   let newFailuresInARowAfterFail    = if old.runFailuresInARowCount < 0 then 1 else old.runFailuresInARowCount + 1 in
   let newFailuresInARowAfterSuccess = if old.runFailuresInARowCount > 0 then 0 else old.runFailuresInARowCount - 1 in
-  case tryRun old of
+  case tryRun_ shouldBypass old of
     Err (oldWithUpdatedHistory, err, Just annot) ->
       { oldWithUpdatedHistory
           | errorBox = oldWithUpdatedHistory.errorBox -- TODO Just err
@@ -3411,7 +3413,7 @@ chooseDeuceExp old newRoot =
           old
   in
   -- TODO version of tryRun/upstateRun starting with parsed expression
-  upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
+  upstateRun_ True { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
   |> deuceRefresh newRoot
   |> resetDeuceKeyboardInfo
 
