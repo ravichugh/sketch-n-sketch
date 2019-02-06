@@ -733,6 +733,21 @@ builtinEnv =
                     Nothing -> ([result], [])
                     Just d -> ([result], [(0, d)])))
        )
+  , ("typeof", builtinVal "EvalUpdate.typeof" <|
+       VFun "typeof" ["value"] (oneArg "valToHTMLSource" <| \original ->
+         let typ = case original.v_ of
+               VClosure _ _ _ _ -> "function"
+               VFun _ _ _ _ -> "function"
+               VRecord _  -> "object"
+               VDict _ -> "dict"
+               VList _ -> "list"
+               VConst _ _ -> "number"
+               VBase (VBool _) -> "boolean"
+               VBase (VString _) -> "string"
+               VBase (VNull) -> "undefined"
+         in
+         Ok (builtinVal "EvalUpdate.typeof.result" (VBase (VString typ)), [])
+       ) Nothing)
   ]
 
 oneArg: String -> (Val -> Result String a) -> (List Val -> Result String a)

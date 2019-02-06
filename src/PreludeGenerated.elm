@@ -5423,6 +5423,13 @@ Html = {
       <button onclick=(scriptFindEnclosing(tagNameToDelete)(\\v ->
           \"\"\"@(v).remove()\"\"\"))
       @attrs>@children</button>
+
+  addClass name [t, attrs, c] =
+    [ t
+    , attrDict.update \"class\" (case of
+        Just classes -> if Regex.matchIn (\"\\\\b\" + name + \"\\\\b\") classes then Just classes else Just (classes + \" \" + name)
+        Nothing -> Just name) attrs
+    , c]
 }
 
 --------------------------------------------------------------------------------
