@@ -2395,6 +2395,12 @@ Result = {
   withDefaultMapError f = case of
     Ok x -> x
     Err msg -> f msg
+
+  fold : (err -> a) -> (x -> a) -> Result err x -> a
+  fold onErr onOk content =
+    case content of
+      Err msg -> onErr msg
+      Ok c -> onOk c
 }
 
 --------------------------------------------------------------------------------
@@ -2837,19 +2843,15 @@ Update =
            let _ = Debug.log (\"\"\"@msg:
 oldOutput:@oldOutput
 newOutput:@newOutput
-diffs:@diffs\"\"\") \"end\" in
+diffs:@(if typeof oldOutput == \"string\" then strDiffToConcreteDiff newOutput diffs else diffs)\"\"\") \"end\" in
            Ok (InputsWithDiffs [(newOutput, Just diffs)])
          }.apply x
-    debugstr msg x =
-             { apply x = x, update { input, newOutput, oldOutput, diffs} =
-               let _ = Debug.log (\"\"\"@msg:
-oldOutput:@oldOutput
-newOutput:@newOutput
-diffs:@(strDiffToConcreteDiff newOutput diffs)\"\"\") \"end\" in
-               Ok (InputsWithDiffs [(newOutput, Just diffs)])
-             }.apply x
+    debugstr msg x = Debug.log \"Update.debugstr is deprecated. Use Update.debug instead\" <| debug msg x
 
-     replaceInstead y x = {
+    debugFold msg callback value =
+      callback (debug msg value)
+
+    replaceInstead y x = {
        apply y = x
        update {outputNew,diffs} =
          Ok (InputsWithDiffs [(outputNew, Just diffs)])
@@ -4610,6 +4612,17 @@ Maybe =
           Update.default apply uInput
     }
 
+    fold : a -> (x -> a) -> Maybe x -> a
+    fold onNothing onJust content =
+      case content of
+        Nothing -> onNothing
+        Just c -> onJust c
+
+    foldLazy : (() -> a) -> (x -> a) -> Maybe x -> a
+    foldLazy onNothing onJust content =
+      case content of
+        Nothing -> onNothing ()
+        Just c -> onJust c
   }
 
 -- if we decide to allow types to be defined within (and exported from) modules
