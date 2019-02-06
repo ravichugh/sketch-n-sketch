@@ -41,11 +41,11 @@ loadWithRoot: String -> String -> Result String HtmlElement
 
 -- Tasks
 
-blogposts = handleposts ".." "blog"
+blogposts () = handleposts ".." "blog"
 
-tutorials = handleposts ".." "tutorial"
+tutorials () = handleposts ".." "tutorial"
 
-indexes = [
+indexes () = [
   expandSkeleton "."   "src/index.src.html"                             "../index.html"
 , expandSkeleton ".."  "src/releases/index.src.html"                    "../releases/index.html"
 , expandSkeleton ".."  "src/blog/index.src.html"                        "../blog/index.html"
@@ -57,4 +57,10 @@ indexes = [
 -}
 ]
 
-all = blogposts ++ tutorials  ++ indexes
+gsoc () = [
+  expandSkeleton "../.."
+    "src/misc/gsoc2019-ideas.src.html"
+    "../releases/gsoc/gsoc2019-ideas.html"]
+
+
+all () = blogposts () ++ tutorials () ++ indexes () ++ gsoc ()
