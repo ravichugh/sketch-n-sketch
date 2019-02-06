@@ -3297,7 +3297,7 @@ expandFormat old selections =
             newTrue = replacePrecedingWhitespace childIndent t
             newFalse = replacePrecedingWhitespace childIndent f
           in
-          EIf wsb cond wsBeforeThen newTrue (ws elseIndent) newFalse wsa
+          EIf (ws elseIndent) cond wsBeforeThen newTrue (ws elseIndent) newFalse wsa
           |> return
         ECase wsb scrutinee branches wsa ->
           let newBranches =
