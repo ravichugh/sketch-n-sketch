@@ -41,6 +41,7 @@ type UnExp
   | UFunClosure Env (List Ident) {- Type -} Exp
   | UHoleClosure Env HoleIndex
   | UApp UnExp (List UnExp)
+  | UGet Int Int UnExp
   | UCase Env UnExp (List (Ident, Ident, Exp))
 
 type UnVal
@@ -108,6 +109,9 @@ asValue u =
       Nothing
 
     UApp _ _ ->
+      Nothing
+
+    UGet _ _ _ ->
       Nothing
 
     UCase _ _ _ ->
@@ -255,6 +259,9 @@ unparse u =
       in
         List.foldl parens (unparse uFunction) uArgs
 
+    UGet n i uTuple ->
+      "get_" ++ toString n ++ "_" ++ toString i ++ " " ++ unparse uTuple
+
     UCase env u0 branches ->
       let
         unparseBranch (constructorName, varName, body) =
@@ -303,6 +310,9 @@ statefulMap f u =
         flip State.andThen (f uFunction) <| \newFunction ->
           State.map (UApp newFunction) (State.mapM f uArgs)
 
+      UGet n i uTuple ->
+        State.map (UGet n i) (f uTuple)
+
       UCase env uScrutinee branches ->
         State.map
           (\newScrutinee -> UCase env newScrutinee branches)
@@ -338,6 +348,9 @@ children u =
 
     UApp uFunction uArgs ->
       uFunction :: uArgs
+
+    UGet _ _ uTuple ->
+      [uTuple]
 
     UCase _ uScrutinee _ ->
       [uScrutinee]

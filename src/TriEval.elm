@@ -113,21 +113,62 @@ eval_ env exp =
 
       EApp _ eFunction eArgs _ _ ->
         let
-          uArgs =
-            Evaluator.mapM (eval_ env) eArgs
+          default () =
+            let
+              uArgs =
+                Evaluator.mapM (eval_ env) eArgs
+            in
+              eval_ env eFunction |> Evaluator.andThen (\uFunction ->
+                case uFunction of
+                  UFunClosure functionEnv parameters body ->
+                    uArgs
+                      |> Evaluator.andThen (bindingEval functionEnv body parameters)
+
+                  UHoleClosure _ _ ->
+                    Evaluator.map (UApp uFunction) uArgs
+
+                  _ ->
+                    Evaluator.fail "Not a proper application"
+              )
+
+          evalTuple n i arg =
+            eval_ env arg |> Evaluator.andThen (\uArg ->
+              case uArg of
+                UTuple tupleArgs ->
+                  case Utils.maybeGeti1 i tupleArgs of
+                    Just returnValue ->
+                      Evaluator.succeed returnValue
+
+                    Nothing ->
+                      Evaluator.fail "Out of bounds index for 'get'"
+
+                UHoleClosure _ _ ->
+                  Evaluator.succeed <|
+                    UGet n i uArg
+
+                _ ->
+                  Evaluator.fail "Not a proper 'get'"
+            )
         in
-          eval_ env eFunction |> Evaluator.andThen (\uFunction ->
-            case uFunction of
-              UFunClosure functionEnv parameters body ->
-                uArgs
-                  |> Evaluator.andThen (bindingEval functionEnv body parameters)
+          case unwrapExp eFunction of
+            EVar _ x ->
+              case String.split "_" x of
+                [get, nString, iString] ->
+                  if get == "get" then
+                    case (String.toInt nString, String.toInt iString, eArgs) of
+                      (Ok n, Ok i, [arg]) ->
+                        evalTuple n i arg
 
-              UHoleClosure _ _ ->
-                Evaluator.map (UApp uFunction) uArgs
+                      _ ->
+                        default ()
+                  else
+                    default ()
 
-              _ ->
-                Evaluator.fail "Not a proper application"
-          )
+                _ ->
+                  default ()
+
+            _ ->
+              default ()
 
       -- E-Match
 
