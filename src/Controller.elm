@@ -4366,8 +4366,8 @@ msgUpdateExampleInput holeId index env input =
     in
       { model | exampleInputs = newExampleInputs }
 
-msgSynthesizeFromExamples : (HoleId, Type) -> Msg
-msgSynthesizeFromExamples (holeId, tau) =
+msgSynthesizeFromExamples : HoleId -> Msg
+msgSynthesizeFromExamples holeId  =
   Msg "Synthesize From Examples" <| \model ->
     let
       exampleInputList : List (Int, (UnExp.Env, String))
@@ -4401,16 +4401,16 @@ msgSynthesizeFromExamples (holeId, tau) =
                   |> List.map showWorld
                   |> String.join "\n----------------------------------------\n"
 
-              synthesisOutput =
-                Synthesis.refine Synthesis.hardCodedGamma2 (List.map Tuple.second worlds) tau
-                  |> List.map LeoUnparser.unparse
-                  |> String.join "\n----------------------------------------\n"
+              synthesisOutput = ""
+                --Synthesis.refine Synthesis.hardCodedGamma2 (List.map Tuple.second worlds) tau
+                  --|> List.map LeoUnparser.unparse
+                  --|> String.join "\n----------------------------------------\n"
             in
               worldsOutput
                 ++ "\n========================================\n"
                 ++ synthesisOutput
 
           Err err ->
-            toString err
+            ParserUtils.showError err
     in
       { model | outputMode = HtmlText output }

@@ -5,9 +5,9 @@ module Example exposing
 
 import Char
 
-import Parser exposing (..)
+import Parser as P exposing (..)
 import Parser.LanguageKit as LanguageKit
-import ParserUtils exposing (try, token, singleLineString)
+import ParserUtils exposing (..)
 
 import UnExp
 
@@ -99,9 +99,8 @@ exPartialFunction =
       binding : Parser (List UnExp.UnVal, Example)
       binding =
         succeed (,)
-          |. example
-          -- TODO
-          |= succeed [UnExp.UVNum 1]
+          -- TODO support n-ary functions
+          |= P.map List.singleton UnExp.unval
           |. spaces
           |. symbol "->"
           |. spaces
@@ -130,6 +129,6 @@ example =
        , exPartialFunction
        ]
 
-parse : String -> Result Parser.Error Example
+parse : String -> Result P.Error Example
 parse =
   run example

@@ -579,14 +579,14 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           False
           []
 
-viewExampleProvider : (Lang.HoleId, Lang.Type) -> UnExp -> Html Msg
-viewExampleProvider (holeId, tau) output =
+viewExampleProvider : Lang.HoleId -> UnExp -> Html Msg
+viewExampleProvider holeId output =
   let
     typeInformation =
       Html.li
         []
         [ Html.text "Synthesizing expression of type "
-        , Html.code [] [ Html.text <| LeoUnparser.unparseType tau ]
+        --, Html.code [] [ Html.text <| LeoUnparser.unparseType tau ]
         ]
 
     holes =
@@ -633,7 +633,7 @@ viewExampleProvider (holeId, tau) output =
         []
         [ Html.button
             [ Attr.class "synthesize-button"
-            , E.onClick (Controller.msgSynthesizeFromExamples (holeId, tau))
+            , E.onClick (Controller.msgSynthesizeFromExamples holeId)
             ]
             [ Html.text "Synthesize"
             ]

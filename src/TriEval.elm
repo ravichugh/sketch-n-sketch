@@ -138,7 +138,7 @@ eval_ env exp =
 
       EHole _ hole  ->
         case hole of
-          EEmptyHole (holeId, _) ->
+          EEmptyHole holeId ->
             Evaluator.succeed <|
               UHoleClosure env (holeId, -1)
 
@@ -174,8 +174,8 @@ eval_ env exp =
           Nothing ->
             Evaluator.fail "Could not get record entries from let"
 
-      EColonType _ _ _ _ _ ->
-        Evaluator.fail "Colon type not supported"
+      EColonType _ eInner _ _ _ ->
+        eval_ env eInner
 
       EParens _ eInner _ _ ->
         eval_ env eInner

@@ -2222,12 +2222,9 @@ hole =
         ( flip EHole
         )
         ( trackInfo <|
-            succeed (\mi t -> EEmptyHole (Maybe.withDefault dummyHoleId mi, t))
+            succeed (Maybe.withDefault dummyHoleId >> EEmptyHole)
               |. keyword "??"
               |= optional int
-              |. symbol "("
-              |= typ spaces 0
-              |. symbol ")"
         )
 
 --------------------------------------------------------------------------------
@@ -3111,9 +3108,9 @@ setHoleIds =
     setHoleId : Exp -> Int -> (Exp, Int)
     setHoleId e holeId =
       case unwrapExp e of
-        EHole ws (EEmptyHole (oldHoleId, tau)) ->
+        EHole ws (EEmptyHole oldHoleId) ->
           if oldHoleId == dummyHoleId then
-            (replaceE__ e <| EHole ws (EEmptyHole (holeId, tau)), holeId + 1)
+            (replaceE__ e <| EHole ws (EEmptyHole holeId), holeId + 1)
           else
             (e, holeId)
 

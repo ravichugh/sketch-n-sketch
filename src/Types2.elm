@@ -2227,7 +2227,7 @@ checkType gamma stuff thisExp expectedType =
       in
         { okay = okay, newExp = newExp }
 
-    (EHole _ (EEmptyHole (holeId, removeThisTypeArgOkayThanks)), _, _) ->
+    (EHole _ (EEmptyHole holeId), _, _) ->
       let _ = Debug.log "addToHoleEnv" (holeId, unparseType expectedType) in
       { okay = True
       , newExp =

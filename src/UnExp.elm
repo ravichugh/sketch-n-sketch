@@ -3,12 +3,19 @@ module UnExp exposing
   , UnExp(..)
   , UnVal(..)
   , asExp, asValue
+  , unval
   , unparseEnv, unparse
   , statefulMap, map, children, flatten
   , findHoles
   )
 
+import Char
+
 import State exposing (State)
+
+import Parser as P exposing (..)
+import Parser.LanguageKit as LanguageKit
+import ParserUtils exposing (..)
 
 import Lang exposing (Exp, Ident, HoleId, Num)
 import LeoUnparser
@@ -105,6 +112,93 @@ asValue u =
 
     UCase _ _ _ ->
       Nothing
+
+--------------------------------------------------------------------------------
+-- Value Parsing
+--------------------------------------------------------------------------------
+
+spaces : Parser ()
+spaces =
+  ignore zeroOrMore (\char -> char == ' ')
+
+capitalIdentifier : Parser String
+capitalIdentifier =
+  succeed (++)
+    |= keep (Exactly 1) Char.isUpper
+    |= keep zeroOrMore (\c -> Char.isUpper c || Char.isLower c)
+
+uvConstructor : Parser UnVal
+uvConstructor =
+  lazy <| \_ ->
+    inContext "constructor unval" <|
+      succeed UVConstructor
+        |= capitalIdentifier
+        |= unval
+
+uvNum : Parser UnVal
+uvNum =
+  let
+    sign =
+      oneOf
+        [ succeed (-1)
+            |. symbol "-"
+        , succeed 1
+        ]
+  in
+    try <|
+      inContext "number unval" <|
+        succeed (\s n -> UVNum (s * n))
+          |= sign
+          |= float
+
+uvBool : Parser UnVal
+uvBool =
+  inContext "boolean unval" <|
+    P.map UVBool <|
+      oneOf
+        [ token "True" True
+        , token "False" False
+        ]
+
+uvString : Parser UnVal
+uvString =
+  inContext "string unval" <|
+    P.map (\(_, content) -> UVString content)
+      singleLineString
+
+uvTuple : Parser UnVal
+uvTuple =
+  lazy <| \_ ->
+    inContext "tuple unval" <|
+      P.map UVTuple <|
+        LanguageKit.sequence
+          { start = "("
+          , separator = ","
+          , end = ")"
+          , spaces = spaces
+          , item = unval
+          , trailing = LanguageKit.Forbidden
+          }
+
+uvFunClosure : Parser UnVal
+uvFunClosure =
+  fail "function closure unval not yet supported"
+
+unval : Parser UnVal
+unval =
+  lazy <| \_ ->
+    oneOf
+       [ uvConstructor
+       , uvNum
+       , uvBool
+       , uvString
+       , uvTuple
+       ]
+
+parse : String -> Result P.Error UnVal
+parse =
+  run unval
+
 
 --------------------------------------------------------------------------------
 -- Unparsing

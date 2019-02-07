@@ -42,7 +42,7 @@ type alias Example = {
 
 --------------------------------------------------------------------------------
 
-initTemplate = "Get Started"
+initTemplate = "Blank Svg Document"
 blankSvgTemplate = "Blank Svg Document"
 blankHtmlTemplate = "Blank Html Document"
 badPreludeTemplate = "Bad Prelude"

@@ -457,7 +457,7 @@ dummyHoleId : Int
 dummyHoleId = -1
 
 type Hole
-  = EEmptyHole (HoleId, Type)
+  = EEmptyHole HoleId
   | ESnapHole Val
 
 holeType : Type
@@ -472,7 +472,7 @@ isHoleType typ =
 
 dummyEmptyHole : Hole
 dummyEmptyHole =
-  EEmptyHole (dummyHoleId, holeType)
+  EEmptyHole dummyHoleId
 
 type Type__
   = TNum WS
@@ -673,7 +673,7 @@ type ResultText
   | HintText String
 
 type SpecialResult
-  = ExampleProvider (HoleId, Type)
+  = ExampleProvider HoleId
 
 type TransformationResult
   = -- Old behavior, just uses description
