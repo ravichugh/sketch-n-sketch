@@ -160,13 +160,23 @@ eval_ env exp =
         case recordEntriesFromDeclarations decls of
           Just entries ->
             let
+              paramArgPairs =
+                List.map
+                  (\(_, _, ident, _, exp) -> (ident, exp))
+                  entries
+
               (parameters, eArgs) =
-                entries
-                  |> List.map (\(_, _, ident, _, exp) -> (ident, exp))
-                  |> List.unzip
+                List.unzip paramArgPairs
 
               uArgs =
-                Evaluator.mapM (eval_ env) eArgs
+                let
+                  evalAndBind (param, arg) (us, latestEnv) =
+                    Evaluator.map
+                      (\u -> (u :: us, (param, (u, ())) :: latestEnv))
+                      (eval_ latestEnv arg)
+                in
+                  Evaluator.foldlM evalAndBind ([], env) paramArgPairs
+                    |> Evaluator.map (Tuple.first >> List.reverse)
             in
               uArgs
                 |> Evaluator.andThen (bindingEval env body parameters)

@@ -1,7 +1,8 @@
 module Evaluator exposing
   ( Evaluator
   , map, andThen, succeed, fail, get, put, run
-  , sequence, mapM, fromResult
+  , sequence, mapM, foldlM
+  , fromResult
   )
 
 import Utils
@@ -71,6 +72,15 @@ sequence evaluators =
 mapM : (a -> Evaluator s e b) -> List a -> Evaluator s e (List b)
 mapM f =
   sequence << List.map f
+
+-- Based on http://hackage.haskell.org/package/base-4.12.0.0/docs/src/Data.Foldable.html#foldlM
+foldlM : (a -> b -> Evaluator s e b) -> b -> List a -> Evaluator s e b
+foldlM f initialAcc xs =
+  List.foldr
+    (\x k z -> f x z |> andThen k)
+    succeed
+    xs
+    initialAcc
 
 fromResult : Result e a -> Evaluator s e a
 fromResult =
