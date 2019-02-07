@@ -14,10 +14,13 @@ module Types2 exposing
 
   , TypeEnv
   , TypeEnvElement(..)
+  , ArrowType
   , lookupVar
+  , typePairs
   , varsOfGamma
   , typeEquiv
   , rebuildArrow
+  , matchArrowRecurse
 
   , HoleEnv
   , HoleEnvElement
@@ -340,6 +343,18 @@ setPatDummyTypeDeep pat =
     _ ->
       pat |> setPatType (Just (withDummyTypeInfo <| TVar space0 "..."))
 
+typePairs : TypeEnv -> List (Ident, Type)
+typePairs gamma =
+  let
+    typePair : Ident -> Maybe (Ident, Type)
+    typePair i =
+      lookupVar gamma i
+        |> Maybe.andThen (Maybe.map <| \t -> (i, t))
+  in
+    gamma
+      |> varsOfGamma
+      |> List.map typePair
+      |> Utils.filterJusts
 
 varsOfGamma gamma =
   case gamma of

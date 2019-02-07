@@ -13,36 +13,14 @@ import Lang exposing (..)
 
 import Utils
 
+import LeoUnparser
+
 --------------------------------------------------------------------------------
 -- Declarations
 --------------------------------------------------------------------------------
 
 type alias World =
   (UnExp.Env, Example)
-
---------------------------------------------------------------------------------
--- Enumeration
---------------------------------------------------------------------------------
-
-baseTypes : List Type
-baseTypes =
-  List.map (\f -> withDummyTypeInfo (f space1)) [TNum, TBool, TString]
-
-enumerateTypes : Int -> List Type
-enumerateTypes complexity =
-  if complexity == 0 then
-    baseTypes
-  else
-    let
-      argPossibilities =
-        Utils.oneOfEach (List.repeat complexity baseTypes)
-
-      arrows =
-        List.map
-          (\(args, returnType) -> T.rebuildArrow ([], args, returnType))
-          (Utils.cartProd argPossibilities baseTypes)
-    in
-      enumerateTypes (complexity - 1) ++ arrows -- TODO add tuples
 
 --------------------------------------------------------------------------------
 -- Satisfaction
@@ -123,50 +101,44 @@ guess_ depth gamma tau =
     []
   else
     let
+      typePairs =
+        T.typePairs gamma
+
       -- EGuess-Var
       variableGuesses =
-        let
-          typePair : Ident -> Maybe (Ident, Type)
-          typePair i =
-            T.lookupVar gamma i
-              |> Maybe.andThen (Maybe.map <| \t -> (i, t))
-        in
-          gamma
-            |> T.varsOfGamma
-            |> List.map typePair
-            |> Utils.filterJusts
-            |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
-            |> List.map (Tuple.first >> eVar0)
+        typePairs
+          |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
+          |> List.map (Tuple.first >> eVar0)
 
       -- EGuess-App
       appGuesses =
         let
-          guessApps : Type -> List Exp
-          guessApps tau2 =
+          arrowMatches : ArrowType -> Bool
+          arrowMatches (_, _, returnType) =
+            T.typeEquiv gamma tau returnType
+
+          guessApps : (Exp, ArrowType) -> List Exp
+          guessApps (eFun, (_, argTypes, _)) =
             let
-              tau2ArrTau =
-                T.rebuildArrow ([], [tau2], tau)
-
-              e1s =
-                guess_ (depth - 1) gamma tau2ArrTau
-
-              e2s =
-                refine_ (depth - 1) gamma [] tau2ArrTau
+              possibleArgs =
+                List.map (refine_ (depth - 1) gamma []) argTypes
             in
-              Utils.cartProd e1s e2s
-                |> List.map (\(e1, e2) -> eApp e1 [e2])
-
-          -- TODO
-          typesToTry =
-            enumerateTypes 3
+              List.map (eApp eFun) <|
+                Utils.oneOfEach possibleArgs
         in
-          List.concatMap guessApps typesToTry
+          typePairs
+            |> List.map (Tuple.mapFirst eVar0)
+            |> List.map (Tuple.mapSecond T.matchArrowRecurse)
+            |> List.map (\(f, mt) -> Maybe.map (\t -> (f, t)) mt)
+            |> Utils.filterJusts
+            |> List.filter (Tuple.second >> arrowMatches)
+            |> List.concatMap guessApps
     in
       variableGuesses ++ appGuesses
 
 guess : T.TypeEnv -> Type -> List Exp
 guess =
-  guess_ 3
+  guess_ 5
 
 --------------------------------------------------------------------------------
 -- Type-and-Example-Directed Synthesis
@@ -188,4 +160,4 @@ refine_ depth gamma worlds tau =
 
 refine : T.TypeEnv -> List World -> Type -> List Exp
 refine =
-  refine_ 3
+  refine_ 5
