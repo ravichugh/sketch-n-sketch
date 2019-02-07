@@ -18,6 +18,11 @@ module Types2 exposing
   , varsOfGamma
   , typeEquiv
   , rebuildArrow
+
+  , HoleEnv
+  , HoleEnvElement
+  , emptyHoleEnv
+  , holeEnvGet
   )
 
 import Info exposing (WithInfo, withDummyInfo)
@@ -162,6 +167,27 @@ type TypeEnvElement
 
 type alias DataDef = (Ident, List Type)
 
+type alias HoleEnv =
+  List HoleEnvElement
+
+type alias HoleEnvElement
+  = (HoleId, (TypeEnv, Type))
+
+emptyHoleEnv : HoleEnv
+emptyHoleEnv =
+  []
+
+addToHoleEnv : HoleId -> TypeEnv -> Type -> HoleEnv -> HoleEnv
+addToHoleEnv holeId gamma tau holeEnv =
+  (holeId, (gamma, tau)) :: holeEnv
+
+holeEnvGet : HoleId -> HoleEnv -> Maybe (TypeEnv, Type)
+holeEnvGet =
+  Utils.maybeFind
+
+holeEnvUnion : List HoleEnv -> HoleEnv
+holeEnvUnion =
+  List.concat
 
 addHasMaybeType : (Pat, Maybe Type) -> TypeEnv -> TypeEnv
 addHasMaybeType (p, mt) gamma =
@@ -583,10 +609,10 @@ inferTypeDataExp gamma thisExp listLetExp rebuildLetExps =
                  )
               |> setType (Just (withDummyTypeInfo <| TVar space0 tyCon))
         in
-        { newExp = newExp }
+        { newExp = newExp, holeEnv = emptyHoleEnv }
 
       _ ->
-        { newExp = thisExp }
+        { newExp = thisExp, holeEnv = emptyHoleEnv }
   )
 
 
@@ -875,7 +901,7 @@ opTypeTable =
 
 --------------------------------------------------------------------------------
 
-typecheck : Exp -> Exp
+typecheck : Exp -> (Exp, HoleEnv)
 typecheck e =
   let hasType x t = HasType (pVar0 x) (Result.toMaybe (parseT t)) in
   let initEnv =
@@ -887,7 +913,7 @@ typecheck e =
     ]
   in
   let result = inferType initEnv { inputExp = e } e in
-  result.newExp
+  (result.newExp, result.holeEnv)
 
 -- extra stuff for typechecker
 type alias Stuff =
@@ -899,25 +925,33 @@ inferType
    -> Stuff
    -> Exp
    -> { newExp: Exp
-      -- , holeEnv : HoleEnv
+      , holeEnv : HoleEnv
       }
         -- the inferred Maybe Type is in newExp.val.typ
 
 inferType gamma stuff thisExp =
   case (unExpr thisExp).val.e__ of
     EConst _ _ _ _ ->
-      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TNum space1))) }
+      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TNum space1)))
+      , holeEnv = emptyHoleEnv
+      }
 
     EBase _ (EBool _) ->
-      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TBool space1))) }
+      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TBool space1)))
+      , holeEnv = emptyHoleEnv
+      }
 
     EBase _ (EString _ _) ->
-      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TString space1))) }
+      { newExp = thisExp |> setType (Just (withDummyTypeInfo (TString space1)))
+      , holeEnv = emptyHoleEnv
+      }
 
     EVar ws x ->
       case lookupVar gamma x of
         Just (Just t) ->
-          { newExp = thisExp |> setType (Just t) }
+          { newExp = thisExp |> setType (Just t)
+          , holeEnv = emptyHoleEnv
+          }
 
         Just Nothing ->
           let
@@ -930,7 +964,9 @@ inferType gamma stuff thisExp =
                      ]
                    )
           in
-          { newExp = newExp }
+          { newExp = newExp
+          , holeEnv = emptyHoleEnv
+          }
 
         Nothing ->
           let
@@ -958,7 +994,9 @@ inferType gamma stuff thisExp =
                        (\(y, ey) -> deuceTool (CodeText y) (replaceExpNode (unExpr thisExp).val.eid ey stuff.inputExp))
                        suggestions
           in
-          { newExp = thisExp |> setDeuceTypeInfo (DeuceTypeInfo items) }
+          { newExp = thisExp |> setDeuceTypeInfo (DeuceTypeInfo items)
+          , holeEnv = emptyHoleEnv
+          }
 
     EParens ws1 innerExp parensStyle ws2 ->
       let
@@ -970,7 +1008,9 @@ inferType gamma stuff thisExp =
             |> replaceE__ thisExp
             |> setType (unExpr result.newExp).val.typ
       in
-        { newExp = newExp }
+        { newExp = newExp
+        , holeEnv = result.holeEnv
+        }
 
     EColonType ws1 innerExp ws2 annotatedType ws3 ->
       case findUnboundTypeVars gamma annotatedType of
@@ -1004,7 +1044,9 @@ inferType gamma stuff thisExp =
                 |> setType (Just annotatedType)
                 |> finishNewExp
           in
-            { newExp = newExp }
+            { newExp = newExp
+            , holeEnv = result.holeEnv
+            }
 
         Just unboundTypeVars ->
           -- TODO: Highlight occurrences of unbound variables with
@@ -1019,7 +1061,9 @@ inferType gamma stuff thisExp =
                         , "unbound: " ++ String.join " " unboundTypeVars
                         ])
           in
-            { newExp = newExp }
+            { newExp = newExp
+            , holeEnv = emptyHoleEnv
+            }
 
     EFun ws1 pats body ws2 ->
       let
@@ -1043,7 +1087,9 @@ inferType gamma stuff thisExp =
             |> replaceE__ thisExp
             |> setDeuceTypeInfo genericError
       in
-      { newExp = newExp }
+      { newExp = newExp
+      , holeEnv = result.holeEnv
+      }
 
     EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3 ->
       -- Not currently digging into nested EIfs
@@ -1122,7 +1168,10 @@ inferType gamma stuff thisExp =
             |> replaceE__ thisExp
             |> finishNewExp
       in
-        { newExp = newExp }
+        { newExp = newExp
+        , holeEnv =
+            holeEnvUnion [result1.holeEnv, result2.holeEnv, result3.holeEnv]
+        }
 
     -- clean this case up...
     --
@@ -1131,15 +1180,14 @@ inferType gamma stuff thisExp =
         resultFunc =
           inferType gamma stuff eFunc
 
-        inferArgTypes () = -- if inferType eFunc fails to produce an arrow
+        inferArgTypesResult = -- if inferType eFunc fails to produce an arrow
           inferTypes gamma stuff eArgs
-            |> .newExps
 
-        (newFunc, newArgs, finishNewExp) =
+        (newFuncResult, newArgsResult, finishNewExp) =
           case (unExpr resultFunc.newExp).val.typ of
             Nothing ->
-              ( resultFunc.newExp
-              , inferArgTypes ()
+              ( resultFunc
+              , inferArgTypesResult
               , setDeuceTypeInfo genericError
               )
 
@@ -1149,8 +1197,8 @@ inferType gamma stuff thisExp =
               --
               case matchArrowRecurse eFuncType of
                 Nothing ->
-                  ( resultFunc.newExp
-                  , inferArgTypes ()
+                  ( resultFunc
+                  , inferArgTypesResult
                   , setDeuceTypeInfo <| DeuceTypeInfo <|
                       [ Label <| ErrorHeaderText
                           "Type Mismatch"
@@ -1167,8 +1215,8 @@ inferType gamma stuff thisExp =
                     numArgTypes = List.length argTypes
                   in
                   if numArgs > numArgTypes then
-                    ( resultFunc.newExp
-                    , inferArgTypes ()
+                    ( resultFunc
+                    , inferArgTypesResult
                     , setDeuceTypeInfo <| DeuceTypeInfo <|
                         [ Label <| ErrorHeaderText
                             "Type Mismatch"
@@ -1187,14 +1235,22 @@ inferType gamma stuff thisExp =
                       (prefixArgTypes, suffixArgTypes) =
                         Utils.split numArgs argTypes
 
-                      (allOkay, newArgs) =
+                      (allOkay, newArgsData) =
                         Utils.zip eArgs prefixArgTypes
                           |> List.map (\(e,t) ->
                                let result = checkType gamma stuff e t in
-                               (result.okay, result.newExp)
+                               (result.okay, (result.newExp, result.holeEnv))
                              )
                           |> List.unzip
                           |> Tuple.mapFirst (List.all ((==) True))
+
+                      newArgsResult =
+                        { newExps =
+                            List.map Tuple.first newArgsData
+                        , holeEnv =
+                            List.map Tuple.second newArgsData
+                              |> holeEnvUnion
+                        }
 
                       finishNewExp =
                         if allOkay then
@@ -1206,14 +1262,14 @@ inferType gamma stuff thisExp =
                         else
                           setDeuceTypeInfo genericError
                     in
-                      ( resultFunc.newExp
-                      , newArgs
+                      ( resultFunc
+                      , newArgsResult
                       , finishNewExp
                       )
 
                 Just _ ->
-                  ( resultFunc.newExp
-                  , inferArgTypes ()
+                  ( resultFunc
+                  , inferArgTypesResult
                   , setDeuceTypeInfo <| DeuceTypeInfo <|
                       [ Label <| PlainText
                           "Polymorphic function application not yet supported..."
@@ -1221,29 +1277,31 @@ inferType gamma stuff thisExp =
                   )
 
         newExp =
-          EApp ws1 newFunc newArgs apptype ws2
+          EApp ws1 newFuncResult.newExp newArgsResult.newExps apptype ws2
             |> replaceE__ thisExp
             |> finishNewExp
       in
-        { newExp = newExp }
+        { newExp = newExp
+        , holeEnv =
+            holeEnvUnion [newFuncResult.holeEnv, newArgsResult.holeEnv]
+        }
 
     -- mostly just copying EApp for now...
     --
     EOp ws1 ws2 op eArgs ws ->
       let
-        inferArgTypes () = -- if inferType eFunc fails to produce an arrow
+        inferArgTypesResult = -- if inferType eFunc fails to produce an arrow
           inferTypes gamma stuff eArgs
-            |> .newExps
 
         newExp =
-          EOp ws1 ws2 op newArgs ws
+          EOp ws1 ws2 op newArgsResult.newExps ws
             |> replaceE__ thisExp
             |> finishNewExp
 
-        (newArgs, finishNewExp) =
+        (newArgsResult, finishNewExp) =
           case Utils.maybeFind op.val opTypeTable of
             Nothing ->
-              ( inferArgTypes ()
+              ( inferArgTypesResult
               , setDeuceTypeInfo (deucePlainLabels [ "op not yet supported... " ++ toString op.val ])
               )
 
@@ -1253,7 +1311,7 @@ inferType gamma stuff thisExp =
                 numArgTypes = List.length argTypes
               in
               if numArgs > numArgTypes then
-                ( inferArgTypes ()
+                ( inferArgTypesResult
                 , setDeuceTypeInfo <| DeuceTypeInfo <|
                     [ Label <| ErrorHeaderText
                         "Type Mismatch"
@@ -1272,14 +1330,22 @@ inferType gamma stuff thisExp =
                   (prefixArgTypes, suffixArgTypes) =
                     Utils.split numArgs argTypes
 
-                  (allOkay, newArgs) =
+                  (allOkay, newArgsData) =
                     Utils.zip eArgs prefixArgTypes
                       |> List.map (\(e,t) ->
                            let result = checkType gamma stuff e t in
-                           (result.okay, result.newExp)
+                           (result.okay, (result.newExp, result.holeEnv))
                          )
                       |> List.unzip
                       |> Tuple.mapFirst (List.all ((==) True))
+
+                  newArgsResult =
+                    { newExps =
+                        List.map Tuple.first newArgsData
+                    , holeEnv =
+                        List.map Tuple.second newArgsData
+                          |> holeEnvUnion
+                    }
 
                   finishNewExp =
                     if allOkay then
@@ -1291,19 +1357,21 @@ inferType gamma stuff thisExp =
                     else
                       setDeuceTypeInfo genericError
                 in
-                  ( newArgs
+                  ( newArgsResult
                   , finishNewExp
                   )
 
             Just _ ->
-              ( inferArgTypes ()
+              ( inferArgTypesResult
               , setDeuceTypeInfo <| DeuceTypeInfo <|
                   [ Label <| PlainText
                       "Polymorphic operators not yet supported..."
                   ]
               )
           in
-            { newExp = newExp }
+            { newExp = newExp
+            , holeEnv = newArgsResult.holeEnv
+            }
 
     ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
       let
@@ -1455,10 +1523,10 @@ inferType gamma stuff thisExp =
 
         -- Process LetExps -----------------------------------------------------
 
-        (newLetExps, newGammaAfterLetExps, newTypeBreadCrumbs) =
+        (newLetExps, newGammaAfterLetExps, newTypeBreadCrumbs, newListLetHoleEnv) =
           letExps
-            |> List.foldl processLetExp ([], newGammaAfterLetTypes, [])
-            |> Utils.mapFst3 List.reverse
+            |> List.foldl processLetExp ([], newGammaAfterLetTypes, [], [])
+            |> Utils.mapFst4 List.reverse
 
         -- TODO write a mapFoldPatType, and use it here
         --
@@ -1492,7 +1560,7 @@ inferType gamma stuff thisExp =
             _ ->
               pat |> setPatType (Just typ)
 
-        processLetExp (isRec, listLetExp) (accLetExpsRev, accGamma, accTypeBreadCrumbs) =
+        processLetExp (isRec, listLetExp) (accLetExpsRev, accGamma, accTypeBreadCrumbs, accHoleEnv) =
           let
             listLetExpAndMaybeType : List (LetExp, Maybe Type)
             listLetExpAndMaybeType =
@@ -1526,7 +1594,7 @@ inferType gamma stuff thisExp =
                 in
                   List.foldl addHasMaybeType accGamma assumedRecPatTypes
 
-            (newListLetExp, moreTypeBreadCrumbs)  =
+            (newListLetExp, moreTypeBreadCrumbs, newListLetHoleEnv)  =
               listLetExpAndMaybeType
                 |> List.map (\( (LetExp ws0 ws1 pat fas ws2 expEquation)
                               , maybeAnnotatedType
@@ -1571,6 +1639,7 @@ inferType gamma stuff thisExp =
                          in
                          ( LetExp ws0 ws1 newPat fas ws2 result.newExp
                          , []
+                         , result.holeEnv
                          )
 
                        Just annotatedType ->
@@ -1597,10 +1666,12 @@ inferType gamma stuff thisExp =
                          in
                          ( LetExp ws0 ws1 newPat fas ws2 newExpEquation
                          , maybeTypeBreadCrumb
+                         , result.holeEnv
                          )
                    )
-                |> List.unzip
-                |> Tuple.mapSecond List.concat
+                |> Utils.unzip3
+                |> Utils.mapSnd3 List.concat
+                |> Utils.mapThd3 holeEnvUnion
 
             newAccGamma =
               let
@@ -1639,6 +1710,7 @@ inferType gamma stuff thisExp =
             ( (isRec, newListLetExp) :: accLetExpsRev
             , newAccGamma
             , moreTypeBreadCrumbs ++ accTypeBreadCrumbs
+            , newListLetHoleEnv ++ accHoleEnv
             )
 
         newerLetAnnots =
@@ -1670,7 +1742,9 @@ inferType gamma stuff thisExp =
             |> replaceE__ thisExp
             |> copyTypeInfoFrom newBody
       in
-        { newExp = newExp }
+        { newExp = newExp
+        , holeEnv = holeEnvUnion [newListLetHoleEnv, resultBody.holeEnv]
+        }
 
     ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots letExps) ws2 ->
       let
@@ -1678,6 +1752,7 @@ inferType gamma stuff thisExp =
           { newExp =
               thisExp
                 |> setDeuceTypeInfo (deucePlainLabels ["not supported in records: " ++ s])
+          , holeEnv = emptyHoleEnv
           }
       in
       case (maybeExpWs, letTypes, letAnnots, letExps) of
@@ -1716,7 +1791,7 @@ inferType gamma stuff thisExp =
                   let
                     default =
                       ( listLetExp
-                      , \(newListLetExp, maybeFieldTypes) -> (newListLetExp, maybeFieldTypes)
+                      , identity
                       )
                   in
                   case listLetExp of
@@ -1738,11 +1813,12 @@ inferType gamma stuff thisExp =
                                   (e |> setType dummyType)
                             in
                             ( restListLetExp
-                            , \(newRestListLetExp, fieldMaybeTypes) ->
+                            , \(newRestListLetExp, fieldMaybeTypes, envHoles) ->
                                 ( newFirstLetExp
                                     :: newRestListLetExp
                                 , Just (Lang.ctor (withDummyTypeInfo << TVar space0) TupleCtor ename)
                                     :: fieldMaybeTypes
+                                , envHoles
                                 )
                             )
 
@@ -1752,10 +1828,10 @@ inferType gamma stuff thisExp =
                         _ ->
                           default
 
-                (newListLetExp, maybeFieldTypes) =
+                (newListLetExp, maybeFieldTypes, newListLetHoleEnv) =
 
                   List.foldl
-                    (\(LetExp mbWs1 ws2 p funArgStyle ws3 e) (acc1,acc2) ->
+                    (\(LetExp mbWs1 ws2 p funArgStyle ws3 e) (acc1,acc2,acc3) ->
                       let
                         result =
                           inferType gamma stuff e
@@ -1769,12 +1845,14 @@ inferType gamma stuff thisExp =
                             _ ->
                               Nothing -- TODO: report error around non-var field
                       in
-                        ( newLetExp :: acc1 , maybeFieldType :: acc2 )
+                        ( newLetExp :: acc1 , maybeFieldType :: acc2 , result.holeEnv :: acc3)
                     )
-                    ([], [])
+                    ([], [], [])
                     listLetExpMinusCtor
 
-                  |> Utils.mapFirstSecond List.reverse List.reverse
+                  |> Utils.mapFst3 List.reverse
+                  |> Utils.mapSnd3 List.reverse
+                  |> Utils.mapThd3 List.reverse
 
                   |> finishLetExpsAndFieldTypes
 
@@ -1810,7 +1888,9 @@ inferType gamma stuff thisExp =
                           |> replaceE__ thisExp
                           |> setDeuceTypeInfo error
               in
-                { newExp = newExp }
+                { newExp = newExp
+                , holeEnv = holeEnvUnion newListLetHoleEnv
+                }
 
     EList ws1 wsExps ws2 Nothing ws3 ->
       let
@@ -1907,7 +1987,9 @@ inferType gamma stuff thisExp =
                         """
                       ]
       in
-        { newExp = newExp }
+        { newExp = newExp
+        , holeEnv = result.holeEnv
+        }
 
     ECase ws1 dataExp branches ws2 ->
       let
@@ -1932,7 +2014,7 @@ inferType gamma stuff thisExp =
                               ]
                             )
                      in
-                     let result = { newExp = e } in
+                     let result = { newExp = e, holeEnv = result0.holeEnv } in
                      ({ branch | val = Branch_ ws1 newP e ws2 }, result)
 
                    Just (dataConName, pats) ->
@@ -1950,7 +2032,7 @@ inferType gamma stuff thisExp =
                                   ]
                                 )
                          in
-                         let result = { newExp = e } in
+                         let result = { newExp = e, holeEnv = result0.holeEnv } in
                          ({ branch | val = Branch_ ws1 newP e ws2 }, result)
 
                        Just (typeCon, dataConTypes) ->
@@ -2031,6 +2113,7 @@ inferType gamma stuff thisExp =
                          in
                          { branch | val = Branch_ ws1 p (finishE e) ws2 }
                        )
+
               in
               Just (betterBranches, setDeuceTypeInfo genericError)
               )))
@@ -2042,16 +2125,22 @@ inferType gamma stuff thisExp =
             |> replaceE__ thisExp
             |> finishExp
       in
-        { newExp = newExp }
+        { newExp = newExp
+        , holeEnv = List.map .holeEnv branchResults |> holeEnvUnion
+        }
 
-    EHole _ (EEmptyHole _) ->
+    EHole _ (EEmptyHole holeId) ->
       { newExp =
           thisExp
             |> setType (Just holeType)
+      , holeEnv =
+          addToHoleEnv holeId gamma holeType emptyHoleEnv
       }
 
     _ ->
-      { newExp = thisExp |> setType Nothing }
+      { newExp = thisExp |> setType Nothing
+      , holeEnv = emptyHoleEnv
+      }
 
 
 inferTypes
@@ -2059,18 +2148,21 @@ inferTypes
    -> Stuff
    -> List Exp
    -> { newExps: List Exp
-      -- , holeEnv : HoleEnv
+      , holeEnv : HoleEnv
       }
 inferTypes gamma stuff exps =
-  let (newExps, _) =
-    List.foldl (\exp (newExpsAcc,stuffAcc) ->
+  let (mainResult, _) =
+    List.foldl (\exp (resultAcc,stuffAcc) ->
                  let result = inferType gamma stuffAcc exp in
-                 (result.newExp :: newExpsAcc, stuffAcc)
+                 (result :: resultAcc, stuffAcc)
                )
                ([], stuff)
                exps
+      |> Tuple.mapFirst List.reverse
   in
-  { newExps = List.reverse newExps }
+  { newExps = List.map .newExp mainResult
+  , holeEnv = List.map .holeEnv mainResult |> holeEnvUnion
+  }
 
 
 checkType
@@ -2080,7 +2172,7 @@ checkType
    -> Type
    -> { okay: Bool
       , newExp: Exp
-      -- , holeEnv : HoleEnv
+      , holeEnv : HoleEnv
       }
 checkType gamma stuff thisExp expectedType =
   case ( (unExpr thisExp).val.e__
@@ -2096,7 +2188,10 @@ checkType gamma stuff thisExp expectedType =
           thisExp
             |> copyTypeInfoFrom result.newExp
       in
-      { okay = result.okay, newExp = newExp }
+      { okay = result.okay
+      , newExp = newExp
+      , holeEnv = result.holeEnv
+      }
 
     (EParens ws1 innerExp parensStyle ws2, _, _) ->
       let
@@ -2107,7 +2202,10 @@ checkType gamma stuff thisExp expectedType =
             |> replaceE__ thisExp
             |> copyTypeInfoFrom result.newExp
       in
-      { okay = result.okay, newExp = newExp }
+      { okay = result.okay
+      , newExp = newExp
+      , holeEnv = result.holeEnv
+      }
 
     -- Not recursing into function body or retType because of the
     -- EParens and TParens cases, above.
@@ -2122,6 +2220,8 @@ checkType gamma stuff thisExp expectedType =
                       "TODO List.length pats < List.length argTypes"
                         :: List.map unparsePattern pats
                         ++ List.map unparseType argTypes)
+        , holeEnv =
+            emptyHoleEnv
         }
 
       else if List.length pats > List.length argTypes then
@@ -2162,7 +2262,10 @@ checkType gamma stuff thisExp expectedType =
               |> replaceE__ thisExp
               |> copyTypeInfoFrom result.newExp
         in
-        { okay = result.okay, newExp = newExp }
+        { okay = result.okay
+        , newExp = newExp
+        , holeEnv = result.holeEnv
+        }
 
       else {- List.length pats == List.length argTypes -}
         let
@@ -2183,6 +2286,7 @@ checkType gamma stuff thisExp expectedType =
                 EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
                   |> setType (Just expectedType)
+            , holeEnv = result.holeEnv
             }
 
           else
@@ -2198,6 +2302,7 @@ checkType gamma stuff thisExp expectedType =
                 EFun ws1 newPats result.newExp ws2
                   |> replaceE__ thisExp
                   |> setDeuceTypeInfo (expectedButGot stuff.inputExp expectedType maybeActualType)
+            , holeEnv = result.holeEnv
             }
 
     (EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3, _, _) ->
@@ -2225,14 +2330,19 @@ checkType gamma stuff thisExp expectedType =
             |> replaceE__ thisExp
             |> finishNewExp
       in
-        { okay = okay, newExp = newExp }
+        { okay = okay
+        , newExp = newExp
+        , holeEnv =
+            List.map .holeEnv [result1, result2, result3] |> holeEnvUnion
+        }
 
     (EHole _ (EEmptyHole holeId), _, _) ->
-      let _ = Debug.log "addToHoleEnv" (holeId, unparseType expectedType) in
       { okay = True
       , newExp =
           thisExp
             |> setType (Just expectedType)
+      , holeEnv =
+          addToHoleEnv holeId gamma expectedType emptyHoleEnv
       }
 
     _ ->
@@ -2254,6 +2364,7 @@ checkType gamma stuff thisExp expectedType =
                 --
                 -- |> setDeuceTypeInfo (ExpectedButGot expectedType
                 --                                 (unExpr result.newExp).val.typ)
+            , holeEnv = result.holeEnv
             }
 
           Just inferredType ->
@@ -2264,6 +2375,7 @@ checkType gamma stuff thisExp expectedType =
                     |> setType (Just expectedType)
                          -- overwrite (Just inferredType), because
                          -- expectedType is more likely to use type aliases
+              , holeEnv = result.holeEnv
               }
 
             else
@@ -2287,6 +2399,7 @@ checkType gamma stuff thisExp expectedType =
               in
                 { okay = False
                 , newExp = newExp
+                , holeEnv = result.holeEnv
                 }
 
 

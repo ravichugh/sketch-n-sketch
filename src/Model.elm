@@ -42,6 +42,7 @@ import VirtualDom
 import LangTools
 import LangUtils
 import Pos exposing (Pos)
+import Types2
 
 import ImpureGoodies
 
@@ -231,6 +232,7 @@ type alias Model =
   , needsToFocusOn : Maybe String
   , unExpOutput : Maybe UnExp
   , exampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
+  , holeEnv : Types2.HoleEnv
   }
 
 type OutputMode
@@ -1525,4 +1527,5 @@ initModel =
     , needsToFocusOn = Nothing
     , unExpOutput = Nothing
     , exampleInputs = Dict.empty
+    , holeEnv = Types2.emptyHoleEnv
     }

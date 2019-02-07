@@ -45,6 +45,7 @@ import File
 import Eval
 import UnExp exposing (UnExp)
 import LeoUnparser
+import Types2
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)

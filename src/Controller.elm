@@ -192,14 +192,15 @@ debugLog = Config.debugLog Config.debugController
 
 -- Returns:
 --   ( Type-checked expression
+--   , Hole environment
 --   , Ace type information
 --   , whether or not the expression type-checks
 --   )
-maybeTypeCheck : Bool -> Exp -> (Exp, Types2.AceTypeInfo, Bool)
+maybeTypeCheck : Bool -> Exp -> (Exp, Types2.HoleEnv, Types2.AceTypeInfo, Bool)
 maybeTypeCheck doTypeChecking inputExp =
   if doTypeChecking then
     let
-      newInputExp =
+      (newInputExp, holeEnv) =
         Types2.typecheck inputExp
 
       aceTypeInfo =
@@ -208,21 +209,23 @@ maybeTypeCheck doTypeChecking inputExp =
       typeChecks =
         Types2.typeChecks newInputExp
     in
-      (newInputExp, aceTypeInfo, typeChecks)
+      (newInputExp, holeEnv, aceTypeInfo, typeChecks)
   else
-    (inputExp, Types2.dummyAceTypeInfo, True)
+    (inputExp, Types2.emptyHoleEnv, Types2.dummyAceTypeInfo, True)
 
 -- replace most uses of maybeTypeCheck with this.
 --
 maybeTypeCheckAndUpdateModel : Model -> Model
 maybeTypeCheckAndUpdateModel model =
   let
-    (newInputExp, aceTypeInfo, typeChecks) =
+    (newInputExp, holeEnv, aceTypeInfo, typeChecks) =
       maybeTypeCheck model.doTypeChecking model.inputExp
   in
     { model
         | inputExp =
             newInputExp
+        , holeEnv =
+            holeEnv
         , codeBoxInfo =
             updateCodeBoxInfo aceTypeInfo model
     }
@@ -243,7 +246,7 @@ msgSetDoTypeChecking : Bool -> Msg
 msgSetDoTypeChecking bool =
   NewModelAndCmd "Toggle Type Checking" <| \model ->
     let
-      (newInputExp, aceTypeInfo, typeChecks) =
+      (newInputExp, holeEnv, aceTypeInfo, typeChecks) =
         maybeTypeCheck bool model.inputExp
 
       newModel =
@@ -252,6 +255,8 @@ msgSetDoTypeChecking bool =
                 bool
             , inputExp =
                 newInputExp
+            , holeEnv =
+                holeEnv
             , codeBoxInfo =
                 updateCodeBoxInfo aceTypeInfo model
         }
@@ -1941,22 +1946,24 @@ refreshInputExp old =
     parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
       Syntax.parser old.syntax old.code
 
-    (newInputExp, newCodeBoxInfo, newLastParsedCode, typeChecks) =
+    (newInputExp, holeEnv, newCodeBoxInfo, newLastParsedCode, typeChecks) =
       case parseResult of
         Ok parsedExp ->
           let
-            (typedInputExp, aceTypeInfo, typeChecks) =
+            (typedInputExp, holeEnv, aceTypeInfo, typeChecks) =
               maybeTypeCheck old.doTypeChecking parsedExp
             inputExp = tryPreserveIDs old.inputExp typedInputExp
           in
-            (inputExp, updateCodeBoxInfo aceTypeInfo old, old.code, typeChecks)
+            (inputExp, holeEnv, updateCodeBoxInfo aceTypeInfo old, old.code, typeChecks)
 
         Err _ ->
-          (old.inputExp, old.codeBoxInfo, old.lastParsedCode, True)
+          (old.inputExp, old.holeEnv, old.codeBoxInfo, old.lastParsedCode, True)
   in
     { old
         | inputExp =
             newInputExp
+        , holeEnv =
+            holeEnv
         , lastParsedCode =
             newLastParsedCode
         , codeBoxInfo =
@@ -3321,7 +3328,7 @@ handleNew template = (\old ->
          Ok ff -> ff
   in
   let
-     (inputExp, aceTypeInfo, typeChecks) =
+     (inputExp, holeEnv, aceTypeInfo, typeChecks) =
       maybeTypeCheck old.doTypeChecking e
   in
   let so = Sync.syncOptionsOf old.syncOptions inputExp in
@@ -3333,6 +3340,7 @@ handleNew template = (\old ->
   |> Result.map (\(slideCount, movieCount, movieDuration, movieContinue, slate) ->
      let code = Syntax.unparser old.syntax inputExp in
      { initModel | inputExp      = inputExp
+                , holeEnv       = holeEnv
                 , inputVal      = v
                 , inputEnv      = env
                 , caption       = (case fApplied of
@@ -4367,7 +4375,7 @@ msgUpdateExampleInput holeId index env input =
       { model | exampleInputs = newExampleInputs }
 
 msgSynthesizeFromExamples : HoleId -> Msg
-msgSynthesizeFromExamples holeId  =
+msgSynthesizeFromExamples holeId =
   Msg "Synthesize From Examples" <| \model ->
     let
       exampleInputList : List (Int, (UnExp.Env, String))
@@ -4401,10 +4409,32 @@ msgSynthesizeFromExamples holeId  =
                   |> List.map showWorld
                   |> String.join "\n----------------------------------------\n"
 
-              synthesisOutput = ""
-                --Synthesis.refine Synthesis.hardCodedGamma2 (List.map Tuple.second worlds) tau
-                  --|> List.map LeoUnparser.unparse
-                  --|> String.join "\n----------------------------------------\n"
+              showGamma gamma =
+                let
+                  typePair : Ident -> Maybe (Ident, Type)
+                  typePair i =
+                    Types2.lookupVar gamma i
+                      |> Maybe.andThen (Maybe.map <| \t -> (i, t))
+                in
+                  gamma
+                    |> Types2.varsOfGamma
+                    |> List.map typePair
+                    |> Utils.filterJusts
+                    |> List.map (\(i, t) -> i ++ " : " ++ LeoUnparser.unparseType t)
+                    |> String.join "\n  "
+
+              synthesisOutput =
+                case Types2.holeEnvGet holeId model.holeEnv of
+                  Just (gamma, tau) ->
+                    Synthesis.refine gamma (List.map Tuple.second worlds) tau
+                      |> List.map LeoUnparser.unparse
+                      |> String.join "\n----------------------------------------\n"
+                      -- View the hole environments for debugging:
+                      -- |> (\s -> s ++ "\n\n[ " ++ showGamma gamma ++ "\n]\n\n" ++ LeoUnparser.unparseType tau)
+                      -- |> (\s -> s ++ "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
+
+                  Nothing ->
+                    "Could not find holeId: " ++ toString holeId
             in
               worldsOutput
                 ++ "\n========================================\n"

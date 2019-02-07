@@ -2,7 +2,6 @@ module Synthesis exposing
   ( World
   , guess
   , refine
-  , hardCodedGamma1, hardCodedGamma2
   )
 
 import Example exposing (Example(..))
@@ -20,25 +19,6 @@ import Utils
 
 type alias World =
   (UnExp.Env, Example)
-
-hardCodedGamma1 : T.TypeEnv
-hardCodedGamma1 =
-  [ HasType (pVar "n") <|
-      Just <|
-        withDummyTypeInfo (TNum space1)
-  , HasType (pVar "b") <|
-      Just <|
-        withDummyTypeInfo (TBool space1)
-  , HasType (pVar "s") <|
-      Just <|
-        withDummyTypeInfo (TString space1)
-  ]
-
-hardCodedGamma2 : T.TypeEnv
-hardCodedGamma2 =
-  List.map
-    (\c -> HasType (pVar c) (Just <| withDummyTypeInfo (TNum space1)))
-    (String.toList "abcdefghijklmnopqrstuvwxyz" |> List.map String.fromChar)
 
 --------------------------------------------------------------------------------
 -- Enumeration
