@@ -286,7 +286,7 @@ statefulMap f u =
   flip State.andThen (f u) <| \uNew ->
     case uNew of
       UConstructor ident arg ->
-        State.map (UConstructor ident) (f arg)
+        State.map (UConstructor ident) (statefulMap f arg)
 
       UNum n ->
         State.pure <| UNum n
@@ -298,7 +298,7 @@ statefulMap f u =
         State.pure <| UString s
 
       UTuple args ->
-        State.map UTuple (State.mapM f args)
+        State.map UTuple (State.mapM (statefulMap f) args)
 
       UFunClosure env params body ->
         State.pure <| UFunClosure env params body
@@ -307,16 +307,16 @@ statefulMap f u =
         State.pure <| UHoleClosure env holeIndex
 
       UApp uFunction uArgs ->
-        flip State.andThen (f uFunction) <| \newFunction ->
-          State.map (UApp newFunction) (State.mapM f uArgs)
+        flip State.andThen (statefulMap f uFunction) <| \newFunction ->
+          State.map (UApp newFunction) (State.mapM (statefulMap f) uArgs)
 
       UGet n i uTuple ->
-        State.map (UGet n i) (f uTuple)
+        State.map (UGet n i) (statefulMap f uTuple)
 
       UCase env uScrutinee branches ->
         State.map
           (\newScrutinee -> UCase env newScrutinee branches)
-          (f uScrutinee)
+          (statefulMap f uScrutinee)
 
 map : (UnExp -> UnExp) -> UnExp -> UnExp
 map f =
