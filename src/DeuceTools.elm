@@ -3305,14 +3305,14 @@ toolNeedsHovers model toolId =
     ]
 
 toolList =
-  [ [ typesTool
+  [ [ exampleProviderTool
+    ]
+  , [ typesTool
     , (\model selections -> Types2.introduceTypeAliasTool model.inputExp selections)
     , (\model selections -> Types2.renameTypeTool model.inputExp selections)
     , (\model selections -> Types2.renameDataConstructorTool model.inputExp selections)
     , (\model selections -> Types2.duplicateDataConstructorTool model.inputExp selections)
     , (\model selections -> Types2.convertToDataTypeTool model.inputExp selections)
-    ]
-  , [ exampleProviderTool
     ]
   , ( mergeTools "holeReplacementMerger" "Replace hole (select from menu)" "Select a hole"
     [ createTrueTool
