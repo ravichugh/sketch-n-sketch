@@ -2395,6 +2395,7 @@ eApp (Expr e) es  = Expr <| withInfo (exp_ <| EApp space1 (Expr e) es SpaceApp s
 eApp0 (Expr e) es = Expr <| withInfo (exp_ <| EApp space0 (Expr e) es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map (\(Expr e_) -> e_.end) |> Maybe.withDefault e.end)
 eCall fName es   = eApp (eVar0 fName) es
 eFun ps e        = withDummyExpInfo <| EFun space1 ps e space0
+eFun0 ps e       = withDummyExpInfo <| EFun space0 ps e space0
 eRecord kvs      = withDummyExpInfo <| eRecord__ space1 Nothing (List.map
   (\(k, v) -> (Just space0, space1, k, space1, v))
   kvs) space1

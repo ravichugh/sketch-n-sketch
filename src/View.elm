@@ -599,7 +599,7 @@ viewExampleProvider holeEnv holeId output =
         holes =
           UnExp.findHoles holeId output
 
-        viewBinding (identifier, (u, _)) =
+        viewBinding (identifier, u) =
           Html.li
             [ Attr.class "env-binding"
             ]

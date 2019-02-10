@@ -15,6 +15,7 @@ module Types2 exposing
   , TypeEnv
   , TypeEnvElement(..)
   , ArrowType
+  , addHasType
   , lookupVar
   , typePairs
   , varsOfGamma

@@ -30,7 +30,7 @@ type alias HoleIndex =
   (HoleId, Int)
 
 type alias Env =
-  List (Ident, (UnExp, () {- Type -}))
+  List (Ident, UnExp)
 
 type UnExp
   = UConstructor Ident UnExp
@@ -210,8 +210,8 @@ parseVal =
 unparseEnv : Env -> String
 unparseEnv =
   let
-    showBinding : (Ident, (UnExp, ())) -> String
-    showBinding (i, (u, _)) =
+    showBinding : (Ident, UnExp) -> String
+    showBinding (i, u) =
       i ++ " → " ++ unparse u
   in
     List.map showBinding >> String.join ", "

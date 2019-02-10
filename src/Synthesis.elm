@@ -67,7 +67,7 @@ satisfiesExample ex v =
           let
             envExtension =
               Utils.zip params vs
-                |> List.map (\(x, v) -> (x, (UnExp.asExp v, ())))
+                |> List.map (Tuple.mapSecond UnExp.asExp)
 
             newEnv =
               envExtension ++ env
@@ -222,8 +222,8 @@ refine_ depth gamma worlds tau =
               tupleLength =
                 List.length taus
 
-              extractArgs : Example -> Maybe (List Example)
-              extractArgs ex =
+              extractTuple : Example -> Maybe (List Example)
+              extractTuple ex =
                 case ex of
                   ExTuple args ->
                     -- Check may not be necessary with example typechecking
@@ -239,7 +239,7 @@ refine_ depth gamma worlds tau =
                 List.unzip worlds
             in
               examples
-                |> List.map extractArgs
+                |> List.map extractTuple
                 |> Utils.projJusts
                 |> Maybe.map
                      ( Utils.transpose
@@ -251,8 +251,65 @@ refine_ depth gamma worlds tau =
                          >> List.map eTuple0
                      )
                 |> Maybe.withDefault []
+
+      partialFunctionRefinement =
+        case T.matchArrowRecurse tau of
+          -- TODO Only support single-argument functions for now
+          Just (_, [argType], returnType) ->
+            let
+              argName : Ident
+              argName =
+                "x"
+
+              argNamePat : Pat
+              argNamePat =
+                pVar0 argName
+
+              extractPartialFunction :
+                Example -> Maybe (List (UnExp.UnVal, Example))
+              extractPartialFunction ex =
+                case ex of
+                  ExPartialFunction entries ->
+                    entries
+                      -- TODO Only support single-argument functions for now
+                      |> List.map
+                           (Tuple.mapFirst List.head >> Utils.liftMaybePair1)
+                      |> Utils.projJusts
+
+                  _ ->
+                    Nothing
+
+              makeUniverse :
+                UnExp.Env -> List (UnExp.UnVal, Example) -> List World
+              makeUniverse env =
+                List.map (\(v, ex) -> ((argName, UnExp.asExp v) :: env, ex))
+
+              (envs, examples) =
+                List.unzip worlds
+
+              newGamma =
+                T.addHasType (argNamePat, argType) gamma
+            in
+              examples
+                |> List.map extractPartialFunction
+                |> Utils.projJusts
+                |> Maybe.map
+                     ( Utils.zipWith makeUniverse envs
+                         >> List.concat
+                         >> flip (refine_ (depth - 1) newGamma) returnType
+                         >> List.map (eFun [argNamePat])
+                     )
+                |> Maybe.withDefault []
+
+          _ ->
+            []
     in
-      guessRefinement ++ constantRefinement ++ tupleRefinement
+      List.concat
+        [ guessRefinement
+        , constantRefinement
+        , tupleRefinement
+        , partialFunctionRefinement
+        ]
 
 refine : T.TypeEnv -> List World -> Type -> List Exp
 refine =
