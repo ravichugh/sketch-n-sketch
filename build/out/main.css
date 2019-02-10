@@ -1419,9 +1419,13 @@ code {
  * General                                                                    *
  ******************************************************************************/
 
+.example-provider {
+  font-size: 0.9em;
+}
+
 .example-provider > li {
-  margin: 10px;
-  padding: 10px;
+  margin: 5px;
+  padding: 5px;
   list-style-type: none;
   border-bottom: 1px solid var(--main-border-color);
 }
@@ -1431,17 +1435,18 @@ code {
 }
 
 .hole-index-label {
-  font-size: 1.5em;
+  font-size: 1em;
   font-weight: bold;
-  margin-bottom: 10px;
+  margin-bottom: 5px;
 }
 
 .hole-env {
   display: inline-block;
   background-color: rgba(0, 0, 0, 0.05);
   width: 50%;
-  margin-bottom: 10px;
-  padding: 10px;
+  min-height: calc(1em + 10px);
+  margin-bottom: 5px;
+  padding: 5px;
   border: 2px dashed rgba(0, 0, 0, 0.3);
   border-radius: 5px;
 }
@@ -1452,8 +1457,8 @@ code {
 
 .hole-example-input {
   display: inline-block;
-  width: calc(50% - 10px);
-  margin-left: 10px;
+  width: calc(50% - 5px);
+  margin-left: 5px;
   vertical-align: top;
 }
 
@@ -1465,6 +1470,6 @@ code {
 
 .synthesize-button {
   font-size: 1em;
-  padding: 10px;
+  padding: 5px;
   width: 100%;
 }

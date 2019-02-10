@@ -550,7 +550,7 @@ deuceTransformationResult model path deuceTransformation transformationResult =
               case model.unExpOutput of
                 Just output ->
                   ( Nothing
-                  , [ viewExampleProvider holeId output
+                  , [ viewExampleProvider model.holeEnv holeId output
                     ]
                   )
 
@@ -580,75 +580,81 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           False
           []
 
-viewExampleProvider : Lang.HoleId -> UnExp -> Html Msg
-viewExampleProvider holeId output =
-  let
-    typeInformation =
-      Html.li
-        []
-        [ Html.text "Synthesizing expression of type "
-        --, Html.code [] [ Html.text <| LeoUnparser.unparseType tau ]
-        ]
+viewExampleProvider : Types2.HoleEnv -> Lang.HoleId -> UnExp -> Html Msg
+viewExampleProvider holeEnv holeId output =
+  case Types2.holeEnvGet holeId holeEnv of
+    Nothing ->
+      Html.text <|
+        "Cannot find type for holeId " ++ toString holeId
 
-    holes =
-      UnExp.findHoles holeId output
+    Just (_, tau) ->
+      let
+        typeInformation =
+          Html.li
+            [ ]
+            [ Html.text "Synthesizing expression of type "
+            , Html.code [] [ Html.text <| LeoUnparser.unparseType tau ]
+            ]
 
-    viewBinding (identifier, (u, _)) =
-      Html.li
-        [ Attr.class "env-binding"
-        ]
-        [ Html.code
-            []
-            [ Html.text <|
-                identifier ++ " → " ++ UnExp.unparse u
-            ]
-        ]
+        holes =
+          UnExp.findHoles holeId output
 
-    viewHole (index, env) =
-      Html.li
-        []
-        [ Html.div
-            [ Attr.class "hole-index-label"
+        viewBinding (identifier, (u, _)) =
+          Html.li
+            [ Attr.class "env-binding"
             ]
-            [ Html.text <|
-                "Hole " ++ toString index
-            ]
-        , Html.ul
-            [ Attr.class "hole-env"
-            ]
-            ( List.map viewBinding env
-            )
-        , Html.div
-            [ Attr.class "hole-example-input"
-            ]
-            [ Html.input
-                [ Attr.type_ "text"
-                , E.onInput (Controller.msgUpdateExampleInput holeId index env)
-                ]
+            [ Html.code
                 []
+                [ Html.text <|
+                    identifier ++ " → " ++ UnExp.unparse u
+                ]
             ]
-        ]
 
-    synthesizeButton =
-      Html.li
-        []
-        [ Html.button
-            [ Attr.class "synthesize-button"
-            , E.onClick (Controller.msgSynthesizeFromExamples holeId)
+        viewHole (index, env) =
+          Html.li
+            []
+            [ Html.div
+                [ Attr.class "hole-index-label"
+                ]
+                [ Html.text <|
+                    "Hole " ++ toString index
+                ]
+            , Html.ul
+                [ Attr.class "hole-env"
+                ]
+                ( List.map viewBinding env
+                )
+            , Html.div
+                [ Attr.class "hole-example-input"
+                ]
+                [ Html.input
+                    [ Attr.type_ "text"
+                    , E.onInput (Controller.msgUpdateExampleInput holeId index env)
+                    ]
+                    []
+                ]
             ]
-            [ Html.text "Synthesize"
+
+        synthesizeButton =
+          Html.li
+            []
+            [ Html.button
+                [ Attr.class "synthesize-button"
+                , E.onClick (Controller.msgSynthesizeFromExamples holeId)
+                ]
+                [ Html.text "Synthesize"
+                ]
             ]
-        ]
-  in
-    Html.ul
-      [ Attr.class "example-provider"
-      ] <|
-      [ typeInformation
-      ] ++
-      ( List.map viewHole holes
-      ) ++
-      [ synthesizeButton
-      ]
+      in
+        Html.ul
+          [ Attr.class "example-provider"
+          ] <|
+          [ typeInformation
+          ] ++
+          ( List.map viewHole holes
+          ) ++
+          [ synthesizeButton
+          ]
 
 deuceTransformationResults
   : Model -> List Int -> DeuceTransformation -> List TransformationResult -> List (Html Msg)
