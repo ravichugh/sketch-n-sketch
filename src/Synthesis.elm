@@ -129,12 +129,50 @@ guess_ depth gamma tau =
           typePairs
             |> List.map (Tuple.mapFirst eVar0)
             |> List.map (Tuple.mapSecond T.matchArrowRecurse)
-            |> List.map (\(f, mt) -> Maybe.map (\t -> (f, t)) mt)
+            |> List.map Utils.liftMaybePair2
             |> Utils.filterJusts
             |> List.filter (Tuple.second >> arrowMatches)
             |> List.concatMap guessApps
+
+      -- EGuess-Tuple
+      tupleGuesses =
+        let
+          tupleArguments : Type -> Maybe (List Type)
+          tupleArguments t =
+            case unwrapType t of
+              TRecord _ _ keyValues _ ->
+                tupleEncodingUnapply keyValues
+                  |> Maybe.map (List.map Tuple.second)
+
+              _ ->
+                Nothing
+
+          -- Returns list of (n, i) pairs that work
+          extractGet : List Type -> List (Int, Int)
+          extractGet ts =
+            let
+              n =
+                List.length ts
+            in
+              ts
+                |> Utils.zipWithIndex
+                |> List.filter (Tuple.first >> T.typeEquiv gamma tau)
+                |> List.map (\(_, i) -> (n, i + 1)) -- i should be 1-indexed
+
+          makeGets : (Ident, List (Int, Int)) -> List Exp
+          makeGets (ident, getInfos) =
+            List.map
+              (\(n, i) -> Lang.fromTupleGet (n, i, eVar0 ident))
+              getInfos
+        in
+          typePairs
+            |> List.map
+                 (Tuple.mapSecond <| tupleArguments >> Maybe.map extractGet)
+            |> List.map Utils.liftMaybePair2
+            |> Utils.filterJusts
+            |> List.concatMap makeGets
     in
-      variableGuesses ++ appGuesses
+      variableGuesses ++ appGuesses ++ tupleGuesses
 
 guess : T.TypeEnv -> Type -> List Exp
 guess =

@@ -1678,3 +1678,27 @@ withLazyDefault default mx =
 
     Nothing ->
       default ()
+
+--------------------------------------------------------------------------------
+
+liftMaybePair1 : (Maybe a, b) -> Maybe (a, b)
+liftMaybePair1 (ma, b) =
+  Maybe.map (\a -> (a, b)) ma
+
+liftMaybePair2 : (a, Maybe b) -> Maybe (a, b)
+liftMaybePair2 (a, mb) =
+  Maybe.map (\b -> (a, b)) mb
+
+--------------------------------------------------------------------------------
+
+maybeFindBy : (a -> Bool) -> List a -> Maybe a
+maybeFindBy f list =
+  case list of
+    [] ->
+      Nothing
+
+    x :: xs ->
+      if f x then
+        Just x
+      else
+        maybeFindBy f xs
