@@ -1649,3 +1649,32 @@ applyList fs x =
 satisfiesAll : List (a -> Bool) -> a -> Bool
 satisfiesAll predicates =
   applyList predicates >> and
+
+--------------------------------------------------------------------------------
+
+-- If all elements of the list are equal to the first element (say, x), then
+-- return Just x. Otherwise, return Nothing.
+collapseEqual : List a -> Maybe a
+collapseEqual xs =
+  case xs of
+    [] ->
+      Nothing
+
+    x :: xs ->
+      if List.all ((==) x) xs then
+        Just x
+      else
+        Nothing
+
+maybeToList : Maybe a -> List a
+maybeToList =
+  Maybe.map List.singleton >> Maybe.withDefault []
+
+withLazyDefault : (() -> a) -> Maybe a -> a
+withLazyDefault default mx =
+  case mx of
+    Just x ->
+      x
+
+    Nothing ->
+      default ()

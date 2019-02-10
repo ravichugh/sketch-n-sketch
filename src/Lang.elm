@@ -449,6 +449,9 @@ unwrapExp (Expr e) = e.val.e__
 unwrapPat : Pat -> Pat__
 unwrapPat p = p.val.p__
 
+unwrapType : Type -> Type__
+unwrapType t = t.val.t__
+
 type ParensStyle = Parens | LongStringSyntax | LeoSyntax | HtmlSyntax
 
 type alias HoleId = Int
@@ -2380,6 +2383,7 @@ ePlus e1 e2 = eOp Plus [e1, e2]
 eMinus e1 e2 = eOp Minus [e1, e2]
 
 eBool  = withDummyExpInfo << EBase space1 << EBool
+eBool0 = withDummyExpInfo << EBase space0 << EBool
 eStr   = withDummyExpInfo << EBase space1 << EString "\"" -- defaultQuoteChar
 eStr0  = withDummyExpInfo << EBase space0 << EString "\"" -- defaultQuoteChar
 eTrue  = eBool True
@@ -2387,7 +2391,8 @@ eFalse = eBool False
 eNull  = withDummyExpInfo <| EBase space1 <| ENull
 eIf c t e   = withDummyExpInfo <| EIf space0 c space1 t space1 e space0
 
-eApp (Expr e) es = Expr <| withInfo (exp_ <| EApp space1 (Expr e) es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map (\(Expr e_) -> e_.end) |> Maybe.withDefault e.end)
+eApp (Expr e) es  = Expr <| withInfo (exp_ <| EApp space1 (Expr e) es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map (\(Expr e_) -> e_.end) |> Maybe.withDefault e.end)
+eApp0 (Expr e) es = Expr <| withInfo (exp_ <| EApp space0 (Expr e) es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map (\(Expr e_) -> e_.end) |> Maybe.withDefault e.end)
 eCall fName es   = eApp (eVar0 fName) es
 eFun ps e        = withDummyExpInfo <| EFun space1 ps e space0
 eRecord kvs      = withDummyExpInfo <| eRecord__ space1 Nothing (List.map
@@ -4504,3 +4509,42 @@ expandRecEnv recNames closureEnv =
   in
   recEnv2 ++ remainingEnv
 
+--------------------------------------------------------------------------------
+-- Tuple Gets
+--------------------------------------------------------------------------------
+-- Transfers between applications and tuple gets
+
+type alias TupleGet =
+  (Int, Int, Exp)
+
+toTupleGet : Exp -> Maybe TupleGet
+toTupleGet e =
+  case unwrapExp e of
+    EApp _ eFunction eArgs _ _ ->
+      case unwrapExp eFunction of
+        EVar _ x ->
+          case String.split "_" x of
+            [get, nString, iString] ->
+              if get == "get" then
+                case (String.toInt nString, String.toInt iString, eArgs) of
+                  (Ok n, Ok i, [arg]) ->
+                    Just (n, i, arg)
+
+                  _ ->
+                    Nothing
+              else
+                Nothing
+            _ ->
+              Nothing
+        _ ->
+          Nothing
+    _ ->
+      Nothing
+
+fromTupleGet : TupleGet -> Exp
+fromTupleGet (n, i, arg) =
+  let
+    func =
+      eVar0 <| "get_" ++ toString n ++ "_" ++ toString i
+  in
+    eApp0 func [arg]

@@ -121,12 +121,12 @@ example : Parser Example
 example =
   lazy <| \_ ->
     oneOf
-       [ exConstructor
-       , exNum
+       [ exNum
        , exBool
        , exString
        , exTuple
        , exPartialFunction
+       , exConstructor
        ]
 
 parse : String -> Result P.Error Example

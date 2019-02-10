@@ -131,7 +131,7 @@ eval_ env exp =
                     Evaluator.fail "Not a proper application"
               )
 
-          evalTuple n i arg =
+          evalGet (n, i, arg) =
             eval_ env arg |> Evaluator.andThen (\uArg ->
               case uArg of
                 UTuple tupleArgs ->
@@ -150,25 +150,10 @@ eval_ env exp =
                   Evaluator.fail "Not a proper 'get'"
             )
         in
-          case unwrapExp eFunction of
-            EVar _ x ->
-              case String.split "_" x of
-                [get, nString, iString] ->
-                  if get == "get" then
-                    case (String.toInt nString, String.toInt iString, eArgs) of
-                      (Ok n, Ok i, [arg]) ->
-                        evalTuple n i arg
-
-                      _ ->
-                        default ()
-                  else
-                    default ()
-
-                _ ->
-                  default ()
-
-            _ ->
-              default ()
+          exp
+            |> toTupleGet
+            |> Maybe.map evalGet
+            |> Utils.withLazyDefault default
 
       -- E-Match
 

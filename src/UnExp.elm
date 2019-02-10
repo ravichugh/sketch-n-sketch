@@ -192,17 +192,16 @@ unval : Parser UnVal
 unval =
   lazy <| \_ ->
     oneOf
-       [ uvConstructor
-       , uvNum
+       [ uvNum
        , uvBool
        , uvString
        , uvTuple
+       , uvConstructor
        ]
 
-parse : String -> Result P.Error UnVal
-parse =
+parseVal : String -> Result P.Error UnVal
+parseVal =
   run unval
-
 
 --------------------------------------------------------------------------------
 -- Unparsing

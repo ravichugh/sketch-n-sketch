@@ -155,8 +155,32 @@ refine_ depth gamma worlds tau =
         List.filter
           (satisfiesWorlds worlds)
           (guess_ (depth - 1) gamma tau)
+
+      -- IRefine-Constant
+      constantRefinement =
+        let
+          extractConstant ex =
+            case (unwrapType tau, ex) of
+              (TNum _, ExNum n) ->
+                Just <| eConstDummyLoc0 n
+
+              (TBool _, ExBool b) ->
+                Just <| eBool0 b
+
+              (TString _, ExString s) ->
+                Just <| eStr0 s
+
+              _ ->
+                Nothing
+
+        in
+          worlds
+            |> List.map Tuple.second
+            |> Utils.collapseEqual
+            |> Maybe.andThen extractConstant
+            |> Utils.maybeToList
     in
-      guessRefinement
+      guessRefinement ++ constantRefinement
 
 refine : T.TypeEnv -> List World -> Type -> List Exp
 refine =
