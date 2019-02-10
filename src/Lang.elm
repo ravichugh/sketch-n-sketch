@@ -4548,3 +4548,17 @@ fromTupleGet (n, i, arg) =
       eVar0 <| "get_" ++ toString n ++ "_" ++ toString i
   in
     eApp0 func [arg]
+
+--------------------------------------------------------------------------------
+-- Tuple Type Helpers
+--------------------------------------------------------------------------------
+
+tupleTypeArguments : Type -> Maybe (List Type)
+tupleTypeArguments t =
+  case unwrapType t of
+    TRecord _ _ keyValues _ ->
+      tupleEncodingUnapply keyValues
+        |> Maybe.map (List.map Tuple.second)
+
+    _ ->
+      Nothing

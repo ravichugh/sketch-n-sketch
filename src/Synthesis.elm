@@ -137,16 +137,6 @@ guess_ depth gamma tau =
       -- EGuess-Tuple
       tupleGuesses =
         let
-          tupleArguments : Type -> Maybe (List Type)
-          tupleArguments t =
-            case unwrapType t of
-              TRecord _ _ keyValues _ ->
-                tupleEncodingUnapply keyValues
-                  |> Maybe.map (List.map Tuple.second)
-
-              _ ->
-                Nothing
-
           -- Returns list of (n, i) pairs that work
           extractGet : List Type -> List (Int, Int)
           extractGet ts =
@@ -167,7 +157,9 @@ guess_ depth gamma tau =
         in
           typePairs
             |> List.map
-                 (Tuple.mapSecond <| tupleArguments >> Maybe.map extractGet)
+                 ( Tuple.mapSecond <|
+                     Lang.tupleTypeArguments >> Maybe.map extractGet
+                 )
             |> List.map Utils.liftMaybePair2
             |> Utils.filterJusts
             |> List.concatMap makeGets
@@ -217,8 +209,50 @@ refine_ depth gamma worlds tau =
             |> Utils.collapseEqual
             |> Maybe.andThen extractConstant
             |> Utils.maybeToList
+
+      -- IRefine-Tuple
+      tupleRefinement =
+        case tupleTypeArguments tau of
+          Nothing ->
+            []
+
+          Just taus ->
+            let
+              tupleLength : Int
+              tupleLength =
+                List.length taus
+
+              extractArgs : Example -> Maybe (List Example)
+              extractArgs ex =
+                case ex of
+                  ExTuple args ->
+                    -- Check may not be necessary with example typechecking
+                    if List.length args == tupleLength then
+                      Just args
+                    else
+                      Nothing
+
+                  _ ->
+                    Nothing
+
+              (envs, examples) =
+                List.unzip worlds
+            in
+              examples
+                |> List.map extractArgs
+                |> Utils.projJusts
+                |> Maybe.map
+                     ( Utils.transpose
+                         >> List.map (Utils.zip envs)
+                         >> flip
+                              (Utils.zipWith (refine_ (depth - 1) gamma))
+                              taus
+                         >> Utils.oneOfEach
+                         >> List.map eTuple0
+                     )
+                |> Maybe.withDefault []
     in
-      guessRefinement ++ constantRefinement
+      guessRefinement ++ constantRefinement ++ tupleRefinement
 
 refine : T.TypeEnv -> List World -> Type -> List Exp
 refine =
