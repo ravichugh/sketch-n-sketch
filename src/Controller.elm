@@ -3479,6 +3479,7 @@ chooseDeuceExp old newRoot =
   upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
   |> deuceRefresh newRoot
   |> resetDeuceKeyboardInfo
+  |> resetDeuceState
   |> maybeTypeCheckAndUpdateModel
 
 maybeChooseDeuceExp : Model -> Maybe Exp -> Model
@@ -4374,8 +4375,8 @@ msgUpdateExampleInput holeId index env input =
     in
       { model | exampleInputs = newExampleInputs }
 
-msgSynthesizeFromExamples : HoleId -> Msg
-msgSynthesizeFromExamples holeId =
+msgSynthesizeFromExamples : HoleId -> Types2.TypeEnv -> Type -> Msg
+msgSynthesizeFromExamples holeId gamma tau =
   Msg "Synthesize From Examples" <| \model ->
     let
       exampleInputList : List (Int, (UnExp.Env, String))
@@ -4394,53 +4395,19 @@ msgSynthesizeFromExamples holeId =
           exampleInputList
             |> List.map extract
             |> Utils.projOk
-
-      showWorld (index, (env, ex)) =
-        "World " ++ toString index ++ ": \n"
-          ++ "[" ++ UnExp.unparseEnv env ++ "] "
-          ++ toString ex
-
-      output =
-        case worldsResult of
-          Ok worlds ->
-            let
-              worldsOutput =
-                worlds
-                  |> List.map showWorld
-                  |> String.join "\n----------------------------------------\n"
-
-              showGamma gamma =
-                let
-                  typePair : Ident -> Maybe (Ident, Type)
-                  typePair i =
-                    Types2.lookupVar gamma i
-                      |> Maybe.andThen (Maybe.map <| \t -> (i, t))
-                in
-                  gamma
-                    |> Types2.varsOfGamma
-                    |> List.map typePair
-                    |> Utils.filterJusts
-                    |> List.map (\(i, t) -> i ++ " : " ++ LeoUnparser.unparseType t)
-                    |> String.join "\n  "
-
-              synthesisOutput =
-                case Types2.holeEnvGet holeId model.holeEnv of
-                  Just (gamma, tau) ->
-                    Synthesis.refine gamma (List.map Tuple.second worlds) tau
-                      |> List.map LeoUnparser.unparse
-                      |> String.join "\n----------------------------------------\n"
-                      -- View the hole environments for debugging:
-                      -- |> (\s -> s ++ "\n\n[ " ++ showGamma gamma ++ "\n]\n\n" ++ LeoUnparser.unparseType tau)
-                      -- |> (\s -> s ++ "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
-
-                  Nothing ->
-                    "Could not find holeId: " ++ toString holeId
-            in
-              worldsOutput
-                ++ "\n========================================\n"
-                ++ synthesisOutput
-
-          Err err ->
-            ParserUtils.showError err
     in
-      { model | outputMode = HtmlText output }
+      case worldsResult of
+        Err err ->
+          { model
+              | outputMode =
+                  HtmlText <| ParserUtils.showError err
+              , holeFilling =
+                  Dict.empty
+          }
+
+        Ok worlds ->
+          { model
+              | holeFilling =
+                  Synthesis.refine gamma (List.map Tuple.second worlds) tau
+                    |> Dict.singleton holeId
+          }

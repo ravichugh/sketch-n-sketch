@@ -4563,3 +4563,23 @@ tupleTypeArguments t =
 
     _ ->
       Nothing
+
+--------------------------------------------------------------------------------
+-- Hole Filling
+--------------------------------------------------------------------------------
+
+fillHole : HoleId -> Exp -> Exp -> Exp
+fillHole holeIdToReplace newExp =
+  let
+    replacer e =
+      case unwrapExp e of
+        EHole _ (EEmptyHole holeId) ->
+          if holeId == holeIdToReplace then
+            newExp
+          else
+            e
+
+        _ ->
+          e
+  in
+    mapExp replacer

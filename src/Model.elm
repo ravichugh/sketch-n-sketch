@@ -233,6 +233,7 @@ type alias Model =
   , unExpOutput : Maybe UnExp
   , exampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
   , holeEnv : Types2.HoleEnv
+  , holeFilling : Dict HoleId (List Exp)
   }
 
 type OutputMode
@@ -1528,4 +1529,5 @@ initModel =
     , unExpOutput = Nothing
     , exampleInputs = Dict.empty
     , holeEnv = Types2.emptyHoleEnv
+    , holeFilling = Dict.empty
     }

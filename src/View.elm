@@ -550,7 +550,7 @@ deuceTransformationResult model path deuceTransformation transformationResult =
               case model.unExpOutput of
                 Just output ->
                   ( Nothing
-                  , [ viewExampleProvider model.holeEnv holeId output
+                  , [ viewExampleProvider model holeId output
                     ]
                   )
 
@@ -580,18 +580,19 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           False
           []
 
-viewExampleProvider : Types2.HoleEnv -> Lang.HoleId -> UnExp -> Html Msg
-viewExampleProvider holeEnv holeId output =
-  case Types2.holeEnvGet holeId holeEnv of
+viewExampleProvider : Model -> Lang.HoleId -> UnExp -> Html Msg
+viewExampleProvider model holeId output =
+  case Types2.holeEnvGet holeId model.holeEnv of
     Nothing ->
       Html.text <|
         "Cannot find type for holeId " ++ toString holeId
 
-    Just (_, tau) ->
+    Just (gamma, tau) ->
       let
         typeInformation =
           Html.li
-            [ ]
+            [ Attr.class "tri-type-info"
+            ]
             [ Html.text "Synthesizing expression of type "
             , Html.code [] [ Html.text <| LeoUnparser.unparseType tau ]
             ]
@@ -601,7 +602,7 @@ viewExampleProvider holeEnv holeId output =
 
         viewBinding (identifier, u) =
           Html.li
-            [ Attr.class "env-binding"
+            [ Attr.class "tri-env-binding"
             ]
             [ Html.code
                 []
@@ -614,18 +615,18 @@ viewExampleProvider holeEnv holeId output =
           Html.li
             []
             [ Html.div
-                [ Attr.class "hole-index-label"
+                [ Attr.class "tri-hole-label"
                 ]
                 [ Html.text <|
                     "Hole " ++ toString index
                 ]
             , Html.ul
-                [ Attr.class "hole-env"
+                [ Attr.class "tri-hole-env"
                 ]
                 ( List.map viewBinding env
                 )
             , Html.div
-                [ Attr.class "hole-example-input"
+                [ Attr.class "tri-hole-example-input"
                 ]
                 [ Html.input
                     [ Attr.type_ "text"
@@ -637,24 +638,63 @@ viewExampleProvider holeEnv holeId output =
 
         synthesizeButton =
           Html.li
-            []
+            [ Attr.class "tri-synthesize" ]
             [ Html.button
-                [ Attr.class "synthesize-button"
-                , E.onClick (Controller.msgSynthesizeFromExamples holeId)
+                [ E.onClick <|
+                    Controller.msgSynthesizeFromExamples holeId gamma tau
                 ]
                 [ Html.text "Synthesize"
                 ]
             ]
+
+        results =
+          let
+            viewResult exp =
+              Html.li
+                [ Attr.class "tri-result"
+                ]
+                [ Html.button
+                    [ E.onClick <|
+                        Controller.msgChooseDeuceExp
+                          ""
+                          (Lang.fillHole holeId exp model.inputExp)
+                    ]
+                    [ Html.code
+                        []
+                        [ Html.text <| LeoUnparser.unparse exp
+                        ]
+                    ]
+                ]
+          in
+            model.holeFilling
+              |> Dict.get holeId
+              |> Maybe.map (List.map viewResult)
+              |> Maybe.withDefault []
+
+        resultsSection =
+          if List.length results > 0 then
+            [ Html.li
+                [ Attr.class "tri-results-header" ]
+                [ Html.span
+                    []
+                    [ Html.text "Results"
+                    ]
+                ]
+            ] ++
+            results
+          else
+            []
       in
         Html.ul
-          [ Attr.class "example-provider"
+          [ Attr.class "tri-example-provider"
           ] <|
           [ typeInformation
           ] ++
           ( List.map viewHole holes
           ) ++
           [ synthesizeButton
-          ]
+          ] ++
+          resultsSection
 
 deuceTransformationResults
   : Model -> List Int -> DeuceTransformation -> List TransformationResult -> List (Html Msg)

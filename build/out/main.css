@@ -1416,60 +1416,73 @@ code {
 }
 
 /******************************************************************************
- * General                                                                    *
+ * Example Provider                                                           *
  ******************************************************************************/
 
-.example-provider {
+.tri-example-provider {
   font-size: 0.9em;
 }
 
-.example-provider > li {
+.tri-example-provider > li {
   margin: 5px;
-  padding: 5px;
   list-style-type: none;
-  border-bottom: 1px solid var(--main-border-color);
 }
 
-.example-provider > li:last-child {
-  border: none;
-}
-
-.hole-index-label {
+.tri-hole-label,
+.tri-results-header
+{
   font-size: 1em;
   font-weight: bold;
   margin-bottom: 5px;
 }
 
-.hole-env {
+.tri-type-info {
+  border-bottom: 1px solid var(--main-border-color);
+}
+
+.tri-hole-env {
   display: inline-block;
   background-color: rgba(0, 0, 0, 0.05);
   width: 50%;
   min-height: calc(1em + 10px);
-  margin-bottom: 5px;
   padding: 5px;
   border: 2px dashed rgba(0, 0, 0, 0.3);
   border-radius: 5px;
 }
 
-.hole-env > li {
+.tri-hole-env > li {
   list-style-type: none;
 }
 
-.hole-example-input {
+.tri-hole-example-input {
   display: inline-block;
   width: calc(50% - 5px);
   margin-left: 5px;
   vertical-align: top;
 }
 
-.hole-example-input input {
+.tri-hole-example-input input {
   width: 100%;
   font-size: 1em;
   padding: 3px;
 }
 
-.synthesize-button {
+.tri-synthesize button {
   font-size: 1em;
   padding: 5px;
   width: 100%;
+}
+
+.tri-results-header {
+  border-top: 1px solid var(--main-border-color);
+}
+
+.tri-result {
+  list-style-type: none;
+}
+
+.tri-result button {
+  width: 100%;
+  padding: 5px;
+  text-align: left;
 }
