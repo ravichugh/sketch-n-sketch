@@ -3480,7 +3480,6 @@ chooseDeuceExp old newRoot =
   |> deuceRefresh newRoot
   |> resetDeuceKeyboardInfo
   |> resetDeuceState
-  |> (\m -> { m | holeFilling = Dict.empty })
   |> maybeTypeCheckAndUpdateModel
 
 maybeChooseDeuceExp : Model -> Maybe Exp -> Model
@@ -3526,6 +3525,7 @@ resetDeuceState m =
                             else {dx=0, dy=0}
                 }
           }
+      , holeFilling = Dict.empty
       }
 
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
