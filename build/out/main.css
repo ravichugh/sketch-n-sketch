@@ -1437,6 +1437,8 @@ code {
 }
 
 .tri-type-info {
+  display: block;
+  padding-bottom: 5px;
   border-bottom: 1px solid var(--main-border-color);
 }
 
@@ -1474,6 +1476,8 @@ code {
 }
 
 .tri-results-header {
+  display: block;
+  padding-top: 5px;
   border-top: 1px solid var(--main-border-color);
 }
 

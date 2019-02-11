@@ -3480,6 +3480,7 @@ chooseDeuceExp old newRoot =
   |> deuceRefresh newRoot
   |> resetDeuceKeyboardInfo
   |> resetDeuceState
+  |> (\m -> { m | holeFilling = Dict.empty })
   |> maybeTypeCheckAndUpdateModel
 
 maybeChooseDeuceExp : Model -> Maybe Exp -> Model
