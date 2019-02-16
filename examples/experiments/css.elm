@@ -34,6 +34,7 @@ displayComputedStyles selector =
 main = Html.forceRefresh <|
   <div>
   <h1>Style updater</h1>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/MikaelMayer/lossless-css-parser@d4d64a4a87f64606794a47ab58428900556c56dc/losslesscss.js"></script>
   @(List.map (\content -> <style>@content</style>) styleSheets)
   <div class="wrapperdiv" title="div.wrapperdiv">
   Hello <span style=@inlineStyle id="testspan" class="colored" title="span#testspan.colored">World</span>!
@@ -71,25 +72,27 @@ specialfilterMap f l = List.map f l |> removeFinalNothings |> List.filter (\x ->
 
 -- Transforms a text style into an list of (ws0, selector, ws1, list of [ws0, key, ws1, ws2, value, ws3])
 parseStyle: String -> StyleSheet
-parseStyle styleText =
-  Regex.splitReverse "}" """\}""" styleText
-  |> List.filterMap (\str ->
-    case Regex.extract """^(\s*)([^\{]+?)(\s*)\{([\s\S]*)$""" str of
-      Just [ws0, selector, ws1, attrs] ->
-        --let selectorList = Regex.split """\s*,\s*""" selectors in
-        let attrList =
-              Regex.splitReverse ";" ";" attrs
-              |> specialfilterMap ( -- filterMap might align a Nothing with an inserted Just (e.g. when inserting), so it's better to handle the back-propagation ourselves.
-                Update.lens {
-                  apply = Regex.extract """^(\s*)([^:]+?)(\s*):(\s*)([\s\S]*?)(\s*)$"""
-                  update {input=str, outputNew, outputOld} =
-                    case outputNew of
-                    Just [ws1,k,ws2,ws3,v,ws4] -> Ok <| Inputs [ws1 + k + ws2 + ":" + ws3 + v + ws4]
-                    Nothing -> Ok <| Inputs <| [str]
-                })
-        in Just (ws0, selector, ws1, attrList)
-      Nothing -> Nothing
-  )
+parseStyle = Update.lens {
+     apply styleText = __jsEval__ """typeof losslesscssjs != "undefined" ? new losslesscssjs().parseCSS(@(jsCode.stringOf styleText)) : []"""
+     unapply x = Ok (Inputs [unparseCSS x])
+     unparseCSS x =
+       List.map (case of
+         { wsBefore, selector, wsBeforeValue, value, wsBeforeAndSemicolon} ->
+           wsBefore + selector + wsBeforeValue + value + wsBeforeAndSemicolon;
+         { wsBefore, selector, wsBeforeAtNameValue, atNameValue,
+           wsBeforeOpeningBrace, content, wsBeforeClosingBrace } ->
+           wsBefore + selector + wsBeforeAtNameValue + atNameValue +
+           wsBeforeOpeningBrace + "{" + unparseCSS content + wsBeforeClosingBrace + "}"
+         { wsBefore, selector, wsBeforeOpeningBrace,
+            rules, wsBeforeClosingBrace} ->
+           wsBefore + selector + wsBeforeOpeningBrace + "{" + 
+           (List.map (case of
+             {wsBefore, directive, wsBeforeColon, wsBeforeValue, value, wsSemicolon} ->
+             wsBefore + directive + wsBeforeColon + ":" + wsBeforeValue + value + wsSemicolon
+           ) rules |> String.join "") + wsBeforeClosingBrace + "}"
+         { ws } -> ws
+       ) outputNew |> String.join ""
+  }
 
 elementOf selector = 
   """document.querySelector(@(jsCode.stringOf selector))"""
@@ -154,53 +157,65 @@ type alias WeightedStyle = (Key, (Weight, Value))
 -- * If adding a style that was never obtained from element or parents, should add it to all possible selectors that match the element. If possible, close to the previously added element?
 appliedStyles: StyleSheet -> Element -> List WeightedStyle
 appliedStyles styles element =
-  List.foldl (\(ws0, selector, ws1, keyValues) acc ->
-    let toKeyWeightValue weight
-          [ws2, key, ws3, ws4, value, ws5] =
-             (key, (weight, value))
-    in
-    let thisWeight = selectorWeight element selector in
-    let process w ([[ws2, key, ws3, ws4, value, ws5]] as concKeyValue) acc = 
-          let realWeight =
-             if Regex.matchIn "!important" value then weight.important w else w
+  let addTopLevel styleElem acc =
+       if styleElem.kind == "@media" then
+          if __jsEval__ """window.matchMedia(@(jsCode.stringOf styleElem.atNameValue))""" then
+            List.foldl addTopLevel acc styleElem.content
+          else
+            acc
+       else if styleElem.kind == "cssBlock" then
+        let { wsBefore=ws0, selector, wsBeforeOpeningBrace=ws1,
+              rules=keyValues, wsBeforeClosingBrace=ws2 } = styleElem in
+        let toKeyWeightValue weight
+              {wsBefore=ws2, directive=key, wsBeforeColon=ws3, wsBeforeValue=ws4, value, wsSemicolon=ws5} =
+                 (key, (weight, value))
+        in
+        let thisWeight = selectorWeight element selector in
+        let process w ([{wsBefore=ws2, directive=key, wsBeforeColon=ws3,
+                         wsBeforeValue=ws4, value, wsSemicolon=ws5}] as concKeyValue) acc = 
+              let realWeight =
+                 if Regex.matchIn "!important" value then weight.important w else w
+              in
+              case listDict.get key acc of
+                Just (prevWeight, prevValue) ->
+                  if prevWeight > realWeight then
+                    acc
+                  else
+                    listDict.insert2 (List.map (toKeyWeightValue realWeight) concKeyValue) acc
+                Nothing -> 
+                  listDict.insert2 (List.map (toKeyWeightValue realWeight) concKeyValue) acc
+            processElement = process thisWeight
+        in
+        if matches element selector then
+          let result =
+                List.foldl2 processElement acc keyValues
           in
-          case listDict.get key acc of
-            Just (prevWeight, prevValue) ->
-              if prevWeight > realWeight then
-                acc
-              else
-                listDict.insert2 (List.map (toKeyWeightValue realWeight) concKeyValue) acc
-            Nothing -> 
-              listDict.insert2 (List.map (toKeyWeightValue realWeight) concKeyValue) acc
-        processElement = process thisWeight
-    in
-    if matches element selector then
-      let result =
-            List.foldl2 processElement acc keyValues
-      in
-      propagate (always True) result keyValues
-    else 
-      let mbParent = parentMatch (\countName varName -> 
-           jsCode.datatypeOf "v" "Just" [jsCode.stringOf(element) + """ + '.parentNode'.repeat(@countName)"""]
-         ) (jsCode.datatypeOf "v" "Nothing" []) element selector
-      in
-      case mbParent of
-        Nothing -> acc
-        Just parent ->
-          let processAncestor = process (selectorWeight parent selector |> weight.inherited) in
-          let result = 
-            List.foldl2 (\(((_ :: key :: _)::keyTail) as keyValue) acc ->
-              if isInheritable key then
-                processAncestor keyValue acc
-              else
-                acc 
-            ) acc keyValues
+          propagate (always True) result keyValues
+        else 
+          let mbParent = parentMatch (\countName varName -> 
+               jsCode.datatypeOf "v" "Just" [jsCode.stringOf(element) + """ + '.parentNode'.repeat(@countName)"""]
+             ) (jsCode.datatypeOf "v" "Nothing" []) element selector
           in
-          propagate isInheritable result keyValues
-  ) (Update.freezeWhen True (\_ -> "No place where to modify the rule") []) styles
+          case mbParent of
+            Nothing -> acc
+            Just parent ->
+              let processAncestor = process (selectorWeight parent selector |> weight.inherited) in
+              let result = 
+                List.foldl2 (\([{wsBefore=ws2, directive=key, wsBeforeColon=ws3, wsBeforeValue=ws4, value, wsSemicolon=ws5}] as keyValue) acc ->
+                  if isInheritable key then
+                    processAncestor keyValue acc
+                  else
+                    acc 
+                ) acc keyValues
+              in
+              propagate isInheritable result keyValues
+       else acc -- Unsupported block (whitespace, keyframes)
+  in
+  List.foldl addTopLevel (Update.freezeWhen True (\_ -> "No place where to modify the rule") []) styles
 
 propagate isKeyAdmissible =
-  Update.lens2 { -- We gather all inserted elements elsewhere and insert them directly at the end of keyValues as one solution.
+  Update.lens2 {
+      -- We gather all inserted elements elsewhere and insert them directly at the end of keyValues as one solution.
       -- Deleted elements are deleted from keyValues if there were there.
     apply (result, kvs) = result
     update ({input=(result, keyValues), outputOld, outputNew, diffs} as uInput) =
@@ -213,7 +228,8 @@ propagate isKeyAdmissible =
          onUpdate (ls, ds, kvs) {newOutput, index, diffs} =
            Ok [(ls ++ [newOutput], ds ++ [(index, ListElemUpdate diffs)], kvs)]
          onRemove (ls, ds, kvs) {oldOutput=(key, (weight, value)) as oldOutput, index} =
-           let newKvs = List.filter (\(_ :: key2 :: _ :: _ :: value2 :: _) -> key2 /= key || value2 /= value) kvs in
+           let newKvs = List.filter (\{wsBefore=ws2, directive=key2, wsBeforeColon=ws3,
+                         wsBeforeValue=ws4, value=value2, wsSemicolon=ws5} -> key2 /= key || value2 /= value) kvs in
            let delayedSolution =
                  [(ls, ds ++ [(index, ListElemDelete 1)], kvs)] in
            if List.length newKvs /= List.length kvs && isKeyAdmissible key then
@@ -225,12 +241,14 @@ propagate isKeyAdmissible =
               [(ls ++ [newoutput], ds ++ [(index, ListElemInsert 1)], kvs)]
            in
            let (ws0, ws1, ws2, ws3) = case List.last kvs of
-             Just [ws0, _, ws1, ws2, _, ws3] -> (ws0, ws1, ws2, ws3)
+             Just {wsBefore=ws0, directive=_, wsBeforeColon=ws1,
+                   wsBeforeValue=ws2, value=_, wsSemicolon=ws3} -> (ws0, ws1, ws2, ws3)
              Nothing -> ("\n  ", "", " ", "")
            in
            Ok (delayedSolution ++ (
              if isKeyAdmissible key then
-               [(ls, ds, kvs ++ [[ws0, key, ws1, ws2, value, ws3]])]
+               [(ls, ds, kvs ++ [{wsBefore=ws0, directive=key, wsBeforeColon=ws1,
+                   wsBeforeValue=ws2, value=value, wsSemicolon=ws3}])]
              else
                []))
          onFinish x = Ok [x]
