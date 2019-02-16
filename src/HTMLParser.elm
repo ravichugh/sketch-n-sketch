@@ -401,8 +401,15 @@ parseHTMLInner parsingMode untilEndTagNames =
     Raw -> "[a-zA-Z]"
     _ -> "[a-zA-Z@]"
   in
-  let regexToParseUntil = Regex.regex <| "<" ++ tagNameStarts++"|&|<\\?|<!|</|$" ++ maybeBreakOnAt ++
-    (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "") in
+  let regexToParseUntil =
+        Regex.regex <|
+        if List.head untilEndTagNames == Just "script" then
+        "</script>|&" ++ maybeBreakOnAt
+        else if List.head untilEndTagNames == Just "style" then
+        "</style>|&" ++ maybeBreakOnAt
+        else   "<" ++ tagNameStarts++"|&|<\\?|<!|</|$" ++ maybeBreakOnAt ++
+            (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "")
+   in
   inContext "Inner HTML" <|
   trackInfo <|
   oneOf [
@@ -503,9 +510,11 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
 parseNode: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
 parseNode parsingMode surroundingTagNames namespace =
   oneOf <|
-    let defaultParsers = [
-      parseHTMLElement parsingMode surroundingTagNames namespace,
-      parseHTMLComment,
+    let defaultParsers =
+      (if List.head surroundingTagNames == Just "script" || List.head surroundingTagNames == Just "style"  then
+         [] else [ parseHTMLElement parsingMode surroundingTagNames namespace,
+           parseHTMLComment
+         ]) ++ [
       parseHTMLEntity False surroundingTagNames |> map (\entity -> case entity.val of
          Err x -> replaceInfo entity <| HTMLInner x
          Ok (rendered, raw) -> replaceInfo entity <| HTMLEntity rendered raw),

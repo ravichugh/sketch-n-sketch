@@ -5526,5 +5526,8 @@ browser = {
     
 }
 
+media = "media" -- For compatibility with <style>
+keyframes = "keyframes"
+
 -- The type checker relies on the name of this definition.
 let dummyPreludeMain = ["svg", [], []] in dummyPreludeMain
