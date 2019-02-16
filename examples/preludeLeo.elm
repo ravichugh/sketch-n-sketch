@@ -5526,8 +5526,11 @@ browser = {
     
 }
 
-media = "media" -- For compatibility with <style>
-keyframes = "keyframes"
+media = "@media" -- For compatibility with <style>
+keyframes = "@keyframes"
+font = "@font"
+import = "@import"
+charSet = "@charSet"
 
 -- The type checker relies on the name of this definition.
 let dummyPreludeMain = ["svg", [], []] in dummyPreludeMain
