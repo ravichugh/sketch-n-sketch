@@ -22,7 +22,7 @@ styleSheets = ["""
   }
   """,
   Update.freezeExcept (always "inline style") inlineStyle <| \inlineStyle ->
-  """#outputCanvas span /*inline*/ {@inlineStyle}"""]
+  """#outputCanvas /*inline*/ span {@inlineStyle}"""]
 
 parsedStyle = List.concatMap parseStyle styleSheets
 
@@ -150,7 +150,7 @@ selectorWeight element selectors =
       )
       |> List.foldl (\f acc -> f acc) 0
     else 0
-  ) |> List.foldl max 0
+  ) |> List.foldl max 0 |> Debug.log selectors
 
 type alias WeightedStyle = (Key, (Weight, Value))
 
