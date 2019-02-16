@@ -6,6 +6,7 @@ module LeoUnparser exposing
   , unparseLongStringContent
   , unparseHtmlTextContent
   , unparseAnyHtml
+  , HtmlInterpolationStyle(..)
   )
 
 import Lang exposing (..)
@@ -677,7 +678,7 @@ unparse e =
             ++ "\"\"\""
         HtmlSyntax ->
           wsBefore.val
-            ++ unparseHtmlNode False innerExpression
+            ++ unparseHtmlNode Interpolated innerExpression
         LeoSyntax ->
            -- We just unparse the inner expression as regular parentheses
            -- This is normally never called from here.
@@ -853,13 +854,13 @@ noInterpolationConflict varString rightString =
 ------------------------
 dummyExp = withDummyExpInfo <| EApp space0 (eVar "x") [] SpaceApp space0
 
-unparseHtmlAttributes: Bool -> Exp -> String
-unparseHtmlAttributes isRaw attrExp =
+unparseHtmlAttributes: HtmlInterpolationStyle -> Exp -> String
+unparseHtmlAttributes interpolationStyle attrExp =
   case eListUnapply attrExp of
     Just attrs ->
       attrs |> List.map (\attr -> case unwrapExp attr of
         EList attrNameSpace [(atEncoded, attrName), (spBeforeEq, attrValue)] spAfterEq Nothing _ ->
-          let atAfterEqual = if atEncoded.val == " " && not isRaw then "@" else ""  in
+          let atAfterEqual = if atEncoded.val == " " && interpolationStyle /= Raw then "@" else ""  in
           let beforeSpace = if attrNameSpace.val == "" then " " else attrNameSpace.val in
           case unwrapExp attrName of
             EBase _ (EString _ attrNameStr) ->
@@ -869,7 +870,7 @@ unparseHtmlAttributes isRaw attrExp =
               in
               let default () =
                 let defaultValue () = unparse attrValueToConsider in
-                let value = if isRaw && attrNameStr == "style" then -- Get rid of lists if the name is style
+                let value = if interpolationStyle == Raw && attrNameStr == "style" then -- Get rid of lists if the name is style
                      case unwrapExp  attrValueToConsider of
                        EList _ elems _ _ _ ->
                          let resUnparsed =
@@ -934,26 +935,26 @@ unparseHtmlAttributes isRaw attrExp =
     Nothing -> case (unwrapExp attrExp) of
       EApp sp _ [e1, e2] _ _ -> case eAppUnapply2 e1 of
         Just (_, eleft, e) ->
-          unparseHtmlAttributes isRaw eleft ++ sp.val ++ "@" ++ unparse e ++ unparseHtmlAttributes isRaw e2
+          unparseHtmlAttributes interpolationStyle eleft ++ sp.val ++ "@" ++ unparse e ++ unparseHtmlAttributes interpolationStyle e2
         Nothing -> " @("++unparse attrExp++")"
       _ -> " @("++unparse attrExp++")"
 
-unparseHtmlChildList: Bool -> Exp -> String
-unparseHtmlChildList isRaw childExp =
+unparseHtmlChildList: HtmlInterpolationStyle -> Exp -> String
+unparseHtmlChildList interpolationStyle childExp =
   case eListUnapply childExp of
     Just children ->
-      children |> List.map (unparseHtmlNode isRaw) |> String.join ""
+      children |> List.map (unparseHtmlNode interpolationStyle) |> String.join ""
     Nothing ->
       case unwrapExp childExp of
         EApp _ v [ex] SpaceApp _ ->
           case unwrapExp v of
             EVar _ "__mergeHtmlText__" ->
-              unparseHtmlChildList isRaw ex
+              unparseHtmlChildList interpolationStyle ex
             _ -> "@(" ++ unparse childExp ++ ")"
         EApp _ _ [e1, eRight] _ _ ->
           case unwrapExp e1 of
             EApp _ _ [eLeft, eToRenderwrapped] _ _ ->
-              let rightRendered = unparseHtmlChildList isRaw eRight in
+              let rightRendered = unparseHtmlChildList interpolationStyle eRight in
               let mbEntity = case unwrapExp eToRenderwrapped of
                 EApp  _ _ [entityRendered, entity] _ _ -> --  __htmlEntity__
                    case unwrapExp entity of
@@ -963,35 +964,54 @@ unparseHtmlChildList isRaw childExp =
               in
               case mbEntity of
                 Just entity ->
-                  unparseHtmlChildList isRaw eLeft ++ entity ++ rightRendered -- No interpolation for entities
+                  unparseHtmlChildList interpolationStyle eLeft ++ entity ++ rightRendered -- No interpolation for entities
                 Nothing ->
                   let interpolated = case unwrapExp eToRenderwrapped of
                     EApp  _ _ [eToRender] _ _ -> unparse eToRender -- __mbwraphtmlnode__
                     _ ->                         unparse eToRenderwrapped
                   in
                   if noInterpolationConflict interpolated rightRendered then
-                    unparseHtmlChildList isRaw eLeft ++ "@" ++ interpolated ++ rightRendered
+                    unparseHtmlChildList interpolationStyle eLeft ++ "@" ++ interpolated ++ rightRendered
                   else
-                    unparseHtmlChildList isRaw eLeft ++ "@(" ++ interpolated ++ ")" ++ rightRendered
+                    unparseHtmlChildList interpolationStyle eLeft ++ "@(" ++ interpolated ++ ")" ++ rightRendered
             _  -> "@(" ++ unparse childExp ++ ")"
         _  -> "@(" ++ unparse childExp ++ ")"
 
 htmlContentRegexEscape = Regex.regex <| "@"
 
 regexExcape = Regex.regex "&(?=\\w+)|<(?!\\s)|>(?!\\s)"
+regexEscapeScript = Regex.regex "&(?=\\w+)|</script"
+regexEscapeStyle = Regex.regex "&(?=\\w+)|</style"
 
-unparseHtmlTextContent isRaw content =
+unparseHtmlTextContent: HtmlInterpolationStyle -> String -> String
+unparseHtmlTextContent style content =
   content |>
-  (if isRaw then identity else Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@")) |>
-  Regex.replace Regex.All regexExcape (\m -> case m.match of
-    "&" -> "&amp;"
-    "<" -> "&lt;"
-    ">" -> "&gt;"
-    _ -> m.match
-  )
+  (if style == Raw then identity else Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@")) |>
+  (if style == Raw then identity
+   else if style == ScriptInterpolated then
+     Regex.replace Regex.All regexEscapeScript (\m -> case m.match of
+         "&" -> "&amp;"
+         "</script" -> "&lt;/script"
+         _ -> m.match
+       )
+   else if style == StyleInterpolated then
+     Regex.replace Regex.All regexEscapeScript (\m -> case m.match of
+         "&" -> "&amp;"
+         "</style" -> "&lt;/style"
+         _ -> m.match
+       )
+   else
+      Regex.replace Regex.All regexExcape (\m -> case m.match of
+        "&" -> "&amp;"
+        "<" -> "&lt;"
+        ">" -> "&gt;"
+        _ -> m.match
+      ))
 
-unparseHtmlNode: Bool -> Exp -> String
-unparseHtmlNode isRaw e = case (unwrapExp e) of
+type HtmlInterpolationStyle = Interpolated | Raw | ScriptInterpolated | StyleInterpolated
+
+unparseHtmlNode: HtmlInterpolationStyle -> Exp -> String
+unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
   EList unparseData [(_, typ), (_, content)] _ Nothing _ ->
     case unwrapExp typ of
       EBase _ (EString _ "COMMENT") ->
@@ -1019,10 +1039,10 @@ unparseHtmlNode isRaw e = case (unwrapExp e) of
 
       _ -> -- EBase _ (EString _ "TEXT") ->
         case unwrapExp content of
-          EBase _ (EString _ content) -> unparseHtmlTextContent isRaw content
+          EBase _ (EString _ content) -> unparseHtmlTextContent interpolationStyle content
           EParens _ subExpr LongStringSyntax _ ->
             case unwrapExp subExpr of
-               EBase _ (EString _ content) -> unparseHtmlTextContent isRaw content
+               EBase _ (EString _ content) -> unparseHtmlTextContent interpolationStyle content
                x -> "@[" ++ unparse e ++ "]"
           EVar _ varname -> "@" ++ varname
           x -> "@[" ++ unparse e ++ "]"
@@ -1031,8 +1051,14 @@ unparseHtmlNode isRaw e = case (unwrapExp e) of
           EBase _ (EString _ content) -> (content, content)
           _ -> ("@" ++ unparse tagExp, "@")
     in
-    let newIsRaw = isRaw || tagStart == "raw" in
-    "<" ++ tagStart ++ unparseHtmlAttributes isRaw attrExp ++spaceBeforeEndOpeningTag.val ++ (
+    let newIsRaw = if interpolationStyle == Raw then Raw else
+         case tagStart of
+          "raw" -> Raw
+          "script" -> ScriptInterpolated
+          "style" -> StyleInterpolated
+          _ -> interpolationStyle
+    in
+    "<" ++ tagStart ++ unparseHtmlAttributes interpolationStyle attrExp ++spaceBeforeEndOpeningTag.val ++ (
       if spaceBeforeTail.val == LeoParser.encoding_autoclosing then
         "/>"
       else if spaceBeforeTail.val == LeoParser.encoding_voidclosing then
@@ -1053,25 +1079,29 @@ unparseAnyHtml e =
   case (unwrapExp e) of
     EList _ [(_, text), (_, content)] _ Nothing _ ->
       case eStrUnapply text of
-        Just "TEXT" -> unparseHtmlNode False e
-        Just "COMMENT" -> unparseHtmlNode False e
+        Just "TEXT" -> unparseHtmlNode Interpolated e
+        Just "COMMENT" -> unparseHtmlNode Interpolated e
         Just _ -> -- It's an attribute
-          unparseHtmlAttributes False (eList [e] Nothing)
+          unparseHtmlAttributes Interpolated (eList [e] Nothing)
         Nothing -> unparse e
     EList _ [(_, tag), (_, attr), (_, children)] _ Nothing _ ->
       case eStrUnapply tag of
         Just tagStr -> -- Just to make sure the second is a list
           case eListUnapply attr of
-            Just _ ->  unparseHtmlNode (tagStr == "raw") e
+            Just _ ->  unparseHtmlNode (case tagStr of
+              "raw" -> Raw
+              "script" -> ScriptInterpolated
+              "style" -> StyleInterpolated
+              _ -> Interpolated) e
             Nothing -> case eAppUnapply2 attr of
               Just  (fun, left, right) -> case eVarUnapply fun of
-                Just "++" ->  unparseHtmlNode False e
+                Just "++" ->  unparseHtmlNode Interpolated e
                 _ -> unparse e
               _ -> unparse e
         Nothing -> case (unwrapExp tag) of
-          EParens _ inner LeoSyntax _-> unparseHtmlNode False e
+          EParens _ inner LeoSyntax _-> unparseHtmlNode Interpolated e
           _ -> unparse e
-    _ -> unparseHtmlChildList False e
+    _ -> unparseHtmlChildList Interpolated e
 
 -- Return an integer if the exp is an operator with a precedence, or Nothing if it is always self-contained
 getExpPrecedence: Exp -> Maybe Int
