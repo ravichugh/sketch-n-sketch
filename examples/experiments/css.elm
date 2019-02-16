@@ -5,9 +5,11 @@ styleSheets = ["""
     background: #FF8;
     color: green;
   }
-  #outputCanvas span {
-    color: red !important;
-    outline: black 1px solid;
+  @@media screen {
+    #outputCanvas span {
+      color: red !important;
+      outline: black 1px solid;
+    }
   }
   #outputCanvas h1 + div.wrapperdiv {
     color: purple;
@@ -74,13 +76,13 @@ specialfilterMap f l = List.map f l |> removeFinalNothings |> List.filter (\x ->
 parseStyle: String -> StyleSheet
 parseStyle = Update.lens {
      apply styleText = __jsEval__ """typeof losslesscssjs != "undefined" ? new losslesscssjs().parseCSS(@(jsCode.stringOf styleText)) : []"""
-     unapply x = Ok (Inputs [unparseCSS x])
+     update {outputNew} = Ok (Inputs [unparseCSS outputNew])
      unparseCSS x =
        List.map (case of
          { wsBefore, selector, wsBeforeValue, value, wsBeforeAndSemicolon} ->
-           wsBefore + selector + wsBeforeValue + value + wsBeforeAndSemicolon;
+           wsBefore + selector + wsBeforeValue + value + wsBeforeAndSemicolon
          { wsBefore, selector, wsBeforeAtNameValue, atNameValue,
-           wsBeforeOpeningBrace, content, wsBeforeClosingBrace } ->
+           wsBeforeOpeningBrace, content, wsBeforeClosingBrace =wsBeforeClosingBrace} ->
            wsBefore + selector + wsBeforeAtNameValue + atNameValue +
            wsBeforeOpeningBrace + "{" + unparseCSS content + wsBeforeClosingBrace + "}"
          { wsBefore, selector, wsBeforeOpeningBrace,
@@ -90,8 +92,8 @@ parseStyle = Update.lens {
              {wsBefore, directive, wsBeforeColon, wsBeforeValue, value, wsSemicolon} ->
              wsBefore + directive + wsBeforeColon + ":" + wsBeforeValue + value + wsSemicolon
            ) rules |> String.join "") + wsBeforeClosingBrace + "}"
-         { ws } -> ws
-       ) outputNew |> String.join ""
+         { ws =ws} -> ws
+       ) x |> String.join ""
   }
 
 elementOf selector = 
@@ -159,7 +161,7 @@ appliedStyles: StyleSheet -> Element -> List WeightedStyle
 appliedStyles styles element =
   let addTopLevel styleElem acc =
        if styleElem.kind == "@media" then
-          if __jsEval__ """window.matchMedia(@(jsCode.stringOf styleElem.atNameValue))""" then
+          if __jsEval__ """window.matchMedia(@(jsCode.stringOf styleElem.atNameValue)).matches""" then
             List.foldl addTopLevel acc styleElem.content
           else
             acc
