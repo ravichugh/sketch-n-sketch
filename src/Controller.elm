@@ -867,7 +867,7 @@ tryRun old =
 
           resultString =
             result
-              |> Result.map UnExp.unparse
+              |> Result.map (UnExp.unparse >> UnExp.getData >> .val)
               |> Result.mapError (\s -> "[Error] " ++ s)
               |> Utils.fromResult
         in

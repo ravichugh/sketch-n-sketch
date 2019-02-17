@@ -1,7 +1,7 @@
 module State exposing
   ( State
-  , map, andThen, pure, get, put, run
-  , sequence, mapM
+  , map, andThen, pure, get, put, modify, run
+  , do, sequence, mapM
   )
 
 import Utils
@@ -47,11 +47,20 @@ put newState =
   S <| \s ->
     ((), newState)
 
+modify : (s -> s) -> State s ()
+modify f =
+  get
+    |> andThen (f >> put)
+
 run : s -> State s a -> (a, s)
 run s (S state) =
   state s
 
 -- Library
+
+do : State s a -> (a -> State s b) -> State s b
+do =
+  flip andThen
 
 sequence : List (State s a) -> State s (List a)
 sequence states =

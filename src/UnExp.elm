@@ -2,6 +2,7 @@ module UnExp exposing
   ( Env
   , UnExp(..)
   , UnVal(..)
+  , getData
   , asExp, asValue
   , unval
   , unparseEnv, unparse
@@ -19,6 +20,9 @@ import ParserUtils exposing (..)
 
 import Lang exposing (Exp, Ident, HoleId, Num)
 import LeoUnparser
+
+import Pos exposing (Pos, startPos, posFromRowCol)
+import Info exposing (WithInfo, withInfo)
 
 import Utils
 
@@ -52,6 +56,43 @@ type UnVal
   | UVString String
   | UVTuple (List UnVal)
   | UVFunClosure Env (List Ident) {- Type -} Exp
+
+--------------------------------------------------------------------------------
+-- Extra Data
+--------------------------------------------------------------------------------
+
+getData : UnExp d -> d
+getData u =
+  case u of
+    UConstructor d _ _ ->
+      d
+
+    UNum d _ ->
+      d
+
+    UBool d _ ->
+      d
+
+    UString d _ ->
+      d
+
+    UTuple d _ ->
+      d
+
+    UFunClosure d _ _ _ ->
+      d
+
+    UHoleClosure d _ _ ->
+      d
+
+    UApp d _ _ ->
+      d
+
+    UGet d _ _ _ ->
+      d
+
+    UCase d _ _ _ ->
+      d
 
 --------------------------------------------------------------------------------
 -- Value Conversion
@@ -213,69 +254,212 @@ unparseEnv =
   let
     showBinding : (Ident, UnExp d) -> String
     showBinding (i, u) =
-      i ++ " → " ++ unparse u
+      i ++ " → " ++ (unparse u |> getData |> .val)
   in
     List.map showBinding >> String.join ", "
 
-unparse : UnExp d -> String
-unparse u =
-  case u of
-    UConstructor _ name uArg ->
-      name ++ " " ++ unparse uArg
-
-    UNum _ n ->
-      toString n
-
-    UBool _ b ->
-      if b then "True" else "False"
-
-    UString _ s ->
-      "\"" ++ s ++ "\""
-
-    UTuple _ us ->
-      "("
-        ++ String.join ", " (List.map unparse us)
-        ++ ")"
-
-    UFunClosure _ env args body ->
+unparse : UnExp d -> UnExp (WithInfo String)
+unparse =
+  let
+    eatString : String -> State Pos ()
+    eatString s =
       let
-        argsString =
-          String.join ", " args
+        lines =
+          String.split "\n" s
+
+        newLineCount =
+          List.length lines - 1
+
+        lastLineLength =
+          -- String.split always returns a non-empty list
+          lines
+            |> Utils.last_
+            |> String.length
       in
-        "["
-          ++ unparseEnv env
-          ++ "] λ"
-          ++ argsString
-          ++ " ."
-          ++ LeoUnparser.unparse body
+        if List.length lines > 1 then
+          State.modify
+            ( \{line, col} ->
+                { line = line + newLineCount
+                , col = lastLineLength
+                }
+            )
+        else
+          State.modify
+            ( \{line, col} ->
+                { line = line + newLineCount
+                , col = col + lastLineLength
+                }
+            )
 
-    UHoleClosure _ env (i, j) ->
-      "[" ++ unparseEnv env ++ "] ??(" ++ toString i ++ ", " ++ toString j ++ ")"
+    basic : String -> ((WithInfo String) -> UnExp (WithInfo String)) -> State Pos (UnExp (WithInfo String))
+    basic s uFunc =
+      State.do State.get <| \startPos ->
+      State.do (eatString s) <| \_ ->
+      State.do State.get <| \endPos ->
+      State.pure <|
+        uFunc (withInfo s startPos endPos)
 
-    UApp _ uFunction uArgs ->
-      let
-        parens u beginning =
-          "(" ++ beginning ++ ") " ++ unparse u
-      in
-        List.foldl parens (unparse uFunction) uArgs
+    unparseHelper : UnExp d -> State Pos (UnExp (WithInfo String))
+    unparseHelper u =
+      flip State.andThen State.get <| \startPos ->
+        case u of
+          UConstructor _ name uArg ->
+            State.do (eatString <| name ++ " ") <| \_ ->
+            State.do (unparseHelper uArg) <| \uArgWithInfo ->
+            State.pure <|
+              let
+                argInfo =
+                  getData uArgWithInfo
+              in
+                UConstructor
+                  ( withInfo
+                      (name ++ " " ++ argInfo.val)
+                      startPos
+                      argInfo.end
+                  )
+                  name
+                  uArgWithInfo
 
-    UGet _ n i uTuple ->
-      "get_" ++ toString n ++ "_" ++ toString i ++ " " ++ unparse uTuple
+          UNum _ n ->
+            let
+              nString =
+                toString n
+            in
+              basic nString (flip UNum n)
 
-    UCase _ env u0 branches ->
-      let
-        unparseBranch (constructorName, varName, body) =
-          constructorName
-            ++ " "
-            ++ varName ++ " →"
-            ++ LeoUnparser.unparse body
-      in
-        "["
-          ++ unparseEnv env
-          ++ "] case "
-          ++ unparse u0
-          ++ " of "
-          ++ String.join " " (List.map unparseBranch branches)
+          UBool _ b ->
+            let
+              bString =
+                if b then "True" else "False"
+            in
+              basic bString (flip UBool b)
+
+          UString _ s ->
+            let
+              sString =
+                "\"" ++ s ++ "\""
+            in
+              basic sString (flip UString s)
+
+          UTuple _ us ->
+            let
+              entry u =
+                unparseHelper u
+                  |> State.andThen (\_ -> eatString ", ")
+            in
+              State.do (eatString "(") <| \_ ->
+              State.do (State.mapM unparseHelper us) <| \usWithInfo ->
+              State.do (eatString ")") <| \_ ->
+              -- Un-eat final comma+space
+              State.do (State.modify (\pos -> {pos | col = pos.col - 2})) <| \_ ->
+              State.do State.get <| \endPos ->
+              State.pure <|
+                let
+                  innerString =
+                    usWithInfo
+                      |> List.map (getData >> .val)
+                      |> String.join ", "
+                in
+                  UTuple
+                    (withInfo ("(" ++ innerString ++ ")") startPos endPos)
+                    usWithInfo
+
+          UFunClosure _ env args body ->
+            let
+              argsString =
+                String.join ", " args
+
+              unparsedString =
+                "["
+                  ++ unparseEnv env
+                  ++ "] λ"
+                  ++ argsString
+                  ++ " ."
+                  ++ LeoUnparser.unparse body
+            in
+              basic unparsedString (\w -> UFunClosure w env args body)
+
+          UHoleClosure _ env (i, j) ->
+            let
+              unparsedString =
+                "["
+                  ++ unparseEnv env
+                  ++ "] ??("
+                  ++ toString i
+                  ++ ", "
+                  ++ toString j
+                  ++ ")"
+            in
+              basic unparsedString (\w -> UHoleClosure w env (i, j))
+
+          UApp _ uFunction uArgs ->
+            let
+              entry u =
+                State.do (eatString " (") <| \_ ->
+                State.do (unparseHelper u) <| \uWithInfo ->
+                State.do (eatString ")") <| \_ ->
+                State.pure
+                  uWithInfo
+            in
+              State.do (unparseHelper uFunction) <| \uFunctionWithInfo ->
+              State.do (State.mapM unparseHelper uArgs) <| \uArgsWithInfo ->
+              State.do State.get <| \endPos ->
+              State.pure <|
+                let
+                  argString =
+                    uArgsWithInfo
+                      |> List.map (\u -> " (" ++ (getData u).val ++ ")")
+                      |> String.concat
+                in
+                  UApp
+                    ( withInfo
+                        ((getData uFunctionWithInfo).val ++ argString)
+                        startPos
+                        endPos
+                    )
+                    uFunctionWithInfo
+                    uArgsWithInfo
+
+          UGet _ n i uTuple ->
+            let
+              funcName =
+                "get_" ++ toString n ++ "_" ++ toString i
+            in
+              State.do (eatString <| funcName ++ " ") <| \_ ->
+              State.do (unparseHelper uTuple) <| \uTupleWithInfo ->
+              State.pure <|
+                let
+                  tupleInfo =
+                    getData uTupleWithInfo
+                in
+                  UGet
+                    ( withInfo
+                        (funcName ++ " " ++ tupleInfo.val)
+                        startPos
+                        tupleInfo.end
+                    )
+                    n
+                    i
+                    uTupleWithInfo
+
+          UCase _ env u0 branches ->
+            -- TODO
+            Debug.crash "Case not supported"
+--            let
+--              unparseBranch (constructorName, varName, body) =
+--                constructorName
+--                  ++ " "
+--                  ++ varName ++ " →"
+--                  ++ LeoUnparser.unparse body
+--            in
+--              "["
+--                ++ unparseEnv env
+--                ++ "] case "
+--                ++ unparse u0
+--                ++ " of "
+--                ++ String.join " " (List.map unparseBranch branches)
+  in
+    unparseHelper >> State.run startPos >> Tuple.first
 
 --------------------------------------------------------------------------------
 -- Generic Library

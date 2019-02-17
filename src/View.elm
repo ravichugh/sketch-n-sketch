@@ -607,7 +607,9 @@ viewExampleProvider model holeId output =
             [ Html.code
                 []
                 [ Html.text <|
-                    identifier ++ " → " ++ UnExp.unparse u
+                    identifier
+                      ++ " → "
+                      ++ (UnExp.unparse u |> UnExp.getData |> .val)
                 ]
             ]
 
