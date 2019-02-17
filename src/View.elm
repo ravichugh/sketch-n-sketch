@@ -580,7 +580,7 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           False
           []
 
-viewExampleProvider : Model -> Lang.HoleId -> UnExp -> Html Msg
+viewExampleProvider : Model -> Lang.HoleId -> UnExp d -> Html Msg
 viewExampleProvider model holeId output =
   case Types2.holeEnvGet holeId model.holeEnv of
     Nothing ->

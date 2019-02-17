@@ -30,19 +30,20 @@ type alias HoleIndex =
   (HoleId, Int)
 
 type alias Env =
-  List (Ident, UnExp)
+  List (Ident, UnExp ())
 
-type UnExp
-  = UConstructor Ident UnExp
-  | UNum Num
-  | UBool Bool
-  | UString String
-  | UTuple (List UnExp)
-  | UFunClosure Env (List Ident) {- Type -} Exp
-  | UHoleClosure Env HoleIndex
-  | UApp UnExp (List UnExp)
-  | UGet Int Int UnExp
-  | UCase Env UnExp (List (Ident, Ident, Exp))
+-- The d is for extra data
+type UnExp d
+  = UConstructor d Ident (UnExp d)
+  | UNum d Num
+  | UBool d Bool
+  | UString d String
+  | UTuple d (List (UnExp d))
+  | UFunClosure d Env (List Ident) {- Type -} Exp
+  | UHoleClosure d Env HoleIndex
+  | UApp d (UnExp d) (List (UnExp d))
+  | UGet d Int Int (UnExp d)
+  | UCase d Env (UnExp d) (List (Ident, Ident, Exp))
 
 type UnVal
   = UVConstructor Ident UnVal
@@ -56,65 +57,65 @@ type UnVal
 -- Value Conversion
 --------------------------------------------------------------------------------
 
-asExp : UnVal -> UnExp
+asExp : UnVal -> UnExp ()
 asExp v =
   case v of
     UVConstructor ident arg ->
-      UConstructor ident (asExp arg)
+      UConstructor () ident (asExp arg)
 
     UVNum n ->
-      UNum n
+      UNum () n
 
     UVBool b ->
-      UBool b
+      UBool () b
 
     UVString s ->
-      UString s
+      UString () s
 
     UVTuple args ->
-      UTuple (List.map asExp args)
+      UTuple () (List.map asExp args)
 
     UVFunClosure env params body ->
-      UFunClosure env params body
+      UFunClosure () env params body
 
-asValue : UnExp -> Maybe UnVal
+asValue : UnExp d -> Maybe UnVal
 asValue u =
   case u of
-    UConstructor ident arg ->
+    UConstructor _ ident arg ->
       Maybe.map (UVConstructor ident) (asValue arg)
 
-    UNum n ->
+    UNum _ n ->
       Just <|
         UVNum n
 
-    UBool b ->
+    UBool _ b ->
       Just <|
         UVBool b
 
-    UString s ->
+    UString _ s ->
       Just <|
         UVString s
 
-    UTuple args ->
+    UTuple _ args ->
       args
         |> List.map asValue
         |> Utils.projJusts
         |> Maybe.map UVTuple
 
-    UFunClosure env params body ->
+    UFunClosure _ env params body ->
       Just <|
         UVFunClosure env params body
 
-    UHoleClosure _ _ ->
+    UHoleClosure _ _ _ ->
       Nothing
 
-    UApp _ _ ->
+    UApp _ _ _ ->
       Nothing
 
-    UGet _ _ _ ->
+    UGet _ _ _ _ ->
       Nothing
 
-    UCase _ _ _ ->
+    UCase _ _ _ _ ->
       Nothing
 
 --------------------------------------------------------------------------------
@@ -210,33 +211,33 @@ parseVal =
 unparseEnv : Env -> String
 unparseEnv =
   let
-    showBinding : (Ident, UnExp) -> String
+    showBinding : (Ident, UnExp d) -> String
     showBinding (i, u) =
       i ++ " → " ++ unparse u
   in
     List.map showBinding >> String.join ", "
 
-unparse : UnExp -> String
+unparse : UnExp d -> String
 unparse u =
   case u of
-    UConstructor name uArg ->
+    UConstructor _ name uArg ->
       name ++ " " ++ unparse uArg
 
-    UNum n ->
+    UNum _ n ->
       toString n
 
-    UBool b ->
+    UBool _ b ->
       if b then "True" else "False"
 
-    UString s ->
+    UString _ s ->
       "\"" ++ s ++ "\""
 
-    UTuple us ->
+    UTuple _ us ->
       "("
         ++ String.join ", " (List.map unparse us)
         ++ ")"
 
-    UFunClosure env args body ->
+    UFunClosure _ env args body ->
       let
         argsString =
           String.join ", " args
@@ -248,20 +249,20 @@ unparse u =
           ++ " ."
           ++ LeoUnparser.unparse body
 
-    UHoleClosure env (i, j) ->
+    UHoleClosure _ env (i, j) ->
       "[" ++ unparseEnv env ++ "] ??(" ++ toString i ++ ", " ++ toString j ++ ")"
 
-    UApp uFunction uArgs ->
+    UApp _ uFunction uArgs ->
       let
         parens u beginning =
           "(" ++ beginning ++ ") " ++ unparse u
       in
         List.foldl parens (unparse uFunction) uArgs
 
-    UGet n i uTuple ->
+    UGet _ n i uTuple ->
       "get_" ++ toString n ++ "_" ++ toString i ++ " " ++ unparse uTuple
 
-    UCase env u0 branches ->
+    UCase _ env u0 branches ->
       let
         unparseBranch (constructorName, varName, body) =
           constructorName
@@ -280,81 +281,81 @@ unparse u =
 -- Generic Library
 --------------------------------------------------------------------------------
 
-statefulMap : (UnExp -> State s UnExp) -> UnExp -> State s UnExp
+statefulMap : (UnExp d -> State s (UnExp d)) -> UnExp d -> State s (UnExp d)
 statefulMap f u =
   flip State.andThen (f u) <| \uNew ->
     case uNew of
-      UConstructor ident arg ->
-        State.map (UConstructor ident) (statefulMap f arg)
+      UConstructor d ident arg ->
+        State.map (UConstructor d ident) (statefulMap f arg)
 
-      UNum n ->
-        State.pure <| UNum n
+      UNum d n ->
+        State.pure <| UNum d n
 
-      UBool b ->
-        State.pure <| UBool b
+      UBool d b ->
+        State.pure <| UBool d b
 
-      UString s ->
-        State.pure <| UString s
+      UString d s ->
+        State.pure <| UString d s
 
-      UTuple args ->
-        State.map UTuple (State.mapM (statefulMap f) args)
+      UTuple d args ->
+        State.map (UTuple d) (State.mapM (statefulMap f) args)
 
-      UFunClosure env params body ->
-        State.pure <| UFunClosure env params body
+      UFunClosure d env params body ->
+        State.pure <| UFunClosure d env params body
 
-      UHoleClosure env holeIndex ->
-        State.pure <| UHoleClosure env holeIndex
+      UHoleClosure d env holeIndex ->
+        State.pure <| UHoleClosure d env holeIndex
 
-      UApp uFunction uArgs ->
+      UApp d uFunction uArgs ->
         flip State.andThen (statefulMap f uFunction) <| \newFunction ->
-          State.map (UApp newFunction) (State.mapM (statefulMap f) uArgs)
+          State.map (UApp d newFunction) (State.mapM (statefulMap f) uArgs)
 
-      UGet n i uTuple ->
-        State.map (UGet n i) (statefulMap f uTuple)
+      UGet d n i uTuple ->
+        State.map (UGet d n i) (statefulMap f uTuple)
 
-      UCase env uScrutinee branches ->
+      UCase d env uScrutinee branches ->
         State.map
-          (\newScrutinee -> UCase env newScrutinee branches)
+          (\newScrutinee -> UCase d env newScrutinee branches)
           (statefulMap f uScrutinee)
 
-map : (UnExp -> UnExp) -> UnExp -> UnExp
+map : (UnExp d -> UnExp d) -> UnExp d -> UnExp d
 map f =
   statefulMap (f >> State.pure) >> State.run () >> Tuple.first
 
-children : UnExp -> List UnExp
+children : UnExp d -> List (UnExp d)
 children u =
   case u of
-    UConstructor _ arg ->
+    UConstructor _ _ arg ->
       [arg]
 
-    UNum _ ->
+    UNum _ _ ->
       []
 
-    UBool _ ->
+    UBool _ _ ->
       []
 
-    UString _ ->
+    UString _ _ ->
       []
 
-    UTuple args ->
+    UTuple _ args ->
       args
 
-    UFunClosure _ _ _ ->
+    UFunClosure _ _ _ _ ->
       []
 
-    UHoleClosure _ _ ->
+    UHoleClosure _ _ _ ->
       []
 
-    UApp uFunction uArgs ->
+    UApp _ uFunction uArgs ->
       uFunction :: uArgs
 
-    UGet _ _ uTuple ->
+    UGet _ _ _ uTuple ->
       [uTuple]
 
-    UCase _ uScrutinee _ ->
+    UCase _ _ uScrutinee _ ->
       [uScrutinee]
 
-flatten : UnExp -> List UnExp
+flatten : UnExp d -> List (UnExp d)
 flatten u =
   u :: List.concatMap flatten (children u)
 
@@ -362,12 +363,12 @@ flatten u =
 -- Additional Functions
 --------------------------------------------------------------------------------
 
-findHoles : HoleId -> UnExp -> List (Int, Env)
+findHoles : HoleId -> UnExp d -> List (Int, Env)
 findHoles targetHoleId =
   let
     extract u =
       case u of
-        UHoleClosure env (holeId, index) ->
+        UHoleClosure d env (holeId, index) ->
           if holeId == targetHoleId then
             [(index, env)]
           else

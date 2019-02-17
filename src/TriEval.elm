@@ -22,7 +22,7 @@ type alias EvalState =
   {}
 
 type alias UnExpEvaluator =
-  Evaluator EvalState String UnExp
+  Evaluator EvalState String (UnExp ())
 
 --------------------------------------------------------------------------------
 -- Core Evaluation
@@ -37,7 +37,8 @@ identifierFromPat p =
     _ ->
       Nothing
 
-bindingEval : UnExp.Env -> Exp -> List Ident -> List UnExp -> UnExpEvaluator
+bindingEval :
+  UnExp.Env -> Exp -> List Ident -> List (UnExp ()) -> UnExpEvaluator
 bindingEval currentEnv body parameters arguments =
   let
     envExtension =
@@ -55,7 +56,7 @@ bindingEval currentEnv body parameters arguments =
     case compare argLength paramLength of
       LT ->
         Evaluator.succeed <|
-          UFunClosure newEnv (List.drop argLength parameters) body
+          UFunClosure () newEnv (List.drop argLength parameters) body
 
       EQ ->
         eval_ newEnv body
@@ -74,19 +75,19 @@ eval_ env exp =
 
       EConst _ n _ _ ->
         Evaluator.succeed <|
-          UNum n
+          UNum () n
 
       EBase _ baseVal ->
         Evaluator.succeed <|
           case baseVal of
             EBool b ->
-              UBool b
+              UBool () b
 
             EString _ s ->
-              UString s
+              UString () s
 
             ENull ->
-              UString "null"
+              UString () "null"
 
       -- E-Lambda
 
@@ -95,7 +96,7 @@ eval_ env exp =
           |> List.map identifierFromPat
           |> Utils.projJusts
           |> Result.fromMaybe "Non-identifier pattern in function"
-          |> Result.map (\vars -> UFunClosure env vars body)
+          |> Result.map (\vars -> UFunClosure () env vars body)
           |> Evaluator.fromResult
 
       -- E-Var
@@ -117,12 +118,13 @@ eval_ env exp =
             in
               eval_ env eFunction |> Evaluator.andThen (\uFunction ->
                 case uFunction of
-                  UFunClosure functionEnv parameters body ->
+                  UFunClosure _ functionEnv parameters body ->
                     uArgs
-                      |> Evaluator.andThen (bindingEval functionEnv body parameters)
+                      |> Evaluator.andThen
+                           (bindingEval functionEnv body parameters)
 
-                  UHoleClosure _ _ ->
-                    Evaluator.map (UApp uFunction) uArgs
+                  UHoleClosure _ _ _ ->
+                    Evaluator.map (UApp () uFunction) uArgs
 
                   _ ->
                     Evaluator.fail "Not a proper application"
@@ -131,7 +133,7 @@ eval_ env exp =
           evalGet (n, i, arg) =
             eval_ env arg |> Evaluator.andThen (\uArg ->
               case uArg of
-                UTuple tupleArgs ->
+                UTuple _ tupleArgs ->
                   case Utils.maybeGeti1 i tupleArgs of
                     Just returnValue ->
                       Evaluator.succeed returnValue
@@ -139,9 +141,9 @@ eval_ env exp =
                     Nothing ->
                       Evaluator.fail "Out of bounds index for 'get'"
 
-                UHoleClosure _ _ ->
+                UHoleClosure _ _ _ ->
                   Evaluator.succeed <|
-                    UGet n i uArg
+                    UGet () n i uArg
 
                 _ ->
                   Evaluator.fail "Not a proper 'get'"
@@ -163,7 +165,7 @@ eval_ env exp =
         case hole of
           EEmptyHole holeId ->
             Evaluator.succeed <|
-              UHoleClosure env (holeId, -1)
+              UHoleClosure () env (holeId, -1)
 
           _ ->
             Evaluator.fail "Unsupported hole type"
@@ -220,7 +222,7 @@ eval_ env exp =
               Just tupleEntries ->
                 tupleEntries
                   |> Evaluator.mapM (Tuple.second >> eval_ env)
-                  |> Evaluator.map UTuple
+                  |> Evaluator.map (UTuple ())
 
               Nothing ->
                 Evaluator.fail "Arbitrary records not supported"
@@ -235,13 +237,13 @@ eval_ env exp =
 -- Additional Pipeline Operations
 --------------------------------------------------------------------------------
 
-setHoleIndexes : UnExp -> UnExp
+setHoleIndexes : UnExp d -> UnExp d
 setHoleIndexes =
   let
-    holeSetter : UnExp -> State (Dict HoleId Int) UnExp
+    holeSetter : UnExp d -> State (Dict HoleId Int) (UnExp d)
     holeSetter u =
       case u of
-        UHoleClosure env (holeId, holeIndex) ->
+        UHoleClosure d env (holeId, holeIndex) ->
           flip State.andThen State.get <| \indexMap ->
             let
               freshHoleIndex =
@@ -255,7 +257,7 @@ setHoleIndexes =
                   indexMap
             in
               flip State.map (State.put newIndexMap) <| \_ ->
-                UHoleClosure env (holeId, freshHoleIndex)
+                UHoleClosure d env (holeId, freshHoleIndex)
 
         _ ->
           State.pure u
@@ -266,13 +268,13 @@ setHoleIndexes =
 -- Full Evaluation
 --------------------------------------------------------------------------------
 
-evalWithEnv : UnExp.Env -> Exp -> Result String UnExp
+evalWithEnv : UnExp.Env -> Exp -> Result String (UnExp ())
 evalWithEnv env =
   eval_ env
     >> Evaluator.run {}
     >> Result.map Tuple.first
     >> Result.map setHoleIndexes
 
-eval : Exp -> Result String UnExp
+eval : Exp -> Result String (UnExp ())
 eval =
   evalWithEnv []
