@@ -1712,3 +1712,14 @@ curry f x y =
 uncurry : (a -> b -> c) -> (a, b) -> c
 uncurry f (x, y) =
   f x y
+
+--------------------------------------------------------------------------------
+
+isOk : Result e a -> Bool
+isOk r =
+  case r of
+    Ok _ ->
+      True
+
+    Err _ ->
+      False

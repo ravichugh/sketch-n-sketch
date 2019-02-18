@@ -3259,7 +3259,7 @@ exampleProviderTool model selections =
     "exampleProvider"
     "Provide Example"
     ( \_ holeExp ->
-        if model.unExpOutput /= Nothing then
+        if Utils.isOk model.unExpOutput then
           case unwrapExp holeExp of
             EHole _ (EEmptyHole holeId) ->
               NoInputDeuceTransform <| \_ ->

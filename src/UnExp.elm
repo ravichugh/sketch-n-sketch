@@ -5,9 +5,9 @@ module UnExp exposing
   , getData
   , asExp, asValue
   , unval
-  , unparseEnv, unparse
+  , unparseEnv, unparse, unparseSimple
   , statefulMap, map, children, flatten
-  , findHoles
+  , findHoles, findHoleEId
   )
 
 import Char
@@ -254,7 +254,7 @@ unparseEnv =
   let
     showBinding : (Ident, UnExp d) -> String
     showBinding (i, u) =
-      i ++ " → " ++ (unparse u |> getData |> .val)
+      i ++ " → " ++ unparseSimple u
   in
     List.map showBinding >> String.join ", "
 
@@ -461,6 +461,10 @@ unparse =
   in
     unparseHelper >> State.run startPos >> Tuple.first
 
+unparseSimple : UnExp d -> String
+unparseSimple =
+  unparse >> getData >> .val
+
 --------------------------------------------------------------------------------
 -- Generic Library
 --------------------------------------------------------------------------------
@@ -564,3 +568,23 @@ findHoles targetHoleId =
     flatten
       >> List.concatMap extract
       >> List.sortBy Tuple.first
+
+findHoleEId : Exp -> UnExp d -> Maybe Lang.EId
+findHoleEId ast u =
+  let
+    holeMatches idToMatch e =
+      case Lang.unwrapExp e of
+        Lang.EHole _ (Lang.EEmptyHole id) ->
+          id == idToMatch
+
+        _ ->
+          False
+  in
+    case u of
+      UHoleClosure _ _ (i, _) ->
+        ast
+          |> Lang.findFirstNode (holeMatches i)
+          |> Maybe.map Lang.expEId
+
+      _ ->
+        Nothing

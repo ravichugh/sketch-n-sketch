@@ -30,6 +30,8 @@ import ExamplesGenerated as Examples
 import Deuce
 import DeuceTools
 
+import UnDeuce
+
 import OutputTools exposing (OutputTool)
 
 import Layout exposing (px, half)
@@ -548,13 +550,13 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           case sr of
             ExampleProvider holeId ->
               case model.unExpOutput of
-                Just output ->
+                Ok output ->
                   ( Nothing
                   , [ viewExampleProvider model holeId output
                     ]
                   )
 
-                Nothing ->
+                Err _ ->
                   ( Nothing
                   , []
                   )
@@ -609,7 +611,7 @@ viewExampleProvider model holeId output =
                 [ Html.text <|
                     identifier
                       ++ " → "
-                      ++ (UnExp.unparse u |> UnExp.getData |> .val)
+                      ++ UnExp.unparseSimple u
                 ]
             ]
 
@@ -1841,40 +1843,76 @@ outputPanel model =
     canvasDim =
       Layout.outputCanvas model
     output =
-      case (model.errorBox, model.outputMode, model.preview) of
-        (_, _, Just (_, _, Err errorMsg)) ->
-          [textOutput errorMsg]
-        (_, _, Just (_, _, Ok _)) ->
-          Canvas.build canvasDim model
-        (Just errorMsg, _, Nothing) ->
-          [textOutput errorMsg]
-        (Nothing, HtmlText rawHtml, Nothing) ->
-          [ Html.textarea
-              [ E.onInput Controller.msgUpdateHTMLEditor
-              , Attr.class "text-output"
-              ]
-              [ Html.text (Maybe.withDefault rawHtml model.htmlEditorString) ]
-          ]
-        (Nothing, ValueText, _) ->
-{-
-          [ Html.div
+      case model.unExpOutput of
+        Ok output ->
+          let
+            unparsedOutput =
+              UnExp.unparse output
+
+            unparsedString =
+              unparsedOutput
+                |> UnExp.getData
+                |> .val
+          in
+            [ Html.code
+                []
+                [ Html.text unparsedString
+                ]
+            , UnDeuce.overlay
+                { onClick =
+                    UnExp.findHoleEId model.inputExp
+                      >> Maybe.map
+                           ( DeuceWidgets.DeuceExp
+                               >> Controller.msgMouseClickDeuceWidget
+                           )
+                      >> Maybe.withDefault Controller.msgNoop
+                , onMouseOver = \_ -> Controller.msgNoop
+                , onMouseOut = \_ -> Controller.msgNoop
+                }
+                unparsedOutput
+            ]
+
+        Err errorMessage ->
+          [ Html.code
               []
-              [ Html.text <|
-                  "Make some edits."
-                    ++ if valueEditorNeedsCallUpdate model
-                         then " Now pick a new program from the pop-up menu."
-                         else ""
+              [ Html.text errorMessage
               ]
-          , Html.textarea
--}
-          [ Html.textarea
-              [ E.onInput Controller.msgUpdateValueEditor
-              , Attr.class "text-output"
-              ]
-              [ Html.text model.valueEditorString ]
           ]
-        (Nothing, _, _) ->
-          Canvas.build canvasDim model
+
+--      case (model.errorBox, model.outputMode, model.preview) of
+--        (_, _, Just (_, _, Err errorMsg)) ->
+--          [textOutput errorMsg]
+--        (_, _, Just (_, _, Ok _)) ->
+--          Canvas.build canvasDim model
+--        (Just errorMsg, _, Nothing) ->
+--          [textOutput errorMsg]
+--        (Nothing, HtmlText rawHtml, Nothing) ->
+--          [ Html.textarea
+--              [ E.onInput Controller.msgUpdateHTMLEditor
+--              , Attr.class "text-output"
+--              ]
+--              [ Html.text (Maybe.withDefault rawHtml model.htmlEditorString) ]
+--          ]
+--        (Nothing, ValueText, _) ->
+--{-
+--          [ Html.div
+--              []
+--              [ Html.text <|
+--                  "Make some edits."
+--                    ++ if valueEditorNeedsCallUpdate model
+--                         then " Now pick a new program from the pop-up menu."
+--                         else ""
+--              ]
+--          , Html.textarea
+---}
+--          [ Html.textarea
+--              [ E.onInput Controller.msgUpdateValueEditor
+--              , Attr.class "text-output"
+--              ]
+--              [ Html.text model.valueEditorString ]
+--          ]
+--        (Nothing, _, _) ->
+--          Canvas.build canvasDim model
     outputPanelWarning =
       Html.div
         [ Attr.class "output-panel-warning"
@@ -1895,7 +1933,7 @@ outputPanel model =
           , ("width", (px << .width) <| Layout.outputPanel model)
           , ("height", (px << .height) <| Layout.outputPanel model)
           ]
-      ]
+      ] <|
       [ Html.div
           --
           -- Always create this div --- even when it's just showing a
@@ -1917,7 +1955,7 @@ outputPanel model =
           , onRightClickPreventDefault False Controller.msgNoop
           ]
           output
-      , outputPanelWarning
+      -- , outputPanelWarning
       ]
 
 --------------------------------------------------------------------------------

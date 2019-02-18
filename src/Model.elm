@@ -230,7 +230,7 @@ type alias Model =
   , doTypeChecking : Bool
   , isDeuceTextBoxFocused : Bool
   , needsToFocusOn : Maybe String
-  , unExpOutput : Maybe (UnExp ())
+  , unExpOutput : Result String (UnExp ())
   , exampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
   , holeEnv : Types2.HoleEnv
   , holeFilling : Dict HoleId (List Exp)
@@ -1526,7 +1526,7 @@ initModel =
     , doTypeChecking = True
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
-    , unExpOutput = Nothing
+    , unExpOutput = Err ""
     , exampleInputs = Dict.empty
     , holeEnv = Types2.emptyHoleEnv
     , holeFilling = Dict.empty

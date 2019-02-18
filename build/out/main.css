@@ -1490,3 +1490,24 @@ code {
   padding: 5px;
   text-align: left;
 }
+
+/******************************************************************************
+ * Output Panel for UnExps                                                    *
+ ******************************************************************************/
+
+.output-panel > div {
+}
+
+#outputCanvas > svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.deuce-unexp-poly {
+  opacity: 0;
+}
+
+.deuce-unexp-poly:hover {
+  opacity: 0.5;
+}

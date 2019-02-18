@@ -864,22 +864,10 @@ tryRun old =
         let
           result =
             TriEval.eval parsedExp
-
-          resultString =
-            result
-              |> Result.map (UnExp.unparse >> UnExp.getData >> .val)
               |> Result.mapError (\s -> "[Error] " ++ s)
-              |> Utils.fromResult
         in
           Ok
-            { old
-                | outputMode =
-                    HtmlText resultString
-                , errorBox =
-                    Nothing
-                , unExpOutput =
-                    Result.toMaybe result
-            }
+            { old | unExpOutput = result }
 
 {-
         let
