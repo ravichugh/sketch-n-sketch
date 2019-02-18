@@ -1858,18 +1858,27 @@ outputPanel model =
                 []
                 [ Html.text unparsedString
                 ]
-            , UnDeuce.overlay
-                { onClick =
-                    UnExp.findHoleEId model.inputExp
-                      >> Maybe.map
-                           ( DeuceWidgets.DeuceExp
-                               >> Controller.msgMouseClickDeuceWidget
-                           )
-                      >> Maybe.withDefault Controller.msgNoop
-                , onMouseOver = \_ -> Controller.msgNoop
-                , onMouseOut = \_ -> Controller.msgNoop
-                }
-                unparsedOutput
+            , Svg.svg
+                [ SAttr.width "100%"
+                , SAttr.height "100%"
+                , SAttr.pointerEvents <|
+                    if Model.deuceActive model then
+                      "auto"
+                    else
+                      "none"
+                ] <|
+                UnDeuce.overlay
+                  { onClick =
+                      UnExp.findHoleEId model.inputExp
+                        >> Maybe.map
+                             ( DeuceWidgets.DeuceExp
+                                 >> Controller.msgMouseClickDeuceWidget
+                             )
+                        >> Maybe.withDefault Controller.msgNoop
+                  , onMouseOver = \_ -> Controller.msgNoop
+                  , onMouseOut = \_ -> Controller.msgNoop
+                  }
+                  unparsedOutput
             ]
 
         Err errorMessage ->

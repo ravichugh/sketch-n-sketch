@@ -21,10 +21,10 @@ polygon : Handlers msg -> UnExp (WithInfo String) -> Svg msg
 polygon handlers u =
   let
     xScale =
-      9
+      7
 
     yScale =
-      16
+      15
 
     info =
       UnExp.getData u
@@ -33,13 +33,13 @@ polygon handlers u =
       (info.start.col - 1) * xScale
 
     yStart =
-      (info.start.line - 1) * yScale
+      (info.start.line - 1) * yScale + 3
 
     xEnd =
       info.end.col * xScale
 
     yEnd =
-      info.end.line * yScale
+      info.end.line * yScale + 3
   in
     Svg.rect
       [ SAttr.class "deuce-unexp-poly"
@@ -52,13 +52,6 @@ polygon handlers u =
       ]
       []
 
-overlay : Handlers msg -> UnExp (WithInfo String) -> Html msg
-overlay handlers ast =
-  Svg.svg
-    [ SAttr.width "100%"
-    , SAttr.height "100%"
-    ]
-    ( ast
-        |> UnExp.flatten
-        |> List.map (polygon handlers)
-    )
+overlay : Handlers msg -> UnExp (WithInfo String) -> List (Html msg)
+overlay handlers =
+  UnExp.flatten >> List.map (polygon handlers)

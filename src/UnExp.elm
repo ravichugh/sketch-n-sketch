@@ -276,7 +276,7 @@ unparse =
             |> Utils.last_
             |> String.length
       in
-        if List.length lines > 1 then
+        if newLineCount > 0 then
           State.modify
             ( \{line, col} ->
                 { line = line + newLineCount
@@ -286,7 +286,7 @@ unparse =
         else
           State.modify
             ( \{line, col} ->
-                { line = line + newLineCount
+                { line = line
                 , col = col + lastLineLength
                 }
             )
@@ -344,8 +344,10 @@ unparse =
           UTuple _ us ->
             let
               entry u =
-                unparseHelper u
-                  |> State.andThen (\_ -> eatString ", ")
+                State.do (unparseHelper u) <| \uWithInfo ->
+                State.do (eatString ", ") <| \_ ->
+                State.pure <|
+                  uWithInfo
             in
               State.do (eatString "(") <| \_ ->
               State.do (State.mapM unparseHelper us) <| \usWithInfo ->
