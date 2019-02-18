@@ -350,10 +350,10 @@ unparse =
                   uWithInfo
             in
               State.do (eatString "(") <| \_ ->
-              State.do (State.mapM unparseHelper us) <| \usWithInfo ->
+              State.do (State.mapM entry us) <| \usWithInfo ->
               State.do (eatString ")") <| \_ ->
               -- Un-eat final comma+space
-              State.do (State.modify (\pos -> {pos | col = pos.col - 2})) <| \_ ->
+              -- State.do (State.modify (\pos -> {pos | col = pos.col - 2})) <| \_ ->
               State.do State.get <| \endPos ->
               State.pure <|
                 let
@@ -404,7 +404,7 @@ unparse =
                   uWithInfo
             in
               State.do (unparseHelper uFunction) <| \uFunctionWithInfo ->
-              State.do (State.mapM unparseHelper uArgs) <| \uArgsWithInfo ->
+              State.do (State.mapM entry uArgs) <| \uArgsWithInfo ->
               State.do State.get <| \endPos ->
               State.pure <|
                 let

@@ -36,7 +36,7 @@ polygon handlers u =
       (info.start.line - 1) * yScale + 3
 
     xEnd =
-      info.end.col * xScale
+      (info.end.col - 1) * xScale
 
     yEnd =
       info.end.line * yScale + 3
