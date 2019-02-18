@@ -353,7 +353,7 @@ unparse =
               State.do (State.mapM entry us) <| \usWithInfo ->
               State.do (eatString ")") <| \_ ->
               -- Un-eat final comma+space
-              -- State.do (State.modify (\pos -> {pos | col = pos.col - 2})) <| \_ ->
+              State.do (State.modify (\pos -> {pos | col = pos.col - 2})) <| \_ ->
               State.do State.get <| \endPos ->
               State.pure <|
                 let

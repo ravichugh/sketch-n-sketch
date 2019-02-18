@@ -43,7 +43,7 @@ polygon handlers u =
   in
     Svg.rect
       [ SAttr.class "deuce-unexp-poly"
-      , SAttr.color "red"
+      , SAttr.fill "teal"
       , SAttr.x <| toString xStart
       , SAttr.y <| toString yStart
       , SAttr.width <| toString (xEnd - xStart)
