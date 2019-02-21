@@ -4583,3 +4583,7 @@ fillHole holeIdToReplace newExp =
           e
   in
     mapExp replacer
+
+fillHoles : List (HoleId, Exp) -> Exp -> Exp
+fillHoles replacements exp =
+  List.foldl (Utils.uncurry fillHole) exp replacements

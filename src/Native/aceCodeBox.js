@@ -15,7 +15,7 @@ var aceScroller;
 function initialize() {
   editor = ace.edit("editor");
   editor.$blockScrolling = Infinity;
-  editor.setTheme("ace/theme/tomorrow_night");
+  editor.setTheme("ace/theme/chrome");
   editor.setFontSize(fontSize);
   editor.getSession().setMode("ace/mode/elm");
   editor.setOption("dragEnabled", true); // true by default anyway

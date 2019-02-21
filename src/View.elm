@@ -589,7 +589,7 @@ viewExampleProvider model holeId output =
       Html.text <|
         "Cannot find type for holeId " ++ toString holeId
 
-    Just (gamma, tau) ->
+    Just (_, tau) ->
       let
         typeInformation =
           Html.li
@@ -645,7 +645,7 @@ viewExampleProvider model holeId output =
             [ Attr.class "tri-synthesize" ]
             [ Html.button
                 [ E.onClick <|
-                    Controller.msgSynthesizeFromExamples holeId gamma tau
+                    Controller.msgSynthesizeFromExamples holeId
                 ]
                 [ Html.text "Synthesize"
                 ]
@@ -3141,36 +3141,37 @@ synthesisPopupPanel model =
             let
               results =
                 let
-                  viewHoleBinding holeId exp =
+                  viewHoleBinding (holeId, exp) =
+                    Html.span
+                      []
+                      [ Html.text <|
+                          "??" ++ toString holeId ++ ": "
+                      , Html.code
+                          []
+                          [ Html.text <| LeoUnparser.unparse exp
+                          ]
+                      , Html.text " ; "
+                      ]
+
+                  viewOption option =
                     Html.li
                       [ Attr.class "tri-result"
-                      ]
+                      ] <|
                       [ Html.button
                           [ E.onClick <|
                               Controller.msgChooseDeuceExp
                                 ""
-                                (Lang.fillHole holeId exp model.inputExp)
+                                (Lang.fillHoles option model.inputExp)
                           ]
-                          [ Html.code
-                              []
-                              [ Html.text <| LeoUnparser.unparse exp
-                              ]
-                          ]
+                          ( List.map viewHoleBinding option
+                          )
                       ]
-
-                  viewHoleBindings (holeId, exps) =
-                    Html.li
-                      [ Attr.class "tri-result"
-                      ] <|
-                      [ Html.text <|
-                          "??" ++ toString holeId ++ ":"
-                      , Html.br [] []
-                      ] ++
-                      ( List.map (viewHoleBinding holeId) exps)
                 in
                   model.holeFilling
                     |> Dict.toList
-                    |> List.map viewHoleBindings
+                    |> List.map (\(i, es) -> List.map (\e -> (i, e)) es)
+                    |> Utils.oneOfEach
+                    |> List.map viewOption
 
               resultsSection =
                 if List.length results > 0 then

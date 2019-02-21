@@ -58,7 +58,7 @@ backprop u ex =
           backpropBinding (arguments, outputExample) =
             if List.length params == List.length arguments then
               body
-                |> TriEval.evalWithEnv (Utils.zip params arguments)
+                |> TriEval.evalWithEnv (Utils.zip params arguments ++ env)
                 |> Result.toMaybe
                 |> Maybe.andThen (flip backprop outputExample)
             else

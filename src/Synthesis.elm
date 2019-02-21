@@ -5,11 +5,13 @@ module Synthesis exposing
   )
 
 import Dict exposing (Dict)
+import Set
 
 import Example exposing (Example(..))
 import UnExp exposing (UnExp(..), UnVal(..))
 import UnDeclarations exposing (..)
 import TriEval
+import Backprop
 
 import Types2 as T exposing (..)
 import Lang exposing (..)
@@ -22,69 +24,22 @@ import LeoUnparser
 -- Satisfaction
 --------------------------------------------------------------------------------
 
-satisfiesWorlds : List World -> Exp -> Bool
-satisfiesWorlds worlds =
+-- Nothing: False
+-- Just constraints: True, provided that constraints are met
+satisfiesWorlds : List World -> Exp -> Maybe (List Constraint)
+satisfiesWorlds worlds exp =
   let
-    satisfiesWorld : World -> Exp -> Bool
+    satisfiesWorld : World -> Exp -> Maybe (List Constraint)
     satisfiesWorld (env, ex) =
       TriEval.evalWithEnv env
         >> Result.toMaybe
-        >> Maybe.andThen UnExp.asValue
-        >> Maybe.map (satisfiesExample ex)
-        >> Maybe.withDefault False
+        >> Maybe.andThen (flip Backprop.backprop ex)
   in
-    Utils.satisfiesAll (List.map satisfiesWorld worlds)
-
-satisfiesExample : Example -> UnVal -> Bool
-satisfiesExample ex v =
-  case (ex, v) of
-    (ExConstructor exIdent exArg, UVConstructor vIdent vArg) ->
-      exIdent == vIdent && satisfiesExample exArg vArg
-
-    (ExNum exN, UVNum vN) ->
-      exN == vN
-
-    (ExBool exB, UVBool vB) ->
-      exB == vB
-
-    (ExString exS, UVString vS) ->
-      exS == vS
-
-    (ExTuple exArgs, UVTuple vArgs) ->
-      List.map2 satisfiesExample exArgs vArgs
-        |> Utils.and
-
-    (ExPartialFunction branches, UVFunClosure env params body) ->
-      let
-        paramLength =
-          List.length params
-
-        checkBranch (us, ex) =
-          let
-            envExtension =
-              Utils.zip params us
-
-            newEnv =
-              envExtension ++ env
-
-            lengthCondition =
-              List.length us == paramLength
-
-            evaluationCondition =
-              body
-                |> TriEval.evalWithEnv newEnv
-                |> Result.toMaybe
-                |> Maybe.andThen UnExp.asValue
-                |> Maybe.map (satisfiesExample ex)
-                |> Maybe.withDefault False
-          in
-            lengthCondition && evaluationCondition
-      in
-        List.map checkBranch branches
-          |> Utils.and
-
-    _ ->
-      False
+    worlds
+      |> List.map satisfiesWorld
+      |> flip Utils.applyList exp
+      |> Utils.projJusts
+      |> Maybe.map List.concat
 
 --------------------------------------------------------------------------------
 -- Type-Directed Synthesis
@@ -116,7 +71,11 @@ guess_ depth gamma tau =
           guessApps (eFun, (_, argTypes, _)) =
             let
               possibleArgs =
-                List.map (refine_ (depth - 1) gamma []) argTypes
+                List.map
+                  ( refine_ (depth - 1) gamma []
+                      >> List.map Tuple.first
+                  )
+                  argTypes
             in
               List.map (eApp eFun) <|
                 Utils.oneOfEach possibleArgs
@@ -169,7 +128,7 @@ guess =
 -- Type-and-Example-Directed Synthesis
 --------------------------------------------------------------------------------
 
-refine_ : Int -> T.TypeEnv -> List World -> Type -> List Exp
+refine_ : Int -> T.TypeEnv -> List World -> Type -> List (Exp, List Constraint)
 refine_ depth gamma worlds tau =
   if depth == 0 then
     []
@@ -177,9 +136,10 @@ refine_ depth gamma worlds tau =
     let
       -- IRefine-Guess
       guessRefinement =
-        List.filter
-          (satisfiesWorlds worlds)
-          (guess_ (depth - 1) gamma tau)
+        tau
+          |> guess_ (depth - 1) gamma
+          |> List.map (\e -> Utils.liftMaybePair2 (e, satisfiesWorlds worlds e))
+          |> Utils.filterJusts
 
       -- IRefine-Constant
       constantRefinement =
@@ -204,6 +164,7 @@ refine_ depth gamma worlds tau =
             |> Utils.collapseEqual
             |> Maybe.andThen extractConstant
             |> Utils.maybeToList
+            |> List.map (\e -> (e, []))
 
       -- IRefine-Tuple
       tupleRefinement =
@@ -243,7 +204,11 @@ refine_ depth gamma worlds tau =
                               (Utils.zipWith (refine_ (depth - 1) gamma))
                               taus
                          >> Utils.oneOfEach
-                         >> List.map eTuple0
+                         >> List.map
+                              ( List.unzip
+                                  >> Tuple.mapFirst eTuple0
+                                  >> Tuple.mapSecond List.concat
+                              )
                      )
                 |> Maybe.withDefault []
 
@@ -292,7 +257,7 @@ refine_ depth gamma worlds tau =
                      ( Utils.zipWith makeUniverse envs
                          >> List.concat
                          >> flip (refine_ (depth - 1) newGamma) returnType
-                         >> List.map (eFun [argNamePat])
+                         >> List.map (Tuple.mapFirst (eFun [argNamePat]))
                      )
                 |> Maybe.withDefault []
 
@@ -306,7 +271,7 @@ refine_ depth gamma worlds tau =
         , partialFunctionRefinement
         ]
 
-refine : T.TypeEnv -> List World -> Type -> List Exp
+refine : T.TypeEnv -> List World -> Type -> List (Exp, List Constraint)
 refine =
   refine_ 5
 
@@ -314,17 +279,41 @@ refine =
 -- Iterative Constraint Solving
 --------------------------------------------------------------------------------
 
-solve : T.HoleEnv -> List Constraint -> HoleFilling
-solve delta constraints =
-  let
-    solveOne holeId worlds =
-      case T.holeEnvGet holeId delta of
-        Just (gamma, tau) ->
-          refine gamma worlds tau
+solve_ : Int -> T.HoleEnv -> List Constraint -> HoleFilling
+solve_ depth delta constraints =
+  if depth == 0 then
+    Dict.empty
+  else
+    let
+      solveOne : HoleId -> List World -> List (Exp, List Constraint)
+      solveOne holeId worlds =
+        case T.holeEnvGet holeId delta of
+          Just (gamma, tau) ->
+            refine gamma worlds tau
 
-        Nothing ->
-          []
-  in
-    constraints
-      |> Utils.collect
-      |> Dict.map solveOne
+          Nothing ->
+            []
+
+      solutions : Dict HoleId (List (Exp, List Constraint))
+      solutions =
+        constraints
+          |> Utils.collect
+          |> Dict.map solveOne
+
+      newConstraints : List Constraint
+      newConstraints =
+        solutions
+          |> Dict.values
+          |> List.concat
+          |> List.map Tuple.second
+          |> List.concat
+    in
+      -- TODO Fixpoint?
+      if Set.size (Set.fromList constraints |> Set.diff (Set.fromList newConstraints)) == 0 then
+        Dict.map (\_ -> List.map Tuple.first) solutions
+      else
+        solve_ (depth - 1) delta (constraints ++ newConstraints)
+
+solve : T.HoleEnv -> List Constraint -> HoleFilling
+solve =
+  solve_ 5

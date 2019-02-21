@@ -4383,8 +4383,8 @@ msgUpdateExampleInput holeId index env input =
     in
       { model | exampleInputs = newExampleInputs }
 
-msgSynthesizeFromExamples : HoleId -> Types2.TypeEnv -> Type -> Msg
-msgSynthesizeFromExamples holeId gamma tau =
+msgSynthesizeFromExamples : HoleId -> Msg
+msgSynthesizeFromExamples holeId =
   Msg "Synthesize From Examples" <| \model ->
     let
       exampleInputList : List (Int, (UnExp.Env, String))
@@ -4416,8 +4416,9 @@ msgSynthesizeFromExamples holeId gamma tau =
         Ok worlds ->
           { model
               | holeFilling =
-                  Synthesis.refine gamma (List.map Tuple.second worlds) tau
-                    |> Dict.singleton holeId
+                  Synthesis.solve
+                    model.holeEnv
+                    (List.map (\(_, w) -> (holeId, w)) worlds)
           }
 
 --------------------------------------------------------------------------------
