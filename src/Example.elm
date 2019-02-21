@@ -9,7 +9,7 @@ import Parser as P exposing (..)
 import Parser.LanguageKit as LanguageKit
 import ParserUtils exposing (..)
 
-import UnExp
+import UnExp exposing (UnExp, UnVal)
 
 import Lang exposing (Ident, Num)
 
@@ -23,7 +23,7 @@ type Example
   | ExBool Bool
   | ExString String
   | ExTuple (List Example)
-  | ExPartialFunction (List (List UnExp.UnVal, Example))
+  | ExPartialFunction (List (List (UnExp ()), Example))
 
 --------------------------------------------------------------------------------
 -- Parsing
@@ -96,11 +96,11 @@ exPartialFunction : Parser Example
 exPartialFunction =
   lazy <| \_ ->
     let
-      binding : Parser (List UnExp.UnVal, Example)
+      binding : Parser (List (UnExp ()), Example)
       binding =
         succeed (,)
           -- TODO support n-ary functions
-          |= P.map List.singleton UnExp.unval
+          |= P.map (UnExp.asExp >> List.singleton) UnExp.unval
           |. spaces
           |. symbol "->"
           |. spaces

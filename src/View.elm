@@ -1868,13 +1868,7 @@ outputPanel model =
                       "none"
                 ] <|
                 UnDeuce.overlay
-                  { onClick =
-                      UnExp.findHoleEId model.inputExp
-                        >> Maybe.map
-                             ( DeuceWidgets.DeuceExp
-                                 >> Controller.msgMouseClickDeuceWidget
-                             )
-                        >> Maybe.withDefault Controller.msgNoop
+                  { onClick = Controller.msgSetSelectedUnExp
                   , onMouseOver = \_ -> Controller.msgNoop
                   , onMouseOut = \_ -> Controller.msgNoop
                   }
@@ -3121,6 +3115,95 @@ autoOutputToolsPopupPanel model =
     }
 
 --------------------------------------------------------------------------------
+-- Tri-Directional Synthesis Popup Panel
+--------------------------------------------------------------------------------
+
+synthesisPopupPanel : Model -> Html Msg
+synthesisPopupPanel model =
+  popupPanel
+    { pos =
+        model.popupPanelPositions.synthesis
+    , disabled =
+        model.selectedUnExp == Nothing
+    , dragHandler =
+        Controller.msgDragSynthesisPopupPanel
+    , class =
+        "tri-synthesis-panel"
+    , title =
+        [ Html.text "Synthesis"
+        ]
+    , content =
+        case model.selectedUnExp of
+          Nothing ->
+            []
+
+          Just uSelected ->
+            let
+              results =
+                let
+                  viewHoleBinding holeId exp =
+                    Html.li
+                      [ Attr.class "tri-result"
+                      ]
+                      [ Html.button
+                          [ E.onClick <|
+                              Controller.msgChooseDeuceExp
+                                ""
+                                (Lang.fillHole holeId exp model.inputExp)
+                          ]
+                          [ Html.code
+                              []
+                              [ Html.text <| LeoUnparser.unparse exp
+                              ]
+                          ]
+                      ]
+
+                  viewHoleBindings (holeId, exps) =
+                    Html.li
+                      [ Attr.class "tri-result"
+                      ] <|
+                      [ Html.text <|
+                          "??" ++ toString holeId ++ ":"
+                      , Html.br [] []
+                      ] ++
+                      ( List.map (viewHoleBinding holeId) exps)
+                in
+                  model.holeFilling
+                    |> Dict.toList
+                    |> List.map viewHoleBindings
+
+              resultsSection =
+                if List.length results > 0 then
+                  [ Html.li
+                      [ Attr.class "tri-results-header" ]
+                      [ Html.span
+                          []
+                          [ Html.text "Results"
+                          ]
+                      ]
+                  ] ++
+                  results
+                else
+                  []
+            in
+              [ Html.div
+                  []
+                  [ Html.input
+                      [ Attr.type_ "text"
+                      , E.onInput Controller.msgUpdateBackpropExampleInput
+                      ]
+                      []
+                  ]
+              , Html.button
+                  [ E.onClick <|
+                      Controller.msgCollectAndSolve uSelected
+                  ]
+                  [ Html.text "Collect and Solve"
+                  ]
+              ] ++ resultsSection
+    }
+
+--------------------------------------------------------------------------------
 -- All Popup Panels
 --------------------------------------------------------------------------------
 
@@ -3130,6 +3213,7 @@ popupPanels model =
   , deuceKeyboardPopupPanel model
   , editCodePopupPanel model
   , autoOutputToolsPopupPanel model
+  , synthesisPopupPanel model
   ]
 
 --------------------------------------------------------------------------------

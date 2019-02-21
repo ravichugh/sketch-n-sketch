@@ -7,6 +7,7 @@ import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
 import UnExp exposing (UnExp)
+import UnDeclarations exposing (HoleFilling)
 import EvalUpdate
 import Sync exposing (ZoneKey)
 import Utils
@@ -93,6 +94,7 @@ type alias PopupPanelPositions =
   , editCode : (Int, Int)
   , deuceRightClickMenu : (Int, Int)
   , autoOutputTools : (Int, Int)
+  , synthesis : (Int, Int)
   }
 
 type ColorScheme
@@ -233,7 +235,9 @@ type alias Model =
   , unExpOutput : Result String (UnExp ())
   , exampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
   , holeEnv : Types2.HoleEnv
-  , holeFilling : Dict HoleId (List Exp)
+  , holeFilling : HoleFilling
+  , selectedUnExp : Maybe (UnExp ())
+  , backpropExampleInput : String
   }
 
 type OutputMode
@@ -1497,6 +1501,7 @@ initModel =
         , editCode = (400, 400)
         , deuceRightClickMenu = (400, 400)
         , autoOutputTools = (400, 100)
+        , synthesis = (400, 400)
         }
     , mbDeuceKeyboardInfo = Nothing
     , deuceRightClickMenuMode = Nothing
@@ -1530,4 +1535,6 @@ initModel =
     , exampleInputs = Dict.empty
     , holeEnv = Types2.emptyHoleEnv
     , holeFilling = Dict.empty
+    , selectedUnExp = Nothing
+    , backpropExampleInput = ""
     }

@@ -6,7 +6,7 @@ module UnExp exposing
   , asExp, asValue
   , unval
   , unparseEnv, unparse, unparseSimple
-  , statefulMap, map, children, flatten
+  , mapData, statefulMap, map, children, flatten
   , findHoles, findHoleEId
   )
 
@@ -470,6 +470,39 @@ unparseSimple =
 --------------------------------------------------------------------------------
 -- Generic Library
 --------------------------------------------------------------------------------
+
+mapData : (d -> e) -> UnExp d -> UnExp e
+mapData f u =
+  case u of
+    UConstructor d ident arg ->
+      UConstructor (f d) ident (mapData f arg)
+
+    UNum d n ->
+      UNum (f d) n
+
+    UBool d b ->
+      UBool (f d) b
+
+    UString d s ->
+      UString (f d) s
+
+    UTuple d args ->
+      UTuple (f d) (List.map (mapData f) args)
+
+    UFunClosure d env params body ->
+      UFunClosure (f d) env params body
+
+    UHoleClosure d env holeIndex ->
+      UHoleClosure (f d) env holeIndex
+
+    UApp d uFunction uArgs ->
+      UApp (f d) (mapData f uFunction) (List.map (mapData f) uArgs)
+
+    UGet d n i uTuple ->
+      UGet (f d) n i (mapData f uTuple)
+
+    UCase d env uScrutinee branches ->
+      UCase (f d) env (mapData f uScrutinee) branches
 
 statefulMap : (UnExp d -> State s (UnExp d)) -> UnExp d -> State s (UnExp d)
 statefulMap f u =

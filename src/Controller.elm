@@ -56,6 +56,7 @@ port module Controller exposing
   , msgDragAutoOutputToolsPopupPanel
   , msgDragEditCodePopupPanel
   , msgDragDeuceRightClickMenu
+  , msgDragSynthesisPopupPanel
   , msgTextSelect
   , msgClearPreviewDiff
   , msgSetExampleByName
@@ -79,6 +80,9 @@ port module Controller exposing
   , msgSetDoTypeChecking
   , msgUpdateExampleInput
   , msgSynthesizeFromExamples
+  , msgSetSelectedUnExp
+  , msgUpdateBackpropExampleInput
+  , msgCollectAndSolve
   )
 
 import Updatable exposing (Updatable)
@@ -102,8 +106,10 @@ import Sync
 import Eval
 import Evaluator
 import TriEval
-import UnExp
+import UnDeclarations
+import UnExp exposing (UnExp)
 import Example exposing (Example)
+import Backprop
 import Synthesis
 import Update exposing (vStr, vList)
 import UpdateUtils
@@ -3514,6 +3520,7 @@ resetDeuceState m =
                 }
           }
       , holeFilling = Dict.empty
+      , selectedUnExp = Nothing
       }
 
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
@@ -4079,6 +4086,18 @@ msgDragAutoOutputToolsPopupPanel =
       )
 
 --------------------------------------------------------------------------------
+-- Synthesis Popup Panel
+
+msgDragSynthesisPopupPanel : Msg
+msgDragSynthesisPopupPanel =
+  Msg "Drag Synthesis Popup Panel" <|
+    updatePopupPanelPosition
+      .synthesis
+      ( \ppp pos ->
+          { ppp | synthesis = pos }
+      )
+
+--------------------------------------------------------------------------------
 -- Edit Code Popup Panel
 
 msgDragEditCodePopupPanel : Msg
@@ -4374,7 +4393,7 @@ msgSynthesizeFromExamples holeId gamma tau =
           |> Maybe.withDefault Dict.empty
           |> Dict.toList
 
-      worldsResult : Result P.Error (List (Int, Synthesis.World))
+      worldsResult : Result P.Error (List (Int, UnDeclarations.World))
       worldsResult =
         let
           extract (i, (env, input)) =
@@ -4399,4 +4418,41 @@ msgSynthesizeFromExamples holeId gamma tau =
               | holeFilling =
                   Synthesis.refine gamma (List.map Tuple.second worlds) tau
                     |> Dict.singleton holeId
+          }
+
+--------------------------------------------------------------------------------
+-- Collect and Solve
+--------------------------------------------------------------------------------
+
+msgSetSelectedUnExp : UnExp d -> Msg
+msgSetSelectedUnExp u =
+  Msg "Set Selected UnExp" <| \model ->
+    { model | selectedUnExp = Just (UnExp.mapData (\_ -> ()) u) }
+
+msgUpdateBackpropExampleInput : String -> Msg
+msgUpdateBackpropExampleInput s =
+  Msg "Update Backprop Example Input" <| \model ->
+    { model | backpropExampleInput = s }
+
+msgCollectAndSolve : UnExp () -> Msg
+msgCollectAndSolve uSelected =
+  Msg "Collect and Solve" <| \model ->
+    let
+      exampleResult =
+        Example.parse model.backpropExampleInput
+    in
+      case exampleResult of
+        Err err ->
+          { model
+              | holeFilling =
+                  Dict.empty
+          }
+
+        Ok example ->
+          { model
+              | holeFilling =
+                  example
+                    |> Backprop.backprop uSelected
+                    |> Maybe.map (Synthesis.solve model.holeEnv)
+                    |> Maybe.withDefault Dict.empty
           }

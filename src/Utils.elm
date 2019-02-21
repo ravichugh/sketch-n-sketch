@@ -1723,3 +1723,20 @@ isOk r =
 
     Err _ ->
       False
+
+--------------------------------------------------------------------------------
+
+collect : List (a, b) -> Dict a (List b)
+collect =
+  let
+    add : (a, b) -> Dict a (List b) -> Dict a (List b)
+    add (key, val) d =
+      let
+        vals =
+          Dict.get key d
+            |> Maybe.withDefault []
+      in
+        Dict.insert key (val :: vals) d
+  in
+    List.foldl add Dict.empty
+      >> Dict.map (\_ -> List.reverse)

@@ -1,11 +1,14 @@
 module Synthesis exposing
-  ( World
-  , guess
+  ( guess
   , refine
+  , solve
   )
+
+import Dict exposing (Dict)
 
 import Example exposing (Example(..))
 import UnExp exposing (UnExp(..), UnVal(..))
+import UnDeclarations exposing (..)
 import TriEval
 
 import Types2 as T exposing (..)
@@ -14,13 +17,6 @@ import Lang exposing (..)
 import Utils
 
 import LeoUnparser
-
---------------------------------------------------------------------------------
--- Declarations
---------------------------------------------------------------------------------
-
-type alias World =
-  (UnExp.Env, Example)
 
 --------------------------------------------------------------------------------
 -- Satisfaction
@@ -63,17 +59,16 @@ satisfiesExample ex v =
         paramLength =
           List.length params
 
-        checkBranch (vs, ex) =
+        checkBranch (us, ex) =
           let
             envExtension =
-              Utils.zip params vs
-                |> List.map (Tuple.mapSecond UnExp.asExp)
+              Utils.zip params us
 
             newEnv =
               envExtension ++ env
 
             lengthCondition =
-              List.length vs == paramLength
+              List.length us == paramLength
 
             evaluationCondition =
               body
@@ -266,7 +261,7 @@ refine_ depth gamma worlds tau =
                 pVar0 argName
 
               extractPartialFunction :
-                Example -> Maybe (List (UnExp.UnVal, Example))
+                Example -> Maybe (List (UnExp.UnExp (), Example))
               extractPartialFunction ex =
                 case ex of
                   ExPartialFunction entries ->
@@ -280,9 +275,9 @@ refine_ depth gamma worlds tau =
                     Nothing
 
               makeUniverse :
-                UnExp.Env -> List (UnExp.UnVal, Example) -> List World
+                UnExp.Env -> List (UnExp.UnExp (), Example) -> List World
               makeUniverse env =
-                List.map (\(v, ex) -> ((argName, UnExp.asExp v) :: env, ex))
+                List.map (\(u, ex) -> ((argName, u) :: env, ex))
 
               (envs, examples) =
                 List.unzip worlds
@@ -314,3 +309,22 @@ refine_ depth gamma worlds tau =
 refine : T.TypeEnv -> List World -> Type -> List Exp
 refine =
   refine_ 5
+
+--------------------------------------------------------------------------------
+-- Iterative Constraint Solving
+--------------------------------------------------------------------------------
+
+solve : T.HoleEnv -> List Constraint -> HoleFilling
+solve delta constraints =
+  let
+    solveOne holeId worlds =
+      case T.holeEnvGet holeId delta of
+        Just (gamma, tau) ->
+          refine gamma worlds tau
+
+        Nothing ->
+          []
+  in
+    constraints
+      |> Utils.collect
+      |> Dict.map solveOne
