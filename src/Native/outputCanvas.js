@@ -1,4 +1,6 @@
-var outputCanvas;
+function outputCanvas() {
+  return document.getElementById("outputCanvas");
+}
 
 
 //////////////////////////////////////////////////////////////////////
@@ -6,8 +8,8 @@ var outputCanvas;
 
 function getOutputCanvasState() {
   var info =
-    { scrollTop : outputCanvas.scrollTop
-    , scrollLeft : outputCanvas.scrollLeft
+    { scrollTop : outputCanvas().scrollTop
+    , scrollLeft : outputCanvas().scrollLeft
     };
   return info;
 }
@@ -103,7 +105,7 @@ function listenForUpdatesToCanvasCount() {
 
   outputCanvasObserver = new MutationObserver(handleMutations);
   var config = { attributes: true };
-  outputCanvasObserver.observe(outputCanvas, config);
+  outputCanvasObserver.observe(outputCanvas(), config);
 
 }
 
@@ -126,7 +128,7 @@ function triggerAutoUpdate() {
   timerAutoSync = setTimeout(function() {
     timerAutoSync = undefined;
     if(!enableAutoUpdate || previewMode) return;
-    lastCaretPosition = getCaretPositionIn(document.getElementById("outputCanvas"));
+    lastCaretPosition = getCaretPositionIn(outputCanvas());
     /*console.log("Sending caret position: " + lastCaretPosition);*/
     app.ports.maybeAutoSync.send(lastCaretPosition);
   }, msBeforeAutoSync)
@@ -158,7 +160,7 @@ function listenForUpdatesToOutputValues() {
     if(isTransientElement(htmlElem)) return true;
     return hasTransientAncestor(htmlElem.parentNode);
   }
-  
+
   function getPathUntilOutput(htmlElem) {
     if(htmlElem == null) return null;
     if(isContainer(htmlElem))
@@ -183,7 +185,7 @@ function listenForUpdatesToOutputValues() {
   function isAttributeIgnored(name) {
     return name.startsWith("ignore-") || name == "value";
   }
-  
+
   function encodeAttributes(attrs, node) {
     var attributes = [];
     for(var i = 0; i < attrs.length; i++) {
@@ -208,7 +210,7 @@ function listenForUpdatesToOutputValues() {
     }
     return attributes;
   }
-  
+
   function encodeNode(node) {
     if (node.nodeType == 3) return node.textContent
     var children = []
@@ -251,7 +253,7 @@ function listenForUpdatesToOutputValues() {
         var domNode = mutation.addedNodes[i];
         domNode.manuallyInsertedNode = true;
         if(domNode.nodeType == 1) { // In case it thinks that the node was a text node.
-          domNode.replaceData = (function(self) { // Hides this node for now, 
+          domNode.replaceData = (function(self) { // Hides this node for now,
              return function(start, end, data) {
                // Here self is totally detached from any parents. So the only thing we can do is to hid it.
                self.style.display = "none";
@@ -265,7 +267,7 @@ function listenForUpdatesToOutputValues() {
         } else {
         }
       }
-			
+
       if (mutation.type == "attributes" && mutation.target.tagName !== "COMMENT") {
         if(!isAttributeTransient(mutation.attributeName) && !isAttributeIgnored(mutation.attributeName)) {
           var path = getPathUntilOutput(mutation.target)
@@ -388,14 +390,12 @@ app.ports.setDomShapeAttribute.subscribe(function(args) {
 // Initialization and Ports
 
 function initializeOutputCanvas() {
-  outputCanvas = document.getElementById("outputCanvas");
-
-  if (outputCanvas === undefined || outputCanvas === null) {
+  if (outputCanvas() === undefined || outputCanvas() === null) {
     console.log("[outputCanvas.js] element not found: outputCanvas");
 
   } else {
 
-    outputCanvas.onscroll = function() {
+    outputCanvas().onscroll = function() {
       var info = getOutputCanvasState();
       app.ports.receiveOutputCanvasState.send(info);
     };
@@ -412,8 +412,8 @@ app.ports.outputCanvasCmd.subscribe(function(cmd) {
     initializeOutputCanvas();
 
   } else if (message == "resetScroll") {
-    outputCanvas.scrollLeft = 0;
-    outputCanvas.scrollTop = 0;
+    outputCanvas().scrollLeft = 0;
+    outputCanvas().scrollTop = 0;
 
   } else if (message == "stopDomListener") {
     // console.log("stop listening to DOM changes");
@@ -458,6 +458,6 @@ app.ports.setDiffTimer.subscribe(function(b) {
 app.ports.setCaretPosition.subscribe(function(position) {
   setTimeout(function() {
     /*console.log("Setting caret position: " + position);*/
-    setCaretPositionIn(document.getElementById("outputCanvas"), position)
+    setCaretPositionIn(outputCanvas(), position)
   }, 0);
 })
