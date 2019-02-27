@@ -521,6 +521,9 @@ decodeDataDef t =
       )
     -}
 
+    TVar _ dataConName ->
+      Just (dataConName, [])
+
     TApp _ t ts SpaceApp ->
       case t.val.t__ of
         TVar _ dataConName ->
