@@ -670,10 +670,10 @@ viewExampleProvider model holeId output =
                     ]
                 ]
           in
-            model.holeFilling
-              |> Dict.get holeId
-              |> Maybe.map (List.map viewResult)
-              |> Maybe.withDefault []
+            model.holeFillings
+              |> List.map (Dict.get holeId)
+              |> Utils.filterJusts
+              |> List.map viewResult
 
         resultsSection =
           if List.length results > 0 then
@@ -3141,6 +3141,7 @@ synthesisPopupPanel model =
             let
               results =
                 let
+                  viewHoleBinding : (Lang.HoleId, Exp) -> Html Msg
                   viewHoleBinding (holeId, exp) =
                     Html.span
                       []
@@ -3153,6 +3154,7 @@ synthesisPopupPanel model =
                       , Html.text " ; "
                       ]
 
+                  viewOption : List (Lang.HoleId, Exp) -> Html Msg
                   viewOption option =
                     Html.li
                       [ Attr.class "tri-result"
@@ -3167,10 +3169,8 @@ synthesisPopupPanel model =
                           )
                       ]
                 in
-                  model.holeFilling
-                    |> Dict.toList
-                    |> List.map (\(i, es) -> List.map (\e -> (i, e)) es)
-                    |> Utils.oneOfEach
+                  model.holeFillings
+                    |> List.map Dict.toList
                     |> List.map viewOption
 
               resultsSection =

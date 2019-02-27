@@ -1,6 +1,8 @@
 module UnDeclarations exposing
   ( World
+  , Worlds
   , Constraint
+  , Constraints
   , HoleFilling
   )
 
@@ -13,8 +15,14 @@ import Example exposing (Example)
 type alias World =
   (UnExp.Env, Example)
 
+type alias Worlds =
+  List World
+
 type alias Constraint =
   (HoleId, World)
 
+type alias Constraints =
+  List Constraint
+
 type alias HoleFilling =
-  Dict HoleId (List Exp)
+  Dict HoleId Exp

@@ -18,6 +18,8 @@ import Lang exposing (..)
 
 import Utils
 
+import NonDet exposing (NonDet)
+
 import LeoUnparser
 
 --------------------------------------------------------------------------------
@@ -26,10 +28,10 @@ import LeoUnparser
 
 -- Nothing: False
 -- Just constraints: True, provided that constraints are met
-satisfiesWorlds : List World -> Exp -> Maybe (List Constraint)
+satisfiesWorlds : Worlds -> Exp -> Maybe Constraints
 satisfiesWorlds worlds exp =
   let
-    satisfiesWorld : World -> Exp -> Maybe (List Constraint)
+    satisfiesWorld : World -> Exp -> Maybe Constraints
     satisfiesWorld (env, ex) =
       TriEval.evalWithEnv env
         >> Result.toMaybe
@@ -45,10 +47,10 @@ satisfiesWorlds worlds exp =
 -- Type-Directed Synthesis
 --------------------------------------------------------------------------------
 
-guess_ : Int -> T.TypeEnv -> Type -> List Exp
+guess_ : Int -> T.TypeEnv -> Type -> NonDet Exp
 guess_ depth gamma tau =
   if depth == 0 then
-    []
+    NonDet.none
   else
     let
       typePairs =
@@ -59,6 +61,7 @@ guess_ depth gamma tau =
         typePairs
           |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
           |> List.map (Tuple.first >> eVar0)
+          |> NonDet.fromList
 
       -- EGuess-App
       appGuesses =
@@ -67,18 +70,19 @@ guess_ depth gamma tau =
           arrowMatches (_, _, returnType) =
             T.typeEquiv gamma tau returnType
 
-          guessApps : (Exp, ArrowType) -> List Exp
+          guessApps : (Exp, ArrowType) -> NonDet Exp
           guessApps (eFun, (_, argTypes, _)) =
             let
               possibleArgs =
                 List.map
                   ( refine_ (depth - 1) gamma []
-                      >> List.map Tuple.first
+                      >> NonDet.map Tuple.first -- Discards constraints
                   )
                   argTypes
             in
-              List.map (eApp eFun) <|
-                Utils.oneOfEach possibleArgs
+              possibleArgs
+                |> NonDet.oneOfEach
+                |> NonDet.map (eApp eFun)
         in
           typePairs
             |> List.map (Tuple.mapFirst eVar0)
@@ -86,7 +90,7 @@ guess_ depth gamma tau =
             |> List.map Utils.liftMaybePair2
             |> Utils.filterJusts
             |> List.filter (Tuple.second >> arrowMatches)
-            |> List.concatMap guessApps
+            |> NonDet.concatMap guessApps
 
       -- EGuess-Tuple
       tupleGuesses =
@@ -117,10 +121,15 @@ guess_ depth gamma tau =
             |> List.map Utils.liftMaybePair2
             |> Utils.filterJusts
             |> List.concatMap makeGets
+            |> NonDet.fromList
     in
-      variableGuesses ++ appGuesses ++ tupleGuesses
+      NonDet.concat
+        [ variableGuesses
+        , appGuesses
+        , tupleGuesses
+        ]
 
-guess : T.TypeEnv -> Type -> List Exp
+guess : T.TypeEnv -> Type -> NonDet Exp
 guess =
   guess_ 5
 
@@ -128,18 +137,19 @@ guess =
 -- Type-and-Example-Directed Synthesis
 --------------------------------------------------------------------------------
 
-refine_ : Int -> T.TypeEnv -> List World -> Type -> List (Exp, List Constraint)
+refine_ : Int -> T.TypeEnv -> Worlds -> Type -> NonDet (Exp, Constraints)
 refine_ depth gamma worlds tau =
   if depth == 0 then
-    []
+    NonDet.none
   else
     let
       -- IRefine-Guess
       guessRefinement =
         tau
           |> guess_ (depth - 1) gamma
-          |> List.map (\e -> Utils.liftMaybePair2 (e, satisfiesWorlds worlds e))
-          |> Utils.filterJusts
+          |> NonDet.map
+               (\e -> Utils.liftMaybePair2 (e, satisfiesWorlds worlds e))
+          |> NonDet.collapseMaybe
 
       -- IRefine-Constant
       constantRefinement =
@@ -165,12 +175,13 @@ refine_ depth gamma worlds tau =
             |> Maybe.andThen extractConstant
             |> Utils.maybeToList
             |> List.map (\e -> (e, []))
+            |> NonDet.fromList
 
       -- IRefine-Tuple
       tupleRefinement =
         case tupleTypeArguments tau of
           Nothing ->
-            []
+            NonDet.none
 
           Just taus ->
             let
@@ -203,14 +214,14 @@ refine_ depth gamma worlds tau =
                          >> flip
                               (Utils.zipWith (refine_ (depth - 1) gamma))
                               taus
-                         >> Utils.oneOfEach
-                         >> List.map
+                         >> NonDet.oneOfEach
+                         >> NonDet.map
                               ( List.unzip
                                   >> Tuple.mapFirst eTuple0
                                   >> Tuple.mapSecond List.concat
                               )
                      )
-                |> Maybe.withDefault []
+                |> Maybe.withDefault NonDet.none
 
       partialFunctionRefinement =
         case T.matchArrowRecurse tau of
@@ -239,9 +250,9 @@ refine_ depth gamma worlds tau =
                   _ ->
                     Nothing
 
-              makeUniverse :
-                UnExp.Env -> List (UnExp.UnExp (), Example) -> List World
-              makeUniverse env =
+              makeWorlds :
+                UnExp.Env -> List (UnExp.UnExp (), Example) -> Worlds
+              makeWorlds env =
                 List.map (\(u, ex) -> ((argName, u) :: env, ex))
 
               (envs, examples) =
@@ -254,24 +265,24 @@ refine_ depth gamma worlds tau =
                 |> List.map extractPartialFunction
                 |> Utils.projJusts
                 |> Maybe.map
-                     ( Utils.zipWith makeUniverse envs
+                     ( Utils.zipWith makeWorlds envs
                          >> List.concat
                          >> flip (refine_ (depth - 1) newGamma) returnType
-                         >> List.map (Tuple.mapFirst (eFun [argNamePat]))
+                         >> NonDet.map (Tuple.mapFirst (eFun [argNamePat]))
                      )
-                |> Maybe.withDefault []
+                |> Maybe.withDefault NonDet.none
 
           _ ->
-            []
+            NonDet.none
     in
-      List.concat
+      NonDet.concat
         [ guessRefinement
         , constantRefinement
         , tupleRefinement
         , partialFunctionRefinement
         ]
 
-refine : T.TypeEnv -> List World -> Type -> List (Exp, List Constraint)
+refine : T.TypeEnv -> Worlds -> Type -> NonDet (Exp, Constraints)
 refine =
   refine_ 5
 
@@ -279,41 +290,48 @@ refine =
 -- Iterative Constraint Solving
 --------------------------------------------------------------------------------
 
-solve_ : Int -> T.HoleEnv -> List Constraint -> HoleFilling
+solve_ : Int -> T.HoleEnv -> Constraints -> NonDet HoleFilling
 solve_ depth delta constraints =
   if depth == 0 then
-    Dict.empty
+    NonDet.none
   else
     let
-      solveOne : HoleId -> List World -> List (Exp, List Constraint)
+      solveOne : HoleId -> Worlds -> NonDet (Exp, Constraints)
       solveOne holeId worlds =
         case T.holeEnvGet holeId delta of
           Just (gamma, tau) ->
             refine gamma worlds tau
 
           Nothing ->
-            []
+            NonDet.none
 
-      solutions : Dict HoleId (List (Exp, List Constraint))
+      solutions : NonDet (HoleFilling, Constraints)
       solutions =
         constraints
-          |> Utils.collect
+          |> Utils.pairsToDictOfLists -- "Group" operation
           |> Dict.map solveOne
+          |> NonDet.oneOfEachDict
+          |> NonDet.map
+               ( Utils.unzipDict
+                   >> Tuple.mapSecond (Dict.values >> List.concat)
+               )
 
-      newConstraints : List Constraint
-      newConstraints =
-        solutions
-          |> Dict.values
-          |> List.concat
-          |> List.map Tuple.second
-          |> List.concat
+      oldConstraintSet =
+        Set.fromList constraints
     in
-      -- TODO Fixpoint?
-      if Set.size (Set.fromList constraints |> Set.diff (Set.fromList newConstraints)) == 0 then
-        Dict.map (\_ -> List.map Tuple.first) solutions
-      else
-        solve_ (depth - 1) delta (constraints ++ newConstraints)
+      NonDet.do solutions <| \(holeFilling, newConstraints) ->
+        let
+          newConstraintSet =
+            Set.fromList newConstraints
+        in
+        if Utils.isSubset newConstraintSet oldConstraintSet then
+          NonDet.pure holeFilling
+        else
+          solve_
+            (depth - 1)
+            delta
+            (Set.toList (Set.union oldConstraintSet newConstraintSet))
 
-solve : T.HoleEnv -> List Constraint -> HoleFilling
+solve : T.HoleEnv -> Constraints -> NonDet HoleFilling
 solve =
   solve_ 5

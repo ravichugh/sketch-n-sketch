@@ -235,7 +235,7 @@ type alias Model =
   , unExpOutput : Result String (UnExp ())
   , exampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
   , holeEnv : Types2.HoleEnv
-  , holeFilling : HoleFilling
+  , holeFillings : List HoleFilling
   , selectedUnExp : Maybe (UnExp ())
   , backpropExampleInput : String
   }
@@ -1534,7 +1534,7 @@ initModel =
     , unExpOutput = Err ""
     , exampleInputs = Dict.empty
     , holeEnv = Types2.emptyHoleEnv
-    , holeFilling = Dict.empty
+    , holeFillings = []
     , selectedUnExp = Nothing
     , backpropExampleInput = ""
     }

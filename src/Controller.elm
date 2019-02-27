@@ -149,6 +149,7 @@ import ColorNum
 import Syntax exposing (Syntax)
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
+import NonDet
 
 import ImpureGoodies
 
@@ -3519,7 +3520,7 @@ resetDeuceState m =
                             else {dx=0, dy=0}
                 }
           }
-      , holeFilling = Dict.empty
+      , holeFillings = []
       , selectedUnExp = Nothing
       }
 
@@ -4409,16 +4410,17 @@ msgSynthesizeFromExamples holeId =
           { model
               | outputMode =
                   HtmlText <| ParserUtils.showError err
-              , holeFilling =
-                  Dict.empty
+              , holeFillings =
+                  []
           }
 
         Ok worlds ->
           { model
-              | holeFilling =
-                  Synthesis.solve
-                    model.holeEnv
-                    (List.map (\(_, w) -> (holeId, w)) worlds)
+              | holeFillings =
+                  NonDet.toList <|
+                    Synthesis.solve
+                      model.holeEnv
+                      (List.map (\(_, w) -> (holeId, w)) worlds)
           }
 
 --------------------------------------------------------------------------------
@@ -4445,15 +4447,16 @@ msgCollectAndSolve uSelected =
       case exampleResult of
         Err err ->
           { model
-              | holeFilling =
-                  Dict.empty
+              | holeFillings =
+                  []
           }
 
         Ok example ->
           { model
-              | holeFilling =
+              | holeFillings =
                   example
                     |> Backprop.backprop uSelected
                     |> Maybe.map (Synthesis.solve model.holeEnv)
-                    |> Maybe.withDefault Dict.empty
+                    |> Maybe.withDefault NonDet.none
+                    |> NonDet.toList
           }

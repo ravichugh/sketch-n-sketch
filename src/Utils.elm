@@ -1726,17 +1726,9 @@ isOk r =
 
 --------------------------------------------------------------------------------
 
-collect : List (a, b) -> Dict a (List b)
-collect =
-  let
-    add : (a, b) -> Dict a (List b) -> Dict a (List b)
-    add (key, val) d =
-      let
-        vals =
-          Dict.get key d
-            |> Maybe.withDefault []
-      in
-        Dict.insert key (val :: vals) d
-  in
-    List.foldl add Dict.empty
-      >> Dict.map (\_ -> List.reverse)
+unzipDict : Dict k (a, b) -> (Dict k a, Dict k b)
+unzipDict =
+  Dict.toList
+    >> List.map (\(k, (a, b)) -> ((k, a), (k, b)))
+    >> List.unzip
+    >> mapFirstSecond Dict.fromList Dict.fromList
