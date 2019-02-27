@@ -1854,10 +1854,7 @@ outputPanel model =
                 |> UnExp.getData
                 |> .val
           in
-            [ Html.code
-                []
-                [ Html.text unparsedString
-                ]
+            [ Html.text unparsedString
             , Svg.svg
                 [ SAttr.width "100%"
                 , SAttr.height "100%"

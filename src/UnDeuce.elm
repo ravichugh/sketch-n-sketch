@@ -7,6 +7,10 @@ import Svg exposing (Svg)
 import Svg.Attributes as SAttr
 import Svg.Events as SE
 
+import Model exposing (ColorScheme(..))
+import DeuceColor
+import DeuceParameters
+
 import UnExp exposing (UnExp)
 
 import Info exposing (WithInfo)
@@ -21,34 +25,44 @@ polygon : Handlers msg -> UnExp (WithInfo String) -> Svg msg
 polygon handlers u =
   let
     xScale =
-      7
+      7.19
 
     yScale =
-      15
+      15.0
 
     info =
       UnExp.getData u
 
     xStart =
-      (info.start.col - 1) * xScale
+      (toFloat <| info.start.col - 1) * xScale
 
     yStart =
-      (info.start.line - 1) * yScale + 3
+      (toFloat <| info.start.line - 1) * yScale
 
     xEnd =
-      (info.end.col - 1) * xScale
+      (toFloat <| info.end.col - 1) * xScale
 
     yEnd =
-      info.end.line * yScale + 3
+      (toFloat info.end.line) * yScale
   in
     Svg.rect
       [ SAttr.class "deuce-unexp-poly"
-      , SAttr.fill "teal"
+
       , SAttr.x <| toString xStart
       , SAttr.y <| toString yStart
       , SAttr.width <| toString (xEnd - xStart)
       , SAttr.height <| toString (yEnd - yStart)
+
       , SE.onClick <| handlers.onClick u
+
+      , SAttr.strokeWidth <|
+          DeuceParameters.strokeWidth Light
+      , SAttr.stroke <|
+          DeuceColor.rgbaString (DeuceParameters.objectColor Light) 1
+      , SAttr.fill <|
+          DeuceColor.rgbaString
+            (DeuceParameters.objectColor Light)
+            (DeuceParameters.polygonOpacity Light)
       ]
       []
 

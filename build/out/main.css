@@ -1509,5 +1509,11 @@ code {
 }
 
 .deuce-unexp-poly:hover {
-  opacity: 0.5;
+  opacity: 1;
+}
+
+#outputCanvas {
+  font-family: "Inconsolata", monospace;
+  font-size: 0.9em;
+  white-space: pre;
 }
