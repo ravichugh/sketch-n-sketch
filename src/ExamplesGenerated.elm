@@ -42,7 +42,8 @@ type alias Example = {
 
 --------------------------------------------------------------------------------
 
-initTemplate = "Get Started"
+initTemplate = blankHtmlTemplate
+getStartedTemplate = "Get Started"
 blankSvgTemplate = "Blank Svg Document"
 blankHtmlTemplate = "Blank Html Document"
 badPreludeTemplate = "Bad Prelude"
@@ -10393,7 +10394,7 @@ welcomeCategory =
   ( "Welcome"
   , [ makeLeoExample blankSvgTemplate blankSvg
     , makeLeoExample blankHtmlTemplate blankDoc
-    , makeLeoExample initTemplate welcome1
+    , makeLeoExample getStartedTemplate welcome1
 --    , makeLeoExample "Tutorial" blankDoc
     ]
   )
