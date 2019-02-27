@@ -454,6 +454,24 @@ valTreeToAllProgramEIdInterpretationsIgnoringUninterpretedSubtrees expFilter val
   valTreeToAllProgramEIdInterpretations_ True expFilter val
 
 
+-- Simplest example demonstrating poisoning if uninterpreted subtrees are not discarded.
+-- Below can only be interprted as {f 2} but not {2}
+--
+-- Prelude:
+-- f x = x + 1
+--
+-- Program:
+-- f 2
+--
+-- 2
+-- |
+-- x   1
+-- |   |
+-- x + 1
+--   |
+--   3
+
+
 valTreeToAllProgramEIdInterpretations_ : Bool -> (Exp -> Bool) -> Val -> List (Set EId)
 valTreeToAllProgramEIdInterpretations_ ignoreUninterpretedSubtress expFilter val =
   let (Provenance exp basedOnVals) = val.provenance in
