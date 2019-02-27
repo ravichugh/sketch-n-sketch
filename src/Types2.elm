@@ -1,5 +1,6 @@
 module Types2 exposing
   ( typecheck
+  , getDataTypeDefs
   , makeDeuceExpTool
   , makeDeucePatTool
   , AceTypeInfo
@@ -167,9 +168,10 @@ type TypeEnvElement
   = HasType Pat (Maybe Type)
   | TypeVar Ident
   | TypeAlias Ident Type
-  | TypeDef Ident (List DataDef)
+  | TypeDef DataTypeDef
 
-type alias DataDef = (Ident, List Type)
+type alias DataConDef = (Ident, List Type)
+type alias DataTypeDef = (Ident, List DataConDef)
 
 type alias HoleEnv =
   List HoleEnvElement
@@ -232,14 +234,14 @@ typeAliasesOfGamma =
 lookupDataCon : TypeEnv -> Ident -> Maybe (Ident, List Type)
 lookupDataCon gamma dataConName =
   let
-    dataDefsOfGamma : TypeEnv -> List (Ident, (Ident, List Type))
-    dataDefsOfGamma =
+    dataConDefsOfGamma : TypeEnv -> List (Ident, (Ident, List Type))
+    dataConDefsOfGamma =
       List.concatMap <| \binding ->
         case binding of
-          TypeDef tyCon dataDefs -> List.map (Tuple.mapSecond ((,) tyCon)) dataDefs
-          _                      -> []
+          TypeDef (tyCon, dataConDefs) -> List.map (Tuple.mapSecond ((,) tyCon)) dataConDefs
+          _                            -> []
   in
-    Utils.maybeFind dataConName (dataDefsOfGamma gamma)
+    Utils.maybeFind dataConName (dataConDefsOfGamma gamma)
 
 
 
@@ -422,10 +424,10 @@ findUnboundTypeVars gamma typ =
     typeVarsInGamma =
       List.foldl (\binding acc ->
         case binding of
-          TypeVar a     -> a :: acc
-          TypeAlias a _ -> a :: acc
-          TypeDef a _   -> a :: acc
-          _             -> acc
+          TypeVar a      -> a :: acc
+          TypeAlias a _  -> a :: acc
+          TypeDef (a, _) -> a :: acc
+          _              -> acc
       ) [] gamma
 
     freeTypeVarsInType =
@@ -479,8 +481,8 @@ freeVarsType typeVarsInGamma typ =
 
 --------------------------------------------------------------------------------
 
-decodeDataDefs : Type -> Maybe (List DataDef)
-decodeDataDefs t =
+decodeDataConDefs : Type -> Maybe (List DataConDef)
+decodeDataConDefs t =
   case t.val.t__ of
     TApp _ tFunc tArgs InfixApp ->
       case tFunc.val.t__ of
@@ -495,7 +497,7 @@ decodeDataDefs t =
     _ ->
       decodeDataDef t |> Maybe.map List.singleton
 
-decodeDataDef : Type -> Maybe DataDef
+decodeDataDef : Type -> Maybe DataConDef
 decodeDataDef t =
   case t.val.t__ of
     -- using TApp, not TRecord?
@@ -591,7 +593,7 @@ decodeDataPat p =
 
 inferTypeDataExp gamma thisExp listLetExp rebuildLetExps =
   let
-    isDataExp : Maybe (Ident, List Type) -- (tyCon, dataConArgs)
+    isDataExp : Maybe (Ident, List Type) -- (tyCon, dataConTypeArgs)
     isDataExp =
       listLetExp |> List.head |> Maybe.andThen (\firstLetExp ->
         let
@@ -609,7 +611,7 @@ inferTypeDataExp gamma thisExp listLetExp rebuildLetExps =
             Nothing
       )
   in
-  isDataExp |> Maybe.map (\(tyCon, dataConArgs) ->
+  isDataExp |> Maybe.map (\(tyCon, dataConTypeArgs) ->
     case (unExpr thisExp).val.e__ of
       ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots letExps) ws2 ->
         let
@@ -932,6 +934,20 @@ typecheck e =
     ]
   in
   let result = inferType initEnv { inputExp = e } e in
+  let _ = Debug.log "datatype defs" () in
+  let
+     _ =
+      e |> getDataTypeDefs
+        |> List.map (\(tyCon, dataConDefs) ->
+             Debug.log tyCon (
+               dataConDefs
+                 |> List.map (\(dataCon, args) ->
+                      dataCon ++ " " ++ Utils.spaces (List.map unparseType args)
+                    )
+                 |> String.join " , "
+             )
+           )
+  in
   (result.newExp, result.holeEnv)
 
 -- extra stuff for typechecker
@@ -1423,10 +1439,10 @@ inferType gamma stuff thisExp =
                                 )
 
                               Nothing ->
-                                case decodeDataDefs typ of
-                                  Just dataDefs ->
+                                case decodeDataConDefs typ of
+                                  Just dataConDefs ->
                                     ( LetType mws0 ws1 aliasSpace newPatOkay fas ws2 typ
-                                    , TypeDef s dataDefs :: accGamma
+                                    , TypeDef (s, dataConDefs) :: accGamma
                                     )
 
                                   Nothing ->
@@ -2421,6 +2437,32 @@ checkType gamma stuff thisExp expectedType =
                 , holeEnv = result.holeEnv
                 }
 
+
+--------------------------------------------------------------------------------
+
+getDataTypeDefs : Exp -> List DataTypeDef
+getDataTypeDefs = flip foldExpViaE__ [] (\e__ acc ->
+  case e__ of
+    ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
+      letTypes |> List.concatMap (\(isRec, listLetType) ->
+      listLetType |> List.concatMap (\(LetType mws0 ws1 aliasSpace pat fas ws2 typ) ->
+        let
+          -- TODO: decode Pats correctly, and collect any type variable args
+          tyCon = String.trim (unparsePattern pat)
+        in
+        case aliasSpace of
+          Nothing ->
+            case decodeDataConDefs typ of
+              Just dataConDefs -> (tyCon, dataConDefs) :: acc
+              Nothing          -> acc
+
+          Just _ ->
+            acc
+      ))
+
+    _ ->
+      acc
+  )
 
 --------------------------------------------------------------------------------
 
