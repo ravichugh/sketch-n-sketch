@@ -2305,21 +2305,24 @@ getDataTypeDefs : Exp -> List DataTypeDef
 getDataTypeDefs = flip foldExpViaE__ [] (\e__ acc ->
   case e__ of
     ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->
-      letTypes |> List.concatMap (\(isRec, listLetType) ->
-      listLetType |> List.concatMap (\(LetType mws0 ws1 aliasSpace pat fas ws2 typ) ->
-        let
-          -- TODO: decode Pats correctly, and collect any type variable args
-          tyCon = String.trim (unparsePattern pat)
-        in
-        case aliasSpace of
-          Nothing ->
-            case decodeDataConDefs typ of
-              Just dataConDefs -> (tyCon, dataConDefs) :: acc
-              Nothing          -> acc
+      let new =
+        letTypes |> List.concatMap (\(isRec, listLetType) ->
+        listLetType |> List.concatMap (\(LetType mws0 ws1 aliasSpace pat fas ws2 typ) ->
+          let
+            -- TODO: decode Pats correctly, and collect any type variable args
+            tyCon = String.trim (unparsePattern pat)
+          in
+          case aliasSpace of
+            Nothing ->
+              case decodeDataConDefs typ of
+                Just dataConDefs -> [(tyCon, dataConDefs)]
+                Nothing          -> []
 
-          Just _ ->
-            acc
-      ))
+            Just _ ->
+              []
+        ))
+      in
+        new ++ acc
 
     _ ->
       acc
