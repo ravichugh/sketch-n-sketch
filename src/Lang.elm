@@ -147,8 +147,8 @@ vTuple: List Val -> Val_
 vTuple vals =
   VRecord <| Dict.fromList <| (ctorVal (builtinVal "Lang.vTuple" << VBase << VString) TupleCtor (ctorTupleName (List.length vals)))::Utils.indexedMapFrom 1 numericalValEntry vals
 
-getDatatypeName: Val -> Maybe String
-getDatatypeName v = vRecordUnapplyField ctorDataType v |> Maybe.andThen vStringUnapply
+getCtorName: Val -> Maybe String
+getCtorName v = vRecordUnapplyField ctorDataType v |> Maybe.andThen vStringUnapply
 
 getViewDatatypeName: Val -> Maybe String
 getViewDatatypeName v = case vListUnapply v of
