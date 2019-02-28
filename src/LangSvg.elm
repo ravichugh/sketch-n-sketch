@@ -185,8 +185,8 @@ type IndexedTreeNode_
 ------------------------------------------------------------------------------
 -- Convert Raw Value to SVG Slate
 
-valToIndexedTree : Val -> Result String RootedIndexedTree
-valToIndexedTree v =
+svgValToIndexedTree : Val -> Result String RootedIndexedTree
+svgValToIndexedTree v =
   let thunk () =
     valToIndexedTree_ v (1, Dict.empty)
     |> Result.map (\(nextId,tree) ->
@@ -196,6 +196,38 @@ valToIndexedTree v =
   in
   thunk ()
   -- ImpureGoodies.logTimedRun "LangSvg.valToIndexedTree" thunk
+
+
+vListToIndexedTree : Val -> Result String RootedIndexedTree
+vListToIndexedTree vList =
+  let valNoProvenance v_ = { v_ = v_, provenance = dummyProvenance, parents = Parents [] } in
+  let newSvg =
+    valNoProvenance <|
+      VList [
+        valNoProvenance (VBase (VString "svg")),
+        valNoProvenance (VList []),
+        vList
+      ]
+  in
+  svgValToIndexedTree newSvg
+
+
+-- Fallback to displaying text if can't interpret as SVG or list of SVG.
+--
+valToIndexedTree : Val -> Result String RootedIndexedTree
+valToIndexedTree v =
+  let asSvg = svgValToIndexedTree v in
+  case asSvg of
+    Ok _  -> asSvg
+    Err s ->
+      let asSvgList = vListToIndexedTree v in
+      case asSvgList of
+        Ok _  -> asSvgList
+        Err _ ->
+          let _ = Utils.log s in
+          let node = { interpreted = TextNode (strVal v), val = v } in
+          Ok (1, Dict.singleton 1 node)
+
 
 valToIndexedTree_ : Val -> RootedIndexedTree -> Result String RootedIndexedTree
 valToIndexedTree_ v (nextId, d) =
