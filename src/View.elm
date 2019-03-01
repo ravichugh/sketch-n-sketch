@@ -3028,7 +3028,7 @@ viewBackprop model =
               []
               [ Html.code
                   []
-                  [ Html.text "Unknown type"
+                  [ Html.text "(Unknown type)"
                   ]
               ]
           , Html.button
@@ -3189,22 +3189,27 @@ pbePopupPanel model =
                 ]
 
             synthesisResults =
-              if List.length model.holeFillings > 0 then
+              let
+                nonEmptyHoleFillings =
+                  List.filter (not << Dict.isEmpty) model.holeFillings
+              in
                 Html.div
                   [ Attr.class "pbe-synthesis-results"
                   ]
-                  [ Html.h3
-                      []
-                      [ Html.text "Results"
+                  ( if List.length nonEmptyHoleFillings > 0 then
+                      [ Html.h3
+                          []
+                          [ Html.text "Results"
+                          ]
+                      , Html.ul
+                          []
+                          ( nonEmptyHoleFillings
+                              |> List.map (viewHoleFilling model)
+                          )
                       ]
-                  , Html.ul
+                    else
                       []
-                      ( model.holeFillings
-                          |> List.map (viewHoleFilling model)
-                      )
-                  ]
-              else
-                Html.text ""
+                  )
           in
             [ backpropView
             , selectedHolesView

@@ -4395,6 +4395,16 @@ addSelectedHole : HoleId -> Model -> Model
 addSelectedHole holeId model =
   { model | selectedHoles = Set.insert holeId model.selectedHoles }
 
+possiblyClearHoleFillings : Model -> Model
+possiblyClearHoleFillings model =
+  if
+    model.holeExampleInputs == Dict.empty
+      && model.backpropExampleInput == ""
+  then
+    { model | holeFillings = [] }
+  else
+    model
+
 msgAddSelectedHole : HoleId -> Msg
 msgAddSelectedHole holeId =
   Msg "Add Selected Hole" (addSelectedHole holeId)
@@ -4407,7 +4417,7 @@ msgRemoveSelectedHole holeId =
             Set.remove holeId model.selectedHoles
         , holeExampleInputs =
             Dict.remove holeId model.holeExampleInputs
-    }
+    } |> possiblyClearHoleFillings
 
 msgSetSelectedUnExp : UnExp d -> Msg
 msgSetSelectedUnExp u =
@@ -4422,7 +4432,7 @@ msgUnsetSelectedUnExp =
             Nothing
         , backpropExampleInput =
             ""
-    }
+    } |> possiblyClearHoleFillings
 
 -- Update textboxes
 

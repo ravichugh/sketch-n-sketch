@@ -1458,6 +1458,10 @@ code {
   border-bottom: 1px solid var(--main-border-color);
 }
 
+.pbe-backprop:empty {
+  display: none;
+}
+
 .pbe-hole-backprop-input input {
   width: 100%;
   font-size: 1em;
@@ -1469,6 +1473,10 @@ code {
 .pbe-hole {
   padding: 10px;
   border-bottom: 1px solid var(--main-border-color);
+}
+
+.pbe-hole:empty {
+  display: none;
 }
 
 .pbe-hole-header {
@@ -1534,6 +1542,10 @@ code {
 
 .pbe-synthesis-results {
   padding: 10px;
+}
+
+.pbe-synthesis-results:empty {
+  display: none;
 }
 
 .pbe-synthesis-results ul {
