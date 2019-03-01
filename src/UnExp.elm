@@ -258,10 +258,32 @@ unparseEnv =
   in
     List.map showBinding >> String.join ", "
 
+type alias UnparseState =
+  { pos : Pos
+  , indent : Int
+  }
+
 unparse : UnExp d -> UnExp (WithInfo String)
 unparse =
   let
-    eatString : String -> State Pos ()
+    shouldBreak : List (UnExp d) -> Bool
+    shouldBreak us =
+      let
+        strings =
+          List.map unparseSimple us
+
+        maxArgLen =
+          strings
+            |> List.map (String.length)
+            |> List.maximum
+            |> Maybe.withDefault 0
+
+        containsNewline =
+          List.any (String.contains "\n") strings
+      in
+        maxArgLen > 20 || containsNewline
+
+    eatString : String -> State UnparseState ()
     eatString s =
       let
         lines =
@@ -278,30 +300,60 @@ unparse =
       in
         if newLineCount > 0 then
           State.modify
-            ( \{line, col} ->
-                { line = line + newLineCount
-                , col = lastLineLength
+            ( \state ->
+                { state
+                    | pos =
+                        { line = state.pos.line + newLineCount
+                        , col = lastLineLength + 1
+                        }
                 }
             )
         else
           State.modify
-            ( \{line, col} ->
-                { line = line
-                , col = col + lastLineLength
+            ( \state ->
+                { state
+                    | pos =
+                        { line = state.pos.line
+                        , col = state.pos.col + lastLineLength
+                        }
                 }
             )
 
-    basic : String -> ((WithInfo String) -> UnExp (WithInfo String)) -> State Pos (UnExp (WithInfo String))
+    basic :
+      String
+        -> ((WithInfo String)
+        -> UnExp (WithInfo String))
+        -> State UnparseState (UnExp (WithInfo String))
     basic s uFunc =
-      State.do State.get <| \startPos ->
+      State.do State.get <| \start ->
       State.do (eatString s) <| \_ ->
-      State.do State.get <| \endPos ->
+      State.do State.get <| \end ->
       State.pure <|
-        uFunc (withInfo s startPos endPos)
+        uFunc (withInfo s start.pos end.pos)
 
-    unparseHelper : UnExp d -> State Pos (UnExp (WithInfo String))
+    newline : State UnparseState ()
+    newline =
+      State.do State.get <| \state ->
+      eatString <|
+        indentString state.indent
+
+    indentString : Int -> String
+    indentString n =
+      "\n" ++ String.concat (List.repeat n "  ")
+
+    indent : State UnparseState ()
+    indent =
+      State.modify <| \state ->
+        { state | indent = state.indent + 1 }
+
+    dedent : State UnparseState ()
+    dedent =
+      State.modify <| \state ->
+        { state | indent = state.indent - 1 }
+
+    unparseHelper : UnExp d -> State UnparseState (UnExp (WithInfo String))
     unparseHelper u =
-      flip State.andThen State.get <| \startPos ->
+      State.do State.get <| \start ->
         case u of
           UConstructor _ name uArg ->
             State.do (eatString <| name ++ " ") <| \_ ->
@@ -314,7 +366,7 @@ unparse =
                 UConstructor
                   ( withInfo
                       (name ++ " " ++ argInfo.val)
-                      startPos
+                      start.pos
                       argInfo.end
                   )
                   name
@@ -342,29 +394,79 @@ unparse =
               basic sString (flip UString s)
 
           UTuple _ us ->
-            let
-              entry u =
-                State.do (unparseHelper u) <| \uWithInfo ->
-                State.do (eatString ", ") <| \_ ->
+            if shouldBreak us then
+              let
+                entry u =
+                  State.do (unparseHelper u) <| \uWithInfo ->
+                  State.do newline <| \_ ->
+                  State.do (eatString ", ") <| \_ ->
+                  State.pure <|
+                    uWithInfo
+              in
+                State.do (eatString "( ") <| \_ ->
+                State.do (State.mapM entry us) <| \usWithInfo ->
+                State.do (eatString ")") <| \_ ->
+                -- Un-eat final comma+space
+                State.do
+                  ( State.modify <| \state ->
+                      { state
+                          | pos =
+                              { line = state.pos.line
+                              , col = state.pos.col - 2
+                              }
+                      }
+                  ) <| \_ ->
+                State.do State.get <| \end ->
                 State.pure <|
-                  uWithInfo
-            in
-              State.do (eatString "(") <| \_ ->
-              State.do (State.mapM entry us) <| \usWithInfo ->
-              State.do (eatString ")") <| \_ ->
-              -- Un-eat final comma+space
-              State.do (State.modify (\pos -> {pos | col = pos.col - 2})) <| \_ ->
-              State.do State.get <| \endPos ->
-              State.pure <|
-                let
-                  innerString =
-                    usWithInfo
-                      |> List.map (getData >> .val)
-                      |> String.join ", "
-                in
-                  UTuple
-                    (withInfo ("(" ++ innerString ++ ")") startPos endPos)
-                    usWithInfo
+                  let
+                    innerString =
+                      usWithInfo
+                        |> List.map (getData >> .val)
+                        |> String.join (indentString start.indent ++ ", ")
+                  in
+                    UTuple
+                      ( withInfo
+                        ( "( "
+                            ++ innerString
+                            ++ indentString start.indent
+                            ++ ")"
+                        )
+                        start.pos
+                        end.pos
+                      )
+                      usWithInfo
+            else
+              let
+                entry u =
+                  State.do (unparseHelper u) <| \uWithInfo ->
+                  State.do (eatString ", ") <| \_ ->
+                  State.pure <|
+                    uWithInfo
+              in
+                State.do (eatString "(") <| \_ ->
+                State.do (State.mapM entry us) <| \usWithInfo ->
+                State.do (eatString ")") <| \_ ->
+                -- Un-eat final comma+space
+                State.do
+                  ( State.modify <| \state ->
+                      { state
+                          | pos =
+                              { line = state.pos.line
+                              , col = state.pos.col - 2
+                              }
+                      }
+                  ) <| \_ ->
+                State.do State.get <| \end ->
+                State.pure <|
+                  let
+                    innerString =
+                      usWithInfo
+                        |> List.map (getData >> .val)
+                        |> String.join ", "
+                  in
+                    UTuple
+                      (withInfo ("(" ++ innerString ++ ")") start.pos end.pos)
+                      usWithInfo
 
           UFunClosure _ env args body ->
             let
@@ -395,32 +497,72 @@ unparse =
               basic unparsedString (\w -> UHoleClosure w env (i, j))
 
           UApp _ uFunction uArgs ->
-            let
-              entry u =
-                State.do (eatString " (") <| \_ ->
-                State.do (unparseHelper u) <| \uWithInfo ->
-                State.do (eatString ")") <| \_ ->
-                State.pure
-                  uWithInfo
-            in
-              State.do (unparseHelper uFunction) <| \uFunctionWithInfo ->
-              State.do (State.mapM entry uArgs) <| \uArgsWithInfo ->
-              State.do State.get <| \endPos ->
-              State.pure <|
-                let
-                  argString =
-                    uArgsWithInfo
-                      |> List.map (\u -> " (" ++ (getData u).val ++ ")")
-                      |> String.concat
-                in
-                  UApp
-                    ( withInfo
-                        ((getData uFunctionWithInfo).val ++ argString)
-                        startPos
-                        endPos
-                    )
-                    uFunctionWithInfo
-                    uArgsWithInfo
+            if shouldBreak uArgs then
+              let
+                entry u =
+                  State.do newline <| \_ ->
+                  State.do (eatString "(") <| \_ ->
+                  State.do (unparseHelper u) <| \uWithInfo ->
+                  State.do (eatString ")") <| \_ ->
+                  State.pure
+                    uWithInfo
+              in
+                State.do (unparseHelper uFunction) <| \uFunctionWithInfo ->
+                State.do indent <| \_ ->
+                State.do (State.mapM entry uArgs) <| \uArgsWithInfo ->
+                State.do dedent <| \_ ->
+                State.do newline <| \_ ->
+                State.do State.get <| \end ->
+                State.pure <|
+                  let
+                    argString =
+                      uArgsWithInfo
+                        |> List.map
+                             ( \u ->
+                                 indentString (start.indent + 1)
+                                   ++ "("
+                                   ++ (getData u).val
+                                   ++ ")"
+                             )
+                        |> String.concat
+                  in
+                    UApp
+                      ( withInfo
+                          ( (getData uFunctionWithInfo).val
+                              ++ argString
+                              ++ indentString (start.indent + 1))
+                          start.pos
+                          end.pos
+                      )
+                      uFunctionWithInfo
+                      uArgsWithInfo
+            else
+              let
+                entry u =
+                  State.do (eatString " (") <| \_ ->
+                  State.do (unparseHelper u) <| \uWithInfo ->
+                  State.do (eatString ")") <| \_ ->
+                  State.pure
+                    uWithInfo
+              in
+                State.do (unparseHelper uFunction) <| \uFunctionWithInfo ->
+                State.do (State.mapM entry uArgs) <| \uArgsWithInfo ->
+                State.do State.get <| \end ->
+                State.pure <|
+                  let
+                    argString =
+                      uArgsWithInfo
+                        |> List.map (\u -> " (" ++ (getData u).val ++ ")")
+                        |> String.concat
+                  in
+                    UApp
+                      ( withInfo
+                          ((getData uFunctionWithInfo).val ++ argString)
+                          start.pos
+                          end.pos
+                      )
+                      uFunctionWithInfo
+                      uArgsWithInfo
 
           UGet _ n i uTuple ->
             let
@@ -437,7 +579,7 @@ unparse =
                   UGet
                     ( withInfo
                         (funcName ++ " " ++ tupleInfo.val)
-                        startPos
+                        start.pos
                         tupleInfo.end
                     )
                     n
@@ -461,7 +603,7 @@ unparse =
 --                ++ " of "
 --                ++ String.join " " (List.map unparseBranch branches)
   in
-    unparseHelper >> State.run startPos >> Tuple.first
+    unparseHelper >> State.run { pos = startPos, indent = 0 } >> Tuple.first
 
 unparseSimple : UnExp d -> String
 unparseSimple =
