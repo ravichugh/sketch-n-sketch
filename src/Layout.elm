@@ -140,8 +140,8 @@ menuBarTotalHeight =
 --------------------------------------------------------------------------------
 
 toolPanel =
-  { width = 50
-  , right = spacing.width
+  { width = 0 -- 50
+  , right = 0 -- spacing.width
   , marginLeft = spacing.width
   }
 

@@ -1346,7 +1346,7 @@ menuBar model =
             , if model.outputToolsMenuMode then [outputToolsMenu] else []
             , [viewMenu]
             , [optionsMenu]
-            , [templateNavigation]
+            --, [templateNavigation]
             ]
           )
 
