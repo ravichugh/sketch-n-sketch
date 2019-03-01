@@ -7,13 +7,67 @@ import Svg exposing (Svg)
 import Svg.Attributes as SAttr
 import Svg.Events as SE
 
-import Model exposing (ColorScheme(..))
 import DeuceColor
 import DeuceParameters
+import DeuceGeometry as DG
+
+import Model exposing (ColorScheme(..))
 
 import UnExp exposing (UnExp)
 
 import Info exposing (WithInfo)
+import Utils
+
+--------------------------------------------------------------------------------
+-- Helper Functions
+--------------------------------------------------------------------------------
+
+-- (startCol, startRow, endCol, endRow)
+-- NOTE: 0-indexed.
+startEnd :
+  DG.LineHulls -> Int -> WithInfo String -> (Int, Int, Int, Int)
+startEnd lineHulls maxLineLength info =
+  let
+    (startCol, startLine, endCol, endLine) =
+      ( info.start.col
+      , info.start.line
+      , info.end.col
+      , info.end.line
+      )
+    -- Special cases
+    (realStartLine, realStartCol, realEndLine, realEndCol) =
+      -- Manual extension to max col
+      if endCol == 0 then
+        ( startLine
+        , startCol
+        , endLine - 1
+        , maxLineLength + 1
+        )
+      -- Removal
+      else if Info.hasDummyInfo info then
+        (-100, -100, -100, -100)
+      else
+        (startLine, startCol, endLine, endCol)
+  in
+    ( realStartCol - 1
+    , realStartLine - 1
+    , realEndCol - 1
+    , realEndLine - 1
+    )
+
+--------------------------------------------------------------------------------
+-- Geometric Parameters
+--------------------------------------------------------------------------------
+
+c2a : DG.CodePos -> DG.AbsolutePos
+c2a (cx, cy) =
+  ( 7.19 * toFloat cx
+  , 15.0 * toFloat cy
+  )
+
+--------------------------------------------------------------------------------
+-- Polygons
+--------------------------------------------------------------------------------
 
 type alias Handlers msg =
   { onClick : UnExp (WithInfo String) -> msg
@@ -21,39 +75,25 @@ type alias Handlers msg =
   , onMouseOut : UnExp (WithInfo String) -> msg
   }
 
-polygon : Handlers msg -> UnExp (WithInfo String) -> Svg msg
-polygon handlers u =
+polygon :
+  Handlers msg -> DG.LineHulls -> Int -> UnExp (WithInfo String) -> Svg msg
+polygon handlers lineHulls maxLineLength unExp =
   let
-    xScale =
-      7.19
-
-    yScale =
-      15.0
-
     info =
-      UnExp.getData u
+      UnExp.getData unExp
 
-    xStart =
-      (toFloat <| info.start.col - 1) * xScale
-
-    yStart =
-      (toFloat <| info.start.line - 1) * yScale
-
-    xEnd =
-      (toFloat <| info.end.col - 1) * xScale
-
-    yEnd =
-      (toFloat info.end.line) * yScale
+    infoHullPoints =
+      info
+        |> startEnd lineHulls maxLineLength
+        |> Utils.uncurry4 (DG.hull c2a 0 0 lineHulls False False)
+        |> DG.hullPoints
   in
-    Svg.rect
+    Svg.polygon
       [ SAttr.class "deuce-unexp-poly"
 
-      , SAttr.x <| toString xStart
-      , SAttr.y <| toString yStart
-      , SAttr.width <| toString (xEnd - xStart)
-      , SAttr.height <| toString (yEnd - yStart)
+      , SAttr.points infoHullPoints
 
-      , SE.onClick <| handlers.onClick u
+      , SE.onClick <| handlers.onClick unExp
 
       , SAttr.strokeWidth <|
           DeuceParameters.strokeWidth Light
@@ -66,6 +106,19 @@ polygon handlers u =
       ]
       []
 
+--------------------------------------------------------------------------------
+-- Exports
+--------------------------------------------------------------------------------
+
 overlay : Handlers msg -> UnExp (WithInfo String) -> List (Html msg)
-overlay handlers =
-  UnExp.flatten >> List.map (polygon handlers)
+overlay handlers root =
+  let
+    info =
+      UnExp.getData root
+
+    (_, trimmedLineHulls, maxLineLength) =
+      DG.lineHulls c2a info.val
+  in
+    root
+      |> UnExp.flatten
+      |> List.map (polygon handlers trimmedLineHulls maxLineLength)

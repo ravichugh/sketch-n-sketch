@@ -397,7 +397,9 @@ unparse =
             if shouldBreak us then
               let
                 entry u =
+                  State.do indent <| \_ ->
                   State.do (unparseHelper u) <| \uWithInfo ->
+                  State.do dedent <| \_ ->
                   State.do newline <| \_ ->
                   State.do (eatString ", ") <| \_ ->
                   State.pure <|
@@ -501,9 +503,9 @@ unparse =
               let
                 entry u =
                   State.do newline <| \_ ->
-                  State.do (eatString "(") <| \_ ->
+                  -- State.do (eatString "(") <| \_ ->
                   State.do (unparseHelper u) <| \uWithInfo ->
-                  State.do (eatString ")") <| \_ ->
+                  -- State.do (eatString ")") <| \_ ->
                   State.pure
                     uWithInfo
               in
@@ -520,15 +522,17 @@ unparse =
                         |> List.map
                              ( \u ->
                                  indentString (start.indent + 1)
-                                   ++ "("
+                                   -- ++ "("
                                    ++ (getData u).val
-                                   ++ ")"
+                                   -- ++ ")"
                              )
                         |> String.concat
                   in
                     UApp
                       ( withInfo
                           ( (getData uFunctionWithInfo).val
+                              -- Provides area to select application
+                              ++ " <|"
                               ++ argString
                               ++ indentString (start.indent + 1))
                           start.pos
@@ -557,7 +561,9 @@ unparse =
                   in
                     UApp
                       ( withInfo
-                          ((getData uFunctionWithInfo).val ++ argString)
+                          ( (getData uFunctionWithInfo).val
+                              ++ argString
+                          )
                           start.pos
                           end.pos
                       )

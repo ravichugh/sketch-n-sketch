@@ -6,6 +6,7 @@ module Deuce exposing (Messages, overlay, diffOverlay, c2a)
 
 import DeuceColor exposing (..)
 import DeuceParameters exposing (..)
+import DeuceGeometry as DG
 
 import List
 import String
@@ -112,55 +113,8 @@ startEnd codeInfo codeObject =
     )
 
 --==============================================================================
---= DATA TYPES
+--= INFORMATION
 --==============================================================================
-
---------------------------------------------------------------------------------
--- Indexed
---------------------------------------------------------------------------------
-
-type alias Indexed a =
-  (Int, a)
-
-index : List a -> List (Indexed a)
-index = List.indexedMap (,)
-
---------------------------------------------------------------------------------
--- Hulls
---------------------------------------------------------------------------------
-
-type alias CodePos =
-  (Int, Int)
-
-type alias AbsolutePos =
-  (Float, Float)
-
-type alias Hull =
-  List AbsolutePos
-
--- CodePos to AbsolutePos
-c2a : DisplayInfo -> CodePos -> AbsolutePos
-c2a di (cx, cy) =
-  ( di.characterWidth * toFloat cx
-  , di.lineHeight * toFloat cy
-  )
-
---------------------------------------------------------------------------------
--- Lines
---------------------------------------------------------------------------------
-
-type alias Line =
-  { startCol : Int
-  , endCol : Int
-  , val : String
-  }
-
-type alias LineHulls =
-  List Hull
-
---------------------------------------------------------------------------------
--- Information
---------------------------------------------------------------------------------
 
 type alias DisplayInfo =
   { lineHeight : Float
@@ -170,8 +124,8 @@ type alias DisplayInfo =
 
 type alias CodeInfo =
   { displayInfo : DisplayInfo
-  , untrimmedLineHulls : LineHulls
-  , trimmedLineHulls : LineHulls
+  , untrimmedLineHulls : DG.LineHulls
+  , trimmedLineHulls : DG.LineHulls
   , mbKeyboardFocusedWidget : Maybe DeuceWidget
   , selectedWidgets : List DeuceWidget
   , patMap : Dict PId PathedPatternId
@@ -181,135 +135,15 @@ type alias CodeInfo =
   }
 
 --==============================================================================
---= LINE FUNCTIONS
+--= GEOMETRIC PARAMETERS
 --==============================================================================
 
-emptyLine : Line
-emptyLine =
-  { startCol = 0
-  , endCol = 0
-  , val = ""
-  }
-
-isBlankLine : Line -> Bool
-isBlankLine line =
-  line.startCol == line.endCol
-
-computeMaxLineLength : List String -> Int
-computeMaxLineLength strings =
-  let
-    lens =
-      List.map String.length strings
-  in
-    Maybe.withDefault 0 <|
-      List.maximum lens
-
-untrimmedLine : Int -> List String -> List Line
-untrimmedLine maxLen strings =
-  let
-    startCol =
-      0
-    endCol =
-      maxLen + 1
-    lineMapper s =
-      { startCol =
-          startCol
-      , endCol =
-          endCol
-      , val =
-          s
-      }
-  in
-    List.map lineMapper strings
-
-trimmedLine : List String -> List Line
-trimmedLine =
-  List.map <|
-    \s ->
-      let
-        trimmed =
-          String.trim s
-        trimmedLen =
-          String.length trimmed
-        trimmedRightLen =
-          (String.length << String.trimRight) s
-        startCol =
-          trimmedRightLen - trimmedLen
-        endCol =
-          startCol + trimmedLen
-      in
-        { startCol =
-            startCol
-        , endCol =
-            endCol
-        , val =
-            trimmed
-        }
-
-lineHull : DisplayInfo -> Indexed Line -> Hull
-lineHull di (row, line) =
-  List.map (c2a di)
-    [ (line.startCol, row)
-    , (line.startCol, row + 1)
-    , (line.endCol, row + 1)
-    , (line.endCol, row)
-    ]
-
--- Returns: (untrimmed, trimmed, max line length)
-lineHullsFromCode : DisplayInfo -> Code -> (LineHulls, LineHulls, Int)
-lineHullsFromCode di code =
-  let
-    lines =
-      String.lines code
-    maxLineLength =
-      computeMaxLineLength lines
-    pipeline lineKind =
-      lines
-        |> lineKind
-        |> index
-        |> List.map (lineHull di)
-  in
-    ( pipeline <| untrimmedLine maxLineLength
-    , pipeline trimmedLine
-    , maxLineLength
-    )
-
---==============================================================================
---= HULL FUNCTIONS
---==============================================================================
-
-zeroWidthPadding : Float
-zeroWidthPadding = 2
-
-affectedByBleed : CodeObject -> Bool
-affectedByBleed =
-  isTarget
-
-specialEndFlag : Float
-specialEndFlag =
-  -123456789
-
-addBleed : AbsolutePos -> AbsolutePos
-addBleed (x, y) =
-  if x == specialEndFlag then
-    ( 0
-    , y
-    )
-  else if x <= 0 then
-    ( -Layout.deuceOverlayBleed
-    , y
-    )
-  else
-    (x, y)
-
-addFinalEndBleed : AbsolutePos -> AbsolutePos
-addFinalEndBleed (x, y) =
-  if x <= 0 then
-    ( specialEndFlag
-    , y
-    )
-  else
-    (x, y)
+-- CodePos to AbsolutePos
+c2a : DisplayInfo -> DG.CodePos -> DG.AbsolutePos
+c2a di (cx, cy) =
+  ( di.characterWidth * toFloat cx
+  , di.lineHeight * toFloat cy
+  )
 
 crustSize : DisplayInfo -> Float
 crustSize di =
@@ -320,150 +154,44 @@ crustSize di =
     -- a backup in case the settings are weird
     0.3 * di.lineHeight
 
-removeUpperCrust : DisplayInfo -> AbsolutePos -> AbsolutePos
-removeUpperCrust di (x, y) =
-  (x, y + crustSize di)
+bleedAmount : Float
+bleedAmount =
+  Layout.deuceOverlayBleed
 
-removeLowerCrust : DisplayInfo -> AbsolutePos -> AbsolutePos
-removeLowerCrust di (x, y) =
-  (x, y - crustSize di)
+--==============================================================================
+--= HULL FUNCTIONS
+--==============================================================================
 
-maybeDecrust :
-  DisplayInfo -> Bool -> List (DisplayInfo -> AbsolutePos -> AbsolutePos) -> Hull -> Hull
-maybeDecrust di shouldDecrust decrusters =
-  Utils.applyIf shouldDecrust <|
-    List.map2 (\dc pos -> dc di pos) decrusters
+affectedByBleed : CodeObject -> Bool
+affectedByBleed =
+  isTarget
 
-magicDecrust :
-  DisplayInfo -> Bool -> List ((DisplayInfo -> AbsolutePos -> AbsolutePos), Int, Int) -> Hull
-magicDecrust di shouldDecrust posInfos =
-  let modifier =
-    (\(dc, col, row) ->
-      Utils.applyIf shouldDecrust
-        (dc di)
-        (c2a di (col, row))
-    )
-  in
-  List.map modifier posInfos
-
--- NOTE: Use 0-indexing for columns and rows.
-hull : CodeInfo -> Bool -> Bool -> Bool -> Int -> Int -> Int -> Int -> Hull
-hull codeInfo useTrimmed shouldAddBleed shouldDecrust startCol startRow endCol endRow =
+codeObjectHull : Bool -> CodeInfo -> CodeObject -> DG.Hull
+codeObjectHull shouldDecrust codeInfo codeObject =
   let
     di =
       codeInfo.displayInfo
+    (startCol, startRow, endCol, endRow) =
+      startEnd codeInfo codeObject
+    useTrimmed =
+      (not << isTarget) codeObject
     lineHulls =
       if useTrimmed then
         codeInfo.trimmedLineHulls
       else
         codeInfo.untrimmedLineHulls
-    relevantLines =
-      Utils.slice (startRow + 1) endRow lineHulls
-    modifier = if shouldAddBleed then List.map addBleed else identity
-  in
-    modifier <|
-      -- Multi-line
-      if startRow /= endRow then
-        -- Left of first line
-        ( magicDecrust di shouldDecrust
-            [ (removeUpperCrust, startCol, startRow)
-            , (always identity, startCol, startRow + 1)
-            ]
-        ) ++
-
-        -- Left of middle lines
-        ( List.concat <|
-            List.map (List.take 2)
-              relevantLines
-        ) ++
-
-        -- Left of last line
-        ( maybeDecrust di shouldDecrust [always identity, removeLowerCrust] <|
-            List.take 2 <|
-              Maybe.withDefault [] <|
-                Utils.maybeGeti0 endRow lineHulls
-        ) ++
-
-        -- Right of last line
-        (
-          magicDecrust di shouldDecrust
-            [ (removeLowerCrust, endCol, endRow + 1)
-            , (always identity, endCol, endRow)
-            ] |>
-              Utils.applyIf shouldAddBleed (List.map addFinalEndBleed)
-        ) ++
-
-        -- Right of middle lines
-        ( List.concat <|
-            List.map (List.drop 2) <|
-              List.reverse relevantLines
-        ) ++
-
-        -- Right of first line
-        ( maybeDecrust di shouldDecrust [always identity, removeUpperCrust] <|
-            List.drop 2 <|
-              Maybe.withDefault [] <|
-                Utils.maybeGeti0 startRow lineHulls
-        )
-      -- Zero-width
-      else if startCol == endCol then
-        let
-          (x, yTop) =
-            c2a di (startCol, startRow)
-          (_, yBottom) =
-            c2a di (startCol, startRow + 1)
-        in
-          [ (x - zeroWidthPadding, yTop)
-          , (x - zeroWidthPadding, yBottom)
-          , (x + zeroWidthPadding, yBottom)
-          , (x + zeroWidthPadding, yTop)
-          ] |>
-            maybeDecrust di shouldDecrust
-              [ removeUpperCrust
-              , removeLowerCrust
-              , removeLowerCrust
-              , removeUpperCrust
-              ]
-      -- Single-line, nonzero-width
-      else
-        magicDecrust di shouldDecrust
-          [ (removeUpperCrust, startCol, startRow)
-          , (removeLowerCrust, startCol, startRow + 1)
-          , (removeLowerCrust, endCol, startRow + 1)
-          , (removeUpperCrust, endCol, startRow)
-          ]
-
-codeObjectHull : Bool -> CodeInfo -> CodeObject -> Hull
-codeObjectHull shouldDecrust codeInfo codeObject =
-  let
-    (startCol, startRow, endCol, endRow) =
-      startEnd codeInfo codeObject
-    useTrimmed =
-      (not << isTarget) codeObject
     shouldAddBleed =
       affectedByBleed codeObject
   in
-    hull codeInfo useTrimmed shouldAddBleed shouldDecrust startCol startRow endCol endRow
-
-hullPoints : Hull -> String
-hullPoints =
-  let
-    pairToString (x, y) =
-      (toString x) ++ "," ++ (toString y) ++ " "
-  in
-    String.concat << List.map pairToString
+    DG.hull (c2a di) (crustSize di) bleedAmount lineHulls shouldAddBleed shouldDecrust startCol startRow endCol endRow
 
 codeObjectHullPoints : Bool -> CodeInfo -> CodeObject -> String
 codeObjectHullPoints shouldDecrust codeInfo codeObject =
-  hullPoints <| codeObjectHull shouldDecrust codeInfo codeObject
+  DG.hullPoints <| codeObjectHull shouldDecrust codeInfo codeObject
 
 --==============================================================================
 --= POLYGONS
 --==============================================================================
-
---------------------------------------------------------------------------------
--- Polygons
---------------------------------------------------------------------------------
 
 -- This polygon should be used for code objects that should not be Deuce-
 -- selectable. The purpose of this polygon is to block selection of the parent
@@ -614,8 +342,9 @@ codeObjectPolygon msgs codeInfo codeObject color =
 
 diffpolygon: CodeInfo -> Exp -> Svg msg
 diffpolygon codeInfo (Expr exp) =
+  let di = codeInfo.displayInfo in
   let color = diffColor codeInfo.displayInfo.colorScheme <| Maybe.withDefault "+" <| Lang.eStrUnapply <| Expr exp in
-  let thehull = hullPoints <| hull codeInfo True False False exp.start.col exp.start.line exp.end.col exp.end.line in
+  let thehull = DG.hullPoints <| DG.hull (c2a di) (crustSize di) bleedAmount codeInfo.trimmedLineHulls False False exp.start.col exp.start.line exp.end.col exp.end.line in
     Svg.polygon
         [ SAttr.points thehull
         , SAttr.strokeWidth <|
@@ -742,7 +471,7 @@ overlay msgs model =
           model.colorScheme
       }
     (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
-      lineHullsFromCode displayInfo model.code
+      DG.lineHulls (c2a displayInfo) model.code
     patMap =
       computePatMap ast
     codeInfo =
@@ -787,7 +516,7 @@ diffOverlay model exps =
           model.colorScheme
       }
     (untrimmedLineHulls, trimmedLineHulls, maxLineLength) =
-      lineHullsFromCode displayInfo model.code
+      DG.lineHulls (c2a displayInfo) model.code
     codeInfo =
       { displayInfo =
           displayInfo

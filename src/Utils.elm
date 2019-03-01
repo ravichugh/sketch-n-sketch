@@ -1713,6 +1713,10 @@ uncurry : (a -> b -> c) -> (a, b) -> c
 uncurry f (x, y) =
   f x y
 
+uncurry4 : (a1 -> a2 -> a3 -> a4 -> b) -> (a1, a2, a3, a4) -> b
+uncurry4 f (x1, x2, x3, x4) =
+  f x1 x2 x3 x4
+
 --------------------------------------------------------------------------------
 
 isOk : Result e a -> Bool
