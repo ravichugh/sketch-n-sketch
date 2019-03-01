@@ -85,6 +85,8 @@ port module Controller exposing
   , msgUpdateHoleExampleInput
   , msgUpdateBackpropExampleInput
   , msgCollectAndSolve
+  , msgShowUnExpPreview
+  , msgClearUnExpPreview
   )
 
 import Updatable exposing (Updatable)
@@ -1197,171 +1199,182 @@ getAutoSyncDelay m =
 
 issueCommandBasedOnCaption : String -> Model -> Model -> Cmd Msg
 issueCommandBasedOnCaption kind oldModel newModel =
-      case kind of
-        "Toggle Code Box" ->
-          if newModel.basicCodeBox
-            then Cmd.none
-            else AceCodeBox.initializeAndDisplay newModel
-              -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
+  case kind of
+    "Toggle Code Box" ->
+      if newModel.basicCodeBox
+        then Cmd.none
+        else AceCodeBox.initializeAndDisplay newModel
+          -- TODO crash: "Uncaught Error: ace.edit can't find div #editor"
 
-        "Save As" ->
-          if newModel.filename.name /= Model.bufferName then
+    "Save As" ->
+      if newModel.filename.name /= Model.bufferName then
+        FileHandler.sendMessage <|
+          Write newModel.filename newModel.code
+      else
+        Cmd.none
+
+    "Save" ->
+      if newModel.filename.name /= Model.bufferName then
+        FileHandler.sendMessage <|
+          Write newModel.filename newModel.code
+      else
+        FileHandler.sendMessage RequestFileIndex
+
+    "Confirm Write" ->
+      Cmd.batch <| iconCommand newModel.filename
+
+    "Open" ->
+      FileHandler.sendMessage <|
+        RequestFile newModel.filename
+
+    "Delete" ->
+      FileHandler.sendMessage <|
+        Delete newModel.fileToDelete
+
+    "Confirm Delete" ->
+      Cmd.batch <| iconCommand newModel.fileToDelete
+
+    "Export Code" ->
+      -- not just using prettyFilename WithExtension, because that
+      -- function handles templates and local differently
+      let ext = if newModel.syntax == Syntax.Leo then ".elm" else ".little" in
+      FileHandler.sendMessage <|
+        Download
+          (Model.prettyFilename WithoutExtension newModel ++ ext)
+          newModel.code
+
+    "Export HTML" ->
+      let (prefix, suffix, extension) =
+        case vHtmlNodeUnapply newModel.inputVal of
+           Just ("svg", _, _) -> ("", "", ".svg")
+           _ -> ("<html>\n<body>", "</body>\n</html>", ".html")
+      in
+      FileHandler.sendMessage <|
+        Download
+          (Model.prettyFilename WithoutExtension newModel ++ extension)
+          (prefix ++ LangSvg.printRawHTML newModel.showGhosts newModel.slate ++ suffix)
+
+    "Import Code" ->
+      FileHandler.sendMessage <|
+        RequestUploadedFile Model.importCodeFileInputId
+
+    -- Do not send changes back to the editor, because this is the command where
+    -- we receieve changes (if this is removed, an infinite feedback loop
+    -- occurs).
+    "Ace Update" ->
+      if newModel.backupRecovery then
+        let
+          backup =
+            File.backupFilename newModel.filename
+        in
+          if newModel.needsSave then
             FileHandler.sendMessage <|
-              Write newModel.filename newModel.code
+              Write backup ("{-\n" ++ newModel.code ++ "\n-}\n\nmain = svg []")
+          else
+            FileHandler.sendMessage <|
+              Delete backup
+      else
+        Cmd.none
+
+    "Enable Text Edits" ->
+      AceCodeBox.setReadOnly False
+
+    "Disable Text Edits" ->
+      AceCodeBox.setReadOnly True
+
+    "Show UnExp Preview" ->
+      AceCodeBox.display newModel
+
+    "Clear UnExp Preview" ->
+      AceCodeBox.display
+        { newModel
+            | code =
+                newModel.codeAtPbeSynthesis
+                  |> Maybe.withDefault newModel.code
+        }
+
+    _ ->
+      let dispatchIfChanged: (Model -> a) -> (a -> Cmd Msg) -> Cmd Msg
+          dispatchIfChanged submodel cmdBuilder =
+            let n = submodel newModel in
+            if submodel oldModel /= n then cmdBuilder n else Cmd.none
+      in
+      let dispatchIfNonemptyChanged: (Model -> Maybe a) -> (a -> Cmd Msg) -> Cmd Msg
+          dispatchIfNonemptyChanged submodel cmdBuilder =
+            let n = submodel newModel in
+            case n of
+              Nothing -> Cmd.none
+              Just a ->
+                if submodel oldModel /= n then cmdBuilder a else Cmd.none
+      in
+      Cmd.batch
+        [ dispatchIfChanged
+            (\m -> m.syncMode)
+            (\syncMode -> case syncMode of
+               ValueBackprop True -> OutputCanvas.enableAutoSync True
+               _                  -> OutputCanvas.enableAutoSync False
+            )
+        , dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay
+        , dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode
+        , dispatchIfChanged (\m -> m.previewdiffs |> Utils.maybeIsEmpty |> not) (OutputCanvas.setDiffTimer << DiffTimer newModel.previewdiffsDelay)
+        , dispatchIfNonemptyChanged (\m -> m.caretPosition) OutputCanvas.setCaretPosition
+        --, dispatchIfNonemptyChanged (\m ->
+        --   m.previewdiffs |> Utils.maybeOrElse (Maybe.map (\(_, exps, _) -> exps) m.preview) |>
+        --     Maybe.andThen List.head |> Maybe.map (\expHead -> expHead.start)) AceCodeBox.aceCodeBoxScroll
+        , if kind == "Update Font Size" then
+            AceCodeBox.updateFontSize newModel
+          else if
+            newModel.code /= oldModel.code ||
+            newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
+            newModel.preview /= oldModel.preview ||
+            kind == "Turn Off Caption" ||
+            kind == "Mouse Enter CodeBox" ||
+            kind == "Mouse Leave CodeBox" ||
+            kind == "Call Update"
+             {- ||
+             String.startsWith "Key Up" kind ||
+             String.startsWith "Key Down" kind
+             -}
+               -- ideally this last condition would not be necessary.
+               -- and onMouseLeave from point/crosshair zones still leave
+               -- stale yellow highlights.
+          then
+            AceCodeBox.display newModel
+          else if kind == "Drag Layout Widget Trigger" then
+            -- TODO: only want to do this for resize code box widget.
+            -- and need to resize during and after the MouseDragLayout trigger.
+            -- (onMouseUp). workaround for now: click widget again.
+            AceCodeBox.resize newModel
+          else if kind == "Toggle Output" && newModel.outputMode == PrintScopeGraph Nothing then
+            DependenceGraph.render newModel.scopeGraph
+          else if newModel.runAnimation then
+            AnimationLoop.requestFrame ()
           else
             Cmd.none
-
-        "Save" ->
-          if newModel.filename.name /= Model.bufferName then
-            FileHandler.sendMessage <|
-              Write newModel.filename newModel.code
+        , if String.startsWith "New" kind then
+            Cmd.batch
+              [ AceCodeBox.resetScroll newModel
+              , OutputCanvas.resetScroll
+              ]
           else
+            Cmd.none
+        , if String.startsWith "Read File" kind then
+            OutputCanvas.resetScroll
+          else
+            Cmd.none
+        , if String.startsWith "msgMouseClickDeuceWidget" kind then
+            DeucePopupPanelInfo.requestDeucePopupPanelInfo ()
+          else
+            Cmd.none
+        , if String.startsWith "Open Dialog Box" kind then
             FileHandler.sendMessage RequestFileIndex
-
-        "Confirm Write" ->
-          Cmd.batch <| iconCommand newModel.filename
-
-        "Open" ->
-          FileHandler.sendMessage <|
-            RequestFile newModel.filename
-
-        "Delete" ->
-          FileHandler.sendMessage <|
-            Delete newModel.fileToDelete
-
-        "Confirm Delete" ->
-          Cmd.batch <| iconCommand newModel.fileToDelete
-
-        "Export Code" ->
-          -- not just using prettyFilename WithExtension, because that
-          -- function handles templates and local differently
-          let ext = if newModel.syntax == Syntax.Leo then ".elm" else ".little" in
-          FileHandler.sendMessage <|
-            Download
-              (Model.prettyFilename WithoutExtension newModel ++ ext)
-              newModel.code
-
-        "Export HTML" ->
-          let (prefix, suffix, extension) =
-            case vHtmlNodeUnapply newModel.inputVal of
-               Just ("svg", _, _) -> ("", "", ".svg")
-               _ -> ("<html>\n<body>", "</body>\n</html>", ".html")
-          in
-          FileHandler.sendMessage <|
-            Download
-              (Model.prettyFilename WithoutExtension newModel ++ extension)
-              (prefix ++ LangSvg.printRawHTML newModel.showGhosts newModel.slate ++ suffix)
-
-        "Import Code" ->
-          FileHandler.sendMessage <|
-            RequestUploadedFile Model.importCodeFileInputId
-
-        -- Do not send changes back to the editor, because this is the command where
-        -- we receieve changes (if this is removed, an infinite feedback loop
-        -- occurs).
-        "Ace Update" ->
-          if newModel.backupRecovery then
-            let
-              backup =
-                File.backupFilename newModel.filename
-            in
-              if newModel.needsSave then
-                FileHandler.sendMessage <|
-                  Write backup ("{-\n" ++ newModel.code ++ "\n-}\n\nmain = svg []")
-              else
-                FileHandler.sendMessage <|
-                  Delete backup
           else
             Cmd.none
-
-        "Enable Text Edits" ->
-          AceCodeBox.setReadOnly False
-
-        "Disable Text Edits" ->
-          AceCodeBox.setReadOnly True
-
-        _ ->
-          let dispatchIfChanged: (Model -> a) -> (a -> Cmd Msg) -> Cmd Msg
-              dispatchIfChanged submodel cmdBuilder =
-                let n = submodel newModel in
-                if submodel oldModel /= n then cmdBuilder n else Cmd.none
-          in
-          let dispatchIfNonemptyChanged: (Model -> Maybe a) -> (a -> Cmd Msg) -> Cmd Msg
-              dispatchIfNonemptyChanged submodel cmdBuilder =
-                let n = submodel newModel in
-                case n of
-                  Nothing -> Cmd.none
-                  Just a ->
-                    if submodel oldModel /= n then cmdBuilder a else Cmd.none
-          in
-          Cmd.batch
-            [ dispatchIfChanged
-                (\m -> m.syncMode)
-                (\syncMode -> case syncMode of
-                   ValueBackprop True -> OutputCanvas.enableAutoSync True
-                   _                  -> OutputCanvas.enableAutoSync False
-                )
-            , dispatchIfChanged getAutoSyncDelay OutputCanvas.setAutoSyncDelay
-            , dispatchIfChanged (\m -> m.preview |> Utils.maybeIsEmpty |> not) OutputCanvas.setPreviewMode
-            , dispatchIfChanged (\m -> m.previewdiffs |> Utils.maybeIsEmpty |> not) (OutputCanvas.setDiffTimer << DiffTimer newModel.previewdiffsDelay)
-            , dispatchIfNonemptyChanged (\m -> m.caretPosition) OutputCanvas.setCaretPosition
-            --, dispatchIfNonemptyChanged (\m ->
-            --   m.previewdiffs |> Utils.maybeOrElse (Maybe.map (\(_, exps, _) -> exps) m.preview) |>
-            --     Maybe.andThen List.head |> Maybe.map (\expHead -> expHead.start)) AceCodeBox.aceCodeBoxScroll
-            , if kind == "Update Font Size" then
-                AceCodeBox.updateFontSize newModel
-              else if
-                newModel.code /= oldModel.code ||
-                newModel.codeBoxInfo /= oldModel.codeBoxInfo ||
-                newModel.preview /= oldModel.preview ||
-                kind == "Turn Off Caption" ||
-                kind == "Mouse Enter CodeBox" ||
-                kind == "Mouse Leave CodeBox" ||
-                kind == "Call Update"
-                 {- ||
-                 String.startsWith "Key Up" kind ||
-                 String.startsWith "Key Down" kind
-                 -}
-                   -- ideally this last condition would not be necessary.
-                   -- and onMouseLeave from point/crosshair zones still leave
-                   -- stale yellow highlights.
-              then
-                AceCodeBox.display newModel
-              else if kind == "Drag Layout Widget Trigger" then
-                -- TODO: only want to do this for resize code box widget.
-                -- and need to resize during and after the MouseDragLayout trigger.
-                -- (onMouseUp). workaround for now: click widget again.
-                AceCodeBox.resize newModel
-              else if kind == "Toggle Output" && newModel.outputMode == PrintScopeGraph Nothing then
-                DependenceGraph.render newModel.scopeGraph
-              else if newModel.runAnimation then
-                AnimationLoop.requestFrame ()
-              else
-                Cmd.none
-            , if String.startsWith "New" kind then
-                Cmd.batch
-                  [ AceCodeBox.resetScroll newModel
-                  , OutputCanvas.resetScroll
-                  ]
-              else
-                Cmd.none
-            , if String.startsWith "Read File" kind then
-                OutputCanvas.resetScroll
-              else
-                Cmd.none
-            , if String.startsWith "msgMouseClickDeuceWidget" kind then
-                DeucePopupPanelInfo.requestDeucePopupPanelInfo ()
-              else
-                Cmd.none
-            , if String.startsWith "Open Dialog Box" kind then
-                FileHandler.sendMessage RequestFileIndex
-              else
-                Cmd.none
-            , if kind == "Set Color Scheme" then
-                ColorScheme.updateColorScheme newModel.colorScheme
-              else
-                Cmd.none
-            ]
+        , if kind == "Set Color Scheme" then
+            ColorScheme.updateColorScheme newModel.colorScheme
+          else
+            Cmd.none
+        ]
 
 
 iconCommand filename =
@@ -3525,6 +3538,9 @@ resetDeuceState m =
       , holeFillings = []
       , selectedUnExp = Nothing
       , selectedHoles = Set.empty
+      , codeAtPbeSynthesis = Nothing
+      , unExpPreview = Nothing
+      , code = m.codeAtPbeSynthesis |> Maybe.withDefault m.code
       }
 
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
@@ -4503,7 +4519,26 @@ msgCollectAndSolve =
               | holeFillings =
                   Synthesis.solve model.holeEnv (k1 ++ k2)
                     |> NonDet.toList
+              , codeAtPbeSynthesis =
+                  Just model.code
           }
 
         _ ->
-          { model | holeFillings = [] }
+          { model
+              | holeFillings = []
+              , codeAtPbeSynthesis = Nothing
+          }
+
+--------------------------------------------------------------------------------
+-- UnExp Preview
+--------------------------------------------------------------------------------
+
+msgShowUnExpPreview : Exp -> Msg
+msgShowUnExpPreview exp =
+  Msg "Show UnExp Preview" <| \model ->
+    { model | unExpPreview = Just (exp, TriEval.eval exp) }
+
+msgClearUnExpPreview : Msg
+msgClearUnExpPreview =
+  Msg "Clear UnExp Preview" <| \model ->
+    { model | unExpPreview = Nothing }

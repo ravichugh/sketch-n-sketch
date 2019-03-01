@@ -1496,6 +1496,7 @@ code {
 
 .pbe-hole-header h3 {
   font-size: 1.1em;
+  font-weight: normal;
 }
 
 .pbe-hole-header button {
@@ -1542,6 +1543,10 @@ code {
 .pbe-synthesis-results {
   padding: 10px;
   border-top: 1px solid var(--main-border-color);
+}
+
+.pbe-synthesis-results h2 {
+  font-size: 1.1em;
 }
 
 .pbe-synthesis-results:empty {

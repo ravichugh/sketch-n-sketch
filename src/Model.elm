@@ -24,6 +24,7 @@ import Svg
 import LangSvg exposing (attr)
 import Syntax exposing (Syntax)
 import LangUnparser
+import LeoUnparser
 import File exposing (Filename, File, FileIndex)
 import Solver
 -- import Update -- move valToString to ValUnparser
@@ -240,6 +241,8 @@ type alias Model =
   , selectedUnExp : Maybe (UnExp ())
   , holeExampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
   , backpropExampleInput : String
+  , unExpPreview : Maybe (Exp, Result String (UnExp ()))
+  , codeAtPbeSynthesis : Maybe Code
   }
 
 type OutputMode
@@ -824,9 +827,15 @@ liveInfoToHighlights zoneKey model =
 --------------------------------------------------------------------------------
 
 codeToShow model =
-  case model.preview of
-     Just (string, _, _) -> string
-     Nothing          -> model.code
+  case (model.unExpPreview, model.preview) of
+    (Just (exp, _), _) ->
+      LeoUnparser.unparse exp
+
+    (_, Just (string, _, _)) ->
+      string
+
+    _ ->
+      model.code
 
 --------------------------------------------------------------------------------
 
@@ -1549,4 +1558,6 @@ initModel =
     , selectedUnExp = Nothing
     , holeExampleInputs = Dict.empty
     , backpropExampleInput = ""
+    , unExpPreview = Nothing
+    , codeAtPbeSynthesis = Nothing
     }

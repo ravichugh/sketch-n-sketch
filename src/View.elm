@@ -1719,8 +1719,17 @@ outputPanel model =
   let
     canvasDim =
       Layout.outputCanvas model
+
+    unExpOutput =
+      case model.unExpPreview of
+        Just (_, previewUnExpOutput) ->
+          previewUnExpOutput
+
+        Nothing ->
+          model.unExpOutput
+
     output =
-      case model.unExpOutput of
+      case unExpOutput of
         Ok output ->
           let
             unparsedOutput =
@@ -3140,15 +3149,20 @@ viewHoleFilling model holeFilling =
             ]
         , Html.text " ; "
         ]
+
+    newExp =
+      Lang.fillHoles holeFillingList model.inputExp
   in
     Html.li
       [ Attr.class "pbe-hole-filling"
       ]
       [ Html.button
           [ E.onClick <|
-              Controller.msgChooseDeuceExp
-                ""
-                (Lang.fillHoles holeFillingList model.inputExp)
+              Controller.msgChooseDeuceExp "" newExp
+          , E.onMouseOver <|
+              Controller.msgShowUnExpPreview newExp
+          , E.onMouseOut
+              Controller.msgClearUnExpPreview
           ]
           ( List.map viewHoleBinding holeFillingList
           )
@@ -3197,7 +3211,7 @@ pbePopupPanel model =
                   [ Attr.class "pbe-synthesis-results"
                   ]
                   ( if List.length nonEmptyHoleFillings > 0 then
-                      [ Html.h3
+                      [ Html.h2
                           []
                           [ Html.text "Results"
                           ]
