@@ -3487,6 +3487,7 @@ chooseDeuceExp old newRoot =
   in
   -- TODO version of tryRun/upstateRun starting with parsed expression
   upstateRun { modelWithCorrectHistory | code = Syntax.unparser old.syntax newRoot }
+  |> \m -> { m | codeAtPbeSynthesis = Nothing }
   |> deuceRefresh newRoot
   |> resetDeuceKeyboardInfo
   |> resetDeuceState
