@@ -3305,9 +3305,10 @@ toolNeedsHovers model toolId =
     ]
 
 toolList =
-  [ [ exampleProviderTool
-    ]
-  , [ typesTool
+  [ -- TODO remove
+    -- [ exampleProviderTool
+    -- ]
+    [ typesTool
     , (\model selections -> Types2.introduceTypeAliasTool model.inputExp selections)
     , (\model selections -> Types2.renameTypeTool model.inputExp selections)
     , (\model selections -> Types2.renameDataConstructorTool model.inputExp selections)

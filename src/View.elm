@@ -46,6 +46,7 @@ import Syntax
 import File
 import Eval
 import UnExp exposing (UnExp)
+import UnDeclarations exposing (HoleFilling)
 import LeoUnparser
 import Types2
 
@@ -547,19 +548,9 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           )
 
         Special sr ->
-          case sr of
-            ExampleProvider holeId ->
-              case model.unExpOutput of
-                Ok output ->
-                  ( Nothing
-                  , [ viewExampleProvider model holeId output
-                    ]
-                  )
-
-                Err _ ->
-                  ( Nothing
-                  , []
-                  )
+          ( Nothing
+          , []
+          )
   in
     case maybeSynthesisInfo of
       Nothing ->
@@ -581,124 +572,6 @@ deuceTransformationResult model path deuceTransformation transformationResult =
           synthesisInfo.onClick
           False
           []
-
-viewExampleProvider : Model -> Lang.HoleId -> UnExp d -> Html Msg
-viewExampleProvider model holeId output =
-  case Types2.holeEnvGet holeId model.holeEnv of
-    Nothing ->
-      Html.text <|
-        "Cannot find type for holeId " ++ toString holeId
-
-    Just (_, tau) ->
-      let
-        typeInformation =
-          Html.li
-            [ Attr.class "tri-type-info"
-            ]
-            [ Html.text "Synthesizing expression of type "
-            , Html.code [] [ Html.text <| LeoUnparser.unparseType tau ]
-            ]
-
-        holes =
-          UnExp.findHoles holeId output
-
-        viewBinding (identifier, u) =
-          Html.li
-            [ Attr.class "tri-env-binding"
-            ]
-            [ Html.code
-                []
-                [ Html.text <|
-                    identifier
-                      ++ " → "
-                      ++ UnExp.unparseSimple u
-                ]
-            ]
-
-        viewHole (index, env) =
-          Html.li
-            []
-            [ Html.div
-                [ Attr.class "tri-hole-label"
-                ]
-                [ Html.text <|
-                    "Hole " ++ toString index
-                ]
-            , Html.ul
-                [ Attr.class "tri-hole-env"
-                ]
-                ( List.map viewBinding env
-                )
-            , Html.div
-                [ Attr.class "tri-hole-example-input"
-                ]
-                [ Html.input
-                    [ Attr.type_ "text"
-                    , E.onInput (Controller.msgUpdateExampleInput holeId index env)
-                    ]
-                    []
-                ]
-            ]
-
-        synthesizeButton =
-          Html.li
-            [ Attr.class "tri-synthesize" ]
-            [ Html.button
-                [ E.onClick <|
-                    Controller.msgSynthesizeFromExamples holeId
-                ]
-                [ Html.text "Synthesize"
-                ]
-            ]
-
-        results =
-          let
-            viewResult exp =
-              Html.li
-                [ Attr.class "tri-result"
-                ]
-                [ Html.button
-                    [ E.onClick <|
-                        Controller.msgChooseDeuceExp
-                          ""
-                          (Lang.fillHole holeId exp model.inputExp)
-                    ]
-                    [ Html.code
-                        []
-                        [ Html.text <| LeoUnparser.unparse exp
-                        ]
-                    ]
-                ]
-          in
-            model.holeFillings
-              |> List.map (Dict.get holeId)
-              |> Utils.filterJusts
-              |> List.map viewResult
-
-        resultsSection =
-          if List.length results > 0 then
-            [ Html.li
-                [ Attr.class "tri-results-header" ]
-                [ Html.span
-                    []
-                    [ Html.text "Results"
-                    ]
-                ]
-            ] ++
-            results
-          else
-            []
-      in
-        Html.ul
-          [ Attr.class "tri-example-provider"
-          ] <|
-          [ typeInformation
-          ] ++
-          ( List.map viewHole holes
-          ) ++
-          [ synthesizeButton
-          ] ++
-          resultsSection
 
 deuceTransformationResults
   : Model -> List Int -> DeuceTransformation -> List TransformationResult -> List (Html Msg)
@@ -1738,6 +1611,8 @@ codePanel model =
               ("Deuce", "Deuce")
             Model.CETypeInspector ->
               ("Type Inspector", "TypeInspector")
+            Model.CEProgrammingByExample ->
+              ("Programming by Example", "ProgrammingByExample")
       in
         Html.div
           [ Attr.classList
@@ -1780,6 +1655,8 @@ codePanel model =
         , modeIcon Model.CEDeuceClick
         , modeSeparator
         , modeIcon Model.CETypeInspector
+        , modeSeparator
+        , modeIcon Model.CEProgrammingByExample
         , modeSeparator
         ]
   in
@@ -3112,94 +2989,248 @@ autoOutputToolsPopupPanel model =
     }
 
 --------------------------------------------------------------------------------
--- Tri-Directional Synthesis Popup Panel
+-- Programming by Example Popup Panel
 --------------------------------------------------------------------------------
 
-synthesisPopupPanel : Model -> Html Msg
-synthesisPopupPanel model =
-  popupPanel
-    { pos =
-        model.popupPanelPositions.synthesis
-    , disabled =
-        model.selectedUnExp == Nothing
-    , dragHandler =
-        Controller.msgDragSynthesisPopupPanel
-    , class =
-        "tri-synthesis-panel"
-    , title =
-        [ Html.text "Synthesis"
-        ]
-    , content =
-        case model.selectedUnExp of
-          Nothing ->
+viewEnv : UnExp.Env -> Html Msg
+viewEnv env =
+  let
+    viewBinding (identifier, u) =
+      Html.li
+        []
+        [ Html.code
             []
+            [ Html.text <|
+                identifier
+                  ++ " → "
+                  ++ UnExp.unparseSimple u
+            ]
+        ]
+  in
+    Html.ul
+      [ Attr.class "pbe-hole-env"
+      ]
+      ( List.map viewBinding env
+      )
 
-          Just uSelected ->
-            let
-              results =
-                let
-                  viewHoleBinding : (Lang.HoleId, Exp) -> Html Msg
-                  viewHoleBinding (holeId, exp) =
-                    Html.span
+viewBackprop : Model -> List (Html Msg)
+viewBackprop model =
+  case model.selectedUnExp of
+    Just uSelected ->
+      [ Html.div
+          [ Attr.class "pbe-hole-header"
+          ]
+          [ Html.h2
+              []
+              [ Html.text "Backpropagation Example"
+              ]
+          , Html.h3
+              []
+              [ Html.code
+                  []
+                  [ Html.text "Unknown type"
+                  ]
+              ]
+          , Html.button
+              [ E.onClick <|
+                  Controller.msgUnsetSelectedUnExp
+              ]
+              [ Html.text "Remove"
+              ]
+          ]
+      , Html.div
+          [ Attr.class "pbe-unexp"
+          ]
+          [ Html.text <|
+              UnExp.unparseSimple uSelected
+          ]
+      , Html.div
+          [ Attr.class "pbe-hole-backprop-input"
+          ]
+          [ Html.input
+              [ Attr.type_ "text"
+              , E.onInput Controller.msgUpdateBackpropExampleInput
+              ]
+              []
+          ]
+      ]
+
+    Nothing ->
+      []
+
+
+viewHoleOccurrence : Lang.HoleId -> (Int, UnExp.Env) -> Html Msg
+viewHoleOccurrence holeId (index, env) =
+  Html.li
+    []
+    [ Html.h3
+        []
+        [ Html.text <|
+            "Occurrence " ++ toString index
+        ]
+    , viewEnv env
+    , Html.div
+        [ Attr.class "pbe-hole-example-input"
+        ]
+        [ Html.input
+            [ Attr.type_ "text"
+            , E.onInput <|
+                Controller.msgUpdateHoleExampleInput holeId index env
+            ]
+            []
+        ]
+    ]
+
+viewSelectedHole : Model -> UnExp () -> Lang.HoleId -> Html Msg
+viewSelectedHole model output holeId =
+  case Types2.holeEnvGet holeId model.holeEnv of
+    Just (_, tau) ->
+      Html.div
+        [ Attr.class "pbe-hole"
+        ]
+        [ Html.div
+            [ Attr.class "pbe-hole-header"
+            ]
+            [ Html.h2
+                []
+                [ Html.text <|
+                    "Hole " ++ toString holeId
+                ]
+              , Html.h3
+                  []
+                  [ Html.code
                       []
                       [ Html.text <|
-                          "??" ++ toString holeId ++ ": "
-                      , Html.code
-                          []
-                          [ Html.text <| LeoUnparser.unparse exp
-                          ]
-                      , Html.text " ; "
+                          LeoUnparser.unparseType tau
                       ]
-
-                  viewOption : List (Lang.HoleId, Exp) -> Html Msg
-                  viewOption option =
-                    Html.li
-                      [ Attr.class "tri-result"
-                      ] <|
-                      [ Html.button
-                          [ E.onClick <|
-                              Controller.msgChooseDeuceExp
-                                ""
-                                (Lang.fillHoles option model.inputExp)
-                          ]
-                          ( List.map viewHoleBinding option
-                          )
-                      ]
-                in
-                  model.holeFillings
-                    |> List.map Dict.toList
-                    |> List.map viewOption
-
-              resultsSection =
-                if List.length results > 0 then
-                  [ Html.li
-                      [ Attr.class "tri-results-header" ]
-                      [ Html.span
-                          []
-                          [ Html.text "Results"
-                          ]
-                      ]
-                  ] ++
-                  results
-                else
-                  []
-            in
-              [ Html.div
-                  []
-                  [ Html.input
-                      [ Attr.type_ "text"
-                      , E.onInput Controller.msgUpdateBackpropExampleInput
-                      ]
-                      []
                   ]
               , Html.button
                   [ E.onClick <|
-                      Controller.msgCollectAndSolve uSelected
+                      Controller.msgRemoveSelectedHole holeId
                   ]
-                  [ Html.text "Collect and Solve"
+                  [ Html.text "Remove"
                   ]
-              ] ++ resultsSection
-    }
+            ]
+        , Html.ul
+            [ Attr.class "pbe-hole-list" ]
+            ( output
+                |> UnExp.findHoles holeId
+                |> List.map (viewHoleOccurrence holeId)
+            )
+        ]
+
+    _ ->
+      Html.text <|
+        "Hole " ++ toString holeId ++ " not found."
+
+viewHoleFilling : Model -> HoleFilling -> Html Msg
+viewHoleFilling model holeFilling =
+  let
+    holeFillingList =
+      Dict.toList holeFilling
+
+    viewHoleBinding (holeId, exp) =
+      Html.span
+        []
+        [ Html.text <|
+            "??" ++ toString holeId ++ ": "
+        , Html.code
+            []
+            [ Html.text <| LeoUnparser.unparse exp
+            ]
+        , Html.text " ; "
+        ]
+  in
+    Html.li
+      [ Attr.class "pbe-hole-filling"
+      ]
+      [ Html.button
+          [ E.onClick <|
+              Controller.msgChooseDeuceExp
+                ""
+                (Lang.fillHoles holeFillingList model.inputExp)
+          ]
+          ( List.map viewHoleBinding holeFillingList
+          )
+      ]
+
+pbePopupPanel : Model -> Html Msg
+pbePopupPanel model =
+  let
+    content =
+      case model.unExpOutput of
+        Ok output ->
+          let
+            backpropView =
+              Html.div
+                [ Attr.class "pbe-backprop"
+                ]
+                ( viewBackprop model
+                )
+
+            selectedHolesView =
+              Html.ul
+                [ Attr.class "pbe-selected-holes"
+                ]
+                ( model.selectedHoles
+                    |> Set.toList
+                    |> List.map (viewSelectedHole model output)
+                )
+
+            synthesizeButton =
+              Html.div
+                [ Attr.class "pbe-synthesize"
+                ]
+                [ Html.button
+                    [ E.onClick Controller.msgCollectAndSolve
+                    ]
+                    [ Html.text "Synthesize"
+                    ]
+                ]
+
+            synthesisResults =
+              if List.length model.holeFillings > 0 then
+                Html.div
+                  [ Attr.class "pbe-synthesis-results"
+                  ]
+                  [ Html.h3
+                      []
+                      [ Html.text "Results"
+                      ]
+                  , Html.ul
+                      []
+                      ( model.holeFillings
+                          |> List.map (viewHoleFilling model)
+                      )
+                  ]
+              else
+                Html.text ""
+          in
+            [ backpropView
+            , selectedHolesView
+            , synthesizeButton
+            , synthesisResults
+            ]
+
+        Err _ ->
+          []
+  in
+    popupPanel
+      { pos =
+          model.popupPanelPositions.pbe
+      , disabled =
+          (Set.isEmpty model.selectedHoles && model.selectedUnExp == Nothing)
+            || List.length content == 0
+      , dragHandler =
+          Controller.msgDragPbePopupPanel
+      , class =
+          "pbe-popup-panel"
+      , title =
+          [ Html.text "Programming by Example"
+          ]
+      , content =
+          content
+      }
 
 --------------------------------------------------------------------------------
 -- All Popup Panels
@@ -3211,7 +3242,7 @@ popupPanels model =
   , deuceKeyboardPopupPanel model
   , editCodePopupPanel model
   , autoOutputToolsPopupPanel model
-  , synthesisPopupPanel model
+  , pbePopupPanel model
   ]
 
 --------------------------------------------------------------------------------

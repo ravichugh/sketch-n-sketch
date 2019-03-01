@@ -94,7 +94,7 @@ type alias PopupPanelPositions =
   , editCode : (Int, Int)
   , deuceRightClickMenu : (Int, Int)
   , autoOutputTools : (Int, Int)
-  , synthesis : (Int, Int)
+  , pbe : (Int, Int)
   }
 
 type ColorScheme
@@ -110,6 +110,7 @@ type CodeEditorMode
   = CEText
   | CEDeuceClick
   | CETypeInspector
+  | CEProgrammingByExample
 
 type alias Model =
   { code : Code
@@ -232,11 +233,12 @@ type alias Model =
   , doTypeChecking : Bool
   , isDeuceTextBoxFocused : Bool
   , needsToFocusOn : Maybe String
-  , unExpOutput : Result String (UnExp ())
-  , exampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
   , holeEnv : Types2.HoleEnv
   , holeFillings : List HoleFilling
+  , unExpOutput : Result String (UnExp ())
+  , selectedHoles : Set HoleId
   , selectedUnExp : Maybe (UnExp ())
+  , holeExampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
   , backpropExampleInput : String
   }
 
@@ -963,6 +965,13 @@ oneSafeResult newExp =
 
 --------------------------------------------------------------------------------
 
+pbeShortcutActive : Model -> Bool
+pbeShortcutActive model =
+  Utils.and
+    [ List.member Keys.keyAlt model.keysDown
+    , model.codeEditorMode == CEText
+    ]
+
 deuceShortcutActive : Model -> Bool
 deuceShortcutActive model =
   let
@@ -982,9 +991,9 @@ deuceActive model =
     [ model.enableDeuceBoxSelection
     , not <| needsParse model
     , Utils.or
-        [ deuceShortcutActive model
-        , model.codeEditorMode == CEDeuceClick
-        , model.codeEditorMode == CETypeInspector
+        [ modeActive model CEDeuceClick
+        , modeActive model CETypeInspector
+        , modeActive model CEProgrammingByExample
         , configurationPanelShown model
         ]
     ]
@@ -993,6 +1002,8 @@ modeActive : Model -> CodeEditorMode -> Bool
 modeActive model mode =
   if deuceShortcutActive model then
     mode == CEDeuceClick
+  else if pbeShortcutActive model then
+    mode == CEProgrammingByExample
   else
     mode == model.codeEditorMode
 
@@ -1501,7 +1512,7 @@ initModel =
         , editCode = (400, 400)
         , deuceRightClickMenu = (400, 400)
         , autoOutputTools = (400, 100)
-        , synthesis = (400, 400)
+        , pbe = (400, 400)
         }
     , mbDeuceKeyboardInfo = Nothing
     , deuceRightClickMenuMode = Nothing
@@ -1531,10 +1542,11 @@ initModel =
     , doTypeChecking = True
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
-    , unExpOutput = Err ""
-    , exampleInputs = Dict.empty
     , holeEnv = Types2.emptyHoleEnv
     , holeFillings = []
+    , unExpOutput = Err ""
+    , selectedHoles = Set.empty
     , selectedUnExp = Nothing
+    , holeExampleInputs = Dict.empty
     , backpropExampleInput = ""
     }

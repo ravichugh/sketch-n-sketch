@@ -56,7 +56,7 @@ port module Controller exposing
   , msgDragAutoOutputToolsPopupPanel
   , msgDragEditCodePopupPanel
   , msgDragDeuceRightClickMenu
-  , msgDragSynthesisPopupPanel
+  , msgDragPbePopupPanel
   , msgTextSelect
   , msgClearPreviewDiff
   , msgSetExampleByName
@@ -78,9 +78,11 @@ port module Controller exposing
   , msgAutoSync
   , msgSetCodeEditorMode
   , msgSetDoTypeChecking
-  , msgUpdateExampleInput
-  , msgSynthesizeFromExamples
+  , msgAddSelectedHole
+  , msgRemoveSelectedHole
   , msgSetSelectedUnExp
+  , msgUnsetSelectedUnExp
+  , msgUpdateHoleExampleInput
   , msgUpdateBackpropExampleInput
   , msgCollectAndSolve
   )
@@ -106,7 +108,7 @@ import Sync
 import Eval
 import Evaluator
 import TriEval
-import UnDeclarations
+import UnDeclarations exposing (..)
 import UnExp exposing (UnExp)
 import Example exposing (Example)
 import Backprop
@@ -873,8 +875,8 @@ tryRun old =
             TriEval.eval parsedExp
               |> Result.mapError (\s -> "[Error] " ++ s)
         in
-          Ok
-            { old | unExpOutput = result }
+          Ok <|
+            refreshInputExp { old | unExpOutput = result }
 
 {-
         let
@@ -2104,7 +2106,7 @@ msgKeyDown keyCode =
 
         else if
           not currentKeyDown &&
-          keyCode == Keys.keyShift
+          (keyCode == Keys.keyShift || keyCode == Keys.keyAlt)
         then
           refreshInputExp old
         else
@@ -3522,6 +3524,7 @@ resetDeuceState m =
           }
       , holeFillings = []
       , selectedUnExp = Nothing
+      , selectedHoles = Set.empty
       }
 
 msgMouseEnterCodeBox = Msg "Mouse Enter CodeBox" <| \m ->
@@ -3534,50 +3537,68 @@ msgMouseLeaveCodeBox = Msg "Mouse Leave CodeBox" <| \m ->
 
 toggleDeuceWidget : DeuceWidget -> Model -> Model
 toggleDeuceWidget widget model =
-  let
-    oldDeuceState =
-      model.deuceState
-    oldSelectedWidgets =
-      oldDeuceState.selectedWidgets
-    multipleTargetPositionsFilter =
-      if model.allowMultipleTargetPositions then
-        -- Do not filter anything
-        identity
-      else
-        -- Only allow one target position
-        List.filter (\w -> not (isTargetPosition w && isTargetPosition widget))
-    newSelectedWidgets =
-      if List.member widget oldSelectedWidgets then
-        Utils.removeAsSet widget oldSelectedWidgets
-      else
-        if Model.allowOnlySingleSelection model then
-          [ widget ]
+  if Model.modeActive model CEProgrammingByExample then
+    case widget of
+      DeuceExp eid ->
+        case Lang.findExpByEId model.inputExp eid of
+          Just exp ->
+            case unwrapExp exp of
+              EHole _ (EEmptyHole holeId) ->
+                addSelectedHole holeId model
+
+              _ ->
+                model
+
+          Nothing ->
+            model
+
+      _ ->
+        model
+  else
+    let
+      oldDeuceState =
+        model.deuceState
+      oldSelectedWidgets =
+        oldDeuceState.selectedWidgets
+      multipleTargetPositionsFilter =
+        if model.allowMultipleTargetPositions then
+          -- Do not filter anything
+          identity
         else
-          oldSelectedWidgets
-          |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w)) -- Remove any overlapping widgets.
-          |> multipleTargetPositionsFilter
-          |> Utils.addAsSet widget
-    newSelectedWidgetsEmpty =
-      List.isEmpty newSelectedWidgets && oldDeuceState.mbKeyboardFocusedWidget == Nothing
-    newDeuceState =
-      { oldDeuceState
-          | selectedWidgets =
-              newSelectedWidgets
-      }
-    newDeuceRightClickMenuMode =
-      if newSelectedWidgetsEmpty then
-        Nothing
-      else
-        model.deuceRightClickMenuMode
-    almostNewModel =
-      { model
-          | deuceState =
-              newDeuceState
-          , deuceRightClickMenuMode =
-              newDeuceRightClickMenuMode
-      }
-  in
-  resetDeuceCacheAndReselect almostNewModel DeuceTools.createToolCache
+          -- Only allow one target position
+          List.filter (\w -> not (isTargetPosition w && isTargetPosition widget))
+      newSelectedWidgets =
+        if List.member widget oldSelectedWidgets then
+          Utils.removeAsSet widget oldSelectedWidgets
+        else
+          if Model.allowOnlySingleSelection model then
+            [ widget ]
+          else
+            oldSelectedWidgets
+            |> List.filter (\w -> not (isSubWidget model.inputExp w widget || isSubWidget model.inputExp widget w)) -- Remove any overlapping widgets.
+            |> multipleTargetPositionsFilter
+            |> Utils.addAsSet widget
+      newSelectedWidgetsEmpty =
+        List.isEmpty newSelectedWidgets && oldDeuceState.mbKeyboardFocusedWidget == Nothing
+      newDeuceState =
+        { oldDeuceState
+            | selectedWidgets =
+                newSelectedWidgets
+        }
+      newDeuceRightClickMenuMode =
+        if newSelectedWidgetsEmpty then
+          Nothing
+        else
+          model.deuceRightClickMenuMode
+      almostNewModel =
+        { model
+            | deuceState =
+                newDeuceState
+            , deuceRightClickMenuMode =
+                newDeuceRightClickMenuMode
+        }
+    in
+    resetDeuceCacheAndReselect almostNewModel DeuceTools.createToolCache
 
 msgMouseClickDeuceWidget widget =
   let
@@ -4087,15 +4108,15 @@ msgDragAutoOutputToolsPopupPanel =
       )
 
 --------------------------------------------------------------------------------
--- Synthesis Popup Panel
+-- Programming by Example Popup Panel
 
-msgDragSynthesisPopupPanel : Msg
-msgDragSynthesisPopupPanel =
-  Msg "Drag Synthesis Popup Panel" <|
+msgDragPbePopupPanel : Msg
+msgDragPbePopupPanel =
+  Msg "Drag Programming by Example Popup Panel" <|
     updatePopupPanelPosition
-      .synthesis
+      .pbe
       ( \ppp pos ->
-          { ppp | synthesis = pos }
+          { ppp | pbe = pos }
       )
 
 --------------------------------------------------------------------------------
@@ -4365,98 +4386,114 @@ msgSetCodeEditorMode mode =
     { refreshedModel | codeEditorMode = mode }
 
 --------------------------------------------------------------------------------
--- Example Input
---------------------------------------------------------------------------------
-
-msgUpdateExampleInput : HoleId -> Int -> UnExp.Env -> String -> Msg
-msgUpdateExampleInput holeId index env input =
-  Msg "Update Example Input" <| \model ->
-    let
-      focusedExampleInputs =
-        Dict.get holeId model.exampleInputs
-          |> Maybe.withDefault Dict.empty
-
-      newFocusedExampleInputs =
-        Dict.insert index (env, input) focusedExampleInputs
-
-      newExampleInputs =
-        Dict.insert holeId newFocusedExampleInputs model.exampleInputs
-    in
-      { model | exampleInputs = newExampleInputs }
-
-msgSynthesizeFromExamples : HoleId -> Msg
-msgSynthesizeFromExamples holeId =
-  Msg "Synthesize From Examples" <| \model ->
-    let
-      exampleInputList : List (Int, (UnExp.Env, String))
-      exampleInputList =
-        Dict.get holeId model.exampleInputs
-          |> Maybe.withDefault Dict.empty
-          |> Dict.toList
-
-      worldsResult : Result P.Error (List (Int, UnDeclarations.World))
-      worldsResult =
-        let
-          extract (i, (env, input)) =
-            flip Result.map (Example.parse input) <| \ex ->
-              (i, (env, ex))
-        in
-          exampleInputList
-            |> List.map extract
-            |> Utils.projOk
-    in
-      case worldsResult of
-        Err err ->
-          { model
-              | outputMode =
-                  HtmlText <| ParserUtils.showError err
-              , holeFillings =
-                  []
-          }
-
-        Ok worlds ->
-          { model
-              | holeFillings =
-                  NonDet.toList <|
-                    Synthesis.solve
-                      model.holeEnv
-                      (List.map (\(_, w) -> (holeId, w)) worlds)
-          }
-
---------------------------------------------------------------------------------
 -- Collect and Solve
 --------------------------------------------------------------------------------
+
+-- Select which things to collect
+
+addSelectedHole : HoleId -> Model -> Model
+addSelectedHole holeId model =
+  { model | selectedHoles = Set.insert holeId model.selectedHoles }
+
+msgAddSelectedHole : HoleId -> Msg
+msgAddSelectedHole holeId =
+  Msg "Add Selected Hole" (addSelectedHole holeId)
+
+msgRemoveSelectedHole : HoleId -> Msg
+msgRemoveSelectedHole holeId =
+  Msg "Remove Selected Hole" <| \model ->
+    { model
+        | selectedHoles =
+            Set.remove holeId model.selectedHoles
+        , holeExampleInputs =
+            Dict.remove holeId model.holeExampleInputs
+    }
 
 msgSetSelectedUnExp : UnExp d -> Msg
 msgSetSelectedUnExp u =
   Msg "Set Selected UnExp" <| \model ->
     { model | selectedUnExp = Just (UnExp.mapData (\_ -> ()) u) }
 
+msgUnsetSelectedUnExp : Msg
+msgUnsetSelectedUnExp =
+  Msg "Unset Selected UnExp" <| \model ->
+    { model
+        | selectedUnExp =
+            Nothing
+        , backpropExampleInput =
+            ""
+    }
+
+-- Update textboxes
+
+msgUpdateHoleExampleInput : HoleId -> Int -> UnExp.Env -> String -> Msg
+msgUpdateHoleExampleInput holeId index env input =
+  Msg "Update Hole Example Input" <| \model ->
+    let
+      focusedExampleInputs =
+        Dict.get holeId model.holeExampleInputs
+          |> Maybe.withDefault Dict.empty
+
+      newFocusedExampleInputs =
+        Dict.insert index (env, input) focusedExampleInputs
+
+      newExampleInputs =
+        Dict.insert holeId newFocusedExampleInputs model.holeExampleInputs
+    in
+      { model | holeExampleInputs = newExampleInputs }
+
 msgUpdateBackpropExampleInput : String -> Msg
 msgUpdateBackpropExampleInput s =
   Msg "Update Backprop Example Input" <| \model ->
     { model | backpropExampleInput = s }
 
-msgCollectAndSolve : UnExp () -> Msg
-msgCollectAndSolve uSelected =
+-- Collect and solve
+
+msgCollectAndSolve : Msg
+msgCollectAndSolve =
   Msg "Collect and Solve" <| \model ->
     let
-      exampleResult =
-        Example.parse model.backpropExampleInput
-    in
-      case exampleResult of
-        Err err ->
-          { model
-              | holeFillings =
-                  []
-          }
+      maybeBackpropExampleConstraints : Maybe Constraints
+      maybeBackpropExampleConstraints =
+        if model.backpropExampleInput == "" then
+          Just []
+        else
+          flip Maybe.andThen model.selectedUnExp <| \uSelected ->
+            model.backpropExampleInput
+              |> Example.parse
+              |> Result.toMaybe
+              |> Maybe.andThen (Backprop.backprop uSelected)
 
-        Ok example ->
+      maybeHoleExampleConstraints : Maybe Constraints
+      maybeHoleExampleConstraints =
+        let
+          makeWorld : (UnExp.Env, String) -> Maybe World
+          makeWorld =
+            Tuple.mapSecond (Example.parse >> Result.toMaybe)
+              >> Utils.liftMaybePair2
+        in
+          model.holeExampleInputs
+            |> Dict.map (\_ -> Dict.values)
+            |> Dict.toList
+            |> List.map
+                 ( Tuple.mapSecond
+                       ( List.filter (\(_, input) -> input /= "")
+                           >> List.map makeWorld
+                           >> Utils.projJusts
+                       )
+                     >> Utils.liftMaybePair2
+                     >> Maybe.map (\(holeId, worlds) -> List.map ((,) holeId) worlds)
+                 )
+            |> Utils.projJusts
+            |> Maybe.map List.concat
+    in
+      case (maybeBackpropExampleConstraints, maybeHoleExampleConstraints) of
+        (Just k1, Just k2) ->
           { model
               | holeFillings =
-                  example
-                    |> Backprop.backprop uSelected
-                    |> Maybe.map (Synthesis.solve model.holeEnv)
-                    |> Maybe.withDefault NonDet.none
+                  Synthesis.solve model.holeEnv (k1 ++ k2)
                     |> NonDet.toList
           }
+
+        _ ->
+          { model | holeFillings = [] }

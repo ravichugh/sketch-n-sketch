@@ -1416,33 +1416,16 @@ code {
 }
 
 /******************************************************************************
- * Example Provider                                                           *
+ * Programming by Example Panel                                               *
  ******************************************************************************/
 
-.tri-example-provider {
-  font-size: 0.9em;
+.pbe-popup-panel {
+  width: 500px;
 }
 
-.tri-example-provider > li {
-  margin: 5px;
-  list-style-type: none;
-}
+/* Hole environments */
 
-.tri-hole-label,
-.tri-results-header
-{
-  font-size: 1em;
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.tri-type-info {
-  display: block;
-  padding-bottom: 5px;
-  border-bottom: 1px solid var(--main-border-color);
-}
-
-.tri-hole-env {
+.pbe-hole-env {
   display: inline-block;
   background-color: rgba(0, 0, 0, 0.05);
   width: 50%;
@@ -1452,50 +1435,130 @@ code {
   border-radius: 5px;
 }
 
-.tri-hole-env > li {
+.pbe-hole-env > li {
   list-style-type: none;
 }
 
-.tri-hole-example-input {
+/* UnExp displays */
+
+.pbe-unexp {
+  font-family: "Inconsolata", monospace;
+  background-color: rgba(0, 0, 0, 0.05);
+  width: 100%;
+  margin: 5px 0;
+  padding: 5px;
+  border: 2px dashed rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+}
+
+/* Backprop examples */
+
+.pbe-backprop {
+  padding: 10px;
+  border-bottom: 1px solid var(--main-border-color);
+}
+
+.pbe-hole-backprop-input input {
+  width: 100%;
+  font-size: 1em;
+  padding: 3px;
+}
+
+/* Hole examples */
+
+.pbe-hole {
+  padding: 10px;
+  border-bottom: 1px solid var(--main-border-color);
+}
+
+.pbe-hole-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+
+  border-bottom: 1px dashed var(--main-border-color);
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+}
+
+.pbe-hole-header h2 {
+  font-size: 1.1em;
+  margin-right: auto;
+}
+
+.pbe-hole-header h3 {
+  font-size: 1.1em;
+}
+
+.pbe-hole-header button {
+  margin-left: 10px;
+  padding: 3px;
+}
+
+.pbe-hole-list {
+  list-style-type: none;
+}
+
+.pbe-hole-list h3 {
+  font-size: 0.9em;
+  margin-top: 5px;
+}
+
+.pbe-hole-example-input {
   display: inline-block;
   width: calc(50% - 5px);
   margin-left: 5px;
   vertical-align: top;
 }
 
-.tri-hole-example-input input {
+.pbe-hole-example-input input {
   width: 100%;
   font-size: 1em;
   padding: 3px;
 }
 
-.tri-synthesize button {
+/* Synthesize button */
+
+.pbe-synthesize {
+  padding: 5px;
+  border-bottom: 1px solid var(--main-border-color);
+}
+
+.pbe-synthesize button {
   font-size: 1em;
   padding: 5px;
   width: 100%;
 }
 
-.tri-results-header {
-  display: block;
-  padding-top: 5px;
-  border-top: 1px solid var(--main-border-color);
+/* Synthesis results */
+
+.pbe-synthesis-results {
+  padding: 10px;
 }
 
-.tri-result {
+.pbe-synthesis-results ul {
   list-style-type: none;
+  max-height: 300px;
+  overflow-y: scroll;
 }
 
-.tri-result button {
-  width: 100%;
+.pbe-synthesis-results li button {
+  font-size: 0.8em;
+  display: block;
   padding: 5px;
+  margin-top: 7px;
   text-align: left;
+  width: 100%;
 }
 
 /******************************************************************************
  * Output Panel for UnExps                                                    *
  ******************************************************************************/
 
-.output-panel > div {
+#outputCanvas {
+  font-family: "Inconsolata", monospace;
+  font-size: 0.9em;
+  white-space: pre;
 }
 
 #outputCanvas > svg {
@@ -1510,10 +1573,4 @@ code {
 
 .deuce-unexp-poly:hover {
   opacity: 1;
-}
-
-#outputCanvas {
-  font-family: "Inconsolata", monospace;
-  font-size: 0.9em;
-  white-space: pre;
 }

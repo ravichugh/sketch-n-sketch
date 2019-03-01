@@ -50,6 +50,7 @@ keyEnter            = 13
 keyEsc              = 27
 keyCtrl             = 17
 keyShift            = 16
+keyAlt              = 18
 keySpace            = 32
 keyLeft             = 37
 keyUp               = 38

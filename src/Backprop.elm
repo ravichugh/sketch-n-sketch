@@ -14,7 +14,7 @@ dontCareHole : Example
 dontCareHole =
   ExConstructor "---dontCareHole---" (ExNum -3468801)
 
-backprop : UnExp () -> Example -> Maybe (List Constraint)
+backprop : UnExp () -> Example -> Maybe Constraints
 backprop u ex =
   if ex == dontCareHole then
     Just []
