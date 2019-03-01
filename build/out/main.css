@@ -1529,7 +1529,6 @@ code {
 
 .pbe-synthesize {
   padding: 5px;
-  border-bottom: 1px solid var(--main-border-color);
 }
 
 .pbe-synthesize button {
@@ -1542,6 +1541,7 @@ code {
 
 .pbe-synthesis-results {
   padding: 10px;
+  border-top: 1px solid var(--main-border-color);
 }
 
 .pbe-synthesis-results:empty {
