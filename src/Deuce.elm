@@ -426,21 +426,28 @@ polygons msgs codeInfo ast =
           --if isSelectable codeObject then
             case codeObject of
               E e ->
-                expPolygon msgs codeInfo e ++ acc
-              P e p ->
-                patPolygon msgs codeInfo e p ++ acc
-              T t ->
-                typePolygon msgs codeInfo t ++ acc
-              D eid bn ->
-                letBindingEquationPolygon msgs codeInfo eid bn ++ acc
-              ET ba ws et ->
-                targetPolygon msgs codeInfo codeObject ++ acc
-              PT ba ws e pt ->
-                targetPolygon msgs codeInfo codeObject ++ acc
-              DT _ _ _ _ ->
-                targetPolygon msgs codeInfo codeObject ++ acc
-              TT _ _ _ ->
-                targetPolygon msgs codeInfo codeObject ++ acc
+                case unwrapExp e of
+                  EHole _ _ ->
+                    expPolygon msgs codeInfo e ++ acc
+
+                  _ ->
+                    acc
+              _ ->
+                acc
+              -- P e p ->
+              --   patPolygon msgs codeInfo e p ++ acc
+              -- T t ->
+              --   typePolygon msgs codeInfo t ++ acc
+              -- D eid bn ->
+              --   letBindingEquationPolygon msgs codeInfo eid bn ++ acc
+              -- ET ba ws et ->
+              --   targetPolygon msgs codeInfo codeObject ++ acc
+              -- PT ba ws e pt ->
+              --   targetPolygon msgs codeInfo codeObject ++ acc
+              -- DT _ _ _ _ ->
+              --   targetPolygon msgs codeInfo codeObject ++ acc
+              -- TT _ _ _ ->
+              --   targetPolygon msgs codeInfo codeObject ++ acc
           --else
           --  blockerPolygon codeInfo codeObject ++ acc
       )
