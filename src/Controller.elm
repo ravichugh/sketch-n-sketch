@@ -878,7 +878,11 @@ tryRun old =
               |> Result.mapError (\s -> "[Error] " ++ s)
         in
           Ok <|
-            refreshInputExp { old | unExpOutput = result }
+            refreshInputExp
+              { old
+                  | unExpOutput = result
+                  , errorBox = Nothing
+              }
 
 {-
         let

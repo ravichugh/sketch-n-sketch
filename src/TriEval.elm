@@ -157,7 +157,76 @@ eval_ env exp =
       -- E-Match
 
       ECase _ e0 branches _ ->
-        Evaluator.fail "Case not supported"
+        let
+          noBindingName =
+            "__NO_BINDING_NAME__"
+
+          toUBranch branch =
+            case branch.val of
+              Branch_ _ pat body _ ->
+                case unwrapPat pat of
+                  PRecord _ entries _ ->
+                    case
+                      Lang.dataTypeEncodingUnapply
+                        entries
+                        Lang.getPatString
+                        Lang.getPatEntries
+                    of
+                      Just (ctorName, args) ->
+                        case args of
+                          [] ->
+                            Evaluator.succeed
+                              (ctorName, noBindingName, body)
+
+
+                          [(_, arg)] ->
+                            case unwrapPat arg of
+                              PVar _ argName _ ->
+                                Evaluator.succeed (ctorName, argName, body)
+
+                              _ ->
+                                Evaluator.fail
+                                  "Non-var pattern in constructor match"
+
+                          _ ->
+                            Evaluator.fail
+                              "Multiple arguments in constructor pattern match"
+
+                      Nothing ->
+                        Evaluator.fail "Non-constructor pattern match"
+
+                  _ ->
+                    Evaluator.fail
+                      "Non-record (constructor sugar) pattern match"
+
+          evalBranch uArg (_, argName, body) =
+            let
+              newEnv =
+                if argName == noBindingName then
+                  env
+                else
+                  (argName, uArg) :: env
+            in
+              eval_ newEnv body
+        in
+          Evaluator.mapM toUBranch branches |> Evaluator.andThen (\uBranches ->
+            eval_ env e0 |> Evaluator.andThen (\u0 ->
+              case u0 of
+                UConstructor () ctorName uArg ->
+                  uBranches
+                    |> Utils.findFirst (\(c, _, _) -> c == ctorName)
+                    |> Result.fromMaybe
+                         ( "Non-exhaustive pattern match, could not find '"
+                             ++ ctorName
+                             ++ "'"
+                         )
+                    |> Evaluator.fromResult
+                    |> Evaluator.andThen (evalBranch uArg)
+
+                _ ->
+                  Evaluator.succeed (UCase () env u0 uBranches)
+            )
+          )
 
       -- E-Hole
 

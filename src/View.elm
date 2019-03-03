@@ -1729,41 +1729,50 @@ outputPanel model =
           model.unExpOutput
 
     output =
-      case unExpOutput of
-        Ok output ->
-          let
-            unparsedOutput =
-              UnExp.unparse output
-
-            unparsedString =
-              unparsedOutput
-                |> UnExp.getData
-                |> .val
-          in
-            [ Html.text unparsedString
-            , Svg.svg
-                [ SAttr.width "100%"
-                , SAttr.height "100%"
-                , SAttr.pointerEvents <|
-                    if Model.deuceActive model then
-                      "auto"
-                    else
-                      "none"
-                ] <|
-                UnDeuce.overlay
-                  { onClick = Controller.msgSetSelectedUnExp
-                  , onMouseOver = \_ -> Controller.msgNoop
-                  , onMouseOut = \_ -> Controller.msgNoop
-                  }
-                  unparsedOutput
-            ]
-
-        Err errorMessage ->
+      case model.errorBox of
+        Just errorMessage ->
           [ Html.code
               []
               [ Html.text errorMessage
               ]
           ]
+
+        Nothing ->
+          case unExpOutput of
+            Ok output ->
+              let
+                unparsedOutput =
+                  UnExp.unparse output
+
+                unparsedString =
+                  unparsedOutput
+                    |> UnExp.getData
+                    |> .val
+              in
+                [ Html.text unparsedString
+                , Svg.svg
+                    [ SAttr.width "100%"
+                    , SAttr.height "100%"
+                    , SAttr.pointerEvents <|
+                        if Model.deuceActive model then
+                          "auto"
+                        else
+                          "none"
+                    ] <|
+                    UnDeuce.overlay
+                      { onClick = Controller.msgSetSelectedUnExp
+                      , onMouseOver = \_ -> Controller.msgNoop
+                      , onMouseOut = \_ -> Controller.msgNoop
+                      }
+                      unparsedOutput
+                ]
+
+            Err errorMessage ->
+              [ Html.code
+                  []
+                  [ Html.text errorMessage
+                  ]
+              ]
 
 --      case (model.errorBox, model.outputMode, model.preview) of
 --        (_, _, Just (_, _, Err errorMsg)) ->
