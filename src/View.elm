@@ -3013,15 +3013,24 @@ autoOutputToolsPopupPanel model =
 viewEnv : UnExp.Env -> Html Msg
 viewEnv env =
   let
-    viewBinding (identifier, u) =
+    viewBinding binding =
       Html.li
         []
         [ Html.code
             []
             [ Html.text <|
-                identifier
-                  ++ " → "
-                  ++ UnExp.unparseSimple u
+                case binding of
+                  UnExp.VarBinding identifier u ->
+                    identifier
+                      ++ " → "
+                      ++ UnExp.unparseSimple u
+
+                  UnExp.CtorBinding ctorName argName u ->
+                    ctorName
+                      ++ " "
+                      ++ argName
+                      ++ " → "
+                      ++ UnExp.unparseSimple u
             ]
         ]
   in

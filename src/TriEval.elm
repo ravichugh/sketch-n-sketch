@@ -43,6 +43,7 @@ bindingEval currentEnv body parameters arguments =
   let
     envExtension =
       Utils.zip parameters arguments
+        |> UnExp.pairsToEnv
 
     newEnv =
       envExtension ++ currentEnv
@@ -103,7 +104,7 @@ eval_ env exp =
 
       EVar _ x ->
         env
-          |> Utils.maybeFind x
+          |> UnExp.lookupVar x
           |> Result.fromMaybe ("Variable not found: '" ++ x ++ "'")
           |> Evaluator.fromResult
 
@@ -205,7 +206,7 @@ eval_ env exp =
                 if argName == noBindingName then
                   env
                 else
-                  (argName, uArg) :: env
+                  UnExp.addVar argName uArg env
             in
               eval_ newEnv body
         in
@@ -266,7 +267,7 @@ eval_ env exp =
                 let
                   evalAndBind (param, arg) (us, latestEnv) =
                     Evaluator.map
-                      (\u -> (u :: us, (param, u) :: latestEnv))
+                      (\u -> (u :: us, UnExp.addVar param u latestEnv))
                       (eval_ latestEnv arg)
                 in
                   Evaluator.foldlM evalAndBind ([], env) paramArgPairs

@@ -1,7 +1,13 @@
 module UnExp exposing
-  ( Env
+  ( EnvBinding(..)
+  , Env
   , UnExp(..)
   , UnVal(..)
+
+  , addVar
+  , pairsToEnv
+  , lookupVar
+
   , getData
   , asExp, asValue
   , unval
@@ -33,8 +39,12 @@ import Utils
 type alias HoleIndex =
   (HoleId, Int)
 
+type EnvBinding
+  = VarBinding Ident (UnExp ())
+  | CtorBinding Ident Ident (UnExp ())
+
 type alias Env =
-  List (Ident, UnExp ())
+  List EnvBinding
 
 -- The d is for extra data
 type UnExp d
@@ -56,6 +66,32 @@ type UnVal
   | UVString String
   | UVTuple (List UnVal)
   | UVFunClosure Env (List Ident) {- Type -} Exp
+
+--------------------------------------------------------------------------------
+-- Environment Functions
+--------------------------------------------------------------------------------
+
+addVar : Ident -> UnExp () -> Env -> Env
+addVar i u env =
+  VarBinding i u :: env
+
+pairsToEnv : List (Ident, UnExp ()) -> Env
+pairsToEnv =
+  List.map (Utils.uncurry VarBinding)
+
+envVars : Env -> List (Ident, UnExp ())
+envVars =
+  List.concatMap <| \binding ->
+    case binding of
+      VarBinding i u ->
+        [(i, u)]
+
+      _ ->
+        []
+
+lookupVar : Ident -> Env -> Maybe (UnExp ())
+lookupVar x =
+  envVars >> Utils.maybeFind x
 
 --------------------------------------------------------------------------------
 -- Extra Data
@@ -252,9 +288,14 @@ parseVal =
 unparseEnv : Env -> String
 unparseEnv =
   let
-    showBinding : (Ident, UnExp d) -> String
-    showBinding (i, u) =
-      i ++ " → " ++ unparseSimple u
+    showBinding : EnvBinding -> String
+    showBinding binding =
+      case binding of
+        VarBinding ident u ->
+          ident ++ " → " ++ unparseSimple u
+
+        CtorBinding ctorName argName u ->
+          ctorName ++ " " ++ argName ++ " → " ++ unparseSimple u
   in
     List.map showBinding >> String.join ", "
 

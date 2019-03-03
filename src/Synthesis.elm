@@ -253,7 +253,7 @@ refine_ depth gamma worlds tau =
               makeWorlds :
                 UnExp.Env -> List (UnExp.UnExp (), Example) -> Worlds
               makeWorlds env =
-                List.map (\(u, ex) -> ((argName, u) :: env, ex))
+                List.map (\(u, ex) -> (UnExp.addVar argName u env, ex))
 
               (envs, examples) =
                 List.unzip worlds
