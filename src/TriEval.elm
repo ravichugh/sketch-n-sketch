@@ -225,7 +225,27 @@ eval_ env exp =
                   |> Evaluator.map (UTuple ())
 
               Nothing ->
-                Evaluator.fail "Arbitrary records not supported"
+                case
+                  Lang.dataTypeEncodingUnapply
+                    entries
+                    Lang.getExpString
+                    Lang.getExpEntries
+                of
+                  Just (ctorName, args) ->
+                    args
+                      |> Evaluator.mapM (Tuple.second >> eval_ env)
+                      |> Evaluator.map
+                           ( \uArgs ->
+                               case uArgs of
+                                 [uArg] ->
+                                   uArg
+                                 _ ->
+                                   UTuple () uArgs
+                           )
+                      |> Evaluator.map (UConstructor () ctorName)
+
+                  _ ->
+                    Evaluator.fail "Arbitrary records not supported"
 
           Nothing ->
             Evaluator.fail "Could not get record entries"

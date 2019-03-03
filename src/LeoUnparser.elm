@@ -50,62 +50,6 @@ unparseBaseValue ebv =
 -- Records as sugar for other types with `Lang.recordConstructorName`
 --------------------------------------------------------------------------------
 
-expName : Exp -> Maybe String
-expName e =
-  case (unwrapExp e) of
-    EBase _ baseVal ->
-      case baseVal of
-        EString _ name ->
-          Just name
-        _ ->
-          Nothing
-    _ ->
-      Nothing
-
-patName : Pat -> Maybe String
-patName p =
-  case p.val.p__ of
-    PBase _ baseVal ->
-      case baseVal of
-        EString _ name ->
-          Just name
-        _ ->
-          Nothing
-    _ ->
-      Nothing
-
-typeName : Type -> Maybe String
-typeName t =
-  case t.val.t__ of
-    TVar _ name ->
-      Just name
-    _ ->
-      Nothing
-
-expArgs : Exp -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
-expArgs e =
-  case (unwrapExp e) of
-    ERecord _ _ decls _ ->
-      recordEntriesFromDeclarations decls
-    _ ->
-      Nothing
-
-patArgs : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
-patArgs p =
-  case p.val.p__ of
-    PRecord _ entries _ ->
-      Just entries
-    _ ->
-      Nothing
-
-typeArgs : Type -> Maybe (List (Maybe WS, WS, Ident, WS, Type))
-typeArgs t =
-  case t.val.t__ of
-    TRecord _ _ entries _ ->
-      Just entries
-    _ ->
-      Nothing
-
 -- Tries to unparse a record as a tuple
 tryUnparseTuple
   :  (t -> String)
@@ -148,6 +92,7 @@ getArgConstructorNameString keyValues =
   keyValues |> Utils.maybeFind ctorArgs
 
 -- Tries to unparse a record as a data constructor
+-- (Has redundancy with Lang.dataTypeEncodingUnapply)
 tryUnparseDataConstructor
   :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
   -> WS -> List (Maybe WS, WS, String, WS, t) -> WS
@@ -272,7 +217,7 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      tryUnparseRecordSugars unparsePattern patName patArgs wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparsePattern Lang.getPatString Lang.getPatEntries wsBefore elems wsAfter <| \_ ->
         let maybeJustKey eqSpace key value =
           let default = eqSpace ++ "=" ++ unparsePattern value in
           if eqSpace == "" then
@@ -322,7 +267,7 @@ unparseType tipe =
         Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
         Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
     TRecord wsBefore mb elems wsAfter ->
-      tryUnparseRecordSugars unparseType typeName typeArgs wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparseType Lang.getTypeString Lang.getTypeEntries wsBefore elems wsAfter <| \_ ->
       wsBefore.val
         ++ "{"
         ++ (case mb of
@@ -622,7 +567,7 @@ unparse e =
       case recordEntriesFromDeclarations decls of
         Nothing -> default ()
         Just fields ->
-          tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) expName expArgs
+          tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) Lang.getExpString Lang.getExpEntries
               wsBefore fields wsAfter default
 
     ESelect ws0 exp wsBeforeDot wsAfterDot id ->

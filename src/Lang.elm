@@ -2572,6 +2572,101 @@ tupleEncodingUnapply keyValues =
     |> Just
   else Nothing
 
+dataTypeEncodingUnapply :
+  List (Maybe WS, WS, Ident, WS, t)
+    -> (t -> Maybe String)
+    -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
+    -> Maybe (Ident, List (Maybe WS, t))
+dataTypeEncodingUnapply fields getString getEntries =
+  let
+    keyValues =
+      fields
+        |> List.map (\(_, _, k, _, v) -> (k, v))
+
+    maybeNameString =
+      keyValues
+        |> Utils.maybeFind (stringifyCtorKind DataTypeCtor)
+        |> Maybe.andThen getString
+
+    maybeArgs =
+      keyValues
+        |> Utils.maybeFind ctorArgs
+        |> Maybe.andThen getEntries
+  in
+    case (maybeNameString, maybeArgs) of
+      (Just nameString, Just args) ->
+        args
+          |> List.map (\(ws, _, i, _, x) -> (i, (ws, x)))
+          |> List.filter (Tuple.first >> String.startsWith "_")
+          |> List.sortBy
+               ( Tuple.first
+                   >> String.dropLeft 1
+                   >> String.toInt
+                   >> Result.withDefault -1
+               )
+          |> List.map Tuple.second
+          |> (,) nameString
+          |> Just
+
+      _ ->
+        Nothing
+
+getExpString : Exp -> Maybe String
+getExpString e =
+  case (unwrapExp e) of
+    EBase _ baseVal ->
+      case baseVal of
+        EString _ name ->
+          Just name
+        _ ->
+          Nothing
+    _ ->
+      Nothing
+
+getPatString : Pat -> Maybe String
+getPatString p =
+  case p.val.p__ of
+    PBase _ baseVal ->
+      case baseVal of
+        EString _ name ->
+          Just name
+        _ ->
+          Nothing
+    _ ->
+      Nothing
+
+getTypeString : Type -> Maybe String
+getTypeString t =
+  case t.val.t__ of
+    TVar _ name ->
+      Just name
+    _ ->
+      Nothing
+
+getExpEntries : Exp -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
+getExpEntries e =
+  case (unwrapExp e) of
+    ERecord _ _ decls _ ->
+      recordEntriesFromDeclarations decls
+    _ ->
+      Nothing
+
+getPatEntries : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
+getPatEntries p =
+  case p.val.p__ of
+    PRecord _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
+getTypeEntries : Type -> Maybe (List (Maybe WS, WS, Ident, WS, Type))
+getTypeEntries t =
+  case t.val.t__ of
+    TRecord _ _ entries _ ->
+      Just entries
+    _ ->
+      Nothing
+
 pTupleUnapply: Pat -> Maybe (WS, List (Maybe WS, Pat), WS)
 pTupleUnapply pat =
   case pat.val.p__ of
