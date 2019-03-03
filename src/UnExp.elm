@@ -283,7 +283,7 @@ unparse =
       in
         maxArgLen > 20 || containsNewline
 
-    eatString : String -> State UnparseState ()
+    eatString : String -> State UnparseState String
     eatString s =
       let
         lines =
@@ -298,26 +298,27 @@ unparse =
             |> Utils.last_
             |> String.length
       in
-        if newLineCount > 0 then
-          State.modify
-            ( \state ->
-                { state
-                    | pos =
-                        { line = state.pos.line + newLineCount
-                        , col = lastLineLength + 1
-                        }
-                }
-            )
-        else
-          State.modify
-            ( \state ->
-                { state
-                    | pos =
-                        { line = state.pos.line
-                        , col = state.pos.col + lastLineLength
-                        }
-                }
-            )
+        State.map (\_ -> s) <|
+          if newLineCount > 0 then
+            State.modify
+              ( \state ->
+                  { state
+                      | pos =
+                          { line = state.pos.line + newLineCount
+                          , col = lastLineLength + 1
+                          }
+                  }
+              )
+          else
+            State.modify
+              ( \state ->
+                  { state
+                      | pos =
+                          { line = state.pos.line
+                          , col = state.pos.col + lastLineLength
+                          }
+                  }
+              )
 
     basic :
       String
@@ -331,7 +332,7 @@ unparse =
       State.pure <|
         uFunc (withInfo s start.pos end.pos)
 
-    newline : State UnparseState ()
+    newline : State UnparseState String
     newline =
       State.do State.get <| \state ->
       eatString <|
@@ -592,22 +593,61 @@ unparse =
                     i
                     uTupleWithInfo
 
-          UCase _ env u0 branches ->
-            -- TODO
-            Debug.crash "Case not supported"
---            let
---              unparseBranch (constructorName, varName, body) =
---                constructorName
---                  ++ " "
---                  ++ varName ++ " →"
---                  ++ LeoUnparser.unparse body
---            in
---              "["
---                ++ unparseEnv env
---                ++ "] case "
---                ++ unparse u0
---                ++ " of "
---                ++ String.join " " (List.map unparseBranch branches)
+          UCase _ env uScrutinee branches ->
+            let
+              unparsedEnv =
+                "[" ++ unparseEnv env ++ "]"
+
+              unparseBranch (ctorName, argName, body) =
+                let
+                  matchLine =
+                    if String.startsWith "__" argName then
+                      ctorName ++ " →"
+                    else
+                      ctorName ++ " " ++ argName ++ " →"
+                in
+                  State.do State.get <| \start ->
+                  State.do (eatString matchLine) <| \_ ->
+                  State.do indent <| \_ ->
+                  State.do newline <| \_ ->
+                  -- LeoUnparser.unparse body
+                  State.do (eatString "...") <| \_ ->
+                  State.do dedent <| \_ ->
+                  State.do newline <| \_ ->
+                  State.do newline <| \_ ->
+                  State.pure <|
+                    matchLine
+                      ++ indentString (start.indent + 1)
+                      ++ "...\n"
+                      ++ indentString start.indent
+            in
+              State.do (eatString unparsedEnv) <| \_ ->
+              State.do newline <| \_ ->
+              State.do (eatString "case ") <| \_ ->
+              State.do (unparseHelper uScrutinee) <| \uScrutineeWithInfo ->
+              State.do (eatString " of") <| \_ ->
+              State.do indent <| \_ ->
+              State.do newline <| \_ ->
+              State.do (State.mapM unparseBranch branches) <| \branchStrings ->
+              State.do dedent <| \_ ->
+              State.do State.get <| \end ->
+              State.pure <|
+                UCase
+                  ( withInfo
+                      ( unparsedEnv
+                          ++ indentString start.indent
+                          ++ "case "
+                          ++ (getData uScrutineeWithInfo).val
+                          ++ " of"
+                          ++ indentString (start.indent + 1)
+                          ++ String.join "" branchStrings
+                      )
+                      start.pos
+                      end.pos
+                  )
+                  env
+                  uScrutineeWithInfo
+                  branches
   in
     unparseHelper >> State.run { pos = startPos, indent = 0 } >> Tuple.first
 

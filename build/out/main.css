@@ -1575,6 +1575,7 @@ code {
 #outputCanvas {
   font-family: "Inconsolata", monospace;
   font-size: 0.9em;
+  line-height: 1.05em; /* Empirical */
   white-space: pre;
 }
 
