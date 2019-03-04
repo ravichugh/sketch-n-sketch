@@ -5,6 +5,7 @@ module UnExp exposing
   , UnVal(..)
 
   , addVar
+  , addCtor
   , pairsToEnv
   , lookupVar
   , lookupCtor
@@ -75,6 +76,10 @@ type UnVal
 addVar : Ident -> UnExp () -> Env -> Env
 addVar i u env =
   VarBinding i u :: env
+
+addCtor : Ident -> Ident -> UnExp () -> Env -> Env
+addCtor ctorName argName u env =
+  CtorBinding ctorName argName u :: env
 
 pairsToEnv : List (Ident, UnExp ()) -> Env
 pairsToEnv =

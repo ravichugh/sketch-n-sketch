@@ -87,11 +87,25 @@ backprop u ex =
           backprop uArg exTuple
 
       (UCase _ env uScrutinee branches, _) ->
-        Debug.crash "Case not yet supported for backprop"
---         backpropBranch (constructorName, varName, binding) =
---           backprop
---             uScrutinee
---             (ExConstructor constructorName dontCareHole)
+        branches
+          |> List.map
+               ( \(ctorName, argName, body) ->
+                   ExConstructor ctorName dontCareHole
+                     |> backprop uScrutinee
+                     |> Maybe.map (\ks -> (ctorName, argName, body, ks))
+               )
+          |> Utils.firstMaybe
+          |> Maybe.andThen
+              ( \(ctorName, argName, body, ks) ->
+                  let
+                    newEnv =
+                      UnExp.addCtor ctorName argName uScrutinee env
+                  in
+                    body
+                      |> TriEval.evalWithEnv newEnv
+                      |> Result.toMaybe
+                      |> Maybe.andThen (\uBody -> backprop uBody ex)
+              )
 
       _ ->
         Nothing
