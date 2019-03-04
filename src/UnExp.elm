@@ -7,6 +7,7 @@ module UnExp exposing
   , addVar
   , pairsToEnv
   , lookupVar
+  , lookupCtor
 
   , getData
   , asExp, asValue
@@ -89,9 +90,24 @@ envVars =
       _ ->
         []
 
+-- Returns a list of (argName, (ctorName, u))
+envCtors : Env -> List (Ident, (Ident, UnExp ()))
+envCtors =
+  List.concatMap <| \binding ->
+    case binding of
+      CtorBinding ctorName argName u ->
+        [(argName, (ctorName, u))]
+
+      _ ->
+        []
+
 lookupVar : Ident -> Env -> Maybe (UnExp ())
 lookupVar x =
   envVars >> Utils.maybeFind x
+
+lookupCtor : Ident -> Env -> Maybe (Ident, UnExp ())
+lookupCtor x =
+  envCtors >> Utils.maybeFind x
 
 --------------------------------------------------------------------------------
 -- Extra Data

@@ -103,10 +103,35 @@ eval_ env exp =
       -- E-Var
 
       EVar _ x ->
-        env
-          |> UnExp.lookupVar x
-          |> Result.fromMaybe ("Variable not found: '" ++ x ++ "'")
-          |> Evaluator.fromResult
+        case UnExp.lookupVar x env of
+          Just u ->
+            Evaluator.succeed u
+
+          Nothing ->
+            case UnExp.lookupCtor x env of
+              Just (ctorName, uBinding) ->
+                let
+                  makeUnwrapper () =
+                    Evaluator.succeed <|
+                      UCase
+                        ()
+                        env
+                        uBinding
+                        [(ctorName, "x", eVar0 "x")]
+                in
+                  case uBinding of
+                    UConstructor _ ctorBindingName uCtorArg ->
+                      if ctorBindingName == ctorName then
+                        Evaluator.succeed uCtorArg
+                      else
+                        makeUnwrapper ()
+
+                    _ ->
+                      makeUnwrapper ()
+
+              _ ->
+                Evaluator.fail <|
+                  "Variable not found: '" ++ x ++ "'"
 
       -- E-App
 
