@@ -47,8 +47,8 @@ satisfiesWorlds worlds exp =
 -- Type-Directed Synthesis
 --------------------------------------------------------------------------------
 
-guess_ : Int -> T.TypeEnv -> Type -> NonDet Exp
-guess_ depth gamma tau =
+guess_ : Int -> T.DatatypeEnv -> T.TypeEnv -> Type -> NonDet Exp
+guess_ depth sigma gamma tau =
   if depth == 0 then
     NonDet.none
   else
@@ -60,7 +60,7 @@ guess_ depth gamma tau =
       variableGuesses =
         typePairs
           |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
-          |> List.map (Tuple.first >> eVar0)
+          |> List.map (Tuple.first >> eVar)
           |> NonDet.fromList
 
       -- EGuess-App
@@ -75,7 +75,7 @@ guess_ depth gamma tau =
             let
               possibleArgs =
                 List.map
-                  ( refine_ (depth - 1) gamma []
+                  ( refine_ (depth - 1) sigma gamma []
                       >> NonDet.map Tuple.first -- Discards constraints
                   )
                   argTypes
@@ -85,7 +85,7 @@ guess_ depth gamma tau =
                 |> NonDet.map (eApp eFun)
         in
           typePairs
-            |> List.map (Tuple.mapFirst eVar0)
+            |> List.map (Tuple.mapFirst eVar)
             |> List.map (Tuple.mapSecond T.matchArrowRecurse)
             |> List.map Utils.liftMaybePair2
             |> Utils.filterJusts
@@ -110,7 +110,7 @@ guess_ depth gamma tau =
           makeGets : (Ident, List (Int, Int)) -> List Exp
           makeGets (ident, getInfos) =
             List.map
-              (\(n, i) -> Lang.fromTupleGet (n, i, eVar0 ident))
+              (\(n, i) -> Lang.fromTupleGet (n, i, eVar ident))
               getInfos
         in
           typePairs
@@ -129,7 +129,7 @@ guess_ depth gamma tau =
         , tupleGuesses
         ]
 
-guess : T.TypeEnv -> Type -> NonDet Exp
+guess : T.DatatypeEnv -> T.TypeEnv -> Type -> NonDet Exp
 guess =
   guess_ 5
 
@@ -137,8 +137,9 @@ guess =
 -- Type-and-Example-Directed Synthesis
 --------------------------------------------------------------------------------
 
-refine_ : Int -> T.TypeEnv -> Worlds -> Type -> NonDet (Exp, Constraints)
-refine_ depth gamma worlds tau =
+refine_ :
+  Int -> T.DatatypeEnv -> T.TypeEnv -> Worlds -> Type -> NonDet (Exp, Constraints)
+refine_ depth sigma gamma worlds tau =
   if depth == 0 then
     NonDet.none
   else
@@ -146,7 +147,7 @@ refine_ depth gamma worlds tau =
       -- IRefine-Guess
       guessRefinement =
         tau
-          |> guess_ (depth - 1) gamma
+          |> guess_ (depth - 1) sigma gamma
           |> NonDet.map
                (\e -> Utils.liftMaybePair2 (e, satisfiesWorlds worlds e))
           |> NonDet.collapseMaybe
@@ -157,13 +158,13 @@ refine_ depth gamma worlds tau =
           extractConstant ex =
             case (unwrapType tau, ex) of
               (TNum _, ExNum n) ->
-                Just <| eConstDummyLoc0 n
+                Just <| eConstDummyLoc n
 
               (TBool _, ExBool b) ->
-                Just <| eBool0 b
+                Just <| eBool b
 
               (TString _, ExString s) ->
-                Just <| eStr0 s
+                Just <| eStr s
 
               _ ->
                 Nothing
@@ -207,22 +208,18 @@ refine_ depth gamma worlds tau =
             in
               examples
                 |> List.map extractTuple
-                |> Utils.projJusts
-                |> Maybe.map
-                     ( Utils.transpose
-                         >> List.map (Utils.zip envs)
-                         >> flip
-                              (Utils.zipWith (refine_ (depth - 1) gamma))
-                              taus
-                         >> NonDet.oneOfEach
-                         >> NonDet.map
-                              ( List.unzip
-                                  >> Tuple.mapFirst eTuple0
-                                  >> Tuple.mapSecond List.concat
-                              )
+                |> Utils.filterJusts
+                |> Utils.transpose
+                |> List.map (Utils.zip envs)
+                |> flip (Utils.zipWith (refine_ (depth - 1) sigma gamma)) taus
+                |> NonDet.oneOfEach
+                |> NonDet.map
+                     ( List.unzip
+                         >> Tuple.mapFirst eTuple
+                         >> Tuple.mapSecond List.concat
                      )
-                |> Maybe.withDefault NonDet.none
 
+      -- IRefine-Fun
       partialFunctionRefinement =
         case T.matchArrowRecurse tau of
           -- TODO Only support single-argument functions for now
@@ -263,26 +260,67 @@ refine_ depth gamma worlds tau =
             in
               examples
                 |> List.map extractPartialFunction
-                |> Utils.projJusts
-                |> Maybe.map
-                     ( Utils.zipWith makeWorlds envs
-                         >> List.concat
-                         >> flip (refine_ (depth - 1) newGamma) returnType
-                         >> NonDet.map (Tuple.mapFirst (eFun [argNamePat]))
-                     )
-                |> Maybe.withDefault NonDet.none
+                |> Utils.filterJusts
+                |> Utils.zipWith makeWorlds envs
+                |> List.concat
+                |> flip (refine_ (depth - 1) sigma newGamma) returnType
+                |> NonDet.map (Tuple.mapFirst <| eFun [argNamePat])
 
           _ ->
             NonDet.none
+
+      -- IRefine-Constructor
+      constructorRefinement =
+        let
+          extractConstructor ctorName (env, ex) =
+            case ex of
+              ExConstructor exCtorName exInner ->
+                if exCtorName == ctorName then
+                  Just (env, exInner)
+                else
+                  Nothing
+
+              _ ->
+                Nothing
+        in
+          case unwrapType tau of
+            TVar _ datatypeName ->
+             let _ = Debug.log datatypeName () in
+              case Utils.maybeFind datatypeName sigma of
+                Just datatypeConstructors ->
+                  NonDet.do (NonDet.fromList datatypeConstructors) <|
+                    \(ctorName, argTypes) ->
+                      case argTypes of
+                        -- Only support single arguments for now
+                        [argType] ->
+                          worlds
+                            |> List.map (extractConstructor ctorName)
+                            |> Utils.filterJusts
+                            |> flip (refine_ (depth - 1) sigma gamma) argType
+                            |> NonDet.map
+                                 ( Tuple.mapFirst <|
+                                     List.singleton >> eDatatype ctorName
+                                 )
+
+                        _ ->
+                          NonDet.none
+
+                Nothing ->
+                  NonDet.none
+
+            _ ->
+              NonDet.none
     in
       NonDet.concat
         [ guessRefinement
         , constantRefinement
         , tupleRefinement
         , partialFunctionRefinement
+        , constructorRefinement
         ]
 
-refine : T.TypeEnv -> Worlds -> Type -> NonDet (Exp, Constraints)
+refine :
+  T.DatatypeEnv -> T.TypeEnv -> Worlds -> Type -> NonDet (Exp, Constraints)
 refine =
   refine_ 5
 
@@ -290,8 +328,8 @@ refine =
 -- Iterative Constraint Solving
 --------------------------------------------------------------------------------
 
-solve_ : Int -> T.HoleEnv -> Constraints -> NonDet HoleFilling
-solve_ depth delta constraints =
+solve_ : Int -> T.DatatypeEnv -> T.HoleEnv -> Constraints -> NonDet HoleFilling
+solve_ depth sigma delta constraints =
   if depth == 0 then
     NonDet.none
   else
@@ -300,7 +338,7 @@ solve_ depth delta constraints =
       solveOne holeId worlds =
         case T.holeEnvGet holeId delta of
           Just (gamma, tau) ->
-            refine gamma worlds tau
+            refine sigma gamma worlds tau
 
           Nothing ->
             NonDet.none
@@ -329,9 +367,10 @@ solve_ depth delta constraints =
         else
           solve_
             (depth - 1)
+            sigma
             delta
             (Set.toList (Set.union oldConstraintSet newConstraintSet))
 
-solve : T.HoleEnv -> Constraints -> NonDet HoleFilling
+solve : T.DatatypeEnv -> T.HoleEnv -> Constraints -> NonDet HoleFilling
 solve =
   solve_ 5

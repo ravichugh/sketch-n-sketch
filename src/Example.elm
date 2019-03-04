@@ -45,6 +45,7 @@ exConstructor =
     inContext "constructor example" <|
       succeed ExConstructor
         |= capitalIdentifier
+        |. spaces
         |= example
 
 exNum : Parser Example

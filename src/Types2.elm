@@ -13,6 +13,8 @@ module Types2 exposing
   , renameDataConstructorTool
   , duplicateDataConstructorTool
 
+  , DatatypeEnv
+
   , TypeEnv
   , TypeEnvElement(..)
   , ArrowType
@@ -172,6 +174,7 @@ type TypeEnvElement
 
 type alias DataConDef = (Ident, List Type)
 type alias DataTypeDef = (Ident, List DataConDef)
+type alias DatatypeEnv = List DataTypeDef
 
 type alias HoleEnv =
   List HoleEnvElement
@@ -2440,7 +2443,7 @@ checkType gamma stuff thisExp expectedType =
 
 --------------------------------------------------------------------------------
 
-getDataTypeDefs : Exp -> List DataTypeDef
+getDataTypeDefs : Exp -> DatatypeEnv
 getDataTypeDefs = flip foldExpViaE__ [] (\e__ acc ->
   case e__ of
     ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->

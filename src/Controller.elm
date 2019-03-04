@@ -4522,8 +4522,11 @@ msgCollectAndSolve =
         (Just k1, Just k2) ->
           { model
               | holeFillings =
-                  Synthesis.solve model.holeEnv (k1 ++ k2)
-                    |> NonDet.toList
+                  NonDet.toList <|
+                    Synthesis.solve
+                      (Types2.getDataTypeDefs model.inputExp)
+                      model.holeEnv
+                      (k1 ++ k2)
               , codeAtPbeSynthesis =
                   Just model.code
           }

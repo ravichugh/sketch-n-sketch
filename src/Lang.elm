@@ -2544,6 +2544,38 @@ tupleEncodingApply ctorEncoding values =
         (space, space0, key, space0, pat)
       )
 
+datatypeEncodingApply :
+  (String -> t)
+    -> (List (Maybe WS, WS, Ident, WS, t) -> t)
+    -> String
+    -> List t
+    -> t
+datatypeEncodingApply tagger wrapper ctorName args =
+  let
+    ctorEntry =
+      ctor tagger DataTypeCtor ctorName
+
+    insideArgsEntries =
+      args
+        |> List.map (\x -> (Just space0, x))
+        |> Utils.indexedMapFrom 1 numericalEntry
+
+    argsEntry =
+      ( Just space0
+      , space0
+      , ctorArgs
+      , space0
+      , wrapper insideArgsEntries
+      )
+  in
+    wrapper [ctorEntry, argsEntry]
+
+eDatatype : String -> List Exp -> Exp
+eDatatype =
+  datatypeEncodingApply
+    eStr0
+    (\entries -> withDummyExpInfo <| eRecord__ space1 Nothing entries space0)
+
 pTuple__: WS -> List (Maybe WS, Pat) -> WS -> Pat__
 pTuple__ spBeforeOpenParen keyValues spBeforeCloseParen =
   case keyValues of
