@@ -15,12 +15,25 @@ import Backprop
 
 import Types2 as T exposing (..)
 import Lang exposing (..)
+import Info exposing (withDummyInfo)
 
 import Utils
 
 import NonDet exposing (NonDet)
 
 import LeoUnparser
+
+--------------------------------------------------------------------------------
+-- Parameters
+--------------------------------------------------------------------------------
+
+maxDepth : Int
+maxDepth =
+  7
+
+maxSolveDepth : Int
+maxSolveDepth =
+  5
 
 --------------------------------------------------------------------------------
 -- Satisfaction
@@ -131,7 +144,7 @@ guess_ depth sigma gamma tau =
 
 guess : T.DatatypeEnv -> T.TypeEnv -> Type -> NonDet Exp
 guess =
-  guess_ 5
+  guess_ maxDepth
 
 --------------------------------------------------------------------------------
 -- Type-and-Example-Directed Synthesis
@@ -208,16 +221,21 @@ refine_ depth sigma gamma worlds tau =
             in
               examples
                 |> List.map extractTuple
-                |> Utils.filterJusts
-                |> Utils.transpose
-                |> List.map (Utils.zip envs)
-                |> flip (Utils.zipWith (refine_ (depth - 1) sigma gamma)) taus
-                |> NonDet.oneOfEach
-                |> NonDet.map
-                     ( List.unzip
-                         >> Tuple.mapFirst eTuple
-                         >> Tuple.mapSecond List.concat
-                     )
+                |> Utils.projJusts
+                |> Maybe.map
+                   ( Utils.transpose
+                       >> List.map (Utils.zip envs)
+                       >> flip
+                            (Utils.zipWith (refine_ (depth - 1) sigma gamma))
+                            taus
+                       >> NonDet.oneOfEach
+                       >> NonDet.map
+                            ( List.unzip
+                                >> Tuple.mapFirst eTuple
+                                >> Tuple.mapSecond List.concat
+                            )
+                   )
+                |> Maybe.withDefault NonDet.none
 
       -- IRefine-Fun
       partialFunctionRefinement =
@@ -260,11 +278,16 @@ refine_ depth sigma gamma worlds tau =
             in
               examples
                 |> List.map extractPartialFunction
-                |> Utils.filterJusts
-                |> Utils.zipWith makeWorlds envs
-                |> List.concat
-                |> flip (refine_ (depth - 1) sigma newGamma) returnType
-                |> NonDet.map (Tuple.mapFirst <| eFun [argNamePat])
+                |> Utils.projJusts
+                |> Maybe.map
+                     ( Utils.zipWith makeWorlds envs
+                         >> List.concat
+                         >> flip
+                              (refine_ (depth - 1) sigma newGamma)
+                              returnType
+                         >> NonDet.map (Tuple.mapFirst <| eFun [argNamePat])
+                     )
+                |> Maybe.withDefault NonDet.none
 
           _ ->
             NonDet.none
@@ -285,7 +308,6 @@ refine_ depth sigma gamma worlds tau =
         in
           case unwrapType tau of
             TVar _ datatypeName ->
-             let _ = Debug.log datatypeName () in
               case Utils.maybeFind datatypeName sigma of
                 Just datatypeConstructors ->
                   NonDet.do (NonDet.fromList datatypeConstructors) <|
@@ -295,12 +317,16 @@ refine_ depth sigma gamma worlds tau =
                         [argType] ->
                           worlds
                             |> List.map (extractConstructor ctorName)
-                            |> Utils.filterJusts
-                            |> flip (refine_ (depth - 1) sigma gamma) argType
-                            |> NonDet.map
-                                 ( Tuple.mapFirst <|
-                                     List.singleton >> eDatatype ctorName
+                            |> Utils.projJusts
+                            |> Maybe.map
+                                 ( flip (refine_ (depth - 1) sigma gamma) argType
+                                     >> NonDet.map
+                                          ( Tuple.mapFirst <|
+                                              List.singleton
+                                                >> eDatatype ctorName
+                                          )
                                  )
+                            |> Maybe.withDefault NonDet.none
 
                         _ ->
                           NonDet.none
@@ -310,6 +336,106 @@ refine_ depth sigma gamma worlds tau =
 
             _ ->
               NonDet.none
+
+      -- IRefine-Match
+      matchRefinement =
+        let
+          argName : Ident
+          argName =
+            "x"
+
+          argNamePat : Pat
+          argNamePat =
+            pVar argName
+
+          makeBranchWorlds : Exp -> Worlds -> Maybe (List (Ident, Worlds))
+          makeBranchWorlds eScrutinee worlds =
+            worlds
+              |> List.map
+                   ( \(env, ex) ->
+                       eScrutinee
+                         |> TriEval.evalWithEnv env
+                         |> Result.toMaybe
+                         |> Maybe.andThen UnExp.asValue
+                         |> Maybe.andThen
+                              ( \v ->
+                                  case v of
+                                    UVConstructor ctorName vInner ->
+                                      Just
+                                        ( ctorName
+                                        , ( UnExp.addVar
+                                              argName
+                                              (UnExp.asExp vInner)
+                                              env
+                                          , ex
+                                          )
+                                        )
+
+                                    _ ->
+                                      Nothing
+                              )
+                   )
+              |> Utils.projJusts
+              |> Maybe.map (Utils.pairsToDictOfLists >> Dict.toList)
+
+          makeBranch :
+            List (Ident, List Type)
+              -> (Ident, Worlds)
+              -> NonDet (Pat, (Exp, Constraints))
+          makeBranch constructors (ctorName, worlds) =
+            case Utils.maybeFind ctorName constructors of
+              -- Only support single arguments for now
+              Just [ctorArgType] ->
+                let
+                  newGamma =
+                    T.addHasType (argNamePat, ctorArgType) gamma
+
+                  pat =
+                    pDatatype ctorName [argNamePat]
+                in
+                  refine_ (depth - 1) sigma newGamma worlds tau
+                    |> NonDet.map ((,) pat)
+
+              _ ->
+                NonDet.none
+
+          makeCase :
+            Exp -> List (Pat, (Exp, Constraints)) -> Maybe (Exp, Constraints)
+          makeCase eScrutinee branchesWithConstraints =
+            if List.isEmpty branchesWithConstraints then
+              Nothing
+            else
+              let
+                branches =
+                  branchesWithConstraints
+                    |> List.map
+                       ( \(p, (e, _)) ->
+                           withDummyInfo <|
+                             Branch_ space0 p e space1
+                       )
+
+                constraints =
+                  branchesWithConstraints
+                    |> List.map (Tuple.second >> Tuple.second)
+                    |> List.concat
+              in
+                Just (eCase eScrutinee branches, constraints)
+        in
+          NonDet.do (NonDet.fromList sigma) <| \(datatypeName, constructors) ->
+          let
+            dType =
+              withDummyTypeInfo <| TVar space0 datatypeName
+          in
+          NonDet.do (guess_ (depth - 1) sigma gamma dType) <| \eScrutinee ->
+            worlds
+              |> makeBranchWorlds eScrutinee
+              |> Maybe.map
+                   ( List.map (makeBranch constructors)
+                       >> NonDet.oneOfEach
+                       >> NonDet.map (makeCase eScrutinee)
+                       >> NonDet.collapseMaybe
+                   )
+              |> Maybe.withDefault NonDet.none
     in
       NonDet.concat
         [ guessRefinement
@@ -317,12 +443,13 @@ refine_ depth sigma gamma worlds tau =
         , tupleRefinement
         , partialFunctionRefinement
         , constructorRefinement
+        , matchRefinement
         ]
 
 refine :
   T.DatatypeEnv -> T.TypeEnv -> Worlds -> Type -> NonDet (Exp, Constraints)
 refine =
-  refine_ 5
+  refine_ maxDepth
 
 --------------------------------------------------------------------------------
 -- Iterative Constraint Solving
@@ -373,4 +500,4 @@ solve_ depth sigma delta constraints =
 
 solve : T.DatatypeEnv -> T.HoleEnv -> Constraints -> NonDet HoleFilling
 solve =
-  solve_ 5
+  solve_ maxSolveDepth

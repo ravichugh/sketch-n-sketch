@@ -4500,7 +4500,8 @@ msgCollectAndSolve =
         let
           makeWorld : (UnExp.Env, String) -> Maybe World
           makeWorld =
-            Tuple.mapSecond (Example.parse >> Result.toMaybe)
+            Tuple.mapSecond
+                (Example.parse >> Debug.log "parsed example" >> Result.toMaybe)
               >> Utils.liftMaybePair2
         in
           model.holeExampleInputs

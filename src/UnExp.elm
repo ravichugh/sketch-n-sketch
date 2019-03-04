@@ -236,6 +236,7 @@ uvConstructor =
     inContext "constructor unval" <|
       succeed UVConstructor
         |= capitalIdentifier
+        |. spaces
         |= unval
 
 uvNum : Parser UnVal

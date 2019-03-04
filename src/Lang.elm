@@ -2518,9 +2518,11 @@ eSnapHoleVal0 v   = withDummyExpInfo <| EHole space0 (ESnapHole v)
 eSnapHoleVal v    = withDummyExpInfo <| EHole space1 (ESnapHole v)
 eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 dummyEmptyHole
 eEmptyHoleVal     = withDummyExpInfo <| EHole space1 dummyEmptyHole
+eCase e branches  = withDummyExpInfo <| ECase space1 e branches space1
 
 eColonType (Expr e) t = withInfo (exp_ <| EColonType space1 (Expr e) space1 t space0) e.start t.end
 
+pStr0 s        = withDummyPatInfo <| PBase space0 (EString defaultQuoteChar s)
 pVar0 a        = withDummyPatInfo <| PVar space0 a noWidgetDecl
 pVar a         = withDummyPatInfo <| PVar space1 a noWidgetDecl
 pWildcard0     = withDummyPatInfo <| PWildcard space0
@@ -2575,6 +2577,12 @@ eDatatype =
   datatypeEncodingApply
     eStr0
     (\entries -> withDummyExpInfo <| eRecord__ space1 Nothing entries space0)
+
+pDatatype : String -> List Pat -> Pat
+pDatatype =
+  datatypeEncodingApply
+    pStr0
+    (\entries -> withDummyPatInfo <| PRecord space1 entries space0)
 
 pTuple__: WS -> List (Maybe WS, Pat) -> WS -> Pat__
 pTuple__ spBeforeOpenParen keyValues spBeforeCloseParen =
