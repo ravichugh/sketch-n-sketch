@@ -100,11 +100,8 @@ tryUnparseDataConstructor
   -> Maybe String
 tryUnparseDataConstructor unparseTerm name args wsBefore fields wsBeforeEnd =
   let
-    ctorString =
-      stringifyCtorKind Lang.DataTypeCtor
-
     keyValues =
-      fields |> List.map (\(_, _, k, _, v) -> (k, v))
+      Utils.recordKeyValuePairs fields
 
     maybeNameString = getDataConstructorNameString keyValues
         |> Maybe.andThen name
@@ -118,17 +115,7 @@ tryUnparseDataConstructor unparseTerm name args wsBefore fields wsBeforeEnd =
         let
           argsString =
             args
-              |> List.filter
-                   ( \(_, _, elName, _, _) ->
-                       String.startsWith "_" elName
-                   )
-              |> List.sortBy
-                   ( \(_, _, elName, _, _) ->
-                       elName
-                         |> String.dropLeft 1
-                         |> String.toInt
-                         |> Result.withDefault -1
-                   )
+              |> Lang.ensureRecordNumericArgEntriesInOrder
               |> List.map
                    ( \(_, _, _, _, elBinding) ->
                        unparseTerm elBinding
@@ -218,7 +205,7 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      tryUnparseRecordSugars unparsePattern Lang.getPatString Lang.getPatEntries wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparsePattern Lang.patEntryValueToMaybeCtorName Lang.patEntryValueToMaybeCtorArgEntries wsBefore elems wsAfter <| \_ ->
         let maybeJustKey eqSpace key value =
           let default = eqSpace ++ "=" ++ unparsePattern value in
           if eqSpace == "" then
@@ -568,7 +555,7 @@ unparse e =
       case recordEntriesFromDeclarations decls of
         Nothing -> default ()
         Just fields ->
-          tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) Lang.getExpString Lang.getExpEntries
+          tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) Lang.expEntryValueToMaybeCtorName Lang.expEntryValueToMaybeCtorArgEntries
               wsBefore fields wsAfter default
 
     ESelect ws0 exp wsBeforeDot wsAfterDot id ->

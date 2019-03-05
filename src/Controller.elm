@@ -21,7 +21,7 @@ port module Controller exposing
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
-  , msgSetOutputGraphics, msgSetOutputHtmlText, doSetOutputHtmlText, msgSetOutputValueText
+  , msgSetOutputGraphics, msgSetOutputHtmlText, doSetOutputHtmlText, msgSetOutputValueText, msgSetOutputPBE, msgSetOutputStructuredEditor
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
@@ -868,10 +868,10 @@ tryRun old =
       in
         { old | history = updatedHistory }
   in
-    case ImpureGoodies.logTimedRun "parsing time" <| \() -> Syntax.parser old.syntax old.code of
-      Err err ->
+    case (ImpureGoodies.logTimedRun "parsing time" <| \() -> Syntax.parser old.syntax old.code, old.outputMode) of
+      (Err err, _) ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
-      Ok parsedExp ->
+      (Ok parsedExp, PBE) ->
         let
           result =
             TriEval.eval parsedExp
@@ -884,9 +884,9 @@ tryRun old =
                   , errorBox = Nothing
               }
 
-{-
+      (Ok parsedExp, _) ->
         let
-          (e, aceTypeInfo, typeChecks) =
+          (e, holeEnv, aceTypeInfo, typeChecks) =
             maybeTypeCheck old.doTypeChecking parsedExp
         in
         let resultThunk () =
@@ -967,7 +967,6 @@ tryRun old =
             Err s         -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
             Ok (Err s)    -> Err (oldWithUpdatedHistoryAndTypes, s, Nothing)
             Ok (Ok model) -> Ok model
--}
 
 
 --------------------------------------------------------------------------------
@@ -2558,6 +2557,12 @@ doSetOutputHtmlText old =
 
 msgSetOutputValueText = Msg "Set Output Value Text" <| \old ->
   { old | outputMode = ValueText }
+
+msgSetOutputPBE = Msg "Set Output PBE" <| \old ->
+  { old | outputMode = PBE }
+
+msgSetOutputStructuredEditor = Msg "Set Output Structured Editor" <| \old ->
+  { old | outputMode = StructuredEditor }
 
 updateHeuristics : Int -> Model -> Model
 updateHeuristics heuristic old =

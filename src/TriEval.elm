@@ -193,10 +193,7 @@ eval_ env exp =
                 case unwrapPat pat of
                   PRecord _ entries _ ->
                     case
-                      Lang.dataTypeEncodingUnapply
-                        entries
-                        Lang.getPatString
-                        Lang.getPatEntries
+                      Lang.entriesToMaybeCtorNameAndArgPats entries
                     of
                       Just (ctorName, args) ->
                         case args of
@@ -205,7 +202,7 @@ eval_ env exp =
                               (ctorName, noBindingName, body)
 
 
-                          [(_, arg)] ->
+                          [arg] ->
                             case unwrapPat arg of
                               PVar _ argName _ ->
                                 Evaluator.succeed (ctorName, argName, body)
@@ -321,14 +318,11 @@ eval_ env exp =
 
               Nothing ->
                 case
-                  Lang.dataTypeEncodingUnapply
-                    entries
-                    Lang.getExpString
-                    Lang.getExpEntries
+                  Lang.entriesToMaybeCtorNameAndArgExps entries
                 of
                   Just (ctorName, args) ->
                     args
-                      |> Evaluator.mapM (Tuple.second >> eval_ env)
+                      |> Evaluator.mapM (eval_ env)
                       |> Evaluator.map
                            ( \uArgs ->
                                case uArgs of

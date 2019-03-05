@@ -1543,7 +1543,7 @@ defaultVDiffsRec testEquality recurse original modified =
   ) <|-}
   case (original.v_, modified.v_) of
     (VList originals, VList modifieds) ->
-      defaultListDiffs valToString (\v -> getCtorName v |> Utils.maybeOrElseLazy (\() -> getViewDatatypeName v))
+      defaultListDiffs valToString (\v -> valToMaybeCtorName v |> Utils.maybeOrElseLazy (\() -> getViewDatatypeName v))
         recurse originals modifieds |> Results.map (Maybe.map VListDiffs)
     (VBase (VString originalStr), VBase (VString modifiedStr)) ->
       defaultStringDiffs originalStr modifiedStr |> Results.map (Maybe.map VStringDiffs)

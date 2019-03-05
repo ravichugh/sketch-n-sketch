@@ -147,8 +147,8 @@ vTuple: List Val -> Val_
 vTuple vals =
   VRecord <| Dict.fromList <| (ctorVal (builtinVal "Lang.vTuple" << VBase << VString) TupleCtor (ctorTupleName (List.length vals)))::Utils.indexedMapFrom 1 numericalValEntry vals
 
-getCtorName: Val -> Maybe String
-getCtorName v = vRecordUnapplyField ctorDataType v |> Maybe.andThen vStringUnapply
+valToMaybeCtorName: Val -> Maybe String
+valToMaybeCtorName v = vRecordUnapplyField ctorDataType v |> Maybe.andThen vStringUnapply
 
 getViewDatatypeName: Val -> Maybe String
 getViewDatatypeName v = case vListUnapply v of
@@ -2595,21 +2595,33 @@ tupleEncodingUnapply: List (Maybe WS, WS, Ident, WS, t) -> Maybe (List (Maybe WS
 tupleEncodingUnapply keyValues =
   if recordEntriesToCtorKind keyValues == Just TupleCtor then
     keyValues
-    |> List.filter
-         ( \(_, _, elName, _, _) ->
-             String.startsWith "_" elName
-         )
-    |> List.sortBy
-         ( \(_, _, elName, _, _) ->
-             elName
-               |> String.dropLeft 1
-               |> String.toInt
-               |> Result.withDefault -1
-         )
+    |> ensureRecordNumericArgEntriesInOrder
     |> List.map (\(spc, spn, n, spe, e) -> (spc, e))
     |> Utils.mapHead (\(spc, e) -> (Nothing, e))
     |> Just
   else Nothing
+
+entriesToMaybeCtorNameAndArgExps : List (Maybe WS, WS, Ident, WS, Exp) -> Maybe (Ident, List Exp)
+entriesToMaybeCtorNameAndArgExps entries =
+  dataTypeEncodingUnapply
+      entries
+      expEntryValueToMaybeCtorName
+      expEntryValueToMaybeCtorArgEntries
+  |> Maybe.map (\(ctorName, wsArgPairs) -> (ctorName, List.map Tuple.second wsArgPairs))
+
+entriesToMaybeCtorNameAndArgPats : List (Maybe WS, WS, Ident, WS, Pat) -> Maybe (Ident, List Pat)
+entriesToMaybeCtorNameAndArgPats entries =
+  dataTypeEncodingUnapply
+      entries
+      patEntryValueToMaybeCtorName
+      patEntryValueToMaybeCtorArgEntries
+  |> Maybe.map (\(ctorName, wsArgPairs) -> (ctorName, List.map Tuple.second wsArgPairs))
+
+patToMaybeCtorNameAndArgPats : Pat -> Maybe (Ident, List Pat)
+patToMaybeCtorNameAndArgPats pat =
+  case pat.val.p__ of
+    PRecord _ entries _ -> entriesToMaybeCtorNameAndArgPats entries
+    _                   -> Nothing
 
 dataTypeEncodingUnapply :
   List (Maybe WS, WS, Ident, WS, t)
@@ -2619,8 +2631,7 @@ dataTypeEncodingUnapply :
 dataTypeEncodingUnapply fields getString getEntries =
   let
     keyValues =
-      fields
-        |> List.map (\(_, _, k, _, v) -> (k, v))
+      Utils.recordKeyValuePairs fields
 
     maybeNameString =
       keyValues
@@ -2635,23 +2646,31 @@ dataTypeEncodingUnapply fields getString getEntries =
     case (maybeNameString, maybeArgs) of
       (Just nameString, Just args) ->
         args
-          |> List.map (\(ws, _, i, _, x) -> (i, (ws, x)))
-          |> List.filter (Tuple.first >> String.startsWith "_")
-          |> List.sortBy
-               ( Tuple.first
-                   >> String.dropLeft 1
-                   >> String.toInt
-                   >> Result.withDefault -1
-               )
-          |> List.map Tuple.second
+          |> ensureRecordNumericArgEntriesInOrder
+          |> List.map (\(ws, _, _, _, x) -> (ws, x))
           |> (,) nameString
           |> Just
 
       _ ->
         Nothing
 
-getExpString : Exp -> Maybe String
-getExpString e =
+ensureRecordNumericArgEntriesInOrder : List (Maybe WS, WS, Ident, WS, t) -> List (Maybe WS, WS, Ident, WS, t)
+ensureRecordNumericArgEntriesInOrder entries =
+  entries
+    |> List.filter
+         ( \(_, _, elName, _, _) ->
+             String.startsWith "_" elName
+         )
+    |> List.sortBy
+         ( \(_, _, elName, _, _) ->
+             elName
+               |> String.dropLeft 1
+               |> String.toInt
+               |> Result.withDefault -1
+         )
+
+expEntryValueToMaybeCtorName : Exp -> Maybe String
+expEntryValueToMaybeCtorName e =
   case (unwrapExp e) of
     EBase _ baseVal ->
       case baseVal of
@@ -2662,8 +2681,8 @@ getExpString e =
     _ ->
       Nothing
 
-getPatString : Pat -> Maybe String
-getPatString p =
+patEntryValueToMaybeCtorName : Pat -> Maybe String
+patEntryValueToMaybeCtorName p =
   case p.val.p__ of
     PBase _ baseVal ->
       case baseVal of
@@ -2682,16 +2701,16 @@ getTypeString t =
     _ ->
       Nothing
 
-getExpEntries : Exp -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
-getExpEntries e =
+expEntryValueToMaybeCtorArgEntries : Exp -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
+expEntryValueToMaybeCtorArgEntries e =
   case (unwrapExp e) of
     ERecord _ _ decls _ ->
       recordEntriesFromDeclarations decls
     _ ->
       Nothing
 
-getPatEntries : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
-getPatEntries p =
+patEntryValueToMaybeCtorArgEntries : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
+patEntryValueToMaybeCtorArgEntries p =
   case p.val.p__ of
     PRecord _ entries _ ->
       Just entries
@@ -2843,7 +2862,7 @@ vRecordTupleUnapply v = case v.v_ of
     let keyValues = Dict.toList d in
     keyValues |> Utils.maybeFind ctorTuple |> (\x -> case x of
       Nothing -> Nothing
-      Just v->
+      Just v ->
         let orderedKeyValues = keyValues
              |> List.filter
                   ( \(key, value) ->
@@ -2859,6 +2878,33 @@ vRecordTupleUnapply v = case v.v_ of
         in Just ((ctorTuple, v), orderedKeyValues)
     )
   _ -> Nothing
+
+valToMaybeCtorNameAndArgVals : Val -> Maybe (String, List Val)
+valToMaybeCtorNameAndArgVals val = case val.v_ of
+  VRecord d ->
+    case (valToMaybeCtorName val, Dict.get ctorArgs d |> Maybe.andThen vRecordUnapply) of
+      (Just ctorName, Just argsRecordDict) ->
+        let
+          orderedArgVals =
+            argsRecordDict
+            |> Dict.toList
+            |> List.filter (\(key, value) -> String.startsWith "_" key)
+            |> List.sortBy
+                ( \(key, value)  ->
+                  key
+                  |> String.dropLeft 1
+                  |> String.toInt
+                  |> Result.withDefault -1
+                )
+            |> List.map Tuple.second
+        in
+        Just (ctorName, orderedArgVals)
+
+      _ ->
+        Nothing
+
+  _ ->
+    Nothing
 
 vHtmlTextUnapply v = case v.v_ of
   VList [t, x] -> case (t.v_, x.v_) of
@@ -4547,7 +4593,7 @@ freeIdentifiersList exp =
   freeVars exp
   |> List.map expToMaybeIdent
   |> Utils.projJusts
-  |> Utils.fromJust_ "LangTools.freeIdentifiersList"
+  |> Utils.fromJust_ "Lang.freeIdentifiersList"
 
 getTopLevelOptions: Exp -> List (String, String)
 getTopLevelOptions e = getOptions e

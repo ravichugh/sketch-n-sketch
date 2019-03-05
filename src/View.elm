@@ -49,6 +49,7 @@ import UnExp exposing (UnExp)
 import UnDeclarations exposing (HoleFilling)
 import LeoUnparser
 import Types2
+import TinyStructuredEditorsForLowLowPrices
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -956,6 +957,14 @@ menuBar model =
                   (model.outputMode == ValueText)
                   "Value (Text)"
                   Controller.msgSetOutputValueText
+              , simpleTextRadioButton
+                  (model.outputMode == PBE)
+                  "Programming by Examples"
+                  Controller.msgSetOutputPBE
+              , simpleTextRadioButton
+                  (model.outputMode == StructuredEditor)
+                  "Tiny Structured Editors for Low, Low Prices"
+                  Controller.msgSetOutputStructuredEditor
               ]
           ]
         , [ disableableTextButton True "Main Layer" Controller.msgNoop
@@ -1729,15 +1738,8 @@ outputPanel model =
           model.unExpOutput
 
     output =
-      case model.errorBox of
-        Just errorMessage ->
-          [ Html.code
-              []
-              [ Html.text errorMessage
-              ]
-          ]
-
-        Nothing ->
+      case (model.errorBox, model.outputMode, model.preview) of
+        (Nothing, PBE, _) ->
           case unExpOutput of
             Ok output ->
               let
@@ -1773,41 +1775,41 @@ outputPanel model =
                   [ Html.text errorMessage
                   ]
               ]
-
---      case (model.errorBox, model.outputMode, model.preview) of
---        (_, _, Just (_, _, Err errorMsg)) ->
---          [textOutput errorMsg]
---        (_, _, Just (_, _, Ok _)) ->
---          Canvas.build canvasDim model
---        (Just errorMsg, _, Nothing) ->
---          [textOutput errorMsg]
---        (Nothing, HtmlText rawHtml, Nothing) ->
---          [ Html.textarea
---              [ E.onInput Controller.msgUpdateHTMLEditor
---              , Attr.class "text-output"
---              ]
---              [ Html.text (Maybe.withDefault rawHtml model.htmlEditorString) ]
---          ]
---        (Nothing, ValueText, _) ->
---{-
---          [ Html.div
---              []
---              [ Html.text <|
---                  "Make some edits."
---                    ++ if valueEditorNeedsCallUpdate model
---                         then " Now pick a new program from the pop-up menu."
---                         else ""
---              ]
---          , Html.textarea
----}
---          [ Html.textarea
---              [ E.onInput Controller.msgUpdateValueEditor
---              , Attr.class "text-output"
---              ]
---              [ Html.text model.valueEditorString ]
---          ]
---        (Nothing, _, _) ->
---          Canvas.build canvasDim model
+        (_, _, Just (_, _, Err errorMsg)) ->
+          [textOutput errorMsg]
+        (_, _, Just (_, _, Ok _)) ->
+          Canvas.build canvasDim model
+        (Just errorMsg, _, Nothing) ->
+          [textOutput errorMsg]
+        (Nothing, HtmlText rawHtml, Nothing) ->
+          [ Html.textarea
+              [ E.onInput Controller.msgUpdateHTMLEditor
+              , Attr.class "text-output"
+              ]
+              [ Html.text (Maybe.withDefault rawHtml model.htmlEditorString) ]
+          ]
+        (Nothing, ValueText, _) ->
+{-
+          [ Html.div
+              []
+              [ Html.text <|
+                  "Make some edits."
+                    ++ if valueEditorNeedsCallUpdate model
+                         then " Now pick a new program from the pop-up menu."
+                         else ""
+              ]
+          , Html.textarea
+-}
+          [ Html.textarea
+              [ E.onInput Controller.msgUpdateValueEditor
+              , Attr.class "text-output"
+              ]
+              [ Html.text model.valueEditorString ]
+          ]
+        (Nothing, StructuredEditor, _) ->
+          TinyStructuredEditorsForLowLowPrices.functionPickerAndEditor model.inputEnv model.inputExp model.inputVal "intervalToString"
+        (Nothing, _, _) ->
+          Canvas.build canvasDim model
     outputPanelWarning =
       Html.div
         [ Attr.class "output-panel-warning"
@@ -2045,6 +2047,12 @@ outputModeIndicator model =
     , modeDisplay "Value" []
         (model.outputMode == ValueText)
         (\m -> { m | outputMode = ValueText, slateCount = m.slateCount + 1 })
+    , modeDisplay "PBE" []
+        (model.outputMode == PBE)
+        (\m -> { m | outputMode = PBE, slateCount = m.slateCount + 1 })
+    , modeDisplay "Low, Low Prices" []
+        (model.outputMode == StructuredEditor)
+        (\m -> { m | outputMode = StructuredEditor, slateCount = m.slateCount + 1 })
     ]
 
 syncModeIndicator model =
