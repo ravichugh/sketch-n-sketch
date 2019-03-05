@@ -1787,7 +1787,7 @@ moduleNames =
 isDataConstructor : String -> Bool
 isDataConstructor name =
   let
-    startsLower =
+    startsUpper =
       name
         |> String.uncons
         |> Maybe.map (Tuple.first >> Char.isUpper)
@@ -1797,7 +1797,7 @@ isDataConstructor name =
       not <|
         Set.member name moduleNames
   in
-    startsLower && notModule
+    startsUpper && notModule
 
 --==============================================================================
 -- Expressions

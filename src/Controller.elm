@@ -21,7 +21,7 @@ port module Controller exposing
   , msgGroupBlobs, msgDuplicate, msgMergeBlobs, msgAbstractBlobs
   , msgReplicateBlob
   , msgToggleCodeBox
-  , msgSetOutputGraphics, msgSetOutputHtmlText, doSetOutputHtmlText, msgSetOutputValueText
+  , msgSetOutputGraphics, msgSetOutputHtmlText, doSetOutputHtmlText, msgSetOutputValueText, msgSetOutputStructuredEditor
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
   , msgStartAnimation, msgRedraw, msgTickDelta
   , msgNextSlide, msgPreviousSlide
@@ -2503,6 +2503,9 @@ doSetOutputHtmlText old =
 
 msgSetOutputValueText = Msg "Set Output Value Text" <| \old ->
   { old | outputMode = ValueText }
+
+msgSetOutputStructuredEditor = Msg "Set Output Structured Editor" <| \old ->
+  { old | outputMode = StructuredEditor }
 
 updateHeuristics : Int -> Model -> Model
 updateHeuristics heuristic old =

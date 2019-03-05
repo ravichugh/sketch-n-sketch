@@ -7,6 +7,9 @@ module LeoUnparser exposing
   , unparseHtmlTextContent
   , unparseAnyHtml
   , HtmlInterpolationStyle(..)
+  , patToMaybeCtorName
+  , patToMaybeCtorArgEntries
+  , ensureRecordNumericArgEntriesInOrder
   )
 
 import Lang exposing (..)
@@ -63,8 +66,8 @@ expName e =
     _ ->
       Nothing
 
-patName : Pat -> Maybe String
-patName p =
+patToMaybeCtorName : Pat -> Maybe String
+patToMaybeCtorName p =
   case p.val.p__ of
     PBase _ baseVal ->
       case baseVal of
@@ -91,8 +94,8 @@ expArgs e =
     _ ->
       Nothing
 
-patArgs : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
-patArgs p =
+patToMaybeCtorArgEntries : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
+patToMaybeCtorArgEntries p =
   case p.val.p__ of
     PRecord _ entries _ ->
       Just entries
@@ -148,6 +151,20 @@ getDataConstructorNameString keyValues =
 getArgConstructorNameString keyValues =
   keyValues |> Utils.maybeFind ctorArgs
 
+ensureRecordNumericArgEntriesInOrder entries =
+  entries
+    |> List.filter
+         ( \(_, _, elName, _, _) ->
+             String.startsWith "_" elName
+         )
+    |> List.sortBy
+         ( \(_, _, elName, _, _) ->
+             elName
+               |> String.dropLeft 1
+               |> String.toInt
+               |> Result.withDefault -1
+         )
+
 -- Tries to unparse a record as a data constructor
 tryUnparseDataConstructor
   :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
@@ -173,17 +190,7 @@ tryUnparseDataConstructor unparseTerm name args wsBefore fields wsBeforeEnd =
         let
           argsString =
             args
-              |> List.filter
-                   ( \(_, _, elName, _, _) ->
-                       String.startsWith "_" elName
-                   )
-              |> List.sortBy
-                   ( \(_, _, elName, _, _) ->
-                       elName
-                         |> String.dropLeft 1
-                         |> String.toInt
-                         |> Result.withDefault -1
-                   )
+              |> ensureRecordNumericArgEntriesInOrder
               |> List.map
                    ( \(_, _, _, _, elBinding) ->
                        unparseTerm elBinding
@@ -273,7 +280,7 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      tryUnparseRecordSugars unparsePattern patName patArgs wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparsePattern patToMaybeCtorName patToMaybeCtorArgEntries wsBefore elems wsAfter <| \_ ->
         let maybeJustKey eqSpace key value =
           let default = eqSpace ++ "=" ++ unparsePattern value in
           if eqSpace == "" then

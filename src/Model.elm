@@ -235,6 +235,7 @@ type OutputMode
   | HtmlText RawHtml
       -- TODO might add a print mode where <g BLOB BOUNDS> nodes are removed
   | ValueText
+  | StructuredEditor
   | PrintScopeGraph (Maybe String)
                       -- Nothing        after sending renderDotGraph request
                       -- Just dataURI   after receiving the encoded image
@@ -940,7 +941,7 @@ htmlEditorNeedsCallUpdate model =
       Nothing -> False
       Just h -> htmlCode /= h
     _ -> False
-  
+
 domEditorNeedsCallUpdate model =
   not <| Utils.maybeIsEmpty model.updatedValue
 

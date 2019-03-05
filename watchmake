@@ -18,6 +18,7 @@ FileUtils.cd THIS_DIR
 FSWATCH_COMMAND = "fswatch --latency 0.1 -Ee 'git|build/|elm-stuff/|solver_server/|user_study_logs/|Generated|.DS_Store|watchmake' ."
 MAKE_ARGS       = ARGV.size == 0 ? ["html"] : ARGV
 MAKE_COMMAND    = "cd src; make #{MAKE_ARGS.join(" ")}"
+DO_LINT         = false
 
 IO.popen(FSWATCH_COMMAND) do |fswatch|
   puts "Will run `#{MAKE_COMMAND}` on file changes noticed by"
@@ -33,12 +34,14 @@ IO.popen(FSWATCH_COMMAND) do |fswatch|
     puts changed_files
     puts MAKE_COMMAND
     system MAKE_COMMAND
-    begin
-      changed_files = ""
-      # Only lint if no files changed while building and build was a success.
-      changed_files = fswatch.read_nonblock(1_000_000) if $?.success?
-    rescue
-      system "cd src; make lint"
+    if DO_LINT
+      begin
+        changed_files = ""
+        # Only lint if no files changed while building and build was a success.
+        changed_files = fswatch.read_nonblock(1_000_000) if $?.success?
+      rescue
+        system "cd src; make lint"
+      end
     end
   end
 end

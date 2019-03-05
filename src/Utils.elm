@@ -748,6 +748,8 @@ listValuesMake = List.map2 (\(sp0, _) value -> (sp0, value))
 listValuesMap: (value -> a) -> List (ws, value) -> List (ws, a)
 listValuesMap f ts = listValuesMake ts (List.map f (listValues ts))
 
+-- All these should really be labeled recordEntryKey, recordEntryValue, etc...
+
 recordKey: (sp0, sp1, name, sp2, value) -> name
 recordKey (_, _, k, _, _) = k
 
@@ -756,6 +758,9 @@ recordValue (_, _, _, _, v) = v
 
 recordValueMap: (sp0, sp1, name, sp2, value) -> a -> (sp0, sp1, name, sp2, a)
 recordValueMap (sp0, sp1, name, sp3, value) a = (sp0, sp1, name, sp3, a)
+
+recordKeyValuePairs : List (sp0, sp1, name, sp2, value) -> List (name, value)
+recordKeyValuePairs = List.map (\entry -> (recordKey entry, recordValue entry))
 
 recordKeys: List (sp0, sp1, name, sp2, value) -> List name
 recordKeys = List.map recordKey
@@ -1083,6 +1088,14 @@ strFoldLeft acc list fold =
 strFoldLeftWithIndex: b -> String -> (b -> Int -> Char -> b) -> b
 strFoldLeftWithIndex acc list fold =
   String.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
+
+-- Initial accumulator is the first arg so you can write: list |> Utils.foldl initAcc (\elem acc -> ...)
+foldl : b -> (a -> b -> b) -> List a -> b
+foldl acc f list = List.foldl f acc list
+
+-- Initial accumulator is the first arg so you can write: list |> Utils.foldr initAcc (\elem acc -> ...)
+foldr : b -> (a -> b -> b) -> List a -> b
+foldr acc f list = List.foldr f acc list
 
 filterMaybe : (a -> Bool) -> Maybe a -> Maybe a
 filterMaybe pred mx =

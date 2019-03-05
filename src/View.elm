@@ -43,6 +43,7 @@ import LangSvg
 import Syntax
 import File
 import Eval
+import TinyStructuredEditorsForLowLowPrices
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -945,6 +946,10 @@ menuBar model =
                   (model.outputMode == ValueText)
                   "Value (Text)"
                   Controller.msgSetOutputValueText
+              , simpleTextRadioButton
+                  (model.outputMode == StructuredEditor)
+                  "Tiny Structured Editors for Low, Low Prices"
+                  Controller.msgSetOutputStructuredEditor
               ]
           ]
         , [ disableableTextButton True "Main Layer" Controller.msgNoop
@@ -1737,6 +1742,8 @@ outputPanel model =
               ]
               [ Html.text model.valueEditorString ]
           ]
+        (Nothing, StructuredEditor, _) ->
+          TinyStructuredEditorsForLowLowPrices.functionPickerAndEditor model.inputEnv model.inputExp model.inputVal "intervalToString"
         (Nothing, _, _) ->
           Canvas.build canvasDim model
     outputPanelWarning =
@@ -1976,6 +1983,9 @@ outputModeIndicator model =
     , modeDisplay "Value" []
         (model.outputMode == ValueText)
         (\m -> { m | outputMode = ValueText, slateCount = m.slateCount + 1 })
+    , modeDisplay "Low, Low Prices" []
+        (model.outputMode == StructuredEditor)
+        (\m -> { m | outputMode = StructuredEditor, slateCount = m.slateCount + 1 })
     ]
 
 syncModeIndicator model =
