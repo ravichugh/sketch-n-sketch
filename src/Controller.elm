@@ -948,11 +948,14 @@ tryRun old =
                       , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                       , shapeUpdatesViaZones = Dict.empty
                       , tinyStructuredEditorsForLowLowPricesState =
-                          TinyStructuredEditorsForLowLowPrices.prepare
-                              old.tinyStructuredEditorsForLowLowPricesState
-                              finalEnv
-                              e
-                              newVal
+                          if old.outputMode == StructuredEditor then
+                            TinyStructuredEditorsForLowLowPrices.prepare
+                                old.tinyStructuredEditorsForLowLowPricesState
+                                finalEnv
+                                e
+                                newVal
+                          else
+                            old.tinyStructuredEditorsForLowLowPricesState
                 }
               in
                 { new_
