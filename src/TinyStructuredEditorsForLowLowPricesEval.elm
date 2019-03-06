@@ -154,13 +154,13 @@ taggedValueToMaybeStringTaggedWithProjectionPaths w =
       Nothing
 
 
-evalToStringTaggedWithProjectionPaths : Lang.Env -> Lang.Exp -> Lang.Val -> RenderingFunction -> Result String StringTaggedWithProjectionPaths
-evalToStringTaggedWithProjectionPaths langEnv langExp langVal renderingFunction =
+evalToStringTaggedWithProjectionPaths : Lang.Env -> Lang.Exp -> Lang.Val -> Ident -> Result String StringTaggedWithProjectionPaths
+evalToStringTaggedWithProjectionPaths langEnv langExp langVal renderingFunctionName =
   let
     env                   = TinyStructuredEditorsForLowLowPricesDesugaring.desugarEnv langEnv
     valueOfInterestTagged = langVal |> TinyStructuredEditorsForLowLowPricesDesugaring.desugarVal |> tagVal []
   in
-  case Utils.maybeFind renderingFunction env |> Maybe.map .v of
+  case Utils.maybeFind renderingFunctionName env |> Maybe.map .v of
     Just (VClosure funcEnv varName body) ->
       let renderingFunctionEnv = (varName, valueOfInterestTagged)::funcEnv in
       eval renderingFunctionEnv body |> Result.andThen (\w ->
@@ -170,7 +170,7 @@ evalToStringTaggedWithProjectionPaths langEnv langExp langVal renderingFunction 
       )
 
     Just somethingElse ->
-      Err <| "Variable " ++ renderingFunction ++ " is not a function! " ++ toString somethingElse
+      Err <| "Variable " ++ renderingFunctionName ++ " is not a function! " ++ toString somethingElse
 
     Nothing ->
-      Err <| "Could not find variable " ++ renderingFunction ++ " in environment!"
+      Err <| "Could not find variable " ++ renderingFunctionName ++ " in environment!"

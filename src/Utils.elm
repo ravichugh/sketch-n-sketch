@@ -1097,6 +1097,7 @@ foldl acc f list = List.foldl f acc list
 foldr : b -> (a -> b -> b) -> List a -> b
 foldr acc f list = List.foldr f acc list
 
+-- aka guardMaybe
 filterMaybe : (a -> Bool) -> Maybe a -> Maybe a
 filterMaybe pred mx =
   case mx of

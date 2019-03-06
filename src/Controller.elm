@@ -154,6 +154,7 @@ import Syntax exposing (Syntax)
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
 import NonDet
+import TinyStructuredEditorsForLowLowPrices
 
 import ImpureGoodies exposing (nativeDict)
 
@@ -946,6 +947,12 @@ tryRun old =
                       , previewdiffs  = Nothing
                       , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                       , shapeUpdatesViaZones = Dict.empty
+                      , tinyStructuredEditorsForLowLowPricesState =
+                          TinyStructuredEditorsForLowLowPrices.prepare
+                              old.tinyStructuredEditorsForLowLowPricesState
+                              finalEnv
+                              e
+                              newVal
                 }
               in
                 { new_

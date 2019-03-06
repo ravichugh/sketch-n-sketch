@@ -1807,7 +1807,7 @@ outputPanel model =
               [ Html.text model.valueEditorString ]
           ]
         (Nothing, StructuredEditor, _) ->
-          TinyStructuredEditorsForLowLowPrices.functionPickerAndEditor model.inputEnv model.inputExp model.inputVal "intervalToString"
+          TinyStructuredEditorsForLowLowPrices.functionPickerAndEditor model.tinyStructuredEditorsForLowLowPricesState
         (Nothing, _, _) ->
           Canvas.build canvasDim model
     outputPanelWarning =

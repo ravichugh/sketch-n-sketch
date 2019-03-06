@@ -4,6 +4,24 @@ import Set exposing (Set)
 
 import Lang
 
+
+----------- State and Caching on the Model -----------
+
+-- I hate caching but if we instead perform the work on
+-- demand in the view then the GUI slows to a crawl.
+type alias ModelState =
+  { renderingFunctionNames                : List Ident
+  , maybeRenderingFunctionName            : Maybe Ident
+  , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
+  }
+
+initialModelState =
+  { renderingFunctionNames                = []
+  , maybeRenderingFunctionName            = Nothing
+  , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
+  }
+
+
 ----------- Basics -----------
 
 type alias Nat   = Int
@@ -41,8 +59,6 @@ type UntaggedPreValue -- (Untagged) Pre-Values v :=
 
 
 ----------- Workflow Functions -----------
-
-type alias RenderingFunction = String
 
 type SpecificAction
   = Transform ProjectionPath (Lang.Val -> Lang.Val)
