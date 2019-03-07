@@ -22,7 +22,7 @@ pruneEnvPattern pats env =
 removeVarsInEnv: Set Ident -> Env -> Env
 removeVarsInEnv boundVars env =
   List.filter (\(x, _) -> not (Set.member x boundVars)) env
-        
+
 pruneEnv: Exp -> Env -> Env
 pruneEnv exp env = -- Remove all the initial environment that is on the right.
   let freeVars = freeIdentifiers exp in
@@ -226,12 +226,12 @@ valEqual v1 v2 = --let _ = Debug.log "valEqual of " (valToString v1, valToString
   (VList v1s, VList v2s) -> listForAll2 valEqual v1s v2s
   _ -> False--}
 
-envEqual: Env -> Env -> Bool
-envEqual env1 env2 = --let _ = Debug.log "envEqual " () in
-  listForAll2 (\(x1, v1) (x2, v2) -> x1 == x2 && valEqual v1 v2) env1 env2
+-- envEqual: Env -> Env -> Bool
+-- envEqual env1 env2 = --let _ = Debug.log "envEqual " () in
+--   listForAll2 (\(x1, v1) (x2, v2) -> x1 == x2 && valEqual v1 v2) env1 env2
 
-wsEqual: WS -> WS -> Bool
-wsEqual ws1 ws2 = ws1.val == ws2.val
+-- wsEqual: WS -> WS -> Bool
+-- wsEqual ws1 ws2 = ws1.val == ws2.val
 
 patEqual: Pat -> Pat -> Bool
 patEqual p1_ p2_ = --let _ = Debug.log "patEqual " (Syntax.patternUnparser Syntax.Leo p1_, Syntax.patternUnparser Syntax.Leo p2_) in
@@ -252,58 +252,59 @@ patEqual p1_ p2_ = --let _ = Debug.log "patEqual " (Syntax.patternUnparser Synta
   _ -> False
   --}
 
-branchEqual: Branch -> Branch -> Bool
-branchEqual b1 b2 = case (b1.val, b2.val) of
-  (Branch_ sp1 p1 e1 sp2, Branch_ sp3 p2 e2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2 && patEqual p1 p2
+-- branchEqual: Branch -> Branch -> Bool
+-- branchEqual b1 b2 = case (b1.val, b2.val) of
+--   (Branch_ sp1 p1 e1 sp2, Branch_ sp3 p2 e2 sp4) ->
+--     wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2 && patEqual p1 p2
 
-tbranchEqual: TBranch -> TBranch -> Bool
-tbranchEqual t1 t2 = case (t1.val, t2.val) of
-  (TBranch_ sp1 ty1 e1 sp2, TBranch_ sp3 ty2 e2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2 && typeEqual ty1 ty2
+-- tbranchEqual: TBranch -> TBranch -> Bool
+-- tbranchEqual t1 t2 = case (t1.val, t2.val) of
+--   (TBranch_ sp1 ty1 e1 sp2, TBranch_ sp3 ty2 e2 sp4) ->
+--     wsEqual sp1 sp3 && wsEqual sp2 sp4 && expEqual e1 e2 && typeEqual ty1 ty2
 
-listForAll2: (a -> a -> Bool) -> List a -> List a -> Bool
-listForAll2 f l1 l2 = case l1 of
-  [] -> case l2 of
-    [] -> True
-    _ -> False
-  h1::t1 -> case l2 of
-    [] -> False
-    h2::t2 -> if f h1 h2 then listForAll2 f t1 t2 else False
+-- Use Utils.listsEqualBy
+-- listForAll2: (a -> a -> Bool) -> List a -> List a -> Bool
+-- listForAll2 f l1 l2 = case l1 of
+--   [] -> case l2 of
+--     [] -> True
+--     _ -> False
+--   h1::t1 -> case l2 of
+--     [] -> False
+--     h2::t2 -> if f h1 h2 then listForAll2 f t1 t2 else False
 
-typeEqual: Type -> Type -> Bool
-typeEqual ty1 ty2 = --let _ = Debug.log "typeEqual " (ty1, ty2) in
-  case (ty1.val.t__, ty2.val.t__) of
-  (TNum sp1, TNum sp2) -> wsEqual sp1 sp2
-  (TBool sp1, TBool sp2) -> wsEqual sp1 sp2
-  (TString sp1, TString sp2) -> wsEqual sp1 sp2
-  (TNull sp1, TNull sp2) -> wsEqual sp1 sp2
-  (TList sp1 t1 sp2, TList sp3 t2 sp4) ->  wsEqual sp1 sp3 && wsEqual sp2 sp4 && typeEqual t1 t2
-  (TDict sp1 tk tv sp2, TDict sp3 tk2 tv2 sp4) -> wsEqual sp1 sp3 && wsEqual sp2 sp4 && typeEqual tk tk2 && typeEqual tv tv2
-  (TTuple sp1 args sp2 mTail sp2e, TTuple sp3 args2 sp4 mTail2 sp4e) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 && wsEqual sp2e sp4e &&
-        listForAll2 typeEqual args args2 &&
-        ( case (mTail, mTail2) of
-          (Nothing, Nothing) -> True
-          (Just t1, Just t2) -> typeEqual t1 t2
-          _ -> False
-        )
-  (TArrow sp1 types1 sp2, TArrow sp3 types2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4  &&
-      listForAll2 typeEqual types1 types2
-  (TUnion sp1 types1 sp2, TUnion sp3 types2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4  &&
-          listForAll2 typeEqual types1 types2
-  (TApp sp1 ident1 types1 _, TApp sp2 ident2 types2 _) ->
-    wsEqual sp1 sp2 && typeEqual ident1 ident2 && listForAll2 typeEqual types1 types2
-  (TVar sp1 ident1, TVar sp2 ident2) ->
-    wsEqual sp1 sp2 && ident1 == ident2
-  (TForall sp1 pats1 t1 sp2, TForall sp3 pats2 t2 sp4) ->
-    wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
-    listForAll2 (\a1 a2 -> a1 == a2) pats1 pats2
-    && typeEqual t1 t2
-  (TWildcard sp1, TWildcard sp2) -> wsEqual sp1 sp2
-  _ -> False
+-- typeEqual: Type -> Type -> Bool
+-- typeEqual ty1 ty2 = --let _ = Debug.log "typeEqual " (ty1, ty2) in
+--   case (ty1.val.t__, ty2.val.t__) of
+--   (TNum sp1, TNum sp2) -> wsEqual sp1 sp2
+--   (TBool sp1, TBool sp2) -> wsEqual sp1 sp2
+--   (TString sp1, TString sp2) -> wsEqual sp1 sp2
+--   (TNull sp1, TNull sp2) -> wsEqual sp1 sp2
+--   (TList sp1 t1 sp2, TList sp3 t2 sp4) ->  wsEqual sp1 sp3 && wsEqual sp2 sp4 && typeEqual t1 t2
+--   (TDict sp1 tk tv sp2, TDict sp3 tk2 tv2 sp4) -> wsEqual sp1 sp3 && wsEqual sp2 sp4 && typeEqual tk tk2 && typeEqual tv tv2
+--   (TTuple sp1 args sp2 mTail sp2e, TTuple sp3 args2 sp4 mTail2 sp4e) ->
+--     wsEqual sp1 sp3 && wsEqual sp2 sp4 && wsEqual sp2e sp4e &&
+--         listForAll2 typeEqual args args2 &&
+--         ( case (mTail, mTail2) of
+--           (Nothing, Nothing) -> True
+--           (Just t1, Just t2) -> typeEqual t1 t2
+--           _ -> False
+--         )
+--   (TArrow sp1 types1 sp2, TArrow sp3 types2 sp4) ->
+--     wsEqual sp1 sp3 && wsEqual sp2 sp4  &&
+--       listForAll2 typeEqual types1 types2
+--   (TUnion sp1 types1 sp2, TUnion sp3 types2 sp4) ->
+--     wsEqual sp1 sp3 && wsEqual sp2 sp4  &&
+--           listForAll2 typeEqual types1 types2
+--   (TApp sp1 ident1 types1 _, TApp sp2 ident2 types2 _) ->
+--     wsEqual sp1 sp2 && typeEqual ident1 ident2 && listForAll2 typeEqual types1 types2
+--   (TVar sp1 ident1, TVar sp2 ident2) ->
+--     wsEqual sp1 sp2 && ident1 == ident2
+--   (TForall sp1 pats1 t1 sp2, TForall sp3 pats2 t2 sp4) ->
+--     wsEqual sp1 sp3 && wsEqual sp2 sp4 &&
+--     listForAll2 (\a1 a2 -> a1 == a2) pats1 pats2
+--     && typeEqual t1 t2
+--   (TWildcard sp1, TWildcard sp2) -> wsEqual sp1 sp2
+--   _ -> False
 
 
 expEqual: Exp -> Exp -> Bool

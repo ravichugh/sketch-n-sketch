@@ -14,6 +14,7 @@ module Types2 exposing
   , duplicateDataConstructorTool
 
   , DatatypeEnv
+  , DataTypeDef
 
   , TypeEnv
   , TypeEnvElement(..)
@@ -152,7 +153,7 @@ aceTypeInfo exp =
         { row = (unExpr e).start.line - 1
         , col = (unExpr e).start.col - 1
         , text = "EId: " ++ toString (unExpr e).val.eid
-        } 
+        }
       in
       -- Ace tooltips are token-based, so can't have them for expression
       -- forms that don't have an explicit start token
@@ -419,8 +420,7 @@ varNotFoundSuggestions x gamma =
     result
 
 
--- maybe rename these functions
---
+-- maybe rename this function
 findUnboundTypeVars : TypeEnv -> Type -> Maybe (List Ident)
 findUnboundTypeVars gamma typ =
   let
@@ -432,54 +432,35 @@ findUnboundTypeVars gamma typ =
           TypeDef (a, _) -> a :: acc
           _              -> acc
       ) [] gamma
-
-    freeTypeVarsInType =
-      freeVarsType typeVarsInGamma typ
   in
-    case Utils.listDiff freeTypeVarsInType typeVarsInGamma of
+    case Utils.listDiff (freeIdentifiersList typ) ("->"::typeVarsInGamma) of
       [] ->
         Nothing
 
       unboundTypeVars ->
-        Just unboundTypeVars
+        Just (Utils.dedup unboundTypeVars)
 
 
-freeVarsType : List Ident -> Type -> List Ident
-freeVarsType typeVarsInGamma typ =
-  let
-    result =
-      helper typeVarsInGamma typ
+-- Lists free type variable identifiers in some deterministic order, no deduplication.
+--
+-- Note that "->" and related constructs are considered type vars and will appear in the output.
+freeIdentifiersList : Type -> List Ident
+freeIdentifiersList typ =
+  let recurse = freeIdentifiersList in
+  case unwrapType typ of
+    TVar _ ident ->
+      [ident]
 
-    helper boundTypeVars typ =
-      case typ.val.t__ of
-        TVar _ a ->
-          if a == "->" then
-            []
-          else if List.member a boundTypeVars then
-            []
-          else
-            [a]
+    TRecord _ (Just (ident, _)) _ _ ->
+      [ident] ++ List.concatMap recurse (childTypes typ)
 
-        TApp _ t0 typs _ ->
-          let
-            newBoundTypeVars =
-              case matchArrow typ of
-                Just (typeVars, _, _) ->
-                  typeVars ++ boundTypeVars
+    TForall _ tPats innerType _ ->
+      let boundIdents = List.map tPatToIdent tPats in
+      Utils.listDiff (recurse innerType) boundIdents
 
-                Nothing ->
-                  boundTypeVars
-          in
-            List.concat (List.map (helper newBoundTypeVars) (t0::typs))
+    _ ->
+      List.concatMap recurse (childTypes typ)
 
-        TParens _ innerType _ ->
-          helper boundTypeVars innerType
-
-        _ ->
-          let _ = Debug.log "TODO: implement freeVars for" (unparseType typ) in
-          []
-  in
-    result
 
 
 --------------------------------------------------------------------------------
@@ -643,26 +624,209 @@ inferTypeDataExp gamma thisExp listLetExp rebuildLetExps =
 
 --------------------------------------------------------------------------------
 
+
+typeToMaybeIdent : Type -> Maybe Ident
+typeToMaybeIdent tipe =
+  case unwrapType tipe of
+    TVar _ name -> Just name
+    _           -> Nothing
+
+
+-- Deeply expand type aliases.
+expandType : List (Ident, Type) -> Type -> Type
 expandType typeAliases =
-  mapType <| \t ->
-    -- HACK
-    let
-      s = String.trim (unparseType t)
-    in
-      Utils.maybeFind s typeAliases
-        |> Maybe.map (expandType typeAliases)
-        |> Maybe.withDefault t
-
-
-typeEquiv gamma t1 t2 =
-  -- TODO: this is temporary string-based hack
-  let
-    expand = expandType (typeAliasesOfGamma gamma)
-
-    unparseAndRemoveWs =
-      unparseType >> String.words >> String.concat
+  let expandTypeAliasShallow t =
+    typeToMaybeIdent t
+    |> Maybe.andThen (\name -> Utils.maybeFind name typeAliases)
+    |> Maybe.map expandTypeAliasShallow -- Recurse in case type alias resolved to another alias.
+    |> Maybe.withDefault t
   in
-    unparseAndRemoveWs (expand t1) == unparseAndRemoveWs (expand t2)
+  -- Need to map top down so subterms in the resolved type alias are also expanded.
+  mapTypeTopDown expandTypeAliasShallow
+
+
+-- Checks that free variables names are identical.
+--
+-- If you want equality modulo alpha-renaming, wrap both sides in TForalls.
+-- But if you do so, note, that you probably don't want to TForall the ctor
+-- and type names because those should be free TVars.
+--
+-- gamma used only for type aliases
+typeEquiv : TypeEnv -> Type -> Type -> Bool
+typeEquiv gamma t1 t2 =
+  let
+    normalizedT1 = normalizeType gamma t1
+    normalizedT2 = normalizeType gamma t2
+  in
+  typeEquiv_ normalizedT1 normalizedT2 &&
+  freeIdentifiersList normalizedT1 == freeIdentifiersList normalizedT2
+
+
+-- Expand all type aliases, binarize all applications, remove parens so we can see if elements are immediately nested, and combine immediately nested TForalls.
+normalizeType : TypeEnv -> Type -> Type
+normalizeType gamma =
+  expandType (typeAliasesOfGamma gamma)
+  >> removeParens
+  >> combineImmediatelyNestedForalls
+  >> binarizeApplications
+
+
+-- This normalization is required to ease the equivalence comparison (and ensure corresponding free variables are listed in the same order).
+binarizeApplications : Type -> Type
+binarizeApplications =
+  let binarizeApp t =
+    case unwrapType t of
+      TApp ws tFunc []                  appType -> t
+      TApp ws tFunc [_]                 appType -> t
+      TApp ws tFunc (headArg::restArgs) appType ->
+        let newLeft = replaceT__ t (TApp ws tFunc [headArg] appType) in
+        binarizeApp <| replaceT__ t (TApp ws newLeft restArgs appType)
+      _ -> t
+  in
+  mapTypeTopDown binarizeApp
+
+
+-- So downstream tasks don't need special cases for parens.
+removeParens : Type -> Type
+removeParens =
+  mapType <| \t ->
+    case unwrapType t of
+      TParens _ innerType _ -> innerType
+      _                     -> t
+
+
+-- Run removeParens first.
+--
+-- Then run this so that (∀a. ∀b. a*b) and (∀b. ∀a. a*b) are normalized to (∀a b. a*b) and (∀b a. a*b) respectively, which are more obviously equivalent.
+--
+-- Our assumption here is that immediately nested foralls are always all handled simultaneously during type variable instantiation.
+--
+-- This scenario may not actually appear in type checking, but the comment for typeEquiv above suggests wrapping the types in TForall to ignore particular
+-- free variables. If the type was already TForall, wrapping it again will produce something like ∀a. ∀b. and you want that treated like ∀a b.
+--
+-- Note: (∀a ∀b. a*b) and (∀a. a*(∀b. b)) are not considered equivalent.
+combineImmediatelyNestedForalls : Type -> Type
+combineImmediatelyNestedForalls =
+  mapType <| \t ->
+    case unwrapType t of
+      TForall ws1 tPats1 innerType1 ws2 ->
+        case unwrapType innerType1 of
+          TForall _ tPats2 innerType2 _ -> replaceT__ t (TForall ws1 (tPats1 ++ tPats2) innerType2 ws2)
+          _                             -> t
+
+      _ ->
+        t
+
+
+-- Does not check that free variables are identical.
+--
+-- Assumes types have been run through normalizeType.
+--
+-- Not guarenteed to be correct for deprecated types.
+--
+-- gamma used only for type aliases
+typeEquiv_ : Type -> Type -> Bool
+typeEquiv_ t1 t2 =
+  -- Strategy:
+  --
+  -- 1. Ensure ASTs match, allowing mismatched variable names.
+  -- 2. At each forall, make sure the bound variable names are alpha-equivalent.
+  --
+  let
+    recurse = typeEquiv_
+
+    _ =
+      if isDeprecatedType t1
+      then Utils.log <| unparseType t1 ++ " is deprecated! (seen in Types2.typeEquiv_)"
+      else ()
+
+    _ =
+      if isDeprecatedType t2
+      then Utils.log <| unparseType t2 ++ " is deprecated! (seen in Types2.typeEquiv_)"
+      else ()
+  in
+  case (unwrapType t1, unwrapType t2) of
+    (TNum _,              TNum _)              -> True
+    (TBool _,             TBool _)             -> True
+    (TString _,           TString _)           -> True
+    (TNull _,             TNull _)             -> True
+    (TList _ listType1 _, TList _ listType2 _) -> recurse listType1 listType2
+
+    (TDict _ keyType1 valueType1 _,
+     TDict _ keyType2 valueType2 _) -> recurse keyType1 keyType2 && recurse valueType1 valueType2
+
+    (TRecord _ maybeExtendVarNameWs1 entries1 _,
+     TRecord _ maybeExtendVarNameWs2 entries2 _) ->
+      -- Equality of the name will be captured at a higher level.
+      Utils.maybeToBool maybeExtendVarNameWs1 == Utils.maybeToBool maybeExtendVarNameWs2 &&
+      let
+        entries1Sorted = List.sortBy Utils.recordKey entries1
+        entries2Sorted = List.sortBy Utils.recordKey entries2
+      in
+      Utils.recordKeys entries1Sorted == Utils.recordKeys entries2Sorted &&
+      Utils.listsEqualBy
+          recurse
+          (Utils.recordValues entries1Sorted)
+          (Utils.recordValues entries2Sorted)
+
+    (TTuple _ headTypes1 _ maybeRestType1 _,
+     TTuple _ headTypes2 _ maybeRestType2 _) ->
+      Utils.listsEqualBy recurse headTypes1 headTypes2 &&
+      case (maybeRestType1, maybeRestType2) of
+         (Nothing, Nothing)               -> True
+         (Just restType1, Just restType2) -> recurse restType1 restType2
+         _                                -> False
+
+    (TArrow _ typeList1 _,
+     TArrow _ typeList2 _) ->
+       -- If we want to be correct, need to binarize or flatten nested arrows.
+       -- But arrows are now TApp, so don't bother.
+       let _ = Utils.log "Types2.typeEquiv_: TArrow not supported." in False
+
+    (TUnion _ typeList1 _,
+     TUnion _ typeList2 _) -> let _ = Utils.log "Types2.typeEquiv_: TUnion not supported." in False
+
+    (TApp _ fType1 [argType1] _,
+     TApp _ fType2 [argType2] _) -> recurse fType1 fType2 && recurse argType1 argType2
+
+    (TApp _ _ _ _,
+     TApp _ _ _ _) -> let _ = Utils.log "Types2.typeEquiv_: Non-binary TApp not supported! Use binarizeApplications first." in False
+
+    (TVar _ _,
+     TVar _ _) ->
+      -- Equality of the names will be captured at a higher level. (Foralls and the outermost scope.)
+      -- This strategy will work even when ctor names and other type names (e.g. "->") are TVars.
+      True
+
+    (TForall _ tPats1 innerType1 _,
+     TForall _ tPats2 innerType2 _) ->
+      -- Establish an AST match between the inner types...
+      recurse innerType1 innerType2 &&
+      -- ...and then establish alpha-equivalence w.r.t. the bound type variables.
+      let
+        -- Strategy: Rely on freeIdentifiersList to return all free TVar identifiers in
+        -- a deterministic order with no deduplication, then see if a one-to-one mapping
+        -- exists between corresponding elements of the two lists.
+
+        boundIdents1 = List.map tPatToIdent tPats1
+        boundIdents2 = List.map tPatToIdent tPats2
+
+        structurallyOrderedInnerFreeIdents1 = freeIdentifiersList innerType1
+        structurallyOrderedInnerFreeIdents2 = freeIdentifiersList innerType2
+
+        -- Can't just filter down to the bound idents: need to also make
+        -- sure they're in corresponding positions in the overall list.
+        -- Hence the replacement of free vars with placeholders instead
+        -- of discarding the free vars.
+
+        relevantUsesList1 = structurallyOrderedInnerFreeIdents1 |> List.map (\name -> if List.member name boundIdents1 then name else "*** FREE IDENTIFIER ***")
+        relevantUsesList2 = structurallyOrderedInnerFreeIdents2 |> List.map (\name -> if List.member name boundIdents2 then name else "*** FREE IDENTIFIER ***")
+      in
+      Utils.oneToOneMappingExists relevantUsesList1 relevantUsesList2
+
+    (TWildcard _, TWildcard _)  -> True
+    _                           -> False
+
 
 typesEquiv gamma types =
   case types of
@@ -946,7 +1110,8 @@ typecheck e =
              Debug.log tyCon (
                dataConDefs
                  |> List.map (\(dataCon, args) ->
-                      dataCon ++ " " ++ Utils.spaces (List.map unparseType args)
+                      dataCon ++ " " ++ String.join ", " (List.map toString args)
+                      -- dataCon ++ " " ++ Utils.spaces (List.map unparseType args)
                     )
                  |> String.join " , "
              )
@@ -2532,10 +2697,10 @@ expectedButGot inputExp expectedType maybeActualType =
     rewrite actualType =
       mapFoldExp (\e acc ->
         case (unExpr e).val.e__ of
-          EColonType ws1 e1 ws2 tipe ws3 ->
+          EColonType ws1 e1 ws2 typ ws3 ->
             let
               (newType, modified) =
-                rewriteType actualType tipe
+                rewriteType actualType typ
             in
               ( EColonType ws1 e1 ws2 newType ws3 |> replaceE__ e
               , modified || acc

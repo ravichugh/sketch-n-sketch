@@ -81,7 +81,7 @@ astsMatch t1 t2 =
 --      but not to (-> (List y) (List y))
 --
 identifiersEquivalent t1 t2 =
- let flatIdents t =
+  let flatIdents t =
     case t.val.t__ of
       TNum _    -> []
       TBool _   -> []

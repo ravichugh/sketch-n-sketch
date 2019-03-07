@@ -238,6 +238,7 @@ filterMapTogetherPreservingLeftovers f l1 l2 =
       (l1, l2)
 
 
+listsEqualBy : (a -> b -> Bool) -> List a -> List b -> Bool
 listsEqualBy elementEqualityFunc xs ys =
   case (xs, ys) of
     ([], [])         -> True
@@ -370,25 +371,33 @@ pairsToDictOfLists pairs =
 
 -- Is there a one-to-one mapping from the elements in l1 to the elements in l2?
 --
+-- aka listsEquivalentModuloRenaming
+--
 -- e.g oneToOneMappingExists ["a", "b", "a"] ["z", "y", "z"] => True
 --     oneToOneMappingExists ["a", "b", "b"] ["z", "y", "z"] => False
+oneToOneMappingExists : List a -> List b -> Bool
 oneToOneMappingExists l1 l2 =
-  let numericRepresentation list =
-    List.foldl
-        (\x (dict, numRep) ->
-          case Dict.get x dict of
-            Just n  ->
-              (dict, numRep ++ [n])
-            Nothing ->
-              let n     = Dict.size dict in
-              let dict_ = Dict.insert x n dict in
-              (dict_, numRep ++ [n])
-        )
-        (Dict.empty, [])
-        list
-    |> Tuple.second
-  in
-  numericRepresentation l1 == numericRepresentation l2
+  maybeOneToOneMapping l1 l2 /= Nothing
+
+-- Assuming two lists have corresponding elements, build the map from
+-- one to the other. Builds dictionaries in both directions.
+-- (Faster than doing range tests in one direction.)
+--
+-- e.g maybeOneToOneMapping ["a", "b", "a"] ["z", "y", "z"] => Just ({ "a" => "z", "b" => "y" }, { "y" => "b", "z" => "a"})
+--     maybeOneToOneMapping ["a", "b", "b"] ["z", "y", "z"] => Nothing
+maybeOneToOneMapping : List a -> List b -> Maybe (Dict a b, Dict b a)
+maybeOneToOneMapping l1 l2 =
+  case (l1, l2) of
+    ([], [])                     -> Just (Dict.empty, Dict.empty)
+    (head1::tail1, head2::tail2) ->
+      case maybeOneToOneMapping tail1 tail2 of
+        Just (mapping1To2, mapping2To1) ->
+          case (Dict.get head1 mapping1To2, Dict.get head2 mapping2To1) of
+            (Just elem2, Just elem1) -> if head1 == elem1 && head2 == elem2 then Just (mapping1To2, mapping2To1) else Nothing
+            (Nothing,    Nothing)    -> Just (Dict.insert head1 head2 mapping1To2, Dict.insert head2 head1 mapping2To1)
+            _                        -> Nothing -- This is the case you'd forget if you don't build dicts in both directions.
+        Nothing -> Nothing
+    _ -> Nothing
 
 
 clamp i j n =

@@ -493,6 +493,25 @@ type Type__
   | TParens WS Type WS
   | TWildcard WS
 
+isDeprecatedType : Type -> Bool
+isDeprecatedType tipe =
+  case unwrapType tipe of
+    TNum _                                   -> False
+    TBool _                                  -> False
+    TString _                                -> False
+    TNull _                                  -> True
+    TList _ t _                              -> False
+    TDict _ t1 t2 _                          -> True
+    TRecord _ maybeExtendVarNameWs entries _ -> False
+    TTuple _ headTypes _ maybeTailType _     -> True -- TODO: keep using only the encoding? if so, remove?
+    TArrow _ ts _                            -> True -- not used in the new LeoParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
+    TUnion _ ts _                            -> True -- not used in the new LeoParser. Use infix TApp instead; TODO: keep using only the encoding? if so, remove?
+    TApp _ t1 ts appType                     -> False
+    TVar _ varName                           -> False
+    TForall _ tPats t _                      -> False -- TODO this is not being used; remove?
+    TParens _ t _                            -> False
+    TWildcard _                              -> False
+
 dummyType0 =
   withDummyTypeInfo (TWildcard space0)
 dummyType wsb =
@@ -513,6 +532,9 @@ type TPat_ = TPatVar WS Ident
 patToTPat pat = case pat.val.p__ of
   PVar ws name _ -> Just <| replaceInfo pat <| TPatVar ws name
   _ -> Nothing
+
+tPatToIdent tPat = case tPat.val of
+  TPatVar _ ident -> ident
 
 type Branch_  = Branch_ WS Pat Exp WS
 type TBranch_ = TBranch_ WS Type Exp WS
@@ -1663,10 +1685,11 @@ replacePatNodePreservingPrecedingWhitespace pid newPat root =
       (\pat -> replacePrecedingWhitespacePat (precedingWhitespacePat pat) newPat)
       root
 
+-- Bottom up
 mapType : (Type -> Type) -> Type -> Type
 mapType f tipe =
   let recurse = mapType f in
-  let wrap: Type__ -> Type
+  let wrap : Type__ -> Type
       wrap = replaceT__ tipe in
   case tipe.val.t__ of
     TNum _       -> f tipe
@@ -1688,6 +1711,13 @@ mapType f tipe =
     TRecord ws1 mi ts ws2       ->
       f (wrap (TRecord ws1 mi (Utils.recordValuesMap recurse ts) ws2))
     TParens ws1 t ws2 -> f (wrap (TParens ws1 (recurse t) ws2))
+
+-- Careful, a poorly constructed mapping function can cause this to fail to terminate.
+mapTypeTopDown : (Type -> Type) -> Type -> Type
+mapTypeTopDown f tipe =
+  -- Accumulator thrown away; just need something that type checks.
+  let (newType, _) = mapFoldTypeTopDown (\t _ -> (f t, ())) () tipe in
+  newType
 
 foldType : (Type -> a -> a) -> Type -> a -> a
 foldType f tipe acc =
@@ -2204,7 +2234,7 @@ childTypes typ =
     TDict _ key val _ ->
       [key, val]
     TRecord _ _ entries _  ->
-      List.map (\(_, _, _, _, t) -> t) entries
+      Utils.recordValues entries
     TTuple _ heads _ maybeTail _ ->
       heads ++ (Maybe.withDefault [] << Maybe.map List.singleton) maybeTail
     TArrow _ ts _ ->
@@ -2215,8 +2245,8 @@ childTypes typ =
       func :: args
     TVar _ _ ->
       []
-    TForall _ _ result _ ->
-      []
+    TForall _ _ inner _ ->
+      [inner]
     TParens _ inner _ ->
       [inner]
     TWildcard _ ->
