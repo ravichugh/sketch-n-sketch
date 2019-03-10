@@ -4753,6 +4753,28 @@ tupleTypeArguments t =
       Nothing
 
 --------------------------------------------------------------------------------
+-- To Constraints Assertion
+--------------------------------------------------------------------------------
+-- Transfers from applications to constraints assertions
+
+type alias ConstraintsAssertion =
+  (Exp, Exp)
+
+toConstraintsAssertion : Exp -> Maybe ConstraintsAssertion
+toConstraintsAssertion e =
+  case unwrapExp e of
+    EApp _ eFunction [e1, e2] _ _ ->
+      case unwrapExp eFunction of
+        EVar _ "constraints" ->
+          Just (e1, e2)
+
+        _ ->
+          Nothing
+
+    _ ->
+      Nothing
+
+--------------------------------------------------------------------------------
 -- Hole Filling
 --------------------------------------------------------------------------------
 

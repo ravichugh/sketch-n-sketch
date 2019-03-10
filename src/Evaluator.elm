@@ -1,6 +1,6 @@
 module Evaluator exposing
   ( Evaluator
-  , map, andThen, succeed, fail, get, put, run
+  , map, andThen, do, succeed, fail, get, put, run
   , sequence, mapM, foldlM
   , fromResult
   )
@@ -31,6 +31,10 @@ andThen f (E evaluator) =
   E <| \state ->
     evaluator state
       |> Result.andThen (\(x, newState) -> unwrap (f x) newState)
+
+do : Evaluator s e a -> (a -> Evaluator s e b) -> Evaluator s e b
+do =
+  flip andThen
 
 succeed : a -> Evaluator s e a
 succeed x =

@@ -1,30 +1,24 @@
-module UnExp exposing
-  ( EnvBinding(..)
-  , Env
-  , UnExp(..)
-  , UnVal(..)
+--------------------------------------------------------------------------------
+-- This module contains all the declarations for the metatheory, as well as all
+-- the helper functions (parsing, unparsing, conversion, mapping, etc.)
+-- necessary for working with them.
+--
+-- All the *actual* judgement rules from the metatheory (synthesis, evaluation,
+-- backpropagation, etc.) reside in their own files.
+--------------------------------------------------------------------------------
 
-  , addVar
-  , addCtor
-  , pairsToEnv
-  , lookupVar
-  , lookupCtor
-
-  , getData
-  , asExp, asValue
-  , unval
-  , unparseEnv, unparse, unparseSimple
-  , mapData, statefulMap, map, children, flatten
-  , findHoles, findHoleEId
+module UnLang exposing
+  ( ..
   )
 
+import Dict exposing (Dict)
 import Char
 
-import State exposing (State)
-
-import Parser as P exposing (..)
+import Parser as P exposing (Parser, (|=), (|.))
 import Parser.LanguageKit as LanguageKit
 import ParserUtils exposing (..)
+
+import State exposing (State)
 
 import Lang exposing (Exp, Ident, HoleId, Num)
 import LeoUnparser
@@ -34,12 +28,13 @@ import Info exposing (WithInfo, withInfo)
 
 import Utils
 
---------------------------------------------------------------------------------
--- Declarations
---------------------------------------------------------------------------------
+--==============================================================================
+--= Metatheory Declarations
+--==============================================================================
 
-type alias HoleIndex =
-  (HoleId, Int)
+--------------------------------------------------------------------------------
+-- Environments
+--------------------------------------------------------------------------------
 
 type EnvBinding
   = VarBinding Ident (UnExp ())
@@ -48,6 +43,23 @@ type EnvBinding
 type alias Env =
   List EnvBinding
 
+--------------------------------------------------------------------------------
+-- Partial Functions
+--------------------------------------------------------------------------------
+
+type alias PartialFunction =
+  List
+    ( List (UnExp ()) -- args
+    , Example -- output
+    )
+
+--------------------------------------------------------------------------------
+-- UnExps
+--------------------------------------------------------------------------------
+
+type alias HoleIndex =
+  (HoleId, Int)
+
 -- The d is for extra data
 type UnExp d
   = UConstructor d Ident (UnExp d)
@@ -55,11 +67,16 @@ type UnExp d
   | UBool d Bool
   | UString d String
   | UTuple d (List (UnExp d))
-  | UFunClosure d Env (List Ident) {- Type -} Exp
+  | UPartialFunction d PartialFunction
+  | UFunClosure d Env (List Ident) Exp
   | UHoleClosure d Env HoleIndex
   | UApp d (UnExp d) (List (UnExp d))
   | UGet d Int Int (UnExp d)
   | UCase d Env (UnExp d) (List (Ident, Ident, Exp))
+
+--------------------------------------------------------------------------------
+-- UnVals
+--------------------------------------------------------------------------------
 
 type UnVal
   = UVConstructor Ident UnVal
@@ -67,11 +84,51 @@ type UnVal
   | UVBool Bool
   | UVString String
   | UVTuple (List UnVal)
-  | UVFunClosure Env (List Ident) {- Type -} Exp
+  | UVPartialFunction PartialFunction
+  | UVFunClosure Env (List Ident) Exp
 
 --------------------------------------------------------------------------------
--- Environment Functions
+-- Examples
 --------------------------------------------------------------------------------
+
+type Example
+  = ExConstructor Ident Example
+  | ExNum Num
+  | ExBool Bool
+  | ExString String
+  | ExTuple (List Example)
+  | ExPartialFunction PartialFunction
+
+--------------------------------------------------------------------------------
+-- Worlds
+--------------------------------------------------------------------------------
+
+type alias World =
+  (Env, Example)
+
+type alias Worlds =
+  List World
+
+--------------------------------------------------------------------------------
+-- Constraints
+--------------------------------------------------------------------------------
+
+type alias Constraint =
+  (HoleId, World)
+
+type alias Constraints =
+  List Constraint
+
+--------------------------------------------------------------------------------
+-- Hole Fillings
+--------------------------------------------------------------------------------
+
+type alias HoleFilling =
+  Dict HoleId Exp
+
+--==============================================================================
+--= Environment Functions
+--==============================================================================
 
 addVar : Ident -> UnExp () -> Env -> Env
 addVar i u env =
@@ -114,198 +171,9 @@ lookupCtor : Ident -> Env -> Maybe (Ident, UnExp ())
 lookupCtor x =
   envCtors >> Utils.maybeFind x
 
---------------------------------------------------------------------------------
--- Extra Data
---------------------------------------------------------------------------------
-
-getData : UnExp d -> d
-getData u =
-  case u of
-    UConstructor d _ _ ->
-      d
-
-    UNum d _ ->
-      d
-
-    UBool d _ ->
-      d
-
-    UString d _ ->
-      d
-
-    UTuple d _ ->
-      d
-
-    UFunClosure d _ _ _ ->
-      d
-
-    UHoleClosure d _ _ ->
-      d
-
-    UApp d _ _ ->
-      d
-
-    UGet d _ _ _ ->
-      d
-
-    UCase d _ _ _ ->
-      d
-
---------------------------------------------------------------------------------
--- Value Conversion
---------------------------------------------------------------------------------
-
-asExp : UnVal -> UnExp ()
-asExp v =
-  case v of
-    UVConstructor ident arg ->
-      UConstructor () ident (asExp arg)
-
-    UVNum n ->
-      UNum () n
-
-    UVBool b ->
-      UBool () b
-
-    UVString s ->
-      UString () s
-
-    UVTuple args ->
-      UTuple () (List.map asExp args)
-
-    UVFunClosure env params body ->
-      UFunClosure () env params body
-
-asValue : UnExp d -> Maybe UnVal
-asValue u =
-  case u of
-    UConstructor _ ident arg ->
-      Maybe.map (UVConstructor ident) (asValue arg)
-
-    UNum _ n ->
-      Just <|
-        UVNum n
-
-    UBool _ b ->
-      Just <|
-        UVBool b
-
-    UString _ s ->
-      Just <|
-        UVString s
-
-    UTuple _ args ->
-      args
-        |> List.map asValue
-        |> Utils.projJusts
-        |> Maybe.map UVTuple
-
-    UFunClosure _ env params body ->
-      Just <|
-        UVFunClosure env params body
-
-    UHoleClosure _ _ _ ->
-      Nothing
-
-    UApp _ _ _ ->
-      Nothing
-
-    UGet _ _ _ _ ->
-      Nothing
-
-    UCase _ _ _ _ ->
-      Nothing
-
---------------------------------------------------------------------------------
--- Value Parsing
---------------------------------------------------------------------------------
-
-spaces : Parser ()
-spaces =
-  ignore zeroOrMore (\char -> char == ' ')
-
-capitalIdentifier : Parser String
-capitalIdentifier =
-  succeed (++)
-    |= keep (Exactly 1) Char.isUpper
-    |= keep zeroOrMore (\c -> Char.isUpper c || Char.isLower c)
-
-uvConstructor : Parser UnVal
-uvConstructor =
-  lazy <| \_ ->
-    inContext "constructor unval" <|
-      succeed UVConstructor
-        |= capitalIdentifier
-        |. spaces
-        |= unval
-
-uvNum : Parser UnVal
-uvNum =
-  let
-    sign =
-      oneOf
-        [ succeed (-1)
-            |. symbol "-"
-        , succeed 1
-        ]
-  in
-    try <|
-      inContext "number unval" <|
-        succeed (\s n -> UVNum (s * n))
-          |= sign
-          |= float
-
-uvBool : Parser UnVal
-uvBool =
-  inContext "boolean unval" <|
-    P.map UVBool <|
-      oneOf
-        [ token "True" True
-        , token "False" False
-        ]
-
-uvString : Parser UnVal
-uvString =
-  inContext "string unval" <|
-    P.map (\(_, content) -> UVString content)
-      singleLineString
-
-uvTuple : Parser UnVal
-uvTuple =
-  lazy <| \_ ->
-    inContext "tuple unval" <|
-      P.map UVTuple <|
-        LanguageKit.sequence
-          { start = "("
-          , separator = ","
-          , end = ")"
-          , spaces = spaces
-          , item = unval
-          , trailing = LanguageKit.Forbidden
-          }
-
-uvFunClosure : Parser UnVal
-uvFunClosure =
-  fail "function closure unval not yet supported"
-
-unval : Parser UnVal
-unval =
-  lazy <| \_ ->
-    oneOf
-       [ uvNum
-       , uvBool
-       , uvString
-       , uvTuple
-       , uvConstructor
-       ]
-
-parseVal : String -> Result P.Error UnVal
-parseVal =
-  run unval
-
---------------------------------------------------------------------------------
--- Unparsing
---------------------------------------------------------------------------------
+--==============================================================================
+--= Unparsing
+--==============================================================================
 
 unparseEnv : Env -> String
 unparseEnv =
@@ -534,6 +402,9 @@ unparse =
                       (withInfo ("(" ++ innerString ++ ")") start.pos end.pos)
                       usWithInfo
 
+          UPartialFunction _ pf ->
+            basic "<partial function>" (\w -> UPartialFunction w pf)
+
           UFunClosure _ env args body ->
             let
               argsString =
@@ -718,9 +589,45 @@ unparseSimple : UnExp d -> String
 unparseSimple =
   unparse >> getData >> .val
 
---------------------------------------------------------------------------------
--- Generic Library
---------------------------------------------------------------------------------
+--==============================================================================
+--= Generic UnExp Functions
+--==============================================================================
+
+getData : UnExp d -> d
+getData u =
+  case u of
+    UConstructor d _ _ ->
+      d
+
+    UNum d _ ->
+      d
+
+    UBool d _ ->
+      d
+
+    UString d _ ->
+      d
+
+    UTuple d _ ->
+      d
+
+    UPartialFunction d _ ->
+      d
+
+    UFunClosure d _ _ _ ->
+      d
+
+    UHoleClosure d _ _ ->
+      d
+
+    UApp d _ _ ->
+      d
+
+    UGet d _ _ _ ->
+      d
+
+    UCase d _ _ _ ->
+      d
 
 mapData : (d -> e) -> UnExp d -> UnExp e
 mapData f u =
@@ -739,6 +646,9 @@ mapData f u =
 
     UTuple d args ->
       UTuple (f d) (List.map (mapData f) args)
+
+    UPartialFunction d pf ->
+      UPartialFunction (f d) pf
 
     UFunClosure d env params body ->
       UFunClosure (f d) env params body
@@ -773,6 +683,9 @@ statefulMap f u =
 
       UTuple d args ->
         State.map (UTuple d) (State.mapM (statefulMap f) args)
+
+      UPartialFunction d pf ->
+        State.pure <| UPartialFunction d pf
 
       UFunClosure d env params body ->
         State.pure <| UFunClosure d env params body
@@ -814,6 +727,9 @@ children u =
     UTuple _ args ->
       args
 
+    UPartialFunction _ _ ->
+      []
+
     UFunClosure _ _ _ _ ->
       []
 
@@ -833,9 +749,9 @@ flatten : UnExp d -> List (UnExp d)
 flatten u =
   u :: List.concatMap flatten (children u)
 
---------------------------------------------------------------------------------
--- Additional Functions
---------------------------------------------------------------------------------
+--==============================================================================
+--= UnExp Helper Functions
+--==============================================================================
 
 findHoles : HoleId -> UnExp d -> List (Int, Env)
 findHoles targetHoleId =
@@ -874,3 +790,243 @@ findHoleEId ast u =
 
       _ ->
         Nothing
+
+--==============================================================================
+--= UnExp / UnVal / Example Conversion
+--==============================================================================
+
+valToExp : UnVal -> UnExp ()
+valToExp v =
+  case v of
+    UVConstructor ident arg ->
+      UConstructor () ident (valToExp arg)
+
+    UVNum n ->
+      UNum () n
+
+    UVBool b ->
+      UBool () b
+
+    UVString s ->
+      UString () s
+
+    UVTuple args ->
+      UTuple () (List.map valToExp args)
+
+    UVPartialFunction pf ->
+      UPartialFunction () pf
+
+    UVFunClosure env params body ->
+      UFunClosure () env params body
+
+expToVal : UnExp d -> Maybe UnVal
+expToVal u =
+  case u of
+    UConstructor _ ident arg ->
+      Maybe.map (UVConstructor ident) (expToVal arg)
+
+    UNum _ n ->
+      Just <|
+        UVNum n
+
+    UBool _ b ->
+      Just <|
+        UVBool b
+
+    UString _ s ->
+      Just <|
+        UVString s
+
+    UTuple _ args ->
+      args
+        |> List.map expToVal
+        |> Utils.projJusts
+        |> Maybe.map UVTuple
+
+    UPartialFunction _ pf ->
+      Just <|
+        UVPartialFunction pf
+
+    UFunClosure _ env params body ->
+      Just <|
+        UVFunClosure env params body
+
+    UHoleClosure _ _ _ ->
+      Nothing
+
+    UApp _ _ _ ->
+      Nothing
+
+    UGet _ _ _ _ ->
+      Nothing
+
+    UCase _ _ _ _ ->
+      Nothing
+
+valToExample : UnVal -> Maybe Example
+valToExample v =
+  case v of
+    UVConstructor ident arg ->
+      Maybe.map (ExConstructor ident) (valToExample arg)
+
+    UVNum n ->
+      Just <|
+        ExNum n
+
+    UVBool b ->
+      Just <|
+        ExBool b
+
+    UVString s ->
+      Just <|
+        ExString s
+
+    UVTuple args ->
+      args
+        |> List.map valToExample
+        |> Utils.projJusts
+        |> Maybe.map ExTuple
+
+    UVPartialFunction pf ->
+      Just <|
+        ExPartialFunction pf
+
+    UVFunClosure env params body ->
+      Nothing
+
+--==============================================================================
+--= Parsing
+--==============================================================================
+
+--------------------------------------------------------------------------------
+-- Generic
+--------------------------------------------------------------------------------
+
+spaces : Parser ()
+spaces =
+  P.ignore P.zeroOrMore (\char -> char == ' ')
+
+capitalIdentifier : Parser String
+capitalIdentifier =
+  P.succeed (++)
+    |= P.keep (P.Exactly 1) Char.isUpper
+    |= P.keep P.zeroOrMore (\c -> Char.isUpper c || Char.isLower c)
+
+--------------------------------------------------------------------------------
+-- UnVals
+--------------------------------------------------------------------------------
+
+uvConstructor : Parser UnVal
+uvConstructor =
+  P.lazy <| \_ ->
+    P.inContext "constructor" <|
+      P.succeed UVConstructor
+        |= capitalIdentifier
+        |. spaces
+        |= unval
+
+uvNum : Parser UnVal
+uvNum =
+  let
+    sign =
+      P.oneOf
+        [ P.succeed (-1)
+            |. P.symbol "-"
+        , P.succeed 1
+        ]
+  in
+    try <|
+      P.inContext "number" <|
+        P.succeed (\s n -> UVNum (s * n))
+          |= sign
+          |= P.float
+
+uvBool : Parser UnVal
+uvBool =
+  P.inContext "boolean" <|
+    P.map UVBool <|
+      P.oneOf
+        [ token "True" True
+        , token "False" False
+        ]
+
+uvString : Parser UnVal
+uvString =
+  P.inContext "string" <|
+    P.map (\(_, content) -> UVString content)
+      singleLineString
+
+uvTuple : Parser UnVal
+uvTuple =
+  P.lazy <| \_ ->
+    P.inContext "tuple" <|
+      P.map UVTuple <|
+        LanguageKit.sequence
+          { start = "("
+          , separator = ","
+          , end = ")"
+          , spaces = spaces
+          , item = unval
+          , trailing = LanguageKit.Forbidden
+          }
+
+uvPartialFunction : Parser UnVal
+uvPartialFunction =
+  P.lazy <| \_ ->
+    let
+      binding : Parser (List (UnExp ()), Example)
+      binding =
+        P.succeed (,)
+          -- TODO support n-ary functions
+          |= P.map (valToExp >> List.singleton) unval
+          |. spaces
+          |. P.symbol "->"
+          |. spaces
+          |= example
+    in
+      P.inContext "partial function example" <|
+        P.map UVPartialFunction <|
+          LanguageKit.sequence
+            { start = "{"
+            , separator = ","
+            , end = "}"
+            , spaces = spaces
+            , item = binding
+            , trailing = LanguageKit.Forbidden
+            }
+
+uvFunClosure : Parser UnVal
+uvFunClosure =
+  P.fail "function closure unval not yet supported"
+
+unval : Parser UnVal
+unval =
+  P.lazy <| \_ ->
+    P.oneOf
+       [ uvNum
+       , uvBool
+       , uvString
+       , uvTuple
+       , uvPartialFunction
+       , uvConstructor
+       ]
+
+--------------------------------------------------------------------------------
+-- Examples
+--------------------------------------------------------------------------------
+
+example : Parser Example
+example =
+  P.lazy <| \_ ->
+    P.map valToExample unval |> P.andThen (\maybeEx ->
+      case maybeEx of
+        Just ex ->
+          P.succeed ex
+
+        Nothing ->
+          P.fail "could not convert from unval to example"
+    )
+
+parseExample : String -> Result P.Error Example
+parseExample =
+  P.run example

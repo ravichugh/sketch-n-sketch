@@ -110,9 +110,7 @@ import Sync
 import Eval
 import Evaluator
 import TriEval
-import UnDeclarations exposing (..)
-import UnExp exposing (UnExp)
-import Example exposing (Example)
+import UnLang as U exposing (UnExp, Constraints, World)
 import Backprop
 import Synthesis
 import Update exposing (vStr, vList)
@@ -881,7 +879,7 @@ tryRun old =
           Ok <|
             refreshInputExp
               { old
-                  | unExpOutput = result
+                  | unExpOutput = Result.map Tuple.first result
                   , errorBox = Nothing
               }
 
@@ -4461,7 +4459,7 @@ msgRemoveSelectedHole holeId =
 msgSetSelectedUnExp : UnExp d -> Msg
 msgSetSelectedUnExp u =
   Msg "Set Selected UnExp" <| \model ->
-    { model | selectedUnExp = Just (UnExp.mapData (\_ -> ()) u) }
+    { model | selectedUnExp = Just (U.mapData (\_ -> ()) u) }
 
 msgUnsetSelectedUnExp : Msg
 msgUnsetSelectedUnExp =
@@ -4475,7 +4473,7 @@ msgUnsetSelectedUnExp =
 
 -- Update textboxes
 
-msgUpdateHoleExampleInput : HoleId -> Int -> UnExp.Env -> String -> Msg
+msgUpdateHoleExampleInput : HoleId -> Int -> U.Env -> String -> Msg
 msgUpdateHoleExampleInput holeId index env input =
   Msg "Update Hole Example Input" <| \model ->
     let
@@ -4509,17 +4507,17 @@ msgCollectAndSolve =
         else
           flip Maybe.andThen model.selectedUnExp <| \uSelected ->
             model.backpropExampleInput
-              |> Example.parse
+              |> U.parseExample
               |> Result.toMaybe
               |> Maybe.andThen (Backprop.backprop uSelected)
 
       maybeHoleExampleConstraints : Maybe Constraints
       maybeHoleExampleConstraints =
         let
-          makeWorld : (UnExp.Env, String) -> Maybe World
+          makeWorld : (U.Env, String) -> Maybe World
           makeWorld =
             Tuple.mapSecond
-                (Example.parse >> Debug.log "parsed example" >> Result.toMaybe)
+                (U.parseExample >> Debug.log "parsed example" >> Result.toMaybe)
               >> Utils.liftMaybePair2
         in
           model.holeExampleInputs
@@ -4563,7 +4561,13 @@ msgCollectAndSolve =
 msgShowUnExpPreview : Exp -> Msg
 msgShowUnExpPreview exp =
   Msg "Show UnExp Preview" <| \model ->
-    { model | unExpPreview = Just (exp, TriEval.eval exp) }
+    { model
+        | unExpPreview =
+            Just
+              (exp
+              , Result.map Tuple.first <| TriEval.eval exp
+              )
+    }
 
 msgClearUnExpPreview : Msg
 msgClearUnExpPreview =

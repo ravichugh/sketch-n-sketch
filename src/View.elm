@@ -45,8 +45,7 @@ import LangSvg
 import Syntax
 import File
 import Eval
-import UnExp exposing (UnExp)
-import UnDeclarations exposing (HoleFilling)
+import UnLang as U exposing (UnExp)
 import LeoUnparser
 import Types2
 import TinyStructuredEditorsForLowLowPrices
@@ -1744,11 +1743,11 @@ outputPanel model =
             Ok output ->
               let
                 unparsedOutput =
-                  UnExp.unparse output
+                  U.unparse output
 
                 unparsedString =
                   unparsedOutput
-                    |> UnExp.getData
+                    |> U.getData
                     |> .val
               in
                 [ Html.text unparsedString
@@ -3018,7 +3017,7 @@ autoOutputToolsPopupPanel model =
 -- Programming by Example Popup Panel
 --------------------------------------------------------------------------------
 
-viewEnv : UnExp.Env -> Html Msg
+viewEnv : U.Env -> Html Msg
 viewEnv env =
   let
     viewBinding binding =
@@ -3028,17 +3027,17 @@ viewEnv env =
             []
             [ Html.text <|
                 case binding of
-                  UnExp.VarBinding identifier u ->
+                  U.VarBinding identifier u ->
                     identifier
                       ++ " → "
-                      ++ UnExp.unparseSimple u
+                      ++ U.unparseSimple u
 
-                  UnExp.CtorBinding ctorName argName u ->
+                  U.CtorBinding ctorName argName u ->
                     ctorName
                       ++ " "
                       ++ argName
                       ++ " → "
-                      ++ UnExp.unparseSimple u
+                      ++ U.unparseSimple u
             ]
         ]
   in
@@ -3077,7 +3076,7 @@ viewBackprop model =
           [ Attr.class "pbe-unexp"
           ]
           [ Html.text <|
-              UnExp.unparseSimple uSelected
+              U.unparseSimple uSelected
           ]
       , Html.div
           [ Attr.class "pbe-hole-backprop-input"
@@ -3094,7 +3093,7 @@ viewBackprop model =
       []
 
 
-viewHoleOccurrence : Lang.HoleId -> (Int, UnExp.Env) -> Html Msg
+viewHoleOccurrence : Lang.HoleId -> (Int, U.Env) -> Html Msg
 viewHoleOccurrence holeId (index, env) =
   Html.li
     []
@@ -3149,7 +3148,7 @@ viewSelectedHole model output holeId =
         , Html.ul
             [ Attr.class "pbe-hole-list" ]
             ( output
-                |> UnExp.findHoles holeId
+                |> U.findHoles holeId
                 |> List.map (viewHoleOccurrence holeId)
             )
         ]
@@ -3158,7 +3157,7 @@ viewSelectedHole model output holeId =
       Html.text <|
         "Hole " ++ toString holeId ++ " not found."
 
-viewHoleFilling : Model -> HoleFilling -> Html Msg
+viewHoleFilling : Model -> U.HoleFilling -> Html Msg
 viewHoleFilling model holeFilling =
   let
     holeFillingList =

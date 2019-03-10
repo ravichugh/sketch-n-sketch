@@ -1,6 +1,7 @@
 module TriEval exposing
   ( evalWithEnv
   , eval
+  , ensureConstraintFree
   )
 
 import Dict exposing (Dict)
@@ -11,7 +12,9 @@ import Utils
 import Evaluator exposing (Evaluator)
 import State exposing (State)
 
-import UnExp exposing (..)
+import UnLang as U exposing (..)
+import Constraints
+
 import Lang exposing (..)
 
 --------------------------------------------------------------------------------
@@ -19,10 +22,21 @@ import Lang exposing (..)
 --------------------------------------------------------------------------------
 
 type alias EvalState =
-  {}
+  { constraints : Constraints
+  }
 
 type alias UnExpEvaluator =
   Evaluator EvalState String (UnExp ())
+
+--------------------------------------------------------------------------------
+-- Evaluator Helper
+--------------------------------------------------------------------------------
+
+withConstraints : Constraints -> UnExp () -> UnExpEvaluator
+withConstraints ks u =
+  Evaluator.do Evaluator.get <| \old ->
+  Evaluator.do (Evaluator.put { constraints = old.constraints ++ ks }) <| \_ ->
+  Evaluator.succeed u
 
 --------------------------------------------------------------------------------
 -- Core Evaluation
@@ -38,12 +52,12 @@ identifierFromPat p =
       Nothing
 
 bindingEval :
-  UnExp.Env -> Exp -> List Ident -> List (UnExp ()) -> UnExpEvaluator
+  U.Env -> Exp -> List Ident -> List (UnExp ()) -> UnExpEvaluator
 bindingEval currentEnv body parameters arguments =
   let
     envExtension =
       Utils.zip parameters arguments
-        |> UnExp.pairsToEnv
+        |> U.pairsToEnv
 
     newEnv =
       envExtension ++ currentEnv
@@ -65,7 +79,7 @@ bindingEval currentEnv body parameters arguments =
       GT ->
         Evaluator.fail "Supplied too many arguments"
 
-eval_ : UnExp.Env -> Exp -> UnExpEvaluator
+eval_ : U.Env -> Exp -> UnExpEvaluator
 eval_ env exp =
   let
     e =
@@ -103,12 +117,12 @@ eval_ env exp =
       -- E-Var
 
       EVar _ x ->
-        case UnExp.lookupVar x env of
+        case U.lookupVar x env of
           Just u ->
             Evaluator.succeed u
 
           Nothing ->
-            case UnExp.lookupCtor x env of
+            case U.lookupCtor x env of
               Just (ctorName, uBinding) ->
                 let
                   makeUnwrapper () =
@@ -152,6 +166,8 @@ eval_ env exp =
                   UHoleClosure _ _ _ ->
                     Evaluator.map (UApp () uFunction) uArgs
 
+
+
                   _ ->
                     Evaluator.fail "Not a proper application"
               )
@@ -174,11 +190,27 @@ eval_ env exp =
                 _ ->
                   Evaluator.fail "Not a proper 'get'"
             )
+
+          evalConstraintsAssert (e1, e2) =
+            eval_ env e1 |> Evaluator.andThen (\u1 ->
+              eval_ env e2 |> Evaluator.andThen (\u2 ->
+                withConstraints
+                  (Constraints.assertEqual u1 u2)
+                  (UTuple () [])
+              )
+            )
         in
-          exp
-            |> toTupleGet
-            |> Maybe.map evalGet
-            |> Utils.withLazyDefault default
+          case Lang.toTupleGet exp of
+            Just tupleGet ->
+              evalGet tupleGet
+
+            Nothing ->
+              case Lang.toConstraintsAssertion exp of
+                Just constraintsAssertion ->
+                  evalConstraintsAssert constraintsAssertion
+
+                Nothing ->
+                  default ()
 
       -- E-Match
 
@@ -228,7 +260,7 @@ eval_ env exp =
                 if argName == noBindingName then
                   env
                 else
-                  UnExp.addVar argName uArg env
+                  U.addVar argName uArg env
             in
               eval_ newEnv body
         in
@@ -289,7 +321,7 @@ eval_ env exp =
                 let
                   evalAndBind (param, arg) (us, latestEnv) =
                     Evaluator.map
-                      (\u -> (u :: us, UnExp.addVar param u latestEnv))
+                      (\u -> (u :: us, U.addVar param u latestEnv))
                       (eval_ latestEnv arg)
                 in
                   Evaluator.foldlM evalAndBind ([], env) paramArgPairs
@@ -377,13 +409,19 @@ setHoleIndexes =
 -- Full Evaluation
 --------------------------------------------------------------------------------
 
-evalWithEnv : UnExp.Env -> Exp -> Result String (UnExp ())
+evalWithEnv : U.Env -> Exp -> Result String (UnExp (), Constraints)
 evalWithEnv env =
   eval_ env
-    >> Evaluator.run {}
-    >> Result.map Tuple.first
-    >> Result.map setHoleIndexes
+    >> Evaluator.run { constraints = [] }
+    >> Result.map (Tuple.mapFirst setHoleIndexes)
+    >> Result.map (Tuple.mapSecond .constraints)
 
-eval : Exp -> Result String (UnExp ())
+eval : Exp -> Result String (UnExp (), Constraints)
 eval =
   evalWithEnv []
+
+ensureConstraintFree : Result String (UnExp (), Constraints) -> Maybe (UnExp ())
+ensureConstraintFree =
+  Result.toMaybe
+    >> Maybe.andThen
+         (\(u, ks) -> if ks == [] then Just u else Nothing)

@@ -1,13 +1,12 @@
 module Backprop exposing
   ( backprop
+  , evalBackprop
   )
 
-import UnExp exposing (..)
-import Example exposing (..)
-import UnDeclarations exposing (..)
+import UnLang as U exposing (..)
+import Lang exposing (Exp)
 
-import TriEval
-
+import TriEval 
 import Utils
 
 dontCareHole : Example
@@ -57,11 +56,10 @@ backprop u ex =
         let
           backpropBinding (arguments, outputExample) =
             if List.length params == List.length arguments then
-              body
-                |> TriEval.evalWithEnv
-                     (UnExp.pairsToEnv (Utils.zip params arguments) ++ env)
-                |> Result.toMaybe
-                |> Maybe.andThen (flip backprop outputExample)
+              evalBackprop 
+                (U.pairsToEnv (Utils.zip params arguments) ++ env)
+                body
+                outputExample
             else
               Nothing
         in
@@ -99,13 +97,22 @@ backprop u ex =
               ( \(ctorName, argName, body, ks) ->
                   let
                     newEnv =
-                      UnExp.addCtor ctorName argName uScrutinee env
+                      U.addCtor ctorName argName uScrutinee env
                   in
-                    body
-                      |> TriEval.evalWithEnv newEnv
-                      |> Result.toMaybe
-                      |> Maybe.andThen (\uBody -> backprop uBody ex)
+                    evalBackprop newEnv body ex
               )
 
       _ ->
         Nothing
+
+evalBackprop : U.Env -> Exp -> Example -> Maybe Constraints
+evalBackprop env exp example =
+  exp
+    |> TriEval.evalWithEnv env
+    |> Result.toMaybe
+    |> Maybe.andThen
+         ( \(uResult, evalConstraints) ->
+             Maybe.map
+               ((++) evalConstraints)
+               (backprop uResult example)
+         )

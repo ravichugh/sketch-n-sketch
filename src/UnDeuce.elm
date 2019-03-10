@@ -13,7 +13,7 @@ import DeuceGeometry as DG
 
 import Model exposing (ColorScheme(..))
 
-import UnExp exposing (UnExp)
+import UnLang exposing (UnExp)
 
 import Info exposing (WithInfo)
 import Utils
@@ -80,7 +80,7 @@ polygon :
 polygon handlers lineHulls maxLineLength unExp =
   let
     info =
-      UnExp.getData unExp
+      UnLang.getData unExp
 
     infoHullPoints =
       info
@@ -114,11 +114,11 @@ overlay : Handlers msg -> UnExp (WithInfo String) -> List (Html msg)
 overlay handlers root =
   let
     info =
-      UnExp.getData root
+      UnLang.getData root
 
     (_, trimmedLineHulls, maxLineLength) =
       DG.lineHulls c2a info.val
   in
     root
-      |> UnExp.flatten
+      |> UnLang.flatten
       |> List.map (polygon handlers trimmedLineHulls maxLineLength)

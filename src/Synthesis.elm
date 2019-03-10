@@ -7,9 +7,8 @@ module Synthesis exposing
 import Dict exposing (Dict)
 import Set
 
-import Example exposing (Example(..))
-import UnExp exposing (UnExp(..), UnVal(..))
-import UnDeclarations exposing (..)
+import UnLang as U exposing (..)
+import Constraints
 import TriEval
 import Backprop
 
@@ -47,8 +46,8 @@ satisfiesWorlds worlds exp =
     satisfiesWorld : World -> Exp -> Maybe Constraints
     satisfiesWorld (env, ex) =
       TriEval.evalWithEnv env
-        >> Result.toMaybe
-        >> Maybe.andThen (flip Backprop.backprop ex)
+        >> TriEval.ensureConstraintFree
+        >> Maybe.andThen (flip Backprop.backprop ex) 
   in
     worlds
       |> List.map satisfiesWorld
@@ -252,7 +251,7 @@ refine_ depth sigma gamma worlds tau =
                 pVar0 argName
 
               extractPartialFunction :
-                Example -> Maybe (List (UnExp.UnExp (), Example))
+                Example -> Maybe (List (UnExp (), Example))
               extractPartialFunction ex =
                 case ex of
                   ExPartialFunction entries ->
@@ -266,9 +265,9 @@ refine_ depth sigma gamma worlds tau =
                     Nothing
 
               makeWorlds :
-                UnExp.Env -> List (UnExp.UnExp (), Example) -> Worlds
+                U.Env -> List (UnExp (), Example) -> Worlds
               makeWorlds env =
-                List.map (\(u, ex) -> (UnExp.addVar argName u env, ex))
+                List.map (\(u, ex) -> (U.addVar argName u env, ex))
 
               (envs, examples) =
                 List.unzip worlds
@@ -355,17 +354,17 @@ refine_ depth sigma gamma worlds tau =
                    ( \(env, ex) ->
                        eScrutinee
                          |> TriEval.evalWithEnv env
-                         |> Result.toMaybe
-                         |> Maybe.andThen UnExp.asValue
+                         |> TriEval.ensureConstraintFree
+                         |> Maybe.andThen U.expToVal
                          |> Maybe.andThen
                               ( \v ->
                                   case v of
                                     UVConstructor ctorName vInner ->
                                       Just
                                         ( ctorName
-                                        , ( UnExp.addVar
+                                        , ( U.addVar
                                               argName
-                                              (UnExp.asExp vInner)
+                                              (U.valToExp vInner)
                                               env
                                           , ex
                                           )

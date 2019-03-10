@@ -6,8 +6,7 @@ import LeoParser
 import Info exposing (..)
 import Types exposing (AceTypeInfo)
 import Eval
-import UnExp exposing (UnExp)
-import UnDeclarations exposing (HoleFilling)
+import UnLang exposing (UnExp, HoleFilling)
 import EvalUpdate
 import Sync exposing (ZoneKey)
 import Utils
@@ -240,7 +239,7 @@ type alias Model =
   , unExpOutput : Result String (UnExp ())
   , selectedHoles : Set HoleId
   , selectedUnExp : Maybe (UnExp ())
-  , holeExampleInputs : Dict HoleId (Dict Int (UnExp.Env, String))
+  , holeExampleInputs : Dict HoleId (Dict Int (UnLang.Env, String))
   , backpropExampleInput : String
   , unExpPreview : Maybe (Exp, Result String (UnExp ()))
   , codeAtPbeSynthesis : Maybe Code
