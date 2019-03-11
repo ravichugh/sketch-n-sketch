@@ -3558,6 +3558,8 @@ resetDeuceState m =
                             else {dx=0, dy=0}
                 }
           }
+      , unExpOutput =
+          Result.map (Tuple.mapSecond <| \_ -> Just []) m.unExpOutput
       , holeFillings = []
       , selectedUnExp = Nothing
       , selectedHoles = Set.empty
@@ -4506,7 +4508,7 @@ msgCollectAndSolve =
       maybeCollectedConstraints =
         model.unExpOutput
           |> Result.toMaybe
-          |> Maybe.map Tuple.second
+          |> Maybe.andThen Tuple.second
 
       maybeBackpropExampleConstraints : Maybe Constraints
       maybeBackpropExampleConstraints =
@@ -4577,7 +4579,7 @@ msgShowUnExpPreview exp =
     { model
         | unExpPreview =
             Just
-              (exp
+              ( exp
               , Result.map Tuple.first <| TriEval.eval exp
               )
     }

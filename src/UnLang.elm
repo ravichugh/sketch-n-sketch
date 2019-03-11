@@ -894,6 +894,10 @@ valToExample v =
     UVFunClosure env params body ->
       Nothing
 
+expToExample : UnExp d -> Maybe Example
+expToExample =
+  expToVal >> Maybe.andThen valToExample
+
 --==============================================================================
 --= Parsing
 --==============================================================================

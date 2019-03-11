@@ -236,7 +236,7 @@ type alias Model =
   , needsToFocusOn : Maybe String
   , holeEnv : Types2.HoleEnv
   , holeFillings : List HoleFilling
-  , unExpOutput : Result String (UnExp (), UnLang.Constraints)
+  , unExpOutput : Result String (UnExp (), Maybe UnLang.Constraints)
   , selectedHoles : Set HoleId
   , selectedUnExp : Maybe (UnExp ())
   , holeExampleInputs : Dict HoleId (Dict Int (UnLang.Env, String))

@@ -6,7 +6,7 @@ module Backprop exposing
 import UnLang as U exposing (..)
 import Lang exposing (Exp)
 
-import TriEval 
+import TriEval
 import Utils
 
 dontCareHole : Example
@@ -111,8 +111,10 @@ evalBackprop env exp example =
     |> TriEval.evalWithEnv env
     |> Result.toMaybe
     |> Maybe.andThen
-         ( \(uResult, evalConstraints) ->
-             Maybe.map
-               ((++) evalConstraints)
-               (backprop uResult example)
+         ( \(uResult, maybeEvalConstraints) ->
+             maybeEvalConstraints |> Maybe.andThen (\evalConstraints ->
+               Maybe.map
+                 ((++) evalConstraints)
+                 (backprop uResult example)
+             )
          )

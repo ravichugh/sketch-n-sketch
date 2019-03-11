@@ -22,7 +22,7 @@ import Lang exposing (..)
 --------------------------------------------------------------------------------
 
 type alias EvalState =
-  { constraints : Constraints
+  { constraints : Maybe Constraints
   }
 
 type alias UnExpEvaluator =
@@ -32,11 +32,17 @@ type alias UnExpEvaluator =
 -- Evaluator Helper
 --------------------------------------------------------------------------------
 
-withConstraints : Constraints -> UnExp () -> UnExpEvaluator
+withConstraints : Maybe Constraints -> UnExp () -> UnExpEvaluator
 withConstraints ks u =
-  Evaluator.do Evaluator.get <| \old ->
-  Evaluator.do (Evaluator.put { constraints = old.constraints ++ ks }) <| \_ ->
-  Evaluator.succeed u
+  let
+    addConstraints old ks =
+      { old | constraints =
+          Maybe.map2 (++) old.constraints ks
+      }
+  in
+    Evaluator.do Evaluator.get <| \old ->
+    Evaluator.do (Evaluator.put <| addConstraints old ks) <| \_ ->
+    Evaluator.succeed u
 
 --------------------------------------------------------------------------------
 -- Core Evaluation
@@ -429,19 +435,20 @@ setHoleIndexes =
 -- Full Evaluation
 --------------------------------------------------------------------------------
 
-evalWithEnv : U.Env -> Exp -> Result String (UnExp (), Constraints)
+evalWithEnv : U.Env -> Exp -> Result String (UnExp (), Maybe Constraints)
 evalWithEnv env =
   eval_ env
-    >> Evaluator.run { constraints = [] }
+    >> Evaluator.run { constraints = Just [] }
     >> Result.map (Tuple.mapFirst setHoleIndexes)
     >> Result.map (Tuple.mapSecond .constraints)
 
-eval : Exp -> Result String (UnExp (), Constraints)
+eval : Exp -> Result String (UnExp (), Maybe Constraints)
 eval =
   evalWithEnv []
 
-ensureConstraintFree : Result String (UnExp (), Constraints) -> Maybe (UnExp ())
+ensureConstraintFree :
+  Result String (UnExp (), Maybe Constraints) -> Maybe (UnExp ())
 ensureConstraintFree =
   Result.toMaybe
     >> Maybe.andThen
-         (\(u, ks) -> if ks == [] then Just u else Nothing)
+         (\(u, ks) -> if ks == Just [] then Just u else Nothing)
