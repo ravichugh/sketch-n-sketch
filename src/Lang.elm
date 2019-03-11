@@ -2605,16 +2605,16 @@ entriesToMaybeCtorNameAndArgExps : List (Maybe WS, WS, Ident, WS, Exp) -> Maybe 
 entriesToMaybeCtorNameAndArgExps entries =
   dataTypeEncodingUnapply
       entries
-      expEntryValueToMaybeCtorName
-      expEntryValueToMaybeCtorArgEntries
+      getExpString
+      getExpEntries
   |> Maybe.map (\(ctorName, wsArgPairs) -> (ctorName, List.map Tuple.second wsArgPairs))
 
 entriesToMaybeCtorNameAndArgPats : List (Maybe WS, WS, Ident, WS, Pat) -> Maybe (Ident, List Pat)
 entriesToMaybeCtorNameAndArgPats entries =
   dataTypeEncodingUnapply
       entries
-      patEntryValueToMaybeCtorName
-      patEntryValueToMaybeCtorArgEntries
+      getPatString
+      getPatEntries
   |> Maybe.map (\(ctorName, wsArgPairs) -> (ctorName, List.map Tuple.second wsArgPairs))
 
 patToMaybeCtorNameAndArgPats : Pat -> Maybe (Ident, List Pat)
@@ -2669,8 +2669,8 @@ ensureRecordNumericArgEntriesInOrder entries =
                |> Result.withDefault -1
          )
 
-expEntryValueToMaybeCtorName : Exp -> Maybe String
-expEntryValueToMaybeCtorName e =
+getExpString : Exp -> Maybe String
+getExpString e =
   case (unwrapExp e) of
     EBase _ baseVal ->
       case baseVal of
@@ -2681,8 +2681,8 @@ expEntryValueToMaybeCtorName e =
     _ ->
       Nothing
 
-patEntryValueToMaybeCtorName : Pat -> Maybe String
-patEntryValueToMaybeCtorName p =
+getPatString : Pat -> Maybe String
+getPatString p =
   case p.val.p__ of
     PBase _ baseVal ->
       case baseVal of
@@ -2701,16 +2701,16 @@ getTypeString t =
     _ ->
       Nothing
 
-expEntryValueToMaybeCtorArgEntries : Exp -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
-expEntryValueToMaybeCtorArgEntries e =
+getExpEntries : Exp -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
+getExpEntries e =
   case (unwrapExp e) of
     ERecord _ _ decls _ ->
       recordEntriesFromDeclarations decls
     _ ->
       Nothing
 
-patEntryValueToMaybeCtorArgEntries : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
-patEntryValueToMaybeCtorArgEntries p =
+getPatEntries : Pat -> Maybe (List (Maybe WS, WS, Ident, WS, Pat))
+getPatEntries p =
   case p.val.p__ of
     PRecord _ entries _ ->
       Just entries

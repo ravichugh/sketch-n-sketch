@@ -166,8 +166,6 @@ eval_ env exp =
                   UHoleClosure _ _ _ ->
                     Evaluator.map (UApp () uFunction) uArgs
 
-
-
                   _ ->
                     Evaluator.fail "Not a proper application"
               )
@@ -353,17 +351,39 @@ eval_ env exp =
                   Lang.entriesToMaybeCtorNameAndArgExps entries
                 of
                   Just (ctorName, args) ->
-                    args
-                      |> Evaluator.mapM (eval_ env)
-                      |> Evaluator.map
-                           ( \uArgs ->
-                               case uArgs of
-                                 [uArg] ->
-                                   uArg
-                                 _ ->
-                                   UTuple () uArgs
-                           )
-                      |> Evaluator.map (UConstructor () ctorName)
+                    if ctorName == "PF" then
+                      case args of
+                        [pfArg] ->
+                          case getExpString pfArg of
+                            Just pfString ->
+                              case
+                                U.parseUnval pfString
+                                  |> Result.toMaybe
+                              of
+                                Just (UVPartialFunction pf) ->
+                                  Evaluator.succeed <|
+                                    UPartialFunction () pf
+
+                                _ ->
+                                  Evaluator.fail "PF applied to non-pf string"
+
+                            Nothing ->
+                              Evaluator.fail "PF applied to non-string"
+
+                        _ ->
+                          Evaluator.fail "PF applied to more than one argument"
+                    else
+                      args
+                        |> Evaluator.mapM (eval_ env)
+                        |> Evaluator.map
+                             ( \uArgs ->
+                                 case uArgs of
+                                   [uArg] ->
+                                     uArg
+                                   _ ->
+                                     UTuple () uArgs
+                             )
+                        |> Evaluator.map (UConstructor () ctorName)
 
                   _ ->
                     Evaluator.fail "Arbitrary records not supported"

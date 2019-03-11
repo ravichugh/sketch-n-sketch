@@ -205,7 +205,7 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      tryUnparseRecordSugars unparsePattern Lang.patEntryValueToMaybeCtorName Lang.patEntryValueToMaybeCtorArgEntries wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars unparsePattern Lang.getPatString Lang.getPatEntries wsBefore elems wsAfter <| \_ ->
         let maybeJustKey eqSpace key value =
           let default = eqSpace ++ "=" ++ unparsePattern value in
           if eqSpace == "" then
@@ -555,7 +555,7 @@ unparse e =
       case recordEntriesFromDeclarations decls of
         Nothing -> default ()
         Just fields ->
-          tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) Lang.expEntryValueToMaybeCtorName Lang.expEntryValueToMaybeCtorArgEntries
+          tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) Lang.getExpString Lang.getExpEntries
               wsBefore fields wsAfter default
 
     ESelect ws0 exp wsBeforeDot wsAfterDot id ->
