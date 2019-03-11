@@ -2097,12 +2097,16 @@ msgKeyDown keyCode =
 
         else if keyCode == Keys.keyEnter && List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           case old.outputMode of
-            Graphics  -> upstateRun old
+            Graphics ->
+              upstateRun old
             HtmlText _ ->
               let _ = Debug.log "TODO Enter" () in
               upstateRun old
+            PBE ->
+              upstateRun old
             -- ShowValue -> doCallUpdate old
-            _         -> old
+            _ ->
+              old
 
         else if old.outputMode == Graphics && keyCode == Keys.keyDown &&
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
@@ -3229,7 +3233,6 @@ readFile file needsSave old =
         , history = History.begin { code = file.contents, selectedDeuceWidgets = [], mbKeyboardFocusedWidget = Nothing }
         , lastSaveState = Just file.contents
         , needsSave = needsSave
-        , outputMode = Graphics
         }
 
 loadIcon : Env -> File -> Model -> Model
@@ -3422,7 +3425,6 @@ handleNew template = (\old ->
                 , mainResizerX             = old.mainResizerX
                 , colorScheme              = old.colorScheme
 
-                , outputMode = Graphics
                 , syncMode = old.syncMode
 
                 , doTypeChecking = old.doTypeChecking
