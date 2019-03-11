@@ -4502,6 +4502,12 @@ msgCollectAndSolve : Msg
 msgCollectAndSolve =
   Msg "Collect and Solve" <| \model ->
     let
+      maybeCollectedConstraints : Maybe Constraints
+      maybeCollectedConstraints =
+        model.unExpOutput
+          |> Result.toMaybe
+          |> Maybe.map Tuple.second
+
       maybeBackpropExampleConstraints : Maybe Constraints
       maybeBackpropExampleConstraints =
         if model.backpropExampleInput == "" then
@@ -4537,15 +4543,20 @@ msgCollectAndSolve =
             |> Utils.projJusts
             |> Maybe.map List.concat
     in
-      case (maybeBackpropExampleConstraints, maybeHoleExampleConstraints) of
-        (Just k1, Just k2) ->
+      case
+        ( maybeCollectedConstraints
+        , maybeBackpropExampleConstraints
+        , maybeHoleExampleConstraints
+        )
+      of
+        (Just k1, Just k2, Just k3) ->
           { model
               | holeFillings =
                   NonDet.toList <|
                     Synthesis.solve
                       (Types2.getDataTypeDefs model.inputExp)
                       model.holeEnv
-                      (k1 ++ k2)
+                      (k1 ++ k2 ++ k3)
               , codeAtPbeSynthesis =
                   Just model.code
           }

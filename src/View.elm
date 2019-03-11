@@ -3052,11 +3052,14 @@ viewCollectedConstraints constraints =
   let
     viewConstraint : U.Constraint -> Html Msg
     viewConstraint (holeId, (_, example)) =
-      Html.div
+      Html.li
         [ Attr.class "pbe-constraint"
         ]
-        [ Html.text <|
-            (toString holeId) ++ " needs to be " ++ (toString example)
+        [ Html.code
+            []
+            [ Html.text <|
+                toString holeId ++ " ↦ " ++ toString example
+            ]
         ]
   in
     if List.isEmpty constraints then

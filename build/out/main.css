@@ -1453,12 +1453,20 @@ code {
 
 /* Collected constraints */
 
+.pbe-collected-constraints {
+  padding: 10px;
+  border-bottom: 1px solid var(--main-border-color);
+}
+
 .pbe-constraint-header h2 {
   font-size: 1.1em;
+  border-bottom: 1px dashed var(--main-border-color);
+  margin-bottom: 5px;
+  padding-bottom: 5px;
 }
 
 .pbe-constraint-list {
-  list-style-type: none;
+  margin-left: 30px;
 }
 
 .pbe-constraint {
