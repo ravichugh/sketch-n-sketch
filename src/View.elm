@@ -1734,7 +1734,7 @@ outputPanel model =
           previewUnExpOutput
 
         Nothing ->
-          model.unExpOutput
+          Result.map Tuple.first model.unExpOutput
 
     output =
       case (model.errorBox, model.outputMode, model.preview) of
@@ -3047,6 +3047,36 @@ viewEnv env =
       ( List.map viewBinding env
       )
 
+viewCollectedConstraints : U.Constraints -> List (Html Msg)
+viewCollectedConstraints constraints =
+  let
+    viewConstraint : U.Constraint -> Html Msg
+    viewConstraint (holeId, (_, example)) =
+      Html.div
+        [ Attr.class "pbe-constraint"
+        ]
+        [ Html.text <|
+            (toString holeId) ++ " needs to be " ++ (toString example)
+        ]
+  in
+    if List.isEmpty constraints then
+      []
+    else
+        [ Html.div
+            [ Attr.class "pbe-constraint-header"
+            ]
+            [ Html.h2
+                []
+                [ Html.text "Collected Constraints"
+                ]
+            ]
+        , Html.ul
+            [ Attr.class "pbe-constraint-list"
+            ]
+            ( List.map viewConstraint constraints
+            )
+        ]
+
 viewBackprop : Model -> List (Html Msg)
 viewBackprop model =
   case model.selectedUnExp of
@@ -3091,7 +3121,6 @@ viewBackprop model =
 
     Nothing ->
       []
-
 
 viewHoleOccurrence : Lang.HoleId -> (Int, U.Env) -> Html Msg
 viewHoleOccurrence holeId (index, env) =
@@ -3196,10 +3225,17 @@ viewHoleFilling model holeFilling =
 pbePopupPanel : Model -> Html Msg
 pbePopupPanel model =
   let
-    content =
+    (content, noConstraints) =
       case model.unExpOutput of
-        Ok output ->
+        Ok (output, constraints) ->
           let
+            collectedConstraintsView =
+              Html.div
+                [ Attr.class "pbe-collected-constraints"
+                ]
+                ( viewCollectedConstraints constraints
+                )
+
             backpropView =
               Html.div
                 [ Attr.class "pbe-backprop"
@@ -3250,21 +3286,27 @@ pbePopupPanel model =
                       []
                   )
           in
-            [ backpropView
-            , selectedHolesView
-            , synthesizeButton
-            , synthesisResults
-            ]
+            ( [ collectedConstraintsView
+              , backpropView
+              , selectedHolesView
+              , synthesizeButton
+              , synthesisResults
+              ]
+           , List.isEmpty constraints
+           )
 
         Err _ ->
-          []
+          ( []
+          , True
+          )
   in
     popupPanel
       { pos =
           model.popupPanelPositions.pbe
       , disabled =
-          (Set.isEmpty model.selectedHoles && model.selectedUnExp == Nothing)
-            || List.length content == 0
+          ( (Set.isEmpty model.selectedHoles && model.selectedUnExp == Nothing)
+              || List.length content == 0
+          ) && noConstraints
       , dragHandler =
           Controller.msgDragPbePopupPanel
       , class =

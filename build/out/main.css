@@ -1451,6 +1451,19 @@ code {
   border-radius: 5px;
 }
 
+/* Collected constraints */
+
+.pbe-constraint-header h2 {
+  font-size: 1.1em;
+}
+
+.pbe-constraint-list {
+  list-style-type: none;
+}
+
+.pbe-constraint {
+}
+
 /* Backprop examples */
 
 .pbe-backprop {

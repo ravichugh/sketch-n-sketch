@@ -879,7 +879,7 @@ tryRun old =
           Ok <|
             refreshInputExp
               { old
-                  | unExpOutput = Result.map Tuple.first result
+                  | unExpOutput = result
                   , errorBox = Nothing
               }
 
