@@ -3256,13 +3256,16 @@ pbePopupPanel model =
                 )
 
             selectedHolesView =
-              Html.ul
+              Html.div
                 [ Attr.class "pbe-selected-holes"
                 ]
-                ( model.selectedHoles
-                    |> Set.toList
-                    |> List.map (viewSelectedHole model output)
-                )
+                [ Html.ul
+                    []
+                    ( model.selectedHoles
+                        |> Set.toList
+                        |> List.map (viewSelectedHole model output)
+                    )
+                ]
 
             synthesizeButton =
               Html.div
@@ -3288,7 +3291,7 @@ pbePopupPanel model =
                           []
                           [ Html.text "Results"
                           ]
-                      , Html.ul
+                      , Html.ol
                           []
                           ( nonEmptyHoleFillings
                               |> List.map (viewHoleFilling model)

@@ -1491,9 +1491,19 @@ code {
 
 /* Hole examples */
 
+.pbe-selected-holes {
+  max-height: 300px;
+  overflow-y: scroll;
+  border-bottom: 1px solid var(--main-border-color);
+}
+
 .pbe-hole {
   padding: 10px;
   border-bottom: 1px solid var(--main-border-color);
+}
+
+.pbe-hole:last-child {
+  border-bottom: none;
 }
 
 .pbe-hole:empty {
@@ -1574,8 +1584,8 @@ code {
   display: none;
 }
 
-.pbe-synthesis-results ul {
-  list-style-type: none;
+.pbe-synthesis-results ol {
+  padding-left: 35px;
   max-height: 300px;
   overflow-y: scroll;
 }
