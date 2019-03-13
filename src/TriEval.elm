@@ -323,26 +323,26 @@ eval_ env exp =
         case recordEntriesFromDeclarations decls of
           Just entries ->
             let
-              paramArgPairs =
+              nameBindingPairs =
                 List.map
                   (\(_, _, ident, _, exp) -> (ident, exp))
                   entries
 
-              (parameters, eArgs) =
-                List.unzip paramArgPairs
+              (names, bindings) =
+                List.unzip nameBindingPairs
 
-              uArgs =
+              bindingsEvaluation =
                 let
-                  evalAndBind (param, arg) (us, latestEnv) =
+                  evalAndBind (name, binding) (us, latestEnv) =
                     Evaluator.map
-                      (\u -> (u :: us, U.addVar param u latestEnv))
-                      (eval_ latestEnv arg)
+                      (\u -> (u :: us, U.addVar name u latestEnv))
+                      (eval_ latestEnv binding)
                 in
-                  Evaluator.foldlM evalAndBind ([], env) paramArgPairs
+                  Evaluator.foldlM evalAndBind ([], env) nameBindingPairs
                     |> Evaluator.map (Tuple.first >> List.reverse)
             in
-              uArgs
-                |> Evaluator.andThen (bindingEval env body parameters)
+              bindingsEvaluation
+                |> Evaluator.andThen (bindingEval env body names)
 
           Nothing ->
             Evaluator.fail "Could not get record entries from let"
