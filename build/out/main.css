@@ -1435,6 +1435,10 @@ code {
   border-radius: 5px;
 }
 
+.pbe-hole-env:empty::after {
+  content: "\00a0"; /* &nbsp; */
+}
+
 .pbe-hole-env > li {
   list-style-type: none;
 }
