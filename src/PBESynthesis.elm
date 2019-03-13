@@ -1,4 +1,8 @@
-module Synthesis exposing
+--------------------------------------------------------------------------------
+-- This module contains all the code for Programming by Example (PB1) synthesis.
+--------------------------------------------------------------------------------
+
+module PBESynthesis exposing
   ( guess
   , refine
   , solve
@@ -8,9 +12,7 @@ import Dict exposing (Dict)
 import Set
 
 import UnLang as U exposing (..)
-import Constraints
 import TriEval
-import Backprop
 
 import Types2 as T exposing (..)
 import Lang exposing (..)
@@ -47,7 +49,7 @@ satisfiesWorlds worlds exp =
     satisfiesWorld (env, ex) =
       TriEval.evalWithEnv env
         >> TriEval.ensureConstraintFree
-        >> Maybe.andThen (flip Backprop.backprop ex) 
+        >> Maybe.andThen (flip TriEval.backprop ex) 
   in
     worlds
       |> List.map satisfiesWorld

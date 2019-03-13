@@ -3051,11 +3051,12 @@ viewCollectedConstraints : Maybe U.Constraints -> List (Html Msg)
 viewCollectedConstraints maybeConstraints =
   let
     viewConstraint : U.Constraint -> Html Msg
-    viewConstraint (holeId, (_, example)) =
+    viewConstraint (holeId, (env, example)) =
       Html.li
         [ Attr.class "pbe-constraint"
         ]
-        [ Html.code
+        [ viewEnv env
+        , Html.code
             []
             [ Html.text <|
                 toString holeId ++ " ↦ " ++ toString example

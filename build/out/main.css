@@ -1454,8 +1454,9 @@ code {
 /* Collected constraints */
 
 .pbe-collected-constraints {
+  max-height: 300px;
+  overflow-y: scroll;
   padding: 10px;
-  border-bottom: 1px solid var(--main-border-color);
 }
 
 .pbe-constraint-header h2 {
@@ -1466,10 +1467,19 @@ code {
 }
 
 .pbe-constraint-list {
-  margin-left: 30px;
+  list-style-type: none;
 }
 
 .pbe-constraint {
+  margin-bottom: 10px;
+}
+
+.pbe-constraint:last-child {
+  margin-bottom: 0;
+}
+
+.pbe-constraint code {
+  margin-left: 5px;
 }
 
 /* Backprop examples */
@@ -1588,6 +1598,10 @@ code {
   padding-left: 35px;
   max-height: 300px;
   overflow-y: scroll;
+}
+
+.pbe-hole-filling {
+  padding-left: 5px;
 }
 
 .pbe-synthesis-results li button {

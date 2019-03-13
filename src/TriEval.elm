@@ -1,7 +1,14 @@
+--------------------------------------------------------------------------------
+-- This module contains all the code for dynamic handling of UnExps, including:
+--   - Evaluation
+--   - Backpropagation
+--   - Example collection (constraint collection)
+--------------------------------------------------------------------------------
 module TriEval exposing
   ( evalWithEnv
   , eval
   , ensureConstraintFree
+  , backprop
   )
 
 import Dict exposing (Dict)
@@ -13,9 +20,12 @@ import Evaluator exposing (Evaluator)
 import State exposing (State)
 
 import UnLang as U exposing (..)
-import Constraints
 
 import Lang exposing (..)
+
+--==============================================================================
+--= Evaluation
+--==============================================================================
 
 --------------------------------------------------------------------------------
 -- Declarations
@@ -199,7 +209,7 @@ eval_ env exp =
             eval_ env e1 |> Evaluator.andThen (\u1 ->
               eval_ env e2 |> Evaluator.andThen (\u2 ->
                 withConstraints
-                  (Constraints.assertEqual u1 u2)
+                  (assertEqual u1 u2)
                   (UTuple () [])
               )
             )
@@ -452,3 +462,216 @@ ensureConstraintFree =
   Result.toMaybe
     >> Maybe.andThen
          (\(u, ks) -> if ks == Just [] then Just u else Nothing)
+
+--==============================================================================
+--= Constraints
+--==============================================================================
+
+assertEqual : UnExp () -> UnExp () -> Maybe Constraints
+assertEqual u1 u2 =
+  case (u1, u2) of
+    (UConstructor _ ctorName1 uInner1, UConstructor _ ctorName2 uInner2) ->
+      if ctorName1 == ctorName2 then
+        assertEqual uInner1 uInner2
+      else
+        Nothing
+
+    (UNum _ n1, UNum _ n2) ->
+      if n1 == n2 then
+        Just []
+      else
+        Nothing
+
+    (UBool _ b1, UBool _ b2) ->
+      if b1 == b2 then
+        Just []
+      else
+        Nothing
+
+    (UString _ s1, UString _ s2) ->
+      if s1 == s2 then
+        Just []
+      else
+        Nothing
+
+    (UTuple _ us1, UTuple _ us2) ->
+      if List.length us1 == List.length us2 then
+        List.map2 assertEqual us1 us2
+          |> Utils.projJusts
+          |> Maybe.map List.concat
+      else
+        Nothing
+
+    (UHoleClosure _ env (holeId, _), _) ->
+      Maybe.map (\ex -> [(holeId, (env, ex))]) <|
+        expToExample u2
+
+    (_, UHoleClosure _ env (holeId, _)) ->
+      Maybe.map (\ex -> [(holeId, (env, ex))]) <|
+        expToExample u1
+
+    (UApp _ u1 u1Args, UApp _ u2 u2Args) ->
+      if List.length u1Args == List.length u2Args then
+        let
+          funcConstraints =
+            assertEqual u1 u2
+
+          argConstraints =
+            List.map2 assertEqual u1Args u2Args
+              |> Utils.projJusts
+              |> Maybe.map List.concat
+        in
+          Maybe.map2 (++) funcConstraints argConstraints
+      else
+        Nothing
+
+    (UGet _ n1 i1 u1, UGet _ n2 i2 u2) ->
+      if n1 == n2 && i1 == i2 then
+        assertEqual u1 u2
+      else
+        Nothing
+
+    (UCase _ env1 u1 branches1, UCase _ env2 u2 branches2) ->
+      if env1 /= env2 then
+        Debug.log
+          "WARN: env1 /= env2 for case statement in assertEqual"
+          Nothing
+      else if branches1 /= branches2 then
+        Debug.log
+          "WARN: branches1 /= branches2 for case statement in assertEqual"
+          Nothing
+      else
+        assertEqual u1 u2
+
+    _ ->
+      if u1 == u2 then
+        let
+          _ = Debug.log "WARN: u1 == u2 case in assertEqual" ()
+        in
+          Just []
+      else
+        case expToExample u2 of
+          Just ex2 ->
+            backprop u1 ex2
+
+          Nothing ->
+            case expToExample u1 of
+              Just ex1 ->
+                backprop u2 ex1
+
+              Nothing ->
+                Nothing
+
+--==============================================================================
+--= Backpropagation
+--==============================================================================
+
+dontCareHole : Example
+dontCareHole =
+  ExConstructor "---dontCareHole---" (ExNum -3468801)
+
+evalBackprop : U.Env -> Exp -> Example -> Maybe Constraints
+evalBackprop env exp example =
+  exp
+    |> evalWithEnv env
+    |> Result.toMaybe
+    |> Maybe.andThen
+         ( \(uResult, maybeEvalConstraints) ->
+             maybeEvalConstraints |> Maybe.andThen (\evalConstraints ->
+               Maybe.map
+                 ((++) evalConstraints)
+                 (backprop uResult example)
+             )
+         )
+
+backprop : UnExp () -> Example -> Maybe Constraints
+backprop u ex =
+  if ex == dontCareHole then
+    Just []
+  else
+    case (u, ex) of
+      (UConstructor _ uIdent uInner, ExConstructor exIdent exInner) ->
+        if uIdent == exIdent then
+          backprop uInner exInner
+        else
+          Nothing
+
+      (UNum _ uN, ExNum exN) ->
+        if uN == exN then
+          Just []
+        else
+          Nothing
+
+      (UBool _ uB, ExBool exB) ->
+        if uB == exB then
+          Just []
+        else
+          Nothing
+
+      (UString _ uS, ExString exS) ->
+        if uS == exS then
+          Just []
+        else
+          Nothing
+
+      (UTuple _ uInners, ExTuple exInners) ->
+        if List.length uInners == List.length exInners then
+          exInners
+            |> List.map2 backprop uInners
+            |> Utils.projJusts
+            |> Maybe.map List.concat
+        else
+          Nothing
+
+      (UFunClosure _ env params body, ExPartialFunction bindings) ->
+        let
+          backpropBinding (arguments, outputExample) =
+            if List.length params == List.length arguments then
+              evalBackprop
+                (U.pairsToEnv (Utils.zip params arguments) ++ env)
+                body
+                outputExample
+            else
+              Nothing
+        in
+          bindings
+            |> List.map backpropBinding
+            |> Utils.projJusts
+            |> Maybe.map List.concat
+
+      (UHoleClosure _ env (i, j), _) ->
+        Just [(i, (env, ex))]
+
+      (UApp _ (UHoleClosure _ env (i, _)) uArgs, _) ->
+        Just [(i, (env, ExPartialFunction [(uArgs, ex)]))]
+
+      (UGet _ n i uArg, _) ->
+        let
+          exTuple =
+            ExTuple <|
+              List.repeat (i - 1) dontCareHole
+                ++ [ex]
+                ++ List.repeat (n - i) dontCareHole
+        in
+          backprop uArg exTuple
+
+      (UCase _ env uScrutinee branches, _) ->
+        branches
+          |> List.map
+               ( \(ctorName, argName, body) ->
+                   ExConstructor ctorName dontCareHole
+                     |> backprop uScrutinee
+                     |> Maybe.map (\ks -> (ctorName, argName, body, ks))
+               )
+          |> Utils.firstMaybe
+          |> Maybe.andThen
+              ( \(ctorName, argName, body, ks) ->
+                  let
+                    newEnv =
+                      U.addCtor ctorName argName uScrutinee env
+                  in
+                    evalBackprop newEnv body ex
+              )
+
+      _ ->
+        Nothing

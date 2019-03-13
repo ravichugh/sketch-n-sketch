@@ -90,6 +90,9 @@ loc:
     PreludeTemplate.elm ExamplesTemplate.elm \
     ColorNum.elm Keys.elm \
     DefaultIconTheme.elm \
+    DeuceColor.elm DeuceGeometry.elm DeuceParameters.elm \
+		UnDeuce.elm \
+		UnLang.elm TriEval.elm PBESynthesis.elm \
     Native/ImpureGoodies.js
 
 littleloc:

@@ -1,10 +1,7 @@
 --------------------------------------------------------------------------------
--- This module contains all the declarations for the metatheory, as well as all
--- the helper functions (parsing, unparsing, conversion, mapping, etc.)
--- necessary for working with them.
---
--- All the *actual* judgement rules from the metatheory (synthesis, evaluation,
--- backpropagation, etc.) reside in their own files.
+-- This module contains all the declarations for the theory, as well as all the
+-- helper functions (parsing, unparsing, conversion, mapping, etc.) necessary
+-- for working with them.
 --------------------------------------------------------------------------------
 
 module UnLang exposing

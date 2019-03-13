@@ -111,8 +111,7 @@ import Eval
 import Evaluator
 import TriEval
 import UnLang as U exposing (UnExp, Constraints, World)
-import Backprop
-import Synthesis
+import PBESynthesis
 import Update exposing (vStr, vList)
 import UpdateUtils
 import UpdateStack
@@ -4519,7 +4518,7 @@ msgCollectAndSolve =
             model.backpropExampleInput
               |> U.parseExample
               |> Result.toMaybe
-              |> Maybe.andThen (Backprop.backprop uSelected)
+              |> Maybe.andThen (TriEval.backprop uSelected)
 
       maybeHoleExampleConstraints : Maybe Constraints
       maybeHoleExampleConstraints =
@@ -4555,7 +4554,7 @@ msgCollectAndSolve =
           { model
               | holeFillings =
                   NonDet.toList <|
-                    Synthesis.solve
+                    PBESynthesis.solve
                       (Types2.getDataTypeDefs model.inputExp)
                       model.holeEnv
                       (k1 ++ k2 ++ k3)
