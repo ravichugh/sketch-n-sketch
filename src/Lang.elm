@@ -4765,8 +4765,16 @@ toConstraintsAssertion e =
   case unwrapExp e of
     EApp _ eFunction [e1, e2] _ _ ->
       case unwrapExp eFunction of
-        EVar _ "constraints" ->
-          Just (e1, e2)
+        ESelect _ target _ _ selector ->
+          if selector == "constraints" then
+            case unwrapExp target of
+              EVar _ "PBE" ->
+                Just (e1, e2)
+
+              _ ->
+                Nothing
+          else
+            Nothing
 
         _ ->
           Nothing
