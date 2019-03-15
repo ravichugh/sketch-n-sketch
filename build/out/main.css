@@ -1463,6 +1463,10 @@ code {
   padding: 10px;
 }
 
+.pbe-collected-constraints:empty {
+  display: none;
+}
+
 .pbe-constraint-header h2 {
   font-size: 1.1em;
   border-bottom: 1px dashed var(--main-border-color);
