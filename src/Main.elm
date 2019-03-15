@@ -12,6 +12,7 @@ import ColorScheme
 import Solver
 import SolverServer
 import ImpureGoodies
+import WindowOnLoad
 
 import Html exposing (Html)
 import Mouse
@@ -37,7 +38,7 @@ main =
     }
 
 init : (Model, Cmd Msg)
-init = (Model.initModel, initCmd)
+init = (Model.initModel, Cmd.none)
 
 view : Model -> Html Msg
 view = View.view
@@ -47,13 +48,16 @@ update msg model =
   case msg of
     ResponseFromSolver str ->
       SolverServer.handleReduceResponse str model
+    WindowOnLoad ->
+      (model, onLoadCmd)
     Msg _ _ ->
       ImpureGoodies.tryCatch "NeedSomethingFromSolverException"
         (\()                                                         -> Controller.update msg model)
         (\(Solver.NeedSomethingFromSolverException neededFromSolver) -> SolverServer.ask neededFromSolver msg model)
 
-initCmd : Cmd Msg
-initCmd =
+-- Initial command runs too fast. Explicitly wait for window.onload event.
+onLoadCmd : Cmd Msg
+onLoadCmd =
   Cmd.batch <|
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel
@@ -70,7 +74,8 @@ initCmd =
 subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
-    [ Window.resizes Controller.msgWindowDimensions
+    [ WindowOnLoad.windowOnLoad (\_ -> WindowOnLoad)
+    , Window.resizes Controller.msgWindowDimensions
     , PageVisibility.visibilityChanges Controller.msgVisibilityChange
     , Mouse.downs (always (Controller.msgMouseIsDown True))
     , Mouse.ups (always (Controller.msgMouseIsDown False))

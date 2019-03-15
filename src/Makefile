@@ -19,6 +19,7 @@ html: elm-stuff/packages
 	cp Native/focus.js ../build/out/
 	cp Native/keyBlocker.js ../build/out/
 	cp Native/solverServer.js ../build/out/
+	cp Native/windowOnLoad.js ../build/out/
 	cp ../ace-builds/src/ace.js ../build/out/
 	cp ../ace-builds/src/mode-little.js ../build/out/
 	cp ../ace-builds/src/mode-elm.js ../build/out/

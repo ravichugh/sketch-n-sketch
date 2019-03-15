@@ -405,6 +405,7 @@ setResultExp exp (SynthesisResult result) =
 
 type Msg
   = ResponseFromSolver String
+  | WindowOnLoad
   | Msg String (Model -> Model)
 
 

@@ -21,6 +21,7 @@ build/out/focus.js
 build/out/keyBlocker.js
 build/out/outputCanvas.js
 build/out/solverServer.js
+build/out/windowOnLoad.js
 build/out/img/*
 *swp
 src/*swp
