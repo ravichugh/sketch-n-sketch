@@ -428,6 +428,7 @@ patsInOutput modelRenamingInOutput showRemoverAndReorderers patAndAssociatedSele
                 flip Svg.foreignObject [htmlPat] <|
                   [ attr "x" (toString (left - 2 + toFloat widthSoFar))
                   , attr "y" (toString (top - 10 - 17))
+                  , attr "style" "overflow: visible;"
                   ]
             in
             ( htmlForeignObjectPats ++ [htmlForeignObjectPat]
