@@ -65,7 +65,8 @@ type UnExp d
   | UString d String
   | UTuple d (List (UnExp d))
   | UPartialFunction d PartialFunction
-  | UFunClosure d Env (List Ident) Exp
+    -- data, recursive names, env, parameters, body
+  | UFunClosure d (List Ident) Env (List Ident) Exp
   | UHoleClosure d Env HoleIndex
   | UApp d (UnExp d) (List (UnExp d))
   | UGet d Int Int (UnExp d)
@@ -82,7 +83,7 @@ type UnVal
   | UVString String
   | UVTuple (List UnVal)
   | UVPartialFunction PartialFunction
-  | UVFunClosure Env (List Ident) Exp
+  | UVFunClosure (List Ident) Env (List Ident) Exp
 
 --------------------------------------------------------------------------------
 -- Examples
@@ -402,7 +403,7 @@ unparse =
           UPartialFunction _ pf ->
             basic "<partial function>" (\w -> UPartialFunction w pf)
 
-          UFunClosure _ env args body ->
+          UFunClosure _ recNames env args body ->
             let
               argsString =
                 String.join ", " args
@@ -415,7 +416,9 @@ unparse =
                   ++ " ."
                   ++ LeoUnparser.unparse body
             in
-              basic unparsedString (\w -> UFunClosure w env args body)
+              basic
+                unparsedString
+                (\w -> UFunClosure w recNames env args body)
 
           UHoleClosure _ env (i, j) ->
             let
@@ -611,7 +614,7 @@ getData u =
     UPartialFunction d _ ->
       d
 
-    UFunClosure d _ _ _ ->
+    UFunClosure d _ _ _ _ ->
       d
 
     UHoleClosure d _ _ ->
@@ -647,8 +650,8 @@ mapData f u =
     UPartialFunction d pf ->
       UPartialFunction (f d) pf
 
-    UFunClosure d env params body ->
-      UFunClosure (f d) env params body
+    UFunClosure d recNames env params body ->
+      UFunClosure (f d) recNames env params body
 
     UHoleClosure d env holeIndex ->
       UHoleClosure (f d) env holeIndex
@@ -684,8 +687,8 @@ statefulMap f u =
       UPartialFunction d pf ->
         State.pure <| UPartialFunction d pf
 
-      UFunClosure d env params body ->
-        State.pure <| UFunClosure d env params body
+      UFunClosure d recNames env params body ->
+        State.pure <| UFunClosure d recNames env params body
 
       UHoleClosure d env holeIndex ->
         State.pure <| UHoleClosure d env holeIndex
@@ -727,7 +730,7 @@ children u =
     UPartialFunction _ _ ->
       []
 
-    UFunClosure _ _ _ _ ->
+    UFunClosure _ _ _ _ _ ->
       []
 
     UHoleClosure _ _ _ ->
@@ -813,8 +816,8 @@ valToExp v =
     UVPartialFunction pf ->
       UPartialFunction () pf
 
-    UVFunClosure env params body ->
-      UFunClosure () env params body
+    UVFunClosure recNames env params body ->
+      UFunClosure () recNames env params body
 
 expToVal : UnExp d -> Maybe UnVal
 expToVal u =
@@ -844,9 +847,9 @@ expToVal u =
       Just <|
         UVPartialFunction pf
 
-    UFunClosure _ env params body ->
+    UFunClosure _ recNames env params body ->
       Just <|
-        UVFunClosure env params body
+        UVFunClosure recNames env params body
 
     UHoleClosure _ _ _ ->
       Nothing
@@ -888,7 +891,7 @@ valToExample v =
       Just <|
         ExPartialFunction pf
 
-    UVFunClosure env params body ->
+    UVFunClosure recNames env params body ->
       Nothing
 
 expToExample : UnExp d -> Maybe Example
