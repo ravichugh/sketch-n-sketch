@@ -204,6 +204,18 @@ eval_ env exp =
                   UHoleClosure _ _ _ ->
                     Evaluator.map (UApp () uFunction) uArgsEvaluation
 
+                  UPartialFunction _ partialFunction ->
+                    uArgsEvaluation |> Evaluator.andThen (\uArgs ->
+                      Utils.maybeFind uArgs partialFunction
+                        |> Maybe.map U.exampleToExp
+                        |> Result.fromMaybe
+                             (  "Partial function applied to expression not in "
+                                  ++ "domain"
+                             )
+                        |> Evaluator.fromResult
+                    )
+
+
                   _ ->
                     Evaluator.fail "Not a proper application"
               )

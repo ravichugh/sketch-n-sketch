@@ -795,30 +795,6 @@ findHoleEId ast u =
 --= UnExp / UnVal / Example Conversion
 --==============================================================================
 
-valToExp : UnVal -> UnExp ()
-valToExp v =
-  case v of
-    UVConstructor ident arg ->
-      UConstructor () ident (valToExp arg)
-
-    UVNum n ->
-      UNum () n
-
-    UVBool b ->
-      UBool () b
-
-    UVString s ->
-      UString () s
-
-    UVTuple args ->
-      UTuple () (List.map valToExp args)
-
-    UVPartialFunction pf ->
-      UPartialFunction () pf
-
-    UVFunClosure recNames env params body ->
-      UFunClosure () recNames env params body
-
 expToVal : UnExp d -> Maybe UnVal
 expToVal u =
   case u of
@@ -863,6 +839,31 @@ expToVal u =
     UCase _ _ _ _ ->
       Nothing
 
+
+valToExp : UnVal -> UnExp ()
+valToExp v =
+  case v of
+    UVConstructor ident arg ->
+      UConstructor () ident (valToExp arg)
+
+    UVNum n ->
+      UNum () n
+
+    UVBool b ->
+      UBool () b
+
+    UVString s ->
+      UString () s
+
+    UVTuple args ->
+      UTuple () (List.map valToExp args)
+
+    UVPartialFunction pf ->
+      UPartialFunction () pf
+
+    UVFunClosure recNames env params body ->
+      UFunClosure () recNames env params body
+
 valToExample : UnVal -> Maybe Example
 valToExample v =
   case v of
@@ -894,9 +895,34 @@ valToExample v =
     UVFunClosure recNames env params body ->
       Nothing
 
+exampleToVal : Example -> UnVal
+exampleToVal ex =
+  case ex of
+    ExConstructor ident arg ->
+      UVConstructor ident (exampleToVal arg)
+
+    ExNum n ->
+      UVNum n
+
+    ExBool b ->
+      UVBool b
+
+    ExString s ->
+      UVString s
+
+    ExTuple args ->
+      UVTuple (List.map exampleToVal args)
+
+    ExPartialFunction pf ->
+      UVPartialFunction pf
+
 expToExample : UnExp d -> Maybe Example
 expToExample =
   expToVal >> Maybe.andThen valToExample
+
+exampleToExp : Example -> UnExp ()
+exampleToExp =
+  exampleToVal >> valToExp
 
 --==============================================================================
 --= Parsing
