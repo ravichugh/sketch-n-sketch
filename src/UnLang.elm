@@ -286,21 +286,35 @@ unparse =
       State.do State.get <| \start ->
         case u of
           UConstructor _ name uArg ->
-            State.do (eatString <| name ++ " ") <| \_ ->
-            State.do (unparseHelper uArg) <| \uArgWithInfo ->
-            State.pure <|
-              let
-                argInfo =
-                  getData uArgWithInfo
-              in
-                UConstructor
-                  ( withInfo
-                      (name ++ " " ++ argInfo.val)
-                      start.pos
-                      argInfo.end
-                  )
-                  name
-                  uArgWithInfo
+            let
+              (extraOpen, extraClose) =
+                case uArg of
+                  UTuple _ _ ->
+                    (" ", "")
+
+                  _ ->
+                    (" (", ")")
+            in
+              State.do (eatString <| name ++ extraOpen) <| \_ ->
+              State.do (unparseHelper uArg) <| \uArgWithInfo ->
+              State.do (eatString extraClose) <| \_ ->
+              State.pure <|
+                let
+                  argInfo =
+                    getData uArgWithInfo
+                in
+                  UConstructor
+                    ( withInfo
+                        ( name
+                            ++ extraOpen
+                            ++ argInfo.val
+                            ++ extraClose
+                        )
+                        start.pos
+                        argInfo.end
+                    )
+                    name
+                    uArgWithInfo
 
           UNum _ n ->
             let

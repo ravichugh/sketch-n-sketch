@@ -215,7 +215,6 @@ eval_ env exp =
                         |> Evaluator.fromResult
                     )
 
-
                   _ ->
                     Evaluator.fail "Not a proper application"
               )

@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- This module contains all the code for Programming by Example (PB1) synthesis.
+-- This module contains all the code for Programming by Example (PBE) synthesis.
 --------------------------------------------------------------------------------
 
 module PBESynthesis exposing
