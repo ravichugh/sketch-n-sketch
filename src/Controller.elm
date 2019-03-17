@@ -3557,13 +3557,15 @@ resetDeuceState m =
                             else {dx=0, dy=0}
                 }
           }
+      , holeFillings = []
       , unExpOutput =
           Result.map (Tuple.mapSecond <| \_ -> Just []) m.unExpOutput
-      , holeFillings = []
-      , selectedUnExp = Nothing
       , selectedHoles = Set.empty
-      , codeAtPbeSynthesis = Nothing
+      , selectedUnExp = Nothing
+      , holeExampleInputs = Dict.empty
+      , backpropExampleInput = ""
       , unExpPreview = Nothing
+      , codeAtPbeSynthesis = Nothing
       , code = m.codeAtPbeSynthesis |> Maybe.withDefault m.code
       }
 
@@ -4517,6 +4519,7 @@ msgCollectAndSolve =
           flip Maybe.andThen model.selectedUnExp <| \uSelected ->
             model.backpropExampleInput
               |> U.parseExample
+              |> Debug.log "parsed backprop example"
               |> Result.toMaybe
               |> Maybe.andThen (TriEval.backprop uSelected)
 
@@ -4526,7 +4529,10 @@ msgCollectAndSolve =
           makeWorld : (U.Env, String) -> Maybe World
           makeWorld =
             Tuple.mapSecond
-                (U.parseExample >> Debug.log "parsed example" >> Result.toMaybe)
+              ( U.parseExample
+                  >> Debug.log "parsed hole example"
+                  >> Result.toMaybe
+              )
               >> Utils.liftMaybePair2
         in
           model.holeExampleInputs

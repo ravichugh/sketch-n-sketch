@@ -152,12 +152,25 @@ guess =
 --------------------------------------------------------------------------------
 
 refine_ :
-  Int -> T.DatatypeEnv -> T.TypeEnv -> Worlds -> Type -> NonDet (Exp, Constraints)
-refine_ depth sigma gamma worlds tau =
+  Int -> T.DatatypeEnv -> T.TypeEnv -> Worlds -> Type
+    -> NonDet (Exp, Constraints)
+refine_ depth sigma gamma unfilteredWorlds tau =
   if depth == 0 then
     NonDet.none
   else
     let
+      -- Filter out all the don't care examples
+      worlds =
+        List.filter
+          ( \(env, ex) ->
+              case ex of
+                ExDontCare ->
+                  False
+                _ ->
+                  True
+          )
+          unfilteredWorlds
+
       -- IRefine-Guess
       guessRefinement =
         tau
@@ -204,38 +217,45 @@ refine_ depth sigma gamma worlds tau =
               tupleLength =
                 List.length taus
 
-              extractTuple : Example -> Maybe (List Example)
-              extractTuple ex =
-                case ex of
-                  ExTuple args ->
-                    -- Check may not be necessary with example typechecking
-                    if List.length args == tupleLength then
-                      Just args
-                    else
-                      Nothing
+              maybeTupleArgsWorlds : Maybe (List Worlds)
+              maybeTupleArgsWorlds =
+                let
+                  extract : World -> Maybe Worlds
+                  extract (env, ex) =
+                    case ex of
+                      ExTuple exArgs ->
+                        -- Check may not be necessary with example typechecking
+                        if List.length exArgs == tupleLength then
+                          Just <|
+                            List.map (\ex -> (env, ex)) exArgs
+                        else
+                          Nothing
 
-                  _ ->
-                    Nothing
+                      ExDontCare ->
+                        Just []
 
-              (envs, examples) =
-                List.unzip worlds
+                      _ ->
+                        Nothing
+                in
+                  worlds
+                    |> List.map extract
+                    |> Utils.projJusts
+                    |> Maybe.map Utils.transpose
             in
-              examples
-                |> List.map extractTuple
-                |> Utils.projJusts
+              maybeTupleArgsWorlds
                 |> Maybe.map
-                   ( Utils.transpose
-                       >> List.map (Utils.zip envs)
-                       >> flip
-                            (Utils.zipWith (refine_ (depth - 1) sigma gamma))
-                            taus
-                       >> NonDet.oneOfEach
-                       >> NonDet.map
-                            ( List.unzip
-                                >> Tuple.mapFirst eTuple
-                                >> Tuple.mapSecond List.concat
-                            )
-                   )
+                     ( \tupleArgsWorlds ->
+                         List.map2
+                           (refine_ (depth - 1) sigma gamma)
+                           tupleArgsWorlds
+                           taus
+                             |> NonDet.oneOfEach
+                             |> NonDet.map
+                                  ( List.unzip
+                                      >> Tuple.mapFirst eTuple
+                                      >> Tuple.mapSecond List.concat
+                                  )
+                     )
                 |> Maybe.withDefault NonDet.none
 
       -- IRefine-Fun
@@ -296,16 +316,24 @@ refine_ depth sigma gamma worlds tau =
       -- IRefine-Constructor
       constructorRefinement =
         let
-          extractConstructor ctorName (env, ex) =
-            case ex of
-              ExConstructor exCtorName exInner ->
-                if exCtorName == ctorName then
-                  Just (env, exInner)
-                else
-                  Nothing
+          extractConstructorArgWorlds : Ident -> Maybe Worlds
+          extractConstructorArgWorlds ctorName =
+            let
+              extract : World -> Maybe World
+              extract (env, ex) =
+                  case ex of
+                    ExConstructor exCtorName exInner ->
+                      if exCtorName == ctorName then
+                        Just (env, exInner)
+                      else
+                        Nothing
 
-              _ ->
-                Nothing
+                    _ ->
+                      Nothing
+            in
+              worlds
+                |> List.map extract
+                |> Utils.projJusts
         in
           case unwrapType tau of
             TVar _ datatypeName ->
@@ -316,16 +344,22 @@ refine_ depth sigma gamma worlds tau =
                       case argTypes of
                         -- Only support single arguments for now
                         [argType] ->
-                          worlds
-                            |> List.map (extractConstructor ctorName)
-                            |> Utils.projJusts
+                          ctorName
+                            |> extractConstructorArgWorlds
                             |> Maybe.map
-                                 ( flip (refine_ (depth - 1) sigma gamma) argType
-                                     >> NonDet.map
-                                          ( Tuple.mapFirst <|
-                                              List.singleton
-                                                >> eDatatype ctorName
-                                          )
+                                 ( \constructorArgWorlds ->
+                                     NonDet.map
+                                       ( Tuple.mapFirst <|
+                                           List.singleton
+                                             >> eDatatype ctorName
+                                       )
+                                       ( refine_
+                                           (depth - 1)
+                                           sigma
+                                           gamma
+                                           constructorArgWorlds
+                                           argType
+                                       )
                                  )
                             |> Maybe.withDefault NonDet.none
 
@@ -437,6 +471,13 @@ refine_ depth sigma gamma worlds tau =
                        >> NonDet.collapseMaybe
                    )
               |> Maybe.withDefault NonDet.none
+
+      -- IRefine-Hole
+      holeRefinement =
+        if List.isEmpty worlds then
+          NonDet.pure (Lang.eEmptyHole, [])
+        else
+          NonDet.none
     in
       NonDet.concat
         [ guessRefinement
@@ -445,6 +486,7 @@ refine_ depth sigma gamma worlds tau =
         , partialFunctionRefinement
         , constructorRefinement
         , matchRefinement
+        , holeRefinement
         ]
 
 refine :

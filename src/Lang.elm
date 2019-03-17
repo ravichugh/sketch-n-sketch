@@ -2400,6 +2400,9 @@ eRecord kvs      = withDummyExpInfo <| eRecord__ space1 Nothing (List.map
   kvs) space1
 eSelect e name = withDummyExpInfo  <| ESelect space0 e space0 space0 name
 
+eEmptyHole0 = withDummyExpInfo <| EHole space0 dummyEmptyHole
+eEmptyHole = withDummyExpInfo <| EHole space1 dummyEmptyHole
+
 recordEntriesFromDeclarations: Declarations -> Maybe (List (Maybe WS, WS, Ident, WS, Exp))
 recordEntriesFromDeclarations (Declarations _ _ _ letexps) =
   letexps |> elemsOf |> List.map (\(LetExp wsComma wsBefore p _ wsEq e) ->

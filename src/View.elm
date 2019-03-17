@@ -3031,13 +3031,6 @@ viewEnv env =
                     identifier
                       ++ " → "
                       ++ U.unparseSimple u
-
-                  U.CtorBinding ctorName argName u ->
-                    ctorName
-                      ++ " "
-                      ++ argName
-                      ++ " → "
-                      ++ U.unparseSimple u
             ]
         ]
   in

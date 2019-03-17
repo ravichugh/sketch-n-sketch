@@ -35,7 +35,6 @@ import Utils
 
 type EnvBinding
   = VarBinding Ident (UnExp ())
-  | CtorBinding Ident Ident (UnExp ())
 
 type alias Env =
   List EnvBinding
@@ -70,6 +69,7 @@ type UnExp d
   | UHoleClosure d Env HoleIndex
   | UApp d (UnExp d) (List (UnExp d))
   | UGet d Int Int (UnExp d)
+  | UConstructorInverse  d Ident (UnExp d)
   | UCase d Env (UnExp d) (List (Ident, Ident, Exp))
 
 --------------------------------------------------------------------------------
@@ -96,6 +96,7 @@ type Example
   | ExString String
   | ExTuple (List Example)
   | ExPartialFunction PartialFunction
+  | ExDontCare
 
 --------------------------------------------------------------------------------
 -- Worlds
@@ -132,10 +133,6 @@ addVar : Ident -> UnExp () -> Env -> Env
 addVar i u env =
   VarBinding i u :: env
 
-addCtor : Ident -> Ident -> UnExp () -> Env -> Env
-addCtor ctorName argName u env =
-  CtorBinding ctorName argName u :: env
-
 pairsToEnv : List (Ident, UnExp ()) -> Env
 pairsToEnv =
   List.map (Utils.uncurry VarBinding)
@@ -147,27 +144,9 @@ envVars =
       VarBinding i u ->
         [(i, u)]
 
-      _ ->
-        []
-
--- Returns a list of (argName, (ctorName, u))
-envCtors : Env -> List (Ident, (Ident, UnExp ()))
-envCtors =
-  List.concatMap <| \binding ->
-    case binding of
-      CtorBinding ctorName argName u ->
-        [(argName, (ctorName, u))]
-
-      _ ->
-        []
-
 lookupVar : Ident -> Env -> Maybe (UnExp ())
 lookupVar x =
   envVars >> Utils.maybeFind x
-
-lookupCtor : Ident -> Env -> Maybe (Ident, UnExp ())
-lookupCtor x =
-  envCtors >> Utils.maybeFind x
 
 --==============================================================================
 --= Unparsing
@@ -181,9 +160,6 @@ unparseEnv =
       case binding of
         VarBinding ident u ->
           ident ++ " → " ++ unparseSimple u
-
-        CtorBinding ctorName argName u ->
-          ctorName ++ " " ++ argName ++ " → " ++ unparseSimple u
   in
     List.map showBinding >> String.join ", "
 
@@ -541,6 +517,10 @@ unparse =
                     i
                     uTupleWithInfo
 
+          UConstructorInverse d ident uArg ->
+            unparseHelper <|
+              UConstructor d (ident ++ "^-1") uArg
+
           UCase _ env uScrutinee branches ->
             let
               unparsedEnv =
@@ -640,6 +620,9 @@ getData u =
     UGet d _ _ _ ->
       d
 
+    UConstructorInverse d _ _ ->
+      d
+
     UCase d _ _ _ ->
       d
 
@@ -675,6 +658,9 @@ mapData f u =
 
     UGet d n i uTuple ->
       UGet (f d) n i (mapData f uTuple)
+
+    UConstructorInverse d ident arg ->
+      UConstructorInverse (f d) ident (mapData f arg)
 
     UCase d env uScrutinee branches ->
       UCase (f d) env (mapData f uScrutinee) branches
@@ -713,6 +699,9 @@ statefulMap f u =
 
       UGet d n i uTuple ->
         State.map (UGet d n i) (statefulMap f uTuple)
+
+      UConstructorInverse d ident arg ->
+        State.map (UConstructorInverse d ident) (statefulMap f arg)
 
       UCase d env uScrutinee branches ->
         State.map
@@ -755,6 +744,9 @@ children u =
 
     UGet _ _ _ uTuple ->
       [uTuple]
+
+    UConstructorInverse _ _ arg ->
+      [arg]
 
     UCase _ _ uScrutinee _ ->
       [uScrutinee]
@@ -850,6 +842,9 @@ expToVal u =
     UGet _ _ _ _ ->
       Nothing
 
+    UConstructorInverse _ _ _ ->
+      Nothing
+
     UCase _ _ _ _ ->
       Nothing
 
@@ -909,34 +904,44 @@ valToExample v =
     UVFunClosure recNames env params body ->
       Nothing
 
-exampleToVal : Example -> UnVal
+exampleToVal : Example -> Maybe UnVal
 exampleToVal ex =
   case ex of
     ExConstructor ident arg ->
-      UVConstructor ident (exampleToVal arg)
+      Maybe.map (UVConstructor ident) (exampleToVal arg)
 
     ExNum n ->
-      UVNum n
+      Just <|
+        UVNum n
 
     ExBool b ->
-      UVBool b
+      Just <|
+        UVBool b
 
     ExString s ->
-      UVString s
+      Just <|
+        UVString s
 
     ExTuple args ->
-      UVTuple (List.map exampleToVal args)
+      args
+        |> List.map exampleToVal
+        |> Utils.projJusts
+        |> Maybe.map UVTuple
 
     ExPartialFunction pf ->
-      UVPartialFunction pf
+      Just <|
+        UVPartialFunction pf
+
+    ExDontCare ->
+      Nothing
 
 expToExample : UnExp d -> Maybe Example
 expToExample =
   expToVal >> Maybe.andThen valToExample
 
-exampleToExp : Example -> UnExp ()
+exampleToExp : Example -> Maybe (UnExp ())
 exampleToExp =
-  exampleToVal >> valToExp
+  exampleToVal >> Maybe.map valToExp
 
 --==============================================================================
 --= Parsing

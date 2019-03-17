@@ -133,35 +133,10 @@ eval_ env exp =
       -- E-Var
 
       EVar _ x ->
-        case U.lookupVar x env of
-          Just u ->
-            Evaluator.succeed u
-
-          Nothing ->
-            case U.lookupCtor x env of
-              Just (ctorName, uBinding) ->
-                let
-                  makeUnwrapper () =
-                    Evaluator.succeed <|
-                      UCase
-                        ()
-                        env
-                        uBinding
-                        [(ctorName, "x", eVar0 "x")]
-                in
-                  case uBinding of
-                    UConstructor _ ctorBindingName uCtorArg ->
-                      if ctorBindingName == ctorName then
-                        Evaluator.succeed uCtorArg
-                      else
-                        makeUnwrapper ()
-
-                    _ ->
-                      makeUnwrapper ()
-
-              _ ->
-                Evaluator.fail <|
-                  "Variable not found: '" ++ x ++ "'"
+        env
+          |> U.lookupVar x
+          |> Result.fromMaybe ("Variable not found: '" ++ x ++ "'")
+          |> Evaluator.fromResult
 
       -- E-App
 
@@ -207,10 +182,14 @@ eval_ env exp =
                   UPartialFunction _ partialFunction ->
                     uArgsEvaluation |> Evaluator.andThen (\uArgs ->
                       Utils.maybeFind uArgs partialFunction
-                        |> Maybe.map U.exampleToExp
                         |> Result.fromMaybe
-                             (  "Partial function applied to expression not in "
-                                  ++ "domain"
+                             ( "Partial function applied to expression not in "
+                                 ++ "domain"
+                             )
+                        |> Result.andThen
+                             ( U.exampleToExp
+                                 >> Result.fromMaybe
+                                      "Partial function returned ?? example"
                              )
                         |> Evaluator.fromResult
                     )
@@ -613,10 +592,6 @@ assertEqual u1 u2 =
 --= Backpropagation
 --==============================================================================
 
-dontCareHole : Example
-dontCareHole =
-  ExConstructor "---dontCareHole---" (ExNum -3468801)
-
 evalBackprop : U.Env -> Exp -> Example -> Maybe Constraints
 evalBackprop env exp example =
   exp
@@ -633,7 +608,7 @@ evalBackprop env exp example =
 
 backprop : UnExp () -> Example -> Maybe Constraints
 backprop u ex =
-  if ex == dontCareHole then
+  if ex == ExDontCare then
     Just []
   else
     case (u, ex) of
@@ -696,29 +671,39 @@ backprop u ex =
         let
           exTuple =
             ExTuple <|
-              List.repeat (i - 1) dontCareHole
+              List.repeat (i - 1) ExDontCare
                 ++ [ex]
-                ++ List.repeat (n - i) dontCareHole
+                ++ List.repeat (n - i) ExDontCare
         in
           backprop uArg exTuple
 
+      (UConstructorInverse _ ident uArg, _) ->
+        backprop uArg (ExConstructor ident ex)
+
       (UCase _ env uScrutinee branches, _) ->
-        branches
-          |> List.map
-               ( \(ctorName, argName, body) ->
-                   ExConstructor ctorName dontCareHole
-                     |> backprop uScrutinee
-                     |> Maybe.map (\ks -> (ctorName, argName, body, ks))
-               )
-          |> Utils.firstMaybe
-          |> Maybe.andThen
-              ( \(ctorName, argName, body, ks) ->
+        let
+          tryBranch : UnExp () -> (Ident, Ident, Exp) -> Maybe Constraints
+          tryBranch uScrutinee (ctorName, argName, body) =
+            -- Cannot be applicative because we only want to continue if the
+            -- first computation succeeds
+            flip Maybe.andThen
+              ( backprop uScrutinee (ExConstructor ctorName ExDontCare)
+              )
+              ( \ks1 ->
                   let
                     newEnv =
-                      U.addCtor ctorName argName uScrutinee env
+                      U.addVar
+                        argName
+                        (UConstructorInverse () ctorName uScrutinee)
+                        env
                   in
                     evalBackprop newEnv body ex
+                      |> Maybe.map (\ks2 -> ks1 ++ ks2)
               )
+        in
+          branches
+            |> List.map (tryBranch uScrutinee)
+            |> Utils.firstMaybe
 
       _ ->
         Nothing
