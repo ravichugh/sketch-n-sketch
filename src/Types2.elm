@@ -2165,7 +2165,9 @@ inferType gamma stuff thisExp =
             |> finishExp
       in
         { newExp = newExp
-        , holeEnv = List.map .holeEnv branchResults |> holeEnvUnion
+        , holeEnv =
+            holeEnvUnion <|
+              result0.holeEnv :: List.map .holeEnv branchResults
         }
 
     EHole _ (EEmptyHole holeId) ->
