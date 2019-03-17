@@ -491,8 +491,9 @@ decodeDataConDefs t =
       case tFunc.val.t__ of
         TVar _ "|" ->
           tArgs
-            |> List.map decodeDataDef
+            |> List.map decodeDataConDefs
             |> Utils.projJusts
+            |> Maybe.map List.concat
 
         _ ->
           decodeDataDef t |> Maybe.map List.singleton
