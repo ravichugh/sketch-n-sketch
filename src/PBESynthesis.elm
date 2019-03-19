@@ -264,6 +264,10 @@ refine_ depth sigma gamma unfilteredWorlds tau =
           -- TODO Only support single-argument functions for now
           Just (_, [argType], returnType) ->
             let
+              functionName : Ident
+              functionName =
+                "f"
+
               argName : Ident
               argName =
                 "x"
@@ -271,6 +275,29 @@ refine_ depth sigma gamma unfilteredWorlds tau =
               argNamePat : Pat
               argNamePat =
                 pVar0 argName
+
+              makeFunction : Exp -> Exp
+              makeFunction functionBody =
+                let
+                  finder e =
+                    case unwrapExp e of
+                      EVar _ name ->
+                        name == functionName
+
+                      _ ->
+                        False
+                in
+                  case findFirstNode finder functionBody of
+                    -- Recursive
+                    Just _ ->
+                      replacePrecedingWhitespace " " <|
+                        eLet
+                          [(functionName, eFun [argNamePat] functionBody)]
+                          (eVar functionName)
+
+                    -- Non-recursive
+                    Nothing ->
+                      eFun [argNamePat] functionBody
 
               worldFromEntry :
                 U.Env -> (List (UnExp ()), Example) -> Maybe World
@@ -309,7 +336,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                      ( \allWorlds ->
                          returnType
                            |> refine_ (depth - 1) sigma newGamma allWorlds
-                           |> NonDet.map (Tuple.mapFirst <| eFun [argNamePat])
+                           |> NonDet.map (Tuple.mapFirst makeFunction)
                      )
                 |> Maybe.withDefault NonDet.none
 
