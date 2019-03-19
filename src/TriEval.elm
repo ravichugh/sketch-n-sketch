@@ -67,9 +67,9 @@ identifierFromPat p =
     _ ->
       Nothing
 
-bindingEval :
-  List Ident -> U.Env -> Exp -> List Ident -> List (UnExp ()) -> UnExpEvaluator
-bindingEval recNames currentEnv body parameters arguments =
+apply :
+  U.Env -> Exp -> List Ident -> List (UnExp ()) -> UnExpEvaluator
+apply currentEnv body parameters arguments =
   let
     envExtension =
       Utils.zip parameters arguments
@@ -87,7 +87,7 @@ bindingEval recNames currentEnv body parameters arguments =
     case compare argLength paramLength of
       LT ->
         Evaluator.succeed <|
-          UFunClosure () recNames newEnv (List.drop argLength parameters) body
+          UFunClosure () newEnv (List.drop argLength parameters) body
 
       EQ ->
         eval_ newEnv body
@@ -127,16 +127,32 @@ eval_ env exp =
           |> List.map identifierFromPat
           |> Utils.projJusts
           |> Result.fromMaybe "Non-identifier pattern in function"
-          |> Result.map (\vars -> UFunClosure () [] env vars body)
+          |> Result.map (\vars -> UFunClosure () env vars body)
           |> Evaluator.fromResult
 
       -- E-Var
 
       EVar _ x ->
-        env
-          |> U.lookupVar x
-          |> Result.fromMaybe ("Variable not found: '" ++ x ++ "'")
-          |> Evaluator.fromResult
+        case U.lookupVar x env of
+          Just u ->
+           let _ = Debug.log "it's a var" x in
+            Evaluator.succeed u
+
+          Nothing ->
+            case U.lookupRecursiveFunction x env of
+              Just (functionEnv, functionDefs, (_, params, body)) ->
+                let
+                  newFunctionEnv =
+                    U.addRecursiveBinding
+                      (functionEnv, functionDefs)
+                      functionEnv
+                in
+                  Evaluator.succeed <|
+                    UFunClosure () newFunctionEnv params body
+
+              Nothing ->
+                Evaluator.fail <|
+                  "Variable not found: '" ++ x ++ "'"
 
       -- E-App
 
@@ -149,32 +165,10 @@ eval_ env exp =
             in
               eval_ env eFunction |> Evaluator.andThen (\uFunction ->
                 case uFunction of
-                  UFunClosure _ recNames functionEnv parameters body ->
-                    let
-                      recBindings =
-                        case recNames of
-                          [] ->
-                            []
-
-                          [recName] ->
-                            U.pairsToEnv [(recName, uFunction)]
-
-                          _ ->
-                            Debug.log
-                              ( "[WARN]  Mutually recursive functions not yet"
-                                  ++ "supported: "
-                                  ++ toString recNames
-                              )
-                              []
-                    in
-                      Evaluator.andThen
-                        ( bindingEval
-                            recNames
-                            (functionEnv ++ recBindings)
-                            body
-                            parameters
-                        )
-                        uArgsEvaluation
+                  UFunClosure _ functionEnv parameters body ->
+                    Evaluator.andThen
+                      (apply functionEnv body parameters)
+                      uArgsEvaluation
 
                   UHoleClosure _ _ _ ->
                     Evaluator.map (UApp () uFunction) uArgsEvaluation
@@ -286,7 +280,7 @@ eval_ env exp =
                 if argName == noBindingName then
                   env
                 else
-                  U.addVar argName uArg env
+                  U.addVarBinding argName uArg env
             in
               eval_ newEnv body
         in
@@ -340,35 +334,41 @@ eval_ env exp =
                   (\(_, _, ident, _, exp) -> (ident, exp))
                   entries
 
-              (names, bindings) =
+              (names, _) =
                 List.unzip nameBindingPairs
 
-              bindingsEvaluation =
-                let
-                  addRecursiveBinding name u =
-                    case u of
-                      UFunClosure _ recNames env params body ->
-                        UFunClosure () (name :: recNames) env params body
+              nameLen =
+                List.length names
 
-                      _ ->
-                        u
+              addToEnv (name, binding) (nonRecEnv, functionDefs) =
+                eval_ nonRecEnv binding
+                  |> Evaluator.map
+                       ( \u ->
+                         case u of
+                           UFunClosure _ _ params body ->
+                             ( nonRecEnv
+                             , (name, params, body) :: functionDefs
+                             )
 
-                  accumulate name us latestEnv u =
-                    (u :: us, U.addVar name u latestEnv)
-
-                  evalAndBind (name, binding) (us, latestEnv) =
-                    eval_ latestEnv binding
-                      |> Evaluator.map
-                           ( addRecursiveBinding name
-                               >> accumulate name us latestEnv
-                           )
-                in
-                  Evaluator.foldlM evalAndBind ([], env) nameBindingPairs
-                    |> Evaluator.map (Tuple.first >> List.reverse)
+                           _ ->
+                             ( U.addVarBinding name u nonRecEnv
+                             , functionDefs
+                             )
+                       )
             in
-              Evaluator.andThen
-                (bindingEval [] env body names)
-                bindingsEvaluation
+              nameBindingPairs
+                |> Evaluator.foldlM addToEnv (env, [])
+                |> Evaluator.map
+                     ( \(nonRecEnv, functionDefs) ->
+                         U.addRecursiveBinding
+                           (nonRecEnv, functionDefs)
+                           nonRecEnv
+                     )
+                |> Evaluator.andThen
+                     ( \envExtension ->
+                         eval_ (envExtension ++ env) body
+                     )
+
 
           Nothing ->
             Evaluator.fail "Could not get record entries from let"
@@ -645,7 +645,7 @@ backprop u ex =
         else
           Nothing
 
-      (UFunClosure _ recNames env params body, ExPartialFunction bindings) ->
+      (UFunClosure _ env params body, ExPartialFunction bindings) ->
         let
           backpropBinding (arguments, outputExample) =
             if List.length params == List.length arguments then
@@ -692,7 +692,7 @@ backprop u ex =
               ( \ks1 ->
                   let
                     newEnv =
-                      U.addVar
+                      U.addVarBinding
                         argName
                         (UConstructorInverse () ctorName uScrutinee)
                         env

@@ -289,7 +289,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
               makeWorlds :
                 U.Env -> List (UnExp (), Example) -> Worlds
               makeWorlds env =
-                List.map (\(u, ex) -> (U.addVar argName u env, ex))
+                List.map (\(u, ex) -> (U.addVarBinding argName u env, ex))
 
               (envs, examples) =
                 List.unzip worlds
@@ -398,7 +398,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                                     UVConstructor ctorName vInner ->
                                       Just
                                         ( ctorName
-                                        , ( U.addVar
+                                        , ( U.addVarBinding
                                               argName
                                               (U.valToExp vInner)
                                               env

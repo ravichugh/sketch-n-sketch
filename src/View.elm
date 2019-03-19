@@ -3025,12 +3025,10 @@ viewEnv env =
         []
         [ Html.code
             []
-            [ Html.text <|
-                case binding of
-                  U.VarBinding identifier u ->
-                    identifier
-                      ++ " → "
-                      ++ U.unparseSimple u
+            [ binding
+                |> List.singleton
+                |> U.unparseEnv
+                |> Html.text
             ]
         ]
   in

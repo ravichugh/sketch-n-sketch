@@ -33,8 +33,13 @@ import Utils
 -- Environments
 --------------------------------------------------------------------------------
 
+type alias FunctionDefinition =
+  -- (Name, Params, Body)
+  (Ident, List Ident, Exp)
+
 type EnvBinding
   = VarBinding Ident (UnExp ())
+  | RecursiveBinding Env (List FunctionDefinition)
 
 type alias Env =
   List EnvBinding
@@ -64,8 +69,7 @@ type UnExp d
   | UString d String
   | UTuple d (List (UnExp d))
   | UPartialFunction d PartialFunction
-    -- data, recursive names, env, parameters, body
-  | UFunClosure d (List Ident) Env (List Ident) Exp
+  | UFunClosure d Env (List Ident) Exp
   | UHoleClosure d Env HoleIndex
   | UApp d (UnExp d) (List (UnExp d))
   | UGet d Int Int (UnExp d)
@@ -83,7 +87,7 @@ type UnVal
   | UVString String
   | UVTuple (List UnVal)
   | UVPartialFunction PartialFunction
-  | UVFunClosure (List Ident) Env (List Ident) Exp
+  | UVFunClosure Env (List Ident) Exp
 
 --------------------------------------------------------------------------------
 -- Examples
@@ -129,24 +133,52 @@ type alias HoleFilling =
 --= Environment Functions
 --==============================================================================
 
-addVar : Ident -> UnExp () -> Env -> Env
-addVar i u env =
-  VarBinding i u :: env
-
 pairsToEnv : List (Ident, UnExp ()) -> Env
 pairsToEnv =
   List.map (Utils.uncurry VarBinding)
 
-envVars : Env -> List (Ident, UnExp ())
-envVars =
+addVarBinding : Ident -> UnExp () -> Env -> Env
+addVarBinding i u env =
+  VarBinding i u :: env
+
+addRecursiveBinding : (Env, List FunctionDefinition) -> Env -> Env
+addRecursiveBinding (functionEnv, functionDefs) env =
+  RecursiveBinding functionEnv functionDefs :: env
+
+envVarBindings : Env -> List (Ident, UnExp ())
+envVarBindings =
   List.concatMap <| \binding ->
     case binding of
       VarBinding i u ->
         [(i, u)]
 
+      _ ->
+        []
+
+envRecursiveBindings : Env -> List (Env, List FunctionDefinition)
+envRecursiveBindings =
+  List.concatMap <| \binding ->
+    case binding of
+      RecursiveBinding functionEnv functionDefs ->
+        [(functionEnv, functionDefs)]
+
+      _ ->
+        []
+
 lookupVar : Ident -> Env -> Maybe (UnExp ())
 lookupVar x =
-  envVars >> Utils.maybeFind x
+  envVarBindings >> Utils.maybeFind x
+
+lookupRecursiveFunction :
+  Ident -> Env -> Maybe (Env, List FunctionDefinition, FunctionDefinition)
+lookupRecursiveFunction functionName =
+  let
+    extract (functionEnv, functionDefs) =
+      functionDefs
+        |> Utils.maybeFindBy (\(name, _, _) -> name == functionName)
+        |> Maybe.map (\fd -> (functionEnv, functionDefs, fd))
+  in
+    envRecursiveBindings >> Utils.mapFirstSuccess extract
 
 --==============================================================================
 --= Unparsing
@@ -160,6 +192,11 @@ unparseEnv =
       case binding of
         VarBinding ident u ->
           ident ++ " → " ++ unparseSimple u
+
+        RecursiveBinding functionEnv functions ->
+          -- TODO
+          "<recursive binding>"
+
   in
     List.map showBinding >> String.join ", "
 
@@ -393,7 +430,7 @@ unparse =
           UPartialFunction _ pf ->
             basic "<partial function>" (\w -> UPartialFunction w pf)
 
-          UFunClosure _ recNames env args body ->
+          UFunClosure _ env args body ->
             let
               argsString =
                 String.join ", " args
@@ -408,7 +445,7 @@ unparse =
             in
               basic
                 unparsedString
-                (\w -> UFunClosure w recNames env args body)
+                (\w -> UFunClosure w env args body)
 
           UHoleClosure _ env (i, j) ->
             let
@@ -608,7 +645,7 @@ getData u =
     UPartialFunction d _ ->
       d
 
-    UFunClosure d _ _ _ _ ->
+    UFunClosure d _ _ _ ->
       d
 
     UHoleClosure d _ _ ->
@@ -647,8 +684,8 @@ mapData f u =
     UPartialFunction d pf ->
       UPartialFunction (f d) pf
 
-    UFunClosure d recNames env params body ->
-      UFunClosure (f d) recNames env params body
+    UFunClosure d env params body ->
+      UFunClosure (f d) env params body
 
     UHoleClosure d env holeIndex ->
       UHoleClosure (f d) env holeIndex
@@ -687,8 +724,8 @@ statefulMap f u =
       UPartialFunction d pf ->
         State.pure <| UPartialFunction d pf
 
-      UFunClosure d recNames env params body ->
-        State.pure <| UFunClosure d recNames env params body
+      UFunClosure d env params body ->
+        State.pure <| UFunClosure d env params body
 
       UHoleClosure d env holeIndex ->
         State.pure <| UHoleClosure d env holeIndex
@@ -733,7 +770,7 @@ children u =
     UPartialFunction _ _ ->
       []
 
-    UFunClosure _ _ _ _ _ ->
+    UFunClosure _ _ _ _ ->
       []
 
     UHoleClosure _ _ _ ->
@@ -829,9 +866,9 @@ expToVal u =
       Just <|
         UVPartialFunction pf
 
-    UFunClosure _ recNames env params body ->
+    UFunClosure _ env params body ->
       Just <|
-        UVFunClosure recNames env params body
+        UVFunClosure env params body
 
     UHoleClosure _ _ _ ->
       Nothing
@@ -870,8 +907,8 @@ valToExp v =
     UVPartialFunction pf ->
       UPartialFunction () pf
 
-    UVFunClosure recNames env params body ->
-      UFunClosure () recNames env params body
+    UVFunClosure env params body ->
+      UFunClosure () env params body
 
 valToExample : UnVal -> Maybe Example
 valToExample v =
@@ -901,7 +938,7 @@ valToExample v =
       Just <|
         ExPartialFunction pf
 
-    UVFunClosure recNames env params body ->
+    UVFunClosure env params body ->
       Nothing
 
 exampleToVal : Example -> Maybe UnVal
