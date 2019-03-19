@@ -135,7 +135,6 @@ eval_ env exp =
       EVar _ x ->
         case U.lookupVar x env of
           Just u ->
-           let _ = Debug.log "it's a var" x in
             Evaluator.succeed u
 
           Nothing ->
