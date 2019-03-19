@@ -272,41 +272,44 @@ refine_ depth sigma gamma unfilteredWorlds tau =
               argNamePat =
                 pVar0 argName
 
-              extractPartialFunction :
-                Example -> Maybe (List (UnExp (), Example))
-              extractPartialFunction ex =
+              worldFromEntry :
+                U.Env -> (List (UnExp ()), Example) -> Maybe World
+              worldFromEntry env (args, output) =
+                case args of
+                  [arg] ->
+                    Just
+                      ( U.addVarBinding argName arg env
+                      , output
+                      )
+
+                  -- TODO Only support single-argument functions for now
+                  _ ->
+                    Nothing
+
+              branchWorlds : World -> Maybe Worlds
+              branchWorlds (env, ex) =
                 case ex of
                   ExPartialFunction entries ->
                     entries
-                      -- TODO Only support single-argument functions for now
-                      |> List.map
-                           (Tuple.mapFirst List.head >> Utils.liftMaybePair1)
+                      |> List.map (worldFromEntry env)
                       |> Utils.projJusts
 
                   _ ->
                     Nothing
 
-              makeWorlds :
-                U.Env -> List (UnExp (), Example) -> Worlds
-              makeWorlds env =
-                List.map (\(u, ex) -> (U.addVarBinding argName u env, ex))
-
-              (envs, examples) =
-                List.unzip worlds
-
+              newGamma : T.TypeEnv
               newGamma =
                 T.addHasType (argNamePat, argType) gamma
             in
-              examples
-                |> List.map extractPartialFunction
+              worlds
+                |> List.map branchWorlds
                 |> Utils.projJusts
+                |> Maybe.map List.concat
                 |> Maybe.map
-                     ( Utils.zipWith makeWorlds envs
-                         >> List.concat
-                         >> flip
-                              (refine_ (depth - 1) sigma newGamma)
-                              returnType
-                         >> NonDet.map (Tuple.mapFirst <| eFun [argNamePat])
+                     ( \allWorlds ->
+                         returnType
+                           |> refine_ (depth - 1) sigma newGamma allWorlds
+                           |> NonDet.map (Tuple.mapFirst <| eFun [argNamePat])
                      )
                 |> Maybe.withDefault NonDet.none
 
