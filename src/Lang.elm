@@ -4739,7 +4739,7 @@ fromTupleGet (n, i, arg) =
     func =
       eVar0 <| "get_" ++ toString n ++ "_" ++ toString i
   in
-    eApp0 func [arg]
+    eApp func [arg]
 
 --------------------------------------------------------------------------------
 -- Tuple Type Helpers
