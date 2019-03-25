@@ -414,17 +414,20 @@ eval_ env exp =
                         _ ->
                           Evaluator.fail "PF applied to more than one argument"
                     else
-                      args
-                        |> Evaluator.mapM (eval_ env)
-                        |> Evaluator.map
-                             ( \uArgs ->
-                                 case uArgs of
-                                   [uArg] ->
-                                     uArg
-                                   _ ->
-                                     UTuple () uArgs
-                             )
-                        |> Evaluator.map (UConstructor () ctorName)
+                      case args of
+                        -- -- Syntactic sugar for applying to unit
+                        -- [] ->
+                        --   Evaluator.succeed <|
+                        --     UConstructor () ctorName (UTuple () [])
+
+                        [arg] ->
+                          Evaluator.map
+                            (UConstructor () ctorName)
+                            (eval_ env arg)
+
+                        _ ->
+                          Evaluator.fail <|
+                            "Constructor applied to not exactly one argument"
 
                   _ ->
                     Evaluator.fail "Arbitrary records not supported"

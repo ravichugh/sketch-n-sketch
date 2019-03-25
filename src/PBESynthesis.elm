@@ -106,8 +106,8 @@ guess_ depth sigma gamma tau =
             |> List.filter (Tuple.second >> arrowMatches)
             |> NonDet.concatMap guessApps
 
-      -- EGuess-Tuple
-      tupleGuesses =
+      -- EGuess-Get
+      getGuesses =
         let
           -- Returns list of (n, i) pairs that work
           extractGet : List Type -> List (Int, Int)
@@ -140,7 +140,7 @@ guess_ depth sigma gamma tau =
       NonDet.concat
         [ variableGuesses
         , appGuesses
-        , tupleGuesses
+        , getGuesses
         ]
 
 guess : T.DatatypeEnv -> T.TypeEnv -> Type -> NonDet Exp
@@ -300,12 +300,21 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                       eFun [argNamePat] functionBody
 
               worldFromEntry :
-                U.Env -> (List (UnExp ()), Example) -> Maybe World
-              worldFromEntry env (args, output) =
+                PartialFunction
+                  -> U.Env
+                  -> (List (UnExp ()), Example)
+                  -> Maybe World
+              worldFromEntry partialFunction env (args, output) =
                 case args of
                   [arg] ->
                     Just
-                      ( U.addVarBinding argName arg env
+                      ( env
+                          -- Recursive function binding
+                          |> U.addVarBinding
+                               functionName
+                               (UPartialFunction () partialFunction)
+                          -- Argument binding
+                          |> U.addVarBinding argName arg
                       , output
                       )
 
@@ -316,9 +325,9 @@ refine_ depth sigma gamma unfilteredWorlds tau =
               branchWorlds : World -> Maybe Worlds
               branchWorlds (env, ex) =
                 case ex of
-                  ExPartialFunction entries ->
-                    entries
-                      |> List.map (worldFromEntry env)
+                  ExPartialFunction partialFunction ->
+                    partialFunction
+                      |> List.map (worldFromEntry partialFunction env)
                       |> Utils.projJusts
 
                   _ ->
@@ -372,6 +381,13 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                   NonDet.do (NonDet.fromList datatypeConstructors) <|
                     \(ctorName, argTypes) ->
                       case argTypes of
+                        -- -- Syntactic sugar for zero-argument constructors
+                        -- [] ->
+                        --   NonDet.pure
+                        --     ( eDatatype ctorName []
+                        --     , []
+                        --     )
+
                         -- Only support single arguments for now
                         [argType] ->
                           ctorName
@@ -407,7 +423,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
         let
           argName : Ident
           argName =
-            "x"
+            "y"
 
           argNamePat : Pat
           argNamePat =

@@ -311,6 +311,7 @@ unparse =
               State.do (eatString <| name ++ extraOpen) <| \_ ->
               State.do (unparseHelper uArg) <| \uArgWithInfo ->
               State.do (eatString extraClose) <| \_ ->
+              State.do State.get <| \end ->
               State.pure <|
                 let
                   argInfo =
@@ -324,7 +325,7 @@ unparse =
                             ++ extraClose
                         )
                         start.pos
-                        argInfo.end
+                        end.pos
                     )
                     name
                     uArgWithInfo
@@ -351,7 +352,12 @@ unparse =
               basic sString (flip UString s)
 
           UTuple _ us ->
-            if shouldBreak us then
+            if List.isEmpty us then
+              State.do (eatString "()") <| \_ ->
+              State.do State.get <| \end ->
+              State.pure <|
+                UTuple (withInfo "()" start.pos end.pos) []
+            else if shouldBreak us then
               let
                 entry u =
                   State.do indent <| \_ ->
@@ -1007,8 +1013,15 @@ uvConstructor =
   P.lazy <| \_ ->
     P.inContext "constructor" <|
       P.succeed UVConstructor
+        --( \ctorName maybeArg ->
+        --    maybeArg
+        --      |> Maybe.withDefault (UVTuple [])
+        --      |> UVConstructor ctorName
+        --)
         |= capitalIdentifier
         |. spaces
+        -- Syntactic sugar for applying to unit
+        -- |= optional unval
         |= unval
 
 uvNum : Parser UnVal
@@ -1042,19 +1055,30 @@ uvString =
     P.map (\(_, content) -> UVString content)
       singleLineString
 
+-- Parses 1-tuples as just the element it contains (handles "parenthesized
+-- expressions")
 uvTuple : Parser UnVal
 uvTuple =
   P.lazy <| \_ ->
     P.inContext "tuple" <|
-      P.map UVTuple <|
-        LanguageKit.sequence
-          { start = "("
-          , separator = ","
-          , end = ")"
-          , spaces = spaces
-          , item = unval
-          , trailing = LanguageKit.Forbidden
-          }
+      P.map
+        ( \uArgs ->
+            case uArgs of
+              [uArg] ->
+                uArg
+
+              _ ->
+                UVTuple uArgs
+        )
+        ( LanguageKit.sequence
+            { start = "("
+            , separator = ","
+            , end = ")"
+            , spaces = spaces
+            , item = unval
+            , trailing = LanguageKit.Forbidden
+            }
+        )
 
 uvPartialFunction : Parser UnVal
 uvPartialFunction =
