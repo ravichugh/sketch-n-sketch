@@ -1,8 +1,8 @@
 {
   "name": "sketch-n-sketch",
-  "version": "1.2.12",
+  "version": "1.2.13",
   "description": "Bidirectional programming library that sketch-n-sketch relies on",
-  "main": "sns.js",
+  "main": "sns-core.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -28,7 +28,7 @@
   ],
   "license": "MIT",
   "files": [
-    "sns.js",
+    "sns-core.js",
     "README.md",
     "LICENSE.md",
     "NOTICE"
