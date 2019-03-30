@@ -53,8 +53,6 @@ type alias Num = Float
 type alias Frozen = String -- b/c comparable
 (frozen, unann, thawed, assignOnlyOnce) = ("!", "", "?", "~")
 
-type alias LocSet = Set Loc
-
 type alias Pat     = WithInfo Pat_
 type alias Exp     = WithInfo Exp_
 type alias Type    = WithInfo Type_
@@ -71,6 +69,12 @@ type Pat__
   | PList WS (List Pat) WS (Maybe Pat) WS
   | PAs WS Ident WS Pat
   | PParens WS Pat WS
+
+-- See MathExp.elm for functions
+type MathExp
+  = MathNum Num -- Constant
+  | MathVar Int -- Variable identifiers, often locIds
+  | MathOp Op_ (List MathExp)
 
 type Op_
   -- nullary ops
@@ -298,13 +302,10 @@ eBaseValsEqual ebv1 ebv2 =
     (ENull,          ENull)          -> True
     _                                -> False
 
-type Trace = TrLoc Loc | TrOp Op_ (List Trace)
-
-allTraceLocs : Trace -> List Loc
-allTraceLocs trace =
-  case trace of
-    TrLoc loc     -> [loc]
-    TrOp _ traces -> List.concatMap allTraceLocs traces
+-- MathVar contains locId
+-- MathNum constructor not used in initial trace generation; frozeness handled separately.
+-- Some code also expects that MathNum does not appear in traces. Search for "MathNum" in project to see.
+type alias Trace = MathExp
 
 type Provenance = Provenance Exp (List Val) -- (List Val) is vals immediately used to calculate this; "basedOn" provenance, like traces, ignores control flow.
 
@@ -1606,17 +1607,6 @@ locIdToExpFromFrozenSubstAndNewNames locIdToFrozenNum locIdToIdent =
       locIdToIdent
       Dict.empty
 
-traceToExp : Dict LocId Exp -> Trace -> Maybe Exp
-traceToExp locIdToExp trace =
-  case trace of
-    TrLoc (locId, _, _) -> Dict.get locId locIdToExp
-
-    TrOp op childTraces ->
-      childTraces
-      |> List.map (traceToExp locIdToExp)
-      |> Utils.projJusts
-      |> Maybe.map (\childExps -> eOp op childExps)
-
 -----------------------------------------------------------------------------
 -- Utility
 
@@ -1857,11 +1847,10 @@ clearNodeIds e =
     _                                     -> eidCleared
 
 dummyLoc_ b = (0, b, "")
-dummyTrace_ b = TrLoc (dummyLoc_ b)
 
 dummyLoc        = dummyLoc_ unann
 dummyLocFrozen  = dummyLoc_ frozen
-dummyTrace      = dummyTrace_ unann
+dummyTrace      = MathVar 0
 dummyProvenance = Provenance (eTuple0 []) []
 
 -- TODO interacts badly with auto-abstracted variable names...
@@ -2039,28 +2028,7 @@ listOfNums ns =
     []     -> []
     n::ns_ -> eConst0 n dummyLoc :: List.map (flip eConst dummyLoc) ns_
 
--- listOfNums1 = List.map (flip eConst dummyLoc)
-
-type alias AnnotatedNum = (Num, Frozen, WidgetDecl)
-  -- may want to move this up into EConst
-
-listOfAnnotatedNums : List AnnotatedNum -> List Exp
-listOfAnnotatedNums list =
-  case list of
-    [] -> []
-    (n,ann,wd) :: list_ ->
-      withDummyExpInfo (EConst space0 n (dummyLoc_ ann) wd) :: listOfAnnotatedNums1 list_
-
-listOfAnnotatedNums1 =
- List.map (\(n,ann,wd) -> withDummyExpInfo (EConst space1 n (dummyLoc_ ann) wd))
-
-minMax x y             = (min x y, max x y)
-minNumTr (a,t1) (b,t2) = if a <= b then (a,t1) else (b,t2)
-maxNumTr (a,t1) (b,t2) = if a >= b then (a,t1) else (b,t2)
-minMaxNumTr nt1 nt2    = (minNumTr nt1 nt2, maxNumTr nt1 nt2)
-
-plusNumTr (n1,t1) (n2,t2)  = (n1 + n2, TrOp Plus [t1, t2])
-minusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Minus [t1, t2])
+minMax x y = (min x y, max x y)
 
 
 ------------------------------------------------------------------------------

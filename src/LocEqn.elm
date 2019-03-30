@@ -4,7 +4,7 @@ import Lang exposing (..)
 import ValUnparser exposing (..)
 import Config
 import Utils exposing (infinity)
-import MathExp exposing (MathExp(..))
+import MathExp
 
 import Dict
 import Set
@@ -1244,26 +1244,6 @@ mathExpEval locIdToNum mathExp =
   |> MathExp.applySubst locIdToNum
   |> MathExp.evalToMaybeNum
   |> Utils.fromJust__ (\_ -> "LocEqn.mathExpEval incomplete subst " ++ toString (locIdToNum, mathExp))
-
-
-traceToMathExp : Trace -> MathExp
-traceToMathExp trace =
-  case trace of
-    -- locId of 0 means it's a constant that's part of the feature equation,
-    -- not the program. These should not be in traces produced by execution.
-    TrLoc (0, _, _) ->
-      Debug.crash <| "traceToMathExp: Found locId of 0 in trace. " ++ (toString trace)
-
-    -- HACK: see LangSvg.vNumFrozen...
-    -- TODO: streamline Trace, MathExp, etc.
-    TrLoc (-999, _, numString) ->
-      MathNum (Utils.fromOkay "traceToMathExp" (String.toFloat numString))
-
-    TrLoc (locId, _, _) ->
-      MathVar locId
-
-    TrOp op traces ->
-      MathOp op (List.map traceToMathExp traces)
 
 
 -- For all locId's in the locIdToNum dictionary, replace

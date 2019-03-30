@@ -75,9 +75,9 @@ lookupVar syntax env bt x pos =
 mkCap mcap l =
   let s =
     case (mcap, l) of
-      (Just cap, _)       -> cap.val
-      (Nothing, (_,_,"")) -> strLoc l
-      (Nothing, (_,_,x))  -> x
+      (Just cap, _)           -> cap.val
+      (Nothing, (locId,_,"")) -> "k" ++ toString locId
+      (Nothing, (_,_,x))      -> x
   in
   s
 
@@ -243,8 +243,8 @@ eval showPreludeOffsets maybeRetEnvEId abortPred syntax env bt pbeHolesSeenRefCe
   )) <|
   case e.val.e__ of
 
-  EConst _ n loc wd ->
-    let v_ = VConst Nothing (n, TrLoc loc) in
+  EConst _ n ((locId, _, _) as loc) wd ->
+    let v_ = VConst Nothing (n, MathVar locId) in
     let retVal = introduceVal [] v_ in
     case wd.val of
       NoWidgetDecl         -> Ok ((retVal, []), retEnvHere)
@@ -495,7 +495,7 @@ evalOp showPreludeOffsets maybeRetEnvEId abortPred syntax env e bt pbeHolesSeenR
       in
       let unaryMathOp op args =
         case args of
-          [VConst _ (n,t)] -> VConst Nothing (evalDelta syntax bt op [n], TrOp op [t]) |> addProvenanceOk
+          [VConst _ (n,t)] -> VConst Nothing (evalDelta syntax bt op [n], MathOp op [t]) |> addProvenanceOk
           _                -> error ()
       in
       let binMathOp op args =
@@ -508,7 +508,7 @@ evalOp showPreludeOffsets maybeRetEnvEId abortPred syntax env e bt pbeHolesSeenR
                 (Minus, Just axisAndOtherDim, Nothing) -> Just axisAndOtherDim
                 _                                      -> Nothing
             in
-            VConst maybeAxisAndOtherDim (evalDelta syntax bt op [i,j], TrOp op [it,jt]) |> addProvenanceOk
+            VConst maybeAxisAndOtherDim (evalDelta syntax bt op [i,j], MathOp op [it,jt]) |> addProvenanceOk
           _  ->
             error ()
       in
@@ -532,7 +532,7 @@ evalOp showPreludeOffsets maybeRetEnvEId abortPred syntax env e bt pbeHolesSeenR
             [VBase (VString s1), VBase (VString s2)] -> VBase (VBool (s1 == s2)) |> addProvenanceOk
             [_, _]                                   -> VBase (VBool False) |> addProvenanceOk -- polymorphic inequality, added for Prelude.addExtras
             _                                        -> error ()
-          Pi         -> nullaryOp args (VConst Nothing (pi, TrOp op []))
+          Pi         -> nullaryOp args (VConst Nothing (pi, MathOp op []))
           DictEmpty  -> nullaryOp args (VDict Dict.empty)
           DictInsert -> case vs of
             [vkey, val, {v_}] -> case v_ of

@@ -735,21 +735,19 @@ newVariableVisibleTo insertedLetEId suggestedName startingNumberForNonCollidingN
 
 
 -- e.g. "rect1 x" for (def rect1 (let x = ... in ...) ...)
-locDescription : Exp -> Loc -> String
-locDescription program loc =
-  String.join " " (locDescriptionParts program loc)
+locIdDescription : Exp -> LocId -> String
+locIdDescription program locId =
+  String.join " " (locIdDescriptionParts program locId)
 
 
 -- e.g. ["rect1", "x"] for (def rect1 (let x = ... in ...) ...)
-locDescriptionParts : Exp -> Loc -> List Ident
-locDescriptionParts program ((locId, _, ident) as loc) =
+locIdDescriptionParts : Exp -> LocId -> List Ident
+locIdDescriptionParts program locId =
   case locIdToEId program locId |> Maybe.map (expDescriptionParts program) of
     Just descriptionParts ->
       descriptionParts
     Nothing ->
-      let baseIdent = if ident == "" then "k" ++ toString locId else ident in
-      let scopeNamesLiftedThrough = scopeNamesLocLiftedThrough program loc in
-      scopeNamesLiftedThrough ++ [baseIdent]
+      scopeNamesLocLiftedThrough program locId ++ ["k" ++ toString locId]
 
 
 defaultExpName = "thing"
@@ -1049,18 +1047,18 @@ expDescriptionParts_ program exp targetEId equivalentEIds =
 --
 -- We care about the parent scope names for all the nested let/def assigns the
 -- LocId appears in--we don't care about let/def bodies.
-scopeNamesLocLiftedThrough : Exp -> Loc -> List Ident
-scopeNamesLocLiftedThrough newLetBody targetLoc =
-  let (targetLocId, _, ident) = targetLoc in
+scopeNamesLocLiftedThrough : Exp -> LocId -> List Ident
+scopeNamesLocLiftedThrough newLetBody targetLocId =
   case scopeNamesLocLiftedThrough_ targetLocId [] newLetBody of
     Nothing ->
       []
 
     Just scopeNames ->
-      -- Last element may be the original identifier: if so, remove it.
-      if (Utils.maybeLast scopeNames) == Just ident
-      then Utils.removeLastElement scopeNames
-      else scopeNames
+      -- -- Last element may be the original identifier: if so, remove it.
+      -- if (Utils.maybeLast scopeNames) == Just ident
+      -- then Utils.removeLastElement scopeNames
+      -- else scopeNames
+      scopeNames
 
 
 scopeNamesLocLiftedThrough_ : LocId -> List Ident -> Exp -> Maybe (List Ident)

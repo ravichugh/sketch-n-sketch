@@ -1791,12 +1791,6 @@ prelude =
     ]
     node))))
 
-(def placeAtFixed (\\([x y] node)
-  (let _ ([x y] : Point)
-  (setStyles
-    [['position' 'fixed'] ['FIXED_LEFT' x] ['FIXED_TOP' y]]
-    node))))
-
 (def placeSvgAt (\\([x y] w h shapes)
   (placeAt [x y]
     ['svg' [['width' w] ['height' h]] shapes])))

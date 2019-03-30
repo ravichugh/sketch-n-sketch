@@ -286,8 +286,8 @@ selectablePointToMaybeXY (nodeId, pointFeature) slate widgets =
 ------------------------------------------------------------------------------
 -- Feature Equations
 
--- Can't just use Trace because we need to introduce
--- constants not found in the program's Subst
+-- Can't just use MathExp because we sometimes want the Val's provenance.
+--
 -- If need more structured values in the future,
 -- add EqnVal AVal (rather than EqnVal Val).
 --
@@ -741,19 +741,6 @@ getPointEquations : ShapeKind -> List Attr -> PointFeature -> PointEquations
 getPointEquations kind attrs pointFeature =
   ( shapeFeatureEquation (XFeat pointFeature) kind attrs
   , shapeFeatureEquation (YFeat pointFeature) kind attrs )
-
--- Only used for some blob transform (may be able to discard sometime)
-getPrimitivePointNumTrs : RootedIndexedTree -> NodeId -> List (NumTr, NumTr)
-getPrimitivePointNumTrs (_, tree) nodeId =
-  case Utils.justGet_ "LangSvg.getPrimitivePoints" nodeId tree |> .interpreted of
-    LangSvg.SvgNode kind attrs _ ->
-      List.concatMap (\pointFeature ->
-        case getPointEquations kind attrs pointFeature of
-          (EqnNum v1, EqnNum v2) -> [(valToNumTr v1, valToNumTr v2)]
-          _                      -> []
-      ) (pointFeaturesOfShape kind attrs)
-    _ ->
-      Debug.crash "LangSvg.getPrimitivePoints"
 
 
 ------------------------------------------------------------------------------

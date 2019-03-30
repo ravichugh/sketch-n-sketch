@@ -313,26 +313,6 @@ reorderInListTool selections =
       "reorderInList"
   }
 
---------------------------------------------------------------------------------
--- Dig Hole
---------------------------------------------------------------------------------
-
-digHoleTool : Selections a -> OutputTool
-digHoleTool { selectedFeatures } =
-  { name =
-      "Dig Hole"
-  , shortcut =
-      Nothing
-  , kind =
-      Single
-  , func =
-      Just Controller.msgDigHole
-  , reqs =
-      [ atLeastOneFeature selectedFeatures
-      ]
-  , id =
-      "digHole"
-  }
 
 --------------------------------------------------------------------------------
 -- Make Equal
@@ -583,69 +563,6 @@ pointListBasedRepeatTools model =
 
 
 --------------------------------------------------------------------------------
--- Repeat Right
---------------------------------------------------------------------------------
-
-repeatRightTool : Selections a -> OutputTool
-repeatRightTool selections =
-  { name =
-      "Repeat Right"
-  , shortcut =
-      Nothing
-  , kind =
-      Single
-  , func =
-      Just <| Controller.msgReplicateBlob HorizontalRepeat
-  , reqs =
-      [ atLeastOneShapeNoFeatures selections
-      ]
-  , id =
-      "repeateRight"
-  }
-
---------------------------------------------------------------------------------
--- Repeat To
---------------------------------------------------------------------------------
-
-repeatToTool : Selections a -> OutputTool
-repeatToTool selections =
-  { name =
-      "Repeat To"
-  , shortcut =
-      Nothing
-  , kind =
-      Single
-  , func =
-      Just <| Controller.msgReplicateBlob LinearRepeat
-  , reqs =
-      [ atLeastOneShapeNoFeatures selections
-      ]
-  , id =
-      "repeateTo"
-  }
-
---------------------------------------------------------------------------------
--- Repeat Around
---------------------------------------------------------------------------------
-
-repeatAroundTool : Selections a -> OutputTool
-repeatAroundTool selections =
-  { name =
-      "Repeat Around"
-  , shortcut =
-      Nothing
-  , kind =
-      Single
-  , func =
-      Just <| Controller.msgReplicateBlob RadialRepeat
-  , reqs =
-      [ atLeastOneShapeNoFeatures selections
-      ]
-  , id =
-      "repeateAround"
-  }
-
---------------------------------------------------------------------------------
 -- All Tools
 --------------------------------------------------------------------------------
 
@@ -659,8 +576,7 @@ tools model =
       ]
     , perhapsAddArgumentTool model
     , [ reorderInListTool ]
-    , -- [ digHoleTool
-      [ makeEqualTool
+    , [ makeEqualTool
       , relateTool
       -- , indexedRelateTool
       ]
@@ -673,8 +589,4 @@ tools model =
     , [ repeatByIndexedMergeTool ]
     , pointListBasedRepeatTools model
     , functionBasedRepeatTools model
-    -- , [ repeatRightTool
-    --   , repeatToTool
-    --   , repeatAroundTool
-    --   ]
     ]

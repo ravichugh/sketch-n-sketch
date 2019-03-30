@@ -3,7 +3,7 @@ module FillPBEHole exposing (..)
 import Eval
 import Lang exposing (..)
 import LangTools
-import MathExp exposing (MathExp(..))
+import MathExp
 import Solver
 import Syntax
 import Types

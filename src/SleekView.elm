@@ -764,11 +764,7 @@ menuBar model =
 
 --    outputToolsMenu =
 --      menu "Output Tools"
---        [ [ relateTextButton
---              model
---              "Dig Hole"
---              Controller.msgDigHole
---          , relateHoverMenu
+--        [ [ relateHoverMenu
 --              model
 --              "Make Equal"
 --              "Make Equal (⌘E)"
@@ -808,22 +804,6 @@ menuBar model =
 --              model
 --              "Abstract"
 --              Controller.msgAbstractBlobs
---              True
---          ]
---        , [ groupTextButton
---              model
---              "Repeat Right"
---              (Controller.msgReplicateBlob HorizontalRepeat)
---              True
---          , groupTextButton
---              model
---              "Repeat To"
---              (Controller.msgReplicateBlob LinearRepeat)
---              True
---          , groupTextButton
---              model
---              "Repeat Around"
---              (Controller.msgReplicateBlob RadialRepeat)
 --              True
 --          ]
 --        ]

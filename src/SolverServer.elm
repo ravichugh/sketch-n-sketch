@@ -2,11 +2,11 @@ port module SolverServer exposing (..)
 
 import InterfaceModel exposing (Msg, Model)
 import InterfaceController
-import Lang exposing (Num, Op_(..))
+import Lang exposing (Num, Op_(..), MathExp(..))
 import Parser exposing (Parser, Count(..), (|.), (|=), succeed, symbol, int, float, ignore, repeat, zeroOrMore, oneOf, lazy, delayedCommit, delayedCommitMap, inContext, end)
 import BinaryOperatorParser exposing (PrecedenceTable(..), Associativity(..), Precedence, binaryOperator)
 import Solver exposing (Eqn, Problem, Solution, SolutionsCache, NeededFromSolver(..))
-import MathExp exposing (MathExp(..))
+import MathExp
 import Utils
 
 import Dict

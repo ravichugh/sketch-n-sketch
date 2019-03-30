@@ -1,7 +1,7 @@
 module Solver exposing (..)
 
 import ImpureGoodies
-import Lang exposing (Num, Op_, Trace(..), Subst)
+import Lang exposing (Num, Op_, Trace, Subst, MathExp(..))
 import MathExp exposing (..)
 import Utils
 
@@ -33,11 +33,11 @@ type NeedSomethingFromSolverException = NeedSomethingFromSolverException NeededF
 -- Side effect: throws exception if solution not in cache; controller should ask solver for solution and retry action.
 solveTrace : SolutionsCache -> Subst -> Trace -> Num -> Maybe Num
 solveTrace solutionsCache subst trace targetVal =
-  let mathExp = traceToMathExp trace in
-  let targetVarId = Utils.diffAsSet (mathExpVarIds mathExp) (Dict.keys subst) |> Utils.head "Solver.solveTrace: expected trace to have a locId remaining after applying subst" in
+  let mathExp = trace in
+  let targetVarId = Utils.diffAsSet (mathExpToVarIds mathExp) (Dict.keys subst) |> Utils.head "Solver.solveTrace: expected trace to have a locId remaining after applying subst" in
   -- Variablify everything to have the most general form of equations in the cache.
   -- (May push into solve in the future.)
-  let targetValInsertedVarId = 1 + (mathExpVarIds mathExp |> List.maximum |> Maybe.withDefault 0) in
+  let targetValInsertedVarId = 1 + (mathExpToVarIds mathExp |> List.maximum |> Maybe.withDefault 0) in
   case solveOne solutionsCache (mathExp, MathVar targetValInsertedVarId) targetVarId of
     solvedTerm::_ -> solvedTerm |> applySubst (Dict.insert targetValInsertedVarId targetVal subst) |> evalToMaybeNum
     _             -> Nothing
@@ -118,7 +118,7 @@ normalizedVarIdMapping : List MathExp -> (Dict Int Int, Dict Int Int)
 normalizedVarIdMapping mathExps =
   let (_, oldToNew, newToOld) =
     mathExps
-    |> List.concatMap mathExpVarIds
+    |> List.concatMap mathExpToVarIds
     |> List.foldl
         (\oldVarId (i, oldToNormalizedVarIds, normalizedToOldVarIds) ->
           case Dict.get oldVarId oldToNormalizedVarIds of

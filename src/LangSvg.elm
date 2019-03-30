@@ -529,10 +529,7 @@ removeSpecialAttrs =
 
 desugarShapeAttrs : Int -> Int -> ShapeKind -> List Attr -> (ShapeKind, List Attr)
 desugarShapeAttrs xCanvas yCanvas shape0 attrs0 =
-  Maybe.withDefault (shape0, attrs0) <|
-    Utils.orMaybe
-      (desugarFixedPosition xCanvas yCanvas shape0 attrs0)
-      (desugarBoundedShapes shape0 attrs0)
+  Maybe.withDefault (shape0, attrs0) <| desugarBoundedShapes shape0 attrs0
 
 desugarBoundedShapes : ShapeKind -> List Attr -> Maybe (ShapeKind, List Attr)
 desugarBoundedShapes shape0 attrs0 =
@@ -571,39 +568,6 @@ getBoundsAttrs attrs0 =
         Just (left, top, right, bot, attrs4)
       _ -> Nothing
   ))))
-
-desugarFixedPosition : Int -> Int -> ShapeKind -> List Attr -> Maybe (ShapeKind, List Attr)
-desugarFixedPosition xCanvas yCanvas shape0 attrs0 =
-  Utils.maybeRemoveFirst "style" attrs0 |> Maybe.andThen (\(vStyle,attrs1) ->
-    case vStyle.interpreted of
-      AStyle styles0 ->
-        -- implicitly assuming ("position", AString "fixed") is in styles0
-        Utils.maybeRemoveFirst "FIXED_LEFT" styles0 |> Maybe.andThen (\(vLeft,styles1) ->
-        Utils.maybeRemoveFirst "FIXED_TOP"  styles1 |> Maybe.andThen (\(vTop,styles2) ->
-          case (vLeft.interpreted, vTop.interpreted) of
-            (ANum ntLeft, ANum ntTop) ->
-              let
-                newLeft =
-                  plusNumTr ntLeft (toFloat xCanvas, TrLoc (dummyLoc_ frozen))
-                newTop =
-                  plusNumTr ntTop  (toFloat yCanvas, TrLoc (dummyLoc_ frozen))
-                newStyle =
-                  replaceAv_ vStyle <|
-                    AStyle <|
-                      -- TODO "px" should be added by strAVal translation, not here
-                      -- ("left", replaceAv_ vLeft <| ANum newLeft)
-                      --   :: ("top", replaceAv_ vTop <| ANum newTop)
-                      ("left", replaceAv_ vLeft <| AString (toString (Tuple.first newLeft) ++ "px"))
-                        :: ("top", replaceAv_ vTop <| AString (toString (Tuple.first newTop) ++ "px"))
-                        :: styles2
-              in
-              Just (shape0, ("style", newStyle) :: attrs1)
-            _ ->
-              Nothing
-        ))
-
-      _ -> Nothing
-  )
 
 
 strAVal : AVal -> String
@@ -921,10 +885,9 @@ foldSlateNodeInfo slate acc f =
 -- TODO use this to reduce clutter
 type alias AnimationKey = (Int, Int, Float)
 
--- HACK: see LocEqn.traceToMathExp...
--- TODO: streamline Trace, MathExp, etc.
-vNumFrozen n = { v_ = VConst Nothing (n, TrLoc (-999, frozen, toString n)), provenance = Provenance (eConstDummyLoc0 n) [], parents = Parents [] }
-vIntFrozen i = vNumFrozen (toFloat i)
+-- Features that depend on slide number are probably broken b/c trace doesn't carry the number.
+-- (Some code expects that traces will not have MathNums. You could try it and see what happens.)
+vIntFrozen n = { v_ = VConst Nothing (toFloat n, dummyTrace), provenance = Provenance (eConstDummyLoc0 (toFloat n)) [], parents = Parents [] }
 
 resolveToMovieCount : Bool -> Syntax -> Int -> Val -> Result String Int
 resolveToMovieCount showPreludeOffsets syntax slideNumber val =

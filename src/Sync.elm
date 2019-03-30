@@ -1,7 +1,7 @@
 module Sync exposing
   ( Options, defaultOptions, syncOptionsOf
   , HeuristicMode(..)
-  , locsOfTrace, locIsFrozen
+  , expToUnfrozenLocIdSet, unfrozenTraceLocIdSet, locIsFrozen
   , LiveInfo, Triggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
   , yellowAndGrayHighlights, hoverInfo
@@ -54,13 +54,11 @@ type HeuristicMode
 type alias Options =
   { thawedByDefault : Bool
   , heuristicsMode  : HeuristicMode
-  , unfreezeAll     : Bool
   }
 
 defaultOptions =
   { thawedByDefault = True
   , heuristicsMode  = HeuristicsBiased
-  , unfreezeAll     = False
   }
 
 syncOptionsOf oldOptions e =
@@ -81,28 +79,48 @@ syncOptionsOf oldOptions e =
 ------------------------------------------------------------------------------
 -- Locations of Trace
 
+
+-- Better to assume frozen (e.g. all of prelude)
+expToUnfrozenLocIdSet : Options -> Exp -> Set LocId
+expToUnfrozenLocIdSet options exp =
+  flattenExpTree exp
+  |> List.filterMap
+      (\e ->
+        case e.val.e__ of
+          EConst _ n ((locId, _, _) as loc) _ -> if locIsFrozen options loc then Nothing else Just locId
+          _                                   -> Nothing
+      )
+  |> Set.fromList
+
 locIsFrozen : Options -> Loc -> Bool
 locIsFrozen opts ((_,annot,_) as loc) =
   isPreludeLoc loc
-  || (annot == frozen && not opts.unfreezeAll)
+  || (annot == frozen)
   || (annot == unann  && not opts.thawedByDefault)
 
-locsOfTrace : Options -> Trace -> Set Loc
-locsOfTrace opts trace =
-  let locsOfTrace_ t = case t of
-    TrLoc loc -> if locIsFrozen opts loc then [] else [loc]
-    TrOp _ ts -> List.concatMap locsOfTrace_ ts
-  in
-  -- TODO do this filtering later if want gray highlights
-  --   even when not feeling lucky
-  let locSet = Set.fromList (locsOfTrace_ trace) in
-  if opts.heuristicsMode == HeuristicsNone && Set.size locSet >= 2
-  then Set.empty
-  else locSet
+unfrozenTraceLocIdSet : Set LocId -> Trace -> Set LocId
+unfrozenTraceLocIdSet unfrozenLocIdSet trace =
+  MathExp.mathExpToVarIds trace
+  |> List.filter (\locId -> Set.member locId unfrozenLocIdSet)
+  |> Set.fromList
 
-locsOfTraces : Options -> List Trace -> Set Loc
-locsOfTraces options traces =
-  List.map (locsOfTrace options) traces
+-- locsOfTrace : Options -> Trace -> Set Loc
+-- locsOfTrace opts trace =
+  -- let locsOfTrace_ t = case t of
+  --   TrLoc loc -> if locIsFrozen opts loc then [] else [loc]
+  --   TrOp _ ts -> List.concatMap locsOfTrace_ ts
+  -- in
+  -- -- TODO do this filtering later if want gray highlights
+  -- --   even when not feeling lucky
+  -- let locSet = Set.fromList (locsOfTrace_ trace) in
+  -- if opts.heuristicsMode == HeuristicsNone && Set.size locSet >= 2
+  -- then Set.empty
+  -- else locSet
+
+unfrozenTracesLocIdSet : Set LocId -> List Trace -> Set LocId
+unfrozenTracesLocIdSet unfrozenLocIdSet traces =
+  traces
+  |> List.map (unfrozenTraceLocIdSet unfrozenLocIdSet)
   |> Utils.unionAll
 
 
@@ -117,24 +135,24 @@ addCount k x dict     = Dict.insert x (k + getCount x dict) dict
 ------------------------------------------------------------------------------
 -- Counters for Biased Mode
 
-type alias BiasCounts = Dict Loc Int
+type alias BiasCounts = Dict LocId Int
 
 
-getLocationCounts : Options -> Canvas -> BiasCounts
-getLocationCounts options (slate, widgets) =
+getLocationCounts : Set LocId -> Canvas -> BiasCounts
+getLocationCounts unfrozenLocIdSet (slate, widgets) =
   let weightedScore kind (attrName, attrVal) acc =
     let k =
       -- because literal bounds will be unambiguously controlled by
       -- corner zones (and because bounding boxes are used often for
       -- stretchy shapes and groups), increase the bias against them
       case (kind, attrName, attrVal.interpreted) of
-        ("BOX", "LEFT",  ANum (_, TrLoc _)) -> 2
-        ("BOX", "RIGHT", ANum (_, TrLoc _)) -> 2
-        ("BOX", "TOP",   ANum (_, TrLoc _)) -> 2
-        ("BOX", "BOT",   ANum (_, TrLoc _)) -> 2
+        ("BOX", "LEFT",  ANum (_, MathVar _)) -> 2
+        ("BOX", "RIGHT", ANum (_, MathVar _)) -> 2
+        ("BOX", "TOP",   ANum (_, MathVar _)) -> 2
+        ("BOX", "BOT",   ANum (_, MathVar _)) -> 2
         _                                   -> 1
     in
-    Set.foldl (addCount k) acc (locsOfTraces options (tracesOfAVal attrVal))
+    Set.foldl (addCount k) acc (unfrozenTracesLocIdSet unfrozenLocIdSet (tracesOfAVal attrVal))
   in
   {- for comparison to weightedScore:
   let unweightedScore _ (_, attrVal) acc =
@@ -148,12 +166,12 @@ getLocationCounts options (slate, widgets) =
   in
   let addTriggerWidget widget acc =
     case widget of
-      WIntSlider _ _ _ _ _ loc _      -> incrementCount loc acc
-      WNumSlider _ _ _ _ _ loc _      -> incrementCount loc acc
-      WPoint (_, t1) _ (_, t2) _ _    -> Set.foldl incrementCount acc (locsOfTraces options [t1, t2])
-      WOffset1D _ _ _ _ (_, tr) _ _ _ -> Set.foldl incrementCount acc (locsOfTrace options tr)
-      WCall _ _ _ _ _                 -> acc
-      WList _                         -> acc
+      WIntSlider _ _ _ _ _ (locId, _, _) _ -> incrementCount locId acc
+      WNumSlider _ _ _ _ _ (locId, _, _) _ -> incrementCount locId acc
+      WPoint (_, t1) _ (_, t2) _ _         -> Set.foldl incrementCount acc (unfrozenTracesLocIdSet unfrozenLocIdSet [t1, t2])
+      WOffset1D _ _ _ _ (_, tr) _ _ _      -> Set.foldl incrementCount acc (unfrozenTraceLocIdSet unfrozenLocIdSet tr)
+      WCall _ _ _ _ _                      -> acc
+      WList _                              -> acc
   in
   let d  = LangSvg.foldSlateNodeInfo slate Dict.empty addTriggerNode in
   let d_ = List.foldl addTriggerWidget d widgets in
@@ -188,7 +206,7 @@ tracesOfAVal aval =
 ------------------------------------------------------------------------------
 -- Counters for Fair Mode
 
-type alias FairCounts = Dict (List (Maybe Loc)) Int
+type alias FairCounts = Dict (List (Maybe LocId)) Int
 
 
 ------------------------------------------------------------------------------
@@ -197,20 +215,20 @@ type alias FairCounts = Dict (List (Maybe Loc)) Int
 type alias MaybeCounts = Maybe (Either BiasCounts FairCounts)
 
 
-pickLocs : Subst -> Options -> MaybeCounts -> List Trace -> (List (Maybe Loc), Set Loc, MaybeCounts)
-pickLocs subst options maybeCounts traces =
-  let possibleLocSets =
+pickLocs : Subst -> Set LocId -> MaybeCounts -> List Trace -> (List (Maybe LocId), Set LocId, MaybeCounts)
+pickLocs subst unfrozenLocIdSet maybeCounts traces =
+  let possibleLocIdSets =
     traces
     |> List.map
         (\trace ->
           -- This function takes a decent amount of time (~0.5secs) when the output becomes larger.
           --
           -- Validate that loc can affect trace (i.e. not multiplied by 0 or something).
-          let mathExp = MathExp.traceToMathExp trace in
-          locsOfTrace options trace
+          let mathExp = trace in
+          unfrozenTraceLocIdSet unfrozenLocIdSet trace
           |> Set.toList -- May be faster than filtering as a set. It's not obviously slower.
           |> List.filter
-              (\(locId, _, _) ->
+              (\locId ->
                 let
                   derivativeWithRespectToLoc = MathExp.derivative locId mathExp
                   concreteDerivative = derivativeWithRespectToLoc |> MathExp.applySubst subst |> MathExp.evalToMaybeNum |> Maybe.withDefault 0
@@ -220,37 +238,33 @@ pickLocs subst options maybeCounts traces =
           |> Set.fromList
         )
   in
-  let allLocs = List.foldl Set.union Set.empty possibleLocSets in
+  let allLocs = Utils.unionAll possibleLocIdSets in
   let (assignedMaybeLocs, maybeCounts_) =
     case maybeCounts of
 
       Nothing ->
-        (List.map (always Nothing) possibleLocSets, Nothing)
+        (List.map (always Nothing) possibleLocIdSets, Nothing)
 
       Just (Left biasCounts) ->
-        (List.map (chooseBiased biasCounts) possibleLocSets, Just (Left biasCounts))
+        (List.map (chooseBiased biasCounts) possibleLocIdSets, Just (Left biasCounts))
 
       Just (Right fairCounts) ->
         Tuple.mapSecond (Just << Right) <|
-          chooseFairLocationAssignment possibleLocSets fairCounts
+          chooseFairLocationAssignment possibleLocIdSets fairCounts
   in
   (assignedMaybeLocs, allLocs, maybeCounts_)
 
 
-chooseBiased biasCounts locSet =
-  let sorted =
-    locSet
-      |> Set.toList
-      |> List.sortBy (\loc -> getCount loc biasCounts)
-           -- lower scores first
-           -- if there are ties, pick arbitrarily
-  in
-  case sorted of
-    loc :: _ -> Just loc
-    []       -> Nothing
+chooseBiased biasCounts locIdSet =
+  -- lower scores first
+  -- if there are ties, pick arbitrarily
+  locIdSet
+    |> Set.toList
+    |> List.sortBy (\locId -> getCount locId biasCounts)
+    |> List.head
 
 
-chooseFairLocationAssignment : List LocSet -> FairCounts -> (List (Maybe Loc), FairCounts)
+chooseFairLocationAssignment : List (Set LocId) -> FairCounts -> (List (Maybe LocId), FairCounts)
 chooseFairLocationAssignment locSets fairCounts =
 
   let noAssignment () =
@@ -300,12 +314,12 @@ type alias UpdateFunction
    -> (Int, Int)   -- change in mouse position (dx, dy)
    -> Maybe Num
 
-type alias TriggerElement = (AttrName, String, Loc, Trace, UpdateFunction)
-type alias Trigger = List TriggerElement
+type alias TriggerElement = (AttrName, String, LocId, Trace, UpdateFunction)
+type alias Trigger        = List TriggerElement
 
 -- keeping these separate (rather than an Either key, which isn't comparable)
 --
-type alias Triggers = Dict (NodeId, RealZone) (Trigger, Set Loc, Set Loc)
+type alias Triggers = Dict (NodeId, RealZone) (Trigger, Set LocId, Set LocId)
 
 type alias LiveInfo =
   { triggers : Triggers
@@ -325,19 +339,20 @@ prepareLiveUpdates_ options e (slate, widgets) =
 
   let initSubstPlus = substPlusOf e in
   let initSubst = Dict.map (always .val) initSubstPlus in
+  let unfrozenLocIdSet = expToUnfrozenLocIdSet options e in
   let maybeCounts =
     if options.heuristicsMode == HeuristicsFair then
       Just (Right Dict.empty)
     else if options.heuristicsMode == HeuristicsBiased then
-      Just (Left (getLocationCounts options (slate, widgets)))
+      Just (Left (getLocationCounts unfrozenLocIdSet (slate, widgets)))
     else {- options.heuristicsMode == HeuristicsNone -}
       Nothing
   in
   let (shapeTriggers, maybeCounts_) =
-    computeShapeTriggers (options, initSubst) slate maybeCounts
+    computeShapeTriggers (unfrozenLocIdSet, initSubst) slate maybeCounts
   in
   let (widgetTriggers, maybeCounts__) =
-    computeWidgetTriggers (options, initSubst) widgets maybeCounts_
+    computeWidgetTriggers (unfrozenLocIdSet, initSubst) widgets maybeCounts_
   in
 
   Ok { initSubstPlus = initSubstPlus
@@ -349,7 +364,7 @@ prepareLiveUpdates_ options e (slate, widgets) =
 -- Computing Triggers
 
 computeShapeTriggers
-    : (Options, Subst) -> RootedIndexedTree -> MaybeCounts
+    : (Set LocId, Subst) -> RootedIndexedTree -> MaybeCounts
    -> (Triggers, MaybeCounts)
 
 computeShapeTriggers info slate initMaybeCounts =
@@ -385,32 +400,32 @@ computeShapeTriggers info slate initMaybeCounts =
 
 
 computeWidgetTriggers
-    : (Options, Subst) -> Widgets -> MaybeCounts
+    : (Set LocId, Subst) -> Widgets -> MaybeCounts
    -> (Triggers, MaybeCounts)
 
-computeWidgetTriggers (options, subst) widgets initMaybeCounts =
+computeWidgetTriggers (unfrozenLocIdSet, subst) widgets initMaybeCounts =
   let wSlider = params.mainSection.uiWidgets.wSlider in
 
   let processWidget (i, widget) accResult =
     let idAsShape = -2 - i in
     case widget of
 
-      WNumSlider minVal maxVal _ curVal _ loc _ ->
+      WNumSlider minVal maxVal _ curVal _ (locId, _, _) _ ->
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
             |> clamp minVal maxVal
         in
-        let options_ = { options | unfreezeAll = True } in
-        addTrigger subst options_ idAsShape ZSlider [TrLoc loc]
+        let unfrozenLocIdSet_ = Set.singleton locId in
+        addTrigger subst unfrozenLocIdSet_ idAsShape ZSlider [MathVar locId]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
-            ( "", "dx", loc_, TrLoc loc
-            , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst loc_ (updateX dx) (TrLoc loc)
+            ( "", "dx", loc_, MathVar locId
+            , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst loc_ (updateX dx) (MathVar locId)
             ))
         )
         accResult
 
-      WIntSlider a b _ c _ loc _ ->
+      WIntSlider a b _ c _ (locId, _, _) _ ->
         let (minVal, maxVal, curVal) = (toFloat a, toFloat b, toFloat c) in
         let updateX dx =
           curVal + (toFloat dx / toFloat wSlider) * (maxVal - minVal)
@@ -418,18 +433,18 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
             |> round
             |> toFloat
         in
-        let options_ = { options | unfreezeAll = True } in
-        addTrigger subst options_ idAsShape ZSlider [TrLoc loc]
+        let unfrozenLocIdSet_ = Set.singleton locId in
+        addTrigger subst unfrozenLocIdSet_ idAsShape ZSlider [MathVar locId]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
-            ( "", "dx", loc_, TrLoc loc
-            , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst loc_ (updateX dx) (TrLoc loc)
+            ( "", "dx", loc_, MathVar locId
+            , \solutionsCache _ (dx,_) -> solveOne solutionsCache subst loc_ (updateX dx) (MathVar locId)
             ))
         )
         accResult
 
       WPoint (x, xTrace) xProvenance (y, yTrace) yProvenance pairProvenance ->
-        addTrigger subst options idAsShape (ZPoint LonePoint) [xTrace, yTrace]
+        addTrigger subst unfrozenLocIdSet idAsShape (ZPoint LonePoint) [xTrace, yTrace]
         ( Utils.unwrap2 >> \(xMaybeLoc, yMaybeLoc) ->
             mapMaybeToList xMaybeLoc (\xLoc ->
               ( "", "dx", xLoc, xTrace
@@ -443,7 +458,7 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
         accResult
 
       WOffset1D baseXNumTr baseYNumTr axis sign (amount, amountTrace) amountProvenance endXProvenance endYProvenance ->
-        addTrigger subst options idAsShape ZOffset1D [amountTrace]
+        addTrigger subst unfrozenLocIdSet idAsShape ZOffset1D [amountTrace]
         (Utils.unwrap1 >> \maybeLoc ->
           mapMaybeToList maybeLoc (\loc_ ->
             ( "", if axis == X then "dx" else "dy", loc_, amountTrace
@@ -463,10 +478,10 @@ computeWidgetTriggers (options, subst) widgets initMaybeCounts =
 
 -- Helpers --
 
-addTrigger subst options id realZone traces makeTrigger (dict, maybeCounts) =
+addTrigger subst unfrozenLocIdSet id realZone traces makeTrigger (dict, maybeCounts) =
   let key = (id, realZone) in
   let (assignedMaybeLocs, allLocs, maybeCounts_) =
-    pickLocs subst options maybeCounts traces in
+    pickLocs subst unfrozenLocIdSet maybeCounts traces in
   let trigger = makeTrigger assignedMaybeLocs in
   let yellowLocs =
      List.foldl (\triggerElt acc ->
@@ -479,9 +494,9 @@ addTrigger subst options id realZone traces makeTrigger (dict, maybeCounts) =
   (dict_, maybeCounts_)
 
 
-solveOne : Solver.SolutionsCache -> Subst -> Loc -> Num -> Trace -> Maybe Num
-solveOne solutionsCache subst (k,_,_) n_ t =
-  let subst_ = Dict.remove k subst in
+solveOne : Solver.SolutionsCache -> Subst -> LocId -> Num -> Trace -> Maybe Num
+solveOne solutionsCache subst locId n_ t =
+  let subst_ = Dict.remove locId subst in
   let maybeSolution = Solver.solveTrace solutionsCache subst_ t n_ in
   maybeSolution
   |> Utils.filterMaybe (not << isNaN)
@@ -497,13 +512,13 @@ mapMaybeToList mx f =
 -- Rect Triggers --
 
 computeRectTriggers
-     : (Options, Subst)
+     : (Set LocId, Subst)
     -> MaybeCounts
     -> (NodeId, ShapeKind, List Attr)
-    -> (Dict (NodeId, RealZone) (Trigger, Set Loc, Set Loc), MaybeCounts)
+    -> (Dict (NodeId, RealZone) (Trigger, Set LocId, Set LocId), MaybeCounts)
 
-computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addTrigger subst options id in
+computeRectTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addTrigger subst unfrozenLocIdSet id in
 
   let ((x, xTrace), (y, yTrace), (w, wTrace), (h, hTrace)) =
     Utils.unwrap4 <|
@@ -600,8 +615,8 @@ computeRectTriggers (options, subst) maybeCounts (id, _, attrs) =
 
 -- Line Triggers --
 
-computeLineTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addTrigger subst options id in
+computeLineTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addTrigger subst unfrozenLocIdSet id in
 
   let ((x1, x1Trace), (y1, y1Trace), (x2, x2Trace), (y2, y2Trace)) =
     Utils.unwrap4 <|
@@ -645,8 +660,8 @@ computeLineTriggers (options, subst) maybeCounts (id, _, attrs) =
 -- NOTE: choosing not to update center with eight point zones
 -- TODO: add an option
 
-computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addTrigger subst options id in
+computeEllipseTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addTrigger subst unfrozenLocIdSet id in
 
   let ((cx, cxTrace), (cy, cyTrace), (rx, rxTrace), (ry, ryTrace)) =
     Utils.unwrap4 <|
@@ -736,8 +751,8 @@ computeEllipseTriggers (options, subst) maybeCounts (id, _, attrs) =
 -- NOTE: choosing not to update center with eight point zones
 -- TODO: add an option
 
-computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addTrigger subst options id in
+computeCircleTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addTrigger subst unfrozenLocIdSet id in
 
   let co = (*) 1 in
   let contra = (*) -1 in
@@ -837,8 +852,8 @@ computeCircleTriggers (options, subst) maybeCounts (id, _, attrs) =
 
 -- Box/Oval Triggers --
 
-computeBoxOrOvalTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addTrigger subst options id in
+computeBoxOrOvalTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addTrigger subst unfrozenLocIdSet id in
 
   let ((left, leftTrace), (top, topTrace), (right, rightTrace), (bot, botTrace)) =
     Utils.unwrap4 <|
@@ -983,9 +998,9 @@ addInteriorZone_ finishTrigger pointX pointY indexedPoints result =
   ) result
 
 
-computePolyTriggers (options, subst) maybeCounts (id, kind, attrs) =
+computePolyTriggers (unfrozenLocIdSet, subst) maybeCounts (id, kind, attrs) =
 
-  let finishTrigger = addTrigger subst options id in
+  let finishTrigger = addTrigger subst unfrozenLocIdSet id in
   let pointX = pointX_ subst in
   let pointY = pointY_ subst in
 
@@ -1007,9 +1022,9 @@ computePolyTriggers (options, subst) maybeCounts (id, kind, attrs) =
     |> addInteriorZone indexedPoints
 
 
-computePathTriggers (options, subst) maybeCounts (id, _, attrs) =
+computePathTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs) =
 
-  let finishTrigger = addTrigger subst options id in
+  let finishTrigger = addTrigger subst unfrozenLocIdSet id in
   let pointX = pointX_ subst in
   let pointY = pointY_ subst in
 
@@ -1026,8 +1041,8 @@ computePathTriggers (options, subst) maybeCounts (id, _, attrs) =
 
 -- Fill and Stroke Triggers --
 
-computeFillAndStrokeTriggers (options, subst) maybeCounts (id, _, attrs) =
-  let finishTrigger = addTrigger subst options id in
+computeFillAndStrokeTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs) =
+  let finishTrigger = addTrigger subst unfrozenLocIdSet id in
 
   let maybeAddColorTrigger realZone fillOrStroke (dict, maybeCounts) =
     case Utils.maybeFind fillOrStroke attrs |> Maybe.map .interpreted of
@@ -1133,7 +1148,7 @@ type alias LiveTrigger = Solver.SolutionsCache -> (Int, Int) -> (Int, Int) -> (E
 -- ShapeKind in zone key is used for display in caption, but not for keying the triggers dictionary.
 type alias ZoneKey = (NodeId, ShapeKind, RealZone) -- node id for a widget is -2 - (widget number starting from 1)
 
-lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set Loc, Set Loc)
+lookupZoneKey : ZoneKey -> LiveInfo -> (Trigger, Set LocId, Set LocId)
 lookupZoneKey zoneKey info =
   let errorString = "lookupZoneKey: " ++ toString zoneKey in
   let default =
@@ -1152,12 +1167,12 @@ prepareLiveTrigger info exp zoneKey solutionsCache (mx0,my0) (dx,dy) =
 
   let updates =
      List.foldl (\triggerElement acc ->
-       let (_, _, (k,_,_), _, updateFunction) = triggerElement in
-       case (Dict.get k acc, updateFunction solutionsCache (mx0,my0) (dx,dy)) of
+       let (_, _, locId, _, updateFunction) = triggerElement in
+       case (Dict.get locId acc, updateFunction solutionsCache (mx0,my0) (dx,dy)) of
 
-         (Nothing, maybeSolution) -> Dict.insert k maybeSolution acc
+         (Nothing, maybeSolution) -> Dict.insert locId maybeSolution acc
 
-         (Just Nothing, maybeSolution) -> Dict.insert k maybeSolution acc
+         (Just Nothing, maybeSolution) -> Dict.insert locId maybeSolution acc
 
          (Just (Just oldSolution), Nothing) ->
            -- keep oldSolution even if these solution failed.
@@ -1171,10 +1186,10 @@ prepareLiveTrigger info exp zoneKey solutionsCache (mx0,my0) (dx,dy) =
      ) Dict.empty trigger
   in
   let newSubst =
-     Dict.foldl (\k maybeNum acc ->
+     Dict.foldl (\locId maybeNum acc ->
        case maybeNum of
          Nothing -> acc
-         Just num -> Dict.insert k num acc
+         Just num -> Dict.insert locId num acc
      ) initSubst updates
   in
   let
@@ -1198,9 +1213,9 @@ acePos p = { row = p.line, column = p.col }
 aceRange : WithInfo a -> Ace.Range
 aceRange x = { start = acePos x.start, end = acePos x.end }
 
-makeHighlight : SubstPlus -> String -> Loc -> Maybe Ace.Highlight
-makeHighlight subst color (locid,_,_) =
-  Dict.get locid subst
+makeHighlight : SubstPlus -> String -> LocId -> Maybe Ace.Highlight
+makeHighlight subst color locId =
+  Dict.get locId subst
   |> Maybe.map (\n -> { color = color, range = aceRange n })
 
 
@@ -1236,9 +1251,9 @@ hoverInfo zoneKey info =
         List.partition (\(_,s,_,_,_) -> s == "dxy") list3
       in
       let strElements caption elements =
-        let foo (_,_,(k,_,x),_,_) =
-          let n = Utils.justGet_ ("hoverInfo: " ++ toString k) k info.initSubstPlus in
-          let locName = if x == "" then ("loc_" ++ toString k) else x in
+        let foo (_,_,locId,_,_) =
+          let n = Utils.justGet_ ("hoverInfo: " ++ toString locId) locId info.initSubstPlus in
+          let locName = "loc_" ++ toString locId in
           locName ++ Utils.parens (String.left 4 (toString n.val))
         in
         case elements of
@@ -1257,16 +1272,15 @@ hoverInfo zoneKey info =
 
 -- Colors for Zone Locations, During Direct Manipulation --
 
-highlightChanges : SubstPlus -> Set Loc -> SubstMaybeNum -> List Ace.Highlight
-highlightChanges initSubstPlus locs changes =
+highlightChanges : SubstPlus -> Set LocId -> SubstMaybeNum -> List Ace.Highlight
+highlightChanges initSubstPlus locIds changes =
 
   let (hi,stringOffsets) =
     -- hi : List Highlight, stringOffsets : List (Pos, Int)
     --   where Pos is start pos of a highlight to offset by Int chars
-    let f loc (acc1,acc2) =
-      let (locid,_,_) = loc in
-      let highlight c = makeHighlight initSubstPlus c loc |> Utils.fromJust_ "highlightChanges highlight: should not happen, function only called if locid in initSubstsPlus" in
-      case (Dict.get locid initSubstPlus, Dict.get locid changes) of
+    let f locId (acc1,acc2) =
+      let highlight c = makeHighlight initSubstPlus c locId |> Utils.fromJust_ "highlightChanges highlight: should not happen, function only called if locid in initSubstsPlus" in
+      case (Dict.get locId initSubstPlus, Dict.get locId changes) of
         (Nothing, _)             -> (acc1, acc2)
         (Just n, Nothing)        -> (highlight yellow :: acc1, acc2)
         (Just n, Just Nothing)   -> (highlight red :: acc1, acc2)
@@ -1278,7 +1292,7 @@ highlightChanges initSubstPlus locs changes =
             let x = (acePos n.start, String.length s_ - String.length s) in
             (highlight green :: acc1, x :: acc2)
     in
-    List.foldl f ([],[]) (Set.toList locs)
+    List.foldl f ([],[]) (Set.toList locIds)
   in
 
   let hi_ =

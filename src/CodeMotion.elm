@@ -13,8 +13,8 @@ import InterfaceModel exposing
   ( Model, SynthesisResult(..)
   , synthesisResult, setResultSafe, mapResultSafe, oneSafeResult, isResultSafe, setResultDescription
   )
-import LocEqn                         -- For twiddling and client-side simplification
-import MathExp exposing (MathExp(..)) -- For twiddling
+import LocEqn  -- For twiddling and client-side simplification
+import MathExp -- For twiddling
 import Provenance
 import Solver
 import Sync
@@ -2922,6 +2922,9 @@ resolveValueAndLocHoles allowReplacementOfHoleParentExps solutionsCache syncOpti
 
     -- _ = Utils.log <| "freshened: " ++ unparseWithIds programWithHoles
 
+    -- Better to assume frozen since prelude is frozen
+    unfrozenLocIdSet = Sync.expToUnfrozenLocIdSet syncOptions programWithHoles
+
     -- Want to see if we can de-duplicate expressions "around" a hole.
     -- This is the defintion of "around": non-control flow, non-lets, non-base vals.
     isPossibleExpandedExpForLifting exp =
@@ -2955,13 +2958,13 @@ resolveValueAndLocHoles allowReplacementOfHoleParentExps solutionsCache syncOpti
     expCouldMatchEnvVal : Exp -> Val -> Bool
     expCouldMatchEnvVal exp envVal =
       case ((expEffectiveExp exp).val.e__, envVal.v_) of
-        (EVar _ _, _)                                                       -> True
-        (EList _ heads _ Nothing _, VList vals)                             -> Utils.maybeZip heads vals |> Maybe.map (List.all (\((_, head), val) -> expCouldMatchEnvVal head val)) |> Maybe.withDefault False
-        (EOp _ op _ _, VConst _ (_, TrOp _ _))                              -> isMathOp_ op.val
-        (EConst _ expNum _ _, VConst _ (vNum, _))                           -> expNum == vNum
-        (EHole _ (HoleVal holeVal), _)                                      -> valToMaybeNum holeVal == valToMaybeNum envVal && (vListToMaybeVals holeVal |> Maybe.map List.length) == (vListToMaybeVals envVal |> Maybe.map List.length)
-        (EHole _ (HoleLoc holeLocId), VConst _ (_, TrLoc (valLocId, _, _))) -> holeLocId == valLocId
-        _                                                                   -> False
+        (EVar _ _, _)                                                 -> True
+        (EList _ heads _ Nothing _, VList vals)                       -> Utils.maybeZip heads vals |> Maybe.map (List.all (\((_, head), val) -> expCouldMatchEnvVal head val)) |> Maybe.withDefault False
+        (EOp _ op _ _, VConst _ (_, MathOp _ _))                      -> isMathOp_ op.val
+        (EConst _ expNum _ _, VConst _ (vNum, _))                     -> expNum == vNum
+        (EHole _ (HoleVal holeVal), _)                                -> valToMaybeNum holeVal == valToMaybeNum envVal && (vListToMaybeVals holeVal |> Maybe.map List.length) == (vListToMaybeVals envVal |> Maybe.map List.length)
+        (EHole _ (HoleLoc holeLocId), VConst _ (_, MathVar valLocId)) -> holeLocId == valLocId
+        _                                                             -> False
 
 
     -- Slow, definitive matching. Slow b/c resolve variables.
@@ -2985,7 +2988,7 @@ resolveValueAndLocHoles allowReplacementOfHoleParentExps solutionsCache syncOpti
           |> Maybe.map (List.all (\((_, head), val) -> expMatchesEnvVal program envDistalSameVals viewerEId head val))
           |> Maybe.withDefault False
 
-        (EOp _ expOp childExps _, VConst _ (_, TrOp trOp_ _)) ->
+        (EOp _ expOp childExps _, VConst _ (_, MathOp trOp_ _)) ->
           -- A math EOp would never show up as a provenance parent of an EHoleVal.
           -- BUT we could still get here if only LocHoles in the expanded exp.
           expOp.val == trOp_ &&
@@ -3005,8 +3008,9 @@ resolveValueAndLocHoles allowReplacementOfHoleParentExps solutionsCache syncOpti
                 |> Maybe.withDefault False
               )
 
-        (EConst _ expNum _ _, VConst _ (vNum, TrLoc (_,annot,_))) ->
-          expNum == vNum && annot == frozen
+        (EConst _ expNum _ _, VConst _ (vNum, MathVar valLocId)) ->
+          expNum == vNum && not (Set.member valLocId unfrozenLocIdSet) -- Frozen val.
+          -- Not sure why we aren't alternatively looking for locId matches.
 
         (EHole _ (HoleVal holeVal), _) ->
           Provenance.valsSame envVal holeVal
@@ -3412,7 +3416,7 @@ resolveValueAndLocHoles allowReplacementOfHoleParentExps solutionsCache syncOpti
         |> Dict.fromList
         |> Dict.union Parser.preludeSubst
 
-      holeMathExps = holeVals |> List.map (valToTrace >> MathExp.traceToMathExp >>  MathExp.applySubst locIdToFrozenNum >> Solver.simplify solutionsCache)
+      holeMathExps = holeVals |> List.map (valToTrace >>  MathExp.applySubst locIdToFrozenNum >> Solver.simplify solutionsCache)
 
       programWithNumericValHolesReplacedByInlinedTraces =
         Utils.zip holeEIds holeMathExps

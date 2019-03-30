@@ -3,37 +3,32 @@
 module MathExp exposing (..)
 
 
-import Lang exposing (Exp, Num, Op_(..), Trace(..), Ident, Exp__(..))
+import Lang exposing (MathExp(..), Exp, Num, Op_(..), Ident, Exp__(..))
 import Utils
 
 import Dict exposing (Dict)
 
 
--- TODO streamline Equation/MathExp/Trace; see note in LocEqn.elm
+-- TODO streamline Equation/MathExp; see note in LocEqn.elm
 
-type MathExp
-  = MathNum Num
-  | MathVar Int -- Variable identifiers, often locIds
-  | MathOp Op_ (List MathExp)
+-- MathExp is defined in Lang.elm. For reference:
+--
+-- type MathExp
+--   = MathNum Num
+--   | MathVar Int -- Variable identifiers, often locIds
+--   | MathOp Op_ (List MathExp)
 
 
 neg : MathExp -> MathExp
 neg x = MathOp Minus [MathNum 0, x]
 
 
-traceToMathExp : Trace -> MathExp
-traceToMathExp trace =
-  case trace of
-    TrLoc (locId, _, _) -> MathVar locId
-    TrOp op_ children   -> MathOp op_ (List.map traceToMathExp children)
-
-
-mathExpVarIds : MathExp -> List Int
-mathExpVarIds mathExp =
+mathExpToVarIds : MathExp -> List Int
+mathExpToVarIds mathExp =
   case mathExp of
     MathNum _           -> []
     MathVar varId       -> [varId]
-    MathOp _ childTerms -> List.concatMap mathExpVarIds childTerms
+    MathOp _ childTerms -> List.concatMap mathExpToVarIds childTerms
 
 
 -- Assumes no variables remain, otherwise returns Nothing with a debug message.
@@ -191,3 +186,40 @@ expToMaybeMathExp_ identToVarId exp =
 
     _ ->
       Nothing
+
+
+-- Based on SolverServer.mathExpToREDUCE
+--
+-- For debugging purposes.
+mathExpToString : MathExp -> String
+mathExpToString mathExp =
+  case mathExp of
+    MathNum n     -> toString n
+    MathVar varId -> "x" ++ toString varId
+    MathOp op_ children ->
+      let childPerhapsParens childTerm =
+        case childTerm of
+          MathOp ArcTan2 _ -> mathExpToString childTerm
+          MathOp _ [_, _]  -> "(" ++ mathExpToString childTerm ++ ")"
+          _                -> mathExpToString childTerm
+      in
+      case (op_, children) of
+        (Plus,    [l,r]) -> childPerhapsParens l ++ " + " ++ childPerhapsParens r
+        (Minus,   [l,r]) -> childPerhapsParens l ++ " - " ++ childPerhapsParens r
+        (Mult,    [l,r]) -> childPerhapsParens l ++ " * " ++ childPerhapsParens r
+        (Div,     [l,r]) -> childPerhapsParens l ++ " / " ++ childPerhapsParens r
+        (Pow,     [l,r]) -> "(" ++ mathExpToString l ++ ")^" ++ childPerhapsParens r  -- Extra parens to prevent misinterpreting negative signs before powers
+        (Mod,     [l,r]) -> childPerhapsParens l ++ " mod " ++ childPerhapsParens r
+        (ArcTan2, [l,r]) -> "atan2(" ++ mathExpToString l ++ ", " ++ mathExpToString r ++ ")"
+        (Cos,     [n])   -> "cos(" ++ mathExpToString n ++ ")"
+        (Sin,     [n])   -> "sin(" ++ mathExpToString n ++ ")"
+        (ArcCos,  [n])   -> "acos(" ++ mathExpToString n ++ ")"
+        (ArcSin,  [n])   -> "asin(" ++ mathExpToString n ++ ")"
+        (Abs,     [n])   -> "abs(" ++ mathExpToString n ++ ")"
+        (Floor,   [n])   -> "floor(" ++ mathExpToString n ++ ")"
+        (Ceil,    [n])   -> "ceiling(" ++ mathExpToString n ++ ")"
+        (Round,   [n])   -> "round(" ++ mathExpToString n ++ ")"
+        (Sqrt,    [n])   -> "sqrt(" ++ mathExpToString n ++ ")"
+        (Ln,      [n])   -> "ln(" ++ mathExpToString n ++ ")"
+        (Pi,      [])    -> "π"
+        _                -> let _ = Debug.log "MathExp.mathExpToString: Didn't know how to convert this to string" mathExp in "(" ++ toString mathExp ++ ")"

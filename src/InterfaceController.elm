@@ -13,7 +13,7 @@ port module InterfaceController exposing
   , msgOutputCanvasUpdate
   , msgUndo, msgRedo, msgCleanCode
   , msgHideWidgets
-  , msgDigHole, msgMakeEqual, msgRelate, msgIndexedRelate, msgAbstract, msgFillPBEHole, msgRepeatByIndexedMerge, msgRepeatUsingFunction, msgRepeatUsingPointList
+  , msgMakeEqual, msgRelate, msgIndexedRelate, msgAbstract, msgFillPBEHole, msgRepeatByIndexedMerge, msgRepeatUsingFunction, msgRepeatUsingPointList
   , msgSelectSynthesisResult
   , msgSetAutoSynthesis
   , msgHoverSynthesisResult, msgPreview, msgClearPreview
@@ -25,7 +25,6 @@ port module InterfaceController exposing
   , msgAddToOutput
   , msgReorderInList
   , msgGroup, msgDuplicate, msgMerge
-  , msgReplicateBlob
   , msgToggleCodeBox
   , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
@@ -1660,29 +1659,6 @@ hideWidgets old =
     old
 
 
-msgDigHole = Msg "Dig Hole" <| \old ->
-  let newExp =
-    ValueBasedTransform.digHole old.inputExp old.selectedFeatures old.slate old.widgets old.syncOptions
-  in
-  { old | code = Syntax.unparser old.syntax newExp } |> clearSelections |> upstateRun
-  -- runWithErrorHandling old newExp (\reparsed newVal newWidgets newSlate newCode ->
-  --   debugLog "new model" <|
-  --   clearSelections <|
-  --     { old | code             = newCode
-  --           , inputExp         = reparsed
-  --           , inputVal         = newVal
-  --           , valueEditorString = Update.valToString newVal
-  --           , history          = modelCommit newCode [] old.history
-  --           , slate            = newSlate
-  --           , widgets          = newWidgets
-  --           , preview          = Nothing
-  --             -- we already ran it successfully once so it shouldn't crash the second time
-  --           , liveSyncInfo     = Utils.fromOk "DigHole MkLive" <|
-  --                                  mkLive old.syntax old.syncOptions
-  --                                    old.slideNumber old.movieNumber old.movieTime reparsed
-  --                                    (newVal, newWidgets)
-  --     }
-  -- )
 
 msgMakeEqual = Msg "Make Equal" doMakeEqual
 
@@ -2328,14 +2304,6 @@ msgMerge = Msg "Merge" <| \old ->
   in
   { old | synthesisResultsDict = Dict.insert "Merge" (cleanDedupSortSynthesisResults old synthesisResults) old.synthesisResultsDict }
 
-
--- msgAbstractBlobs = Msg "Abstract Blobs" <| \old ->
---   upstateRun <| ETransform.abstractSelectedBlobs old
-
-msgReplicateBlob option = Msg "Replicate Blob" <| \old ->
-  case Blobs.maybeSimpleProgram old.inputExp of
-    Nothing     -> old
-    Just simple -> upstateRun <| ETransform.replicateSelectedBlob option old simple
 
 --------------------------------------------------------------------------------
 
