@@ -26,6 +26,7 @@ module Draw exposing
 import CodeMotion
 import DrawAddShape
 import Lang exposing (..)
+import LangSimplify
 import LangSvg
 import Types
 import Blobs exposing (..)
@@ -303,6 +304,7 @@ drawNewFunction dotScalingFactor fName model pt1 pt2 =
         |> replaceExpNode
             (LangTools.lastSameLevelExp model.inputExp).val.eid
             callExp
+        |> LangSimplify.removeUnusedLetPats -- Remove unused vars. This makes icon regeneration for Koch depth 3 much much faster (like 40 seconds faster).
             -- (eApp funcExp (LangTools.expToAppArgs (expEffectiveExp callExp)))
         -- |> (\program -> let _ = Utils.log <| Syntax.unparser Syntax.Elm program in program)
       in
