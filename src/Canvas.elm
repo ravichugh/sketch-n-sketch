@@ -2150,20 +2150,15 @@ makeZonesEllipseOrOval model id shape l =
   in
   primaryWidgets :: extraWidgets
 
+-- Turn off polygon line/point zones for speed for large polygons (namely, Koch depth 3).
+-- Usually the point widgets on the vertices are sufficient anyway.
+--
+-- Sync.computePolyTriggers is the really slow part, but if we don't compute
+-- there's no reason to display.
 makeZonesPoly model shape id l =
   let _ = Utils.assert "makeZonesPoly" (shape == "polygon" || shape == "polyline") in
   let transform = maybeTransformAttr l in
   let pts = LangSvg.getPolyPoints l in
-  let ptVals =
-    case Utils.maybeFind "points" l of
-      Just aval -> aval.val |> vListToVals "makeZonesPoly ptVals"
-      Nothing   -> Debug.crash "makeZonesPoly ptVals"
-  in
-  let zPts = zonePoints model id shape transform pts in
-  let zLines =
-    let pairs = Utils.overlappingAdjacentPairs_ (shape == "polygon") pts in
-    let f (i,(((x1,_), (y1,_)), ((x2,_), (y2,_)))) = zoneLine2 model id shape (ZPolyEdge i) (x1, y1) (x2, y2) transform in
-    Utils.mapi1 f pairs in
   let zInterior =
     draggableZone Svg.polygon False model id shape ZInterior <|
       [ LangSvg.compileAttr "points" (LangSvg.aPoints pts)
@@ -2187,29 +2182,49 @@ makeZonesPoly model shape id l =
       (((x0,_),(y0,_))::_) ->
         zonesFillAndStroke model id shape x0 y0 l
       _ ->
-        Debug.crash "makeZonesPoly" in
-  let zSelect =
-    let midptCrossDot i1 =
-      let midXVal = ShapeWidgets.evaluateFeatureEquation_ (ShapeWidgets.shapeFeatureEquation (XFeat (Midpoint i1)) shape l) in
-      let midYVal = ShapeWidgets.evaluateFeatureEquation_ (ShapeWidgets.shapeFeatureEquation (YFeat (Midpoint i1)) shape l) in
-      zoneSelectCrossDot model False (id, shape, Midpoint i1) midXVal midYVal dummyVal
-    in
-    let ptCrossDot (i, ptVal) =
-      let (xVal, yVal) = valToMaybeXYVals ptVal |> Utils.fromJust_ "makeZonesPoly ptCrossDot" in
-      zoneSelectCrossDot model False (id, shape, Point i) xVal yVal ptVal
-    in
-    let midptCrossDots =
-      let ptsI = Utils.zipi1 ptVals in
-      List.concatMap midptCrossDot (List.range 1 (List.length ptVals))
-    in
-    let crossDots = List.concat <| Utils.mapi1 ptCrossDot ptVals in
-    midptCrossDots ++ crossDots
+        Debug.crash "makeZonesPoly"
+  in
+  let perhapsPointAndEdgeZones =
+    if List.length pts > 50 then
+      -- Koch depth 3
+      []
+    else
+      -- not Koch depth 3
+      let ptVals =
+        case Utils.maybeFind "points" l of
+          Just aval -> aval.val |> vListToVals "makeZonesPoly ptVals"
+          Nothing   -> Debug.crash "makeZonesPoly ptVals"
+      in
+      let zPts = zonePoints model id shape transform pts in
+      let zLines =
+        let pairs = Utils.overlappingAdjacentPairs_ (shape == "polygon") pts in
+        let f (i,(((x1,_), (y1,_)), ((x2,_), (y2,_)))) = zoneLine2 model id shape (ZPolyEdge i) (x1, y1) (x2, y2) transform in
+        Utils.mapi1 f pairs
+      in
+      let zSelect =
+        let midptCrossDot i1 =
+          let midXVal = ShapeWidgets.evaluateFeatureEquation_ (ShapeWidgets.shapeFeatureEquation (XFeat (Midpoint i1)) shape l) in
+          let midYVal = ShapeWidgets.evaluateFeatureEquation_ (ShapeWidgets.shapeFeatureEquation (YFeat (Midpoint i1)) shape l) in
+          zoneSelectCrossDot model False (id, shape, Midpoint i1) midXVal midYVal dummyVal
+        in
+        let ptCrossDot (i, ptVal) =
+          let (xVal, yVal) = valToMaybeXYVals ptVal |> Utils.fromJust_ "makeZonesPoly ptCrossDot" in
+          zoneSelectCrossDot model False (id, shape, Point i) xVal yVal ptVal
+        in
+        let midptCrossDots =
+          let ptsI = Utils.zipi1 ptVals in
+          List.concatMap midptCrossDot (List.range 1 (List.length ptVals))
+        in
+        let crossDots = List.concat <| Utils.mapi1 ptCrossDot ptVals in
+        midptCrossDots ++ crossDots
+      in
+      zLines ++ zSelect ++ zPts
   in
   let primaryWidgets =
     let (x1,x2,y1,y2) = Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) in
     groupWithInvisibleBoxForRemovingHoveredShape model id (x1,y1,x2,y2) <|
       perhapsLabelWidgetForShape model id x1 y1 ++
-      [zInterior] ++ zLines ++ zSelect ++ zPts
+      [zInterior] ++ perhapsPointAndEdgeZones
   in
   primaryWidgets :: zRot ++ zFillAndStroke
 

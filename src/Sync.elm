@@ -998,28 +998,37 @@ addInteriorZone_ finishTrigger pointX pointY indexedPoints result =
   ) result
 
 
+-- Koch depth 3 is 20sec (28%) faster if we don't compute/display the poly point/edge zones.
+--
+-- See also Canvas.makeZonesPoly (also has the 50 point limit hardcoded).
 computePolyTriggers (unfrozenLocIdSet, subst) maybeCounts (id, kind, attrs) =
 
   let finishTrigger = addTrigger subst unfrozenLocIdSet id in
   let pointX = pointX_ subst in
   let pointY = pointY_ subst in
 
-  let addPointZones = addPointZones_ finishTrigger pointX pointY in
-  let addEdgeZones = addEdgeZones_ finishTrigger pointX pointY in
   let addInteriorZone = addInteriorZone_ finishTrigger pointX pointY in
 
   let indexedPoints = Utils.mapi1 identity (LangSvg.getPolyPoints attrs) in
-  let edges =
-    if kind == "polygon" then Utils.circOverlappingAdjacentPairs indexedPoints
-    else {- if kind == "polyline" -}
-      let n = List.length indexedPoints in
-      Utils.circOverlappingAdjacentPairs (List.take (n-1) indexedPoints)
-  in
 
-  (Dict.empty, maybeCounts)
-    |> addPointZones indexedPoints
-    |> addEdgeZones edges
-    |> addInteriorZone indexedPoints
+  if List.length indexedPoints > 50 then
+    -- Koch depth 3
+    (Dict.empty, maybeCounts)
+      |> addInteriorZone indexedPoints
+  else
+    -- not Koch depth 3
+    let addPointZones = addPointZones_ finishTrigger pointX pointY in
+    let addEdgeZones = addEdgeZones_ finishTrigger pointX pointY in
+    let edges =
+      if kind == "polygon" then Utils.circOverlappingAdjacentPairs indexedPoints
+      else {- if kind == "polyline" -}
+        let n = List.length indexedPoints in
+        Utils.circOverlappingAdjacentPairs (List.take (n-1) indexedPoints)
+    in
+    (Dict.empty, maybeCounts)
+      |> addPointZones indexedPoints
+      |> addEdgeZones edges
+      |> addInteriorZone indexedPoints
 
 
 computePathTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs) =
