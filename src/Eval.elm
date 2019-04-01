@@ -113,9 +113,11 @@ type alias PBEHolesSeenRefCell = { pbeHolesSeen : List PBEHoleSeen }
 doEvalEarlyAbort : Bool -> Maybe EId -> (Exp -> Bool) -> Syntax -> Env -> Exp -> Result String ((Val, Widgets), Maybe Env, List PBEHoleSeen)
 doEvalEarlyAbort showPreludeOffsets maybeRetEnvEId abortPred syntax initEnv e =
   let pbeHolesSeenRefCell = { pbeHolesSeen = [] } in
+  -- ImpureGoodies.logTimedRun "eval" (\() ->
   ImpureGoodies.tryCatch "EarlyAbort"
     (\()               -> eval showPreludeOffsets  maybeRetEnvEId abortPred syntax initEnv [] pbeHolesSeenRefCell e)
     (\(EarlyAbort ret) -> ret)
+  -- )
   |> Result.map (\((val, widgets), maybeEnv) -> ((val, postProcessWidgets e widgets), maybeEnv, pbeHolesSeenRefCell.pbeHolesSeen))
 
 
@@ -765,6 +767,7 @@ addSubsumingPriorWidgets widget widgets =
 
 postProcessWidgets : Exp -> List Widget -> List Widget
 postProcessWidgets program widgets =
+  -- ImpureGoodies.logTimedRun "postProcessWidgets" <| \() ->
   let
     dedupedWidgets =
       -- Our own deduped to avoid nasty val comparison freezes

@@ -710,10 +710,12 @@ slateAndCode old (exp, val) =
 
 mkLive : Syntax -> Sync.Options -> Int -> Int -> Float -> Exp -> (Val, Widgets) -> Result String Sync.LiveInfo
 mkLive syntax opts slideNumber movieNumber movieTime e (val, widgets) =
+  -- ImpureGoodies.logTimedRun "mkLive" <| (\_ ->
   LangSvg.resolveToRootedIndexedTree False syntax slideNumber movieNumber movieTime val |> Result.andThen (\slate ->
   Sync.prepareLiveUpdates opts e (slate, widgets)                           |> Result.andThen (\liveInfo ->
     Ok liveInfo
   ))
+  -- )
 
 --------------------------------------------------------------------------------
 

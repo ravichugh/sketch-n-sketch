@@ -322,10 +322,8 @@ type alias LiveInfo =
 
 prepareLiveUpdates : Options -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates options e (slate, widgets) =
+  -- ImpureGoodies.logTimedRun "Sync.prepareLiveUpdates" <| \_ ->
   prepareLiveUpdates_ options e (slate, widgets)
-  -- ImpureGoodies.logTimedRun "Sync.prepareLiveUpdates" (\() ->
-  --   prepareLiveUpdates_ options e (slate, widgets)
-  -- )
 
 prepareLiveUpdates_ : Options -> Exp -> Canvas -> Result String LiveInfo
 prepareLiveUpdates_ options e (slate, widgets) =
@@ -1163,6 +1161,8 @@ lookupZoneKey zoneKey info =
 
 prepareLiveTrigger : LiveInfo -> Exp -> ZoneKey -> LiveTrigger
 prepareLiveTrigger info exp zoneKey solutionsCache (mx0,my0) (dx,dy) =
+
+  -- ImpureGoodies.logTimedRun "prepareLiveTrigger" <| \_ ->
 
   let (trigger, yellowLocs, _) = lookupZoneKey zoneKey info in
   let initSubst = Dict.map (always .val) info.initSubstPlus in

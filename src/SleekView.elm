@@ -15,6 +15,8 @@ import Json.Encode as JsonE
 import Svg
 import Svg.Attributes as SAttr
 
+import ImpureGoodies
+
 import Utils
 import HtmlUtils exposing (..)
 import Either exposing (..)
@@ -2397,6 +2399,7 @@ popupPanels model =
 
 view : Model -> Html Msg
 view model =
+  -- ImpureGoodies.logTimedRun "view" <| \_ ->
   let
     needsRunFlag =
       if Model.needsRun model then

@@ -643,6 +643,9 @@ onMouseUp old =
     _ -> { old | mouseMode = MouseNothing, liveSyncInfo = refreshLiveInfo old }
 
 applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
+
+  -- ImpureGoodies.logTimedRun "applyTrigger" <| \_ ->
+
   let dx = if old.keysDown == Keys.y then 0 else (mx - mx0) in
   let dy = if old.keysDown == Keys.x then 0 else (my - my0) in
 
@@ -688,13 +691,14 @@ finishTrigger zoneKey old =
   -- TODO: make a Sync.finishTrigger function that takes care of this.
   --
   let old_ = old in
-  refreshHighlights zoneKey
-    { old_ | mouseMode = MouseNothing
-           , liveSyncInfo = refreshLiveInfo old_
-           , history = modelCommit old.code [] old_.history
-           , synthesisResultsDict = Dict.empty
-           , widgetBounds = ShapeWidgets.computeAndRejiggerWidgetBounds old_.widgets
-           }
+  -- ImpureGoodies.logTimedRun "finishTrigger" <| \_ ->
+    refreshHighlights zoneKey
+      { old_ | mouseMode = MouseNothing
+             , liveSyncInfo = refreshLiveInfo old_
+             , history = modelCommit old.code [] old_.history
+             , synthesisResultsDict = Dict.empty
+             , widgetBounds = ShapeWidgets.computeAndRejiggerWidgetBounds old_.widgets
+             }
 
 --------------------------------------------------------------------------------
 
@@ -732,7 +736,7 @@ tryRun old =
               , lastRunCode = old.code
         }
   in
-    case Syntax.parser old.syntax old.code of
+    case Syntax.parser old.syntax old.code of -- ImpureGoodies.logTimedRun "parse" (\_ -> Syntax.parser old.syntax old.code) of
       Err err ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       Ok e ->
@@ -760,8 +764,8 @@ tryRun old =
                       , runAnimation            = newMovieDuration > 0
                       , slate                   = newSlate
                       , widgets                 = ws
-                      , widgetBounds            = ShapeWidgets.computeAndRejiggerWidgetBounds ws
-                      , idToTypeAndContextThunk = AlgorithmJish.inferTypes e
+                      , widgetBounds            = ShapeWidgets.computeAndRejiggerWidgetBounds ws -- ImpureGoodies.logTimedRun "computeAndRejiggerWidgetBounds" <| \_ -> ShapeWidgets.computeAndRejiggerWidgetBounds ws
+                      , idToTypeAndContextThunk = AlgorithmJish.inferTypes e                     -- ImpureGoodies.logTimedRun "inferTypes"                     <| \_ -> AlgorithmJish.inferTypes e
                       , editingContext          = editingContext
                       , history                 = modelCommit newCode [] old.history
                       , caption                 = Nothing
@@ -840,7 +844,7 @@ tryRun old =
             )
           )
         in
-          case ImpureGoodies.crashToError resultThunk of
+          case ImpureGoodies.logTimedRun "tryRun" (\_ -> ImpureGoodies.crashToError resultThunk) of
             Err s         -> Err (oldWithUpdatedHistory, s, Nothing)
             Ok (Err s)    -> Err (oldWithUpdatedHistory, s, Nothing)
             Ok (Ok model) -> Ok model
