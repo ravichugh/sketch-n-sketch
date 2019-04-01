@@ -64,77 +64,150 @@ applySubst subst mathExp =
     MathOp op_ childTerms -> MathOp op_ (childTerms |> List.map (applySubst subst))
 
 
+-- -- Symbolic derivative. The below works if you want to uncomment it. But it's unused b/c of exponential blow-up in term size.
+-- --
+-- -- Instead, see applySubstAndEvaluateWithDerivative below.
+-- --
+-- -- https://en.wikipedia.org/wiki/Differentiation_rules
+-- derivative : Int -> MathExp -> MathExp
+-- derivative withRespectToVarId mathExp =
+--   let ddx mathExp = derivative withRespectToVarId mathExp in
+--   let failure = MathNum Utils.nan in
+--   case mathExp of
+--     MathNum n             -> MathNum 0
+--     MathVar varId         -> if varId == withRespectToVarId then MathNum 1 else MathNum 0
+--     MathOp op_ childTerms ->
+--       let
+--         chainRule df g = MathOp Mult [df g, ddx g] -- (f(g))' = f'(g) * g'
+--       in
+--       case (op_, childTerms) of
+--         (Plus,    [f, g]) -> MathOp Plus  [ddx f, ddx g]
+--         (Minus,   [f, g]) -> MathOp Minus [ddx f, ddx g]
+--         (Mult,    [f, g]) ->
+--           -- (f*g)' = f'*g + f*g'
+--           MathOp Plus
+--               [ MathOp Mult [ddx f, g]
+--               , MathOp Mult [f, ddx g]
+--               ]
+--
+--         (Div,     [f, g]) ->
+--           -- (f/g)' = ( f'*g - f*g' ) / g^2
+--           MathOp Div
+--               [ MathOp Minus [MathOp Mult [ddx f, g], MathOp Mult [f, ddx g]]
+--               , MathOp Mult [g, g]
+--               ]
+--
+--         (Pow,     [f, g]) ->
+--           -- Could add special cases here if desired for cleanliness.
+--           -- Assumes f > 0
+--           -- (f^g)' = f^g * (f'*g/f + g'*ln(f))
+--           MathOp Mult
+--               [ mathExp -- f^g
+--               , MathOp Plus
+--                   [ MathOp Mult [ddx f, MathOp Div [g, f]] -- f'*g/f
+--                   , MathOp Mult [ddx g, MathOp Ln [f]]     -- g'*ln(f)
+--                   ]
+--               ]
+--
+--         (Mod,     [f, g]) ->
+--           case evalToMaybeNum (ddx g) of
+--             Just 0.0 -> ddx f -- Technically discontinuous when f mod g == 0
+--             _        -> failure
+--
+--         (ArcTan2, [f, MathNum 1.0]) ->
+--           -- Assume 1st or 4th quadrant
+--           -- (atan x)' = 1 / (1+x^2)
+--           -- (atan f)' = f' / (1+f^2)
+--           MathOp Div
+--               [ ddx f -- f'
+--               , MathOp Plus [MathNum 1, MathOp Mult [f, f]] -- 1 + f^2
+--               ]
+--
+--         (ArcTan2, [f, g]) ->
+--           -- Assume equivalent to atan(f/g)
+--           ddx <| MathOp ArcTan2 [MathOp Div [f, g], MathNum 1.0]
+--
+--         (Cos,     [g])   -> g |> chainRule (\x -> neg (MathOp Sin [x])) -- (cos(x))' = -sin(x)
+--         (Sin,     [g])   -> g |> chainRule (\x -> MathOp Cos [x]) -- (sin(x))' = cos(x)
+--         (ArcCos,  [g])   -> g |> chainRule (\x -> MathOp Div [MathNum -1, MathOp Sqrt [MathOp Minus [MathNum 1, MathOp Mult [x, x]]]]) -- (acos(x))' = - 1/sqrt(1-x^2)
+--         (ArcSin,  [g])   -> g |> chainRule (\x -> MathOp Div [MathNum  1, MathOp Sqrt [MathOp Minus [MathNum 1, MathOp Mult [x, x]]]]) -- (asin(x))' =   1/sqrt(1-x^2)
+--         (Abs,     [g])   -> g |> chainRule (\x -> MathOp Div [x, MathOp Abs [x]]) -- (abs(x))' = x/abs(x) = sgn(x) -- Discontinuous at 0
+--         (Floor,   [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0
+--         (Ceil,    [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0
+--         (Round,   [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0.5
+--         (Sqrt,    [g])   -> g |> chainRule (\x -> MathOp Mult [MathNum 0.5, MathOp Pow [x, MathNum -0.5]]) -- (x^0.5)' = 0.5x^-0.5
+--         (Ln,      [g])   -> MathOp Div [ddx g, g] -- (ln(g))' = g'/g
+--         (Pi,      [])    -> MathNum 0
+--         _                -> let _ = Debug.log "Don't know how to differentiate" mathExp in failure
+
+
+-- Returns (NaN, NaN) and outputs a warning if a var doesn't exist in subst.
+--
+-- Don't remember which in which case evalToMaybeNum needed to ignore unknown variables multiplied by zero, so we'll ignore that for now. (Or use exceptions to handle it.)
+--
 -- https://en.wikipedia.org/wiki/Differentiation_rules
-derivative : Int -> MathExp -> MathExp
-derivative withRespectToVarId mathExp =
-  let ddx mathExp = derivative withRespectToVarId mathExp in
-  let failure = MathNum Utils.nan in
+applySubstAndEvaluateWithDerivative : Dict Int Num -> Int -> MathExp -> (Num, Num)
+applySubstAndEvaluateWithDerivative subst withRespectToVarId mathExp =
+  let recurse = applySubstAndEvaluateWithDerivative subst withRespectToVarId in
+  let failure = (Utils.nan, Utils.nan) in
   case mathExp of
-    MathNum n             -> MathNum 0
-    MathVar varId         -> if varId == withRespectToVarId then MathNum 1 else MathNum 0
+    MathNum n     -> (n, 0.0)
+    MathVar varId ->
+      case (Dict.get varId subst, varId == withRespectToVarId) of
+        (Just n, True)  -> (n, 1.0)
+        (Just n, False) -> (n, 0.0)
+        _               ->
+          let _ = Utils.log ("MathExp.applySubstAndEvaluateWithDerivative: Variable " ++ toString varId ++ " not found in substitutions: " ++ toString subst) in
+          failure
+
     MathOp op_ childTerms ->
-      let
-        chainRule df g = MathOp Mult [df g, ddx g] -- (f(g))' = f'(g) * g'
-      in
-      case (op_, childTerms) of
-        (Plus,    [f, g]) -> MathOp Plus  [ddx f, ddx g]
-        (Minus,   [f, g]) -> MathOp Minus [ddx f, ddx g]
-        (Mult,    [f, g]) ->
-          -- (f*g)' = f'*g + f*g'
-          MathOp Plus
-              [ MathOp Mult [ddx f, g]
-              , MathOp Mult [f, ddx g]
-              ]
-
-        (Div,     [f, g]) ->
-          -- (f/g)' = ( f'*g - f*g' ) / g^2
-          MathOp Div
-              [ MathOp Minus [MathOp Mult [ddx f, g], MathOp Mult [f, ddx g]]
-              , MathOp Mult [g, g]
-              ]
-
-        (Pow,     [f, g]) ->
+      -- Chain rule: (f(g))' = f'(g) * g'
+      case (op_, List.map recurse childTerms) of
+        (Plus,  [(f, df), (g, dg)]) -> (f + g, df + dg)
+        (Minus, [(f, df), (g, dg)]) -> (f - g, df - dg)
+        (Mult,  [(f, df), (g, dg)]) -> (f * g, df*g + f*dg)           -- (f*g)' = f'*g + f*g'
+        (Div,   [(f, df), (g, dg)]) -> (f / g, (df*g - f*dg) / (g*g)) -- (f/g)' = ( f'*g - f*g' ) / g^2
+        (Pow,   [(f, df), (g, dg)]) ->
           -- Could add special cases here if desired for cleanliness.
           -- Assumes f > 0
-          -- (f^g)' = f^g * (f'*g/f + g'*ln(f))
-          MathOp Mult
-              [ mathExp -- f^g
-              , MathOp Plus
-                  [ MathOp Mult [ddx f, MathOp Div [g, f]] -- f'*g/f
-                  , MathOp Mult [ddx g, MathOp Ln [f]]     -- g'*ln(f)
-                  ]
-              ]
+          -- (f^g)' = f^g * ( f'*g/f + g'*ln(f) )
+          ( f^g
+          , (f^g) * ( df*g/f + dg*(logBase e f) )
+          )
 
-        (Mod,     [f, g]) ->
-          case evalToMaybeNum (ddx g) of
-            Just 0.0 -> ddx f -- Technically discontinuous when f mod g == 0
-            _        -> failure
+        (Mod, [(f, df), (g, dg)]) ->
+          ( toFloat <| (%) (floor f) (floor g)
+          , if dg == 0.0 then 0.0 else Utils.nan -- Technically discontinuous when f mod g == 0
+          )
+          -- If we weren't flooring, could maybe use this:
+          -- case evalToMaybeNum (ddx g) of
+          --   Just 0.0 -> ddx f -- Technically discontinuous when f mod g == 0
+          --   _        -> failure
 
-        (ArcTan2, [f, MathNum 1.0]) ->
+        (ArcTan2, [(f, df), (1.0, 0.0)]) ->
           -- Assume 1st or 4th quadrant
-          -- (atan x)' = 1 / (1+x^2)
+          -- (atan x)' = 1  / (1+x^2)
           -- (atan f)' = f' / (1+f^2)
-          MathOp Div
-              [ ddx f -- f'
-              , MathOp Plus [MathNum 1, MathOp Mult [f, f]] -- 1 + f^2
-              ]
+          ( atan f
+          , df / ( 1 + f*f )
+          )
 
-        (ArcTan2, [f, g]) ->
+        (ArcTan2, [(f, df), (g, dg)]) ->
           -- Assume equivalent to atan(f/g)
-          ddx <| MathOp ArcTan2 [MathOp Div [f, g], MathNum 1.0]
+          recurse <| MathOp ArcTan2 [MathOp Div childTerms, MathNum 1.0]
 
-        (Cos,     [g])   -> g |> chainRule (\x -> neg (MathOp Sin [x])) -- (cos(x))' = -sin(x)
-        (Sin,     [g])   -> g |> chainRule (\x -> MathOp Cos [x]) -- (sin(x))' = cos(x)
-        (ArcCos,  [g])   -> g |> chainRule (\x -> MathOp Div [MathNum -1, MathOp Sqrt [MathOp Minus [MathNum 1, MathOp Mult [x, x]]]]) -- (acos(x))' = - 1/sqrt(1-x^2)
-        (ArcSin,  [g])   -> g |> chainRule (\x -> MathOp Div [MathNum  1, MathOp Sqrt [MathOp Minus [MathNum 1, MathOp Mult [x, x]]]]) -- (asin(x))' =   1/sqrt(1-x^2)
-        (Abs,     [g])   -> g |> chainRule (\x -> MathOp Div [x, MathOp Abs [x]]) -- (abs(x))' = x/abs(x) = sgn(x) -- Discontinuous at 0
-        (Floor,   [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0
-        (Ceil,    [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0
-        (Round,   [g])   -> MathNum 0 -- Technically discontinuous when g mod 0 == 0.5
-        (Sqrt,    [g])   -> g |> chainRule (\x -> MathOp Mult [MathNum 0.5, MathOp Pow [x, MathNum -0.5]]) -- (x^0.5)' = 0.5x^-0.5
-        (Ln,      [g])   -> MathOp Div [ddx g, g] -- (ln(g))' = g'/g
-        (Pi,      [])    -> MathNum 0
-        _                -> let _ = Debug.log "Don't know how to differentiate" mathExp in failure
+        (Cos,     [(x, dx)]) -> (cos x, -(sin x) * dx)         -- (cos(x))'  = -sin(x)
+        (Sin,     [(x, dx)]) -> (sin x,  (cos x) * dx)         -- (sin(x))'  =  cos(x)
+        (ArcCos,  [(x, dx)]) -> (acos x, -dx / sqrt (1 - x*x)) -- (acos(x))' = - 1/sqrt(1-x^2)
+        (ArcSin,  [(x, dx)]) -> (asin x,  dx / sqrt (1 - x*x)) -- (asin(x))' =   1/sqrt(1-x^2)
+        (Abs,     [(x, dx)]) -> (abs x, (x / abs x) * dx)      -- (abs(x))'  = x/abs(x) = sgn(x) -- Discontinuous at 0
+        (Floor,   [(x, dx)]) -> (toFloat (floor x),   0.0)     -- Technically discontinuous when g mod 0 == 0
+        (Ceil,    [(x, dx)]) -> (toFloat (ceiling x), 0.0)     -- Technically discontinuous when g mod 0 == 0
+        (Round,   [(x, dx)]) -> (toFloat (round x),   0.0)     -- Technically discontinuous when g mod 0 == 0.5
+        (Sqrt,    [(x, dx)]) -> (sqrt x, 0.5*x^(-0.5) * dx)    -- (x^0.5)' = 0.5x^-0.5
+        (Ln,      [(x, dx)]) -> (logBase e x, dx / x)          -- (ln(g))' = g'/g
+        (Pi,      [])        -> (pi, 0.0)
+        _                    -> let _ = Debug.log "Don't know how to differentiate" mathExp in failure
 
 
 mathExpToExp : (Num -> Exp) -> (Int -> Exp) -> MathExp -> Exp

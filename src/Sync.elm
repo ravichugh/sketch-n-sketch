@@ -221,21 +221,14 @@ pickLocs subst unfrozenLocIdSet maybeCounts traces =
     traces
     |> List.map
         (\trace ->
-          -- This function takes a decent amount of time (~0.5secs) when the output becomes larger.
-          --
           -- Validate that loc can affect trace (i.e. not multiplied by 0 or something).
           let mathExp = trace in
           unfrozenTraceLocIdSet unfrozenLocIdSet trace
-          |> Set.toList -- May be faster than filtering as a set. It's not obviously slower.
-          |> List.filter
+          |> Set.filter
               (\locId ->
-                let
-                  derivativeWithRespectToLoc = MathExp.derivative locId mathExp
-                  concreteDerivative = derivativeWithRespectToLoc |> MathExp.applySubst subst |> MathExp.evalToMaybeNum |> Maybe.withDefault 0
-                in
+                let (_, concreteDerivative) = MathExp.applySubstAndEvaluateWithDerivative subst locId mathExp in
                 not <| isNaN concreteDerivative || isInfinite concreteDerivative || 0.0 == concreteDerivative
               )
-          |> Set.fromList
         )
   in
   let allLocs = Utils.unionAll possibleLocIdSets in
