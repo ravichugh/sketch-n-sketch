@@ -942,15 +942,15 @@ menuBar model =
                   )
                   "Text"
                   Controller.msgSetOutputPrint
-              , simpleTextRadioButton
-                  ( case model.outputMode of
-                      ShowValue ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Value Editor"
-                  Controller.msgSetOutputShowValue
+              -- , simpleTextRadioButton
+              --     ( case model.outputMode of
+              --         ShowValue ->
+              --           True
+              --         _ ->
+              --           False
+              --     )
+              --     "Value Editor"
+              --     Controller.msgSetOutputShowValue
               ]
           ]
         , [ simpleTextButton

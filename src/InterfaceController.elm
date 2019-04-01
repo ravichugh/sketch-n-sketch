@@ -26,7 +26,7 @@ port module InterfaceController exposing
   , msgReorderInList
   , msgGroup, msgDuplicate, msgMerge
   , msgToggleCodeBox
-  , msgSetOutputLive, msgSetOutputPrint, msgSetOutputShowValue
+  , msgSetOutputLive, msgSetOutputPrint --, msgSetOutputShowValue
   , msgSetHeuristicsBiased, msgSetHeuristicsNone, msgSetHeuristicsFair
   , msgSetLiveSyncDelay
   , msgStartAnimation, msgRedraw, msgTickDelta
@@ -663,7 +663,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , inputVal = newVal
           , maybeEnv = maybeEnv -- Need for val comparisons to work nicely
           , contextInputVals = FocusedEditingContext.contextInputVals old.editingContext maybeEnv newExp
-          , valueEditorString = Update.valToString newVal
+          -- , valueEditorString = Update.valToString newVal
           , slate = newSlate
           , widgets = newWidgets
           , codeBoxInfo = codeBoxInfo_
@@ -749,7 +749,7 @@ tryRun old =
                       , inputVal                = newVal
                       , maybeEnv                = maybeEnv
                       , contextInputVals        = FocusedEditingContext.contextInputVals editingContext maybeEnv e
-                      , valueEditorString       = Update.valToString newVal
+                      -- , valueEditorString       = Update.valToString newVal
                       , code                    = newCode
                       , lastRunCode             = newCode
                       , slideCount              = newSlideCount
@@ -1539,9 +1539,9 @@ msgKeyDown keyCode =
             ShowValue -> doCallUpdate old
             _         -> old
 
-        else if old.outputMode == Live && keyCode == Keys.keyDown &&
-                List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
-          { old | outputMode = ShowValue }
+        -- else if old.outputMode == Live && keyCode == Keys.keyDown &&
+        --         List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
+        --   { old | outputMode = ShowValue }
         else if old.outputMode == ShowValue && keyCode == Keys.keyUp &&
                 List.any Keys.isCommandKey old.keysDown && List.length old.keysDown == 1 then
           { old | outputMode = Live }
@@ -2316,8 +2316,8 @@ msgSetOutputLive = Msg "Set Output Live" <| \old ->
 msgSetOutputPrint = Msg "Set Output Print" <| \old ->
   { old | outputMode = Print (LangSvg.printSvg old.showGhosts old.slate) }
 
-msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
-  { old | outputMode = ShowValue }
+-- msgSetOutputShowValue = Msg "Set Output Show Value" <| \old ->
+--   { old | outputMode = ShowValue }
 
 updateHeuristics : Sync.HeuristicMode -> Model -> Model
 updateHeuristics heuristic old =
