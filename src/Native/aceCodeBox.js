@@ -156,6 +156,19 @@ function diff(oldString, newString) {
   return diff;
 }
 
+// https://github.com/google/diff-match-patch/wiki/Line-or-Word-Diffs
+function diff_lineMode(text1, text2) {
+  var a = dmp.diff_linesToChars_(text1, text2);
+  var lineText1 = a.chars1;
+  var lineText2 = a.chars2;
+  var lineArray = a.lineArray;
+  var diff = dmp.diff_main(lineText1, lineText2, false);
+  dmp.diff_charsToLines_(diff, lineArray);
+  dmp.diff_cleanupSemantic(diff);
+  dmp.diff_cleanupMerge(diff);
+  return diff;
+}
+
 function advance(s) {
   var row = 0;
   var col = 0;
@@ -185,7 +198,8 @@ function displayCode(code, oldCode) {
   if (code == oldCode) {
 		editor.getSession().setValue(code);
   } else {
-    var codeDiff = diff(oldCode, code);
+    // var codeDiff = diff(oldCode, code);
+    var codeDiff = diff_lineMode(oldCode, code);
 
     var value = "";
     for (var i = 0; i < codeDiff.length; i++) {
