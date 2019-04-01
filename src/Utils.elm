@@ -552,6 +552,10 @@ findi_ i p xs = case xs of
   x::xs_ -> if p x then Just i else findi_ (i+1) p xs_
 
 -- 1-based
+listToIndexedDict : List a -> Dict Int a
+listToIndexedDict = zipi1 >> Dict.fromList
+
+-- 1-based
 geti : Int -> List a -> a
 geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
 

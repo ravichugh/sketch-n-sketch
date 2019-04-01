@@ -925,7 +925,9 @@ rejiggerWidgetBounds widgets boundsMaybes =
   let
     boundsMaybesIndexed = Utils.zipi1 boundsMaybes -- |> Debug.log "boundsMaybesIndexed"
 
-    containsDAG : List (List Int)
+    indexToWidget = Utils.listToIndexedDict widgets
+
+    containsDAG : Dict Int (List Int)-- List (List Int)
     containsDAG =
       boundsMaybesIndexed
       |> List.map
@@ -959,6 +961,7 @@ rejiggerWidgetBounds widgets boundsMaybes =
               Nothing ->
                 []
           )
+      |> Utils.listToIndexedDict
       -- |> Debug.log "containsDAG"
 
     -- Compute bounds after all descendent bounds have been computed.
@@ -975,7 +978,7 @@ rejiggerWidgetBounds widgets boundsMaybes =
                 calculated
               else
                 let
-                  descendentIs = Utils.geti i containsDAG
+                  descendentIs = Utils.getWithDefault i [] containsDAG
                   maybeDescendentBounds =
                     descendentIs
                     |> List.map (flip Dict.get calculated)
@@ -985,7 +988,7 @@ rejiggerWidgetBounds widgets boundsMaybes =
                 case (maybeDescendentBounds, Utils.geti i boundsMaybes) of
                   (Just (Just boundsToEnclose), Just thisBounds) ->
                     let
-                      thisWidget = Utils.geti i widgets
+                      thisWidget = Utils.justGet_ "" i indexToWidget
                       newBounds =
                         enclosureOfBoundsPair
                             thisBounds
