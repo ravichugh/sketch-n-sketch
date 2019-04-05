@@ -743,6 +743,14 @@ menuBar model =
           ]
         ]
 
+    examplesMenu =
+      let (_, uist19Examples) = Examples.uist19Category in
+      menu "Examples"
+        [ uist19Examples
+          |> List.map
+              (\(exampleName, _) -> simpleTextButton exampleName <| Controller.msgAskNew exampleName model.needsSave)
+        ]
+
     maybeCodeToolsMenu =
       let
         maybeEntry =
@@ -1151,13 +1159,14 @@ menuBar model =
             [ [logo]
             , [snsMenu]
             , [fileMenu]
+            , [examplesMenu]
             , maybeCodeToolsMenu
-            -- , [outputToolsMenu]
+            , [outputToolsMenu]
             , [viewMenu]
             , [optionsMenu]
-            -- temporary hack: just moving Output Tools menu farther to the right
-            , [Html.span [ Attr.style [ ("width", "200px") ] ] [ ]]
-            , [outputToolsMenu]
+            -- -- temporary hack: just moving Output Tools menu farther to the right
+            -- , [Html.span [ Attr.style [ ("width", "200px") ] ] [ ]]
+            -- , [outputToolsMenu]
             ]
           )
 

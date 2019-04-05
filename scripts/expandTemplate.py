@@ -2,6 +2,7 @@
 
 import sys
 from littleReader import *
+from leoReader import *
 
 if len(sys.argv) < 2 or len(sys.argv) > 3:
   print("Usage: expandTemplate.py BASENAME [SOURCEFOLDER]")
@@ -16,29 +17,36 @@ try:
 except IndexError:
   sourceFolder = "../examples/"
 
-inn = open(baseTemplate)
+inn = io.open(baseTemplate,encoding="utf8")
 
-generatedStr = ""
+generatedStr = u""
 
 for s in inn:
   s = trimNewline(s)
-  toks = s.split(" ")
-  if toks[0] == "LITTLE_TO_ELM":
+  toks = s.split(u" ")
+  if toks[0] == u"LITTLE_TO_ELM":
     if len(toks) != 2:
       print("Bad line:\n" + s)
       sys.exit()
     else:
       name = toks[1]
       for t in readLittle(name, sourceFolder): generatedStr += t
+  elif toks[0] == u"LEO_TO_ELM":
+    if len(toks) != 2:
+      print("Bad line:\n" + s)
+      sys.exit()
+    else:
+      name = toks[1]
+      for t in readLeo(name, sourceFolder): generatedStr += t
   else:
     generatedStr += s + "\n"
 
-oldGenerated = open(baseGenerated, "r")
+oldGenerated = io.open(baseGenerated, "r", encoding="utf8")
 oldGeneratedStr = oldGenerated.read()
 oldGenerated.close()
 
 if generatedStr != oldGeneratedStr:
-  write(open(baseGenerated, "w+"), generatedStr)
+  write(io.open(baseGenerated, "w+", encoding="utf8"), generatedStr)
   print("Wrote to " + baseGenerated)
 else:
   print(baseGenerated + " unchanged")

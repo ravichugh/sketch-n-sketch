@@ -1,7 +1,8 @@
-module ExamplesGenerated exposing (list, templateCategories)
+module ExamplesGenerated exposing (list, templateCategories, uist19Category)
 
 import Lang
-import FastParser exposing (parseE)
+import ElmParser
+import FastParser
 import Types
 import Eval
 import Utils
@@ -12,7 +13,14 @@ import Syntax
 makeExample name s =
   let thunk () =
     -- TODO tolerate parse errors, change Select Example
-    let e = Utils.fromOkay ("Error parsing example " ++ name) (parseE s) in
+    let e =
+      case ElmParser.parse s of
+        Ok e       -> e
+        Err elmErr ->
+          case FastParser.parseE s of
+            Ok e  -> e
+            Err _ -> Debug.crash <| "Error parsing example " ++ name ++ "\n" ++ toString elmErr
+    in
     -- let ati = Types.typecheck e in
     let ati = { annotations = [], highlights = [], tooltips = [] } in
     -----------------------------------------------------
@@ -3753,8 +3761,8 @@ spiralSpiralGraph =
 -- LITTLE_TO_ELM relatePoints3
 -- LITTLE_TO_ELM relatePoints4
 blank =
- """(svg (concat [
-]))
+ """svg (concat [
+])
 
 """
 
@@ -5698,203 +5706,944 @@ task_lambda =
 """
 
 
+uist19_arrows =
+ """
+pt2 = [405, 134]
+
+pt1 = [109, 238]
+
+color = 0
+
+strokeWidth = 5
+
+arrowFunc pt1 pt2 color strokeWidth =
+  let onLine2 = onLine pt1 pt2 0.7112162162162161 in
+  let onPerpendicularLine2 = onPerpendicularLine onLine2 pt2 1! in
+  let onPerpendicularLine3 = onPerpendicularLine onLine2 pt2 -1! in
+  let line1 = line color strokeWidth pt1 pt2 in
+  let line2 = line color strokeWidth onPerpendicularLine2 pt2 in
+  let line3 = line color strokeWidth onPerpendicularLine3 pt2 in
+  [line1, line2, line3]
+
+arrow = arrowFunc pt1 pt2 color strokeWidth
+
+arrowFunc1 = arrowFunc [286, 292] [476, 334] 0 5
+
+arrowFunc2 = arrowFunc [297, 446] [179, 353] 0 5
+
+svg (concat [
+  arrow,
+  arrowFunc1,
+  arrowFunc2
+])
+"""
+
+uist19_balance_scale =
+ """
+[centerX, pillarTop] as point2 = [236, 147]
+
+y3 = 181
+
+[x, y] as point = [89, 231]
+
+[x3, y3] as point3 = [noWidgets (sqrt (pow centerX 2! - 2! * centerX * x + pow x 2! - 2! * pillarTop * y + 2! * pillarTop * y3 + pow y 2! - pow y3 2!) + centerX), y3]
+
+trayWireWireFunc ([x, y] as topPoint) hangDistance =
+  let yOffset = y + hangDistance in
+  let [x1, y1] as point1 = [x, yOffset] in
+  let trayHalfW = 81 in
+  let left = x1 - trayHalfW in
+  let right = x + trayHalfW in
+  let tray = ellipse 40 point1 trayHalfW 30 in
+  let color = 434 in
+  let strokeWidth = 5 in
+  let wire1 = line color strokeWidth topPoint [left, yOffset] in
+  let wire2 = line color strokeWidth topPoint [right, yOffset] in
+  [tray, wire1, wire2]
+
+baseCenter = [centerX, 496]
+
+color = 208
+
+pillar = line color 20 point2 baseCenter
+
+base = ellipse color baseCenter 109 33
+
+strokeWidth = 15
+
+leftArm = line color strokeWidth point2 point
+
+rightArm = line color strokeWidth point2 point3
+
+hangDistance = 171
+
+hangingTray1 = trayWireWireFunc point hangDistance
+
+hangingTray2 = trayWireWireFunc point3 hangDistance
+
+svg (concat [
+  [pillar],
+  [base],
+  [leftArm],
+  [rightArm],
+  hangingTray1,
+  hangingTray2
+])
+"""
+
+uist19_battery =
+ """-- Simple Black Battery, abstracted b/c the point of the presentation in Lillicon is that you could make different versions for different icon sizes
+
+[x, y] as point = [66, 148]
+
+h4 = 141
+
+w = 274
+
+fill = 362
+
+h = 73
+
+batteryFunc ([x, y] as point) h4 w fill h =
+  let body = rect fill point w h4 in
+  let head = rect fill [ x+ w, (h4 - h + 2! * y) / 2!] 40 h in
+  [body, head]
+
+battery = batteryFunc point h4 w fill h
+
+svg (concat [
+  battery
+])
+"""
+
+uist19_box_volume =
+ """[x9, y9] as point9 = [130, 562]
+
+[x, y] as point = [102, 109]
+
+bigW = 271
+
+[x1, y1] as point1 = [ x+ bigW, y]
+
+yOffset = y + bigW
+
+xOffset = x + bigW
+
+y1Offset = y1 + bigW
+
+cutW = 58
+
+yOffset2 = y + cutW
+
+xOffset2 = x + cutW
+
+[x2, y2] as point2 = [xOffset2, y]
+
+y2Offset = y2 + cutW
+
+yOffsetOffset = yOffset - cutW
+
+[x3, y3] as point3 = [x, yOffset]
+
+x3Offset = x3 + cutW
+
+[x4, y4] as point4 = [x3Offset, yOffset]
+
+y4Offset = y4 - cutW
+
+xOffsetOffset = xOffset - cutW
+
+[x5, y5] as point5 = [xOffset, y]
+
+y5Offset = y5 + cutW
+
+[x6, y6] as point6 = [xOffsetOffset, y]
+
+y6Offset = y6 + cutW
+
+[x7, y7] as point7 = [x1, y1Offset]
+
+x7Offset = x7 - cutW
+
+y1OffsetOffset = y1Offset - cutW
+
+[x8, y8] as point8 = [x7Offset, y1Offset]
+
+y8Offset = y8 - cutW
+
+color = 39
+
+topDownTemplate =
+  let pts = [[xOffset2, y2Offset], point2, point6, [xOffsetOffset, y6Offset], [xOffset, y5Offset], [x1, y1OffsetOffset], [x7Offset, y8Offset], point8, point4, [x3Offset, y4Offset], [x, yOffsetOffset], [x, yOffset2]] in
+  let [strokeColor, strokeWidth] = [360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+baseW = bigW - 2! * cutW
+
+xOffset2Offset = xOffset2 + baseW
+
+x3OffsetOffset = x3Offset + baseW
+
+x9Offset = x9 + baseW
+
+y9Offset = y9 - cutW
+
+[x10, y10] as point10 = [x9Offset, y9]
+
+y10Offset = y10 - cutW
+
+y11 = 692
+
+num = 367
+
+onLine2 = onLine point9 [num, y11] (baseW / sqrt (pow x9 2! - 2! * x9 * num + pow num 2! + pow y9 2! - 2! * y9 * y11 + pow y11 2!))
+
+[x11, _] = onLine2
+
+fstOffset = x11 + baseW
+
+[_, y12] = onLine2
+
+[_, y13] = onLine2
+
+[x13, y13] as point13 = [fstOffset, y13]
+
+y13Offset = y13 - cutW
+
+x9OffsetY10OffsetPair = [x9Offset, y10Offset]
+
+xY9OffsetPair = [x9, y9Offset]
+
+boxBack =
+  let pts = [point9, xY9OffsetPair, x9OffsetY10OffsetPair, point10] in
+  let [color, strokeColor, strokeWidth] = [color, 360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+boxBot =
+  let pts = [point9, point10, point13, onLine2] in
+  let [color, strokeColor, strokeWidth] = [color, 360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+[x14, y14] as point14 = [fstOffset, y13Offset]
+
+x14Offset = x14 - baseW
+
+boxRight =
+  let pts = [point10, x9OffsetY10OffsetPair, point14, point13] in
+  let [color, strokeColor, strokeWidth] = [color, 360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+x14OffsetY13OffsetPair = [x14Offset, y13Offset]
+
+boxLeft =
+  let pts = [xY9OffsetPair, x14OffsetY13OffsetPair, onLine2, point9] in
+  let [color, strokeColor, strokeWidth] = [color, 360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+boxFront =
+  let pts = [onLine2, x14OffsetY13OffsetPair, point14, point13] in
+  let [color, strokeColor, strokeWidth] = [color, 360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+svg (concat [
+  [topDownTemplate],
+  [boxBack],
+  [boxBot],
+  [boxRight],
+  [boxLeft],
+  [boxFront]
+])
+"""
+
+uist19_ferris_wheel =
+ """
+point = [307, 334]
+
+r = 166
+
+attachmentPts = nPointsOnCircle 7{0-10} 0.06280000000000001{-3.14-3.14} point r
+
+color = 434
+
+spokeFunc point2 =
+  line color 5 point point2
+
+spokes =
+  map spokeFunc attachmentPts
+
+carFunc center2 =
+  squareByCenter 48 center2 25
+
+cars =
+  map carFunc attachmentPts
+
+capFunc point2 =
+  circle 364 point2 9
+
+caps =
+  map capFunc attachmentPts
+
+ring1 = ring color 7 point r
+
+hub = circle 362 point 44
+
+svg (concat [
+  [hub],
+  cars,
+  spokes,
+  [ring1],
+  caps
+])
+"""
+
+uist19_koch =
+ """-- Final as in paper, but depth 2
+
+
+equiTriPt [x3, y3] [x2, y2] =
+  [ (x2 + x3 + sqrt 3! * (y2 - y3))/ 2!, (y2 + y3 - sqrt 3! * (x2 - x3)) / 2!]
+
+oneThirdPt [x3, y3] [x, y] =
+  [ x / 1.5!+ x3 / 3!, y / 1.5! + y3 / 3!]
+
+point = [39, 314]
+
+point2 = [490, 301]
+
+makeKochPts depth point point2 =
+  let oneThirdPt2 = oneThirdPt point point2 in
+  let oneThirdPt3 = oneThirdPt point2 point in
+  let equiTriPt2 = equiTriPt oneThirdPt3 oneThirdPt2 in
+  if depth < 2 then
+    [point, oneThirdPt3, equiTriPt2, oneThirdPt2]
+  else
+    let makeKochPts2 = makeKochPts (depth - 1) point oneThirdPt3 in
+    let makeKochPts3 = makeKochPts (depth - 1) oneThirdPt3 equiTriPt2 in
+    let makeKochPts4 = makeKochPts (depth - 1) equiTriPt2 oneThirdPt2 in
+    let makeKochPts5 = makeKochPts (depth - 1) oneThirdPt2 point2 in
+      concat [makeKochPts2, makeKochPts3, makeKochPts4, makeKochPts5]
+
+depth = 2{1-5}
+
+topPts = makeKochPts depth point point2
+
+botCorner = equiTriPt point2 point
+
+rightPts = makeKochPts depth point2 botCorner
+
+leftPts = makeKochPts depth botCorner point
+
+snowflakePts = concat [topPts, rightPts, leftPts]
+
+polygon1 =
+  let pts = snowflakePts in
+  let [color, strokeColor, strokeWidth] = [124, 360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+svg (concat [
+  [polygon1]
+])
+"""
+
+uist19_ladder =
+ """-- 2012 Quickdraw Fig. 1; cited as originally from a math text
+-- Trick is to draw offset first, then snap line to it exactly, then repeat the line.
+
+w = 126
+
+color = 366
+
+strokeWidth = 8
+
+line1Func ([x, y] as point) =
+  let xOffset = x + w in
+  line color strokeWidth point [xOffset, y]
+
+left = 104
+
+top = 119
+
+rungs =
+  map line1Func (nVerticalPointsSepBy 4{0-10} [left, top] 50)
+
+bot = 346
+
+leftLine = line color strokeWidth [left, top] [left, bot]
+
+rightLine = line color strokeWidth [ left+ w, top] [ left+ w, bot]
+
+svg (concat [
+  rungs,
+  [leftLine],
+  [rightLine]
+])
+"""
+
+uist19_lambda_logo_overview =
+ """
+y = 127
+
+num = 158
+
+w = 156
+
+color = 360
+
+strokeWidth = 5
+
+logoFunc x y w color strokeWidth =
+  let topLeft = [x, y] in
+  let square1 = square \"#fcc712\" topLeft w in
+  let y2 = y + w in
+  let xYPair = [ x+ w, y2] in
+  let line1 = line color strokeWidth topLeft xYPair in
+  let line2 = line color strokeWidth [x, y2] [ (2! * x + w)/ 2!, (2! * y + w) / 2!] in
+  let polygon1 =
+    let pts = [[x, y], [ x+ w, y], xYPair, [x, y2]] in
+    let [color, strokeColor, strokeWidth] = [\"none\", 360, 5] in
+      polygon color strokeColor strokeWidth pts in
+  [square1, line1, line2, polygon1]
+
+squareLineLine = logoFunc num y w color strokeWidth
+
+svg (concat [
+  squareLineLine
+])
+"""
+
+uist19_logo_via_three_tris =
+ """-- Need to draw the bot-right delta offsets before drawing the midpoint
+-- Because (ugh) getting the offsets to draw from the correct base points is hard.
+-- Abstracted (after grouping w/o gathering dependencies)
+
+[x, y] as point = [88, 104]
+
+w = 331
+
+∂ = 32
+
+lambdaFunc ([x, y] as point) w ∂ leftColor botColor bigColor =
+  let yOffset = y + w in
+  let xOffset = x + w in
+  let [x1, y1] as point1 = [x, yOffset] in
+  let x1Offset = x1 + ∂ in
+  let yOffsetOffset = yOffset - ∂ in
+  let [x2, y2] as point2 = [xOffset, y] in
+  let y2Offset = y2 + w in
+  let [x3, y3] as point3 = [xOffset, y2Offset] in
+  let x3Offset = x3 - ∂ in
+  let y2OffsetOffset = y2Offset - ∂ in
+  let xOffset2 = x + ∂ in
+  let yOffset2 = y + ∂ in
+  let midpoint2 = midpoint point point3 in
+  let [x4, _] = midpoint2 in
+  let fstOffset = x4 - ∂ in
+  let [_, y4] = midpoint2 in
+  let sndOffset = y4 + ∂ in
+  let leftTri =
+    let [_, y5] = midpoint2 in
+    let pts = [[x, yOffset2], [fstOffset, y5], [x, yOffsetOffset]] in
+    let [color, strokeColor, strokeWidth] = [leftColor, 360, 2] in
+      polygon color strokeColor strokeWidth pts in
+  let botTri =
+    let [x5, _] = midpoint2 in
+    let pts = [[x1Offset, yOffset], [x5, sndOffset], [x3Offset, y2Offset]] in
+    let [color, strokeColor, strokeWidth] = [botColor, 360, 2] in
+      polygon color strokeColor strokeWidth pts in
+  let bigTri =
+    let pts = [[xOffset2, y], point2, [xOffset, y2OffsetOffset]] in
+    let [color, strokeColor, strokeWidth] = [bigColor, 360, 2] in
+      polygon color strokeColor strokeWidth pts in
+  [leftTri, botTri, bigTri]
+
+lambda = lambdaFunc point w ∂ 27 245 148
+
+svg (concat [
+  lambda
+])
+"""
+
+uist19_mondrian_arch =
+ """
+[left, top] as topLeft = [95, 171]
+
+height = 335
+
+stoneWidth = 73
+
+width = 325
+
+archFunc ([left, top] as topLeft) width height stoneWidth =
+  let lintel = rect 210 topLeft width stoneWidth in
+  let pillarHeight =height - stoneWidth in
+  let pillarTop = top + stoneWidth in
+  let leftPillar = rect 0 [left, pillarTop] stoneWidth ( pillarHeight) in
+  let rightPillar = rect 134 [ left + width- stoneWidth, pillarTop] stoneWidth pillarHeight in
+  [lintel, leftPillar, rightPillar]
+
+arch = archFunc topLeft width height stoneWidth
+
+svg (concat [
+  arch
+])
+"""
+
+uist19_n_boxes =
+ """
+boxes =
+  map (\\i ->
+      rect 200 [ 50 + i * 76, 110] 55 195)
+    (zeroTo 7{0-15})
+
+svg (concat [
+  boxes
+])
+"""
+
+uist19_pencil_tip =
+ """
+[taperStartX, y] as point = [253, 269]
+
+bodyHalfL = 118
+
+pencilHalfW = 61
+
+ratio = 0.62
+
+pencilFunc [taperStartX, y] pencilHalfW bodyHalfL taperL ratio =
+  let bodyCenterX = taperStartX - bodyHalfL in
+  let top = y - pencilHalfW in
+  let bot = y + pencilHalfW in
+  let tipX = taperStartX + taperL in
+  let body = rectByCenter 42 [bodyCenterX, y] bodyHalfL pencilHalfW in
+  let tipPt = [tipX, y] in
+  let taperStartTopPt = [taperStartX, top] in
+  let leadStartTopPt = onLine taperStartTopPt tipPt ratio in
+  let taperStartBotPt = [taperStartX, bot] in
+  let leadStartBotPt = onLine taperStartBotPt tipPt ratio in
+  let shavedWood =
+    let pts = [taperStartBotPt, taperStartTopPt, leadStartTopPt, leadStartBotPt] in
+    let [color, strokeColor, strokeWidth] = [460, 360, 0] in
+      polygon color strokeColor strokeWidth pts in
+  let lead =
+    let pts = [leadStartBotPt, leadStartTopPt, tipPt] in
+    let [color, strokeColor, strokeWidth] = [397, 360, 0] in
+      polygon color strokeColor strokeWidth pts in
+  [body, shavedWood, lead]
+
+pencil = pencilFunc point pencilHalfW bodyHalfL 205 ratio
+
+svg (concat [
+  pencil
+])
+"""
+
+uist19_precision_floor_plan =
+ """
+point = [82, 136]
+
+h = 239
+
+w = 444
+
+floorRect = rect 36 point w h
+
+tableRect = rect 188 point (w / 3!) h
+
+svg (concat [
+  [floorRect],
+  [tableRect]
+])
+"""
+
+uist19_rails =
+ """
+[railsLeft, y]= [87, 375]
+
+railsRight = railsLeft + 401
+
+halfGauge = 71
+
+topRailY = y - halfGauge
+
+botRailY = y + halfGauge
+
+railOverextension = 37
+
+firstTieX = railsLeft + railOverextension
+
+endTiesX = railsRight - railOverextension
+
+pointsBetweenSepBy2 = pointsBetweenSepBy [firstTieX, y] [endTiesX, y] 53
+
+tieOverExtension = 34
+
+tieFunc point =
+  rectByCenter 24 point 20 (halfGauge + tieOverExtension)
+
+repeatedTieFunc =
+  map tieFunc pointsBetweenSepBy2
+
+color = 446
+
+strokeWidth = 13
+
+topRail = line color strokeWidth [railsLeft, topRailY] [railsRight, topRailY]
+
+botRail = line color strokeWidth [railsLeft, botRailY] [railsRight, botRailY]
+
+svg (concat [
+  repeatedTieFunc,
+  [topRail],
+  [botRail]
+])
+"""
+
+uist19_target =
+ """
+point = [236, 241]
+
+circles =
+  map (\\i ->
+      circle (if mod i 2! == 0! then 0 else 466) point (22 + i * 46))
+    (reverse (zeroTo 5{0-15}))
+
+svg (concat [
+  circles
+])
+"""
+
+uist19_tree_branch =
+ """
+[branchLeft, branchY] as branchAnchorPt = [53, 542]
+
+rhombusFunc [x, y] halfW halfH =
+  let xOffset = x + halfW in
+  let xOffset2 = x - halfW in
+  let yOffset = y - halfH in
+  let yOffset2 = y + halfH in
+  let pts = [[x, yOffset], [xOffset, y], [x, yOffset2], [xOffset2, y]] in
+  let [color, strokeColor, strokeWidth] = [121, 360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+rhombusFunc2 ([x, y] as point) =
+  let halfW = 40 in
+  let halfH = 83 in
+  rhombusFunc point halfW halfH
+
+branchHalfW = 48
+
+branchTop = branchY - branchHalfW
+
+branchBot = branchY + branchHalfW
+
+branchRight = branchLeft + 405
+
+branch =
+  let pts = [[branchLeft, branchTop], [branchRight, branchY], [branchLeft, branchBot]] in
+  let [color, strokeColor, strokeWidth] = [29, 360, 2] in
+    polygon color strokeColor strokeWidth pts
+
+deadspace = 72
+
+leafAttachmentStartX = branchLeft + deadspace
+
+leafAttachmentEndX = branchRight - deadspace
+
+leafAttachmentPts = pointsBetweenSepBy [leafAttachmentStartX, branchY] [leafAttachmentEndX, branchY] 100
+
+leaves =
+  map rhombusFunc2 leafAttachmentPts
+
+svg (concat [
+  [branch],
+  leaves
+])
+"""
+
+uist19_Xs =
+ """
+[x, y] as point = [198, 216]
+
+squareW = 66
+
+halfWidth =squareW / 2!
+
+n = 2{0-10}
+
+fill = 72
+
+squareByCenter2Func center2 =
+  squareByCenter fill center2 halfWidth
+
+fill2 = 218
+
+squareByCenter2Func2 center2 =
+  squareByCenter fill2 center2 halfWidth
+
+squareByCenter2Func3 center2 =
+  squareByCenter fill center2 halfWidth
+
+squareByCenter2Func4 center2 =
+  squareByCenter fill2 center2 halfWidth
+
+boxyXFunc ([x, y] as point) squareW n =
+  let xOffset = x + squareW in
+  let xOffset2 = x - squareW in
+  let yOffset = y - squareW in
+  let yOffset2 = y + squareW in
+  let squareByCenter1 = squareByCenter 426 point ( halfWidth) in
+  let ySep =0! - squareW in
+  let nPointsSepBy2 = nPointsSepBy n [xOffset, yOffset] squareW ( ySep) in
+  let repeatedSquareByCenter2Func =
+    map squareByCenter2Func nPointsSepBy2 in
+  let nPointsSepBy3 = nPointsSepBy n [xOffset, yOffset2] squareW squareW in
+  let repeatedSquareByCenter2Func21 =
+    map squareByCenter2Func2 nPointsSepBy3 in
+  let nPointsSepBy4 = nPointsSepBy n [xOffset2, yOffset2] ySep squareW in
+  let repeatedSquareByCenter2Func3 =
+    map squareByCenter2Func3 nPointsSepBy4 in
+  let nPointsSepBy5 = nPointsSepBy n [xOffset2, yOffset] ySep (0! - squareW) in
+  let repeatedSquareByCenter2Func4 =
+    map squareByCenter2Func4 nPointsSepBy5 in
+  let squareByCenterSingleton =
+    [squareByCenter1] in
+  concat [squareByCenterSingleton, repeatedSquareByCenter2Func, repeatedSquareByCenter2Func21, repeatedSquareByCenter2Func3, repeatedSquareByCenter2Func4]
+
+boxyX = boxyXFunc point squareW n
+
+boxyXFunc1 = boxyXFunc [506, 225] squareW 1{0-10}
+
+boxyXFunc2 = boxyXFunc [329, 666] squareW 3{0-10}
+
+svg (concat [
+  boxyX,
+  boxyXFunc1,
+  boxyXFunc2
+])
+"""
+
+
 --------------------------------------------------------------------------------
 
 generalCategory =
   ( "General"
   , [ makeExample "BLANK" blank
-    , makeExample "*Prelude*" Prelude.src
+    -- , makeExample "*Prelude*" Prelude.src
     ]
   )
 
-defaultIconCategory =
-  ( "Default Icons"
-  , [ makeExample "Icon: Cursor" DefaultIconTheme.cursor
-    , makeExample "Icon: Point Or Offset" DefaultIconTheme.pointOrOffset
-    , makeExample "Icon: Text" DefaultIconTheme.text
-    , makeExample "Icon: Line" DefaultIconTheme.line
-    , makeExample "Icon: Rect" DefaultIconTheme.rect
-    , makeExample "Icon: Ellipse" DefaultIconTheme.ellipse
-    , makeExample "Icon: Polygon" DefaultIconTheme.polygon
-    , makeExample "Icon: Path" DefaultIconTheme.path
+uist19Category =
+  ( "UIST'19 Examples"
+  , [ makeExample "(i) Koch Snowflake" uist19_koch
+    , makeExample "(ii) Tree Branch" uist19_tree_branch
+    , makeExample "(iii) Target" uist19_target
+    , makeExample "(iv) Precision Floor Plan" uist19_precision_floor_plan
+    , makeExample "(v) Mondrian Arch" uist19_mondrian_arch
+    , makeExample "(vi) Balance Scale" uist19_balance_scale
+    , makeExample "(vii) Box Volume" uist19_box_volume
+    , makeExample "(viii) Xs" uist19_Xs
+    , makeExample "(ix) Battery" uist19_battery
+    , makeExample "(x) Ladder" uist19_ladder
+    , makeExample "(xi) Logo (via Three Tris)" uist19_logo_via_three_tris
+    , makeExample "(xii) N Boxes" uist19_n_boxes
+    , makeExample "(xiii) Ferris Wheel" uist19_ferris_wheel
+    , makeExample "(xiv) Pencil Tip" uist19_pencil_tip
+    , makeExample "(xv) Arrows" uist19_arrows
+    , makeExample "(xvi) Rails" uist19_rails
+    , makeExample "(Appendix) Overview: Lambda Logo" uist19_lambda_logo_overview
     ]
   )
 
-deuceCategory =
-  ( "Deuce Examples"
-  , [ makeExample "Sketch-n-Sketch Logo" sns_deuce
-    , makeExample "Target" target_deuce
-    , makeExample "Battery" battery_deuce
-    , makeExample "Coffee Mug" coffee_deuce
-    , makeExample "Mondrian Arch" mondrian_arch_deuce
-    ]
-  )
-
-logoCategory =
-  ( "Logos"
-  , List.sortBy Tuple.first
-      [ makeExample "SnS Logo (UIST)" sns_UIST
-      , makeExample "SnS Logo Revisited (UIST)" sns_revisited_UIST
-      , makeExample "Botanic Garden Logo (UIST)" botanic_UIST
-      , makeExample "Logo" logo
-      , makeExample "Botanic Garden Logo" botanic
-      , makeExample "Active Trans Logo" activeTrans2
-      , makeExample "SnS Logo Wheel" snsLogoWheel
-      , makeExample "Haskell.org Logo" haskell
-      , makeExample "Cover Logo" cover
-      , makeExample "POP-PL Logo" poppl
-      , makeExample "Floral Logo 1" floralLogo
-      , makeExample "Floral Logo 2" floralLogo2
-      , makeExample "Elm Logo" elmLogo
-      , makeExample "Logo 2" logo2
-      -- , makeExample "Logo Sizes" logoSizes
-      ]
-  )
-
-flagCategory =
-  ( "Flags"
-  , List.sortBy Tuple.first
-      [ makeExample "Chicago Flag" chicago
-      , makeExample "US-13 Flag" usFlag13
-      , makeExample "US-50 Flag" usFlag50
-      , makeExample "French Sudan Flag" frenchSudan
-      ]
-  )
-
-
-otherCategory =
-  ( "Other"
-  , [ makeExample "Coffee Mugs (UIST)" coffee_UIST
-
-    , makeExample "Wave Boxes" sineWaveOfBoxes
-    , makeExample "Wave Boxes Grid" sineWaveGrid
-
-    , makeExample "Basic Slides" basicSlides
-    , makeExample "Sailboat" sailBoat
-    , makeExample "Sliders" sliders
-    , makeExample "Buttons" buttons
-    , makeExample "Widgets" widgets
-    , makeExample "xySlider" xySlider
-    , makeExample "Offsets" offsets
-    , makeExample "Tile Pattern" boxGridTokenFilter
-    , makeExample "Color Picker" rgba
-    , makeExample "Ferris Wheel" ferris
-    , makeExample "Ferris Task Before" ferris2
-    , makeExample "Ferris Task After" ferris2target
-    , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
-    , makeExample "Survey Results" surveyResultsTriHist2
-    , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
-    , makeExample "Bar Graph" barGraph
-    , makeExample "Pie Chart" pieChart1
-    , makeExample "Solar System" solarSystem
-    , makeExample "Clique" clique
-    , makeExample "Eye Icon" eyeIcon
-    , makeExample "Horror Films" horrorFilms0
-    , makeExample "Cycling Association" cyclingAssociation0
-    , makeExample "Lillicon P" lilliconP
-    , makeExample "Lillicon P, v2" lilliconP2
-    , makeExample "Keyboard" keyboard
-    , makeExample "Keyboard Task Before" keyboard2
-    , makeExample "Keyboard Task After" keyboard2target
-    , makeExample "Tessellation Task Before" tessellation
-    , makeExample "Tessellation Task After" tessellationTarget
-    , makeExample "Tessellation 2" tessellation2
-    , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
-    , makeExample "Rounded Rect" roundedRect
-
-    , makeExample "Thaw/Freeze" thawFreeze
-    , makeExample "Dictionaries" dictionaries
-    , makeExample "3 Boxes" threeBoxes
-
-    , makeExample "N Boxes Sli" nBoxes
-    , makeExample "N Boxes" groupOfBoxes
-
-    , makeExample "Rings" rings
-    , makeExample "Polygons" polygons
-    , makeExample "Stars" stars
-    , makeExample "Triangles" equiTri
-    , makeExample "Frank Lloyd Wright" flw1
-    , makeExample "Frank Lloyd Wright B" flw2
-    , makeExample "Bezier Curves" bezier
-    , makeExample "Fractal Tree" fractalTree
-    , makeExample "Stick Figures" stickFigures
-    -- , makeExample "Cult of Lambda" cultOfLambda
-    , makeExample "Matrix Transformations" matrices
-    , makeExample "Misc Shapes" miscShapes
-    , makeExample "Interface Buttons" interfaceButtons
-    , makeExample "Paths 1" paths1
-    , makeExample "Paths 2" paths2
-    , makeExample "Paths 3" paths3
-    , makeExample "Paths 4" paths4
-    , makeExample "Paths 5" paths5
-    , makeExample "Sample Rotations" rotTest
-    , makeExample "Grid Tile" gridTile
-    , makeExample "Zones" zones
-    , makeExample "Rectangle Trisection" rectangleTrisection
-    , makeExample "Battery" battery
-    , makeExample "Battery (Dynamic)" batteryDynamic
-    , makeExample "Mondrian Arch" mondrianArch
-    , makeExample "Ladder" ladder
-    , makeExample "Rails" rails
-    , makeExample "Target" target
-    , makeExample "Xs" xs
-    , makeExample "Conifer" conifer
-    , makeExample "Ferris Wheel 3" ferris3
-    , makeExample "Gear" gear
-    , makeExample "Koch Snowflake" kochSnowflake
-    , makeExample "Replace Terminals With Workstations" replaceTerminalsWithWorkstations
-    , makeExample "Balance Scale" balanceScale
-    , makeExample "Pencil Tip" pencilTip
-    , makeExample "Calendar Icon" calendarIcon
-    ]
-  )
-
-deuceUserStudyCategory =
-  ( "Deuce User Study"
-  , [ makeExample "Deuce Study Start" study_start
-    , makeExample "Step 01" tutorial_step_01
-    , makeExample "Step 02" tutorial_step_02
-    , makeExample "Step 03" tutorial_step_03
-    , makeExample "Step 04" tutorial_step_04
-    , makeExample "Step 05" tutorial_step_05
-    , makeExample "Step 06" tutorial_step_06
-    , makeExample "Step 07" tutorial_step_07
-    , makeExample "Step 08" tutorial_step_08
-    , makeExample "Step 09" tutorial_step_09
-    , makeExample "Step 10" tutorial_step_10
-    , makeExample "Step 11" tutorial_step_11
-    , makeExample "Step 12" tutorial_step_12
-    , makeExample "Step 13" tutorial_step_13
-    , makeExample "Step 14" tutorial_step_14
-    , makeExample "Step 15" tutorial_step_15
-    , makeExample "Step 16" tutorial_step_16
-    , makeExample "Step 17" tutorial_step_17
-    , makeExample "Step 18" tutorial_step_18
-    , makeExample "Step 19" tutorial_step_19
-    , makeExample "Step 20" tutorial_step_20
-    , makeExample "Step 21" tutorial_step_21
-    , makeExample "Step 22" tutorial_step_22
-    , makeExample "Step 23" tutorial_step_23
-    , makeExample "Deuce Study Transition 1" study_transition_1
-    , makeExample "One Rectangle" task_one_rectangle
-    , makeExample "Two Circles" task_two_circles
-    , makeExample "Three Rectangles" task_three_rectangles
-    , makeExample "Target Icon" task_target
-    , makeExample "Deuce Study Transition 2" study_transition_2
-    , makeExample "Four Squares" task_four_squares
-    , makeExample "Lambda Icon" task_lambda
-    , makeExample "Deuce Study End" study_end
-    ]
-  )
+-- defaultIconCategory =
+--   ( "Default Icons"
+--   , [ makeExample "Icon: Cursor" DefaultIconTheme.cursor
+--     , makeExample "Icon: Point Or Offset" DefaultIconTheme.pointOrOffset
+--     , makeExample "Icon: Text" DefaultIconTheme.text
+--     , makeExample "Icon: Line" DefaultIconTheme.line
+--     , makeExample "Icon: Rect" DefaultIconTheme.rect
+--     , makeExample "Icon: Ellipse" DefaultIconTheme.ellipse
+--     , makeExample "Icon: Polygon" DefaultIconTheme.polygon
+--     , makeExample "Icon: Path" DefaultIconTheme.path
+--     ]
+--   )
+--
+-- deuceCategory =
+--   ( "Deuce Examples"
+--   , [ makeExample "Sketch-n-Sketch Logo" sns_deuce
+--     , makeExample "Target" target_deuce
+--     , makeExample "Battery" battery_deuce
+--     , makeExample "Coffee Mug" coffee_deuce
+--     , makeExample "Mondrian Arch" mondrian_arch_deuce
+--     ]
+--   )
+--
+-- logoCategory =
+--   ( "Logos"
+--   , List.sortBy Tuple.first
+--       [ makeExample "SnS Logo (UIST)" sns_UIST
+--       , makeExample "SnS Logo Revisited (UIST)" sns_revisited_UIST
+--       , makeExample "Botanic Garden Logo (UIST)" botanic_UIST
+--       , makeExample "Logo" logo
+--       , makeExample "Botanic Garden Logo" botanic
+--       , makeExample "Active Trans Logo" activeTrans2
+--       , makeExample "SnS Logo Wheel" snsLogoWheel
+--       , makeExample "Haskell.org Logo" haskell
+--       , makeExample "Cover Logo" cover
+--       , makeExample "POP-PL Logo" poppl
+--       , makeExample "Floral Logo 1" floralLogo
+--       , makeExample "Floral Logo 2" floralLogo2
+--       , makeExample "Elm Logo" elmLogo
+--       , makeExample "Logo 2" logo2
+--       -- , makeExample "Logo Sizes" logoSizes
+--       ]
+--   )
+--
+-- flagCategory =
+--   ( "Flags"
+--   , List.sortBy Tuple.first
+--       [ makeExample "Chicago Flag" chicago
+--       , makeExample "US-13 Flag" usFlag13
+--       , makeExample "US-50 Flag" usFlag50
+--       , makeExample "French Sudan Flag" frenchSudan
+--       ]
+--   )
+--
+--
+-- otherCategory =
+--   ( "Other"
+--   , [ makeExample "Coffee Mugs (UIST)" coffee_UIST
+--
+--     , makeExample "Wave Boxes" sineWaveOfBoxes
+--     , makeExample "Wave Boxes Grid" sineWaveGrid
+--
+--     , makeExample "Basic Slides" basicSlides
+--     , makeExample "Sailboat" sailBoat
+--     , makeExample "Sliders" sliders
+--     , makeExample "Buttons" buttons
+--     , makeExample "Widgets" widgets
+--     , makeExample "xySlider" xySlider
+--     , makeExample "Offsets" offsets
+--     , makeExample "Tile Pattern" boxGridTokenFilter
+--     , makeExample "Color Picker" rgba
+--     , makeExample "Ferris Wheel" ferris
+--     , makeExample "Ferris Task Before" ferris2
+--     , makeExample "Ferris Task After" ferris2target
+--     , makeExample "Ferris Wheel Slideshow" ferrisWheelSlideshow
+--     , makeExample "Survey Results" surveyResultsTriHist2
+--     , makeExample "Hilbert Curve Animation" hilbertCurveAnimation
+--     , makeExample "Bar Graph" barGraph
+--     , makeExample "Pie Chart" pieChart1
+--     , makeExample "Solar System" solarSystem
+--     , makeExample "Clique" clique
+--     , makeExample "Eye Icon" eyeIcon
+--     , makeExample "Horror Films" horrorFilms0
+--     , makeExample "Cycling Association" cyclingAssociation0
+--     , makeExample "Lillicon P" lilliconP
+--     , makeExample "Lillicon P, v2" lilliconP2
+--     , makeExample "Keyboard" keyboard
+--     , makeExample "Keyboard Task Before" keyboard2
+--     , makeExample "Keyboard Task After" keyboard2target
+--     , makeExample "Tessellation Task Before" tessellation
+--     , makeExample "Tessellation Task After" tessellationTarget
+--     , makeExample "Tessellation 2" tessellation2
+--     , makeExample "Spiral Spiral-Graph" spiralSpiralGraph
+--     , makeExample "Rounded Rect" roundedRect
+--
+--     , makeExample "Thaw/Freeze" thawFreeze
+--     , makeExample "Dictionaries" dictionaries
+--     , makeExample "3 Boxes" threeBoxes
+--
+--     , makeExample "N Boxes Sli" nBoxes
+--     , makeExample "N Boxes" groupOfBoxes
+--
+--     , makeExample "Rings" rings
+--     , makeExample "Polygons" polygons
+--     , makeExample "Stars" stars
+--     , makeExample "Triangles" equiTri
+--     , makeExample "Frank Lloyd Wright" flw1
+--     , makeExample "Frank Lloyd Wright B" flw2
+--     , makeExample "Bezier Curves" bezier
+--     , makeExample "Fractal Tree" fractalTree
+--     , makeExample "Stick Figures" stickFigures
+--     -- , makeExample "Cult of Lambda" cultOfLambda
+--     , makeExample "Matrix Transformations" matrices
+--     , makeExample "Misc Shapes" miscShapes
+--     , makeExample "Interface Buttons" interfaceButtons
+--     , makeExample "Paths 1" paths1
+--     , makeExample "Paths 2" paths2
+--     , makeExample "Paths 3" paths3
+--     , makeExample "Paths 4" paths4
+--     , makeExample "Paths 5" paths5
+--     , makeExample "Sample Rotations" rotTest
+--     , makeExample "Grid Tile" gridTile
+--     , makeExample "Zones" zones
+--     , makeExample "Rectangle Trisection" rectangleTrisection
+--     , makeExample "Battery" battery
+--     , makeExample "Battery (Dynamic)" batteryDynamic
+--     , makeExample "Mondrian Arch" mondrianArch
+--     , makeExample "Ladder" ladder
+--     , makeExample "Rails" rails
+--     , makeExample "Target" target
+--     , makeExample "Xs" xs
+--     , makeExample "Conifer" conifer
+--     , makeExample "Ferris Wheel 3" ferris3
+--     , makeExample "Gear" gear
+--     , makeExample "Koch Snowflake" kochSnowflake
+--     , makeExample "Replace Terminals With Workstations" replaceTerminalsWithWorkstations
+--     , makeExample "Balance Scale" balanceScale
+--     , makeExample "Pencil Tip" pencilTip
+--     , makeExample "Calendar Icon" calendarIcon
+--     ]
+--   )
+--
+-- deuceUserStudyCategory =
+--   ( "Deuce User Study"
+--   , [ makeExample "Deuce Study Start" study_start
+--     , makeExample "Step 01" tutorial_step_01
+--     , makeExample "Step 02" tutorial_step_02
+--     , makeExample "Step 03" tutorial_step_03
+--     , makeExample "Step 04" tutorial_step_04
+--     , makeExample "Step 05" tutorial_step_05
+--     , makeExample "Step 06" tutorial_step_06
+--     , makeExample "Step 07" tutorial_step_07
+--     , makeExample "Step 08" tutorial_step_08
+--     , makeExample "Step 09" tutorial_step_09
+--     , makeExample "Step 10" tutorial_step_10
+--     , makeExample "Step 11" tutorial_step_11
+--     , makeExample "Step 12" tutorial_step_12
+--     , makeExample "Step 13" tutorial_step_13
+--     , makeExample "Step 14" tutorial_step_14
+--     , makeExample "Step 15" tutorial_step_15
+--     , makeExample "Step 16" tutorial_step_16
+--     , makeExample "Step 17" tutorial_step_17
+--     , makeExample "Step 18" tutorial_step_18
+--     , makeExample "Step 19" tutorial_step_19
+--     , makeExample "Step 20" tutorial_step_20
+--     , makeExample "Step 21" tutorial_step_21
+--     , makeExample "Step 22" tutorial_step_22
+--     , makeExample "Step 23" tutorial_step_23
+--     , makeExample "Deuce Study Transition 1" study_transition_1
+--     , makeExample "One Rectangle" task_one_rectangle
+--     , makeExample "Two Circles" task_two_circles
+--     , makeExample "Three Rectangles" task_three_rectangles
+--     , makeExample "Target Icon" task_target
+--     , makeExample "Deuce Study Transition 2" study_transition_2
+--     , makeExample "Four Squares" task_four_squares
+--     , makeExample "Lambda Icon" task_lambda
+--     , makeExample "Deuce Study End" study_end
+--     ]
+--   )
 
 templateCategories =
   [ generalCategory
-  , deuceCategory
-  , defaultIconCategory
-  , logoCategory
-  , flagCategory
-  , otherCategory
-  , deuceUserStudyCategory
+  , uist19Category
+  -- , deuceCategory
+  -- , defaultIconCategory
+  -- , logoCategory
+  -- , flagCategory
+  -- , otherCategory
+  -- , deuceUserStudyCategory
   ]
 
 list =
