@@ -363,20 +363,36 @@ eval_ env exp =
                     List.length names
 
                   addToEnv (name, binding) (nonRecEnv, functionDefs) =
-                    eval_ nonRecEnv binding
-                      |> Evaluator.map
-                           ( \u ->
-                             case u of
-                               UFunClosure _ _ params body ->
-                                 ( nonRecEnv
-                                 , (name, params, body) :: functionDefs
-                                 )
+                    let
+                      bindingEvaluation =
+                        eval_ nonRecEnv binding
+                    in
+                      Evaluator.do (eval_ nonRecEnv binding) <| \u ->
+                      case unwrapExp binding of
+                        -- Syntactic lambda; should be treated as
+                        -- recursive function
+                        EFun _ paramPats body _ ->
+                          case
+                            paramPats
+                              |> List.map identifierFromPat
+                              |> Utils.projJusts
+                          of
+                            Just params ->
+                              Evaluator.succeed
+                                ( nonRecEnv
+                                , (name, params, body) :: functionDefs
+                                )
 
-                               _ ->
-                                 ( U.addVarBinding name u nonRecEnv
-                                 , functionDefs
-                                 )
-                           )
+                            Nothing ->
+                              Evaluator.fail <|
+                                "Non-identifier pattern in function (let"
+                                  ++ " binding)"
+
+                        _ ->
+                          Evaluator.succeed
+                            ( U.addVarBinding name u nonRecEnv
+                            , functionDefs
+                            )
                 in
                   nameBindingPairs
                     |> Evaluator.foldlM addToEnv (env, [])
