@@ -9,11 +9,6 @@ var _user$project$Native_ImpureGoodies = {
       return Math.random();
     },
 
-    urlHasPbeFlag : function(_) {
-      var url = new URL(location.href);
-      return url.searchParams.get("pbe") !== null;
-    },
-
     crashToNothing : function(thunk) {
       try {
         // Just (thunk ())

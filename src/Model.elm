@@ -1429,9 +1429,7 @@ initModel =
     , slateCount    = 1
     , addDummyDivAroundCanvas = Nothing
     , widgets       = ws
-    , outputMode    = if ImpureGoodies.urlHasPbeFlag ()
-                        then PBE
-                        else Graphics
+    , outputMode    = PBE
     , syncMode      = if Config.elmConfDemo
                         then TracesAndTriggers True
                         else ValueBackprop False

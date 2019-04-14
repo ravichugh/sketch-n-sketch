@@ -8,11 +8,6 @@ randomFloat () =
   Native.ImpureGoodies.randomFloat ()
 
 
-urlHasPbeFlag : () -> Bool
-urlHasPbeFlag () =
-  Native.ImpureGoodies.urlHasPbeFlag ()
-
-
 randomInt : Int -> Int -> Int
 randomInt low highNonInclusive =
   let range = highNonInclusive - low in
