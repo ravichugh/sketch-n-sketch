@@ -268,6 +268,14 @@ refine_ depth sigma gamma unfilteredWorlds tau =
               functionName =
                 "f"
 
+              functionNamePat : Pat
+              functionNamePat =
+                pVar0 functionName
+
+              functionType : Type
+              functionType =
+                tFun0 argType returnType
+
               argName : Ident
               argName =
                 "x"
@@ -279,7 +287,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
               makeFunction : Exp -> Exp
               makeFunction functionBody =
                 let
-                  finder e =
+                  recursiveNameFinder e =
                     case unwrapExp e of
                       EVar _ name ->
                         name == functionName
@@ -287,7 +295,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                       _ ->
                         False
                 in
-                  case findFirstNode finder functionBody of
+                  case findFirstNode recursiveNameFinder functionBody of
                     -- Recursive
                     Just _ ->
                       replacePrecedingWhitespace " " <|
@@ -335,7 +343,9 @@ refine_ depth sigma gamma unfilteredWorlds tau =
 
               newGamma : T.TypeEnv
               newGamma =
-                T.addHasType (argNamePat, argType) gamma
+                gamma
+                  |> T.addHasType (functionNamePat, functionType)
+                  |> T.addHasType (argNamePat, argType)
             in
               worlds
                 |> List.map branchWorlds

@@ -2534,6 +2534,13 @@ pList0 ps      = withDummyPatInfo <| PList space0 ps space0 Nothing space0
 pList ps       = withDummyPatInfo <| PList space1 ps space0 Nothing space0
 pAs x p        = withDummyPatInfo <| PAs space0 p space1 (withDummyPatInfo <| PVar space1 x noWidgetDecl)
 
+tVar0 name =
+  withDummyTypeInfo <| TVar space0 name
+tApp0 func args applicationType =
+  withDummyTypeInfo <| TApp space0 func args applicationType
+tFun0 argType retType =
+  tApp0 (tVar0 "->") [argType, retType] InfixApp
+
 pTuple: WS -> List (Maybe WS, Pat) -> WS -> Pat
 pTuple spBeforeOpenParen keyValues spBeforeCloseParen =
   withDummyPatInfo <| pTuple__ spBeforeOpenParen keyValues spBeforeCloseParen

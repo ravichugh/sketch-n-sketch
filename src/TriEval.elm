@@ -368,7 +368,6 @@ eval_ env exp =
                          eval_ (envExtension ++ env) body
                      )
 
-
           Nothing ->
             Evaluator.fail "Could not get record entries from let"
 
