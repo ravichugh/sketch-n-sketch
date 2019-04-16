@@ -30,7 +30,7 @@ import LeoUnparser
 
 maxDepth : Int
 maxDepth =
-  7
+  5
 
 maxSolveDepth : Int
 maxSolveDepth =
@@ -49,7 +49,7 @@ satisfiesWorlds worlds exp =
     satisfiesWorld (env, ex) =
       TriEval.evalWithEnv env
         >> TriEval.ensureConstraintFree
-        >> Maybe.andThen (flip TriEval.backprop ex) 
+        >> Maybe.andThen (flip TriEval.backprop ex)
   in
     worlds
       |> List.map satisfiesWorld
@@ -266,7 +266,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
             let
               functionName : Ident
               functionName =
-                "f"
+                "rec"
 
               functionNamePat : Pat
               functionNamePat =
