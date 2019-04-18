@@ -15,13 +15,10 @@ import Utils
 -- Data Types
 --------------------------------------------------------------------------------
 
--- Indexed
+-- Indexed. 0-based for our uses.
 
 type alias Indexed a =
   (Int, a)
-
-index : List a -> List (Indexed a)
-index = List.indexedMap (,)
 
 -- Positions
 
@@ -136,7 +133,7 @@ lineHulls c2a code =
     pipeline lineKind =
       lines
         |> lineKind
-        |> index
+        |> Utils.zipi0
         |> List.map (lineHull c2a)
   in
     ( pipeline <| untrimmedLine maxLineLength

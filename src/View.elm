@@ -48,7 +48,7 @@ import Eval
 import UnLang as U exposing (UnExp)
 import LeoUnparser
 import Types2
-import TinyStructuredEditorsForLowLowPrices
+import TinyStructuredEditorsForLowLowPricesView
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -1806,7 +1806,7 @@ outputPanel model =
               [ Html.text model.valueEditorString ]
           ]
         (Nothing, StructuredEditor, _) ->
-          TinyStructuredEditorsForLowLowPrices.functionPickerAndEditor model.tinyStructuredEditorsForLowLowPricesState
+          TinyStructuredEditorsForLowLowPricesView.functionPickerAndEditor model.tinyStructuredEditorsForLowLowPricesState
         (Nothing, _, _) ->
           Canvas.build canvasDim model
     outputPanelWarning =

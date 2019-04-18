@@ -49,7 +49,7 @@ eval env exp =
             )
 
           _ ->
-            Err <| "Left side of application should be a function but got " ++ toString funcTaggedVal ++ "!"
+            Err <| "Left side of application should be a function but got " ++ unparseToUntaggedString funcTaggedVal ++ "!"
       ))
 
     ECtor ctorName argExps ->
@@ -80,10 +80,10 @@ eval env exp =
                     Err <| ctorName ++ " value is carrying " ++ toString (List.length argTaggedVals) ++ " values but the case statement branch binds " ++ toString (List.length argNames) ++ " values (" ++ Utils.toSentence argNames ++ ")!"
 
               _ ->
-                Err <| "Non-exhaustive case statement! This value fell through: " ++ toString scrutineTaggedVal.v
+                Err <| "Non-exhaustive case statement! This value fell through: " ++ unparseToUntaggedString scrutineTaggedVal
 
           _ ->
-            Err <| "Case scrutinee should evaluate to a data type contructor, but instead got " ++ toString scrutineTaggedVal.v ++ "!"
+            Err <| "Case scrutinee should evaluate to a data type contructor, but instead got " ++ unparseToUntaggedString scrutineTaggedVal ++ "!"
       )
 
     EString string ->
@@ -102,7 +102,7 @@ eval env exp =
       |> Result.andThen (\argTaggedVal ->
         case argTaggedVal.v of
           VNum num -> Ok <| TaggedValue (VString (toString num)) (dependencyAnnotators.operation [argTaggedVal.paths])
-          _        -> Err <| "Built-in toString only supports numbers but was given " ++ toString argTaggedVal.v ++ "!"
+          _        -> Err <| "Built-in toString only supports numbers but was given " ++ unparseToUntaggedString argTaggedVal ++ "!"
       )
 
 
@@ -154,6 +154,49 @@ taggedValueToMaybeStringTaggedWithProjectionPaths w =
       Nothing
 
 
+-- If both sides of an append have the same path, (recursively) move that path to the append instead.
+--
+-- e.g. ("x"{1.•} ++ "y"{1.•}){} => ("x"{} ++ "y"{}){1.•}
+--
+-- Then, keep only the outermost occurence of each path.
+--
+-- e.g. ("x"{1.•} ++ "y"{}){1.•} => ("x"{} ++ "y"{}){1.•}
+tidyUpProjectionPaths : StringTaggedWithProjectionPaths -> StringTaggedWithProjectionPaths
+tidyUpProjectionPaths stringTaggedWithProjectionPaths =
+  let
+    coalese stringTaggedWithProjectionPaths =
+      case stringTaggedWithProjectionPaths of
+        TaggedString _ _                      -> stringTaggedWithProjectionPaths
+        TaggedStringAppend left right pathSet ->
+          let
+            leftCoalesed  = coalese left
+            rightCoalesed = coalese right
+            sharedPaths   = Set.intersect (stringTag leftCoalesed) (stringTag rightCoalesed)
+          in
+          TaggedStringAppend
+              (leftCoalesed  |> mapStringTag (\pathSet -> Set.diff pathSet sharedPaths))
+              (rightCoalesed |> mapStringTag (\pathSet -> Set.diff pathSet sharedPaths))
+              (Set.union sharedPaths pathSet)
+
+    keepOutermostOnly pathsInAncestors stringTaggedWithProjectionPaths =
+      let withAncestorPathsRemoved =
+        stringTaggedWithProjectionPaths |> mapStringTag (\pathSet -> Set.diff pathSet pathsInAncestors)
+      in
+      case withAncestorPathsRemoved of
+        TaggedString _ _                             -> withAncestorPathsRemoved
+        TaggedStringAppend left right cleanedPathSet ->
+          let
+            pathSetWithAncestors = Set.union pathsInAncestors cleanedPathSet
+            leftCleaned          = keepOutermostOnly pathSetWithAncestors left
+            rightCleaned         = keepOutermostOnly pathSetWithAncestors right
+          in
+          TaggedStringAppend leftCleaned rightCleaned cleanedPathSet
+  in
+  stringTaggedWithProjectionPaths
+  |> coalese
+  |> keepOutermostOnly Set.empty
+
+
 evalToStringTaggedWithProjectionPaths : Lang.Env -> Lang.Exp -> Lang.Val -> Ident -> Result String StringTaggedWithProjectionPaths
 evalToStringTaggedWithProjectionPaths langEnv langExp langVal renderingFunctionName =
   let
@@ -166,8 +209,9 @@ evalToStringTaggedWithProjectionPaths langEnv langExp langVal renderingFunctionN
       eval renderingFunctionEnv body |> Result.andThen (\w ->
         case taggedValueToMaybeStringTaggedWithProjectionPaths w of
           Just stringTagged -> Ok stringTagged
-          Nothing           -> Err <| "Result was not just strings and appends! " ++ toString w
+          Nothing           -> Err <| "Result was not just strings and appends! " ++ unparseToUntaggedString w
       )
+      |> Result.map tidyUpProjectionPaths
 
     Just somethingElse ->
       Err <| "Variable " ++ renderingFunctionName ++ " is not a function! " ++ toString somethingElse

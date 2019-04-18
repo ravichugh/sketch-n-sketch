@@ -87,6 +87,7 @@ port module Controller exposing
   , msgCollectAndSolve
   , msgShowUnExpPreview
   , msgClearUnExpPreview
+  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath
   )
 
 import Updatable exposing (Updatable)
@@ -4593,3 +4594,20 @@ msgClearUnExpPreview : Msg
 msgClearUnExpPreview =
   Msg "Clear UnExp Preview" <| \model ->
     { model | unExpPreview = Nothing }
+
+
+--------------------------------------------------------------------------------
+-- Tiny Structured Editors for Low, Low Prices!
+--------------------------------------------------------------------------------
+
+msgSelectTSEFLLPPath path =
+  Msg ("Select TSEFLLP path " ++ toString path) <| \model ->
+    { model | tinyStructuredEditorsForLowLowPricesState =
+                  TinyStructuredEditorsForLowLowPrices.selectPath model.tinyStructuredEditorsForLowLowPricesState path
+    }
+
+msgDeselectTSEFLLPPath path =
+  Msg ("Deselect TSEFLLP path " ++ toString path) <| \model ->
+    { model | tinyStructuredEditorsForLowLowPricesState =
+                  TinyStructuredEditorsForLowLowPrices.deselectPath model.tinyStructuredEditorsForLowLowPricesState path
+    }

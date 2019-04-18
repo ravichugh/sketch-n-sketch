@@ -1,5 +1,6 @@
 module TinyStructuredEditorsForLowLowPricesActions exposing (generateActionsForValueAndAssociateWithStringLocations)
 
+import Dict exposing (Dict)
 import Set exposing (Set)
 
 import Lang
@@ -160,13 +161,20 @@ ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefsWithoutTBools =
       )
 
 
+-- Given a value, generates SpecificActions for that value and then
+-- associates those actions with projection paths that appears in the string.
+-- Since not all projection paths for which we generate actions are guarenteed to
+-- appear in the toString representation, such actions are assigned to a node closer to the root.
+--
+-- The returned dict is a 1-to-1 mapping (actions are not duplicated).
 generateActionsForValueAndAssociateWithStringLocations
   :  Lang.Exp
   -> Lang.Val
   -> StringTaggedWithProjectionPaths
-  -> StringTaggedWithSpecificActions
+  -> Dict ProjectionPath (List SpecificAction)
 generateActionsForValueAndAssociateWithStringLocations program valueOfInterest stringTaggedWithProjectionPaths =
   let
+    specificActions : Set SpecificAction
     specificActions =
       let
         -- Use a data type for booleans instead of primitive Lang.TBool.
@@ -188,17 +196,51 @@ generateActionsForValueAndAssociateWithStringLocations program valueOfInterest s
       valToSpecificActions
           dataTypeDefsWithoutTBools
           (valueOfInterest |> desugarVal |> tagVal [])
+
+    projectionPathsInString : Set ProjectionPath
+    projectionPathsInString =
+      gatherStringTags stringTaggedWithProjectionPaths
+      |> Utils.unionAll
+
+    projectionPathsInActions : List ProjectionPath
+    projectionPathsInActions =
+      specificActions
+      |> Set.map specificActionProjectionPath
+      |> Set.toList
+
+    -- Note: can't change the paths on the actions themselves because the path recorded on
+    -- each action refers to where in the value to change. Hence we build a map.
+    actionProjectionPathToStringProjectionPath : Dict ProjectionPath ProjectionPath
+    actionProjectionPathToStringProjectionPath =
+      let makeActionProjectionPathToStringProjectionPathEntry actionProjectionPath =
+        let stringProjectionPath =
+          Utils.prefixes actionProjectionPath -- Longest prefix (the original path) appears first.
+          |> Utils.findFirst (flip Set.member projectionPathsInString)
+          |> Utils.maybeWithDefaultLazy (\_ -> Debug.crash <| "TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations expected projectionPathsInString to have a root element []! " ++ toString projectionPathsInString)
+        in
+        (actionProjectionPath, stringProjectionPath)
+      in
+      projectionPathsInActions
+      |> List.map makeActionProjectionPathToStringProjectionPathEntry
+      |> Dict.fromList
+
+
+    stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
+    stringProjectionPathToSpecificActions =
+      let makeStringProjectionPathToActionEntry specificAction =
+        let stringProjectionPath =
+          let errStr = "TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations expected to find action projection path in actionProjectionPathToStringProjectionPath!" in
+          actionProjectionPathToStringProjectionPath
+          |> Utils.justGet_ errStr (specificActionProjectionPath specificAction)
+        in
+        (stringProjectionPath, specificAction)
+      in
+      specificActions
+      |> Set.toList
+      |> List.map makeStringProjectionPathToActionEntry
+      |> Utils.pairsToDictOfLists
   in
-  stringTaggedWithProjectionPaths
-  |> mapTaggedStringTags (\pathSet -> specificActions)
-
-
-mapTaggedStringTags : (Set t1 -> Set t2) -> AppendedTaggedStrings t1 -> AppendedTaggedStrings t2
-mapTaggedStringTags f taggedString =
-  let recurse = mapTaggedStringTags f in
-  case taggedString of
-    TaggedString string tagSet           -> TaggedString string (f tagSet)
-    TaggedStringAppend left right tagSet -> TaggedStringAppend (recurse left) (recurse right) (f tagSet)
+  stringProjectionPathToSpecificActions
 
 
 valToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Set SpecificAction

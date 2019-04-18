@@ -1,19 +1,9 @@
-module TinyStructuredEditorsForLowLowPrices exposing (prepare, functionPickerAndEditor)
+module TinyStructuredEditorsForLowLowPrices exposing (prepare, selectPath, deselectPath)
 
-import Set exposing (Set)
-
-import Html exposing (Html)
-import Html.Attributes as Attr
--- import Html.Events exposing
---   ( onClick, onInput, onMouseEnter, onMouseLeave
---   , onWithOptions, defaultOptions
---   )
-import VirtualDom
+import Dict
+import Set
 
 import Lang
--- import LangSvg exposing (..)
-import Model exposing (Msg)
--- import Types2
 import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
@@ -51,92 +41,31 @@ prepare oldModelState env program valueOfInterest =
         Nothing ->
           Err "No rendering function chosen."
 
-    stringTaggedWithSpecificActionsResult =
+    stringProjectionPathToSpecificActions =
       stringTaggedWithProjectionPathsResult
-      |> Result.map
-        (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations program valueOfInterest)
+      |> Result.toMaybe
+      |> Maybe.map (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations program valueOfInterest)
+      |> Maybe.withDefault Dict.empty
 
   in
-  { renderingFunctionNames                = renderingFunctionNames
+  { oldModelState
+  | renderingFunctionNames                = renderingFunctionNames
   , maybeRenderingFunctionName            = maybeRenderingFunctionName
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
-  , stringTaggedWithSpecificActionsResult = stringTaggedWithSpecificActionsResult
+  , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
   }
+
+
+selectPath : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> ProjectionPath -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+selectPath oldModelState projectionPath =
+  { oldModelState | selectedPaths = Set.insert projectionPath oldModelState.selectedPaths }
+
+
+deselectPath : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> ProjectionPath -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+deselectPath oldModelState projectionPath =
+  { oldModelState | selectedPaths = Set.remove projectionPath oldModelState.selectedPaths }
+
 
 expToRenderingFunctionNames : Lang.Exp -> List Ident
 expToRenderingFunctionNames exp =
   ["intervalToString"]
-
-
--------------- View -----------
-
-functionPickerAndEditor : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> List (Html Msg)
-functionPickerAndEditor modelState =
-  let
-    renderingFunctionPicker =
-      let optionNames = modelState.renderingFunctionNames in
-      Html.select [] (optionNames |> List.map (\optionName -> Html.option [Attr.name optionName] [VirtualDom.text optionName]))
-
-  in
-  [ Html.div [] [renderingFunctionPicker]
-  , stringTaggedWithProjectionPathsToHtml modelState.stringTaggedWithProjectionPathsResult
-  , structuredEditor modelState.stringTaggedWithSpecificActionsResult
-  ]
-
-
-structuredEditor : Result String StringTaggedWithSpecificActions -> Html Msg
-structuredEditor stringTaggedWithSpecificActionsResult =
-  case stringTaggedWithSpecificActionsResult of
-    Ok stringTaggedWithSpecificActions ->
-      Html.div [Attr.style [("font-size", "18px")]] <|
-        ( tagSet stringTaggedWithSpecificActions
-          |> Set.toList
-          |> List.map
-              (\specificAction ->
-                case specificAction of
-                  Replace projectionPath taggedValue -> "Replace " ++ toString projectionPath ++ " with " ++ toString taggedValue.v
-                  Scrub projectionPath               -> "Scrub "   ++ toString projectionPath
-              )
-          |> List.map (Html.div [] << List.singleton << VirtualDom.text)
-        )
-    Err errorMsg -> VirtualDom.text errorMsg
-
-
-stringTaggedWithProjectionPathsToHtml : Result String StringTaggedWithProjectionPaths -> Html Msg
-stringTaggedWithProjectionPathsToHtml stringTaggedWithProjectionPathsResult =
-  let
-    text = VirtualDom.text
-
-    pathToString : ProjectionPath -> String
-    pathToString path =
-      case path of
-        []            -> "•"
-        n::deeperPath -> toString n ++ "." ++ pathToString deeperPath
-
-    pathSetToString : Set ProjectionPath -> String
-    pathSetToString pathSet =
-      case Set.toList pathSet of
-        []    -> "∅"
-        paths -> "{" ++ String.join "," (List.map pathToString paths) ++ "}"
-
-    renderStringTaggedWithProjectionPaths : StringTaggedWithProjectionPaths -> List (Html Msg)
-    renderStringTaggedWithProjectionPaths stringTaggedWithProjectionPaths =
-      let renderPathSet pathSet = Html.sup [Attr.style [("opacity", "0.5")]] [text <| pathSetToString pathSet] in
-      case stringTaggedWithProjectionPaths of
-        TaggedString string pathSet ->
-          [ Html.span [Attr.style [("font-weight", "bold"), ("color", "#0c0")]] [text <| "\"" ++ string ++ "\""]
-          , renderPathSet pathSet
-          ]
-
-        TaggedStringAppend stringTaggedWithProjectionPaths1 stringTaggedWithProjectionPaths2 pathSet ->
-          [ text "(" ] ++
-          renderStringTaggedWithProjectionPaths stringTaggedWithProjectionPaths1 ++
-          [ text " ++ " ] ++
-          renderStringTaggedWithProjectionPaths stringTaggedWithProjectionPaths2 ++
-          [ text ")"
-          , renderPathSet pathSet
-          ]
-  in
-  case stringTaggedWithProjectionPathsResult of
-    Ok stringTaggedWithProjectionPaths -> Html.div [Attr.style [("font-size", "18px")]] <| renderStringTaggedWithProjectionPaths stringTaggedWithProjectionPaths
-    Err errorMsg                       -> text errorMsg

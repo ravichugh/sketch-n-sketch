@@ -742,6 +742,22 @@ count : (a -> Bool) -> List a -> Int
 count pred list =
   List.filter pred list |> List.length
 
+maximumBy : (a -> comparable) -> List a -> Maybe a
+maximumBy f list =
+  case list of
+    []         -> Nothing
+    head::rest ->
+      let (maxElem, max) =
+        rest
+        |> foldl
+            (head, f head)
+            (\elem ((maxElem, max) as acc) ->
+              let value = f elem in
+              if value > max then (elem, value) else acc
+            )
+      in
+      Just maxElem
+
 listValue: (ws, value) -> value
 listValue = Tuple.second
 
@@ -1266,6 +1282,19 @@ isPrefixOf longer prefix =
     (_, [])        -> True
     ([], _)        -> False
     (x::xs, y::ys) -> x == y && isPrefixOf xs ys
+
+-- Ordered from largest to smallest.
+-- Includes the input list and the empty list.
+prefixes : List a -> List (List a)
+prefixes = List.reverse >> suffixes >> List.map List.reverse
+
+-- Ordered from largest to smallest.
+-- Includes the input list and the empty list.
+suffixes : List a -> List (List a)
+suffixes list =
+  case list of
+    []    -> [[]]
+    x::xs -> list :: suffixes xs
 
 -- Common elements shared at the beginning of each list
 commonPrefix : List (List a) -> List a
