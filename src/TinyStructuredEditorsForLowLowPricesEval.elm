@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPricesEval exposing (evalToStringTaggedWithProjectionPaths)
+module TinyStructuredEditorsForLowLowPricesEval exposing (evalToStringTaggedWithProjectionPaths, tagVal)
 
 import Set exposing (Set)
 

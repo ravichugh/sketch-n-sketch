@@ -18,18 +18,7 @@ import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
 import TinyStructuredEditorsForLowLowPricesEval
-
-
--- type alias DataConDef = (Ident, List Type)
--- type alias DataTypeDef = (Ident, List DataConDef)
--- getDataTypeDefs : Exp -> List DataTypeDef
-
--- valToSpecificActions : Lang.Exp -> Lang.Val -> List SpecificAction
--- valToSpecificActions exp val =
---   let
---     dataTypeDefs = Types2.getDataTypeDefs exp
---   in
---   []
+import TinyStructuredEditorsForLowLowPricesActions
 
 
 ----------- Controller -----------
@@ -61,10 +50,17 @@ prepare oldModelState env program valueOfInterest =
 
         Nothing ->
           Err "No rendering function chosen."
+
+    stringTaggedWithSpecificActionsResult =
+      stringTaggedWithProjectionPathsResult
+      |> Result.map
+        (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations program valueOfInterest)
+
   in
   { renderingFunctionNames                = renderingFunctionNames
   , maybeRenderingFunctionName            = maybeRenderingFunctionName
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
+  , stringTaggedWithSpecificActionsResult = stringTaggedWithSpecificActionsResult
   }
 
 expToRenderingFunctionNames : Lang.Exp -> List Ident
@@ -82,13 +78,32 @@ functionPickerAndEditor modelState =
       Html.select [] (optionNames |> List.map (\optionName -> Html.option [Attr.name optionName] [VirtualDom.text optionName]))
 
   in
-  [ renderingFunctionPicker
-  , structuredEditor modelState.stringTaggedWithProjectionPathsResult
+  [ Html.div [] [renderingFunctionPicker]
+  , stringTaggedWithProjectionPathsToHtml modelState.stringTaggedWithProjectionPathsResult
+  , structuredEditor modelState.stringTaggedWithSpecificActionsResult
   ]
 
 
-structuredEditor : Result String StringTaggedWithProjectionPaths -> Html Msg
-structuredEditor stringTaggedWithProjectionPathsResult =
+structuredEditor : Result String StringTaggedWithSpecificActions -> Html Msg
+structuredEditor stringTaggedWithSpecificActionsResult =
+  case stringTaggedWithSpecificActionsResult of
+    Ok stringTaggedWithSpecificActions ->
+      Html.div [Attr.style [("font-size", "18px")]] <|
+        ( tagSet stringTaggedWithSpecificActions
+          |> Set.toList
+          |> List.map
+              (\specificAction ->
+                case specificAction of
+                  Replace projectionPath taggedValue -> "Replace " ++ toString projectionPath ++ " with " ++ toString taggedValue.v
+                  Scrub projectionPath               -> "Scrub "   ++ toString projectionPath
+              )
+          |> List.map (Html.div [] << List.singleton << VirtualDom.text)
+        )
+    Err errorMsg -> VirtualDom.text errorMsg
+
+
+stringTaggedWithProjectionPathsToHtml : Result String StringTaggedWithProjectionPaths -> Html Msg
+stringTaggedWithProjectionPathsToHtml stringTaggedWithProjectionPathsResult =
   let
     text = VirtualDom.text
 
@@ -106,11 +121,11 @@ structuredEditor stringTaggedWithProjectionPathsResult =
 
     renderStringTaggedWithProjectionPaths : StringTaggedWithProjectionPaths -> List (Html Msg)
     renderStringTaggedWithProjectionPaths stringTaggedWithProjectionPaths =
-      let superscript string = Html.sup [] [VirtualDom.text string] in
+      let renderPathSet pathSet = Html.sup [Attr.style [("opacity", "0.5")]] [text <| pathSetToString pathSet] in
       case stringTaggedWithProjectionPaths of
         TaggedString string pathSet ->
-          [ text <| "\"" ++ string ++ "\""
-          , superscript <| pathSetToString pathSet
+          [ Html.span [Attr.style [("font-weight", "bold"), ("color", "#0c0")]] [text <| "\"" ++ string ++ "\""]
+          , renderPathSet pathSet
           ]
 
         TaggedStringAppend stringTaggedWithProjectionPaths1 stringTaggedWithProjectionPaths2 pathSet ->
@@ -119,9 +134,9 @@ structuredEditor stringTaggedWithProjectionPathsResult =
           [ text " ++ " ] ++
           renderStringTaggedWithProjectionPaths stringTaggedWithProjectionPaths2 ++
           [ text ")"
-          , superscript <| pathSetToString pathSet
+          , renderPathSet pathSet
           ]
   in
   case stringTaggedWithProjectionPathsResult of
-    Ok stringTaggedWithProjectionPaths -> Html.span [] <| renderStringTaggedWithProjectionPaths stringTaggedWithProjectionPaths
+    Ok stringTaggedWithProjectionPaths -> Html.div [Attr.style [("font-size", "18px")]] <| renderStringTaggedWithProjectionPaths stringTaggedWithProjectionPaths
     Err errorMsg                       -> text errorMsg

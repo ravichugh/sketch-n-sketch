@@ -15,6 +15,7 @@ module Types2 exposing
 
   , DatatypeEnv
   , DataTypeDef
+  , DataConDef
 
   , TypeEnv
   , TypeEnvElement(..)
@@ -26,6 +27,7 @@ module Types2 exposing
   , typeEquiv
   , rebuildArrow
   , matchArrowRecurse
+  , varOrAppToMaybeIdentAndArgTypes
 
   , HoleEnv
   , HoleEnvElement
@@ -483,8 +485,15 @@ decodeDataConDefs t =
       decodeDataDef t |> Maybe.map List.singleton
 
 decodeDataDef : Type -> Maybe DataConDef
-decodeDataDef t =
-  case t.val.t__ of
+decodeDataDef = varOrAppToMaybeIdentAndArgTypes
+
+
+-- List a => Just ("List", [TVar "a"])
+-- Nil    => Just ("Nil",  [])
+-- a      => Just ("a",    [])
+varOrAppToMaybeIdentAndArgTypes : Type -> Maybe (Ident, List Type)
+varOrAppToMaybeIdentAndArgTypes tipe =
+  case unwrapType (removeParens tipe) of
     -- using TApp, not TRecord?
     {-
     TRecord _ Nothing fieldTypes_ _ ->
@@ -508,19 +517,23 @@ decodeDataDef t =
       )
     -}
 
-    TVar _ dataConName ->
-      Just (dataConName, [])
+    TVar _ name ->
+      Just (name, [])
 
-    TApp _ t ts SpaceApp ->
-      case t.val.t__ of
-        TVar _ dataConName ->
-          Just (dataConName, ts)
+    TApp _ t ts _ ->
+      case unwrapType t of
+        TApp _ _ _ _ ->
+          varOrAppToMaybeIdentAndArgTypes t
+          |> Maybe.map (\(ident, leftTs) -> (ident, leftTs ++ ts))
+
+        TVar _ name ->
+          Just (name, ts)
 
         _ ->
           Nothing
 
     _ ->
-      let _ = Debug.log "decode other" t.val.t__ in
+      let _ = Debug.log "decode other" tipe.val.t__ in
       Nothing
 
 

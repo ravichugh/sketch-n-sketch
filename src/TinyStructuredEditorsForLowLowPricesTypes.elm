@@ -13,12 +13,14 @@ type alias ModelState =
   { renderingFunctionNames                : List Ident
   , maybeRenderingFunctionName            : Maybe Ident
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
+  , stringTaggedWithSpecificActionsResult : Result String StringTaggedWithSpecificActions
   }
 
 initialModelState =
   { renderingFunctionNames                = []
   , maybeRenderingFunctionName            = Nothing
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
+  , stringTaggedWithSpecificActionsResult = Err "No trace for toString call yet—need to run the code."
   }
 
 
@@ -49,6 +51,9 @@ type alias Env = List (Ident, TaggedValue) -- Tagged Environments E := — | E,x
 
 type alias TaggedValue = { v : UntaggedPreValue, paths : Set ProjectionPath } -- (Tagged) Values w := v^{π1,...,πn}
 
+noTag : UntaggedPreValue -> TaggedValue
+noTag v = TaggedValue v Set.empty
+
 type UntaggedPreValue -- (Untagged) Pre-Values v :=
   = VClosure Env Ident Exp -- [E]λx.e
   | VCtor Ident (List TaggedValue) -- C (w1,...,wn)
@@ -57,12 +62,11 @@ type UntaggedPreValue -- (Untagged) Pre-Values v :=
   | VNum Float
 
 
-
 ----------- Workflow Functions -----------
 
 type SpecificAction
-  = Transform ProjectionPath (Lang.Val -> Lang.Val)
-  | Scrub Lang.Val
+  = Replace ProjectionPath TaggedValue
+  | Scrub ProjectionPath
 
 type AppendedTaggedStrings t
   = TaggedString String (Set t)
@@ -70,3 +74,9 @@ type AppendedTaggedStrings t
 
 type alias StringTaggedWithProjectionPaths = AppendedTaggedStrings ProjectionPath
 type alias StringTaggedWithSpecificActions = AppendedTaggedStrings SpecificAction
+
+tagSet : AppendedTaggedStrings t -> Set t
+tagSet appendedTaggedStrings =
+  case appendedTaggedStrings of
+    TaggedString _ tagSet         -> tagSet
+    TaggedStringAppend _ _ tagSet -> tagSet

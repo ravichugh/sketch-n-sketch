@@ -19,8 +19,6 @@ trueExp           = ECtor "True" []
 falseExp          = ECtor "False" []
 
 
-noTag v = TaggedValue v Set.empty
-
 nilTaggedVal            = noTag <| VCtor "Nil" []
 consTaggedVal head tail = noTag <| VCtor "Cons" [head, tail]
 trueTaggedVal           = noTag <| VCtor "True" []
