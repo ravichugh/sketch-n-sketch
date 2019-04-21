@@ -958,7 +958,7 @@ menuBar model =
                   Controller.msgSetOutputValueText
               , simpleTextRadioButton
                   (model.outputMode == PBE)
-                  "Programming by Examples"
+                  "Programming by Example"
                   Controller.msgSetOutputPBE
               , simpleTextRadioButton
                   (model.outputMode == StructuredEditor)
@@ -3251,13 +3251,17 @@ pbePopupPanel model =
               Html.div
                 [ Attr.class "pbe-selected-holes"
                 ]
-                [ Html.ul
+                ( if Set.isEmpty model.selectedHoles then
                     []
-                    ( model.selectedHoles
-                        |> Set.toList
-                        |> List.map (viewSelectedHole model output)
-                    )
-                ]
+                  else
+                    [ Html.ul
+                        []
+                        ( model.selectedHoles
+                            |> Set.toList
+                            |> List.map (viewSelectedHole model output)
+                        )
+                    ]
+                )
 
             synthesizeButton =
               Html.div
@@ -3271,27 +3275,36 @@ pbePopupPanel model =
                 ]
 
             synthesisResults =
-              let
-                nonEmptyHoleFillings =
-                  List.filter (not << Dict.isEmpty) model.holeFillings
-              in
-                Html.div
-                  [ Attr.class "pbe-synthesis-results"
-                  ]
-                  ( if List.length nonEmptyHoleFillings > 0 then
-                      [ Html.h2
-                          []
-                          [ Html.text "Results"
+              Html.div
+                [ Attr.class "pbe-synthesis-results"
+                ]
+                ( case model.holeFillings of
+                    Just holeFillings ->
+                      let
+                        nonEmptyHoleFillings =
+                          List.filter (not << Dict.isEmpty) holeFillings
+                      in
+                        if List.length nonEmptyHoleFillings > 0 then
+                          [ Html.h2
+                              []
+                              [ Html.text "Results"
+                              ]
+                          , Html.ol
+                              []
+                              ( nonEmptyHoleFillings
+                                  |> List.map (viewHoleFilling model)
+                              )
                           ]
-                      , Html.ol
-                          []
-                          ( nonEmptyHoleFillings
-                              |> List.map (viewHoleFilling model)
-                          )
-                      ]
-                    else
+                        else
+                          [ Html.div
+                              [ Attr.class "pbe-no-synthesis-results"
+                              ]
+                              [ Html.text "No results."
+                              ]
+                          ]
+                    Nothing ->
                       []
-                  )
+                )
           in
             ( [ collectedConstraintsView
               , backpropView

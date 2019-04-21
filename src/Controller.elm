@@ -3557,7 +3557,7 @@ resetDeuceState m =
                             else {dx=0, dy=0}
                 }
           }
-      , holeFillings = []
+      , holeFillings = Nothing
       , unExpOutput =
           Result.map (Tuple.mapSecond <| \_ -> Just []) m.unExpOutput
       , selectedHoles = Set.empty
@@ -4443,7 +4443,7 @@ possiblyClearHoleFillings model =
     model.holeExampleInputs == Dict.empty
       && model.backpropExampleInput == ""
   then
-    { model | holeFillings = [] }
+    { model | holeFillings = Nothing }
   else
     model
 
@@ -4559,7 +4559,7 @@ msgCollectAndSolve =
         (Just k1, Just k2, Just k3) ->
           { model
               | holeFillings =
-                  NonDet.toList <|
+                  Just << NonDet.toList <|
                     PBESynthesis.solve
                       (Types2.getDataTypeDefs model.inputExp)
                       model.holeEnv
@@ -4570,7 +4570,7 @@ msgCollectAndSolve =
 
         _ ->
           { model
-              | holeFillings = []
+              | holeFillings = Nothing
               , codeAtPbeSynthesis = Nothing
           }
 

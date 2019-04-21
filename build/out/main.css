@@ -1423,6 +1423,10 @@ code {
   width: 500px;
 }
 
+.pbe-popup-panel > *:empty {
+  display: none
+}
+
 /* Hole environments */
 
 .pbe-hole-env {
@@ -1463,10 +1467,6 @@ code {
   padding: 10px;
 }
 
-.pbe-collected-constraints:empty {
-  display: none;
-}
-
 .pbe-constraint-header h2 {
   font-size: 1.1em;
   border-bottom: 1px dashed var(--main-border-color);
@@ -1495,10 +1495,6 @@ code {
 .pbe-backprop {
   padding: 10px;
   border-bottom: 1px solid var(--main-border-color);
-}
-
-.pbe-backprop:empty {
-  display: none;
 }
 
 .pbe-hole-backprop-input input {
@@ -1598,10 +1594,6 @@ code {
   font-size: 1.1em;
 }
 
-.pbe-synthesis-results:empty {
-  display: none;
-}
-
 .pbe-synthesis-results ol {
   padding-left: 35px;
   max-height: 300px;
@@ -1619,6 +1611,20 @@ code {
   margin-top: 7px;
   text-align: left;
   width: 100%;
+}
+
+.pbe-no-synthesis-results {
+  font-style: italic;
+  text-align: center;
+  font-size: 0.75em;
+}
+
+.pbe-no-synthesis-results::before {
+  content: "— ";
+}
+
+.pbe-no-synthesis-results::after {
+  content: " —";
 }
 
 /******************************************************************************

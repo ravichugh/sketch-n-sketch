@@ -235,7 +235,9 @@ type alias Model =
   , isDeuceTextBoxFocused : Bool
   , needsToFocusOn : Maybe String
   , holeEnv : Types2.HoleEnv
-  , holeFillings : List HoleFilling
+    -- Nothing means synthesis has not been run yet,
+    -- Just [] means synthesis returned no results
+  , holeFillings : Maybe (List HoleFilling)
   , unExpOutput : Result String (UnExp (), Maybe UnLang.Constraints)
   , selectedHoles : Set HoleId
   , selectedUnExp : Maybe (UnExp ())
@@ -1555,7 +1557,7 @@ initModel =
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
     , holeEnv = Types2.emptyHoleEnv
-    , holeFillings = []
+    , holeFillings = Nothing
     , unExpOutput = Err ""
     , selectedHoles = Set.empty
     , selectedUnExp = Nothing
