@@ -229,7 +229,7 @@ eval_ env exp =
                         "Not a proper 'get'"
                 )
 
-              evalConstraintsAssert (e1, e2) =
+              evalConstrain e1 e2 =
                 eval_ env e1 |> Evaluator.andThen (\u1 ->
                   eval_ env e2 |> Evaluator.andThen (\u2 ->
                     withConstraints
@@ -237,15 +237,31 @@ eval_ env exp =
                       (UTuple () [])
                   )
                 )
+
+              evalDefineHole e1 e2 =
+                -- Desugars to:
+                --   let _ = PBE.constrain e1 e2 in e1
+                eval_ env <|
+                  eLet
+                    [ ( "_"
+                      , eApp
+                          (eSelect (eVar "PBE") "constrain")
+                          [e1, e2]
+                      )
+                    ]
+                    e1
             in
               case Lang.toTupleGet exp of
                 Just tupleGet ->
                   evalGet tupleGet
 
                 Nothing ->
-                  case Lang.toConstraintsAssertion exp of
-                    Just constraintsAssertion ->
-                      evalConstraintsAssert constraintsAssertion
+                  case Lang.pbeAction exp of
+                    Just (Constrain e1 e2) ->
+                      evalConstrain e1 e2
+
+                    Just (DefineHole e1 e2) ->
+                      evalDefineHole e1 e2
 
                     Nothing ->
                       default ()

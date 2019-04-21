@@ -4793,32 +4793,37 @@ tupleTypeArguments t =
       Nothing
 
 --------------------------------------------------------------------------------
--- To Constraints Assertion
+-- PBE Built-In Functions
 --------------------------------------------------------------------------------
--- Transfers from applications to constraints assertions
 
-type alias ConstraintsAssertion =
-  (Exp, Exp)
+type PBEAction
+  = Constrain Exp Exp
+  | DefineHole Exp Exp
 
-toConstraintsAssertion : Exp -> Maybe ConstraintsAssertion
-toConstraintsAssertion e =
+pbeAction : Exp -> Maybe PBEAction
+pbeAction e =
   case unwrapExp e of
+    -- All actions only take two arguments, for now
     EApp _ eFunction [e1, e2] _ _ ->
       case unwrapExp eFunction of
         ESelect _ target _ _ selector ->
-          if selector == "constraints" then
-            case unwrapExp target of
-              EVar _ "PBE" ->
-                Just (e1, e2)
+          case unwrapExp target of
+            EVar _ "PBE" ->
+              case selector of
+                "constrain" ->
+                    Just <|
+                      Constrain e1 e2
 
-              _ ->
-                Nothing
-          else
-            Nothing
+                "defineHole" ->
+                    Just <|
+                      DefineHole e1 e2
 
+                _ ->
+                  Nothing
+            _ ->
+              Nothing
         _ ->
           Nothing
-
     _ ->
       Nothing
 
