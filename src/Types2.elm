@@ -185,6 +185,8 @@ type alias HoleEnv =
 type alias HoleEnvElement
   = (HoleId, (TypeEnv, Type))
 
+silly = [(123, ([], tVar0 "a"))]
+
 emptyHoleEnv : HoleEnv
 emptyHoleEnv =
   []
@@ -589,9 +591,10 @@ decodeDataPat p =
 
 -- TODO make a single decodeERecord
 
-inferTypeDataExp gamma thisExp listLetExp rebuildLetExps =
+inferTypeDataExp gamma stuff thisExp listLetExp =
   let
-    isDataExp : Maybe (Ident, List Type) -- (tyCon, dataConTypeArgs)
+    -- (Type constructor, data constructor, data constructor type arguments)
+    isDataExp : Maybe (Ident, Ident, List Type)
     isDataExp =
       listLetExp |> List.head |> Maybe.andThen (\firstLetExp ->
         let
@@ -603,35 +606,79 @@ inferTypeDataExp gamma thisExp listLetExp rebuildLetExps =
               Nothing
             else if pname == ctorDataType then
               lookupDataCon gamma ename
+                |> Maybe.map (\(tyCon, argTypes) -> (tyCon, ename, argTypes))
             else
               Nothing
           _ ->
             Nothing
       )
   in
-  isDataExp |> Maybe.map (\(tyCon, dataConTypeArgs) ->
+  isDataExp |> Maybe.map (\(tyCon, dataCon, dataConTypeArgs) ->
     case (unExpr thisExp).val.e__ of
       ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots letExps) ws2 ->
         let
-          -- TODO check args
-          newListLetExp =
+          arguments =
             listLetExp
+              |> List.concatMap
+                   ( \(LetExp _ _ pat _ _ e) ->
+                       case unwrapPat pat of
+                         PVar _ name _ ->
+                           if name == Lang.ctorArgs then
+                             [ e ]
+                           else
+                             []
+                         _ ->
+                           []
+                   )
+              |> List.head
+              |> Utils.fromJust_
+                   "Typechecking data constructor: 'args' should always exist"
+              |> ( \argsRecord ->
+                     case unwrapExp argsRecord of
+                       ERecord _ _ decls _ ->
+                         recordEntriesFromDeclarations decls
 
-          newLetExps =
-            rebuildLetExps newListLetExp
-
-          newExp =
-            ERecord ws1 maybeExpWs (Declarations po letTypes letAnnots newLetExps) ws2
-              |> replaceE__ thisExp
-              |> mapExp (setType (Just (withDummyTypeInfo <|
-                   TVar space0 "Actually, I skipped this... I trust you!")) -- TODO
+                       _ ->
+                         Nothing
                  )
-              |> setType (Just (withDummyTypeInfo <| TVar space0 tyCon))
+              |> Utils.fromJust_
+                   ( "Typechecking data constructor: "
+                       ++ "'args' should always be record"
+                   )
+              |> List.map (\(_, _, _, _, e) -> e)
+
+          (okay, (newArguments, argumentHoleEnvs)) =
+            dataConTypeArgs
+              |> List.map2 (checkType gamma stuff) arguments
+              |> List.map
+                   ( \{ okay, newExp, holeEnv } ->
+                       (okay, (newExp, holeEnv))
+                   )
+              |> List.unzip
+              |> Tuple.mapFirst Utils.and
+              |> Tuple.mapSecond List.unzip
         in
-        { newExp = newExp, holeEnv = emptyHoleEnv }
+          if okay then
+            { newExp =
+                eDatatype dataCon newArguments
+                  |> replacePrecedingWhitespace ws1.val
+                  |> setType (Just (withDummyTypeInfo <| TVar space0 tyCon))
+            , holeEnv =
+                holeEnvUnion argumentHoleEnvs
+            }
+          else
+            { newExp =
+                thisExp
+            , holeEnv =
+                emptyHoleEnv
+            }
 
       _ ->
-        { newExp = thisExp, holeEnv = emptyHoleEnv }
+        { newExp =
+            thisExp
+        , holeEnv =
+            emptyHoleEnv
+        }
   )
 
 
@@ -1141,7 +1188,7 @@ inferType
     : TypeEnv
    -> Stuff
    -> Exp
-   -> { newExp: Exp
+   -> { newExp : Exp
       , holeEnv : HoleEnv
       }
         -- the inferred Maybe Type is in newExp.val.typ
@@ -1999,7 +2046,7 @@ inferType gamma stuff thisExp =
 
             Just listLetExp ->
 
-             case inferTypeDataExp gamma thisExp listLetExp rebuildLetExps of
+             case inferTypeDataExp gamma stuff thisExp listLetExp of
               Just result -> result
               Nothing ->
 
@@ -2389,8 +2436,8 @@ checkType
    -> Stuff
    -> Exp
    -> Type
-   -> { okay: Bool
-      , newExp: Exp
+   -> { okay : Bool
+      , newExp : Exp
       , holeEnv : HoleEnv
       }
 checkType gamma stuff thisExp expectedType =
