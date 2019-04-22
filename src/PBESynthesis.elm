@@ -71,14 +71,14 @@ guess_ depth sigma gamma tau =
         T.typePairs gamma
 
       -- EGuess-Var
-      variableGuesses =
+      variableGuesses () =
         typePairs
           |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
           |> List.map (Tuple.first >> eVar)
           |> NonDet.fromList
 
       -- EGuess-App
-      appGuesses =
+      appGuesses () =
         let
           arrowMatches : ArrowType -> Bool
           arrowMatches (_, _, returnType) =
@@ -107,7 +107,7 @@ guess_ depth sigma gamma tau =
             |> NonDet.concatMap guessApps
 
       -- EGuess-Get
-      getGuesses =
+      getGuesses () =
         let
           -- Returns list of (n, i) pairs that work
           extractGet : List Type -> List (Int, Int)
@@ -138,9 +138,9 @@ guess_ depth sigma gamma tau =
             |> NonDet.fromList
     in
       NonDet.concat
-        [ variableGuesses
-        , appGuesses
-        , getGuesses
+        [ variableGuesses ()
+        , appGuesses ()
+        , getGuesses ()
         ]
 
 guess : T.DatatypeEnv -> T.TypeEnv -> Type -> NonDet Exp
@@ -172,7 +172,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
           unfilteredWorlds
 
       -- IRefine-Guess
-      guessRefinement =
+      guessRefinement () =
         tau
           |> guess_ (depth - 1) sigma gamma
           |> NonDet.map
@@ -180,7 +180,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
           |> NonDet.collapseMaybe
 
       -- IRefine-Constant
-      constantRefinement =
+      constantRefinement () =
         let
           extractConstant ex =
             case (unwrapType tau, ex) of
@@ -206,7 +206,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
             |> NonDet.fromList
 
       -- IRefine-Tuple
-      tupleRefinement =
+      tupleRefinement () =
         case tupleTypeArguments tau of
           Nothing ->
             NonDet.none
@@ -259,7 +259,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                 |> Maybe.withDefault NonDet.none
 
       -- IRefine-Fun
-      partialFunctionRefinement =
+      partialFunctionRefinement () =
         case T.matchArrowRecurse tau of
           -- TODO Only support single-argument functions for now
           Just (_, [argType], returnType) ->
@@ -363,7 +363,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
             NonDet.none
 
       -- IRefine-Constructor
-      constructorRefinement =
+      constructorRefinement () =
         let
           extractConstructorArgWorlds : Ident -> Maybe Worlds
           extractConstructorArgWorlds ctorName =
@@ -429,7 +429,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
               NonDet.none
 
       -- IRefine-Match
-      matchRefinement =
+      matchRefinement () =
         let
           argName : Ident
           argName =
@@ -529,20 +529,26 @@ refine_ depth sigma gamma unfilteredWorlds tau =
               |> Maybe.withDefault NonDet.none
 
       -- IRefine-Hole
-      holeRefinement =
+      holeRefinement () =
         if List.isEmpty worlds then
           NonDet.pure (Lang.eEmptyHole, [])
         else
           NonDet.none
     in
-      NonDet.concat
-        [ guessRefinement
-        , constantRefinement
-        , tupleRefinement
-        , partialFunctionRefinement
-        , constructorRefinement
-        , matchRefinement
-        , holeRefinement
+      NonDet.concat <|
+        [ guessRefinement ()
+        , constantRefinement ()
+        , tupleRefinement ()
+        , partialFunctionRefinement ()
+        , constructorRefinement ()
+        ] ++
+        ( if not <| List.isEmpty worlds then
+            [ matchRefinement ()
+            ]
+          else
+            []
+        ) ++
+        [ holeRefinement ()
         ]
 
 refine :
