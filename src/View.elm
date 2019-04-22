@@ -3292,6 +3292,7 @@ pbePopupPanel model =
                           , Html.ol
                               []
                               ( nonEmptyHoleFillings
+                                  |> Utils.dedup -- TODO be more efficient
                                   |> List.map (viewHoleFilling model)
                               )
                           ]

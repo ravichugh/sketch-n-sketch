@@ -90,7 +90,20 @@ guess_ depth sigma gamma tau =
               possibleArgs =
                 List.map
                   ( refine_ (depth - 1) sigma gamma []
-                      >> NonDet.map Tuple.first -- Discards constraints
+                      -- There should be no constraints
+                      >> NonDet.map
+                           ( \(exp, constraints) ->
+                               if List.isEmpty constraints then
+                                 Just exp
+                               else
+                                 Debug.log
+                                   ( "Non-empty constraints when synthesizing '"
+                                       ++ LeoUnparser.unparse exp
+                                       ++ "'"
+                                   )
+                                   Nothing
+                           )
+                      >> NonDet.collapseMaybe
                   )
                   argTypes
             in

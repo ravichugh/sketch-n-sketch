@@ -187,6 +187,14 @@ lookupRecursiveFunction functionName =
 unparseEnv : Env -> String
 unparseEnv =
   let
+    showFunction : FunctionDefinition -> String
+    showFunction (name, params, body) =
+      name
+        ++ " "
+        ++ String.join " " params
+        ++ " = "
+        ++ LeoUnparser.unparse body
+
     showBinding : EnvBinding -> String
     showBinding binding =
       case binding of
@@ -194,9 +202,13 @@ unparseEnv =
           ident ++ " → " ++ unparseSimple u
 
         RecursiveBinding functionEnv functions ->
-          -- TODO
-          "<recursive binding>"
-
+          String.concat
+            [ "<"
+            , functions
+                |> List.map showFunction
+                |> String.join " ; "
+            , ">"
+            ]
   in
     List.map showBinding >> String.join ", "
 
