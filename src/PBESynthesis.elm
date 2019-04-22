@@ -30,7 +30,7 @@ import LeoUnparser
 
 maxDepth : Int
 maxDepth =
-  4
+  8
 
 maxSolveDepth : Int
 maxSolveDepth =
@@ -254,6 +254,14 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                     |> List.map extract
                     |> Utils.projJusts
                     |> Maybe.map Utils.transpose
+                    -- TODO This shouldn't be necessary?
+                    |> Maybe.andThen
+                         ( \worldsList ->
+                             if List.length worldsList /= tupleLength then
+                               Nothing
+                             else
+                               Just worldsList
+                         )
             in
               maybeTupleArgsWorlds
                 |> Maybe.map
@@ -556,7 +564,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
         , constructorRefinement ()
         ] ++
         ( if not <| List.isEmpty worlds then
-            [ matchRefinement ()
+            [ -- matchRefinement ()
             ]
           else
             []
