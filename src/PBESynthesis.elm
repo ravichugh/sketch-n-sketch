@@ -30,7 +30,7 @@ import LeoUnparser
 
 maxDepth : Int
 maxDepth =
-  5
+  4
 
 maxSolveDepth : Int
 maxSolveDepth =
