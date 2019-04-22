@@ -7,7 +7,6 @@ import Lang
 import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
-import TinyStructuredEditorsForLowLowPricesDesugaring
 
 
 setTag : Set ProjectionPath -> TaggedValue -> TaggedValue
@@ -197,12 +196,8 @@ tidyUpProjectionPaths stringTaggedWithProjectionPaths =
   |> keepOutermostOnly Set.empty
 
 
-evalToStringTaggedWithProjectionPaths : Lang.Env -> Lang.Exp -> Lang.Val -> Ident -> Result String StringTaggedWithProjectionPaths
-evalToStringTaggedWithProjectionPaths langEnv langExp langVal renderingFunctionName =
-  let
-    env                   = TinyStructuredEditorsForLowLowPricesDesugaring.desugarEnv langEnv
-    valueOfInterestTagged = langVal |> TinyStructuredEditorsForLowLowPricesDesugaring.desugarVal |> tagVal []
-  in
+evalToStringTaggedWithProjectionPaths : Env -> TaggedValue -> Ident -> Result String StringTaggedWithProjectionPaths
+evalToStringTaggedWithProjectionPaths env valueOfInterestTagged renderingFunctionName =
   case Utils.maybeFind renderingFunctionName env |> Maybe.map .v of
     Just (VClosure funcEnv varName body) ->
       let renderingFunctionEnv = (varName, valueOfInterestTagged)::funcEnv in

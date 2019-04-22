@@ -17,6 +17,8 @@ import Model exposing (Msg)
 import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
+import TinyStructuredEditorsForLowLowPricesActions
+import TinyStructuredEditorsForLowLowPricesEval
 
 
 -------------- View -------------
@@ -32,7 +34,9 @@ functionPickerAndEditor modelState =
   [ Html.div [] [renderingFunctionPicker]
   , stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
   , Html.div [] [text "Selected paths: ", text (pathSetToString modelState.selectedPaths)]
-  , Html.div [Attr.style [("padding", "1em")]] [structuredEditor modelState.selectedPaths modelState.stringProjectionPathToSpecificActions modelState.stringTaggedWithProjectionPathsResult]
+  , Html.div
+      [ Attr.style [("padding", "1em")] ]
+      [ structuredEditor modelState ]
   -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions
   ]
 
@@ -50,6 +54,12 @@ pathSetToString pathSet =
     []    -> "∅"
     paths -> "{" ++ String.join "," (List.map pathToString paths) ++ "}"
 
+
+taggedStringToNormalString : AppendedTaggedStrings t -> String
+taggedStringToNormalString taggedString =
+  case taggedString of
+    TaggedString string _           -> string
+    TaggedStringAppend left right _ -> taggedStringToNormalString left ++ taggedStringToNormalString right
 
 -- actionAssociationsDebug : Dict ProjectionPath (List SpecificAction) -> Html Msg
 -- actionAssociationsDebug stringProjectionPathToSpecificActions =
@@ -212,13 +222,54 @@ assignActionsToLeaves stringProjectionPathToSpecificActions stringTaggedWithSele
   |> assignActionsPass2 Set.empty
 
 
-structuredEditor : Set ProjectionPath -> Dict ProjectionPath (List SpecificAction) -> Result String StringTaggedWithProjectionPaths -> Html Msg
-structuredEditor selectedPaths stringProjectionPathToSpecificActions stringTaggedWithProjectionPathsResult =
+structuredEditor
+  : { a | maybeRenderingFunctionName            : Maybe Ident
+        , desugaredEnv                          : Env
+        , valueOfInterestTagged                 : TaggedValue
+        , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
+        , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
+        , selectedPaths                         : Set ProjectionPath
+    }
+  -> Html Msg
+structuredEditor modelState =
+  let { desugaredEnv, valueOfInterestTagged, maybeRenderingFunctionName, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult } = modelState in
   let
     specificActionToString specificAction =
       case specificAction of
-        Replace projectionPath taggedValue -> "Replace " ++ pathToString projectionPath ++ " with " ++ unparseToUntaggedString taggedValue
         Scrub projectionPath               -> "Scrub "   ++ pathToString projectionPath
+        Replace projectionPath replacement ->
+          case maybeRenderingFunctionName of
+            Just renderingFunctionName ->
+              let
+                newValue = TinyStructuredEditorsForLowLowPricesActions.applyReplacement projectionPath replacement valueOfInterestTagged
+
+                newStringTaggedWithProjectionPathsResult =
+                  TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
+                      desugaredEnv
+                      newValue
+                      renderingFunctionName
+              in
+              case (stringTaggedWithProjectionPathsResult, newStringTaggedWithProjectionPathsResult) of
+                ( Ok originalStringTaggedWithProjectionPaths
+                , Ok newStringTaggedWithProjectionPaths
+                ) ->
+                  -- Only show part of string that has changed.
+                  let
+                    originalStr = taggedStringToNormalString originalStringTaggedWithProjectionPaths
+                    newStr      = taggedStringToNormalString newStringTaggedWithProjectionPaths
+
+                    sharedPrefix = Utils.commonPrefixString [originalStr, newStr]
+                    sharedSuffix = Utils.commonSuffixString [originalStr, newStr]
+                  in
+                  newStr
+                  |> String.slice (String.length sharedPrefix) (String.length newStr - String.length sharedSuffix)
+
+                ( Err errStr, _ ) -> errStr
+                ( _, Err errStr ) -> errStr
+
+            Nothing ->
+              "Replace " ++ pathToString projectionPath ++ " with " ++ unparseToUntaggedString replacement
+
 
     render
       :  Set ProjectionPath

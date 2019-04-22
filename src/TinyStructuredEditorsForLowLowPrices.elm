@@ -7,6 +7,7 @@ import Lang
 import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
+import TinyStructuredEditorsForLowLowPricesDesugaring
 import TinyStructuredEditorsForLowLowPricesEval
 import TinyStructuredEditorsForLowLowPricesActions
 
@@ -29,13 +30,19 @@ prepare oldModelState env program valueOfInterest =
       |> Utils.filterMaybe (flip List.member renderingFunctionNames)
       |> Utils.plusMaybe (List.head renderingFunctionNames)
 
+    valueOfInterestTagged =
+      valueOfInterest
+      |> TinyStructuredEditorsForLowLowPricesDesugaring.desugarVal
+      |> TinyStructuredEditorsForLowLowPricesEval.tagVal []
+
+    desugaredEnv = TinyStructuredEditorsForLowLowPricesDesugaring.desugarEnv env
+
     stringTaggedWithProjectionPathsResult =
       case maybeRenderingFunctionName of
         Just renderingFunctionName ->
           TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
-              env
-              program
-              valueOfInterest
+              desugaredEnv
+              valueOfInterestTagged
               renderingFunctionName
 
         Nothing ->
@@ -44,13 +51,15 @@ prepare oldModelState env program valueOfInterest =
     stringProjectionPathToSpecificActions =
       stringTaggedWithProjectionPathsResult
       |> Result.toMaybe
-      |> Maybe.map (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations program valueOfInterest)
+      |> Maybe.map (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations program valueOfInterestTagged)
       |> Maybe.withDefault Dict.empty
 
   in
   { oldModelState
   | renderingFunctionNames                = renderingFunctionNames
   , maybeRenderingFunctionName            = maybeRenderingFunctionName
+  , desugaredEnv                          = desugaredEnv
+  , valueOfInterestTagged                 = valueOfInterestTagged
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
   , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
   }

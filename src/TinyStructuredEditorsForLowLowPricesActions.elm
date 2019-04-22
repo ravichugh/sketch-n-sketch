@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPricesActions exposing (generateActionsForValueAndAssociateWithStringLocations)
+module TinyStructuredEditorsForLowLowPricesActions exposing (generateActionsForValueAndAssociateWithStringLocations, applyReplacement)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -9,9 +9,18 @@ import Types2
 import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
-import TinyStructuredEditorsForLowLowPricesDesugaring exposing (desugarVal)
 import TinyStructuredEditorsForLowLowPricesEval exposing (tagVal)
 
+
+applyReplacement : ProjectionPath -> TaggedValue -> TaggedValue -> TaggedValue
+applyReplacement pathToReplace replacement valueOfInterestTagged =
+  valueOfInterestTagged
+  |> mapTaggedValue
+      (\subvalueOfInterestTagged ->
+        if subvalueOfInterestTagged.paths == Set.singleton pathToReplace
+        then tagVal pathToReplace replacement
+        else subvalueOfInterestTagged
+      )
 
 
 -- By default we attempt to copy ctor arguments from the current value.
@@ -169,10 +178,10 @@ ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefsWithoutTBools =
 -- The returned dict is a 1-to-1 mapping (actions are not duplicated).
 generateActionsForValueAndAssociateWithStringLocations
   :  Lang.Exp
-  -> Lang.Val
+  -> TaggedValue
   -> StringTaggedWithProjectionPaths
   -> Dict ProjectionPath (List SpecificAction)
-generateActionsForValueAndAssociateWithStringLocations program valueOfInterest stringTaggedWithProjectionPaths =
+generateActionsForValueAndAssociateWithStringLocations program valueOfInterestTagged stringTaggedWithProjectionPaths =
   let
     specificActions : Set SpecificAction
     specificActions =
@@ -195,7 +204,7 @@ generateActionsForValueAndAssociateWithStringLocations program valueOfInterest s
       in
       valToSpecificActions
           dataTypeDefsWithoutTBools
-          (valueOfInterest |> desugarVal |> tagVal [])
+          valueOfInterestTagged
 
     projectionPathsInString : Set ProjectionPath
     projectionPathsInString =
@@ -296,8 +305,9 @@ valToSpecificActions dataTypeDefsWithoutTBools valueOfInterestTagged =
                     in
                     case maybeNewArgVals of
                       Just newArgVals ->
+                        let clearTags = mapTaggedValue (.v >> noTag) in
                         valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
-                        |> Set.map (\path -> Replace path (noTag <| VCtor otherCtorName newArgVals))
+                        |> Set.map (\path -> Replace path (clearTags <| noTag <| VCtor otherCtorName newArgVals))
                       Nothing -> Set.empty
                   )
               |> Utils.unionAll

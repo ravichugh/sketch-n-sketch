@@ -14,6 +14,8 @@ import Lang
 type alias ModelState =
   { renderingFunctionNames                : List Ident
   , maybeRenderingFunctionName            : Maybe Ident
+  , desugaredEnv                          : Env
+  , valueOfInterestTagged                 : TaggedValue
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
   , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
   , selectedPaths                         : Set ProjectionPath
@@ -22,6 +24,8 @@ type alias ModelState =
 initialModelState =
   { renderingFunctionNames                = []
   , maybeRenderingFunctionName            = Nothing
+  , desugaredEnv                          = []
+  , valueOfInterestTagged                 = noTag (VCtor "Nothing" [])
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
   , stringProjectionPathToSpecificActions = Dict.empty
   , selectedPaths                         = Set.empty
@@ -57,6 +61,18 @@ type alias TaggedValue = { v : UntaggedPreValue, paths : Set ProjectionPath } --
 
 noTag : UntaggedPreValue -> TaggedValue
 noTag v = TaggedValue v Set.empty
+
+-- Bottom-up
+mapTaggedValue : (TaggedValue -> TaggedValue) -> TaggedValue -> TaggedValue
+mapTaggedValue f w =
+  let recurse = mapTaggedValue f in
+  case w.v of
+    VClosure funcEnv varName body -> f w
+    VCtor ctorName ws             -> f { w | v = VCtor ctorName (List.map recurse ws) }
+    VString string                -> f w
+    VAppend w1 w2                 -> f { w | v = VAppend (recurse w1) (recurse w2) }
+    VNum num                      -> f w
+
 
 type UntaggedPreValue -- (Untagged) Pre-Values v :=
   = VClosure Env Ident Exp -- [E]λx.e
@@ -125,7 +141,3 @@ mapStringTags f taggedString =
   case taggedString of
     TaggedString string tagSet           -> TaggedString string (f tagSet)
     TaggedStringAppend left right tagSet -> TaggedStringAppend (recurse left) (recurse right) (f tagSet)
-
--- replaceTagSet : t -> AppendedTaggedStrings t -> AppendedTaggedStrings t
--- replaceTagSet newTagSet appendedTaggedStrings =
---   mapTagSet (\_ -> newTagSet) appendedTaggedStrings
