@@ -2402,6 +2402,9 @@ dummyLoc     = dummyLoc_ unann
 dummyTrace   = dummyTrace_ unann
 dummyProvenance = Provenance [] (eTuple0 []) []
 
+valNoProvenance : Val_ -> Val
+valNoProvenance v_ = { v_ = v_, provenance = dummyProvenance, parents = Parents [] }
+
 -- TODO interacts badly with auto-abstracted variable names...
 dummyLocWithDebugInfo : Frozen -> Num -> Loc
 dummyLocWithDebugInfo b n = (0, b, "")

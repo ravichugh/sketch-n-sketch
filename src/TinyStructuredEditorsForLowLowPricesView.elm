@@ -311,7 +311,14 @@ structuredEditor modelState =
             perhapsActions =
               let actionList = Set.toList actions in
               if isLeafSelected && actionList /= [] then
-                let renderAction specificAction = Html.div [] [text (specificActionToString specificAction)] in
+                let renderAction specificAction =
+                  let perhapsOnClickAttrs =
+                    case specificAction of
+                      Replace projectionPath replacement -> [ Html.Events.onClick <| Controller.msgTSEFLLPApplyReplacement replacement projectionPath ]
+                      Scrub projectionPath               -> []
+                  in
+                  Html.div perhapsOnClickAttrs [text (specificActionToString specificAction)]
+                in
                 [ Html.div
                     [ Attr.style [("position", "absolute"), ("margin-top", "1em")] ]
                     (List.map renderAction actionList)

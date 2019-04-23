@@ -2,6 +2,7 @@ module Update exposing
   ( buildUpdatedValueFromEditorString
   , buildUpdatedValueFromHtmlString
   , update
+  , vConst
   , vStr
   , vList
   )

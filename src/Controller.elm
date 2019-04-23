@@ -87,7 +87,7 @@ port module Controller exposing
   , msgCollectAndSolve
   , msgShowUnExpPreview
   , msgClearUnExpPreview
-  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath
+  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPApplyReplacement
   )
 
 import Updatable exposing (Updatable)
@@ -2717,14 +2717,7 @@ doCallUpdate m =
   -- TODO updated value may be back to original, so may want to
   -- detect this and write a caption that says so.
   in
-  --let _ = Debug.log "Let's do update" () in
-  let updatedExpResults =
-    EvalUpdate.doUpdate m.inputExp m.inputEnv m.inputVal updatedValResult
-  in
   --let _ = Debug.log "I'm here" () in
-  let revertChanges caption =
-    synthesisResult caption m.inputExp
-  in
   let showSolutions results =
     -- when the only option is to revert, hovering over that option
     -- isn't correctly re-running and replacing the dirty slate.
@@ -2749,10 +2742,23 @@ doCallUpdate m =
             Dict.insert valueBackpropToolName results_ m.synthesisResultsDict
         }
   in
+  backpropSynthesisResults m.inputExp m.inputEnv m.inputVal updatedValResult
+  |> showSolutions
+
+
+backpropSynthesisResults : Exp -> Env -> Val -> Result String Val -> List SynthesisResult
+backpropSynthesisResults program inputEnv inputVal updatedValResult =
+  --let _ = Debug.log "Let's do update" () in
+  let updatedExpResults =
+    EvalUpdate.doUpdate program inputEnv inputVal updatedValResult
+  in
+  let revertChanges caption =
+    synthesisResult caption program
+  in
   case updatedExpResults of
     Err msg ->
       let _ = Debug.log msg () in
-      showSolutions [revertChanges ("Error while updating: " ++ msg ++ ". Revert?")]
+      [revertChanges ("Error while updating: " ++ msg ++ ". Revert?")]
 
     Ok solutions ->
       let _ = Debug.log "Filtering solutions" () in
@@ -2766,10 +2772,10 @@ doCallUpdate m =
         LazyList.Nil ->
           case solutions of
             LazyList.Nil ->
-              showSolutions [revertChanges "No solution found. Revert?"]
+              [revertChanges "No solution found. Revert?"]
 
             LazyList.Cons (envModified, expModified) _ ->
-              let _ = Debug.log (UpdateUtils.diffExp m.inputExp expModified.val) "expModified" in
+              let _ = Debug.log (UpdateUtils.diffExp program expModified.val) "expModified" in
               let _ = Debug.log (EvalUpdate.preludeEnv |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames original") in
               let _ = Debug.log (envModified.val |> List.take 5 |> List.map Tuple.first |> String.join " ") ("EnvNames modified") in
               let envModif = UpdateUtils.envDiffsToString EvalUpdate.preludeEnv envModified.val envModified.changes in
@@ -2779,7 +2785,7 @@ doCallUpdate m =
               --     ) "envModified"
               --in
 
-              showSolutions [revertChanges <| "Only solutions modifying the library. Revert?\n\n"++envModif]
+              [revertChanges <| "Only solutions modifying the library. Revert?\n\n"++envModif]
 
         LazyList.Cons _ _ ->
           let filteredResults =
@@ -2789,8 +2795,8 @@ doCallUpdate m =
               --|> (\x -> let _ = Debug.log "Finished to filter the list of solutions" () in x)
               |> LazyList.map (\(_,newCodeExp) ->
                    --synthesisResult ("Program Update " ++ toString i) newCodeExp
-                   --let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.diffExpWithPositions" <| \_ -> UpdateUtils.diffExpWithPositions m.inputExp newCodeExp in
-                   let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.updatedExpToString" <| \_ -> UpdateStack.updatedExpToStringWithPositions m.inputExp newCodeExp in -- TODO: Incorporate positions.
+                   --let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.diffExpWithPositions" <| \_ -> UpdateUtils.diffExpWithPositions program newCodeExp in
+                   let (diffResult, diffs) = ImpureGoodies.logTimedRun "UpdateUtils.updatedExpToString" <| \_ -> UpdateStack.updatedExpToStringWithPositions program newCodeExp in -- TODO: Incorporate positions.
                    (String.trim diffResult, newCodeExp.val, diffs, newCodeExp.changes)
                    --synthesisResult diffResult newCodeExp.val diffs
                  )
@@ -2803,7 +2809,7 @@ doCallUpdate m =
               let thisSolution = Syntax.unparser Syntax.Leo newCode in
               if nativeDict.get thisSolution prevSolutions /= Nothing then -- remove duplicates only if the final Exp is the same
                 if stopIfDuplicate then
-                  Just <| synthesisResultDiffsLazy ("Solution #" ++ toString i ++ " is duplicate. Continue searching?") m.inputExp [] <| \_ ->
+                  Just <| synthesisResultDiffsLazy ("Solution #" ++ toString i ++ " is duplicate. Continue searching?") program [] <| \_ ->
                     aux False (i + 1) (Lazy.force lazyTail) prevSolutions
                 else
                   aux False (i + 1) (Lazy.force lazyTail) prevSolutions
@@ -2813,9 +2819,10 @@ doCallUpdate m =
           in
           case aux False 1 filteredResults (nativeDict.empty ()) of
             Nothing ->
-              showSolutions [revertChanges "Only Solution is Original Program"]
+              [revertChanges "Only Solution is Original Program"]
             Just synthesisResult ->
-              showSolutions ([synthesisResult, revertChanges "Revert to Original Program"])
+              [synthesisResult, revertChanges "Revert to Original Program"]
+
 
 decodeStyles : JSDecode.Decoder Val
 decodeStyles =
@@ -4611,3 +4618,31 @@ msgDeselectTSEFLLPPath path =
     { model | tinyStructuredEditorsForLowLowPricesState =
                   TinyStructuredEditorsForLowLowPrices.deselectPath model.tinyStructuredEditorsForLowLowPricesState path
     }
+
+msgTSEFLLPApplyReplacement tsefllpReplacementVal path =
+  Msg ("Apply replacement to TSEFLLP path " ++ toString path) <| \model ->
+    let
+      updatedValResult =
+        TinyStructuredEditorsForLowLowPrices.newLangValResultViaReplacement model.tinyStructuredEditorsForLowLowPricesState tsefllpReplacementVal path
+
+      _ =
+        case updatedValResult of
+          Ok _       -> ()
+          Err errStr -> Utils.log errStr
+
+      maybeBackpropResult =
+        let originalCode = Syntax.unparser model.syntax model.inputExp in
+        backpropSynthesisResults model.inputExp model.inputEnv model.inputVal updatedValResult
+        |> Utils.findFirst (resultExp >> Syntax.unparser model.syntax >> (/=) originalCode)
+
+    in
+    case maybeBackpropResult of
+      Just synthesisResult ->
+        { model | tinyStructuredEditorsForLowLowPricesState =
+                      TinyStructuredEditorsForLowLowPrices.deselectAll model.tinyStructuredEditorsForLowLowPricesState path
+                , code = Syntax.unparser model.syntax (resultExp synthesisResult)
+        } |> upstateRun
+
+      Nothing ->
+        let _ = Utils.log "No bidirectional backprop results!" in
+        model

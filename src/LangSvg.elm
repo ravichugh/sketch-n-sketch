@@ -200,7 +200,6 @@ svgValToIndexedTree v =
 
 vListToIndexedTree : Val -> Result String RootedIndexedTree
 vListToIndexedTree vList =
-  let valNoProvenance v_ = { v_ = v_, provenance = dummyProvenance, parents = Parents [] } in
   let newSvg =
     valNoProvenance <|
       VList [

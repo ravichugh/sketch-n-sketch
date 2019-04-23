@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPrices exposing (prepare, selectPath, deselectPath)
+module TinyStructuredEditorsForLowLowPrices exposing (prepare, newLangValResultViaReplacement, selectPath, deselectPath, deselectAll)
 
 import Dict
 import Set
@@ -8,6 +8,7 @@ import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
 import TinyStructuredEditorsForLowLowPricesDesugaring
+import TinyStructuredEditorsForLowLowPricesResugaring
 import TinyStructuredEditorsForLowLowPricesEval
 import TinyStructuredEditorsForLowLowPricesActions
 
@@ -65,6 +66,13 @@ prepare oldModelState env program valueOfInterest =
   }
 
 
+newLangValResultViaReplacement : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> TaggedValue -> ProjectionPath -> Result String Lang.Val
+newLangValResultViaReplacement modelState tsefllpReplacementVal projectionPath =
+  modelState.valueOfInterestTagged
+  |> TinyStructuredEditorsForLowLowPricesActions.applyReplacement projectionPath tsefllpReplacementVal
+  |> TinyStructuredEditorsForLowLowPricesResugaring.taggedValToLangValResult
+
+
 selectPath : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> ProjectionPath -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
 selectPath oldModelState projectionPath =
   { oldModelState | selectedPaths = Set.insert projectionPath oldModelState.selectedPaths }
@@ -73,6 +81,11 @@ selectPath oldModelState projectionPath =
 deselectPath : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> ProjectionPath -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
 deselectPath oldModelState projectionPath =
   { oldModelState | selectedPaths = Set.remove projectionPath oldModelState.selectedPaths }
+
+
+deselectAll : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> ProjectionPath -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+deselectAll oldModelState projectionPath =
+  { oldModelState | selectedPaths = Set.empty }
 
 
 expToRenderingFunctionNames : Lang.Exp -> List Ident
