@@ -242,6 +242,7 @@ parseHtmlAttributeValue: ParsingMode -> Parser HTMLAttributeValue
 parseHtmlAttributeValue parsingMode =
   case parsingMode of
     Raw ->
+      inContext "html raw attribute value" <|
       oneOf [
         delayedCommitMap (\sp1 (sp2, builder) -> builder sp1 sp2)
           spaces
@@ -260,6 +261,7 @@ parseHtmlAttributeValue parsingMode =
         trackInfo <| succeed HTMLAttributeNoValue
       ]
     Interpolation {attributevalue, attributerawvalue} ->
+      inContext "html interpolatable attribute value" <|
       trackInfo <| oneOf [
           delayedCommitMap (\spBeforeEq builder -> builder spBeforeEq)
           spaces

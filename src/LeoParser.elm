@@ -833,7 +833,9 @@ attrsToExp lastPos attrs =
                HTMLParser.HTMLAttributeString spBeforeEq spAfterEq delimiter elems ->
                  let (Expr attrValue) = htmlAttribElemsToExp delimiter elems in
                  Ok (spBeforeEq, spAfterEq, HTMLParser.AtAbsent, attrValue)
-               _ -> Err <| "[Internal error] Tried to convert " ++ toString head ++ " to an Exp"
+               HTMLParser.HTMLAttributeUnquoted wsEq wsVal elems ->
+                 let (Expr attrValue) = htmlAttribElemsToExp "" elems in
+                 Ok (wsEq, wsVal, HTMLParser.AtAbsent, attrValue)
           in
           case attrSpaceAtValue of
             Err msg -> fail msg
@@ -993,9 +995,9 @@ htmlAttribElemsToExp quoteCharStr content =
            Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entityRendered)) l.start l.start,
            Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entity)) l.start l.end] SpaceApp space0) l.start l.end)
   in
-  let precedingWs = if quoteCharStr == "\"" then space1 else space0 in
+  let precedingWs = if quoteCharStr == "\"" then ws "  " else if quoteCharStr == "" then space0 else space1 in --encoding of quote char
   case contentAsExprs of
-    [] -> withDummyExpInfo (EBase space0 (EString quoteCharStr ""))
+    [] -> withDummyExpInfo (EBase precedingWs (EString quoteCharStr ""))
     ((Expr h) as head) :: tail ->
       Expr <| withDummyInfo (exp_ <| EApp precedingWs (Expr <| withInfo (exp_ <| EVar space1  "__htmlRawAttribute__") h.start h.start) [
         List.foldl (\((Expr ee1) as e1) ((Expr ee2) as e2) ->

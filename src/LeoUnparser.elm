@@ -846,7 +846,7 @@ multilineContentUnparse e = case (unwrapExp e) of
   anyExp -> "@(" ++ unparse e ++ ")"
 
 noInterpolationConflict varString rightString =
-  String.endsWith ")" varString ||
+  String.endsWith ")" varString || String.endsWith "]" varString ||
   Regex.contains (Regex.regex "[\\w_\\$]$") varString && Regex.contains (Regex.regex "^[^\\w_\\$\\.]|^$") rightString
 
 ------------------------
@@ -919,14 +919,18 @@ unparseHtmlAttributes interpolationStyle attrExp =
                             _ -> Err "Unexpected AST. Reverting to standard rendering"
                         _ -> Err "Unexpected AST. Reverting to standard rendering"
                       in
-                      let quoteChar = if precedingWs.val == " " then "\"" else "'" in
+                      let quoteChar = if precedingWs.val == " " then "'" else if precedingWs.val == "  " then "\"" else "" in
                       case unparseHtmlStringContent elem  of
                         Err _ -> default ()
                         Ok unparsedContent ->
-                          let rawcontent = unparsedContent |> Regex.replace (Regex.All) (Regex.regex quoteChar) (\m ->
-                            if m.match == "\"" then "&quot;" else "&#39;")
-                          in
-                          beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ quoteChar ++ rawcontent ++ quoteChar
+                          if quoteChar /= "" || Regex.contains (Regex.regex ">|\\s") unparsedContent then
+                              let rawcontent = unparsedContent |>
+                                    Regex.replace (Regex.All) (Regex.regex quoteChar) (\m ->
+                                      if m.match == "\"" then "&quot;" else "&#39;")
+                              in
+                              beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ quoteChar ++ rawcontent ++ quoteChar
+                          else
+                              beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ unparsedContent
                     _ -> default ()
                 _ -> default ()
             _ -> " @[" ++ unparse attr ++"]"
