@@ -1356,7 +1356,7 @@ zoneRotate model id shape (cx,cy) r maybeCmds =
 
 zoneRotate_ model id shape cx cy r cmds =
   let (a, stroke, strokeWidth, rBall) =
-      (20, "rgba(192,192,192,0.5)", "5", "7") in
+      (26, "rgba(192,192,192,0.5)", "5", "7") in
   let (fillBall, swBall) = ("silver", "2") in
   let transform = transformAttr cmds in
   let circle =
@@ -1464,7 +1464,7 @@ zoneColor_ : RealZone -> ShapeFeature -> Model -> NodeId -> ShapeKind
           -> Num -> Num -> NumTr -> List (Svg Msg)
 zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
-      (wGradient, hZoneColor, 20, "silver", "2", "7") in
+      (wGradient, hZoneColor, 26, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
   let selectableFeature = ShapeFeature id shapeFeature in
   let ball =
@@ -1532,7 +1532,7 @@ zoneOpacity_
   -> Num -> Num -> NumTr -> List (Svg Msg)
 zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
-      (wOpacityBox, 20, 20, "silver", "2", "7") in
+      (wOpacityBox, 20, 26, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
   let selectableFeature = ShapeFeature id shapeFeature in
   let ball =
@@ -1589,7 +1589,7 @@ zoneStrokeWidth model id shape x y maybeStrokeWidth =
 
 zoneStrokeWidth_ model id shape x y (n, trace) =
   let (w, h, a, stroke, strokeWidth, rBall) =
-      (wStrokeWidthBox, LangSvg.maxStrokeWidthNum, 20, "silver", "2", "7") in
+      (wStrokeWidthBox, LangSvg.maxStrokeWidthNum, 26, "silver", "2", "7") in
   let yOff = a + rotZoneDelta in
   let selectableFeature = ShapeFeature id (OFeat StrokeWidth) in
   let box =
