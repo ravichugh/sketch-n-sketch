@@ -1,5 +1,5 @@
 -- Convert from ordinary Sketch-n-Sketch language to our core language for tiny structured editors.
-module TinyStructuredEditorsForLowLowPricesDesugaring exposing (..)
+module TinyStructuredEditorsForLowLowPricesDesugaring exposing (makeDesugaredToStringProgram, desugarVal)
 
 import Set exposing (Set)
 
@@ -25,26 +25,20 @@ trueTaggedVal           = noTag <| VCtor "True" []
 falseTaggedVal          = noTag <| VCtor "False" []
 
 
-desugarEnv : Lang.Env -> Env
-desugarEnv langEnv =
-  let (env, newCache) = desugarEnv_ [] langEnv in
-  env
-
-
--- Cache desugarings to prevent (super?) exponential blowup when desugaring closure environments.
-desugarEnv_ : List (Lang.Val, TaggedValue) -> Lang.Env -> (Env, List (Lang.Val, TaggedValue))
-desugarEnv_ cache langEnv =
-  let (env, newCache) =
-    langEnv
-    |> Utils.foldr ([], cache)
-        (\(ident, langVal) (env, cache) ->
-          let (taggedVal, newCache) = desugarVal_ cache langVal in
-          ( (ident, taggedVal)::env
-          , newCache
-          )
-        )
-  in
-  (env, newCache)
+-- Create a desugared program with a main expression that calls
+-- the toString function on a variable named "valueOfInterestTagged".
+-- The evaluator will insert the valueOfInterestTagged binding into
+-- the execution environment.
+--
+-- def1 = ...
+-- def2 = ...
+-- def3 = ...
+-- renderingFunctionName valueOfInterestTagged
+makeDesugaredToStringProgram : Lang.Exp -> Ident -> Exp
+makeDesugaredToStringProgram program renderingFunctionName =
+  program
+  |> LangTools.mapLastTopLevelExp (\_ -> Lang.eCall renderingFunctionName [Lang.eVar "valueOfInterestTagged"])
+  |> desugarExp
 
 
 -- Conversions:
@@ -56,12 +50,9 @@ desugarEnv_ cache langEnv =
 -- - If-then-else to case split on boolean
 --
 -- Notably unsupported:
--- - numeric constants
 -- - numeric binops
 -- - records
 -- - non-var argument patterns
--- - recursion
--- - mutual recursion
 desugarExp : Lang.Exp -> Exp
 desugarExp langExp =
   case Lang.unwrapExp langExp of
@@ -74,16 +65,8 @@ desugarExp langExp =
     Lang.EFun _ pats bodyExp _           ->
       -- Binarize all functions.
       case pats |> List.map LangTools.patToMaybePVarIdent |> Utils.projJusts of
-        Just (firstArgName::otherArgNames) ->
-          -- Handle otherArgNames by wrapping bodyExp with a bunch of one-arg functions.
-          let desugaredBodyExp = otherArgNames |> Utils.foldr (desugarExp bodyExp) EFun in
-          EFun firstArgName desugaredBodyExp
-
-        Just [] ->
-          EString "TinyStructuredEditorsForLowLowPrices core language does not support zero argument functions"
-
-        Nothing ->
-          EString "TinyStructuredEditorsForLowLowPrices core language does not support functions with non-var argument patterns"
+        Just argNames -> makeMultiArgFunction argNames (desugarExp bodyExp)
+        Nothing       -> EString "TinyStructuredEditorsForLowLowPrices core language does not support functions with non-var argument patterns"
 
     Lang.EOp _ _ op argExps _ ->
       case (op.val, argExps) of
@@ -106,33 +89,11 @@ desugarExp langExp =
         Nothing ->
           EString "TinyStructuredEditorsForLowLowPrices core language does not yet support records"
 
-    Lang.ESelect _ e1 _ _ name                                -> EString "TinyStructuredEditorsForLowLowPrices core language does not yet support record file selection"
-    Lang.EApp _ funcExp [] appType _                          -> EString "TinyStructuredEditorsForLowLowPrices core language does not support zero argument applications"
-    Lang.EApp _ funcExp (firstArgExp::otherArgExps) appType _ ->
-      -- Binarize all applications.
-      let firstApp = EApp (desugarExp funcExp) (desugarExp firstArgExp) in
-      otherArgExps |> Utils.foldl firstApp (\argExp desugaredFuncExp -> EApp desugaredFuncExp (desugarExp argExp))
+    Lang.ESelect _ e1 _ _ name            -> EString "TinyStructuredEditorsForLowLowPrices core language does not yet support record field selection"
+    Lang.EApp _ funcExp argExps appType _ -> makeMultiApp (desugarExp funcExp) (List.map desugarExp argExps) -- Binarize all applications.
 
     Lang.ELet _ _ (Lang.Declarations _ _ _ letExpGroups) _ bodyExp ->
-      -- TODO revist desugaring order
-      let
-        maybeIdentBoundExpPairs =
-          Lang.elemsOf letExpGroups
-          |> List.map
-              (\(Lang.LetExp _ _ pat _ _ boundExp) ->
-                case pat.val.p__ of
-                    Lang.PVar _ ident _  -> Just (ident, boundExp)
-                    _                    -> Nothing
-              )
-          |> Utils.projJusts
-      in
-      case maybeIdentBoundExpPairs of
-        Just (identBoundExpPairs) ->
-          identBoundExpPairs
-          |> Utils.foldr (desugarExp bodyExp) (\(ident, boundExp) desugaredBodyExp -> EApp (EFun ident desugaredBodyExp) (desugarExp boundExp))
-
-        Nothing ->
-          EString "TinyStructuredEditorsForLowLowPrices core language does not support multi var let patterns"
+      desugarLetExpGroups letExpGroups bodyExp
 
     Lang.EIf _ conditionExp _ thenExp _ elseExp _ ->
       ECase (desugarExp conditionExp)
@@ -166,6 +127,174 @@ desugarExp langExp =
     Lang.EParens _ innerExp _ _      -> desugarExp innerExp
     Lang.EHole _ _                   -> EString "??"
 
+
+desugarLetExpGroups : List (Bool, List Lang.LetExp) -> Lang.Exp -> Exp
+desugarLetExpGroups letExpGroups letBody =
+  letExpGroups
+  |> Utils.foldr (desugarExp letBody) desugarLetExpGroup
+
+
+desugarLetExpGroup : (Bool, List Lang.LetExp) -> Exp -> Exp
+desugarLetExpGroup ((isRec, letExps) as letExpGroup) desugaredLetBody =
+  if isRec then
+    desugarRecursiveLetExps letExps desugaredLetBody
+  else
+    letExps |> Utils.foldr desugaredLetBody desugarLetExp
+
+
+makeMultiArgFunction : List Ident -> Exp -> Exp
+makeMultiArgFunction argNames desugaredBodyExp =
+  argNames |> Utils.foldr desugaredBodyExp (EFun "")
+
+
+makeLetViaApp : Ident -> Exp -> Exp -> Exp
+makeLetViaApp varName desugaredBoundExp desugaredLetBody =
+  EApp (EFun "" varName desugaredLetBody) desugaredBoundExp
+
+
+-- Binarize all applications.
+makeMultiApp : Exp -> List Exp -> Exp
+makeMultiApp desugaredFuncExp desugaredArgExps =
+  desugaredArgExps
+  |> Utils.foldl desugaredFuncExp (\desugaredArgExp desugaredFuncExp -> EApp desugaredFuncExp desugaredArgExp)
+  -- let firstApp = EApp (desugarExp funcExp) (desugarExp firstArgExp) in
+  -- otherArgExps |> Utils.foldl firstApp (\argExp desugaredFuncExp -> EApp desugaredFuncExp (desugarExp argExp))
+
+
+-- Let desugared to function application.
+desugarLetExp : Lang.LetExp -> Exp -> Exp
+desugarLetExp (Lang.LetExp _ _ pat _ _ boundExp) desugaredLetBody =
+  case LangTools.patToMaybePVarIdent (Lang.patEffectivePat pat) of
+    Just ident  -> makeLetViaApp ident (desugarExp boundExp) desugaredLetBody
+    _           -> EString "TinyStructuredEditorsForLowLowPrices core language does not support multi var let patterns"
+
+
+-- Following Exercise 9 of https://caml.inria.fr/pub/docs/u3-ocaml/ocaml-ml.html#toc5
+--
+-- Given:
+--
+-- let rec f1 = λx. a1
+--     and f2 = λx. a2
+--     and f3 = λx. a3
+-- in
+-- a
+--
+-- Desugars to:
+-- let rec f1' = λf2. λf3. λx. let f1 = f1' f2 f3 in
+--                             a1
+-- in
+-- let rec f2' =      λf3. λx. let f2 = f2' f3    in
+--                             let f1 = f1' f2 f3 in
+--                             a2
+-- in
+-- let rec f3' =           λx. let f3 = f3'       in
+--                             let f2 = f2' f3    in
+--                             let f1 = f1' f2 f3 in
+--                             a3
+-- in
+-- -- The given answer to Exercise 9 forgot the following lets:
+-- let f3 = f3'       in
+-- let f2 = f2' f3    in
+-- let f1 = f1' f2 f3 in
+-- a
+desugarRecursiveLetExps : List Lang.LetExp -> Exp -> Exp
+desugarRecursiveLetExps letExps desugaredLetBody =
+  let
+    -- Helpers; could be at the top level but used only in this function.
+
+    makeLetRecViaApp recName desugaredBoundExp desugaredLetBody =
+      case desugaredBoundExp of
+        EFun "" fVarName fBody -> makeLetViaApp recName (EFun recName fVarName fBody) desugaredLetBody
+        EFun _  fVarName fBody -> EString "TinyStructuredEditorsForLowLowPrices whyyyyyy is an EFun getting recursivized twicee....."
+        _                      -> EString "TinyStructuredEditorsForLowLowPrices recursive bindings only supported for functions"
+
+    -- Given:   λx. λy. λz. e
+    -- Returns: λx. λy. λz. e'
+    mapDeepestEFunBody f exp =
+      let recurse = mapDeepestEFunBody f in
+      case exp of
+        EFun fRecName fVarName fBody -> EFun fRecName fVarName (recurse fBody)
+        _                            -> f exp
+
+  in
+  let
+    maybeRecNames =
+      letExps
+      |> List.map (Lang.patOfLetExp >> Lang.patEffectivePat >> LangTools.patToMaybePVarIdent)
+      |> Utils.projJusts
+  in
+  case maybeRecNames of
+    Just recNames ->
+      let
+        recIsNeeded = List.range 1 (List.length recNames) -- Indicies.
+
+        -- Names for f1' f2' f3' above.
+        intermediateName name = name ++ "SinglyRecursive"
+
+        -- let f3 = f3'       in
+        -- let f2 = f2' f3    in
+        -- let f1 = f1' f2 f3 in
+        -- a
+        applyToRemakeRecFuncs recIsNeeded scopeBodyExp =
+          case List.maximum recIsNeeded of
+            Just recI ->
+              -- Wrap once and recurse inward.
+              let
+                fName             = Utils.geti recI recNames
+                fIntermediateName = intermediateName fName
+                argNames          = List.drop recI recNames
+                remade            = makeMultiApp (EVar fIntermediateName) (List.map EVar argNames)
+              in
+              makeLetViaApp fName remade <|
+                applyToRemakeRecFuncs (Utils.removeAsSet recI recIsNeeded) scopeBodyExp
+
+            Nothing ->
+              scopeBodyExp
+
+        desugaredRawLetBindings = letExps |> List.map (Lang.bindingOfLetExp >> desugarExp)
+
+        -- let rec f1' = λf2. λf3. λx. let f1 = f1' f2 f3 in
+        --                             a1
+        -- in
+        -- let rec f2' =      λf3. λx. let f2 = f2' f3    in
+        --                             let f1 = f1' f2 f3 in
+        --                             a2
+        -- in
+        -- let rec f3' =           λx. let f3 = f3'       in
+        --                             let f2 = f2' f3    in
+        --                             let f1 = f1' f2 f3 in
+        --                             a3
+        -- in
+        wrapWithLetRecs recIsNeeded scopeBodyExp =
+          case List.minimum recIsNeeded of
+            Just recI ->
+              -- Wrap once and recurse inward.
+              let
+                fName                  = Utils.geti recI recNames
+                fIntermediateName      = intermediateName fName
+                argNames               = List.drop recI recNames
+                desugaredBinding       = Utils.geti recI desugaredRawLetBindings
+                bodyWithRemadeRecFuncs = desugaredBinding |> mapDeepestEFunBody (applyToRemakeRecFuncs (List.range 1 recI)) -- let f1 = f1' f2 f3 in funcBody
+                wrappedWithRecArgs     = makeMultiArgFunction argNames bodyWithRemadeRecFuncs -- λf2. λf3. bodyWithRemadeRecFuncs
+              in
+              makeLetRecViaApp fIntermediateName wrappedWithRecArgs <|
+                wrapWithLetRecs (Utils.removeAsSet recI recIsNeeded) scopeBodyExp
+
+            Nothing ->
+              scopeBodyExp
+
+        -- This part:
+        -- let f3 = f3'       in
+        -- let f2 = f2' f3    in
+        -- let f1 = f1' f2 f3 in
+        -- a
+        mainScopeExp = applyToRemakeRecFuncs recIsNeeded desugaredLetBody
+      in
+      mainScopeExp
+      |> wrapWithLetRecs recIsNeeded
+
+    Nothing ->
+      EString "TinyStructuredEditorsForLowLowPrices desugaring: Each recursive functions must be bound to a single variable pattern!"
 
 
 desugarVal : Lang.Val -> TaggedValue
@@ -221,33 +350,10 @@ desugarVal_ cache langVal =
             Nothing ->
               ret cache <| vString <| "TinyStructuredEditorsForLowLowPrices core language does not yet support records" ++ ValUnparser.strVal langVal
 
-        Lang.VConst offsetProvenance (num, tr) -> ret cache <| noTag <| VNum num
-        Lang.VBase (Lang.VBool True)           -> ret cache <| trueTaggedVal
-        Lang.VBase (Lang.VBool False)          -> ret cache <| falseTaggedVal
-        Lang.VBase (Lang.VString string)       -> ret cache <| vString string
-        Lang.VBase Lang.VNull                  -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support null"
-        Lang.VClosure recNames pats bodyExp funcEnv  ->
-          -- Binarize all functions.
-          case pats |> List.map LangTools.patToMaybePVarIdent |> Utils.projJusts of
-            Just (firstArgName::otherArgNames) ->
-              let freeIdentifiersSet = Lang.freeIdentifiers (Lang.eFun pats bodyExp) in
-              -- Is the function recursive?
-              case recNames |> List.filter (flip Set.member freeIdentifiersSet) of
-                [] ->
-                  -- Handle otherArgNames by wrapping bodyExp with a bunch of one-arg functions.
-                  let
-                    desugaredBodyExp         = otherArgNames |> Utils.foldr (desugarExp bodyExp) EFun
-                    (desugaredEnv, newCache) = desugarEnv_ cache funcEnv
-                  in
-                  ret newCache <| noTag <| VClosure desugaredEnv firstArgName desugaredBodyExp
-
-                _ ->
-                  ret cache <| vString <| "TinyStructuredEditorsForLowLowPrices core language does not yet support (mutually) recursive functions (recnames: " ++ Utils.toSentence recNames ++ ") (env names: " ++ Utils.toSentence (List.map Tuple.first funcEnv) ++ ")"
-
-            Just [] ->
-              ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support zero argument functions"
-
-            Nothing ->
-              ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support functions with non-var argument patterns"
-
-        Lang.VFun _ _ _ _ -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support VFun"
+        Lang.VConst offsetProvenance (num, tr)      -> ret cache <| noTag <| VNum num
+        Lang.VBase (Lang.VBool True)                -> ret cache <| trueTaggedVal
+        Lang.VBase (Lang.VBool False)               -> ret cache <| falseTaggedVal
+        Lang.VBase (Lang.VString string)            -> ret cache <| vString string
+        Lang.VBase Lang.VNull                       -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support null"
+        Lang.VClosure recNames pats bodyExp funcEnv -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices cannot desugar closure values"
+        Lang.VFun _ _ _ _                           -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support VFun"

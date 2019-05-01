@@ -17,7 +17,7 @@ import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
 taggedValToLangValResult : TaggedValue -> Result String Lang.Val
 taggedValToLangValResult taggedValue =
   case taggedValue.v of
-    VClosure _ _ _         -> Err "Can't desugar closures."
+    VClosure _ _ _ _       -> Err "Can't desugar closures."
     VCtor ctorName argVals ->
       let argLangValsResult =
         argVals

@@ -256,7 +256,7 @@ valToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Set SpecificAct
 valToSpecificActions dataTypeDefsWithoutTBools valueOfInterestTagged =
   let recurse = valToSpecificActions dataTypeDefsWithoutTBools in
   case valueOfInterestTagged.v of
-    VClosure _ _ _ ->
+    VClosure _ _ _ _ ->
       Set.empty
 
     VCtor ctorName argVals ->

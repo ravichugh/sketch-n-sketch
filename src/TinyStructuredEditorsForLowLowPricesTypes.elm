@@ -13,8 +13,7 @@ import Lang
 -- demand in the view then the GUI slows to a crawl.
 type alias ModelState =
   { renderingFunctionNames                : List Ident
-  , maybeRenderingFunctionName            : Maybe Ident
-  , desugaredEnv                          : Env
+  , maybeRenderingFunctionNameAndProgram  : Maybe { renderingFunctionName: Ident, desugaredToStringProgram: Exp }
   , valueOfInterestTagged                 : TaggedValue
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
   , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
@@ -23,8 +22,7 @@ type alias ModelState =
 
 initialModelState =
   { renderingFunctionNames                = []
-  , maybeRenderingFunctionName            = Nothing
-  , desugaredEnv                          = []
+  , maybeRenderingFunctionNameAndProgram  = Nothing
   , valueOfInterestTagged                 = noTag (VCtor "Nothing" [])
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
   , stringProjectionPathToSpecificActions = Dict.empty
@@ -40,16 +38,20 @@ type alias Ident = String
 
 ----------- Core Language -----------
 
+
+-- Mutual recursion is handled during desugaring.
+-- (Desugared into single recursions following https://caml.inria.fr/pub/docs/u3-ocaml/ocaml-ml.html#toc5).
+
 type Exp -- Expressions e :=
-  = EFun Ident Exp -- λx.e
-  | EVar Ident -- x
+  = EVar Ident -- x
+  | EFun Ident Ident Exp -- f(x).e
   | EApp Exp Exp -- e1 e2
   | ECtor Ident (List Exp) -- C (e1,...,en)
   | ECase Exp (List (Ident, TuplePattern, Exp)) -- case e of Ci pi -> ei
   | EString String -- s
   | EAppend Exp Exp -- e1 ++ e2
-  | ENum Float
-  | ENumToString Exp
+  | ENum Float -- n
+  | ENumToString Exp -- numToStr e
 
 type alias TuplePattern = List Ident -- Tuple Patterns p := (x1,...,xn)
 
@@ -59,6 +61,13 @@ type alias Env = List (Ident, TaggedValue) -- Tagged Environments E := — | E,x
 
 type alias TaggedValue = { v : UntaggedPreValue, paths : Set ProjectionPath } -- (Tagged) Values w := v^{π1,...,πn}
 
+type UntaggedPreValue -- (Untagged) Pre-Values v :=
+  = VClosure Env Ident Ident Exp -- [E]f(x).e
+  | VCtor Ident (List TaggedValue) -- C (w1,...,wn)
+  | VString String -- s
+  | VAppend TaggedValue TaggedValue -- w1 ++ w2
+  | VNum Float -- n
+
 noTag : UntaggedPreValue -> TaggedValue
 noTag v = TaggedValue v Set.empty
 
@@ -67,30 +76,22 @@ mapTaggedValue : (TaggedValue -> TaggedValue) -> TaggedValue -> TaggedValue
 mapTaggedValue f w =
   let recurse = mapTaggedValue f in
   case w.v of
-    VClosure funcEnv varName body -> f w
-    VCtor ctorName ws             -> f { w | v = VCtor ctorName (List.map recurse ws) }
-    VString string                -> f w
-    VAppend w1 w2                 -> f { w | v = VAppend (recurse w1) (recurse w2) }
-    VNum num                      -> f w
-
-
-type UntaggedPreValue -- (Untagged) Pre-Values v :=
-  = VClosure Env Ident Exp -- [E]λx.e
-  | VCtor Ident (List TaggedValue) -- C (w1,...,wn)
-  | VString String -- s
-  | VAppend TaggedValue TaggedValue -- w1 ++ w2
-  | VNum Float
+    VClosure funcEnv fName varName body -> f w
+    VCtor ctorName ws                   -> f { w | v = VCtor ctorName (List.map recurse ws) }
+    VString string                      -> f w
+    VAppend w1 w2                       -> f { w | v = VAppend (recurse w1) (recurse w2) }
+    VNum num                            -> f w
 
 -- For debugging.
 unparseToUntaggedString : TaggedValue -> String
 unparseToUntaggedString taggedValue =
   let recurse = unparseToUntaggedString in
   case taggedValue.v of
-    VClosure env fName fBody -> "[E]λx.e"
-    VCtor ctorName argVals   -> ctorName ++ "(" ++ String.join ", " (List.map recurse argVals) ++ ")"
-    VString string           -> toString string
-    VAppend left right       -> recurse left ++ " ++ " ++ recurse right
-    VNum number              -> toString number
+    VClosure env fName varName fBody -> "[E]" ++ fName ++ "(" ++ varName ++ ").e"
+    VCtor ctorName argVals           -> ctorName ++ "(" ++ String.join ", " (List.map recurse argVals) ++ ")"
+    VString string                   -> toString string
+    VAppend left right               -> recurse left ++ " ++ " ++ recurse right
+    VNum number                      -> toString number
 
 
 

@@ -222,32 +222,23 @@ assignActionsToLeaves stringProjectionPathToSpecificActions stringTaggedWithSele
   |> assignActionsPass2 Set.empty
 
 
-structuredEditor
-  : { a | maybeRenderingFunctionName            : Maybe Ident
-        , desugaredEnv                          : Env
-        , valueOfInterestTagged                 : TaggedValue
-        , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
-        , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
-        , selectedPaths                         : Set ProjectionPath
-    }
-  -> Html Msg
+structuredEditor : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Html Msg
 structuredEditor modelState =
-  let { desugaredEnv, valueOfInterestTagged, maybeRenderingFunctionName, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult } = modelState in
+  let { valueOfInterestTagged, maybeRenderingFunctionNameAndProgram, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult } = modelState in
   let
     specificActionToString specificAction =
       case specificAction of
         Scrub projectionPath               -> "Scrub "   ++ pathToString projectionPath
         Replace projectionPath replacement ->
-          case maybeRenderingFunctionName of
-            Just renderingFunctionName ->
+          case maybeRenderingFunctionNameAndProgram of
+            Just { renderingFunctionName, desugaredToStringProgram } ->
               let
                 newValue = TinyStructuredEditorsForLowLowPricesActions.applyReplacement projectionPath replacement valueOfInterestTagged
 
                 newStringTaggedWithProjectionPathsResult =
                   TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
-                      desugaredEnv
+                      desugaredToStringProgram
                       newValue
-                      renderingFunctionName
               in
               case (stringTaggedWithProjectionPathsResult, newStringTaggedWithProjectionPathsResult) of
                 ( Ok originalStringTaggedWithProjectionPaths

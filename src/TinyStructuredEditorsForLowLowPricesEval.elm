@@ -29,8 +29,8 @@ eval : Env -> Exp -> Result String TaggedValue
 eval env exp =
   let noTag v = TaggedValue v Set.empty in -- ⊥ in Acar et al. Fig. 12
   case exp of
-    EFun argName funcBody ->
-      Ok <| TaggedValue (VClosure env argName funcBody) dependencyAnnotators.function
+    EFun funcName argName funcBody ->
+      Ok <| TaggedValue (VClosure env funcName argName funcBody) dependencyAnnotators.function
 
     EVar varName ->
       case Utils.maybeFind varName env of
@@ -41,8 +41,8 @@ eval env exp =
       eval env funcExp |> Result.andThen (\funcTaggedVal ->
       eval env argExp  |> Result.andThen (\argTaggedVal ->
         case funcTaggedVal.v of
-          VClosure env argName funcBody ->
-            eval ((argName, argTaggedVal)::env) funcBody
+          VClosure env funcName argName funcBody ->
+            eval ((funcName, funcTaggedVal)::(argName, argTaggedVal)::env) funcBody
             |> Result.map (\resultTaggedVal ->
               resultTaggedVal |> setTag (dependencyAnnotators.application funcTaggedVal.paths resultTaggedVal.paths)
             )
@@ -113,7 +113,7 @@ tagVal : ProjectionPath -> TaggedValue -> TaggedValue
 tagVal path w =
   let deeperTagged =
     case w.v of
-      VClosure funcEnv varName body ->
+      VClosure funcEnv funcName varName body ->
         w
 
       VCtor ctorName ws ->
@@ -196,20 +196,13 @@ tidyUpProjectionPaths stringTaggedWithProjectionPaths =
   |> keepOutermostOnly Set.empty
 
 
-evalToStringTaggedWithProjectionPaths : Env -> TaggedValue -> Ident -> Result String StringTaggedWithProjectionPaths
-evalToStringTaggedWithProjectionPaths env valueOfInterestTagged renderingFunctionName =
-  case Utils.maybeFind renderingFunctionName env |> Maybe.map .v of
-    Just (VClosure funcEnv varName body) ->
-      let renderingFunctionEnv = (varName, valueOfInterestTagged)::funcEnv in
-      eval renderingFunctionEnv body |> Result.andThen (\w ->
-        case taggedValueToMaybeStringTaggedWithProjectionPaths w of
-          Just stringTagged -> Ok stringTagged
-          Nothing           -> Err <| "Result was not just strings and appends! " ++ unparseToUntaggedString w
-      )
-      |> Result.map tidyUpProjectionPaths
-
-    Just somethingElse ->
-      Err <| "Variable " ++ renderingFunctionName ++ " is not a function! " ++ toString somethingElse
-
-    Nothing ->
-      Err <| "Could not find variable " ++ renderingFunctionName ++ " in environment!"
+-- No Prelude for now.
+evalToStringTaggedWithProjectionPaths : Exp -> TaggedValue -> Result String StringTaggedWithProjectionPaths
+evalToStringTaggedWithProjectionPaths program valueOfInterestTagged =
+  let initialEnv = [("valueOfInterestTagged", valueOfInterestTagged)] in
+  eval initialEnv program |> Result.andThen (\w ->
+    case taggedValueToMaybeStringTaggedWithProjectionPaths w of
+      Just stringTagged -> Ok stringTagged
+      Nothing           -> Err <| "Result was not just strings and appends! " ++ unparseToUntaggedString w
+  )
+  |> Result.map tidyUpProjectionPaths
