@@ -74,7 +74,7 @@ guess_ depth sigma gamma tau =
       variableGuesses () =
         typePairs
           |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
-          |> List.map (Tuple.first >> eVar0)
+          |> List.map (Tuple.first >> eVar)
           |> NonDet.fromList
 
       -- EGuess-App
@@ -462,8 +462,8 @@ refine_ depth sigma gamma worlds tau =
           argNamePat =
             pVar argName
 
-          makeBranchWorlds : Exp -> Worlds -> Maybe (List (Ident, Worlds))
-          makeBranchWorlds eScrutinee worlds =
+          distributeWorlds : Exp -> Worlds -> Maybe (Dict Ident Worlds)
+          distributeWorlds eScrutinee worlds =
             worlds
               |> List.map
                    ( \(env, ex) ->
@@ -490,14 +490,14 @@ refine_ depth sigma gamma worlds tau =
                               )
                    )
               |> Utils.projJusts
-              |> Maybe.map (Utils.pairsToDictOfLists >> Dict.toList)
+              |> Maybe.map Utils.pairsToDictOfLists
 
           makeBranch :
             List (Ident, List Type)
               -> (Ident, Worlds)
               -> NonDet (Pat, (Exp, Constraints))
-          makeBranch constructors (ctorName, worlds) =
-            case Utils.maybeFind ctorName constructors of
+          makeBranch constructorDefs (ctorName, worlds) =
+            case Utils.maybeFind ctorName constructorDefs of
               -- Only support single arguments for now
               Just [ctorArgType] ->
                 let
@@ -523,33 +523,46 @@ refine_ depth sigma gamma worlds tau =
                 branches =
                   branchesWithConstraints
                     |> List.map
-                       ( \(p, (e, _)) ->
-                           withDummyInfo <|
-                             Branch_ space0 p e space1
-                       )
+                         ( \(p, (e, _)) ->
+                             withDummyInfo <|
+                               Branch_ space0 p e space1
+                         )
 
                 constraints =
                   branchesWithConstraints
                     |> List.map (Tuple.second >> Tuple.second)
                     |> List.concat
               in
-                Just (eCase0 eScrutinee branches, constraints)
+                Just (eCase eScrutinee branches, constraints)
         in
-          NonDet.do (NonDet.fromList sigma) <| \(datatypeName, constructors) ->
-          let
-            dType =
-              withDummyTypeInfo <| TVar space0 datatypeName
-          in
-          NonDet.do (guess_ (depth - 1) sigma gamma dType) <| \eScrutinee ->
-            worlds
-              |> makeBranchWorlds eScrutinee
-              |> Maybe.map
-                   ( List.map (makeBranch constructors)
-                       >> NonDet.oneOfEach
-                       >> NonDet.map (makeCase eScrutinee)
-                       >> NonDet.collapseMaybe
-                   )
-              |> Maybe.withDefault NonDet.none
+          NonDet.do (NonDet.fromList sigma) <|
+            \(datatypeName, constructorDefs) ->
+              let
+                dType =
+                  withDummyTypeInfo <|
+                    TVar space0 datatypeName
+
+                dontCareWorlds =
+                  constructorDefs
+                    |> List.map
+                         ( \(name, _) ->
+                             (name, [([], ExDontCare)])
+                         )
+                    |> Dict.fromList
+              in
+                NonDet.do (guess_ (depth - 1) sigma gamma dType) <|
+                  \eScrutinee ->
+                    Maybe.withDefault NonDet.none <|
+                      flip Maybe.map (distributeWorlds eScrutinee worlds) <|
+                        \distributedWorlds ->
+                          dontCareWorlds
+                            -- Gives preference to distributedWorlds
+                            |> Dict.union distributedWorlds
+                            |> Dict.toList
+                            |> List.map (makeBranch constructorDefs)
+                            |> NonDet.oneOfEach
+                            |> NonDet.map (makeCase eScrutinee)
+                            |> NonDet.collapseMaybe
 
       -- IRefine-Hole
       holeRefinement () =
