@@ -74,7 +74,7 @@ guess_ depth sigma gamma tau =
       variableGuesses () =
         typePairs
           |> List.filter (Tuple.second >> T.typeEquiv gamma tau)
-          |> List.map (Tuple.first >> eVar)
+          |> List.map (Tuple.first >> eVar0)
           |> NonDet.fromList
 
       -- EGuess-App
@@ -85,7 +85,7 @@ guess_ depth sigma gamma tau =
             T.typeEquiv gamma tau returnType
 
           guessApps : (Exp, ArrowType) -> NonDet Exp
-          guessApps (eFun, (_, argTypes, _)) =
+          guessApps (headExp, (_, argTypes, _)) =
             let
               possibleArgs =
                 List.map
@@ -108,11 +108,12 @@ guess_ depth sigma gamma tau =
                   argTypes
             in
               possibleArgs
+                |> List.map (NonDet.map replacePrecedingWhitespace1)
                 |> NonDet.oneOfEach
-                |> NonDet.map (eApp eFun)
+                |> NonDet.map (eApp0 headExp)
         in
           typePairs
-            |> List.map (Tuple.mapFirst eVar)
+            |> List.map (Tuple.mapFirst eVar0)
             |> List.map (Tuple.mapSecond T.matchArrowRecurse)
             |> List.map Utils.liftMaybePair2
             |> Utils.filterJusts
@@ -167,13 +168,13 @@ guess =
 refine_ :
   Int -> T.DatatypeEnv -> T.TypeEnv -> Worlds -> Type
     -> NonDet (Exp, Constraints)
-refine_ depth sigma gamma unfilteredWorlds tau =
+refine_ depth sigma gamma worlds tau =
   if depth == 0 then
     NonDet.none
   else
     let
       -- Filter out all the don't care examples
-      worlds =
+      filteredWorlds =
         List.filter
           ( \(env, ex) ->
               case ex of
@@ -182,14 +183,14 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                 _ ->
                   True
           )
-          unfilteredWorlds
+          worlds
 
       -- IRefine-Guess
       guessRefinement () =
         tau
           |> guess_ (depth - 1) sigma gamma
           |> NonDet.map
-               (\e -> Utils.liftMaybePair2 (e, satisfiesWorlds worlds e))
+               (\e -> Utils.liftMaybePair2 (e, satisfiesWorlds filteredWorlds e))
           |> NonDet.collapseMaybe
 
       -- IRefine-Constant
@@ -198,19 +199,19 @@ refine_ depth sigma gamma unfilteredWorlds tau =
           extractConstant ex =
             case (unwrapType tau, ex) of
               (TNum _, ExNum n) ->
-                Just <| eConstDummyLoc n
+                Just <| eConstDummyLoc0 n
 
               (TBool _, ExBool b) ->
-                Just <| eBool b
+                Just <| eBool0 b
 
               (TString _, ExString s) ->
-                Just <| eStr s
+                Just <| eStr0 s
 
               _ ->
                 Nothing
 
         in
-          worlds
+          filteredWorlds
             |> List.map Tuple.second
             |> Utils.collapseEqual
             |> Maybe.andThen extractConstant
@@ -250,7 +251,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                       _ ->
                         Nothing
                 in
-                  worlds
+                  filteredWorlds
                     |> List.map extract
                     |> Utils.projJusts
                     |> Maybe.map Utils.transpose
@@ -273,7 +274,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                              |> NonDet.oneOfEach
                              |> NonDet.map
                                   ( List.unzip
-                                      >> Tuple.mapFirst eTuple
+                                      >> Tuple.mapFirst eTuple0
                                       >> Tuple.mapSecond List.concat
                                   )
                      )
@@ -319,14 +320,14 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                   case findFirstNode recursiveNameFinder functionBody of
                     -- Recursive
                     Just _ ->
-                      replacePrecedingWhitespace " " <|
+                      replacePrecedingWhitespace1 <|
                         eLet
                           [(functionName, eFun [argNamePat] functionBody)]
-                          (eVar functionName)
+                          (eVar0 functionName)
 
                     -- Non-recursive
                     Nothing ->
-                      eFun [argNamePat] functionBody
+                      eFun0 [argNamePat] functionBody
 
               worldFromEntry :
                 PartialFunction
@@ -368,7 +369,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                   |> T.addHasType (functionNamePat, functionType)
                   |> T.addHasType (argNamePat, argType)
             in
-              worlds
+              filteredWorlds
                 |> List.map branchWorlds
                 |> Utils.projJusts
                 |> Maybe.map List.concat
@@ -401,7 +402,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                     _ ->
                       Nothing
             in
-              worlds
+              filteredWorlds
                 |> List.map extract
                 |> Utils.projJusts
         in
@@ -427,7 +428,8 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                                  ( \constructorArgWorlds ->
                                      NonDet.map
                                        ( Tuple.mapFirst <|
-                                           List.singleton
+                                           replacePrecedingWhitespace1
+                                             >> List.singleton
                                              >> eDatatype ctorName
                                        )
                                        ( refine_
@@ -531,7 +533,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
                     |> List.map (Tuple.second >> Tuple.second)
                     |> List.concat
               in
-                Just (eCase eScrutinee branches, constraints)
+                Just (eCase0 eScrutinee branches, constraints)
         in
           NonDet.do (NonDet.fromList sigma) <| \(datatypeName, constructors) ->
           let
@@ -551,8 +553,9 @@ refine_ depth sigma gamma unfilteredWorlds tau =
 
       -- IRefine-Hole
       holeRefinement () =
-        if not (List.isEmpty unfilteredWorlds) && List.isEmpty worlds then
-          NonDet.pure (Lang.eEmptyHole, [])
+        -- List of worlds is nonempty list of "don't care" examples
+        if not (List.isEmpty worlds) && List.isEmpty filteredWorlds then
+          NonDet.pure (Lang.eEmptyHole0, [])
         else
           NonDet.none
     in
@@ -563,7 +566,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
         , partialFunctionRefinement ()
         , constructorRefinement ()
         ] ++
-        ( if not <| List.isEmpty worlds then
+        ( if not <| List.isEmpty filteredWorlds then
             [ -- matchRefinement ()
             ]
           else

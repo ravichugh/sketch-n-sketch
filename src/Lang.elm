@@ -2554,6 +2554,7 @@ eSnapHoleVal v    = withDummyExpInfo <| EHole space1 (ESnapHole v)
 eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 dummyEmptyHole
 eEmptyHoleVal     = withDummyExpInfo <| EHole space1 dummyEmptyHole
 eCase e branches  = withDummyExpInfo <| ECase space1 e branches space1
+eCase0 e branches = withDummyExpInfo <| ECase space0 e branches space0
 
 eColonType (Expr e) t = withInfo (exp_ <| EColonType space1 (Expr e) space1 t space0) e.start t.end
 
@@ -3295,6 +3296,10 @@ addPrecedingWhitespace newWs exp =
 replacePrecedingWhitespace : String -> Exp -> Exp
 replacePrecedingWhitespace newWs exp =
   mapPrecedingWhitespace (\_ -> newWs) exp
+
+replacePrecedingWhitespace1 : Exp -> Exp
+replacePrecedingWhitespace1 =
+  replacePrecedingWhitespace " "
 
 
 replacePrecedingWhitespacePat : String -> Pat -> Pat
@@ -4834,22 +4839,43 @@ pbeAction e =
 -- Hole Filling
 --------------------------------------------------------------------------------
 
-fillHole : HoleId -> Exp -> Exp -> Exp
-fillHole holeIdToReplace newExp =
+type alias HoleReplacement =
+  (HoleId, Exp)
+
+fillHole : Exp -> HoleReplacement -> Exp -> Exp
+fillHole root (holeIdToReplace, newExp) =
   let
     replacer e =
       case unwrapExp e of
-        EHole _ (EEmptyHole holeId) ->
+        EColonType wsBefore child _ _ _ ->
+          -- If we can successfully replace the child of a type annotation,
+          -- remove the type annotation.
+          let
+            replacedChild =
+              replacer child
+          in
+            if replacedChild /= child then
+              replacePrecedingWhitespace
+                (wsBefore.val)
+                replacedChild
+
+            else
+              e
+
+        EHole wsBefore (EEmptyHole holeId) ->
           if holeId == holeIdToReplace then
-            newExp
+            replacePrecedingWhitespace
+              (wsBefore.val)
+              newExp
+
           else
             e
 
         _ ->
           e
   in
-    mapExp replacer
+    mapExpTopDown replacer
 
 fillHoles : List (HoleId, Exp) -> Exp -> Exp
 fillHoles replacements exp =
-  List.foldl (Utils.uncurry fillHole) exp replacements
+  List.foldl (fillHole exp) exp replacements
