@@ -551,7 +551,7 @@ refine_ depth sigma gamma unfilteredWorlds tau =
 
       -- IRefine-Hole
       holeRefinement () =
-        if List.isEmpty worlds then
+        if not (List.isEmpty unfilteredWorlds) && List.isEmpty worlds then
           NonDet.pure (Lang.eEmptyHole, [])
         else
           NonDet.none
