@@ -374,6 +374,12 @@ lastTopLevelExp : Exp -> Exp
 lastTopLevelExp exp = maybeTopLevelChild exp |> Maybe.map lastTopLevelExp |> Maybe.withDefault exp
 
 
+mapLastTopLevelExp : (Exp -> Exp) -> Exp -> Exp
+mapLastTopLevelExp f exp =
+  let lastTopLevelExpEId = expEId (lastTopLevelExp exp) in
+  exp |> mapExpNode lastTopLevelExpEId f
+
+
 lastExp : Exp -> Exp
 lastExp exp =
   case childExps exp |> List.reverse of

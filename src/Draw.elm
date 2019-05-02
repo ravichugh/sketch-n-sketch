@@ -550,11 +550,13 @@ addOffset old snap (x1Val, y1Val) (x2, y2) =
 addToEndOfProgram : Model -> Ident -> Exp -> Model
 addToEndOfProgram old varSuggestedName exp =
   let originalProgram = old.inputExp in
-  let insertBeforeEId = expEId <| LangTools.lastTopLevelExp originalProgram in
-  let varName = LangTools.nonCollidingName varSuggestedName 2 <| EvalUpdate.visibleIdentifiersAtEIds originalProgram (Set.singleton insertBeforeEId) in
+  let wrapLastTopLevelExp lastTopLevelExp =
+    let varName = LangTools.nonCollidingName varSuggestedName 2 <| EvalUpdate.visibleIdentifiersAtEIds originalProgram (Set.singleton (expEId lastTopLevelExp)) in
+    LangTools.newLetFancyWhitespace -1 False (pVar varName) exp lastTopLevelExp originalProgram
+  in
   let newProgram =
     originalProgram
-    |> mapExpNode insertBeforeEId (\lastTopLevelExp -> LangTools.newLetFancyWhitespace -1 False (pVar varName) exp lastTopLevelExp originalProgram)
+    |> LangTools.mapLastTopLevelExp wrapLastTopLevelExp
     |> CodeMotion.resolveValueHoles old.syncOptions
     |> List.head
     |> Maybe.withDefault originalProgram

@@ -25,26 +25,30 @@ prepare oldModelState env program valueOfInterest =
     renderingFunctionNames =
       expToRenderingFunctionNames program
 
-    maybeRenderingFunctionName =
+    maybeRenderingFunctionNameAndProgram =
       -- Use the previously selected function, if it's still available.
-      oldModelState.maybeRenderingFunctionName
+      oldModelState.maybeRenderingFunctionNameAndProgram
+      |> Maybe.map (\{ renderingFunctionName } -> renderingFunctionName)
       |> Utils.filterMaybe (flip List.member renderingFunctionNames)
       |> Utils.plusMaybe (List.head renderingFunctionNames)
+      |> Maybe.map
+          (\renderingFunctionName ->
+            { renderingFunctionName    = renderingFunctionName
+            , desugaredToStringProgram = TinyStructuredEditorsForLowLowPricesDesugaring.makeDesugaredToStringProgram program renderingFunctionName
+            }
+          )
 
     valueOfInterestTagged =
       valueOfInterest
       |> TinyStructuredEditorsForLowLowPricesDesugaring.desugarVal
       |> TinyStructuredEditorsForLowLowPricesEval.tagVal []
 
-    desugaredEnv = TinyStructuredEditorsForLowLowPricesDesugaring.desugarEnv env
-
     stringTaggedWithProjectionPathsResult =
-      case maybeRenderingFunctionName of
-        Just renderingFunctionName ->
+      case maybeRenderingFunctionNameAndProgram of
+        Just { renderingFunctionName, desugaredToStringProgram } ->
           TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
-              desugaredEnv
+              desugaredToStringProgram
               valueOfInterestTagged
-              renderingFunctionName
 
         Nothing ->
           Err "No rendering function chosen."
@@ -58,8 +62,7 @@ prepare oldModelState env program valueOfInterest =
   in
   { oldModelState
   | renderingFunctionNames                = renderingFunctionNames
-  , maybeRenderingFunctionName            = maybeRenderingFunctionName
-  , desugaredEnv                          = desugaredEnv
+  , maybeRenderingFunctionNameAndProgram  = maybeRenderingFunctionNameAndProgram
   , valueOfInterestTagged                 = valueOfInterestTagged
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
   , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
