@@ -947,10 +947,17 @@ tryRun old =
                       , shapeUpdatesViaZones = Dict.empty
                       , tinyStructuredEditorsForLowLowPricesState =
                           if old.outputMode == StructuredEditor then
+                            let maybeValType =
+                              -- The correct incantation would be (unExpr e).val.typ but the type checker can't type the empty list.
+                              -- Look for an explicit type annotation.
+                              expEffectiveExps e
+                              |> Utils.mapFirstSuccess (LangTools.expToMaybeEColonType)
+                            in
                             TinyStructuredEditorsForLowLowPrices.prepare
                                 old.tinyStructuredEditorsForLowLowPricesState
                                 finalEnv
                                 e
+                                maybeValType
                                 newVal
                           else
                             old.tinyStructuredEditorsForLowLowPricesState

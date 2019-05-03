@@ -1282,6 +1282,13 @@ expToCaseScrutinee exp =
     _                     -> Debug.crash <| "LangTools.expToScrutinee exp is not an ECase: " ++ unparseWithIds exp
 
 
+expToMaybeEColonType : Exp -> Maybe Type
+expToMaybeEColonType exp =
+  case unwrapExp exp of
+    EColonType ws1 e ws2 tipe ws3 -> Just tipe
+    _                             -> Nothing
+
+
 expToMaybeSnapHoleVal : Exp -> Maybe Val
 expToMaybeSnapHoleVal exp =
   case (unwrapExp exp) of

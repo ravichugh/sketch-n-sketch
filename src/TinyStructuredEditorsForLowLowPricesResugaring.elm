@@ -16,15 +16,23 @@ import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
 
 taggedValToLangValResult : TaggedValue -> Result String Lang.Val
 taggedValToLangValResult taggedValue =
+  let recurseAllResult = List.map taggedValToLangValResult >> Utils.projOk in
   case taggedValue.v of
     VClosure _ _ _ _       -> Err "Can't desugar closures."
+    VCtor "True" []        -> Ok <| ValBuilder.bool Lang.valNoProvenance True
+    VCtor "False" []       -> Ok <| ValBuilder.bool Lang.valNoProvenance True
+    VCtor "Nil" []         -> Ok <| Update.vList []
+    VCtor "Cons" [x, tail] ->
+      case recurseAllResult [x, tail] of
+        Ok [xResugared, tailResugared] ->
+          let tailVals = tailResugared |> Lang.vListToVals "TinyStructuredEditorsForLowLowPricesResugaring.taggedValToLangValResult" in
+          Ok <| Update.vList (xResugared :: tailVals)
+
+        Ok _  -> Err "taggedValToLangValResult: this should not happen!"
+        Err s -> Err s
+
     VCtor ctorName argVals ->
-      let argLangValsResult =
-        argVals
-        |> List.map taggedValToLangValResult
-        |> Utils.projOk
-      in
-      argLangValsResult
+      recurseAllResult argVals
       |> Result.map (\argLangVals -> ValBuilder.constructor Lang.valNoProvenance ctorName argLangVals)
 
     VString string -> Ok <| Update.vStr string

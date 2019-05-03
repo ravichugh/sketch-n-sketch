@@ -1741,6 +1741,16 @@ foldType f tipe acc =
     TRecord _ _ ts _  -> acc |> foldTypes f (Utils.recordValues ts) |> f tipe
     TParens _ t _ -> foldType f t acc
 
+applyTypeSubst : List (Ident, Type) -> Type -> Type
+applyTypeSubst subst tipe =
+  let applyReplacement tipe =
+    case unwrapType tipe of
+      TVar _ name -> Utils.maybeFind name subst |> Maybe.withDefault tipe
+      _           -> tipe
+  in
+  mapType applyReplacement tipe
+
+
 ------------------------------------------------------------------------------
 -- Traversing
 

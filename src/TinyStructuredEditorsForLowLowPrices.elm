@@ -19,8 +19,8 @@ import TinyStructuredEditorsForLowLowPricesActions
 --
 -- I hate caching but if we instead perform the work on
 -- demand in the view then the GUI slows to a crawl.
-prepare : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Lang.Env -> Lang.Exp -> Lang.Val -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
-prepare oldModelState env program valueOfInterest =
+prepare : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Lang.Env -> Lang.Exp -> Maybe Lang.Type -> Lang.Val -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+prepare oldModelState env program maybeValueOfInterestType valueOfInterest =
   let
     renderingFunctionNames =
       expToRenderingFunctionNames program
@@ -56,7 +56,7 @@ prepare oldModelState env program valueOfInterest =
     stringProjectionPathToSpecificActions =
       stringTaggedWithProjectionPathsResult
       |> Result.toMaybe
-      |> Maybe.map (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations program valueOfInterestTagged)
+      |> Maybe.map (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations program maybeValueOfInterestType valueOfInterestTagged)
       |> Maybe.withDefault Dict.empty
 
   in

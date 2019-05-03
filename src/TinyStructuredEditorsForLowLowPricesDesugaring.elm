@@ -303,6 +303,8 @@ desugarVal langVal =
   taggedVal
 
 
+-- The cache was for desugaring execution environments efficiently.
+-- We don't desugar execution environments anymore, it can probably be removed.
 desugarVal_ : List (Lang.Val, TaggedValue) -> Lang.Val -> (TaggedValue, List (Lang.Val, TaggedValue))
 desugarVal_ cache langVal =
   case cache |> Utils.findFirst (\(cachedLangVal, cachedTaggedVal) -> Javascript.tripleEqualsOperator langVal cachedLangVal) of

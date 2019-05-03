@@ -73,12 +73,12 @@ defaultArgumentMappingForCtorChange oldCtorArgTypes newCtorArgTypes =
 
 
 -- No type alias support yet.
--- Run dataTypeDefsWithoutTBools and dataConDef through expandType if you need to handle type aliases.
+-- Run dataTypeDefsWithoutTBoolsTLists and dataConDef through expandType if you need to handle type aliases.
 --
 -- Not particularly precise in the presence of type variables.
 -- This function is unsatisfying but may be sufficient for our examples.
 isTerminalDataConDef : List Types2.DataTypeDef -> List Ident -> Types2.DataConDef -> Bool
-isTerminalDataConDef dataTypeDefsWithoutTBools dataTypeNamesSeen (ctorName, argTypes) =
+isTerminalDataConDef dataTypeDefsWithoutTBoolsTLists dataTypeNamesSeen (ctorName, argTypes) =
   argTypes
   |> List.all
       (\argType ->
@@ -87,8 +87,8 @@ isTerminalDataConDef dataTypeDefsWithoutTBools dataTypeNamesSeen (ctorName, argT
             if List.member typeName dataTypeNamesSeen then
               False
             else
-              case Utils.maybeFind typeName dataTypeDefsWithoutTBools of
-                Just (typeArgNames, dataConDefs) -> dataConDefs |> List.any (isTerminalDataConDef dataTypeDefsWithoutTBools (typeName::dataTypeNamesSeen))
+              case Utils.maybeFind typeName dataTypeDefsWithoutTBoolsTLists of
+                Just (typeArgNames, dataConDefs) -> dataConDefs |> List.any (isTerminalDataConDef dataTypeDefsWithoutTBoolsTLists (typeName::dataTypeNamesSeen))
                 Nothing                          -> True
           Nothing ->
             True
@@ -99,10 +99,10 @@ isTerminalDataConDef dataTypeDefsWithoutTBools dataTypeNamesSeen (ctorName, argT
 --
 -- Doesn't handle type vars correctly yet.
 maybeDefaultValueForType : List Types2.DataTypeDef -> Lang.Type -> Maybe TaggedValue
-maybeDefaultValueForType dataTypeDefsWithoutTBools tipe =
+maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists tipe =
   -- No type aliases for now.
   let
-    recurse = maybeDefaultValueForType dataTypeDefsWithoutTBools
+    recurse = maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists
 
     _ =
       if Lang.isDeprecatedType tipe
@@ -118,12 +118,12 @@ maybeDefaultValueForType dataTypeDefsWithoutTBools tipe =
     handleVarOrApp () =
       case Types2.varOrAppToMaybeIdentAndArgTypes tipe of
         Just (typeName, argTypes) ->
-          case Utils.maybeFind typeName dataTypeDefsWithoutTBools of
+          case Utils.maybeFind typeName dataTypeDefsWithoutTBoolsTLists of
             Just (typeArgNames, dataConDefs) ->
               let
                 maybeDataConDefToUse =
                   dataConDefs
-                  |> Utils.findFirst (isTerminalDataConDef dataTypeDefsWithoutTBools [typeName])
+                  |> Utils.findFirst (isTerminalDataConDef dataTypeDefsWithoutTBoolsTLists [typeName])
               in
               case maybeDataConDefToUse of
                 Just (ctorName, argTypes) ->
@@ -161,8 +161,8 @@ maybeDefaultValueForType dataTypeDefsWithoutTBools tipe =
 
 
 ctorNameToMaybeDataTypeDef : Ident -> List Types2.DataTypeDef -> Maybe Types2.DataTypeDef
-ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefsWithoutTBools =
-  dataTypeDefsWithoutTBools
+ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefsWithoutTBoolsTLists =
+  dataTypeDefsWithoutTBoolsTLists
   |> Utils.findFirst
       (\(typeName, (typeArgNames, dataConDefs)) ->
         dataConDefs
@@ -178,32 +178,49 @@ ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefsWithoutTBools =
 -- The returned dict is a 1-to-1 mapping (actions are not duplicated).
 generateActionsForValueAndAssociateWithStringLocations
   :  Lang.Exp
+  -> Maybe Lang.Type
   -> TaggedValue
   -> StringTaggedWithProjectionPaths
   -> Dict ProjectionPath (List SpecificAction)
-generateActionsForValueAndAssociateWithStringLocations program valueOfInterestTagged stringTaggedWithProjectionPaths =
+generateActionsForValueAndAssociateWithStringLocations program maybeValueOfInterestTypeWithTBoolTList valueOfInterestTagged stringTaggedWithProjectionPaths =
   let
     specificActions : Set SpecificAction
     specificActions =
       let
+        a                 = Lang.tVar0 "a"
+        tAppList elemType = Lang.tApp0 (Lang.tVar0 "List") [elemType] Lang.SpaceApp
+
         -- Use a data type for booleans instead of primitive Lang.TBool.
-        dataTypeDefsWithoutTBools =
-          let replaceTBoolWithTVarInDataConDef (ctorName, argTypes) =
-            let replaceTBoolWithTVar tipe =
-              case Lang.unwrapType tipe of
-                Lang.TBool _ -> Lang.tVar0 "Bool"
-                _            -> tipe
-            in
+        -- Also, convert TList's to TApp's of the List type constructor.
+        replaceTBoolTListWithTVarTApp tipe =
+          case Lang.unwrapType tipe of
+            Lang.TBool _            -> Lang.tVar0 "Bool"
+            Lang.TList _ elemType _ -> tAppList elemType
+            _                       -> tipe
+
+        dataTypeDefsWithoutTBoolsTLists =
+          let replaceTBoolTListWithTVarTAppInDataConDef (ctorName, argTypes) =
             ( ctorName
-            , argTypes |> List.map (Lang.mapType replaceTBoolWithTVar)
+            , argTypes |> List.map (Lang.mapType replaceTBoolTListWithTVarTApp)
             )
           in
           Types2.getDataTypeDefs program
-          |> List.map (\(dataTypeName, (typeArgNames, dataConDefs)) -> (dataTypeName, (typeArgNames, List.map replaceTBoolWithTVarInDataConDef dataConDefs)))
+          |> List.map (\(dataTypeName, (typeArgNames, dataConDefs)) -> (dataTypeName, (typeArgNames, List.map replaceTBoolTListWithTVarTAppInDataConDef dataConDefs)))
           |> (::) ("Bool", ([],    [("True", []), ("False", [])]))
+          |> (::) ("List", (["a"], [("Nil", []),  ("Cons", [a, tAppList a])])) -- TList is separate in Leo, so the Leo parser does not allow `type List a = ...`, otherwise we would just put this in our examples.
+
+        maybeValueOfInterestType =
+          maybeValueOfInterestTypeWithTBoolTList
+          |> Maybe.map (Lang.mapType replaceTBoolTListWithTVarTApp)
+
+        _ =
+          if maybeValueOfInterestType == Nothing
+          then Utils.log "No type provided/inferred for TinyStructuredEditorsForLowLowPrices value of interest. Polymorphic type variable will not be instantiated causing some actions to be unavailable."
+          else ()
       in
       valToSpecificActions
-          dataTypeDefsWithoutTBools
+          dataTypeDefsWithoutTBoolsTLists
+          maybeValueOfInterestType
           valueOfInterestTagged
 
     projectionPathsInString : Set ProjectionPath
@@ -252,20 +269,59 @@ generateActionsForValueAndAssociateWithStringLocations program valueOfInterestTa
   stringProjectionPathToSpecificActions
 
 
-valToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Set SpecificAction
-valToSpecificActions dataTypeDefsWithoutTBools valueOfInterestTagged =
-  let recurse = valToSpecificActions dataTypeDefsWithoutTBools in
+-- Type, if given, should be concrete: no free variables.
+-- (That's the point of providing a type: so we can know when `List a` is actually `List Num` and provide more actions.)
+valToSpecificActions : List Types2.DataTypeDef -> Maybe Lang.Type -> TaggedValue -> Set SpecificAction
+valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTagged =
+  let recurse = valToSpecificActions dataTypeDefsWithoutTBoolsTLists in
   case valueOfInterestTagged.v of
     VClosure _ _ _ _ ->
       Set.empty
 
     VCtor ctorName argVals ->
-      let
-        deeperActions = argVals |> List.map recurse |> Utils.unionAll
-      in
-      case ctorNameToMaybeDataTypeDef ctorName dataTypeDefsWithoutTBools of
+      case ctorNameToMaybeDataTypeDef ctorName dataTypeDefsWithoutTBoolsTLists of
         Just (thisTypeName, (thisTypeArgNames, thisTypeDataConDefs)) ->
           let
+            typeVarNameToType : List (Ident, Lang.Type)
+            typeVarNameToType =
+              maybeType
+              |> Debug.log "maybeType"
+              |> Maybe.andThen Types2.varOrAppToMaybeIdentAndArgTypes
+              |> Maybe.map (\(_, argTypes) -> argTypes)
+              |> Maybe.withDefault []
+              |> Utils.zip thisTypeArgNames
+              |> Debug.log "typeVarNameToType"
+
+            thisTypeDataConDefsReified =
+              thisTypeDataConDefs
+              |> List.map (\(ctorName, ctorArgTypes) -> (ctorName, ctorArgTypes |> List.map (Lang.applyTypeSubst typeVarNameToType)))
+
+              -- let replaceTBoolWithTVarInDataConDef (ctorName, argTypes) =
+              --   let replaceTBoolWithTVar tipe =
+              --     case Lang.unwrapType tipe of
+              --       Lang.TBool _ -> Lang.tVar0 "Bool"
+              --       _            -> tipe
+              --   in
+              --   ( ctorName
+              --   , argTypes |> List.map (Lang.mapType replaceTBoolWithTVar)
+              --   )
+              -- in
+              -- let a = Lang.tVar0 "a" in
+              -- Types2.getDataTypeDefs program
+              -- |> List.map (\(dataTypeName, (typeArgNames, dataConDefs)) -> (dataTypeName, (typeArgNames, List.map replaceTBoolWithTVarInDataConDef dataConDefs)))
+
+            thisCtorArgTypes =
+              ctorName
+              |> Utils.find "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions changeCtorActions" thisTypeDataConDefsReified
+
+            otherConDefs =
+              thisTypeDataConDefsReified
+              |> List.filter (Tuple.first >> (/=) ctorName)
+
+            deeperActions =
+              List.map2 recurse (List.map Just thisCtorArgTypes) argVals
+              |> Utils.unionAll
+
             removeActions =
               Set.empty
 
@@ -274,14 +330,6 @@ valToSpecificActions dataTypeDefsWithoutTBools valueOfInterestTagged =
 
             changeCtorActions =
               -- For each alternative ctor, fill in args with first matching type; otherwise default
-              let
-                thisCtorArgTypes =
-                  ctorName |> Utils.find "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions changeCtorActions" thisTypeDataConDefs
-
-                otherConDefs =
-                  thisTypeDataConDefs
-                  |> List.filter (Tuple.first >> (/=) ctorName)
-              in
               otherConDefs
               |> List.map
                   (\(otherCtorName, otherCtorArgTypes) ->
@@ -299,11 +347,11 @@ valToSpecificActions dataTypeDefsWithoutTBools valueOfInterestTagged =
                             (\(otherCtorArgType, maybeCopyI) ->
                               case maybeCopyI of
                                 Just copyI -> Just <| Utils.geti copyI argVals
-                                Nothing    -> maybeDefaultValueForType dataTypeDefsWithoutTBools otherCtorArgType
+                                Nothing    -> maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists otherCtorArgType |> Debug.log "maybeDefaultValueForType"
                             )
                         |> Utils.projJusts
                     in
-                    case maybeNewArgVals of
+                    case Debug.log "maybeNewArgVals" maybeNewArgVals of
                       Just newArgVals ->
                         let clearTags = mapTaggedValue (.v >> noTag) in
                         valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
@@ -315,15 +363,15 @@ valToSpecificActions dataTypeDefsWithoutTBools valueOfInterestTagged =
           Utils.unionAll [removeActions, insertActions, changeCtorActions, deeperActions]
 
         Nothing ->
-          let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions warning: not find ctor " ++ ctorName ++ " in dataTypeDefs: " ++ toString dataTypeDefsWithoutTBools in
-          deeperActions
+          let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions warning: not find ctor " ++ ctorName ++ " in dataTypeDefs: " ++ toString dataTypeDefsWithoutTBoolsTLists in
+          Set.empty
 
     VString _ ->
       valueOfInterestTagged.paths |> Set.map Scrub
 
     VAppend w1 w2 ->
       let _ = Utils.log "Did not expect a VAppend in TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions" in
-      Set.union (recurse w1) (recurse w2)
+      Set.union (recurse maybeType w1) (recurse maybeType w2)
 
     VNum _ ->
       valueOfInterestTagged.paths |> Set.map Scrub

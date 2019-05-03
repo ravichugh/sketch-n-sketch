@@ -251,9 +251,15 @@ structuredEditor modelState =
 
                     sharedPrefix = Utils.commonPrefixString [originalStr, newStr]
                     sharedSuffix = Utils.commonSuffixString [originalStr, newStr]
+
+                    changedPart =
+                      newStr
+                      |> String.slice (String.length sharedPrefix) (String.length newStr - String.length sharedSuffix)
                   in
-                  newStr
-                  |> String.slice (String.length sharedPrefix) (String.length newStr - String.length sharedSuffix)
+                  pathToString projectionPath ++ " " ++
+                  if String.trim changedPart == "" || String.length newStr < 10
+                  then newStr
+                  else changedPart
 
                 ( Err errStr, _ ) -> errStr
                 ( _, Err errStr ) -> errStr
