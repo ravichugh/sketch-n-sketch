@@ -176,7 +176,7 @@ type TypeEnvElement
   | TypeDef DataTypeDef
 
 type alias DataConDef = (Ident, List Type)
-type alias DataTypeDef = (Ident, List DataConDef)
+type alias DataTypeDef = (Ident, (List Ident, List DataConDef)) -- (Type name, (type arg names, constructors))
 type alias DatatypeEnv = List DataTypeDef
 
 type alias HoleEnv =
@@ -238,16 +238,16 @@ typeAliasesOfGamma =
       _             -> []
 
 
-
-lookupDataCon : TypeEnv -> Ident -> Maybe (Ident, List Type)
+-- Returns Maybe ((type name, type arg names), ctor arg types)
+lookupDataCon : TypeEnv -> Ident -> Maybe ((Ident, List Ident), List Type)
 lookupDataCon gamma dataConName =
   let
-    dataConDefsOfGamma : TypeEnv -> List (Ident, (Ident, List Type))
+    dataConDefsOfGamma : TypeEnv -> List (Ident, ((Ident, List Ident), List Type))
     dataConDefsOfGamma =
       List.concatMap <| \binding ->
         case binding of
-          TypeDef (tyCon, dataConDefs) -> List.map (Tuple.mapSecond ((,) tyCon)) dataConDefs
-          _                            -> []
+          TypeDef (tyCon, (argNames, dataConDefs)) -> List.map (Tuple.mapSecond ((,) (tyCon, argNames))) dataConDefs
+          _                                        -> []
   in
     Utils.maybeFind dataConName (dataConDefsOfGamma gamma)
 
@@ -606,7 +606,7 @@ inferTypeDataExp gamma stuff thisExp listLetExp =
               Nothing
             else if pname == ctorDataType then
               lookupDataCon gamma ename
-                |> Maybe.map (\(tyCon, argTypes) -> (tyCon, ename, argTypes))
+                |> Maybe.map (\((tyCon, tyArgNames), ctorArgTypes) -> (tyCon, ename, ctorArgTypes))
             else
               Nothing
           _ ->
@@ -1166,8 +1166,8 @@ typecheck e =
   let
      _ =
       e |> getDataTypeDefs
-        |> List.map (\(tyCon, dataConDefs) ->
-             Debug.log tyCon (
+        |> List.map (\(typeName, (argNames, dataConDefs)) ->
+             Debug.log (typeName ++ String.join " " (""::argNames)) (
                dataConDefs
                  |> List.map (\(dataCon, args) ->
                       dataCon ++ " " ++ String.join ", " (List.map toString args)
@@ -1649,13 +1649,14 @@ inferType gamma stuff thisExp =
                      listLetType
                        |> List.map (\(LetType mws0 ws1 aliasSpace pat fas ws2 typ) ->
                             let
-                              -- TODO
-                              s = String.trim (unparsePattern pat)
+                              (typeName, typeArgNames) = patternToTypeNameAndArgNames pat
+
+                              typeNameWithArgs = String.join " " (typeName::typeArgNames)
 
                               -- TODO
                               newPatOkay =
                                 pat |>
-                                  setPatType (Just (withDummyTypeInfo (TVar space0 s)))
+                                  setPatType (Just (withDummyTypeInfo (TVar space0 typeNameWithArgs)))
 
                               newPatError =
                                 pat |>
@@ -1664,14 +1665,14 @@ inferType gamma stuff thisExp =
                             case aliasSpace of
                               Just _ ->
                                 ( LetType mws0 ws1 aliasSpace newPatOkay fas ws2 typ
-                                , addTypeAlias (s, typ) accGamma
+                                , addTypeAlias (typeNameWithArgs, typ) accGamma
                                 )
 
                               Nothing ->
                                 case decodeDataConDefs typ of
                                   Just dataConDefs ->
                                     ( LetType mws0 ws1 aliasSpace newPatOkay fas ws2 typ
-                                    , TypeDef (s, dataConDefs) :: accGamma
+                                    , TypeDef (typeName, (typeArgNames, dataConDefs)) :: accGamma
                                     )
 
                                   Nothing ->
@@ -2671,6 +2672,28 @@ checkType gamma stuff thisExp expectedType =
 
 --------------------------------------------------------------------------------
 
+-- MyType   => ("MyType", [])
+-- List a   => ("List",   ["a"])
+-- Pair a b => ("Pair",   ["a", "b"])
+--
+-- Currently, the LHS of type definitions w/arguments is getting parsed as some record pattern structure.
+-- Based on the special code in LeoParser.typeDefOrAlias for type parameter handling that I think is
+-- getting skipped, the record pattern is probably a bug in the parser. If the correct code were
+-- being hit, typ would be wrapped in TForalls, which decodeDataConDefs does not understand yet.
+--
+-- The below is hacky but is probably more robust than one might expect.
+patternToTypeNameAndArgNames : Pat -> (Ident, List Ident)
+patternToTypeNameAndArgNames pat =
+  -- let
+  --   tyCon = String.trim (unparsePattern pat)
+  --   _ = Debug.log tyCon pat.val.p__
+  -- in
+  case unparsePattern pat |> Utils.squish |> String.split " " of
+    typeName::typeArgNames -> (typeName, typeArgNames)
+    []                     -> ("*** Empty pattern!!! ***", [])
+
+
+
 getDataTypeDefs : Exp -> DatatypeEnv
 getDataTypeDefs = flip foldExpViaE__ [] (\e__ acc ->
   case e__ of
@@ -2678,14 +2701,11 @@ getDataTypeDefs = flip foldExpViaE__ [] (\e__ acc ->
       let new =
         letTypes |> List.concatMap (\(isRec, listLetType) ->
         listLetType |> List.concatMap (\(LetType mws0 ws1 aliasSpace pat fas ws2 typ) ->
-          let
-            -- TODO: decode Pats correctly, and collect any type variable args
-            tyCon = String.trim (unparsePattern pat)
-          in
           case aliasSpace of
             Nothing ->
+              let (typeName, typeArgNames) = patternToTypeNameAndArgNames pat in
               case decodeDataConDefs typ of
-                Just dataConDefs -> [(tyCon, dataConDefs)]
+                Just dataConDefs -> [(typeName, (typeArgNames, dataConDefs))]
                 Nothing          -> []
 
             Just _ ->

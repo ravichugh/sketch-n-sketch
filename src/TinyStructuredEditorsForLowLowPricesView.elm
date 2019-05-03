@@ -228,7 +228,7 @@ structuredEditor modelState =
   let
     specificActionToString specificAction =
       case specificAction of
-        Scrub projectionPath               -> "Scrub "   ++ pathToString projectionPath
+        Scrub projectionPath               -> "Scrub " ++ pathToString projectionPath
         Replace projectionPath replacement ->
           case maybeRenderingFunctionNameAndProgram of
             Just { renderingFunctionName, desugaredToStringProgram } ->

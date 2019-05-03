@@ -409,7 +409,7 @@ refine_ depth sigma gamma worlds tau =
           case unwrapType tau of
             TVar _ datatypeName ->
               case Utils.maybeFind datatypeName sigma of
-                Just datatypeConstructors ->
+                Just (typeArgNames, datatypeConstructors) ->
                   NonDet.do (NonDet.fromList datatypeConstructors) <|
                     \(ctorName, argTypes) ->
                       case argTypes of
@@ -536,7 +536,7 @@ refine_ depth sigma gamma worlds tau =
                 Just (eCase eScrutinee branches, constraints)
         in
           NonDet.do (NonDet.fromList sigma) <|
-            \(datatypeName, constructorDefs) ->
+            \(datatypeName, (typeArgNames, constructorDefs)) ->
               let
                 dType =
                   withDummyTypeInfo <|

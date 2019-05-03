@@ -88,8 +88,8 @@ isTerminalDataConDef dataTypeDefsWithoutTBools dataTypeNamesSeen (ctorName, argT
               False
             else
               case Utils.maybeFind typeName dataTypeDefsWithoutTBools of
-                Just dataConDefs -> dataConDefs |> List.any (isTerminalDataConDef dataTypeDefsWithoutTBools (typeName::dataTypeNamesSeen))
-                Nothing          -> True
+                Just (typeArgNames, dataConDefs) -> dataConDefs |> List.any (isTerminalDataConDef dataTypeDefsWithoutTBools (typeName::dataTypeNamesSeen))
+                Nothing                          -> True
           Nothing ->
             True
       )
@@ -119,7 +119,7 @@ maybeDefaultValueForType dataTypeDefsWithoutTBools tipe =
       case Types2.varOrAppToMaybeIdentAndArgTypes tipe of
         Just (typeName, argTypes) ->
           case Utils.maybeFind typeName dataTypeDefsWithoutTBools of
-            Just dataConDefs ->
+            Just (typeArgNames, dataConDefs) ->
               let
                 maybeDataConDefToUse =
                   dataConDefs
@@ -164,7 +164,7 @@ ctorNameToMaybeDataTypeDef : Ident -> List Types2.DataTypeDef -> Maybe Types2.Da
 ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefsWithoutTBools =
   dataTypeDefsWithoutTBools
   |> Utils.findFirst
-      (\(typeName, dataConDefs) ->
+      (\(typeName, (typeArgNames, dataConDefs)) ->
         dataConDefs
         |> List.any (\(ctorName, ctorArgTypes) -> ctorName == targetCtorName)
       )
@@ -199,8 +199,8 @@ generateActionsForValueAndAssociateWithStringLocations program valueOfInterestTa
             )
           in
           Types2.getDataTypeDefs program
-          |> List.map (\(dataTypeName, dataConDefs) -> (dataTypeName, List.map replaceTBoolWithTVarInDataConDef dataConDefs))
-          |> (::) ("Bool", [("True", []), ("False", [])])
+          |> List.map (\(dataTypeName, (typeArgNames, dataConDefs)) -> (dataTypeName, (typeArgNames, List.map replaceTBoolWithTVarInDataConDef dataConDefs)))
+          |> (::) ("Bool", ([],    [("True", []), ("False", [])]))
       in
       valToSpecificActions
           dataTypeDefsWithoutTBools
@@ -264,7 +264,7 @@ valToSpecificActions dataTypeDefsWithoutTBools valueOfInterestTagged =
         deeperActions = argVals |> List.map recurse |> Utils.unionAll
       in
       case ctorNameToMaybeDataTypeDef ctorName dataTypeDefsWithoutTBools of
-        Just (thisTypeName, thisTypeDataConDefs) ->
+        Just (thisTypeName, (thisTypeArgNames, thisTypeDataConDefs)) ->
           let
             removeActions =
               Set.empty
