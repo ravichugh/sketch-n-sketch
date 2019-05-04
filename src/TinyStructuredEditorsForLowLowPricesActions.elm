@@ -296,20 +296,6 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTa
               thisTypeDataConDefs
               |> List.map (\(ctorName, ctorArgTypes) -> (ctorName, ctorArgTypes |> List.map (Lang.applyTypeSubst typeVarNameToType)))
 
-              -- let replaceTBoolWithTVarInDataConDef (ctorName, argTypes) =
-              --   let replaceTBoolWithTVar tipe =
-              --     case Lang.unwrapType tipe of
-              --       Lang.TBool _ -> Lang.tVar0 "Bool"
-              --       _            -> tipe
-              --   in
-              --   ( ctorName
-              --   , argTypes |> List.map (Lang.mapType replaceTBoolWithTVar)
-              --   )
-              -- in
-              -- let a = Lang.tVar0 "a" in
-              -- Types2.getDataTypeDefs program
-              -- |> List.map (\(dataTypeName, (typeArgNames, dataConDefs)) -> (dataTypeName, (typeArgNames, List.map replaceTBoolWithTVarInDataConDef dataConDefs)))
-
             thisCtorArgTypes =
               ctorName
               |> Utils.find "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions changeCtorActions" thisTypeDataConDefsReified

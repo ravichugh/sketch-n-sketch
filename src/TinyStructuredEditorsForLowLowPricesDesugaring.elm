@@ -299,63 +299,23 @@ desugarRecursiveLetExps letExps desugaredLetBody =
 
 desugarVal : Lang.Val -> TaggedValue
 desugarVal langVal =
-  let (taggedVal, newCache) = desugarVal_ [] langVal in
-  taggedVal
+  let
+    recurse        = desugarVal
+    vString string = noTag <| VString string
+  in
+  case langVal.v_ of
+    Lang.VList []       -> nilTaggedVal
+    Lang.VList langVals -> Utils.foldr nilTaggedVal consTaggedVal (List.map recurse langVals)
+    Lang.VDict d        -> vString "TinyStructuredEditorsForLowLowPrices core language does not support dictionaries"
+    Lang.VRecord d      ->
+      case Lang.valToMaybeCtorNameAndArgVals langVal of
+        Just (ctorName, argLangVals) -> noTag <| VCtor ctorName (List.map recurse argLangVals)
+        Nothing                      -> vString <| "TinyStructuredEditorsForLowLowPrices core language does not yet support records " ++ ValUnparser.strVal langVal
 
-
--- The cache was for desugaring execution environments efficiently.
--- We don't desugar execution environments anymore, it can probably be removed.
-desugarVal_ : List (Lang.Val, TaggedValue) -> Lang.Val -> (TaggedValue, List (Lang.Val, TaggedValue))
-desugarVal_ cache langVal =
-  case cache |> Utils.findFirst (\(cachedLangVal, cachedTaggedVal) -> Javascript.tripleEqualsOperator langVal cachedLangVal) of
-    Just (cachedLangVal, cachedTaggedVal) ->
-      (cachedTaggedVal, cache)
-
-    Nothing ->
-      let
-        vString string         = noTag <| VString string
-        ret newCache taggedVal = (taggedVal, (langVal, taggedVal)::newCache)
-      in
-      case langVal.v_ of
-        Lang.VList []       -> ret cache <| nilTaggedVal
-        Lang.VList langVals ->
-          let (taggedVal, newCache) =
-            langVals
-            |> Utils.foldr
-                (nilTaggedVal, cache)
-                (\headLangVal (tailTaggedVal, cache) ->
-                  let (headTaggedVal, newCache) = desugarVal_ cache headLangVal in
-                  ( consTaggedVal headTaggedVal tailTaggedVal
-                  , newCache
-                  )
-                )
-          in
-          ret newCache <| taggedVal
-
-        Lang.VDict d   -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support dictionaries"
-        Lang.VRecord d ->
-          case Lang.valToMaybeCtorNameAndArgVals langVal of
-            Just (ctorName, argLangVals) ->
-              let (argTaggedVals, newCache) =
-                argLangVals
-                |> Utils.foldr
-                    ([], cache)
-                    (\argLangVal (argTaggedVals, cache) ->
-                      let (argTaggedVal, newCache) = desugarVal_ cache argLangVal in
-                      ( argTaggedVal::argTaggedVals
-                      , newCache
-                      )
-                    )
-              in
-              ret newCache <| noTag <| VCtor ctorName argTaggedVals
-
-            Nothing ->
-              ret cache <| vString <| "TinyStructuredEditorsForLowLowPrices core language does not yet support records" ++ ValUnparser.strVal langVal
-
-        Lang.VConst offsetProvenance (num, tr)      -> ret cache <| noTag <| VNum num
-        Lang.VBase (Lang.VBool True)                -> ret cache <| trueTaggedVal
-        Lang.VBase (Lang.VBool False)               -> ret cache <| falseTaggedVal
-        Lang.VBase (Lang.VString string)            -> ret cache <| vString string
-        Lang.VBase Lang.VNull                       -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support null"
-        Lang.VClosure recNames pats bodyExp funcEnv -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices cannot desugar closure values"
-        Lang.VFun _ _ _ _                           -> ret cache <| vString "TinyStructuredEditorsForLowLowPrices core language does not support VFun"
+    Lang.VConst offsetProvenance (num, tr)      -> noTag <| VNum num
+    Lang.VBase (Lang.VBool True)                -> trueTaggedVal
+    Lang.VBase (Lang.VBool False)               -> falseTaggedVal
+    Lang.VBase (Lang.VString string)            -> vString string
+    Lang.VBase Lang.VNull                       -> vString "TinyStructuredEditorsForLowLowPrices core language does not support null"
+    Lang.VClosure recNames pats bodyExp funcEnv -> vString "TinyStructuredEditorsForLowLowPrices cannot desugar closure values"
+    Lang.VFun _ _ _ _                           -> vString "TinyStructuredEditorsForLowLowPrices core language does not support VFun"
