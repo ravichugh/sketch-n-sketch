@@ -126,7 +126,7 @@ taggedStringToNormalString taggedString =
 -- Current heuristic: Click to select deepest, leftmost path.
 --
 -- Adds the click-to-selct assignment as a Maybe next to the ordinary projection paths.
--- Only leaf strings (not appends) get a click assignment.
+-- Only non-empty leaf strings (not appends) get a click assignment.
 assignSelectionClickAreas : StringTaggedWithProjectionPaths -> AppendedTaggedStrings (Maybe ProjectionPath, Set ProjectionPath)
 assignSelectionClickAreas stringTaggedWithProjectionPaths =
   assignSelectionClickAreas_ Set.empty stringTaggedWithProjectionPaths
@@ -139,6 +139,7 @@ assignSelectionClickAreas_
 assignSelectionClickAreas_ pathsInAncestors stringTaggedWithProjectionPaths =
   let pathSetWithAncestors = Set.union pathsInAncestors (stringTag stringTaggedWithProjectionPaths) in
   case stringTaggedWithProjectionPaths of
+    TaggedString ""     pathSet -> TaggedString "" (Nothing, pathSet)
     TaggedString string pathSet ->
       let
         maybeDeepestLeftmostPath =
@@ -175,7 +176,7 @@ assignActionsToLeaves stringProjectionPathToSpecificActions stringTaggedWithSele
         let actions =
           case maybeSelectionClickPath of
             Just selectionClickPath -> Set.fromList <| Utils.getWithDefault selectionClickPath [] stringProjectionPathToSpecificActions
-            Nothing                 -> Set.empty
+            Nothing                 -> Set.empty -- Appends and empty leaves.
         in
         (maybeSelectionClickPath, pathSet, actions)
       in
@@ -202,6 +203,9 @@ assignActionsToLeaves stringProjectionPathToSpecificActions stringTaggedWithSele
         pathSetWithAncestors     = Set.union pathsInAncestors immediatePathSet
       in
       case stringTaggedWithSelectionPathAndProjectionPathsAndActions of
+        TaggedString "" _ ->
+          stringTaggedWithSelectionPathAndProjectionPathsAndActions
+
         TaggedString string (maybeSelectionClickPath, pathSet, previouslyAssignedActions) ->
           let actions =
             pathSetWithAncestors
