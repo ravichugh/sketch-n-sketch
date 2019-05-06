@@ -261,7 +261,7 @@ structuredEditor modelState =
                       |> String.slice (String.length sharedPrefix) (String.length newStr - String.length sharedSuffix)
                   in
                   pathToString projectionPath ++ " " ++
-                  if String.trim changedPart == "" || String.length newStr < 10
+                  if String.trim changedPart == "" || String.length newStr < 100
                   then newStr
                   else changedPart
 

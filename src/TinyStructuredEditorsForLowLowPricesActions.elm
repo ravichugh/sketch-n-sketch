@@ -273,7 +273,21 @@ generateActionsForValueAndAssociateWithStringLocations program maybeValueOfInter
 -- (That's the point of providing a type: so we can know when `List a` is actually `List Num` and provide more actions.)
 valToSpecificActions : List Types2.DataTypeDef -> Maybe Lang.Type -> TaggedValue -> Set SpecificAction
 valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTagged =
-  let recurse = valToSpecificActions dataTypeDefsWithoutTBoolsTLists in
+  let
+    recurse = valToSpecificActions dataTypeDefsWithoutTBoolsTLists
+
+    -- In practice, should always result in one action.
+    scrubActionSet : () -> Set SpecificAction
+    scrubActionSet () =
+      Set.map Scrub valueOfInterestTagged.paths
+
+    -- In practice, should always result in one action.
+    replacementActionSet : TaggedValue -> Set SpecificAction
+    replacementActionSet taggedValue =
+      let clearTags = mapTaggedValue (.v >> noTag) in
+      valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
+      |> Set.map (\path -> Replace path (clearTags taggedValue))
+  in
   case valueOfInterestTagged.v of
     VClosure _ _ _ _ ->
       Set.empty
@@ -282,6 +296,12 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTa
       case ctorNameToMaybeDataTypeDef ctorName dataTypeDefsWithoutTBoolsTLists of
         Just (thisTypeName, (thisTypeArgNames, thisTypeDataConDefs)) ->
           let
+            -- If no type variables, we don't necessarily need the explicit type annotation.
+            thisType =
+              if thisTypeArgNames == []
+              then maybeType |> Maybe.withDefault (Lang.tVar0 thisTypeName)
+              else maybeType |> Maybe.withDefault (Lang.tVar0 "*** no type ***")
+
             typeVarNameToType : List (Ident, Lang.Type)
             typeVarNameToType =
               maybeType
@@ -309,10 +329,39 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTa
               |> Utils.unionAll
 
             removeActions =
-              Set.empty
+              -- Only single recursion supported for removal.
+              -- Replace with any child of the same type.
+              let typeEnv = [] in
+              Utils.zip argVals thisCtorArgTypes
+              |> List.filter (\(argVal, argType) -> Types2.typeEquiv typeEnv argType thisType)
+              |> List.map    (\(argVal, argType) -> replacementActionSet argVal)
+              |> Utils.unionAll
 
             insertActions =
-              Set.empty
+              -- Only single recursion supported for insert.
+              -- For any ctor that has an arg of the same type, puts the current node there.
+              -- Use defaults for the rest of the arguments.
+              let typeEnv = [] in
+              thisTypeDataConDefsReified
+              |> List.concatMap
+                  (\(ctorName, ctorArgTypes) ->
+                    let
+                      recursiveArgIs            = ctorArgTypes |> Utils.findAllIndices (Types2.typeEquiv typeEnv thisType)
+                      ctorDefaultArgumentMaybes = ctorArgTypes |> List.map (maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists)
+                    in
+                    case Utils.projJusts ctorDefaultArgumentMaybes of
+                      Just ctorDefaultArguments ->
+                        recursiveArgIs
+                        |> List.map
+                            (\argI ->
+                              let ctorArgVals = ctorDefaultArguments |> Utils.replacei argI valueOfInterestTagged in
+                              replacementActionSet (noTag <| VCtor ctorName ctorArgVals)
+                            )
+
+                      Nothing ->
+                        []
+                  )
+              |> Utils.unionAll
 
             changeCtorActions =
               -- For each alternative ctor, fill in args with first matching type; otherwise default
@@ -338,11 +387,8 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTa
                         |> Utils.projJusts
                     in
                     case Debug.log "maybeNewArgVals" maybeNewArgVals of
-                      Just newArgVals ->
-                        let clearTags = mapTaggedValue (.v >> noTag) in
-                        valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
-                        |> Set.map (\path -> Replace path (clearTags <| noTag <| VCtor otherCtorName newArgVals))
-                      Nothing -> Set.empty
+                      Just newArgVals -> replacementActionSet (noTag <| VCtor otherCtorName newArgVals)
+                      Nothing         -> Set.empty
                   )
               |> Utils.unionAll
           in
@@ -353,11 +399,11 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTa
           Set.empty
 
     VString _ ->
-      valueOfInterestTagged.paths |> Set.map Scrub
+      scrubActionSet ()
 
     VAppend w1 w2 ->
       let _ = Utils.log "Did not expect a VAppend in TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions" in
       Set.union (recurse maybeType w1) (recurse maybeType w2)
 
     VNum _ ->
-      valueOfInterestTagged.paths |> Set.map Scrub
+      scrubActionSet ()
