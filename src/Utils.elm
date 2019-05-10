@@ -662,8 +662,13 @@ findi_ i p xs = case xs of
   []     -> Nothing
   x::xs_ -> if p x then Just i else findi_ (i+1) p xs_
 
+-- 1-based
 findAllIndices : (a -> Bool) -> List a -> List Int
 findAllIndices p = zipi1 >> List.filter (\(i, x) -> p x) >> List.map Tuple.first
+
+-- -- 1-based, O(n^2)
+-- getAllByIndices : List Int -> List a -> List a
+-- getAllByIndices is list = is |> List.map (\i -> geti i list)
 
 -- 1-based
 geti : Int -> List a -> a

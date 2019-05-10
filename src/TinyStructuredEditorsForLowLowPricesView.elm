@@ -84,8 +84,8 @@ taggedStringToNormalString taggedString =
 --
 --         specificActionToString specificAction =
 --           case specificAction of
---             Replace projectionPath taggedValue -> "Replace " ++ pathToString projectionPath ++ " with " ++ unparseToUntaggedString taggedValue
---             Scrub projectionPath               -> "Scrub "   ++ pathToString projectionPath
+--             NewValue projectionPath taggedValue -> "New Value " ++ unparseToUntaggedString taggedValue ++ " associated at " ++ pathToString projectionPath
+--             Scrub projectionPath                -> "Scrub "   ++ pathToString projectionPath
 --
 --         renderAction specificAction =
 --           [ Html.span
@@ -232,13 +232,11 @@ structuredEditor modelState =
   let
     specificActionToString specificAction =
       case specificAction of
-        Scrub projectionPath               -> "Scrub " ++ pathToString projectionPath
-        Replace projectionPath replacement ->
+        Scrub projectionPath             -> "Scrub " ++ pathToString projectionPath
+        NewValue projectionPath newValue ->
           case maybeRenderingFunctionNameAndProgram of
             Just { renderingFunctionName, desugaredToStringProgram } ->
               let
-                newValue = TinyStructuredEditorsForLowLowPricesActions.applyReplacement projectionPath replacement valueOfInterestTagged
-
                 newStringTaggedWithProjectionPathsResult =
                   TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
                       desugaredToStringProgram
@@ -269,7 +267,7 @@ structuredEditor modelState =
                 ( _, Err errStr ) -> errStr
 
             Nothing ->
-              "Replace " ++ pathToString projectionPath ++ " with " ++ unparseToUntaggedString replacement
+              "New Value " ++ unparseToUntaggedString newValue ++ " associated at " ++ pathToString projectionPath
 
 
     render
@@ -315,8 +313,8 @@ structuredEditor modelState =
                 let renderAction specificAction =
                   let perhapsOnClickAttrs =
                     case specificAction of
-                      Replace projectionPath replacement -> [ Html.Events.onClick <| Controller.msgTSEFLLPApplyReplacement replacement projectionPath ]
-                      Scrub projectionPath               -> []
+                      NewValue projectionPath newTaggedVal -> [ Html.Events.onClick <| Controller.msgTSEFLLPSelectNewValue newTaggedVal ]
+                      Scrub projectionPath                 -> []
                   in
                   Html.div perhapsOnClickAttrs [text (specificActionToString specificAction)]
                 in

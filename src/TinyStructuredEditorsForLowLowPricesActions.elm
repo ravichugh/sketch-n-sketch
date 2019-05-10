@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPricesActions exposing (generateActionsForValueAndAssociateWithStringLocations, applyReplacement)
+module TinyStructuredEditorsForLowLowPricesActions exposing (generateActionsForValueAndAssociateWithStringLocations)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -10,17 +10,6 @@ import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
 import TinyStructuredEditorsForLowLowPricesEval exposing (tagVal)
-
-
-applyReplacement : ProjectionPath -> TaggedValue -> TaggedValue -> TaggedValue
-applyReplacement pathToReplace replacement valueOfInterestTagged =
-  valueOfInterestTagged
-  |> mapTaggedValue
-      (\subvalueOfInterestTagged ->
-        if subvalueOfInterestTagged.paths == Set.singleton pathToReplace
-        then tagVal pathToReplace replacement
-        else subvalueOfInterestTagged
-      )
 
 
 -- By default we attempt to copy ctor arguments from the current value.
@@ -220,6 +209,7 @@ generateActionsForValueAndAssociateWithStringLocations program maybeValueOfInter
       in
       valToSpecificActions
           dataTypeDefsWithoutTBoolsTLists
+          valueOfInterestTagged
           maybeValueOfInterestType
           valueOfInterestTagged
 
@@ -271,10 +261,22 @@ generateActionsForValueAndAssociateWithStringLocations program maybeValueOfInter
 
 -- Type, if given, should be concrete: no free variables.
 -- (That's the point of providing a type: so we can know when `List a` is actually `List Num` and provide more actions.)
-valToSpecificActions : List Types2.DataTypeDef -> Maybe Lang.Type -> TaggedValue -> Set SpecificAction
-valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTagged =
+valToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Maybe Lang.Type -> TaggedValue -> Set SpecificAction
+valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged maybeType valueOfInterestTagged =
   let
-    recurse = valToSpecificActions dataTypeDefsWithoutTBoolsTLists
+    recurse = valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged
+
+    replaceAtPath : ProjectionPath -> TaggedValue -> TaggedValue
+    replaceAtPath pathToReplace replacement =
+      let clearTags = mapTaggedValue (.v >> noTag) in
+      rootValueOfInterestTagged
+      |> mapTaggedValue
+          (\subvalueOfInterestTagged ->
+            if subvalueOfInterestTagged.paths == Set.singleton pathToReplace
+            then replacement
+            else subvalueOfInterestTagged
+          )
+      |> clearTags
 
     -- In practice, should always result in one action.
     scrubActionSet : () -> Set SpecificAction
@@ -284,9 +286,8 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTa
     -- In practice, should always result in one action.
     replacementActionSet : TaggedValue -> Set SpecificAction
     replacementActionSet taggedValue =
-      let clearTags = mapTaggedValue (.v >> noTag) in
       valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
-      |> Set.map (\path -> Replace path (clearTags taggedValue))
+      |> Set.map (\path -> NewValue path (replaceAtPath path taggedValue))
   in
   case valueOfInterestTagged.v of
     VClosure _ _ _ _ ->
@@ -305,12 +306,12 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTa
             typeVarNameToType : List (Ident, Lang.Type)
             typeVarNameToType =
               maybeType
-              |> Debug.log "maybeType"
+              -- |> Debug.log "maybeType"
               |> Maybe.andThen Types2.varOrAppToMaybeIdentAndArgTypes
               |> Maybe.map (\(_, argTypes) -> argTypes)
               |> Maybe.withDefault []
               |> Utils.zip thisTypeArgNames
-              |> Debug.log "typeVarNameToType"
+              -- |> Debug.log "typeVarNameToType"
 
             thisTypeDataConDefsReified =
               thisTypeDataConDefs
@@ -331,10 +332,30 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists maybeType valueOfInterestTa
             removeActions =
               -- Only single recursion supported for removal.
               -- Replace with any child of the same type.
-              let typeEnv = [] in
-              Utils.zip argVals thisCtorArgTypes
-              |> List.filter (\(argVal, argType) -> Types2.typeEquiv typeEnv argType thisType)
-              |> List.map    (\(argVal, argType) -> replacementActionSet argVal)
+              --
+              -- Place each remove action on:
+              -- 1. The node being removed, and
+              -- 2. The immediate children of the node being removed, but not the child retained instead. These are
+              --    the contained values that will be removed by the removal of their container.
+              let
+                typeEnv           = []
+                recursiveArgIs    = thisCtorArgTypes |> Utils.findAllIndices (Types2.typeEquiv typeEnv thisType)
+
+                -- The root value with this node replaced with each of its recursive children.
+                --
+                -- Returns List (childenIndexReplaced, wholeReplacementVal)
+                newValuesWithArgI : List (Int, TaggedValue)
+                newValuesWithArgI =
+                  Set.toList valueOfInterestTagged.paths -- valueOfInterestTagged.paths should always be a singleton here.
+                  |> Utils.cartProd recursiveArgIs
+                  |> List.map (\(recursiveArgI, pathToReplace) -> (recursiveArgI, replaceAtPath pathToReplace (Utils.geti recursiveArgI argVals)))
+              in
+              argVals
+              |> Utils.mapi1 (\(argI, argVal) -> (argI, argVal.paths)) -- Note: argVal.paths should always be a singleton set.
+              |> (::) ((-1, valueOfInterestTagged.paths))              -- Also add actions to this node itself; it has no argI.
+              |> Utils.cartProd newValuesWithArgI
+              |> List.filter (\((replacedArgI, _       ), (pathsArgI, _    )) -> replacedArgI /= pathsArgI)
+              |> List.map    (\((_,            newValue), (_,         paths)) -> paths |> Set.map (\path -> NewValue path newValue))
               |> Utils.unionAll
 
             insertActions =

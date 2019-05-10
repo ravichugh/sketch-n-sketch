@@ -87,7 +87,7 @@ port module Controller exposing
   , msgCollectAndSolve
   , msgShowUnExpPreview
   , msgClearUnExpPreview
-  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPApplyReplacement
+  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPSelectNewValue
   )
 
 import Updatable exposing (Updatable)
@@ -4626,11 +4626,10 @@ msgDeselectTSEFLLPPath path =
                   TinyStructuredEditorsForLowLowPrices.deselectPath model.tinyStructuredEditorsForLowLowPricesState path
     }
 
-msgTSEFLLPApplyReplacement tsefllpReplacementVal path =
-  Msg ("Apply replacement to TSEFLLP path " ++ toString path) <| \model ->
+msgTSEFLLPSelectNewValue tsefllpVal =
+  Msg "Select new TSEFLLP value" <| \model ->
     let
-      updatedValResult =
-        TinyStructuredEditorsForLowLowPrices.newLangValResultViaReplacement model.tinyStructuredEditorsForLowLowPricesState tsefllpReplacementVal path
+      updatedValResult = TinyStructuredEditorsForLowLowPrices.newLangValResult tsefllpVal
 
       _ =
         case updatedValResult of
@@ -4646,7 +4645,7 @@ msgTSEFLLPApplyReplacement tsefllpReplacementVal path =
     case maybeBackpropResult of
       Just synthesisResult ->
         { model | tinyStructuredEditorsForLowLowPricesState =
-                      TinyStructuredEditorsForLowLowPrices.deselectAll model.tinyStructuredEditorsForLowLowPricesState path
+                      TinyStructuredEditorsForLowLowPrices.deselectAll model.tinyStructuredEditorsForLowLowPricesState
                 , code = Syntax.unparser model.syntax (resultExp synthesisResult)
         } |> upstateRun
 

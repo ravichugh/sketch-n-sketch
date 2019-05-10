@@ -98,14 +98,14 @@ unparseToUntaggedString taggedValue =
 ----------- Workflow Functions -----------
 
 type SpecificAction
-  = Replace ProjectionPath TaggedValue
-  | Scrub ProjectionPath
+  = NewValue ProjectionPath TaggedValue -- TaggedValue is a new whole value, starting from the root. ProjectionPath is just where in the current value to associate this action.
+  | Scrub ProjectionPath                -- ProjectionPath indicates both where this action should be associated and the location of the value to scrub.
 
 specificActionProjectionPath : SpecificAction -> ProjectionPath
 specificActionProjectionPath specificAction =
   case specificAction of
-    Replace projectionPath _ -> projectionPath
-    Scrub projectionPath     -> projectionPath
+    NewValue projectionPath _ -> projectionPath
+    Scrub projectionPath      -> projectionPath
 
 
 type AppendedTaggedStrings t
