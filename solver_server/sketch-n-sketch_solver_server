@@ -12,4 +12,9 @@ cd "$THIS_FILE_DIR"
 # sudo mv websocketd /usr/local/bin/
 #
 # This will open a websocket server at localhost:7444/reduce
-websocketd --port=7444 --dir=endpoints
+if [ -e /etc/letsencrypt/live/tormenta.cs.uchicago.edu/fullchain.pem ]
+then
+  websocketd --port=7444 --dir=endpoints --ssl --sslcert=/etc/letsencrypt/live/tormenta.cs.uchicago.edu/fullchain.pem --sslkey=/etc/letsencrypt/live/tormenta.cs.uchicago.edu/privkey.pem
+else
+  websocketd --port=7444 --dir=endpoints
+fi
