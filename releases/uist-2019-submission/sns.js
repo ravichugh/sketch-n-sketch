@@ -103724,7 +103724,7 @@ var _user$project$Canvas$zoneLine2 = F7(
 	});
 var _user$project$Canvas$zoneRotate_ = F7(
 	function (model, id, shape, cx, cy, r, cmds) {
-		var _p77 = {ctor: '_Tuple4', _0: 20, _1: 'rgba(192,192,192,0.5)', _2: '5', _3: '7'};
+		var _p77 = {ctor: '_Tuple4', _0: 26, _1: 'rgba(192,192,192,0.5)', _2: '5', _3: '7'};
 		var a = _p77._0;
 		var stroke = _p77._1;
 		var strokeWidth = _p77._2;
@@ -103967,7 +103967,7 @@ var _user$project$Canvas$zoneRotatePolyOrPath = F5(
 var _user$project$Canvas$zoneColor_ = F8(
 	function (realZone, shapeFeature, model, id, shape, x, y, _p89) {
 		var _p90 = _p89;
-		var _p91 = {ctor: '_Tuple6', _0: _user$project$Canvas$wGradient, _1: _user$project$Canvas$hZoneColor, _2: 20, _3: 'silver', _4: '2', _5: '7'};
+		var _p91 = {ctor: '_Tuple6', _0: _user$project$Canvas$wGradient, _1: _user$project$Canvas$hZoneColor, _2: 26, _3: 'silver', _4: '2', _5: '7'};
 		var w = _p91._0;
 		var h = _p91._1;
 		var a = _p91._2;
@@ -104204,7 +104204,7 @@ var _user$project$Canvas$zoneStrokeColor = A2(
 var _user$project$Canvas$zoneOpacity_ = F8(
 	function (realZone, shapeFeature, model, id, shape, x, y, _p96) {
 		var _p97 = _p96;
-		var _p98 = {ctor: '_Tuple6', _0: _user$project$Canvas$wOpacityBox, _1: 20, _2: 20, _3: 'silver', _4: '2', _5: '7'};
+		var _p98 = {ctor: '_Tuple6', _0: _user$project$Canvas$wOpacityBox, _1: 20, _2: 26, _3: 'silver', _4: '2', _5: '7'};
 		var w = _p98._0;
 		var h = _p98._1;
 		var a = _p98._2;
@@ -104379,7 +104379,7 @@ var _user$project$Canvas$svgPath = A2(
 var _user$project$Canvas$zoneStrokeWidth_ = F6(
 	function (model, id, shape, x, y, _p101) {
 		var _p102 = _p101;
-		var _p103 = {ctor: '_Tuple6', _0: _user$project$Canvas$wStrokeWidthBox, _1: _user$project$LangSvg$maxStrokeWidthNum, _2: 20, _3: 'silver', _4: '2', _5: '7'};
+		var _p103 = {ctor: '_Tuple6', _0: _user$project$Canvas$wStrokeWidthBox, _1: _user$project$LangSvg$maxStrokeWidthNum, _2: 26, _3: 'silver', _4: '2', _5: '7'};
 		var w = _p103._0;
 		var h = _p103._1;
 		var a = _p103._2;
