@@ -12,9 +12,12 @@ cd "$THIS_FILE_DIR"
 # sudo mv websocketd /usr/local/bin/
 #
 # This will open a websocket server at localhost:7444/reduce
+websocketd --port=7444 --dir=endpoints &
+
+# Need to always run the above compatibility if anyone is using the UIST 2019 submitted artifact.
+#
+# But if SSL available, also open a secure version.
 if [ -e /etc/letsencrypt/live/tormenta.cs.uchicago.edu/fullchain.pem ]
 then
-  websocketd --port=7444 --dir=endpoints --ssl --sslcert=/etc/letsencrypt/live/tormenta.cs.uchicago.edu/fullchain.pem --sslkey=/etc/letsencrypt/live/tormenta.cs.uchicago.edu/privkey.pem
-else
-  websocketd --port=7444 --dir=endpoints
+  websocketd --port=7445 --dir=endpoints --ssl --sslcert=/etc/letsencrypt/live/tormenta.cs.uchicago.edu/fullchain.pem --sslkey=/etc/letsencrypt/live/tormenta.cs.uchicago.edu/privkey.pem
 fi
