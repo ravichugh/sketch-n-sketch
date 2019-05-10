@@ -29,7 +29,7 @@ function setupConnection(address, onError) {
 function connectToSolverServer() {
   setupConnection("ws://localhost:7444/reduce", function (event) {
     console.log("No local solver server (start local server with $ cd solver_server && make run_server). Attempting to connect to tormenta.cs.uchicago.edu...");
-    setupConnection("wss://tormenta.cs.uchicago.edu:7444/reduce", function (event) {
+    setupConnection("wss://tormenta.cs.uchicago.edu:7445/reduce", function (event) {
       console.log("Could not connect to tormenta.cs.uchicago.edu. Cannot solve novel equations while not connected. Re-attempting connection in " + reconnectPauseSeconds + " seconds.");
       window.setTimeout(connectToSolverServer, reconnectPauseSeconds * 1000);
       reconnectPauseSeconds = Math.min(reconnectPauseSeconds*2, 300);
