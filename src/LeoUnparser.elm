@@ -1050,7 +1050,7 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
                x -> "@[" ++ unparse e ++ "]"
           EVar _ varname -> "@" ++ varname
           x -> "@[" ++ unparse e ++ "]"
-  EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->
+  EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] closingType Nothing spaceAfterTagClosing ->
     let (tagStart, tagEnd) = case (unwrapExp tagExp) of
           EBase _ (EString _ content) -> (content, content)
           _ -> ("@" ++ unparse tagExp, "@")
@@ -1063,11 +1063,11 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
           _ -> interpolationStyle
     in
     "<" ++ tagStart ++ unparseHtmlAttributes interpolationStyle attrExp ++spaceBeforeEndOpeningTag.val ++ (
-      if spaceBeforeTail.val == LeoParser.encoding_autoclosing then
+      if closingType.val == encoding_autoclosing then
         "/>"
-      else if spaceBeforeTail.val == LeoParser.encoding_voidclosing then
+      else if closingType.val == encoding_voidclosing then
         ">"
-      else if spaceBeforeTail.val == LeoParser.encoding_forgotclosing then
+      else if closingType.val == encoding_forgotclosing then
         ">" ++ unparseHtmlChildList newIsRaw childExp
       else  -- Normal closing if the tag is ok
         if HTMLParser.isVoidElement tagStart then

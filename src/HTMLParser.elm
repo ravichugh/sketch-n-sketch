@@ -138,6 +138,7 @@ svgTagNames = Set.fromList ["a","altGlyph","altGlyphDef","altGlyphItem","animate
   "tref","tspan","unknown","use","view","vkern"]
 
 possiblyAutoClosingElements = svgTagNames
+isPossiblyAutoClosing s = Set.member (String.toLower s) svgTagNames
 
 {-- HTML reference parsing: https://www.w3.org/TR/html5/syntax.html --}
 

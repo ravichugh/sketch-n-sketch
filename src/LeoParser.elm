@@ -16,7 +16,6 @@ module LeoParser exposing
   , maxId
   , implicitVarName
   , reorderDeclarations
-  , encoding_autoclosing, encoding_voidclosing, encoding_forgotclosing
   , opFromIdentifier
   )
 
@@ -778,10 +777,6 @@ htmlComment source comment =
   origin <| EList (withInfo ("{-"++opening++":"++closing++"-}") source.start source.start) [
     (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" "COMMENT")) source.start source.start),
     (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" string)) startString endString)] space0 Nothing space0
-
-encoding_autoclosing = " "
-encoding_voidclosing = "  "
-encoding_forgotclosing = "   "
 
 htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->   Bool ->     Bool ->     Bool ->       WS ->                  WithInfo Exp_
 htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing forgotClosing spaceAfterTagClosing =
