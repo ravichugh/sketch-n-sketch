@@ -1602,10 +1602,11 @@ defaultStringDiffs before after =
   )
 
 
--- Given a way to get the name of datatypes-encoded values, try to perform an alignment on the datatype names instead
+-- Given a way to get the name of datatypes-encoded values,
+-- try to perform an alignment on the datatype names instead
 -- If all the datatypes returned are the same, return Nothing.
 alignRecordDatatypes: (a -> Maybe String) -> List a -> List a -> List (DiffChunk (List a)) -> Maybe (Results String (List (DiffChunk (List a))))
-alignRecordDatatypes datatypeNameOf removed added difftail =
+alignRecordDatatypes datatypeNameOf removed added difftailglobal =
   let withDatatypes l = List.map (\elem -> (elem, datatypeNameOf elem)) l in
   let resDataTypeDifferences = alldiffs (\(_, datatypename) -> Maybe.withDefault "" datatypename) (withDatatypes removed) (withDatatypes added) in
   case resDataTypeDifferences of
@@ -1614,7 +1615,7 @@ alignRecordDatatypes datatypeNameOf removed added difftail =
       resDataTypeDifferences |> Results.map (\datatypedifferences ->
   let aux: List (DiffChunk (List (a, Maybe String))) -> List a -> List a -> List (DiffChunk (List a)) -> List (DiffChunk (List a))
       aux diffs removed added revAccDiffs = case diffs of
-     [] -> List.reverse revAccDiffs
+     [] -> Utils.reverseInsert revAccDiffs difftailglobal
      DiffEqual elems::difftail -> -- Same datatypes here, so the alignment is good.
        let count = List.length elems in
        let (removedTaken, removedRemaining) = Utils.split count removed in
