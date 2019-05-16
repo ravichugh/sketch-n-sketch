@@ -228,48 +228,8 @@ assignActionsToLeaves stringProjectionPathToSpecificActions stringTaggedWithSele
 
 structuredEditor : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Html Msg
 structuredEditor modelState =
-  let { valueOfInterestTagged, maybeRenderingFunctionNameAndProgram, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult } = modelState in
+  let { valueOfInterestTagged, maybeRenderingFunctionNameAndProgram, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult, maybeNewValueOptions } = modelState in
   let
-    specificActionToString specificAction =
-      case specificAction of
-        Scrub projectionPath             -> "Scrub " ++ pathToString projectionPath
-        NewValue projectionPath newValue ->
-          case maybeRenderingFunctionNameAndProgram of
-            Just { renderingFunctionName, desugaredToStringProgram } ->
-              let
-                newStringTaggedWithProjectionPathsResult =
-                  TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
-                      desugaredToStringProgram
-                      newValue
-              in
-              case (stringTaggedWithProjectionPathsResult, newStringTaggedWithProjectionPathsResult) of
-                ( Ok originalStringTaggedWithProjectionPaths
-                , Ok newStringTaggedWithProjectionPaths
-                ) ->
-                  -- Only show part of string that has changed.
-                  let
-                    originalStr = taggedStringToNormalString originalStringTaggedWithProjectionPaths
-                    newStr      = taggedStringToNormalString newStringTaggedWithProjectionPaths
-
-                    sharedPrefix = Utils.commonPrefixString [originalStr, newStr]
-                    sharedSuffix = Utils.commonSuffixString [originalStr, newStr]
-
-                    changedPart =
-                      newStr
-                      |> String.slice (String.length sharedPrefix) (String.length newStr - String.length sharedSuffix)
-                  in
-                  pathToString projectionPath ++ " " ++
-                  if String.trim changedPart == "" || String.length newStr < 100
-                  then newStr
-                  else changedPart
-
-                ( Err errStr, _ ) -> errStr
-                ( _, Err errStr ) -> errStr
-
-            Nothing ->
-              "New Value " ++ unparseToUntaggedString newValue ++ " associated at " ++ pathToString projectionPath
-
-
     render
       :  Set ProjectionPath
       -> AppendedTaggedStrings (Maybe ProjectionPath, Set ProjectionPath, Set SpecificAction)
@@ -308,24 +268,47 @@ structuredEditor modelState =
                   )
 
             perhapsActions =
-              let actionList = Set.toList actions in
-              if isLeafSelected && actionList /= [] then
-                let renderAction specificAction =
-                  let perhapsOnClickAttrs =
-                    case specificAction of
-                      NewValue projectionPath newTaggedVal -> [ Html.Events.onClick <| Controller.msgTSEFLLPSelectNewValue newTaggedVal ]
-                      Scrub projectionPath                 -> []
-                  in
-                  Html.div perhapsOnClickAttrs [text (specificActionToString specificAction)]
-                in
-                [ Html.div
-                    [ Attr.style [("position", "absolute"), ("margin-top", "1em")] ]
-                    (List.map renderAction actionList)
-                ]
-              else
-                []
+              let
+                actionList = Set.toList actions
+
+                insertActionNewValues     = actionList |> List.filter (specificActionMaybeChangeType >> (==) (Just Insert))     |> List.filterMap specificActionMaybeNewValue
+                removeActionNewValues     = actionList |> List.filter (specificActionMaybeChangeType >> (==) (Just Remove))     |> List.filterMap specificActionMaybeNewValue
+                changeCtorActionNewValues = actionList |> List.filter (specificActionMaybeChangeType >> (==) (Just ChangeCtor)) |> List.filterMap specificActionMaybeNewValue
+
+                button yOffset color onClickMsg str =
+                  Html.span
+                      [ Attr.style [ ("display", "inline-block")
+                                   , ("width",  "0")
+                                   , ("vertical-align", toString yOffset ++ "em"),  ("margin-top", toString (-yOffset) ++ "em")
+                                   , ("color", color)
+                                   , ("cursor", "pointer")
+                                   , ("font-size", "75%")
+                                   ]
+                      , Html.Events.onClick onClickMsg
+                      ]
+                      [ text str ]
+
+                perhapsInsertButton =
+                  case insertActionNewValues of
+                    []                    -> []
+                    [newValueAfterInsert] -> [ button 1.05 "green" (Controller.msgTSEFLLPSelectNewValue newValueAfterInsert)       "⊕" ]
+                    newValuesAfterInsert  -> [ button 1.05 "green" (Controller.msgTSEFLLPShowNewValueOptions newValuesAfterInsert) "⊕" ]
+
+                perhapsRemoveButton =
+                  case removeActionNewValues of
+                    []                    -> []
+                    [newValueAfterRemove] -> [ button -0.9 "red" (Controller.msgTSEFLLPSelectNewValue newValueAfterRemove)       "⊖" ]
+                    newValuesAfterRemove  -> [ button -0.9 "red" (Controller.msgTSEFLLPShowNewValueOptions newValuesAfterRemove) "⊖" ]
+
+                perhapsChangeCtorButton =
+                  case changeCtorActionNewValues of
+                    []                        -> []
+                    [newValueAfterChangeCtor] -> [ button -1.8 "gold" (Controller.msgTSEFLLPSelectNewValue newValueAfterChangeCtor)       "∼" ]
+                    newValuesAfterChangeCtor  -> [ button -1.8 "gold" (Controller.msgTSEFLLPShowNewValueOptions newValuesAfterChangeCtor) "∼" ]
+              in
+              perhapsInsertButton ++ perhapsRemoveButton ++ perhapsChangeCtorButton
           in
-          Html.span (perhapsSelectedDisplayAttrs ++ perhapsClickAttrs) (perhapsActions ++ [text string])
+          Html.span perhapsSelectedDisplayAttrs (perhapsActions ++ [ Html.span perhapsClickAttrs [text string] ])
 
         TaggedStringAppend left right _ ->
           Html.span
@@ -336,13 +319,44 @@ structuredEditor modelState =
   in
   case stringTaggedWithProjectionPathsResult of
     Ok stringTaggedWithProjectionPaths ->
-      let
-        stringTaggedWithSelectionPathAndProjectionPathsAndActions =
-          stringTaggedWithProjectionPaths
-          |> assignSelectionClickAreas
-          |> assignActionsToLeaves stringProjectionPathToSpecificActions
-      in
-      Html.div [Attr.style [("font-size", "18px")]] [render Set.empty stringTaggedWithSelectionPathAndProjectionPathsAndActions]
+      case maybeNewValueOptions of
+        Nothing ->
+          let
+            stringTaggedWithSelectionPathAndProjectionPathsAndActions =
+              stringTaggedWithProjectionPaths
+              |> assignSelectionClickAreas
+              |> assignActionsToLeaves stringProjectionPathToSpecificActions
+          in
+          Html.div [Attr.style [("font-size", "18px")]] [render Set.empty stringTaggedWithSelectionPathAndProjectionPathsAndActions]
+
+        Just newValueOptions ->
+          let
+            renderNewValueOption newValue =
+              let displayStr =
+                case maybeRenderingFunctionNameAndProgram of
+                  Just { renderingFunctionName, desugaredToStringProgram } ->
+                    let newStringTaggedWithProjectionPathsResult =
+                      TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
+                          desugaredToStringProgram
+                          newValue
+                    in
+                    newStringTaggedWithProjectionPathsResult
+                    |> Result.map taggedStringToNormalString
+                    |> Utils.fromResult -- Err and Ok both wrap strings, so unwrap.
+
+                  Nothing ->
+                    "New Value " ++ unparseToUntaggedString newValue
+              in
+              Html.div
+                  [ Attr.class "text-button"
+                  , Html.Events.onClick <| Controller.msgTSEFLLPSelectNewValue newValue
+                  ]
+                  [ text displayStr ]
+          in
+          Html.div
+              [ Attr.style [("font-size", "18px")] ]
+              (newValueOptions |> List.map renderNewValueOption)
+
     Err errorMsg ->
       text errorMsg
 

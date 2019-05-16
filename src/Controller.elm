@@ -87,7 +87,7 @@ port module Controller exposing
   , msgCollectAndSolve
   , msgShowUnExpPreview
   , msgClearUnExpPreview
-  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPSelectNewValue
+  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue
   )
 
 import Updatable exposing (Updatable)
@@ -4624,6 +4624,12 @@ msgDeselectTSEFLLPPath path =
   Msg ("Deselect TSEFLLP path " ++ toString path) <| \model ->
     { model | tinyStructuredEditorsForLowLowPricesState =
                   TinyStructuredEditorsForLowLowPrices.deselectPath model.tinyStructuredEditorsForLowLowPricesState path
+    }
+
+msgTSEFLLPShowNewValueOptions newValueOptions =
+  Msg "Show new TSEFLLP value options" <| \model ->
+    { model | tinyStructuredEditorsForLowLowPricesState =
+                  TinyStructuredEditorsForLowLowPrices.showNewValueOptions model.tinyStructuredEditorsForLowLowPricesState newValueOptions
     }
 
 msgTSEFLLPSelectNewValue tsefllpVal =

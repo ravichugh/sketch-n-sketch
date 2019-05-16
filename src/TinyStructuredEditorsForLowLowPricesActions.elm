@@ -284,10 +284,10 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
       Set.map Scrub valueOfInterestTagged.paths
 
     -- In practice, should always result in one action.
-    replacementActionSet : TaggedValue -> Set SpecificAction
-    replacementActionSet taggedValue =
+    replacementActionSet : ChangeType -> TaggedValue -> Set SpecificAction
+    replacementActionSet changeType taggedValue =
       valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
-      |> Set.map (\path -> NewValue path (replaceAtPath path taggedValue))
+      |> Set.map (\path -> NewValue changeType path (replaceAtPath path taggedValue))
   in
   case valueOfInterestTagged.v of
     VClosure _ _ _ _ ->
@@ -355,7 +355,7 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
               |> (::) ((-1, valueOfInterestTagged.paths))              -- Also add actions to this node itself; it has no argI.
               |> Utils.cartProd newValuesWithArgI
               |> List.filter (\((replacedArgI, _       ), (pathsArgI, _    )) -> replacedArgI /= pathsArgI)
-              |> List.map    (\((_,            newValue), (_,         paths)) -> paths |> Set.map (\path -> NewValue path newValue))
+              |> List.map    (\((_,            newValue), (_,         paths)) -> paths |> Set.map (\path -> NewValue Remove path newValue))
               |> Utils.unionAll
 
             insertActions =
@@ -376,7 +376,7 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
                         |> List.map
                             (\argI ->
                               let ctorArgVals = ctorDefaultArguments |> Utils.replacei argI valueOfInterestTagged in
-                              replacementActionSet (noTag <| VCtor ctorName ctorArgVals)
+                              replacementActionSet Insert (noTag <| VCtor ctorName ctorArgVals)
                             )
 
                       Nothing ->
@@ -408,7 +408,7 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
                         |> Utils.projJusts
                     in
                     case Debug.log "maybeNewArgVals" maybeNewArgVals of
-                      Just newArgVals -> replacementActionSet (noTag <| VCtor otherCtorName newArgVals)
+                      Just newArgVals -> replacementActionSet ChangeCtor (noTag <| VCtor otherCtorName newArgVals)
                       Nothing         -> Set.empty
                   )
               |> Utils.unionAll

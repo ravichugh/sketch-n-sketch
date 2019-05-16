@@ -18,6 +18,7 @@ type alias ModelState =
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
   , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
   , selectedPaths                         : Set ProjectionPath
+  , maybeNewValueOptions                  : Maybe (List TaggedValue)
   }
 
 initialModelState =
@@ -27,6 +28,7 @@ initialModelState =
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
   , stringProjectionPathToSpecificActions = Dict.empty
   , selectedPaths                         = Set.empty
+  , maybeNewValueOptions                  = Nothing
   }
 
 
@@ -97,15 +99,34 @@ unparseToUntaggedString taggedValue =
 
 ----------- Workflow Functions -----------
 
+type ChangeType
+  = ChangeCtor
+  | Remove
+  | Insert
+
 type SpecificAction
-  = NewValue ProjectionPath TaggedValue -- TaggedValue is a new whole value, starting from the root. ProjectionPath is just where in the current value to associate this action.
-  | Scrub ProjectionPath                -- ProjectionPath indicates both where this action should be associated and the location of the value to scrub.
+  = NewValue ChangeType ProjectionPath TaggedValue -- TaggedValue is a new whole value, starting from the root. ProjectionPath is just where in the current value to associate this action.
+  | Scrub ProjectionPath                           -- ProjectionPath indicates both where this action should be associated and the location of the value to scrub.
 
 specificActionProjectionPath : SpecificAction -> ProjectionPath
 specificActionProjectionPath specificAction =
   case specificAction of
-    NewValue projectionPath _ -> projectionPath
-    Scrub projectionPath      -> projectionPath
+    NewValue _ projectionPath _ -> projectionPath
+    Scrub projectionPath        -> projectionPath
+
+
+specificActionMaybeChangeType : SpecificAction -> Maybe ChangeType
+specificActionMaybeChangeType specificAction =
+  case specificAction of
+    NewValue changeType _ _ -> Just changeType
+    Scrub _                 -> Nothing
+
+
+specificActionMaybeNewValue : SpecificAction -> Maybe TaggedValue
+specificActionMaybeNewValue specificAction =
+  case specificAction of
+    NewValue _ _ newValue -> Just newValue
+    Scrub _               -> Nothing
 
 
 type AppendedTaggedStrings t

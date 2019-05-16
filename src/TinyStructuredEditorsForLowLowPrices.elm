@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPrices exposing (prepare, newLangValResult, selectPath, deselectPath, deselectAll)
+module TinyStructuredEditorsForLowLowPrices exposing (prepare, newLangValResult, showNewValueOptions, selectPath, deselectPath, deselectAll)
 
 import Dict
 import Set
@@ -66,7 +66,13 @@ prepare oldModelState env program maybeValueOfInterestType valueOfInterest =
   , valueOfInterestTagged                 = valueOfInterestTagged
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
   , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
+  , maybeNewValueOptions                  = Nothing
   }
+
+
+showNewValueOptions : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> List TaggedValue -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+showNewValueOptions oldModelState newValueOptions =
+  { oldModelState | maybeNewValueOptions = Just newValueOptions }
 
 
 newLangValResult : TaggedValue -> Result String Lang.Val
@@ -85,7 +91,7 @@ deselectPath oldModelState projectionPath =
 
 deselectAll : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
 deselectAll oldModelState =
-  { oldModelState | selectedPaths = Set.empty }
+  { oldModelState | selectedPaths = Set.empty, maybeNewValueOptions = Nothing }
 
 
 expToRenderingFunctionNames : Lang.Exp -> List Ident
