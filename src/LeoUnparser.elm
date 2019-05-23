@@ -895,7 +895,7 @@ unparseHtmlAttributes interpolationStyle attrExp =
               in
               case unwrapExp attrValueToConsider of
                 EBase spIfNoValue (EString _ attrValueStr) ->
-                  if attrValueStr == "" && spIfNoValue.val == " " then
+                  if attrValueStr == "" && spIfNoValue.val == "    " then
                     beforeSpace ++ attrNameStr
                   else
                     beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++

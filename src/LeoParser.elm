@@ -816,8 +816,8 @@ attrsToExp lastPos attrs =
           let attrSpaceAtValue =
             case value.val of
                HTMLParser.HTMLAttributeNoValue ->
-                 -- Hack: space1 is here to tell that it's a NoValue.
-                 Ok (space0, space0, HTMLParser.AtAbsent, withDummyExp_Info <| EBase space1 <| EString "\"" "")
+                 -- Hack: four spaces to tell that it's a NoValue.
+                 Ok (space0, space0, HTMLParser.AtAbsent, withDummyExp_Info <| EBase (ws "    ") <| EString "\"" "")
                HTMLParser.HTMLAttributeExp spBeforeEq spAfterEq atPresence e ->
                  -- Normally, all the space is inside s
                  let final_e = case nameInfo.val of
@@ -991,14 +991,19 @@ htmlAttribElemsToExp quoteCharStr content =
            Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entity)) l.start l.end] SpaceApp space0) l.start l.end)
   in
   let precedingWs = if quoteCharStr == "\"" then ws "  " else if quoteCharStr == "" then space0 else space1 in --encoding of quote char
+  let wrapWithHtmlRawAttribute start content =
+     Expr <| withDummyInfo (exp_ <| EApp precedingWs (
+       Expr <| withInfo (exp_ <| EVar space1  "__htmlRawAttribute__") start start) [content] SpaceApp space0)
+  in
   case contentAsExprs of
-    [] -> withDummyExpInfo (EBase precedingWs (EString quoteCharStr ""))
+    [] -> wrapWithHtmlRawAttribute Pos.dummyPos <|
+            withDummyExpInfo (EBase space0 (EString quoteCharStr ""))
+      --withDummyExpInfo (EBase precedingWs (EString quoteCharStr ""))
     ((Expr h) as head) :: tail ->
-      Expr <| withDummyInfo (exp_ <| EApp precedingWs (Expr <| withInfo (exp_ <| EVar space1  "__htmlRawAttribute__") h.start h.start) [
+      wrapWithHtmlRawAttribute h.start <|
         List.foldl (\((Expr ee1) as e1) ((Expr ee2) as e2) ->
           Expr <| withInfo (exp_ <| EOp space0 space0 (withDummyInfo Plus) [e2, e1] space0) ee1.start ee2.end
         ) head tail
-      ] SpaceApp space0)
 
 htmlliteral: Parser (WS -> WithInfo Exp_)
 htmlliteral =
