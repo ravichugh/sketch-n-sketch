@@ -92,7 +92,7 @@ loc:
     DefaultIconTheme.elm \
     DeuceColor.elm DeuceGeometry.elm DeuceParameters.elm \
 		UnDeuce.elm \
-		UnLang.elm TriEval.elm PBESynthesis.elm \
+		UnLang.elm TriEval.elm PBESynthesis.elm FastPBESynthesis.elm \
     Native/ImpureGoodies.js
 
 littleloc:

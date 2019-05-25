@@ -6,6 +6,8 @@ module PBESynthesis exposing
   ( guess
   , refine
   , solve
+
+  , satisfiesWorlds
   )
 
 import Dict exposing (Dict)

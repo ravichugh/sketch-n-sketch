@@ -6,16 +6,19 @@ module NonDet exposing
   ( NonDet
   , none
   , fromList
+  , fromMaybe
   , toList
   , map
   , pure
   , andThen
   , do
+  , isEmpty
   , concat
   , concatMap
   , oneOfEach
   , oneOfEachDict
   , collapseMaybe
+  , collapse
   )
 
 import Dict exposing (Dict)
@@ -39,6 +42,10 @@ none =
 fromList : List a -> NonDet a
 fromList =
   N
+
+fromMaybe : Maybe a -> NonDet a
+fromMaybe =
+  Utils.maybeToList >> N
 
 --------------------------------------------------------------------------------
 -- Collection
@@ -76,6 +83,10 @@ do =
 -- Specific Library Functions
 --------------------------------------------------------------------------------
 
+isEmpty : NonDet a -> Bool
+isEmpty =
+  (==) none
+
 concat : List (NonDet a) -> NonDet a
 concat =
   List.map toList >> List.concat >> fromList
@@ -98,3 +109,7 @@ oneOfEachDict =
 collapseMaybe : NonDet (Maybe a) -> NonDet a
 collapseMaybe =
   toList >> Utils.filterJusts >> fromList
+
+collapse : NonDet (NonDet a) -> NonDet a
+collapse =
+  toList >> concat

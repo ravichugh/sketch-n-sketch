@@ -1802,3 +1802,24 @@ unzipDict =
 -- Useful wrapper to force the binding of arguments in tail-recursion
 -- Should be fixed in Elm 0.19
 fixtailrec value callback = callback value
+
+--------------------------------------------------------------------------------
+
+-- Source: https://crypto.stanford.edu/~blynn/haskell/count.html
+partitionInteger : Int -> Int -> List (List Int)
+partitionInteger n k =
+  if n == 0 && k == 0 then
+    [[]]
+  else if n <= 0 || k <= 0 then
+    []
+  else
+    let
+      option1 =
+        partitionInteger (n - 1) (k - 1)
+          |> List.map (\parts -> parts ++ [1])
+
+      option2 =
+        partitionInteger (n - k) k
+          |> List.map (List.map ((+) 1))
+    in
+      option1 ++ option2

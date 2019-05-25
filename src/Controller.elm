@@ -112,7 +112,7 @@ import Eval
 import Evaluator
 import TriEval
 import UnLang as U exposing (UnExp, Constraints, World)
-import PBESynthesis
+import FastPBESynthesis as PBESynth
 import Update exposing (vStr, vList)
 import UpdateUtils
 import UpdateStack
@@ -4575,7 +4575,7 @@ msgCollectAndSolve =
           { model
               | holeFillings =
                   Just << NonDet.toList <|
-                    PBESynthesis.solve
+                    PBESynth.solve
                       (Types2.getDataTypeDefs model.inputExp)
                       model.holeEnv
                       (k1 ++ k2 ++ k3)
