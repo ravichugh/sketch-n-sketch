@@ -5,7 +5,7 @@
 --------------------------------------------------------------------------------
 -- TODO:
 --   * isBaseType
---   * Recursive functions
+--   * Incomplete recursive functions
 --   * Tuples seem not to be working
 
 module FastPBESynthesis exposing
@@ -30,44 +30,178 @@ import NonDet exposing (NonDet)
 
 import LeoUnparser
 
-type alias RInfo =
+recFunctionName : Ident
+recFunctionName =
+  "rec"
+
+-- TODO
+isBaseType : Type -> Bool
+isBaseType tau =
+  T.matchArrowRecurse tau == Nothing
+
+type alias HasGenInfo a =
+  { a
+  | sigma : T.DatatypeEnv
+  , gamma : T.TypeEnv
+  , goalType : Type
+  }
+
+type alias SynthesisProblem =
   { sigma : T.DatatypeEnv
   , gamma : T.TypeEnv
   , worlds : Worlds
   , goalType : Type
-  , guess : Maybe (NonDet (Exp, Constraints))
-  , height : Int
   }
+
+type alias SynthesisSolution =
+  NonDet (Exp, Constraints)
 
 type EarlyTerminationReason
   = OutOfMatchBudget
 
--- One for each IRefine-* rule, except IRefine-Guess
 type RTree
-  = Constant Exp
-  | Ctor RInfo Ident (NonDet RTree)
-  | Tuple RInfo (List (NonDet RTree))
-  | Fun RInfo Ident (NonDet RTree)
-  | Match RInfo Exp (List (Pat, NonDet RTree))
-  | EarlyTermination EarlyTerminationReason
+  = Constant
+      { val : Exp }
+  | Ctor
+      { height : Int
+      , ctorName : Ident
+      , possibleArg : NonDet RTree
+      }
+  | Tuple
+      { height : Int
+      , possibleComponents : List (NonDet RTree)
+      }
+  | Fun
+      { height : Int
+      , argName : Ident
+      , possibleBody : NonDet RTree
+      }
+  | Match
+      { height : Int
+      , scrutinee : Exp
+      , possibleBranches : List (Pat, NonDet RTree)
+      }
+  | Guess
+      { sp : SynthesisProblem
+      , guess : Maybe SynthesisSolution
+      }
+  | EarlyTermination
+      { reason : EarlyTerminationReason
+      }
+
+showTypePairs : T.TypeEnv -> String
+showTypePairs =
+  T.typePairs
+    >> List.map (Tuple.mapSecond LeoUnparser.unparseType)
+    >> List.map (\(x, tau) -> x ++ " : " ++ tau)
+    >> String.join ", "
+
+showTree : RTree -> String
+showTree =
+  let
+    showTree_ indentLevel rtree =
+      let
+        indent =
+          String.repeat indentLevel "  "
+
+        val =
+          case rtree of
+            Constant { val } ->
+              "Constant " ++ LeoUnparser.unparse val
+
+            Ctor { ctorName, possibleArg } ->
+              let
+                children =
+                  possibleArg
+                    |> NonDet.toList
+                    |> List.map (showTree_ (indentLevel + 1))
+                    |> String.join "\n"
+              in
+                "Ctor " ++ ctorName ++ "\n" ++ children
+
+            Tuple { possibleComponents } ->
+              let
+                tupleName =
+                  "Tuple" ++ toString (List.length possibleComponents)
+
+                children =
+                  possibleComponents
+                    |> List.map
+                         ( NonDet.toList
+                             >> List.map (showTree_ (indentLevel + 1))
+                             >> String.join "\n"
+                         )
+                    |> List.indexedMap
+                         (\i s -> toString (i + 1) ++ ". " ++ s)
+                    |> String.join "\n"
+              in
+                tupleName ++ "\n" ++ children
+
+            Fun { argName, possibleBody } ->
+              let
+                children =
+                  possibleBody
+                    |> NonDet.toList
+                    |> List.map (showTree_ (indentLevel + 1))
+                    |> String.join "\n"
+              in
+                "Fun \\" ++ argName ++ " ->\n" ++ children
+
+            Match { scrutinee, possibleBranches } ->
+              let
+                children =
+                  possibleBranches
+                    |> List.map
+                         ( Tuple.mapFirst <| \p ->
+                             indent ++ LeoUnparser.unparsePattern p ++ " -> \n"
+                         )
+                    |> List.map
+                         ( Tuple.mapSecond <|
+                             NonDet.toList
+                               >> List.map (showTree_ (indentLevel + 2))
+                               >> String.join "\n"
+                         )
+                    |> List.map (\(a, b) -> a ++ b)
+                    |> String.join "\n"
+              in
+                "Match " ++ LeoUnparser.unparse scrutinee ++ "\n" ++ children
+
+            Guess _ ->
+              "Guess"
+
+            EarlyTermination { reason } ->
+              let
+                reasonString =
+                  case reason of
+                    OutOfMatchBudget ->
+                      "OutOfMatchBudget"
+              in
+                "EarlyTermination " ++ reasonString
+      in
+        indent ++ val
+  in
+    showTree_ 0
 
 height : RTree -> Int
-height rt =
-  case rt of
+height rtree =
+  case rtree of
     Constant _ ->
       0
 
-    Ctor { height } _ _ ->
+    Ctor { height } ->
       height
 
-    Tuple { height } _ ->
+    Tuple { height } ->
       height
 
-    Fun { height } _ _ ->
+    Fun { height } ->
       height
 
-    Match { height } _ _ ->
+    Match { height } ->
       height
+
+    Guess _ ->
+      0
 
     EarlyTermination _ ->
       0
@@ -76,45 +210,11 @@ nheight : NonDet RTree -> Int
 nheight =
   NonDet.toList >> List.map height >> List.maximum >> Maybe.withDefault 0
 
-modifyRefinementInfo : (RInfo -> RInfo) -> RTree -> RTree
-modifyRefinementInfo f rtree =
-  case rtree of
-    Constant e ->
-      Constant e
-
-    Ctor rinfo ctorName arg ->
-      Ctor (f rinfo) ctorName (NonDet.map (modifyRefinementInfo f) arg)
-
-    Tuple rinfo args ->
-      Tuple (f rinfo) (List.map (NonDet.map (modifyRefinementInfo f)) args)
-
-    Fun rinfo argName body ->
-      Fun (f rinfo) argName (NonDet.map (modifyRefinementInfo f) body)
-
-    Match rinfo eScrutinee branches ->
-      Match
-        (f rinfo)
-        eScrutinee
-        ( List.map
-            ( Tuple.mapSecond <|
-                NonDet.map (modifyRefinementInfo f)
-            )
-            branches
-        )
-
-    EarlyTermination reason ->
-      EarlyTermination reason
-
-gen :
-  { sigma : T.DatatypeEnv
-  , gamma : T.TypeEnv
-  , goalType : Type
-  , maxTermSize : Int
-  } ->
-  NonDet Exp
-gen args =
+gen : { maxTermSize : Int } -> HasGenInfo a -> NonDet Exp
+gen { maxTermSize } initialInfo =
   let
-    genE ({ sigma, gamma, goalType, termSize } as args) =
+    genE : { termSize : Int } -> HasGenInfo a -> NonDet Exp
+    genE { termSize } ({ sigma, gamma, goalType } as info) =
       case termSize of
         0 ->
           NonDet.none
@@ -166,19 +266,19 @@ gen args =
                   let
                     possibleHead : NonDet Exp
                     possibleHead =
-                      genE
-                        { args
-                        | goalType = T.rebuildArrow ([], [argType], returnType)
-                        , termSize = k1
-                        }
+                      let
+                        arrowType =
+                          T.rebuildArrow ([], [argType], returnType)
+                      in
+                        genE
+                          { termSize = k1 }
+                          { info | goalType = arrowType }
 
                     possibleArg : NonDet Exp
                     possibleArg =
                       genE
-                        { args
-                        | goalType = argType
-                        , termSize = k2
-                        }
+                        { termSize = k2 }
+                        { info | goalType = argType }
                   in
                     -- TODO Check structural recursion
                     NonDet.do possibleHead <| \head ->
@@ -189,7 +289,8 @@ gen args =
                 _ ->
                   NonDet.none
 
-    genI ({ sigma, gamma, goalType, termSize } as args) =
+    genI : { termSize : Int } -> HasGenInfo a -> NonDet Exp
+    genI { termSize } ({ sigma, gamma, goalType } as info) =
       case termSize of
         0 ->
           NonDet.none
@@ -208,16 +309,14 @@ gen args =
                     possibleFunctionBody : NonDet Exp
                     possibleFunctionBody =
                       genI
-                        { sigma =
-                            sigma
-                        , gamma =
+                        { termSize = termSize - 1 }
+                        { info
+                        | gamma =
                             T.addHasType
                               (argNamePat, argType)
                               gamma
                         , goalType =
                             returnType
-                        , termSize =
-                            termSize - 1
                         }
                   in
                     NonDet.map (eFun0 [argNamePat]) possibleFunctionBody
@@ -228,7 +327,7 @@ gen args =
             Nothing ->
               let
                 eOption =
-                  genE args
+                  genE { termSize = termSize } info
 
                 constructorOption =
                   case unwrapType goalType of
@@ -246,10 +345,8 @@ gen args =
                                         >> eDatatype ctorName
                                     )
                                     ( genI
-                                        { args
-                                        | goalType = argType
-                                        , termSize = termSize - 1
-                                        }
+                                        { termSize = termSize - 1 }
+                                        { info | goalType = argType }
                                     )
 
                                 _ ->
@@ -282,10 +379,8 @@ gen args =
                               List.map2
                                 ( \tau k ->
                                     genI
-                                      { args
-                                      | goalType = tau
-                                      , termSize = k
-                                      }
+                                      { termSize = k}
+                                      { info | goalType = tau }
                                 )
                                 argGoalTypes
                                 partition
@@ -298,34 +393,14 @@ gen args =
   in
     NonDet.concat <|
       List.map
-        ( \termSize ->
-            genE
-              { sigma = args.sigma
-              , gamma = args.gamma
-              , goalType = args.goalType
-              , termSize = termSize
-              }
-        )
-        ( List.range 1 args.maxTermSize
-        )
+        (\termSize -> genE { termSize = termSize } initialInfo)
+        (List.range 1 maxTermSize)
 
-guessAndCheck :
-  { sigma : T.DatatypeEnv
-  , gamma : T.TypeEnv
-  , worlds : Worlds
-  , goalType : Type
-  , maxTermSize : Int
-  } ->
-  NonDet (Exp, Constraints)
-guessAndCheck { sigma, gamma, worlds, goalType, maxTermSize } =
+guessAndCheck : { maxTermSize : Int } -> SynthesisProblem -> SynthesisSolution
+guessAndCheck params ({ worlds } as sp) =
   let
     possibleSolution =
-      gen
-        { sigma = sigma
-        , gamma = gamma
-        , goalType = goalType
-        , maxTermSize = maxTermSize
-        }
+      gen params sp
   in
     possibleSolution
       |> NonDet.map
@@ -333,29 +408,11 @@ guessAndCheck { sigma, gamma, worlds, goalType, maxTermSize } =
       |> NonDet.collapseMaybe
 
 arefine :
-  { sigma : T.DatatypeEnv
-  , gamma : T.TypeEnv
-  , worlds : Worlds
-  , goalType : Type
-  , maxScrutineeSize : Int
-  , maxMatchDepth : Int
-  } ->
-  NonDet RTree
-arefine
-  ( { sigma, gamma, worlds, goalType, maxScrutineeSize, maxMatchDepth }
-      as args
-  ) =
+  { maxScrutineeSize : Int, maxMatchDepth : Int }
+    -> SynthesisProblem
+    -> NonDet RTree
+arefine params ({ sigma, gamma, worlds, goalType } as sp) =
   let
-    getRefinementInfo : Int -> RInfo
-    getRefinementInfo h =
-      { sigma = sigma
-      , gamma = gamma
-      , worlds = worlds
-      , goalType = goalType
-      , guess = Nothing
-      , height = h
-      }
-
     -- Filter out all the "don't care" examples
     filteredWorlds =
       List.filter
@@ -384,7 +441,7 @@ arefine
           |> List.map Tuple.second
           |> Utils.collapseEqual
           |> Maybe.andThen extractConstant
-          |> Maybe.map Constant
+          |> Maybe.map (\val -> Constant { val = val })
           |> NonDet.fromMaybe
 
     -- IRefine-Constructor
@@ -412,7 +469,7 @@ arefine
         case unwrapType goalType of
           TVar _ datatypeName ->
             case Utils.maybeFind datatypeName sigma of
-              Just (typeArgNames, datatypeConstructors) ->
+              Just (_, datatypeConstructors) ->
                 NonDet.do (NonDet.fromList datatypeConstructors) <|
                   \(ctorName, argTypes) ->
                     case argTypes of
@@ -423,18 +480,20 @@ arefine
                           |> Maybe.map
                                ( \constructorArgWorlds ->
                                    let
-                                      ctorArg =
+                                      possibleArg =
                                         arefine
-                                          { args
+                                          params
+                                          { sp
                                           | worlds = constructorArgWorlds
                                           , goalType = argType
                                           }
-
-                                      rinfo =
-                                        getRefinementInfo (nheight ctorArg + 1)
                                    in
                                      NonDet.pure <|
-                                       Ctor rinfo ctorName ctorArg
+                                       Ctor
+                                         { height = nheight possibleArg + 1
+                                         , ctorName = ctorName
+                                         , possibleArg = possibleArg
+                                         }
                                )
                           |> Maybe.withDefault NonDet.none
 
@@ -459,8 +518,8 @@ arefine
             tupleLength =
               List.length argGoalTypes
 
-            maybeTupleArgsWorlds : Maybe (List Worlds)
-            maybeTupleArgsWorlds =
+            maybeComponentsWorlds : Maybe (List Worlds)
+            maybeComponentsWorlds =
               let
                 extract : World -> Maybe Worlds
                 extract (env, ex) =
@@ -489,45 +548,43 @@ arefine
                              Just worldsList
                        )
           in
-            maybeTupleArgsWorlds
+            maybeComponentsWorlds
               |> Maybe.map
-                   ( \tupleArgsWorlds ->
+                   ( \componentsWorlds ->
                        let
-                          tupleArgs =
+                          possibleComponents =
                             List.map2
                               ( \argWorlds argGoalType ->
                                   arefine
-                                    { args
+                                    params
+                                    { sp
                                     | worlds = argWorlds
                                     , goalType = argGoalType
                                     }
                               )
-                              tupleArgsWorlds
+                              componentsWorlds
                               argGoalTypes
-
-                          rinfo =
-                            tupleArgs
-                              |> List.map nheight
-                              |> List.maximum
-                              |> Maybe.withDefault 0
-                              |> (+) 1
-                              |> getRefinementInfo
                        in
                          NonDet.pure <|
-                           Tuple rinfo tupleArgs
+                           Tuple
+                             { height =
+                                 possibleComponents
+                                   |> List.map nheight
+                                   |> List.maximum
+                                   |> Maybe.withDefault 0
+                                   |> (+) 1
+                             , possibleComponents =
+                                 possibleComponents
+                             }
                    )
               |> Maybe.withDefault NonDet.none
 
     -- IRefine-Fun
     partialFunctionRefinement argType returnType =
       let
-        functionName : Ident
-        functionName =
-          "rec"
-
-        functionNamePat : Pat
-        functionNamePat =
-          pVar0 functionName
+        recFunctionNamePat : Pat
+        recFunctionNamePat =
+          pVar0 recFunctionName
 
         functionType : Type
         functionType =
@@ -551,10 +608,10 @@ arefine
             [arg] ->
               Just
                 ( env
-                    -- Recursive function binding
-                    |> U.addVarBinding
-                         functionName
-                         (UPartialFunction () partialFunction)
+                    -- TODO Recursive function binding
+                    -- |> U.addVarBinding
+                    --      recFunctionName
+                    --      (UPartialFunction () partialFunction)
                     -- Argument binding
                     |> U.addVarBinding argName arg
                 , output
@@ -578,7 +635,7 @@ arefine
         newGamma : T.TypeEnv
         newGamma =
           gamma
-            |> T.addHasType (functionNamePat, functionType)
+            |> T.addHasType (recFunctionNamePat, functionType)
             |> T.addHasType (argNamePat, argType)
       in
         filteredWorlds
@@ -588,27 +645,29 @@ arefine
           |> Maybe.map
                ( \allWorlds ->
                    let
-                      functionBody =
+                      possibleBody =
                         arefine
-                          { args
+                          params
+                          { sp
                           | gamma = newGamma
                           , worlds = allWorlds
                           , goalType = returnType
                           }
-
-                      rinfo =
-                        getRefinementInfo (nheight functionBody + 1)
                    in
                      NonDet.pure <|
-                       Fun rinfo argName functionBody
+                       Fun
+                         { height = nheight possibleBody + 1
+                         , argName = argName
+                         , possibleBody = possibleBody
+                         }
                )
           |> Maybe.withDefault NonDet.none
 
     -- IRefine-Match
     matchRefinement () =
-      if maxMatchDepth == 0 then
+      if params.maxMatchDepth == 0 then
         NonDet.pure <|
-          EarlyTermination OutOfMatchBudget
+          EarlyTermination { reason = OutOfMatchBudget }
       else
         let
           argName : Ident
@@ -620,11 +679,11 @@ arefine
             pVar argName
 
           distributeWorlds : Exp -> Worlds -> Maybe (Dict Ident Worlds)
-          distributeWorlds eScrutinee worlds =
+          distributeWorlds scrutinee worlds =
             worlds
               |> List.map
                    ( \(env, ex) ->
-                       eScrutinee
+                       scrutinee
                          |> TriEval.evalWithEnv env
                          |> TriEval.ensureConstraintFree
                          |> Maybe.andThen U.expToVal
@@ -648,6 +707,39 @@ arefine
                    )
               |> Utils.projJusts
               |> Maybe.map Utils.pairsToDictOfLists
+
+          makePossibleBranch :
+            List DataConDef -> Ident -> Worlds -> (Pat, NonDet RTree)
+          makePossibleBranch constructorDefs ctorName branchWorlds =
+            -- TODO Could possibly avoid lookup here, but not that big of a deal
+            -- because the length of constructorDefs will almost always be very
+            -- small.
+            case Utils.maybeFind ctorName constructorDefs of
+              Just [ctorArgType] ->
+                let
+                  newGamma =
+                    T.addHasType
+                      (argNamePat, ctorArgType)
+                      gamma
+
+                  pat =
+                    pDatatype
+                      ctorName
+                      [argNamePat]
+
+                  branchBody =
+                    arefine
+                      { params | maxMatchDepth = params.maxMatchDepth - 1 }
+                      { sp
+                      | gamma = newGamma
+                      , worlds = branchWorlds
+                      , goalType = goalType
+                      }
+                in
+                   (pat, branchBody)
+
+              _ ->
+                (pVar0 "ERROR", NonDet.none)
         in
           NonDet.do (NonDet.fromList sigma) <|
             \(datatypeName, (_, constructorDefs)) ->
@@ -666,74 +758,50 @@ arefine
               in
                 NonDet.do
                   ( gen
+                      { maxTermSize = params.maxScrutineeSize }
                       { sigma = sigma
                       , gamma = gamma
                       , goalType = dType
-                      , maxTermSize = maxScrutineeSize
                       }
                   ) <|
-                  \eScrutinee ->
+                  \scrutinee ->
                     Maybe.withDefault NonDet.none <|
-                      flip Maybe.map (distributeWorlds eScrutinee worlds) <|
+                      flip Maybe.map (distributeWorlds scrutinee worlds) <|
                         \distributedWorlds ->
-                          if Dict.size distributedWorlds < 2 then
+                          if Dict.size distributedWorlds < 1 then
                             -- Uninformative match
                             NonDet.none
                           else
                             let
-                              branches =
+                              possibleBranches =
                                 dontCareWorlds
                                   -- Gives preference to distributedWorlds
-                                  |> Dict.union distributedWorlds
-                                  |> Dict.toList
-                                  |> List.map
-                                       ( \(ctorName, branchWorlds) ->
-                                           case
-                                             Utils.maybeFind
-                                               ctorName
-                                               constructorDefs
-                                           of
-                                             Just [ctorArgType] ->
-                                               let
-                                                 newGamma =
-                                                   T.addHasType
-                                                     (argNamePat, ctorArgType)
-                                                     gamma
-
-                                                 pat =
-                                                   pDatatype
-                                                     ctorName
-                                                     [argNamePat]
-
-                                                 branchBody =
-                                                   arefine
-                                                     { args
-                                                     | gamma =
-                                                         newGamma
-                                                     , worlds =
-                                                         branchWorlds
-                                                     , goalType =
-                                                         goalType
-                                                     , maxMatchDepth =
-                                                         maxMatchDepth - 1
-                                                     }
-                                               in
-                                                  (pat, branchBody)
-
-                                             _ ->
-                                               (pVar0 "ERROR", NonDet.none)
-                                       )
-
-                              rinfo =
-                                branches
-                                  |> List.map (Tuple.second >> nheight)
-                                  |> List.maximum
-                                  |> Maybe.withDefault 0
-                                  |> (+) 1
-                                  |> getRefinementInfo
+                                  |> Dict.union
+                                       distributedWorlds
+                                  |> Dict.map
+                                       (makePossibleBranch constructorDefs)
+                                  |> Dict.values
                             in
                               NonDet.pure <|
-                                Match rinfo eScrutinee branches
+                                Match
+                                  { height =
+                                      possibleBranches
+                                        |> List.map (Tuple.second >> nheight)
+                                        |> List.maximum
+                                        |> Maybe.withDefault 0
+                                        |> (+) 1
+                                  , scrutinee = scrutinee
+                                  , possibleBranches = possibleBranches
+                                  }
+    guessRefinement () =
+      if isBaseType goalType then
+        NonDet.pure <|
+          Guess
+            { sp = sp
+            , guess = Nothing
+            }
+      else
+        NonDet.none
   in
     -- Apply IRefine-Fun first
     case T.matchArrowRecurse goalType of
@@ -752,85 +820,128 @@ arefine
           , constructorRefinement ()
           , tupleRefinement ()
           , matchRefinement ()
+          , guessRefinement ()
           ]
 
--- TODO
-isBaseType : Type -> Bool
-isBaseType tau =
-  True
+-- Currently does not check height; fills entire tree
+fillGuesses : { maxTermSize : Int } -> RTree -> RTree
+fillGuesses params rtree =
+  case rtree of
 
--- Currently does not check height
-fillGuesses : Int -> RTree -> RTree
-fillGuesses maxTermSize =
-  modifyRefinementInfo <| \rinfo ->
-    if isBaseType rinfo.goalType then
-      { rinfo
-          | guess =
-              Just <|
-                guessAndCheck
-                  { sigma = rinfo.sigma
-                  , gamma = rinfo.gamma
-                  , worlds = rinfo.worlds
-                  , goalType = rinfo.goalType
-                  , maxTermSize = maxTermSize
-                  }
-      }
-    else
-      rinfo
+    -- This is the important case, the rest is just recursive plumbing
 
-propagate : RTree -> NonDet (Exp, Constraints)
+    Guess { sp } ->
+      Guess
+        { sp = sp
+        , guess = Just <| guessAndCheck params sp
+        }
+
+    -- Recursive plumbing from here on down
+
+    Constant info ->
+      Constant info
+
+    Ctor ({ possibleArg } as info) ->
+      Ctor
+        { info
+            | possibleArg =
+                NonDet.map (fillGuesses params) possibleArg
+        }
+
+    Tuple ({ possibleComponents } as info) ->
+      Tuple
+        { info
+            | possibleComponents =
+                List.map (NonDet.map (fillGuesses params)) possibleComponents
+        }
+
+    Fun ({ possibleBody } as info) ->
+      Fun
+        { info
+            | possibleBody =
+                NonDet.map (fillGuesses params) possibleBody
+        }
+
+    Match ({ possibleBranches } as info) ->
+      Match
+        { info
+            | possibleBranches =
+                List.map
+                  ( Tuple.mapSecond <|
+                      NonDet.map (fillGuesses params)
+                  )
+                  possibleBranches
+        }
+
+    EarlyTermination info ->
+      EarlyTermination info
+
+propagate : RTree -> SynthesisSolution
 propagate rtree =
   case rtree of
-    Constant e ->
-      NonDet.pure (e, [])
+    Constant { val } ->
+      NonDet.pure (val, [])
 
-    Ctor rinfo ctorName arg ->
-      NonDet.concat
-        [ Maybe.withDefault NonDet.none rinfo.guess
-        , NonDet.map
-            ( Tuple.mapFirst <|
-                replacePrecedingWhitespace1
-                  >> List.singleton
-                  >> eDatatype ctorName
-            )
-            ( arg
-                |> NonDet.andThen propagate
-            )
-        ]
+    Ctor { ctorName, possibleArg } ->
+      NonDet.map
+        ( Tuple.mapFirst <|
+            replacePrecedingWhitespace1
+              >> List.singleton
+              >> eDatatype ctorName
+        )
+        ( NonDet.do possibleArg propagate
+        )
 
-    Tuple rinfo args ->
-      NonDet.concat
-        [ Maybe.withDefault NonDet.none rinfo.guess
-        , args
-            |> List.map (NonDet.andThen propagate)
-            |> NonDet.oneOfEach
-            |> NonDet.map
-                 ( List.unzip
-                     >> Tuple.mapFirst eTuple0
-                     >> Tuple.mapSecond List.concat
-                 )
-        ]
+    Tuple { possibleComponents } ->
+      possibleComponents
+        |> List.map (NonDet.andThen propagate)
+        |> NonDet.oneOfEach
+        |> NonDet.map
+             ( List.unzip
+                 >> Tuple.mapFirst eTuple0
+                 >> Tuple.mapSecond List.concat
+             )
 
-    -- TODO Doesn't handle recursive functions?
-    Fun rinfo argName body ->
-      NonDet.concat
-        [ Maybe.withDefault NonDet.none rinfo.guess
-        , NonDet.map
-            ( Tuple.mapFirst <|
-                eFun0 [pVar0 argName]
-            )
-            ( body
-                |> NonDet.andThen propagate
-            )
-        ]
+    Fun { argName, possibleBody } ->
+      let
+        argNamePat : Pat
+        argNamePat =
+          pVar0 argName
 
-    Match rinfo eScrutinee branches ->
+        makeFunction : Exp -> Exp
+        makeFunction functionBody =
+          let
+            recursiveNameFinder e =
+              case unwrapExp e of
+                EVar _ name ->
+                  name == recFunctionName
+
+                _ ->
+                  False
+          in
+            case findFirstNode recursiveNameFinder functionBody of
+              -- Recursive
+              Just _ ->
+                replacePrecedingWhitespace1 <|
+                  eLet
+                    [(recFunctionName, eFun [argNamePat] functionBody)]
+                    (eVar recFunctionName)
+
+              -- Non-recursive
+              Nothing ->
+                eFun0 [argNamePat] functionBody
+      in
+        NonDet.map
+          (Tuple.mapFirst makeFunction)
+          (NonDet.do possibleBody propagate)
+
+    Match { scrutinee, possibleBranches } ->
       let
         makeCase :
           List (Pat, (Exp, Constraints)) -> (Exp, Constraints)
         makeCase branchesWithConstraints =
           let
-            eBranches =
+            branches =
               branchesWithConstraints
                 |> List.map
                      ( \(pat, (body, _)) ->
@@ -843,16 +954,16 @@ propagate rtree =
                 |> List.map (Tuple.second >> Tuple.second)
                 |> List.concat
           in
-            (eCase eScrutinee eBranches, constraints)
+            (eCase scrutinee branches, constraints)
       in
-        NonDet.concat
-          [ Maybe.withDefault NonDet.none rinfo.guess
-          , branches
-              |> List.map (Tuple.mapSecond (NonDet.andThen propagate))
-              |> List.map (\(p, ne) -> NonDet.map (\e -> (p, e)) ne)
-              |> NonDet.oneOfEach
-              |> NonDet.map makeCase
-          ]
+        possibleBranches
+          |> List.map (Tuple.mapSecond (NonDet.andThen propagate))
+          |> List.map (\(p, ne) -> NonDet.map (\e -> (p, e)) ne)
+          |> NonDet.oneOfEach
+          |> NonDet.map makeCase
+
+    Guess { guess } ->
+      Maybe.withDefault NonDet.none guess
 
     EarlyTermination reason ->
       NonDet.none
@@ -873,14 +984,8 @@ nextStage s =
     Four -> Just Five
     Five -> Nothing
 
-synthesize :
-  { sigma : T.DatatypeEnv
-  , gamma : T.TypeEnv
-  , worlds : Worlds
-  , goalType : Type
-  } ->
-  NonDet (Exp, Constraints)
-synthesize { sigma, gamma, worlds, goalType } =
+synthesize : SynthesisProblem -> SynthesisSolution
+synthesize sp =
   let
     synthesize_ stage =
       let
@@ -901,17 +1006,21 @@ synthesize { sigma, gamma, worlds, goalType } =
             Five ->
               (6, 3, 13)
 
+        rtree =
+          arefine
+            { maxScrutineeSize = maxScrutineeSize
+            , maxMatchDepth = maxMatchDepth
+            }
+            sp
+
         solution =
-          { sigma = sigma
-          , gamma = gamma
-          , worlds = worlds
-          , goalType = goalType
-          , maxScrutineeSize = maxScrutineeSize
-          , maxMatchDepth = maxMatchDepth
-          }
-            |> arefine
-            |> NonDet.map (fillGuesses maxTermSize >> propagate)
-            |> NonDet.collapse
+          rtree
+            |> (\rt -> let _ = Debug.log (List.map showTree (NonDet.toList rt) |> String.join "\n\n\n") () in rt)
+            |> NonDet.map
+                 ( fillGuesses { maxTermSize = maxTermSize }
+                     >> propagate
+                 )
+            |> NonDet.join
       in
         if NonDet.isEmpty solution then
           case nextStage stage of

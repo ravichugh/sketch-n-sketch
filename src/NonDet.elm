@@ -11,6 +11,7 @@ module NonDet exposing
   , map
   , pure
   , andThen
+  , join
   , do
   , isEmpty
   , concat
@@ -18,7 +19,6 @@ module NonDet exposing
   , oneOfEach
   , oneOfEachDict
   , collapseMaybe
-  , collapse
   )
 
 import Dict exposing (Dict)
@@ -71,6 +71,10 @@ andThen : (a -> NonDet b) -> NonDet a -> NonDet b
 andThen f =
   toList >> List.map f >> concat
 
+join : NonDet (NonDet a) -> NonDet a
+join =
+  toList >> concat
+
 --------------------------------------------------------------------------------
 -- Generic Library Functions
 --------------------------------------------------------------------------------
@@ -109,7 +113,3 @@ oneOfEachDict =
 collapseMaybe : NonDet (Maybe a) -> NonDet a
 collapseMaybe =
   toList >> Utils.filterJusts >> fromList
-
-collapse : NonDet (NonDet a) -> NonDet a
-collapse =
-  toList >> concat
