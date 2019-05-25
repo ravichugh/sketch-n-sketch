@@ -30,14 +30,37 @@ import NonDet exposing (NonDet)
 
 import LeoUnparser
 
+--------------------------------------------------------------------------------
+-- Parameters
+--------------------------------------------------------------------------------
+
+maxSolveDepth : Int
+maxSolveDepth =
+  5
+
 recFunctionName : Ident
 recFunctionName =
   "rec"
+
+--------------------------------------------------------------------------------
+-- Type Helpers
+--------------------------------------------------------------------------------
 
 -- TODO
 isBaseType : Type -> Bool
 isBaseType tau =
   T.matchArrowRecurse tau == Nothing
+
+showTypePairs : T.TypeEnv -> String
+showTypePairs =
+  T.typePairs
+    >> List.map (Tuple.mapSecond LeoUnparser.unparseType)
+    >> List.map (\(x, tau) -> x ++ " : " ++ tau)
+    >> String.join ", "
+
+--------------------------------------------------------------------------------
+-- Data Structures
+--------------------------------------------------------------------------------
 
 type alias HasGenInfo a =
   { a
@@ -88,13 +111,6 @@ type RTree
   | EarlyTermination
       { reason : EarlyTerminationReason
       }
-
-showTypePairs : T.TypeEnv -> String
-showTypePairs =
-  T.typePairs
-    >> List.map (Tuple.mapSecond LeoUnparser.unparseType)
-    >> List.map (\(x, tau) -> x ++ " : " ++ tau)
-    >> String.join ", "
 
 showTree : RTree -> String
 showTree =
@@ -1089,10 +1105,6 @@ solve_ depth sigma delta constraints =
             sigma
             delta
             (Set.toList (Set.union oldConstraintSet newConstraintSet))
-
-maxSolveDepth : Int
-maxSolveDepth =
-  5
 
 solve : T.DatatypeEnv -> T.HoleEnv -> Constraints -> NonDet HoleFilling
 solve =
