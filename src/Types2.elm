@@ -428,6 +428,8 @@ varNotFoundSuggestions x gamma =
 findUnboundTypeVars : TypeEnv -> Type -> Maybe (List Ident)
 findUnboundTypeVars gamma typ =
   let
+    -- Note that "->" is added to typeVarsInGamma here
+    typeVarsInGamma : List Ident
     typeVarsInGamma =
       List.foldl (\binding acc ->
         case binding of
@@ -435,15 +437,28 @@ findUnboundTypeVars gamma typ =
           TypeAlias a _  -> a :: acc
           TypeDef (a, _) -> a :: acc
           _              -> acc
-      ) [] gamma
+      ) ["->"] gamma
+
+    isTuple : Ident -> Bool
+    isTuple ident =
+      String.startsWith "Tuple" ident
+        && List.all Char.isDigit (String.toList (String.dropLeft 5 ident))
+
+    isBound : Ident -> Bool
+    isBound ident =
+      List.member ident typeVarsInGamma || isTuple ident
+
+    unboundTypeVars : List Ident
+    unboundTypeVars =
+      typ
+        |> freeIdentifiersList
+        |> List.filter (not << isBound)
+        |> Utils.dedup
   in
-    case Utils.listDiff (freeIdentifiersList typ) ("->"::typeVarsInGamma) of
-      [] ->
-        Nothing
-
-      unboundTypeVars ->
-        Just (Utils.dedup unboundTypeVars)
-
+    if List.isEmpty unboundTypeVars then
+      Nothing
+    else
+      Just unboundTypeVars
 
 -- Lists free type variable identifiers in some deterministic order, no deduplication.
 --
