@@ -1805,6 +1805,10 @@ fixtailrec value callback = callback value
 
 --------------------------------------------------------------------------------
 
+listBind : List a -> (a -> List b) -> List b
+listBind =
+  Basics.flip List.concatMap
+
 -- Source: https://crypto.stanford.edu/~blynn/haskell/count.html
 partitionInteger : Int -> Int -> List (List Int)
 partitionInteger n k =
@@ -1823,3 +1827,24 @@ partitionInteger n k =
           |> List.map (List.map ((+) 1))
     in
       option1 ++ option2
+
+permutations : List a -> List (List a)
+permutations =
+  let
+    -- Source: https://stackoverflow.com/a/40099411
+    permutations_ xs =
+      case xs of
+        [] ->
+          [[]]
+
+        _ ->
+          listBind xs <| \x ->
+          listBind (permutations_ (removeFirst x xs)) <| \ys ->
+            [ x :: ys ]
+  in
+    permutations_ >> dedup
+
+partitionIntegerPermutations : Int -> Int -> List (List Int)
+partitionIntegerPermutations n k =
+  partitionInteger n k
+    |> List.concatMap permutations
