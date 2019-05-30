@@ -287,11 +287,15 @@ structuredEditor modelState =
                 removeActionNewValues     = actionList |> List.filter (specificActionMaybeChangeType >> (==) (Just Remove))     |> List.filterMap specificActionMaybeNewValue
                 changeCtorActionNewValues = actionList |> List.filter (specificActionMaybeChangeType >> (==) (Just ChangeCtor)) |> List.filterMap specificActionMaybeNewValue
 
+                xOffset = 4 * String.length string - 5
+
                 button yOffset color onClickMsg str =
                   Html.span
                       [ Attr.style [ ("display", "inline-block")
                                    , ("width",  "0")
                                    , ("vertical-align", toString yOffset ++ "em"),  ("margin-top", toString (-yOffset) ++ "em")
+                                   , ("margin-left", toString xOffset ++ "px")
+                                   , ("margin-right", toString (-xOffset) ++ "px")
                                    , ("color", color)
                                    , ("cursor", "pointer")
                                    , ("font-size", "75%")
