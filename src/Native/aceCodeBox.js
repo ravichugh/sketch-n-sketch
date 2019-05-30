@@ -228,7 +228,7 @@ function getEditorState() {
   var codeBoxInfo =
     { cursorPos : editor.getCursorPosition()
     , selections : editor.selection.getAllRanges()
-    , highlights : [] // TODO
+    , highlights : [] // TODO; also change Controller.msgAceUpdate when implemented.
     , annotations : editor.getSession().getAnnotations().map(function (annot) { return { row: annot.row, text: annot.text, type_ : annot.type } })
     , tooltips : reconstructTooltips()
     , fontSize : fontSize

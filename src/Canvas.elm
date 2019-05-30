@@ -67,14 +67,16 @@ svgPath      = flip Svg.path []
 --------------------------------------------------------------------------------
 
 msgClickZone zoneKey = Msg ("Click Zone" ++ toString zoneKey) <| \old ->
+  let startLiveSync () =
+    -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
+    let (_, (mx, my)) = Layout.clickToCanvasPoint old (mousePosition old) in
+    let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
+    { old | mouseMode = MouseDragZone zoneKey (mx, my) False trigger }
+  in
   case old.outputMode of
-    Graphics ->
-      -- let _ = Debug.log ("Click Zone" ++ toString zoneKey) () in
-      let (_, (mx, my)) = Layout.clickToCanvasPoint old (mousePosition old) in
-      let trigger = Sync.prepareLiveTrigger old.liveSyncInfo old.inputExp zoneKey in
-      { old | mouseMode = MouseDragZone zoneKey (mx, my) False trigger }
-    _ ->
-      old
+    StructuredEditor -> startLiveSync ()
+    Graphics         -> startLiveSync ()
+    _                -> old
 
 msgMouseClickCanvas = Msg "MouseClickCanvas" <| \old ->
   case (old.tool, old.mouseMode) of
@@ -1670,7 +1672,7 @@ makeZonesPoly model shape id l =
   let secondaryWidgets = zRot ++ zFillAndStroke in
   case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
     Nothing -> secondaryWidgets
-    Just (x1,x2,y1,y2) -> 
+    Just (x1,x2,y1,y2) ->
   let primaryWidgets =
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++ zLines ++ zSelect ++ zPts
@@ -1720,7 +1722,7 @@ makeZonesPath model shape id nodeAttrs =
   let secondaryWidgets = zRot ++ zFillAndStroke in
   case Draw.boundingBoxOfPoints_ (List.map (\(x,y) -> (Tuple.first x, Tuple.first y)) pts) of
     Nothing -> secondaryWidgets
-    Just (x1,x2,y1,y2) -> 
+    Just (x1,x2,y1,y2) ->
   let primaryWidgets =
     boundingBoxZones model id (x1,y1,x2,y2) <|
       [zInterior] ++

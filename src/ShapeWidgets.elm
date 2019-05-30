@@ -909,6 +909,7 @@ type RealZone
   | ZOther OtherFeature   -- fill and stroke sliders
   | ZSlider               -- range annotations
   | ZOffset1D
+  | ZTSEFLLPScrub (List Int) -- ProjectionPath of the number to scrub.
 
 
 realZoneDesc : RealZone -> String

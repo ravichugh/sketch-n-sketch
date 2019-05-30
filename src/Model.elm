@@ -826,8 +826,9 @@ mkLive syntax opts slideNumber movieNumber movieTime e (val, widgets) =
 
 liveInfoToHighlights zoneKey model =
   case model.outputMode of
-    Graphics -> Sync.yellowAndGrayHighlights zoneKey model.liveSyncInfo
-    _        -> []
+    StructuredEditor -> Sync.yellowAndGrayHighlights zoneKey model.liveSyncInfo
+    Graphics         -> Sync.yellowAndGrayHighlights zoneKey model.liveSyncInfo
+    _                -> []
 
 --------------------------------------------------------------------------------
 

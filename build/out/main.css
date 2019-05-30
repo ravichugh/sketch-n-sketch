@@ -723,6 +723,10 @@ code {
   font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
 }
 
+.isScrubbing {
+  cursor: ns-resize !important;
+}
+
 /* Output Canvas children styles */
 
 #outputCanvas h1,

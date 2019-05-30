@@ -1809,6 +1809,12 @@ outputPanel model =
           TinyStructuredEditorsForLowLowPricesView.functionPickerAndEditor model.tinyStructuredEditorsForLowLowPricesState
         (Nothing, _, _) ->
           Canvas.build canvasDim model
+
+    isScrubbing =
+      case (model.outputMode, model.mouseMode) of
+        (StructuredEditor, MouseDragZone _ _ _ _) -> True
+        _                                         -> False
+
     outputPanelWarning =
       Html.div
         [ Attr.class "output-panel-warning"
@@ -1839,6 +1845,7 @@ outputPanel model =
           -- disappear/re-appear when just a text box is displayed.
           --
           [ Attr.id "outputCanvas"
+          , Attr.class (if isScrubbing then " isScrubbing" else "")
           , Attr.style
               [ ("width", px canvasDim.width)
               , ("height", px canvasDim.height)

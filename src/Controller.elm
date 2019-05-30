@@ -87,7 +87,7 @@ port module Controller exposing
   , msgCollectAndSolve
   , msgShowUnExpPreview
   , msgClearUnExpPreview
-  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue
+  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync
   )
 
 import Updatable exposing (Updatable)
@@ -482,9 +482,10 @@ onClickPrimaryZone i k realZone old =
           else Dict.empty
       in
       let maybeBlobId =
-        case Dict.get i (Tuple.second old.slate) |> Maybe.map .interpreted of
-          Just (LangSvg.SvgNode _ l _) -> LangSvg.maybeFindBlobId l
-          _                            -> Debug.crash "onClickPrimaryZone"
+        case (old.outputMode, Dict.get i (Tuple.second old.slate) |> Maybe.map .interpreted) of
+          (StructuredEditor, _)             -> Nothing
+          (_, Just (LangSvg.SvgNode _ l _)) -> LangSvg.maybeFindBlobId l
+          _                                 -> Debug.crash "onClickPrimaryZone"
       in
       case (k, realZone, maybeBlobId) of
         ("line", ZLineEdge, Just blobId) -> (old.selectedFeatures, toggleThisShape (), selectBlob blobId)
@@ -517,15 +518,18 @@ onMouseDrag lastPosition newPosition old =
       noCommand <| f lastPosition newPosition old
 
     MouseDragZone zoneKey (mx0, my0) _ trigger ->
-      case old.syncMode of
-        TracesAndTriggers True ->
+      case (old.outputMode, old.syncMode) of
+        (StructuredEditor, _) ->
           noCommand <|
             applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my) old
-        TracesAndTriggers False ->
+        (_, TracesAndTriggers True) ->
+          noCommand <|
+            applyTrigger old.solutionsCache zoneKey trigger (mx0, my0) (mx, my) old
+        (_, TracesAndTriggers False) ->
           -- TODO: define and run a version of trigger that applies to the
           -- single value being manipulated, rather than the entire program.
           noCommand old
-        ValueBackprop _ ->
+        (_, ValueBackprop _) ->
           adHocZone.drag zoneKey (mx0,my0) (mx,my) old
 
     MouseDragSelect initialPosition initialSelectedShapes initialSelectedFeatures initialSelectedBlobs ->
@@ -664,6 +668,9 @@ onMouseUp old =
 
     (PrintScopeGraph _, _) -> old
 
+    (StructuredEditor, MouseDragZone zoneKey (mx0, my0) _ trigger) ->
+      finishTrigger zoneKey old
+
     (Graphics, MouseDragZone zoneKey (mx0, my0) _ trigger) ->
       case old.syncMode of
         TracesAndTriggers True ->
@@ -739,7 +746,7 @@ applyTrigger solutionsCache zoneKey trigger (mx0, my0) (mx, my) old =
           , widgets = newWidgets
           , codeBoxInfo = codeBoxInfo_
           , mouseMode = MouseDragZone zoneKey (mx0, my0) True trigger
-          }
+          } |> refreshTSEFLLP
   )) |> handleError old
 
 finishTrigger zoneKey old =
@@ -945,23 +952,7 @@ tryRun old =
                       , previewdiffs  = Nothing
                       , synthesisResultsDict = Dict.singleton "Auto-Synthesis" (perhapsRunAutoSynthesis old e)
                       , shapeUpdatesViaZones = Dict.empty
-                      , tinyStructuredEditorsForLowLowPricesState =
-                          if old.outputMode == StructuredEditor then
-                            let maybeValType =
-                              -- The correct incantation would be (unExpr e).val.typ but the type checker can't type the empty list.
-                              -- Look for an explicit type annotation.
-                              expEffectiveExps e
-                              |> Utils.mapFirstSuccess (LangTools.expToMaybeEColonType)
-                            in
-                            TinyStructuredEditorsForLowLowPrices.prepare
-                                old.tinyStructuredEditorsForLowLowPricesState
-                                finalEnv
-                                e
-                                maybeValType
-                                newVal
-                          else
-                            old.tinyStructuredEditorsForLowLowPricesState
-                }
+                } |> refreshTSEFLLP
               in
                 { new_
                     | liveSyncInfo = refreshLiveInfo new_
@@ -1441,12 +1432,15 @@ msgAceUpdate aceCodeBoxInfo = Msg "Ace Update" <| \old ->
     let
       needsSave =
         old.lastSaveState /= Just aceCodeBoxInfo.code
+
+      newCodeBoxInfo =
+        aceCodeBoxInfo.codeBoxInfo
     in
       { old
           | code =
               aceCodeBoxInfo.code
           , codeBoxInfo =
-              aceCodeBoxInfo.codeBoxInfo
+              { newCodeBoxInfo | highlights = old.codeBoxInfo.highlights } -- Not yet properly serializing highlights from Ace, so assume they didn't change because of Ace.
           , needsSave =
               needsSave
       }
@@ -4614,6 +4608,26 @@ msgClearUnExpPreview =
 -- Tiny Structured Editors for Low, Low Prices!
 --------------------------------------------------------------------------------
 
+refreshTSEFLLP old =
+  { old | tinyStructuredEditorsForLowLowPricesState =
+            if old.outputMode == StructuredEditor then
+              let maybeValType =
+                -- The correct incantation would be (unExpr e).val.typ but the type checker can't type the empty list.
+                -- Look for an explicit type annotation.
+                expEffectiveExps old.inputExp
+                |> Utils.mapFirstSuccess (LangTools.expToMaybeEColonType)
+              in
+              TinyStructuredEditorsForLowLowPrices.prepare
+                  old.tinyStructuredEditorsForLowLowPricesState
+                  old.syncOptions
+                  old.inputEnv
+                  old.inputExp
+                  maybeValType
+                  old.inputVal
+            else
+              old.tinyStructuredEditorsForLowLowPricesState
+  }
+
 msgSelectTSEFLLPPath path =
   Msg ("Select TSEFLLP path " ++ toString path) <| \model ->
     { model | tinyStructuredEditorsForLowLowPricesState =
@@ -4658,3 +4672,20 @@ msgTSEFLLPSelectNewValue tsefllpVal =
       Nothing ->
         let _ = Utils.log "No bidirectional backprop results!" in
         model
+
+
+msgTSEFLLPStartLiveSync path =
+  Msg ("Start Live Sync for TSEFLLP path " ++ toString path) <| \model ->
+    let
+      zoneKey = (1, "", ZTSEFLLPScrub path)
+
+      (_, (mx, my)) = Layout.clickToCanvasPoint model (mousePosition model)
+
+      trigger =
+        Sync.prepareLiveTrigger
+            model.tinyStructuredEditorsForLowLowPricesState.liveSyncInfo
+            model.inputExp
+            zoneKey
+    in
+    { model | mouseMode = MouseDragZone zoneKey (mx, my) False trigger }
+

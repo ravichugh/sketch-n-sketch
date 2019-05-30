@@ -252,7 +252,7 @@ structuredEditor modelState =
           let
             (perhapsClickAttrs, isLeafSelected) =
               case maybeSelectionClickPath of
-                Nothing                  -> ([], False)
+                Nothing                 -> ([], False)
                 Just selectionClickPath ->
                   let
                     isLeafSelected = Set.member selectionClickPath selectedPaths
@@ -260,10 +260,22 @@ structuredEditor modelState =
                       if isLeafSelected
                       then Controller.msgDeselectTSEFLLPPath selectionClickPath
                       else Controller.msgSelectTSEFLLPPath   selectionClickPath
+
+                    scrubSpecificActions = actions |> Set.toList |> List.filter isScrubSpecificAction
+
+                    perhapsStartLiveSync =
+                      case scrubSpecificActions of
+                        [Scrub projectionPath] -> [ Html.Events.onMouseDown <| Controller.msgTSEFLLPStartLiveSync projectionPath ]
+                        _                      -> []
+
+                    cursor =
+                      if List.length scrubSpecificActions == 1
+                      then "ns-resize"
+                      else "pointer"
                   in
-                  ( [ Attr.style [("cursor", "pointer")]
+                  ( [ Attr.style [("cursor", cursor)]
                     , Html.Events.onClick onClickMsg
-                    ]
+                    ] ++ perhapsStartLiveSync
                   , isLeafSelected
                   )
 

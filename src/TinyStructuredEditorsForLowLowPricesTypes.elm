@@ -5,6 +5,7 @@ import Set exposing (Set)
 import String
 
 import Lang
+import Sync
 
 
 ----------- State and Caching on the Model -----------
@@ -19,6 +20,7 @@ type alias ModelState =
   , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
   , selectedPaths                         : Set ProjectionPath
   , maybeNewValueOptions                  : Maybe (List TaggedValue)
+  , liveSyncInfo                          : Sync.LiveInfo
   }
 
 initialModelState =
@@ -29,6 +31,7 @@ initialModelState =
   , stringProjectionPathToSpecificActions = Dict.empty
   , selectedPaths                         = Set.empty
   , maybeNewValueOptions                  = Nothing
+  , liveSyncInfo                          = { triggers = Dict.empty, initSubstPlus = Dict.empty }
   }
 
 
@@ -107,26 +110,34 @@ type ChangeType
 type SpecificAction
   = NewValue ChangeType ProjectionPath TaggedValue -- TaggedValue is a new whole value, starting from the root. ProjectionPath is just where in the current value to associate this action.
   | Scrub ProjectionPath                           -- ProjectionPath indicates both where this action should be associated and the location of the value to scrub.
+  | EditText ProjectionPath                        -- ProjectionPath indicates both where this action should be associated and the location of the value to scrub.
 
 specificActionProjectionPath : SpecificAction -> ProjectionPath
 specificActionProjectionPath specificAction =
   case specificAction of
     NewValue _ projectionPath _ -> projectionPath
     Scrub projectionPath        -> projectionPath
+    EditText projectionPath     -> projectionPath
 
 
 specificActionMaybeChangeType : SpecificAction -> Maybe ChangeType
 specificActionMaybeChangeType specificAction =
   case specificAction of
     NewValue changeType _ _ -> Just changeType
-    Scrub _                 -> Nothing
+    _                       -> Nothing
 
 
 specificActionMaybeNewValue : SpecificAction -> Maybe TaggedValue
 specificActionMaybeNewValue specificAction =
   case specificAction of
     NewValue _ _ newValue -> Just newValue
-    Scrub _               -> Nothing
+    _                     -> Nothing
+
+isScrubSpecificAction : SpecificAction -> Bool
+isScrubSpecificAction specificAction =
+  case specificAction of
+    Scrub _ -> True
+    _       -> False
 
 
 type AppendedTaggedStrings t

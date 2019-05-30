@@ -279,11 +279,6 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
       |> clearTags
 
     -- In practice, should always result in one action.
-    scrubActionSet : () -> Set SpecificAction
-    scrubActionSet () =
-      Set.map Scrub valueOfInterestTagged.paths
-
-    -- In practice, should always result in one action.
     replacementActionSet : ChangeType -> TaggedValue -> Set SpecificAction
     replacementActionSet changeType taggedValue =
       valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
@@ -420,11 +415,13 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
           Set.empty
 
     VString _ ->
-      scrubActionSet ()
+      -- In practice, should always result in one action.
+      Set.map EditText valueOfInterestTagged.paths
 
     VAppend w1 w2 ->
       let _ = Utils.log "Did not expect a VAppend in TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions" in
       Set.union (recurse maybeType w1) (recurse maybeType w2)
 
     VNum _ ->
-      scrubActionSet ()
+      -- In practice, should always result in one action.
+      Set.map Scrub valueOfInterestTagged.paths

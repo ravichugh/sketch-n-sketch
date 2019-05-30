@@ -4,6 +4,7 @@ module Sync exposing
   , locsOfTrace
   , LiveInfo, Triggers, LiveTrigger, ZoneKey
   , prepareLiveUpdates, prepareLiveTrigger
+  , MaybeCounts, updateCount, solveOne, mapMaybeToList, addTrigger
   , yellowAndGrayHighlights, hoverInfo
   , updateAttrs
   )

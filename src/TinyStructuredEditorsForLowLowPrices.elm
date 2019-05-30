@@ -4,6 +4,7 @@ import Dict
 import Set
 
 import Lang
+import Sync
 import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
@@ -11,6 +12,7 @@ import TinyStructuredEditorsForLowLowPricesDesugaring
 import TinyStructuredEditorsForLowLowPricesResugaring
 import TinyStructuredEditorsForLowLowPricesEval
 import TinyStructuredEditorsForLowLowPricesActions
+import TinyStructuredEditorsForLowLowPricesScrub
 
 
 ----------- Controller -----------
@@ -19,8 +21,8 @@ import TinyStructuredEditorsForLowLowPricesActions
 --
 -- I hate caching but if we instead perform the work on
 -- demand in the view then the GUI slows to a crawl.
-prepare : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Lang.Env -> Lang.Exp -> Maybe Lang.Type -> Lang.Val -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
-prepare oldModelState env program maybeValueOfInterestType valueOfInterest =
+prepare : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Sync.Options -> Lang.Env -> Lang.Exp -> Maybe Lang.Type -> Lang.Val -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+prepare oldModelState syncOptions env program maybeValueOfInterestType valueOfInterest =
   let
     renderingFunctionNames =
       expToRenderingFunctionNames program
@@ -67,6 +69,7 @@ prepare oldModelState env program maybeValueOfInterestType valueOfInterest =
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
   , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
   , maybeNewValueOptions                  = Nothing
+  , liveSyncInfo                          = TinyStructuredEditorsForLowLowPricesScrub.prepareLiveUpdates syncOptions program valueOfInterest
   }
 
 
