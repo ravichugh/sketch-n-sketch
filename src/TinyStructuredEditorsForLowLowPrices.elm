@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPrices exposing (prepare, newLangValResult, showNewValueOptions, selectPath, deselectPath, deselectAll)
+module TinyStructuredEditorsForLowLowPrices exposing (prepare, newLangValResult, showNewValueOptions, selectPath, deselectPath, deselectAll, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
 
 import Dict
 import Set
@@ -95,6 +95,34 @@ deselectPath oldModelState projectionPath =
 deselectAll : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
 deselectAll oldModelState =
   { oldModelState | selectedPaths = Set.empty, maybeNewValueOptions = Nothing }
+
+
+startTextEditing : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> (ProjectionPath, String) -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+startTextEditing oldModelState (projectionPath, text) =
+  -- Only set if not already text editing
+  { oldModelState | maybeTextEditingPathAndText = oldModelState.maybeTextEditingPathAndText |> Maybe.withDefault (projectionPath, text) |> Just }
+
+
+updateTextBox : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> String -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+updateTextBox oldModelState newText =
+  { oldModelState | maybeTextEditingPathAndText = oldModelState.maybeTextEditingPathAndText |> Maybe.map (\(path, _) -> (path, newText)) }
+
+
+newLangValResultForTextEdit : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Result String Lang.Val
+newLangValResultForTextEdit modelState =
+  case modelState.maybeTextEditingPathAndText of
+    Just (path, newText) ->
+      modelState.valueOfInterestTagged
+      |> TinyStructuredEditorsForLowLowPricesActions.replaceAtPath path (noTag <| VString newText)
+      |> TinyStructuredEditorsForLowLowPricesResugaring.taggedValToLangValResult
+
+    Nothing ->
+      Err "Not text editing right now!"
+
+
+cancelTextEditing : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+cancelTextEditing oldModelState =
+  { oldModelState | maybeTextEditingPathAndText = Nothing }
 
 
 expToRenderingFunctionNames : Lang.Exp -> List Ident

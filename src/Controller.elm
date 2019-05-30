@@ -87,7 +87,7 @@ port module Controller exposing
   , msgCollectAndSolve
   , msgShowUnExpPreview
   , msgClearUnExpPreview
-  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync
+  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
   )
 
 import Updatable exposing (Updatable)
@@ -4689,3 +4689,46 @@ msgTSEFLLPStartLiveSync path =
     in
     { model | mouseMode = MouseDragZone zoneKey (mx, my) False trigger }
 
+
+msgTSEFLLPStartTextEditing path =
+  Msg ("Start Text Editing for TSEFLLP path " ++ toString path) <| \model ->
+    { model | tinyStructuredEditorsForLowLowPricesState =
+                  TinyStructuredEditorsForLowLowPrices.startTextEditing model.tinyStructuredEditorsForLowLowPricesState path
+            , needsToFocusOn = Just "tsefllpTextBox"
+    }
+
+
+msgTSEFLLPUpdateTextBox newText =
+  Msg ("Update TSEFLLP Text Box: " ++ toString newText) <| \model ->
+    { model | tinyStructuredEditorsForLowLowPricesState =
+                  TinyStructuredEditorsForLowLowPrices.updateTextBox model.tinyStructuredEditorsForLowLowPricesState newText
+    }
+
+msgTSEFLLPApplyTextEdit =
+  Msg "Apply TSEFLLP Text Edit" <| \model ->
+    let
+      updatedValResult = TinyStructuredEditorsForLowLowPrices.newLangValResultForTextEdit model.tinyStructuredEditorsForLowLowPricesState
+
+      _ =
+        case updatedValResult of
+          Ok _       -> ()
+          Err errStr -> Utils.log errStr
+
+      maybeBackpropResult =
+        let originalCode = Syntax.unparser model.syntax model.inputExp in
+        backpropSynthesisResults model.inputExp model.inputEnv model.inputVal updatedValResult
+        |> Utils.findFirst (resultExp >> Syntax.unparser model.syntax >> (/=) originalCode)
+
+    in
+    case maybeBackpropResult of
+      Just synthesisResult ->
+        { model | tinyStructuredEditorsForLowLowPricesState =
+                      model.tinyStructuredEditorsForLowLowPricesState
+                      |> TinyStructuredEditorsForLowLowPrices.deselectAll
+                      |> TinyStructuredEditorsForLowLowPrices.cancelTextEditing
+                , code = Syntax.unparser model.syntax (resultExp synthesisResult)
+        } |> upstateRun
+
+      Nothing ->
+        let _ = Utils.log "No bidirectional backprop results!" in
+        model

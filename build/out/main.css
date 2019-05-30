@@ -720,7 +720,6 @@ code {
   cursor: default;
   overflow: auto;
   position: relative;
-  font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
 }
 
 .isScrubbing {
@@ -1640,6 +1639,10 @@ code {
   font-size: 0.9em;
   line-height: 1.05em; /* Empirical */
   white-space: pre;
+}
+
+#tsefllpTextBox {
+  font-family: "Inconsolata", monospace;
 }
 
 #outputCanvas > svg {

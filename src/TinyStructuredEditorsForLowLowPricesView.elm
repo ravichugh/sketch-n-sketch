@@ -6,13 +6,10 @@ import Set exposing (Set)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events
--- import Html.Events exposing
---   ( onClick, onInput, onMouseEnter, onMouseLeave
---   , onWithOptions, defaultOptions
---   )
 import VirtualDom exposing (text)
 
 import Controller
+import HtmlUtils
 import Model exposing (Msg)
 import Utils
 
@@ -250,33 +247,46 @@ structuredEditor modelState =
       case stringTaggedWithSelectionPathAndProjectionPathsAndActions of
         TaggedString string _ ->
           let
-            (perhapsClickAttrs, isLeafSelected) =
+            (perhapsClickAttrs, isTextEditing) =
               case maybeSelectionClickPath of
                 Nothing                 -> ([], False)
                 Just selectionClickPath ->
                   let
-                    isLeafSelected = Set.member selectionClickPath selectedPaths
                     onClickMsg =
-                      if isLeafSelected
+                      if Set.member selectionClickPath selectedPaths
                       then Controller.msgDeselectTSEFLLPPath selectionClickPath
                       else Controller.msgSelectTSEFLLPPath   selectionClickPath
 
-                    scrubSpecificActions = actions |> Set.toList |> List.filter isScrubSpecificAction
+                    scrubSpecificActions    = actions |> Set.toList |> List.filter isScrubSpecificAction
+                    editTextSpecificActions = actions |> Set.toList |> List.filter isEditTextSpecificAction
 
                     perhapsStartLiveSync =
                       case scrubSpecificActions of
                         [Scrub projectionPath] -> [ Html.Events.onMouseDown <| Controller.msgTSEFLLPStartLiveSync projectionPath ]
                         _                      -> []
 
+                    perhapsStartTextEdit =
+                      case (modelState.maybeTextEditingPathAndText, editTextSpecificActions) of
+                        (Nothing, [EditText projectionPath]) -> [ Html.Events.onDoubleClick <| Controller.msgTSEFLLPStartTextEditing (projectionPath, string) ]
+                        _                                    -> []
+
+                    isTextEditing =
+                      modelState.maybeTextEditingPathAndText
+                      |> Maybe.map (\(textEditingPath, _) -> [textEditingPath] == List.map specificActionProjectionPath editTextSpecificActions)
+                      |> Maybe.withDefault False
+
                     cursor =
-                      if List.length scrubSpecificActions == 1
-                      then "ns-resize"
-                      else "pointer"
+                      if List.length editTextSpecificActions == 1 then
+                        "text"
+                      else if List.length scrubSpecificActions == 1 then
+                        "ns-resize"
+                      else
+                        "pointer"
                   in
                   ( [ Attr.style [("cursor", cursor)]
                     , Html.Events.onClick onClickMsg
-                    ] ++ perhapsStartLiveSync
-                  , isLeafSelected
+                    ] ++ perhapsStartLiveSync ++ perhapsStartTextEdit
+                  , isTextEditing
                   )
 
             perhapsActions =
@@ -324,7 +334,25 @@ structuredEditor modelState =
               in
               perhapsInsertButton ++ perhapsRemoveButton ++ perhapsChangeCtorButton
           in
-          Html.span perhapsSelectedDisplayAttrs (perhapsActions ++ [ Html.span perhapsClickAttrs [text string] ])
+          Html.span perhapsSelectedDisplayAttrs <|
+            if isTextEditing then
+              let inputAttrs =
+                [ Attr.type_ "text"
+                , Attr.id "tsefllpTextBox"
+                , Attr.defaultValue string
+                , Attr.style [("font-size", "18px")]
+                , Html.Events.onInput Controller.msgTSEFLLPUpdateTextBox
+                , HtmlUtils.onClickWithoutPropagation Controller.msgNoop
+                , HtmlUtils.onKeyDown <|
+                    \keyCode ->
+                      if keyCode == HtmlUtils.enterKeyCode -- Enter button
+                      then Controller.msgTSEFLLPApplyTextEdit
+                      else Controller.msgNoop
+                ]
+              in
+              perhapsActions ++ [ Html.input inputAttrs [] ]
+            else
+              perhapsActions ++ [ Html.span perhapsClickAttrs [text string] ]
 
         TaggedStringAppend left right _ ->
           Html.span

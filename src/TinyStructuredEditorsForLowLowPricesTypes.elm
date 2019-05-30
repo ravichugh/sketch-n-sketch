@@ -19,6 +19,7 @@ type alias ModelState =
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
   , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
   , selectedPaths                         : Set ProjectionPath
+  , maybeTextEditingPathAndText           : Maybe (ProjectionPath, String)
   , maybeNewValueOptions                  : Maybe (List TaggedValue)
   , liveSyncInfo                          : Sync.LiveInfo
   }
@@ -30,6 +31,7 @@ initialModelState =
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
   , stringProjectionPathToSpecificActions = Dict.empty
   , selectedPaths                         = Set.empty
+  , maybeTextEditingPathAndText           = Nothing
   , maybeNewValueOptions                  = Nothing
   , liveSyncInfo                          = { triggers = Dict.empty, initSubstPlus = Dict.empty }
   }
@@ -138,6 +140,12 @@ isScrubSpecificAction specificAction =
   case specificAction of
     Scrub _ -> True
     _       -> False
+
+isEditTextSpecificAction : SpecificAction -> Bool
+isEditTextSpecificAction specificAction =
+  case specificAction of
+    EditText _ -> True
+    _          -> False
 
 
 type AppendedTaggedStrings t

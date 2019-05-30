@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPricesActions exposing (generateActionsForValueAndAssociateWithStringLocations)
+module TinyStructuredEditorsForLowLowPricesActions exposing (generateActionsForValueAndAssociateWithStringLocations, replaceAtPath)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -259,6 +259,19 @@ generateActionsForValueAndAssociateWithStringLocations program maybeValueOfInter
   stringProjectionPathToSpecificActions
 
 
+replaceAtPath : ProjectionPath -> TaggedValue -> TaggedValue -> TaggedValue
+replaceAtPath pathToReplace replacement rootValueOfInterestTagged =
+  let clearTags = mapTaggedValue (.v >> noTag) in
+  rootValueOfInterestTagged
+  |> mapTaggedValue
+      (\subvalueOfInterestTagged ->
+        if subvalueOfInterestTagged.paths == Set.singleton pathToReplace
+        then replacement
+        else subvalueOfInterestTagged
+      )
+  |> clearTags
+
+
 -- Type, if given, should be concrete: no free variables.
 -- (That's the point of providing a type: so we can know when `List a` is actually `List Num` and provide more actions.)
 valToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Maybe Lang.Type -> TaggedValue -> Set SpecificAction
@@ -266,23 +279,11 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
   let
     recurse = valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged
 
-    replaceAtPath : ProjectionPath -> TaggedValue -> TaggedValue
-    replaceAtPath pathToReplace replacement =
-      let clearTags = mapTaggedValue (.v >> noTag) in
-      rootValueOfInterestTagged
-      |> mapTaggedValue
-          (\subvalueOfInterestTagged ->
-            if subvalueOfInterestTagged.paths == Set.singleton pathToReplace
-            then replacement
-            else subvalueOfInterestTagged
-          )
-      |> clearTags
-
     -- In practice, should always result in one action.
     replacementActionSet : ChangeType -> TaggedValue -> Set SpecificAction
     replacementActionSet changeType taggedValue =
       valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
-      |> Set.map (\path -> NewValue changeType path (replaceAtPath path taggedValue))
+      |> Set.map (\path -> NewValue changeType path (replaceAtPath path taggedValue rootValueOfInterestTagged))
   in
   case valueOfInterestTagged.v of
     VClosure _ _ _ _ ->
@@ -343,7 +344,7 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
                 newValuesWithArgI =
                   Set.toList valueOfInterestTagged.paths -- valueOfInterestTagged.paths should always be a singleton here.
                   |> Utils.cartProd recursiveArgIs
-                  |> List.map (\(recursiveArgI, pathToReplace) -> (recursiveArgI, replaceAtPath pathToReplace (Utils.geti recursiveArgI argVals)))
+                  |> List.map (\(recursiveArgI, pathToReplace) -> (recursiveArgI, replaceAtPath pathToReplace (Utils.geti recursiveArgI argVals) rootValueOfInterestTagged))
               in
               argVals
               |> Utils.mapi1 (\(argI, argVal) -> (argI, argVal.paths)) -- Note: argVal.paths should always be a singleton set.

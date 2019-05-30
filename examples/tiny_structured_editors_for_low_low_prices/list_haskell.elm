@@ -116,7 +116,8 @@ intervalToString list =
   -- showsPrec _ x s = show x ++ s
   -- shows :: (Show a) => a -> ShowS
   -- shows =  showsPrec 0
-  let showsElem n s = toString n + s in
+  let showsElem n s = toString n + s in -- Number version
+  -- let showsElem elem s = '"' + elem + '"' + s in -- String version
   shows showsElem list ""
 
 -- The desugaring step turns this into Cons's and Nil's
