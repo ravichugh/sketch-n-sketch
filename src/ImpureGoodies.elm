@@ -198,3 +198,6 @@ whitespaceFromMetadata = Native.ImpureGoodies.whitespaceFromMetadata
 
 whitespaceToMetadata: String -> metadata
 whitespaceToMetadata = Native.ImpureGoodies.whitespaceToMetadata
+
+diffString: String -> String -> diffChunkString
+diffString = Native.ImpureGoodies.diffString

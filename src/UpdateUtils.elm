@@ -364,6 +364,11 @@ longestSufixSizeBetweenGuard maxIndex before after =
        String.slice (lengthAfter - 1 - i) (lengthAfter - i) after then aux (i + 1) else i
   in aux 0
 
+allStringDiffs: String -> String -> Results String (List (DiffChunk String))
+allStringDiffs a b =
+  ok1 <| ImpureGoodies.diffString a b
+
+{-
 -- Faster implementation of allDiffs for strings
 allStringDiffs: String -> String -> Results String (List (DiffChunk String))
 allStringDiffs before after =
@@ -591,7 +596,7 @@ takeShortest x =
       --let _ = Debug.log "Ambiguities before pruning" (toString l) in
       --let _ = Debug.log "Ambiguities after pruning" (toString finallist) in
       Ok (LazyList.fromList finallist)
-
+-}
 
 type Diff3Chunk a = Diff3Merged (DiffChunk a) | Diff3Conflict (List (DiffChunk a)) (List (DiffChunk a))
 
