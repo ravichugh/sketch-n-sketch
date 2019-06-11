@@ -352,7 +352,7 @@ explodeStyleValue: String -> List (String, String, String, String, String)
 explodeStyleValue content =
   Regex.split Regex.All styleSplitRegex content
     |> List.filterMap (\s ->
-         case Regex.find (Regex.AtMost 1) (Regex.regex "^(;?)([\\s\\S]*)(:)([\\s\\S]*)(;?\\s*)$") s of
+         case Regex.find (Regex.AtMost 1) (Regex.regex "^(;?)([\\s\\S]*)(:)([\\s\\S]*?)(;?\\s*)$") s of
            [m] -> case m.submatches of
              [Just prename, Just name, Just colon, Just value, Just postvalue] -> Just (prename, name, colon, value, postvalue)
              _ ->Nothing

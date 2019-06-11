@@ -813,38 +813,47 @@ attrsToExp lastPos attrs =
       case head.val of
         HTMLParser.HTMLAttribute sp nameInfo value ->
           let nameExp = replaceInfo nameInfo <| exp_ <| EBase space0 (EString "\"" nameInfo.val) in
+          let styleSplit e = replaceInfo e <| exp_ <| EApp space0 (Expr <| withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [Expr e] SpaceApp space0 in
           let attrSpaceAtValue =
             case value.val of
                HTMLParser.HTMLAttributeNoValue ->
                  -- Hack: four spaces to tell that it's a NoValue.
                  Ok (space0, space0, HTMLParser.AtAbsent, withDummyExp_Info <| EBase (ws "    ") <| EString "\"" "")
                HTMLParser.HTMLAttributeExp spBeforeEq spAfterEq atPresence e ->
-                 -- Normally, all the space is inside s
+                 -- Normally, all the space is inside the element
                  let final_e = case nameInfo.val of
-                      "style" -> replaceInfo e <| exp_ <| EApp space0 (Expr <| withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [Expr e] SpaceApp space0
+                      "style" -> styleSplit e
                       _ -> e
                  in
                  Ok (spBeforeEq, spAfterEq, atPresence, final_e)
                HTMLParser.HTMLAttributeString spBeforeEq spAfterEq delimiter elems ->
                  let (Expr attrValue) = htmlAttribElemsToExp delimiter elems in
-                 Ok (spBeforeEq, spAfterEq, HTMLParser.AtAbsent, attrValue)
+                 let final_e = case nameInfo.val of
+                      "style" -> styleSplit attrValue
+                      _ -> attrValue
+                 in
+                 Ok (spBeforeEq, spAfterEq, HTMLParser.AtAbsent, final_e)
                HTMLParser.HTMLAttributeUnquoted wsEq wsVal elems ->
                  let (Expr attrValue) = htmlAttribElemsToExp "" elems in
-                 Ok (wsEq, wsVal, HTMLParser.AtAbsent, attrValue)
+                 let final_e = case nameInfo.val of
+                       "style" -> styleSplit attrValue
+                       _ -> attrValue
+                  in
+                 Ok (wsEq, wsVal, HTMLParser.AtAbsent, final_e)
           in
           case attrSpaceAtValue of
             Err msg -> fail msg
             Ok (spBeforeEq, spAfterEq, atPresence, attrValue) ->
-              let thisAttribute = replaceInfo head <| exp_ <| EList sp [
-                 (if atPresence == HTMLParser.AtAbsent then space0 else space1, Expr nameExp),
-                 (spBeforeEq, Expr attrValue)
-                 ] spAfterEq Nothing space0
-              in
-              attrsToExp head.end tail |> andThen (\tailAttrExp ->
+               let thisAttribute = replaceInfo head <| exp_ <| EList sp [
+                  (if atPresence == HTMLParser.AtAbsent then space0 else space1, Expr nameExp),
+                  (spBeforeEq, Expr attrValue)
+                  ] spAfterEq Nothing space0
+               in
+               attrsToExp head.end tail |> andThen (\tailAttrExp ->
                 case appendToLeft (space0, Expr thisAttribute) (Expr tailAttrExp) of
                   Err msg -> fail msg
                   Ok (Expr newExp) -> succeed newExp
-              )
+               )
         HTMLParser.HTMLAttributeListExp sp e ->
            attrsToExp head.end tail |> map (\tailAttrExp ->
              let appendFun = replaceInfo head <| exp_ <| EVar space0 "++" in
