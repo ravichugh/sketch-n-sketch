@@ -2402,8 +2402,8 @@ String = {
     isCRLF = Regex.matchIn "\r\n"
     toUnix string =
       if isCRLF string then
-        Regex.replace "\r" (\_ -> freeze "") string
-        |> update.onInsert (Regex.replace "\n" (\_ -> "\r\n"))
+        Regex.split "\r\n" string
+        |> joinAndSplitBack "\n" "\n"
       else
         string
   }
