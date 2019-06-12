@@ -2308,7 +2308,7 @@ String = {
             Ok <| Inputs [outputNew]
       }
 
-      freezeLeft x = Update.lens {
+      freezeLeft = Update.lens {
         apply x = x
         update {input, outputNew} =
           if drop (length outputNew - input) outputNew == input then

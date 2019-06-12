@@ -4194,7 +4194,7 @@ String = {
             Ok <| Inputs [outputNew]
       }
 
-      freezeLeft x = Update.lens {
+      freezeLeft = Update.lens {
         apply x = x
         update {input, outputNew} =
           if drop (length outputNew - input) outputNew == input then
@@ -4288,8 +4288,8 @@ String = {
     isCRLF = Regex.matchIn \"\\r\\n\"
     toUnix string =
       if isCRLF string then
-        Regex.replace \"\\r\" (\\_ -> freeze \"\") string
-        |> update.onInsert (Regex.replace \"\\n\" (\\_ -> \"\\r\\n\"))
+        Regex.split \"\\r\\n\" string
+        |> joinAndSplitBack \"\\n\" \"\\n\"
       else
         string
   }
