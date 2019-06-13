@@ -366,7 +366,72 @@ longestSufixSizeBetweenGuard maxIndex before after =
 
 allStringDiffs: String -> String -> Results String (List (DiffChunk String))
 allStringDiffs a b =
-  ok1 <| ImpureGoodies.diffString a b
+  oks <| fixStringDiffs <| ImpureGoodies.diffString a b
+
+otherSliceRight: String -> String -> String -> List (DiffChunk String) -> List (List (DiffChunk String)) -> List (List (DiffChunk String))
+otherSliceRight x y z tail acc =
+  let aux i acc =
+       if i > String.length y || i > String.length z then
+          acc
+       else
+       let ry = String.left i y in
+       let rz = String.left i z in
+       let ry1 = String.slice -1 (String.length ry) ry in
+       if ry == rz then
+          let newX = x ++ ry in
+          let newY = String.dropLeft i y ++ ry in
+          let newZ = String.dropLeft i z in
+          let addNewZ = if String.length newZ == 0 then identity else (::) (DiffEqual newZ) in
+          let newSolutions = fixStringDiffs (addNewZ tail) |>
+            List.map (\res -> DiffEqual newX :: DiffAdded newY :: res) in
+          if ry1 == ">" || ry1 == ")" || ry1 == "]" || ry1 == "}" then -- Prioritary
+            aux (i + 1)  <| newSolutions ++ acc
+          else -- Non prioritary ambiguity
+            aux (i + 1) <| acc ++ newSolutions
+       else
+          acc
+  in aux 1 acc
+
+otherSliceLeft: String -> String -> String -> List (DiffChunk String) -> List (List (DiffChunk String)) -> List (List (DiffChunk String))
+otherSliceLeft x y z tail acc =
+  let aux i acc =
+       if i > String.length y || i > String.length x then
+          acc
+       else
+       let rx = String.right i x in
+       let ry = String.right i y in
+       let rx1 = String.slice 0 1 rx in
+       if rx == ry then
+          let newX = String.left (String.length x - i) x in
+          let addNewX = if String.length newX == 0 then identity else (::) (DiffEqual newX) in
+          let newY = rx ++ String.left (String.length y - i) y in
+          let newZ = rx ++ z in
+          let newSolutions = fixStringDiffs (DiffEqual newZ :: tail) |>
+            List.map (\res -> addNewX <| DiffAdded newY :: res) in
+          if rx1 == "<" || rx1 == "(" || rx1 == "[" || rx1 == "{" then -- Prioritary
+            aux (i + 1)  <| newSolutions ++ acc
+          else -- Non prioritary ambiguity
+            aux (i + 1) <| acc ++ newSolutions
+       else
+          acc
+  in aux 1 acc
+
+-- Realigns parentheses characters like ( [ { and < if possible.
+fixStringDiffs: List (DiffChunk String) -> List (List (DiffChunk String))
+fixStringDiffs diffChunks =
+  case diffChunks of
+  DiffAdded y :: DiffEqual z :: tail -> -- Maybe insert a DiffEqual x if it is relevant
+    otherSliceRight "" y z tail <|
+    List.map (\res -> DiffAdded y :: res) <| fixStringDiffs (DiffEqual z :: tail)
+  DiffEqual x :: DiffAdded y :: DiffEqual z :: tail ->
+    otherSliceRight x y z tail <|
+    otherSliceLeft x y z tail <|
+    List.map (\res -> DiffEqual x :: DiffAdded y :: res) <| fixStringDiffs (DiffEqual z :: tail)
+  DiffEqual x :: DiffAdded y :: tail ->
+    otherSliceLeft x y "" tail <|
+    List.map (\res -> DiffEqual x :: DiffAdded y :: res) <| fixStringDiffs tail
+  a :: b -> fixStringDiffs b |> List.map ((::) a)
+  [] -> [[]]
 
 {-
 -- Faster implementation of allDiffs for strings
