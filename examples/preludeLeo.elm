@@ -412,15 +412,17 @@ LensLess =
             Nothing -> Debug.crash <| "bad arguments to String.take " + toString length + " " + toString x
 
       drop length x =
+        if length <= 0 then x else
         case extractFirstIn ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
                 Just [substr] -> substr
                 Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
 
       dropLeft = drop
       dropRight length x =
-                  case extractFirstIn """^([\s\S]*?)[\s\S]{0,@length}$""" x of
-                          Just [substr] -> substr
-                          Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
+        if length <= 0 then x else
+        case extractFirstIn """^([\s\S]*?)[\s\S]{0,@length}$""" x of
+              Just [substr] -> substr
+              Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
 
       length x = __strLength__ x
 
@@ -2311,7 +2313,7 @@ String = {
       freezeLeft = Update.lens {
         apply x = x
         update {input, outputNew} =
-          if drop (length outputNew - input) outputNew == input then
+          if drop (length outputNew - length input) outputNew == input then
             Err <| "Cannot add anything to the left of '" + input + "'"
           else
             Ok <| Inputs [outputNew]
