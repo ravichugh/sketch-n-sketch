@@ -368,12 +368,10 @@ allStringDiffs: String -> String -> Results String (List (DiffChunk String))
 allStringDiffs a b =
   oks <| fixStringDiffs <| ImpureGoodies.diffString a b
 
-otherSliceRight: String -> String -> String -> List (DiffChunk String) -> List (List (DiffChunk String)) -> List (List (DiffChunk String))
-otherSliceRight x y z tail acc =
+shiftRight: (String -> DiffChunk String) -> String -> String -> String -> List (DiffChunk String) -> List (List (DiffChunk String)) -> List (List (DiffChunk String))
+shiftRight diffType x y z tail acc =
   let aux i acc =
-       if i > String.length y || i > String.length z then
-          acc
-       else
+       if i > String.length y || i > String.length z then acc else
        let ry = String.left i y in
        let rz = String.left i z in
        let ry1 = String.slice -1 (String.length ry) ry in
@@ -383,7 +381,7 @@ otherSliceRight x y z tail acc =
           let newZ = String.dropLeft i z in
           let addNewZ = if String.length newZ == 0 then identity else (::) (DiffEqual newZ) in
           let newSolutions = fixStringDiffs (addNewZ tail) |>
-            List.map (\res -> DiffEqual newX :: DiffAdded newY :: res) in
+            List.map (\res -> DiffEqual newX :: diffType newY :: res) in
           if ry1 == ">" || ry1 == ")" || ry1 == "]" || ry1 == "}" then -- Prioritary
             aux (i + 1)  <| newSolutions ++ acc
           else -- Non prioritary ambiguity
@@ -392,12 +390,13 @@ otherSliceRight x y z tail acc =
           acc
   in aux 1 acc
 
-otherSliceLeft: String -> String -> String -> List (DiffChunk String) -> List (List (DiffChunk String)) -> List (List (DiffChunk String))
-otherSliceLeft x y z tail acc =
+shiftAddedRight x = shiftRight DiffAdded x
+shiftRemovedRight x = shiftRight DiffRemoved x
+
+shiftLeft: (String -> DiffChunk String) -> String -> String -> String -> List (DiffChunk String) -> List (List (DiffChunk String)) -> List (List (DiffChunk String))
+shiftLeft diffType x y z tail acc =
   let aux i acc =
-       if i > String.length y || i > String.length x then
-          acc
-       else
+       if i > String.length y || i > String.length x then acc else
        let rx = String.right i x in
        let ry = String.right i y in
        let rx1 = String.slice 0 1 rx in
@@ -407,7 +406,7 @@ otherSliceLeft x y z tail acc =
           let newY = rx ++ String.left (String.length y - i) y in
           let newZ = rx ++ z in
           let newSolutions = fixStringDiffs (DiffEqual newZ :: tail) |>
-            List.map (\res -> addNewX <| DiffAdded newY :: res) in
+            List.map (\res -> addNewX <| diffType newY :: res) in
           if rx1 == "<" || rx1 == "(" || rx1 == "[" || rx1 == "{" then -- Prioritary
             aux (i + 1)  <| newSolutions ++ acc
           else -- Non prioritary ambiguity
@@ -416,20 +415,33 @@ otherSliceLeft x y z tail acc =
           acc
   in aux 1 acc
 
+shiftAddedLeft x = shiftLeft DiffAdded x
+shiftRemovedLeft x = shiftLeft DiffRemoved x
+
 -- Realigns parentheses characters like ( [ { and < if possible.
 fixStringDiffs: List (DiffChunk String) -> List (List (DiffChunk String))
 fixStringDiffs diffChunks =
   case diffChunks of
   DiffAdded y :: DiffEqual z :: tail -> -- Maybe insert a DiffEqual x if it is relevant
-    otherSliceRight "" y z tail <|
+    shiftAddedRight "" y z tail <|
     List.map (\res -> DiffAdded y :: res) <| fixStringDiffs (DiffEqual z :: tail)
   DiffEqual x :: DiffAdded y :: DiffEqual z :: tail ->
-    otherSliceRight x y z tail <|
-    otherSliceLeft x y z tail <|
+    shiftAddedRight x y z tail <|
+    shiftAddedLeft x y z tail <|
     List.map (\res -> DiffEqual x :: DiffAdded y :: res) <| fixStringDiffs (DiffEqual z :: tail)
   DiffEqual x :: DiffAdded y :: tail ->
-    otherSliceLeft x y "" tail <|
+    shiftAddedLeft x y "" tail <|
     List.map (\res -> DiffEqual x :: DiffAdded y :: res) <| fixStringDiffs tail
+  DiffRemoved y :: DiffEqual z :: tail ->
+    shiftRemovedRight "" y z tail <|
+    List.map (\res -> DiffRemoved y :: res) <| fixStringDiffs (DiffEqual z :: tail)
+  DiffEqual x :: DiffRemoved y :: DiffEqual z :: tail ->
+    shiftRemovedRight x y z tail <|
+    shiftRemovedLeft x y z tail <|
+    List.map (\res -> DiffEqual x :: DiffRemoved y :: res) <| fixStringDiffs (DiffEqual z :: tail)
+  DiffEqual x :: DiffRemoved y :: tail ->
+    shiftRemovedLeft x y "" tail <|
+    List.map (\res -> DiffEqual x :: DiffRemoved y :: res) <| fixStringDiffs tail
   a :: b -> fixStringDiffs b |> List.map ((::) a)
   [] -> [[]]
 
