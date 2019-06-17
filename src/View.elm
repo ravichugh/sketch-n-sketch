@@ -49,6 +49,7 @@ import UnLang as U exposing (UnExp)
 import LeoUnparser
 import Types2
 import TinyStructuredEditorsForLowLowPricesView
+import PBESuite
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -819,13 +820,16 @@ menuBar model =
 
     fileMenu =
       menu "File"
-        [ [ simpleTextButton "New SVG" <|
-              Controller.msgAskNew Examples.blankSvgTemplate model.needsSave
-          , simpleTextButton "New HTML" <|
-              Controller.msgAskNew Examples.blankHtmlTemplate model.needsSave
-          , simpleTextButton "New From Template..." <|
-              Controller.msgOpenDialogBox New
-          , simpleTextButton "Save As..." <|
+        [ -- [ simpleTextButton "New SVG" <|
+          --     Controller.msgAskNew Examples.blankSvgTemplate model.needsSave
+          -- , simpleTextButton "New HTML" <|
+          --     Controller.msgAskNew Examples.blankHtmlTemplate model.needsSave
+          -- , simpleTextButton "New From Template..." <|
+          --     Controller.msgOpenDialogBox New
+          [ simpleTextButton "Open PBE Suite Example" <|
+              Controller.msgOpenDialogBox PBESuiteList
+          ]
+        , [ simpleTextButton "Save As..." <|
               Controller.msgOpenDialogBox SaveAs
           , disableableTextButton
               (not model.needsSave)
@@ -2281,6 +2285,26 @@ fileNewDialogBox model =
       []
       (List.map viewCategory Examples.templateCategories)
 
+filePBESuiteListDialogBox model =
+  let
+    viewExample name programText =
+      styledUiButton
+        "wide"
+        name
+        (Controller.msgLoadPBESuiteExample name programText)
+  in
+    bigDialogBox
+      True
+      PBESuiteList
+      model
+      []
+      [Html.text "Programming by Example Suite"]
+      []
+      ( PBESuite.suite
+          |> Dict.map viewExample
+          |> Dict.values
+      )
+
 fileSaveAsDialogBox model =
   let
     saveAsInputHeader =
@@ -2455,6 +2479,7 @@ importCodeDialogBox model =
 dialogBoxes : Model -> (List (Html Msg))
 dialogBoxes model =
   [ fileNewDialogBox model
+  , filePBESuiteListDialogBox model
   , fileSaveAsDialogBox model
   , fileOpenDialogBox model
   , alertSaveDialogBox model

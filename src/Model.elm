@@ -45,6 +45,8 @@ import LangTools
 import LangUtils
 import Pos exposing (Pos)
 import Types2
+import TriEval
+import PBESuite
 
 import ImpureGoodies
 
@@ -569,6 +571,7 @@ setAllUpdated model =
 
 type DialogBox
   = New
+  | PBESuiteList
   | SaveAs
   | Open
   | AlertSave
@@ -577,6 +580,7 @@ type DialogBox
 dialogBoxes =
   Utils.mapi0 identity
     [ New
+    , PBESuiteList
     , SaveAs
     , Open
     , AlertSave
@@ -1393,22 +1397,54 @@ loadTemplate name =
               _ ->  let _ = Debug.log "Not an [...]" (unwrapExp content1) in t
             _ ->  let _ = Debug.log "Not an ['pre'...]" (unwrapExp e) in t
 
+loadPBESuiteExample :
+  String
+    -> String
+    -> ( Exp
+       , Types2.HoleEnv
+       , Result String (UnExp (), Maybe UnLang.Constraints)
+       )
+loadPBESuiteExample name programText =
+  let
+    (exp, holeEnv) =
+      programText
+        |> LeoParser.parse
+        |> Result.withDefault
+             (eStr <| "Failed to parse example '" ++ name ++ "'")
+        |> Types2.typecheck
+
+    output =
+      TriEval.eval exp
+  in
+    (exp, holeEnv, output)
+
 initModel : Model
 initModel =
-  let f = loadTemplate initTemplate in
+--  let f = loadTemplate initTemplate in
+--  let
+--    {e,v,ws,env} = case f of
+--       Err msg -> {e=eStr ("Init template error: " ++ msg), v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
+--       Ok callback -> case callback () of
+--         Err msg -> {e=eStr "Init template did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
+--         Ok ff -> ff
+--  in
   let
-    {e,v,ws,env} = case f of
-       Err msg -> {e=eStr ("Init template error: " ++ msg), v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
-       Ok callback -> case callback () of
-         Err msg -> {e=eStr "Init template did not parse", v=(builtinVal "" (VBase (VString (msg)))), ws=[], env=[]}
-         Ok ff -> ff
+    (initExp, initHoleEnv, initOutput) =
+      loadPBESuiteExample "init" PBESuite.init
+
+    {e, v, ws, env} =
+      { e = initExp
+      , v = builtinVal "initVal" (VBase (VString "initValArg"))
+      , ws = []
+      , env = []
+      }
   in
   let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
     unwrap (LangSvg.fetchEverything Syntax.Little 1 1 0.0 v)
   in
   let liveSyncInfo = unwrap (mkLive Syntax.Little Sync.defaultOptions 1 1 0.0 e (v, ws)) in
-  let code = LangUnparser.unparse e in
+  let code = LeoUnparser.unparse e in
     { code          = code
     , lastParsedCode = code
     , lastRunCode   = code
@@ -1446,10 +1482,7 @@ initModel =
     , dimensions    = { width = 1000, height = 800 } -- dummy in case initCmd fails
     , mouseState    = (Nothing, {x = 0, y = 0}, Nothing)
     , syncOptions   = Sync.defaultOptions
-    , caption       = (case f of
-        Err msg -> Just (LangError msg)
-        _ -> Nothing
-      )
+    , caption       = Nothing
     , showGhosts    = True
     , localSaves    = []
     , startup       = True
@@ -1557,9 +1590,9 @@ initModel =
     , doTypeChecking = True
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
-    , holeEnv = Types2.emptyHoleEnv
+    , holeEnv = initHoleEnv
     , holeFillings = Nothing
-    , unExpOutput = Err ""
+    , unExpOutput = initOutput
     , selectedHoles = Set.empty
     , selectedUnExp = Nothing
     , holeExampleInputs = Dict.empty

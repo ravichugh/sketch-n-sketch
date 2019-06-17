@@ -71,7 +71,7 @@ initCmd =
         Controller.msgLoadIcon
         (Task.succeed (Model.starLambdaToolIcon))
     , ColorScheme.updateColorScheme Model.initColorScheme
-    , Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
+    -- , Task.perform Controller.msgNew (Task.succeed Model.initTemplate)
     ]
 
 subscriptions : Model -> Sub Msg

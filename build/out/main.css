@@ -69,7 +69,7 @@ code {
 .ui-button {
   color: var(--text-color);
   background-color: rgba(0, 0, 0, 0.1);
-  padding: 4px;
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.3);
   border-radius: 3px;
   cursor: pointer;
@@ -924,11 +924,11 @@ code {
   -o-transform: translateY(-50%) translateX(-50%) scale(0);
   transform: translateY(-50%) translateX(-50%) scale(0);
 
-  -webkit-transition: -webkit-transform 0.2s;
-  -moz-transition: -moz-transform 0.2s;
-  -ms-transition: -ms-transform 0.2s;
-  -o-transition: -o-transform 0.2s;
-  transition: transform 0.2s;
+  -webkit-transition: -webkit-transform 0.1s;
+  -moz-transition: -moz-transform 0.1s;
+  -ms-transition: -ms-transform 0.1s;
+  -o-transition: -o-transform 0.1s;
+  transition: transform 0.1s;
 }
 
 .dialog-box.active {

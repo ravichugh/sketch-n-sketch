@@ -88,6 +88,7 @@ port module Controller exposing
   , msgShowUnExpPreview
   , msgClearUnExpPreview
   , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
+  , msgLoadPBESuiteExample
   )
 
 import Updatable exposing (Updatable)
@@ -153,6 +154,7 @@ import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
 import NonDet
 import TinyStructuredEditorsForLowLowPrices
+import PBESuite
 
 import ImpureGoodies exposing (nativeDict)
 
@@ -4732,3 +4734,20 @@ msgTSEFLLPApplyTextEdit =
       Nothing ->
         let _ = Utils.log "No bidirectional backprop results!" in
         model
+
+--------------------------------------------------------------------------------
+
+msgLoadPBESuiteExample : String -> String -> Msg
+msgLoadPBESuiteExample name programText =
+  Msg "Load PBE Suite Example" <| \model ->
+    let
+      (exp, holeEnv, output) =
+        Model.loadPBESuiteExample name programText
+    in
+      closeDialogBox PBESuiteList <|
+        { model
+            | code = programText
+            , inputExp = exp
+            , holeEnv = holeEnv
+            , unExpOutput = output
+        }
