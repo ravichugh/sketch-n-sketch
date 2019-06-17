@@ -6,7 +6,9 @@ init =
   """let f = \\x -> (?? : Num) in (f 1, f 2)"""
 
 bool_band =
-   """#use "bool.decls"
+   """type Bool
+  = False
+  | True
 
 let bool_band : bool -> bool -> bool |>
   { True => True => True
@@ -15,7 +17,9 @@ let bool_band : bool -> bool -> bool |>
   ; False => False => False } = ?"""
 
 bool_bor =
-   """#use "bool.decls"
+   """type Bool
+  = False
+  | True
 
 let bool_bor : bool -> bool -> bool |>
   { True => True => True
@@ -24,7 +28,9 @@ let bool_bor : bool -> bool -> bool |>
   ; False => False => False } = ?"""
 
 bool_impl =
-   """#use "bool.decls"
+   """type Bool
+  = False
+  | True
 
 let bool_impl : bool -> bool -> bool |>
   { True => True => True
@@ -33,14 +39,18 @@ let bool_impl : bool -> bool -> bool |>
   ; False => False => True } = ?"""
 
 bool_neg =
-   """#use "bool.decls"
+   """type Bool
+  = False
+  | True
 
 let bool_neg : bool -> bool |>
   { True => False
   ; False => True } = ?"""
 
 bool_xor =
-   """#use "bool.decls"
+   """type Bool
+  = False
+  | True
 
 let bool_xor : bool -> bool -> bool |>
   { True => True => False
@@ -723,7 +733,13 @@ let list_tl : list -> list |>
   | [0; 0] => [0] } = ?"""
 
 nat_iseven =
-   """#use "nat.decls"
+   """type Nat
+  = Z ()
+  | S Nat
+
+type Bool
+  = False
+  | True
 
 let nat_iseven : nat -> bool |>
   { 0 => True
@@ -733,8 +749,30 @@ let nat_iseven : nat -> bool |>
   } = ?"""
 
 nat_max =
-   """#use "nat.decls"
-#use "compare.decls"
+   """type Nat
+  = Z ()
+  | S Nat
+
+type Bool
+  = False
+  | True
+
+type cmp =
+  | LT
+  | EQ
+  | GT
+
+let rec compare (n1:nat) (n2:nat) : cmp =
+  match n1 with
+  | O ->
+    (match n2 with
+    | O -> EQ
+    | S (m) -> LT)
+  | S (m1) ->
+    (match n2 with
+    | O -> GT
+    | S (m2) -> (compare m1 m2))
+;;
 
 let nat_max : nat -> nat -> nat |>
 {
@@ -750,7 +788,13 @@ let nat_max : nat -> nat -> nat |>
 } = ?"""
 
 nat_pred =
-   """#use "nat.decls"
+   """type Nat
+  = Z ()
+  | S Nat
+
+type Bool
+  = False
+  | True
 
 let nat_pred : nat -> nat |>
   { O => O
@@ -758,7 +802,13 @@ let nat_pred : nat -> nat |>
   ; S (S (O)) => S (O) } = ?"""
 
 nat_add =
-   """#use "nat.decls"
+   """type Nat
+  = Z ()
+  | S Nat
+
+type Bool
+  = False
+  | True
 
 let nat_add : nat -> nat -> nat |>
   { 0 => ( 0 => 0
