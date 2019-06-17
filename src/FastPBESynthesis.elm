@@ -7,6 +7,7 @@
 --   * isBaseType
 --   * Incomplete recursive functions
 --   * Structural recursion check
+--   * projection is always size 2
 
 module FastPBESynthesis exposing
   ( solve
@@ -335,17 +336,14 @@ gen { maxTermSize } initialInfo =
                           { termSize = k2 }
                           { info | goalType = argType }
                     in
-                      -- TODO Check structural recursion better
                       NonDet.do possibleHead <| \head ->
                       NonDet.do possibleArg <| \arg ->
-                        case (unwrapExp head, unwrapExp arg) of
-                          (EVar _ "rec", EVar _ "x") ->
-                            NonDet.none
+                        if T.structurallyDecreasing gamma head arg then
+                          NonDet.pure <|
+                            eApp0 head [replacePrecedingWhitespace1 arg]
 
-                          _ ->
-                            NonDet.pure <|
-                              eApp0 head [replacePrecedingWhitespace1 arg]
-
+                        else
+                          NonDet.none
                   _ ->
                     NonDet.none
 
@@ -373,7 +371,7 @@ gen { maxTermSize } initialInfo =
                         { info
                         | gamma =
                             T.addHasType
-                              (argNamePat, argType)
+                              (argNamePat, argType, Nothing)
                               gamma
                         , goalType =
                             returnType
@@ -697,8 +695,16 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
         newGamma : T.TypeEnv
         newGamma =
           gamma
-            |> T.addHasType (recFunctionNamePat, functionType)
-            |> T.addHasType (argNamePat, argType)
+            |> T.addHasType
+                 ( recFunctionNamePat
+                 , functionType
+                 , Just Rec
+                 )
+            |> T.addHasType
+                 ( argNamePat
+                 , argType
+                 , Just (Arg recFunctionNamePat)
+                 )
       in
         filteredWorlds
           |> List.map branchWorlds
@@ -771,8 +777,10 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
               |> Maybe.map Utils.pairsToDictOfLists
 
           makePossibleBranch :
-            List DataConDef -> Ident -> Worlds -> (Pat, NonDet RTree)
-          makePossibleBranch constructorDefs ctorName branchWorlds =
+            Maybe T.BindingSpecification
+              -> List DataConDef -> Ident -> Worlds -> (Pat, NonDet RTree)
+          makePossibleBranch
+           maybeSubBindSpec constructorDefs ctorName branchWorlds =
             -- TODO Could possibly avoid lookup here, but not that big of a deal
             -- because the length of constructorDefs will almost always be very
             -- small.
@@ -781,7 +789,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                 let
                   newGamma =
                     T.addHasType
-                      (argNamePat, ctorArgType)
+                      (argNamePat, ctorArgType, maybeSubBindSpec)
                       gamma
 
                   pat =
@@ -838,13 +846,21 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                             NonDet.none
                           else
                             let
+                              maybeSubBindSpec =
+                                scrutinee
+                                  |> T.bindSpec gamma
+                                  |> Maybe.andThen T.subBindSpec
+
                               possibleBranches =
                                 dontCareWorlds
                                   -- Gives preference to distributedWorlds
                                   |> Dict.union
                                        distributedWorlds
                                   |> Dict.map
-                                       (makePossibleBranch constructorDefs)
+                                       ( makePossibleBranch
+                                           maybeSubBindSpec
+                                           constructorDefs
+                                       )
                                   |> Dict.values
                             in
                               NonDet.pure <|

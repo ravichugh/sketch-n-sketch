@@ -367,9 +367,10 @@ refine_ depth sigma gamma worlds tau =
 
               newGamma : T.TypeEnv
               newGamma =
+                -- NOTE: Structural recursion not handled
                 gamma
-                  |> T.addHasType (functionNamePat, functionType)
-                  |> T.addHasType (argNamePat, argType)
+                  |> T.addHasType (functionNamePat, functionType, Nothing)
+                  |> T.addHasType (argNamePat, argType, Nothing)
             in
               filteredWorlds
                 |> List.map branchWorlds
@@ -504,7 +505,8 @@ refine_ depth sigma gamma worlds tau =
               Just [ctorArgType] ->
                 let
                   newGamma =
-                    T.addHasType (argNamePat, ctorArgType) gamma
+                    -- NOTE: Structural recursion not handled
+                    T.addHasType (argNamePat, ctorArgType, Nothing) gamma
 
                   pat =
                     pDatatype ctorName [argNamePat]

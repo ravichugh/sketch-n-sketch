@@ -17,6 +17,11 @@ module Types2 exposing
   , DataTypeDef
   , DataConDef
 
+  , BindingSpecification(..)
+  , bindSpec
+  , subBindSpec
+  , structurallyDecreasing
+
   , TypeEnv
   , TypeEnvElement(..)
   , ArrowType
@@ -169,8 +174,13 @@ aceTypeInfo exp =
 
 type alias TypeEnv = List TypeEnvElement
 
+type BindingSpecification
+  = Rec
+  | Arg Pat
+  | Dec Pat
+
 type TypeEnvElement
-  = HasType Pat (Maybe Type)
+  = HasType Pat (Maybe Type) (Maybe BindingSpecification)
   | TypeVar Ident
   | TypeAlias Ident Type
   | TypeDef DataTypeDef
@@ -203,8 +213,9 @@ holeEnvUnion : List HoleEnv -> HoleEnv
 holeEnvUnion =
   List.concat
 
-addHasMaybeType : (Pat, Maybe Type) -> TypeEnv -> TypeEnv
-addHasMaybeType (p, mt) gamma =
+addHasMaybeType :
+  (Pat, Maybe Type, Maybe BindingSpecification) -> TypeEnv -> TypeEnv
+addHasMaybeType (p, mt, maybeBindSpec) gamma =
   let
     _ =
       ( unparsePattern p
@@ -214,12 +225,13 @@ addHasMaybeType (p, mt) gamma =
          then Debug.log "addHasMaybeType"
          else identity
   in
-  HasType p mt :: gamma
+  HasType p mt maybeBindSpec :: gamma
 
 
-addHasType : (Pat, Type) -> TypeEnv -> TypeEnv
-addHasType (p, t) gamma =
-  addHasMaybeType (p, Just t) gamma
+addHasType :
+  (Pat, Type, Maybe BindingSpecification) -> TypeEnv -> TypeEnv
+addHasType (p, t, maybeBindSpec) gamma =
+  addHasMaybeType (p, Just t, maybeBindSpec) gamma
 
 
 addTypeVar : Ident -> TypeEnv -> TypeEnv
@@ -237,6 +249,57 @@ typeAliasesOfGamma =
       TypeAlias a t -> [(a, t)]
       _             -> []
 
+subBindSpec : BindingSpecification -> Maybe BindingSpecification
+subBindSpec b =
+  case b of
+    Rec ->
+      Nothing
+
+    Arg f ->
+      Just (Dec f)
+
+    Dec f ->
+      Just (Dec f)
+
+structurallyDecreasing : TypeEnv -> Exp -> Exp -> Bool
+structurallyDecreasing gamma head arg =
+  case unwrapExp head of
+    EVar _ headName ->
+      case bindSpec gamma head of
+        Just Rec ->
+          case bindSpec gamma arg of
+            Just (Dec pat) ->
+              case unwrapPat pat of
+                PVar _ decName _ ->
+                  decName == headName
+
+                _ ->
+                  False
+            _ ->
+              False
+        _ ->
+          True
+    _ ->
+      True
+
+-- Works only for variables and projections ("tuple gets") of variables
+-- (This is desirable behavior.)
+bindSpec : TypeEnv -> Exp -> Maybe BindingSpecification
+bindSpec gamma exp =
+  case toTupleGet exp of
+    Just (_, _, arg) ->
+      arg
+        |> bindSpec gamma
+        |> Maybe.andThen subBindSpec
+
+    Nothing ->
+      case unwrapExp exp of
+        EVar _ x ->
+          lookupVarWithBindSpec gamma x
+            |> Maybe.andThen Tuple.second
+
+        _ ->
+          Nothing
 
 -- Returns Maybe ((type name, type arg names), ctor arg types)
 lookupDataCon : TypeEnv -> Ident -> Maybe ((Ident, List Ident), List Type)
@@ -255,18 +318,24 @@ lookupDataCon gamma dataConName =
 
 lookupVar : TypeEnv -> Ident -> Maybe (Maybe Type)
 lookupVar gamma x =
+  lookupVarWithBindSpec gamma x
+    |> Maybe.map Tuple.first
+
+lookupVarWithBindSpec : TypeEnv -> Ident -> Maybe (Maybe Type, Maybe BindingSpecification)
+lookupVarWithBindSpec gamma x =
   case gamma of
-    HasType p mt :: gammaRest ->
+    HasType p mt maybeBindSpec :: gammaRest ->
       Utils.firstOrLazySecond
-        (lookupVarInPat gamma x p mt)
-        (\_ -> lookupVar gammaRest x)
+        ( lookupVarInPat gamma x p mt
+            |> Maybe.map (\mt -> (mt, maybeBindSpec))
+        )
+        (\_ -> lookupVarWithBindSpec gammaRest x)
 
     _ :: gammaRest ->
-      lookupVar gammaRest x
+      lookupVarWithBindSpec gammaRest x
 
     [] ->
       Nothing
-
 
 -- TODO write a mapFoldPatType, and use it here
 --
@@ -369,7 +438,7 @@ typePairs gamma =
 
 varsOfGamma gamma =
   case gamma of
-    HasType p mt :: gammaRest ->
+    HasType p _ _ :: gammaRest ->
       varsOfPat p ++ varsOfGamma gammaRest
 
     _ :: gammaRest ->
@@ -1167,7 +1236,7 @@ opTypeTable =
 
 typecheck : Exp -> (Exp, HoleEnv)
 typecheck e =
-  let hasType x t = HasType (pVar0 x) (Result.toMaybe (parseT t)) in
+  let hasType x t = HasType (pVar0 x) (Result.toMaybe (parseT t)) Nothing in
   let initEnv =
     -- hard-coded for now
     [ TypeVar "Svg" -- stuffing in TypeVar for now
@@ -1358,7 +1427,7 @@ inferType gamma stuff thisExp =
             )
           )
         newGamma =
-          List.map (\pat -> HasType pat Nothing) pats ++ gamma
+          List.map (\pat -> HasType pat Nothing Nothing) pats ++ gamma
         result =
           inferType newGamma stuff body
         newExp =
@@ -1865,11 +1934,14 @@ inferType gamma stuff thisExp =
 
               else
                 let
-                  assumedRecPatTypes : List (Pat, Maybe Type)
+                  assumedRecPatTypes : List (Pat, Maybe Type, Maybe BindingSpecification)
                   assumedRecPatTypes =
                     listLetExpAndMaybeType
                       |> List.map (\((LetExp _ _ pat _ _ _), maybeAnnotatedType) ->
-                           (pat, maybeAnnotatedType)
+                           ( pat
+                           , maybeAnnotatedType
+                           , Just Rec
+                           )
                          )
                 in
                   List.foldl addHasMaybeType accGamma assumedRecPatTypes
@@ -1981,11 +2053,13 @@ inferType gamma stuff thisExp =
                 case maybePatTypes of
                   Nothing ->
                     patMaybeTypes
-                      |> List.map (Tuple.mapSecond (always Nothing))
+                      |> List.map (\(p, _) -> (p, Nothing, Nothing))
                       |> List.foldl addHasMaybeType accGamma
 
                   Just patTypes ->
-                    List.foldl addHasType accGamma patTypes
+                    patTypes
+                      |> List.map (\(p, t) -> (p, t, Nothing))
+                      |> List.foldl addHasType accGamma
           in
             ( (isRec, newListLetExp) :: accLetExpsRev
             , newAccGamma
@@ -2279,6 +2353,11 @@ inferType gamma stuff thisExp =
         newDataExp =
           result0.newExp
 
+        maybeSubBindSpec =
+          newDataExp
+            |> bindSpec gamma
+            |> Maybe.andThen subBindSpec
+
         (newBranches, branchResults) =
           branches
             |> List.map (\branch ->
@@ -2326,7 +2405,10 @@ inferType gamma stuff thisExp =
                                |> setPatType (unExpr result0.newExp).val.typ
 
                            patTypes =
-                             Utils.zip pats dataConTypes
+                             dataConTypes
+                               |> Utils.zip pats
+                               |> List.map (\(p, d) -> (p, d, maybeSubBindSpec))
+                               |> Debug.log "goodbye"
 
                            branchGamma =
                              List.foldl addHasType gamma patTypes
@@ -2506,6 +2588,7 @@ checkType gamma stuff thisExp expectedType =
             emptyHoleEnv
         }
 
+      -- TODO (Justin) Structural recursion preservation with currying?
       else if List.length pats > List.length argTypes then
         let
           -- Break up thisExp EFun into two nested EFuns, and check that.
@@ -2551,14 +2634,37 @@ checkType gamma stuff thisExp expectedType =
 
       else {- List.length pats == List.length argTypes -}
         let
+          maybeBindSpec =
+            let
+              thisEid =
+                (unExpr thisExp).val.eid
+            in
+              case parentByEId stuff.inputExp (unExpr thisExp).val.eid of
+                Just (Just parent) ->
+                  case unwrapExp parent of
+                    ELet _ _ (Declarations _ _ _ letExpGroups) _ _ ->
+                      letExpGroups
+                           -- Consider only recursive letExpGroups
+                        |> List.filter Tuple.first
+                        |> List.concatMap Tuple.second
+                        |> List.map (\(LetExp _ _ pat _ _ exp) -> (pat, exp))
+                        |> Utils.findFirst (Tuple.second >> expEId >> (==) thisEid)
+                        |> Maybe.map (Tuple.first >> Arg)
+
+                    _ ->
+                      Nothing
+
+                _ ->
+                  Nothing
           patTypes =
             Utils.zip pats argTypes
+              |> List.map (\(p, t) -> (p, t, maybeBindSpec))
           newGamma_ =
             List.foldl addTypeVar gamma typeVars
           newGamma =
             List.foldl addHasType newGamma_ patTypes
           newPats =
-            List.map (\(p,t) -> p |> setPatType (Just t)) patTypes
+            List.map (\(p,t,_) -> p |> setPatType (Just t)) patTypes
           result =
             checkType newGamma stuff body retType
         in
