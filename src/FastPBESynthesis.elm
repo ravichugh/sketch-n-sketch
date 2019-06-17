@@ -5,8 +5,7 @@
 --------------------------------------------------------------------------------
 -- TODO:
 --   * isBaseType
---   * Incomplete recursive functions
---   * Structural recursion check
+--   * incomplete recursive functions (fancy new fix rule)
 --   * projection is always size 2
 
 module FastPBESynthesis exposing
@@ -254,98 +253,108 @@ gen { maxTermSize } initialInfo =
 
           2 ->
             let
-              -- Returns list of (n, i) pairs that work
-              extractGet : List Type -> List (Int, Int)
-              extractGet ts =
+              getOption =
                 let
-                  n =
-                    List.length ts
-                in
-                  ts
-                    |> Utils.zipWithIndex
-                    |> List.filter (Tuple.first >> T.typeEquiv gamma goalType)
-                    -- i should be 1-indexed
-                    |> List.map (\(_, i) -> (n, i + 1))
+                  -- Returns list of (n, i) pairs that work
+                  extractGet : List Type -> List (Int, Int)
+                  extractGet ts =
+                    let
+                      n =
+                        List.length ts
+                    in
+                      ts
+                        |> Utils.zipWithIndex
+                        |> List.filter
+                             (Tuple.first >> T.typeEquiv gamma goalType)
+                        -- i should be 1-indexed
+                        |> List.map
+                             (\(_, i) -> (n, i + 1))
 
-              makeGets : (Ident, List (Int, Int)) -> List Exp
-              makeGets (ident, getInfos) =
-                List.map
-                  (\(n, i) -> Lang.fromTupleGet (n, i, eVar ident))
-                  getInfos
+                  makeGets : (Ident, List (Int, Int)) -> List Exp
+                  makeGets (ident, getInfos) =
+                    List.map
+                      (\(n, i) -> Lang.fromTupleGet (n, i, eVar ident))
+                      getInfos
+                in
+                  typePairs
+                    |> List.map
+                         ( Tuple.mapSecond <|
+                             Lang.tupleTypeArguments >> Maybe.map extractGet
+                         )
+                    |> List.map Utils.liftMaybePair2
+                    |> Utils.filterJusts
+                    |> List.concatMap makeGets
+                    |> NonDet.fromList
             in
-              typePairs
-                |> List.map
-                     ( Tuple.mapSecond <|
-                         Lang.tupleTypeArguments >> Maybe.map extractGet
-                     )
-                |> List.map Utils.liftMaybePair2
-                |> Utils.filterJusts
-                |> List.concatMap makeGets
-                |> NonDet.fromList
+              getOption
 
           _ ->
             let
-              fromArrowType : ArrowType -> Maybe (Type, Type)
-              fromArrowType (_, argTypes, returnType) =
-                case argTypes of
-                  -- TODO Only support single arguments for now
-                  [argType] ->
-                    if T.typeEquiv gamma goalType returnType then
-                      Just (argType, returnType)
-                    else
-                      Nothing
-
-                  _ ->
-                    Nothing
-
-              possibleArrowType : NonDet (Type, Type)
-              possibleArrowType =
-                typePairs
-                  |> List.map
-                       ( Tuple.second
-                           >> T.matchArrowRecurse
-                           >> Maybe.andThen fromArrowType
-                       )
-                  |> Utils.filterJusts
-                  |> NonDet.fromList
-
-              possiblePartition : NonDet (List Int)
-              possiblePartition =
-                Utils.partitionIntegerPermutations (termSize - 1) 2
-                  |> NonDet.fromList
-            in
-              NonDet.do possibleArrowType <| \(argType, returnType) ->
-              NonDet.do possiblePartition <| \partition ->
-                case partition of
-                  -- Will always happen
-                  [k1, k2] ->
-                    let
-                      possibleHead : NonDet Exp
-                      possibleHead =
-                        let
-                          arrowType =
-                            T.rebuildArrow ([], [argType], returnType)
-                        in
-                          genE
-                            { termSize = k1 }
-                            { info | goalType = arrowType }
-
-                      possibleArg : NonDet Exp
-                      possibleArg =
-                        genI
-                          { termSize = k2 }
-                          { info | goalType = argType }
-                    in
-                      NonDet.do possibleHead <| \head ->
-                      NonDet.do possibleArg <| \arg ->
-                        if T.structurallyDecreasing gamma head arg then
-                          NonDet.pure <|
-                            eApp0 head [replacePrecedingWhitespace1 arg]
-
+              arrowOption =
+                let
+                  fromArrowType : ArrowType -> Maybe (Type, Type)
+                  fromArrowType (_, argTypes, returnType) =
+                    case argTypes of
+                      -- TODO Only support single arguments for now
+                      [argType] ->
+                        if T.typeEquiv gamma goalType returnType then
+                          Just (argType, returnType)
                         else
-                          NonDet.none
-                  _ ->
-                    NonDet.none
+                          Nothing
+
+                      _ ->
+                        Nothing
+
+                  possibleArrowType : NonDet (Type, Type)
+                  possibleArrowType =
+                    typePairs
+                      |> List.map
+                           ( Tuple.second
+                               >> T.matchArrowRecurse
+                               >> Maybe.andThen fromArrowType
+                           )
+                      |> Utils.filterJusts
+                      |> NonDet.fromList
+
+                  possiblePartition : NonDet (List Int)
+                  possiblePartition =
+                    Utils.partitionIntegerPermutations (termSize - 1) 2
+                      |> NonDet.fromList
+                in
+                  NonDet.do possibleArrowType <| \(argType, returnType) ->
+                  NonDet.do possiblePartition <| \partition ->
+                    case partition of
+                      -- Will always happen
+                      [k1, k2] ->
+                        let
+                          possibleHead : NonDet Exp
+                          possibleHead =
+                            let
+                              arrowType =
+                                T.rebuildArrow ([], [argType], returnType)
+                            in
+                              genE
+                                { termSize = k1 }
+                                { info | goalType = arrowType }
+
+                          possibleArg : NonDet Exp
+                          possibleArg =
+                            genI
+                              { termSize = k2 }
+                              { info | goalType = argType }
+                        in
+                          NonDet.do possibleHead <| \head ->
+                          NonDet.do possibleArg <| \arg ->
+                            if T.structurallyDecreasing gamma head arg then
+                              NonDet.pure <|
+                                eApp0 head [replacePrecedingWhitespace1 arg]
+
+                            else
+                              NonDet.none
+                      _ ->
+                        NonDet.none
+            in
+              arrowOption
 
     genI : { termSize : Int } -> HasGenInfo a -> NonDet Exp
     genI { termSize } ({ sigma, gamma, goalType } as info) =
