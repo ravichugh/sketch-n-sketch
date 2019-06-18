@@ -3,72 +3,87 @@ module PBESuite exposing (init, suite)
 import Dict exposing (Dict)
 
 init =
-  """let f = \\x -> (?? : Num) in (f 1, f 2)"""
+   """type NumList
+  = Nil ()
+  | Cons (Num, NumList)
+
+type Nat
+  = Z ()
+  | S Nat
+
+?? : Nat"""
 
 bool_band =
-   """type Bool
-  = False
-  | True
+   """type Boolean
+  = F ()
+  | T ()
 
-let bool_band : bool -> bool -> bool |>
-  { True => True => True
-  ; True => False => False
-  ; False => True => False
-  ; False => False => False } = ?"""
+and : Bool -> Bool -> Bool
+and = ??
+
+PBE.constrain
+  and
+  (PF "{T () -> {T () -> T (), F () -> F ()}, F () -> {T () -> F (), F () -> F ()}}")"""
 
 bool_bor =
-   """type Bool
-  = False
-  | True
+   """type Boolean
+  = F ()
+  | T ()
 
-let bool_bor : bool -> bool -> bool |>
-  { True => True => True
-  ; True => False => True
-  ; False => True => True
-  ; False => False => False } = ?"""
+or : Boolean -> Boolean -> Boolean
+or = ??
+
+PBE.constrain
+  or
+  (PF "{T () -> {T () -> T (), F () -> T ()}, F () -> {T () -> T (), F () -> F ()}}")"""
 
 bool_impl =
-   """type Bool
-  = False
-  | True
+   """type Boolean
+  = F ()
+  | T ()
 
-let bool_impl : bool -> bool -> bool |>
-  { True => True => True
-  ; True => False => False
-  ; False => True => True
-  ; False => False => True } = ?"""
+impl : Boolean -> Boolean -> Boolean
+impl = ??
+
+PBE.constrain
+  impl
+  (PF "{T () -> {T () -> T (), F () -> F ()}, F () -> {T () -> T (), F () -> T ()}}")"""
 
 bool_neg =
-   """type Bool
-  = False
-  | True
+   """type Boolean
+  = F ()
+  | T ()
 
-let bool_neg : bool -> bool |>
-  { True => False
-  ; False => True } = ?"""
+neg : Boolean -> Boolean
+neg = ??
+
+PBE.constrain
+  neg
+  (PF "{T () -> F (), F () -> T ()}")"""
 
 bool_xor =
-   """type Bool
-  = False
-  | True
+   """type Boolean
+  = F ()
+  | T ()
 
-let bool_xor : bool -> bool -> bool |>
-  { True => True => False
-  ; True => False => True
-  ; False => True => True
-  ; False => False => False } = ?"""
+xor : Boolean -> Boolean -> Boolean
+xor = ??
+
+PBE.constrain
+  xor
+  (PF "{T () -> {T () -> F (), F () -> T ()}, F () -> {T () -> T (), F () -> F ()}}")"""
 
 list_append =
    """type NumList
   = Nil ()
   | Cons (Num, NumList)
 
-listAppend : (NumList, NumList) -> NumList
-listAppend = ??
+append : NumList -> NumList -> NumList
+append = ??
 
 PBE.constrain
-  listAppend
-  (PF "{([], []) -> [], ([], [0]) -> [0], ([0], []) -> [0], ([0], [0]) -> [0, 0], ([1, 0], []) -> [1, 0], ([1, 0], [0]) -> [1, 0, 0]}")"""
+  append
+  (PF "{[] -> {[] -> [], [0] -> [0]}, [0] -> {[] -> [0], [0] -> [0, 0]}, [1, 0] -> {[] -> [1, 0], [0] -> [1, 0, 0]}}")"""
 
 list_compress =
    """type nat =
@@ -731,7 +746,7 @@ nat_iseven =
   = Z ()
   | S Nat
 
-type Bool
+type Boolean
   = False
   | True
 
@@ -747,7 +762,7 @@ nat_max =
   = Z ()
   | S Nat
 
-type Bool
+type Boolean
   = False
   | True
 
@@ -786,7 +801,7 @@ nat_pred =
   = Z ()
   | S Nat
 
-type Bool
+type Boolean
   = False
   | True
 
@@ -800,7 +815,7 @@ nat_add =
   = Z ()
   | S Nat
 
-type Bool
+type Boolean
   = False
   | True
 
@@ -1123,8 +1138,7 @@ let tree_preorder : tree -> list |>
 suite : Dict String String
 suite =
   Dict.fromList
-    [ ("init", init)
-    , ("bool_band", bool_band)
+    [ ("bool_band", bool_band)
     , ("bool_bor", bool_bor)
     , ("bool_impl", bool_impl)
     , ("bool_neg", bool_neg)

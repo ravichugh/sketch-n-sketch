@@ -38,9 +38,13 @@ maxSolveDepth : Int
 maxSolveDepth =
   5
 
-recFunctionName : Ident
-recFunctionName =
-  "rec"
+functionChar : Char
+functionChar =
+  'f'
+
+varChar : Char
+varChar =
+  'x'
 
 --------------------------------------------------------------------------------
 -- Type Helpers
@@ -64,14 +68,17 @@ showTypeIdents =
     >> List.map Tuple.first
     >> String.join ", "
 
-freshIdent : T.TypeEnv -> String
-freshIdent gamma =
+freshIdent : Char -> T.TypeEnv -> String
+freshIdent firstChar gamma =
   let
     extractNumber : Ident -> Maybe Int
     extractNumber ident =
       case String.uncons ident of
-        Just ('x', rest) ->
-          Utils.natFromString rest
+        Just (head, rest) ->
+          if head == firstChar then
+            Utils.natFromString rest
+          else
+            Nothing
 
         _ ->
           Nothing
@@ -84,9 +91,9 @@ freshIdent gamma =
         |> Utils.filterJusts
         |> List.maximum
         |> Maybe.map ((+) 1)
-        |> Maybe.withDefault 0
+        |> Maybe.withDefault 1
   in
-    "x" ++ toString freshNumber
+    String.cons firstChar (toString freshNumber)
 
 -- Given a type
 --   a -> b -> c -> ... -> z,
@@ -153,6 +160,7 @@ type RTree
       }
   | Fun
       { height : Int
+      , recFunctionName : Ident
       , argName : Ident
       , possibleBody : NonDet RTree
       }
@@ -441,7 +449,7 @@ gen { maxTermSize } initialInfo =
               let
                 argNamePat : Pat
                 argNamePat =
-                  pVar0 (freshIdent gamma)
+                  pVar0 (freshIdent varChar gamma)
 
                 possibleFunctionBody : NonDet Exp
                 possibleFunctionBody =
@@ -718,6 +726,10 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
     -- IRefine-Fun
     partialFunctionRefinement argType returnType =
       let
+        recFunctionName : Ident
+        recFunctionName =
+          freshIdent functionChar gamma
+
         recFunctionNamePat : Pat
         recFunctionNamePat =
           pVar0 recFunctionName
@@ -728,7 +740,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
 
         argName : Ident
         argName =
-          freshIdent gamma
+          freshIdent varChar gamma
 
         argNamePat : Pat
         argNamePat =
@@ -802,6 +814,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                      NonDet.pure <|
                        Fun
                          { height = nheight possibleBody + 1
+                         , recFunctionName = recFunctionName
                          , argName = argName
                          , possibleBody = possibleBody
                          }
@@ -817,7 +830,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
         let
           argName : Ident
           argName =
-            freshIdent gamma
+            freshIdent varChar gamma
 
           argNamePat : Pat
           argNamePat =
@@ -1054,7 +1067,7 @@ propagate rtree =
                  >> Tuple.mapSecond List.concat
              )
 
-    Fun { argName, possibleBody } ->
+    Fun { recFunctionName, argName, possibleBody } ->
       let
         argNamePat : Pat
         argNamePat =
