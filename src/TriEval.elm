@@ -513,9 +513,29 @@ eval_ env exp =
                 Evaluator.fail
                   "Could not get record entries"
 
-          ESelect _ _ _ _ _ ->
-            Evaluator.fail
-              "Select not supported"
+          ESelect _ target _ _ selector ->
+            case unwrapExp target of
+              EVar _ "PBE" ->
+                case Dict.get selector pbeActions of
+                  Just argCount ->
+                    let
+                      head =
+                        pbeName selector
+
+                      argList =
+                        pbeArgList argCount
+                    in
+                      Evaluator.succeed <|
+                        UFunClosure () env argList <|
+                          eApp (eVar head) (List.map eVar argList)
+
+                  Nothing ->
+                    Evaluator.fail <|
+                      "Unknown PBE action '" ++ selector ++ "'"
+
+              _ ->
+                Evaluator.fail
+                  "Arbitrary select not supported"
 
 --------------------------------------------------------------------------------
 -- Additional Pipeline Operations

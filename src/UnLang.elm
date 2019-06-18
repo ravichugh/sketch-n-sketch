@@ -1008,7 +1008,7 @@ exampleToExp =
 
 spaces : Parser ()
 spaces =
-  P.ignore P.zeroOrMore (\char -> char == ' ')
+  P.ignore P.zeroOrMore (\char -> char == ' ' || char == '\n' || char == '\t')
 
 capitalIdentifier : Parser String
 capitalIdentifier =
@@ -1146,15 +1146,17 @@ uvFunClosure =
 unval : Parser UnVal
 unval =
   P.lazy <| \_ ->
-    P.oneOf
-       [ uvNum
-       , uvBool
-       , uvString
-       , uvTuple
-       , uvList -- syntactic sugar for constructors
-       , uvPartialFunction
-       , uvConstructor
-       ]
+    P.succeed identity
+      |. spaces
+      |= P.oneOf
+           [ uvNum
+           , uvBool
+           , uvString
+           , uvTuple
+           , uvList -- syntactic sugar for constructors
+           , uvPartialFunction
+           , uvConstructor
+           ]
 
 parseUnval : String -> Result P.Error UnVal
 parseUnval =

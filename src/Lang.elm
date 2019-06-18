@@ -2732,6 +2732,10 @@ getExpString e =
           Just name
         _ ->
           Nothing
+
+    EParens _ innerExp LongStringSyntax _ ->
+      getExpString innerExp
+
     _ ->
       Nothing
 
@@ -4818,26 +4822,40 @@ type PBEAction
   = Constrain Exp Exp
   | DefineHole Exp Exp
 
+
+-- Name -> number of args
+pbeActions : Dict String Int
+pbeActions =
+  Dict.fromList
+    [ ("constrain", 2)
+    , ("defineHole", 2)
+    ]
+
+pbeName : String -> String
+pbeName s =
+  "PBE__" ++ s
+
+pbeArgList : Int -> List Ident
+pbeArgList n =
+  List.range 0 (n - 1)
+    |> List.map (toString >> pbeName)
+
 pbeAction : Exp -> Maybe PBEAction
 pbeAction e =
   case unwrapExp e of
     -- All actions only take two arguments, for now
     EApp _ eFunction [e1, e2] _ _ ->
       case unwrapExp eFunction of
-        ESelect _ target _ _ selector ->
-          case unwrapExp target of
-            EVar _ "PBE" ->
-              case selector of
-                "constrain" ->
-                    Just <|
-                      Constrain e1 e2
+        EVar _ action ->
+          case action of
+            "PBE__constrain" ->
+              Just <|
+                Constrain e1 e2
 
-                "defineHole" ->
-                    Just <|
-                      DefineHole e1 e2
+            "PBE__defineHole" ->
+              Just <|
+                DefineHole e1 e2
 
-                _ ->
-                  Nothing
             _ ->
               Nothing
         _ ->
