@@ -21,9 +21,18 @@ bool_band =
 and : Bool -> Bool -> Bool
 and = ??
 
-PBE.constrain
-  and
-  (PF "{T () -> {T () -> T (), F () -> F ()}, F () -> {T () -> F (), F () -> F ()}}")"""
+PBE.constrain and <|
+  PF \"\"\"
+    { T () ->
+        { T () -> T ()
+        , F () -> F ()
+        }
+    , F () ->
+        { T () -> F ()
+        , F () -> F ()
+        }
+    }
+  \"\"\""""
 
 bool_bor =
    """type Boolean
@@ -33,9 +42,18 @@ bool_bor =
 or : Boolean -> Boolean -> Boolean
 or = ??
 
-PBE.constrain
-  or
-  (PF "{T () -> {T () -> T (), F () -> T ()}, F () -> {T () -> T (), F () -> F ()}}")"""
+PBE.constrain or <|
+  PF \"\"\"
+    { T () ->
+        { T () -> T ()
+        , F () -> T ()
+        }
+    , F () ->
+        { T () -> T ()
+        , F () -> F ()
+        }
+    }
+  \"\"\""""
 
 bool_impl =
    """type Boolean
@@ -45,9 +63,18 @@ bool_impl =
 impl : Boolean -> Boolean -> Boolean
 impl = ??
 
-PBE.constrain
-  impl
-  (PF "{T () -> {T () -> T (), F () -> F ()}, F () -> {T () -> T (), F () -> T ()}}")"""
+PBE.constrain impl <|
+  PF \"\"\"
+    { T () ->
+        { T () -> T ()
+        , F () -> F ()
+        }
+    , F () ->
+        { T () -> T ()
+        , F () -> T ()
+        }
+    }
+  \"\"\""""
 
 bool_neg =
    """type Boolean
@@ -57,9 +84,12 @@ bool_neg =
 neg : Boolean -> Boolean
 neg = ??
 
-PBE.constrain
-  neg
-  (PF "{T () -> F (), F () -> T ()}")"""
+PBE.constrain neg <|
+  PF \"\"\"
+    { T () -> F ()
+    , F () -> T ()
+    }
+  \"\"\""""
 
 bool_xor =
    """type Boolean
@@ -69,9 +99,18 @@ bool_xor =
 xor : Boolean -> Boolean -> Boolean
 xor = ??
 
-PBE.constrain
-  xor
-  (PF "{T () -> {T () -> F (), F () -> T ()}, F () -> {T () -> T (), F () -> F ()}}")"""
+PBE.constrain xor <|
+  PF \"\"\"
+    { T () ->
+        { T () -> F ()
+        , F () -> T ()
+        }
+    , F () ->
+        { T () -> T ()
+        , F () -> F ()
+        }
+    }
+  \"\"\""""
 
 list_append =
    """type NumList
@@ -81,102 +120,142 @@ list_append =
 append : NumList -> NumList -> NumList
 append = ??
 
-PBE.constrain
-  append
-  (PF "{[] -> {[] -> [], [0] -> [0]}, [0] -> {[] -> [0], [0] -> [0, 0]}, [1, 0] -> {[] -> [1, 0], [0] -> [1, 0, 0]}}")"""
+PBE.constrain append <|
+  PF \"\"\"
+    { [] ->
+        { [] -> []
+        , [0] -> [0]
+        }
+    , [0] ->
+        { [] -> [0]
+        , [0] -> [0, 0]
+        }
+    , [1, 0] ->
+        { [] -> [1, 0]
+        , [0] -> [1, 0, 0]
+        }
+    }
+  \"\"\""""
 
 list_compress =
-   """type nat =
-  | O
-  | S of nat
+   """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type cmp =
-  | LT
+type Cmp
+  = LT
   | EQ
   | GT
 
-let rec compare (n1 : nat) (n2 :nat) : cmp =
-  match n1 with
-  | O -> (match n2 with
-           | O -> EQ
-           | S (m) -> LT
-         )
-  | S (m1) ->
-      ( match n2 with
-      | O -> GT
-      | S (m2) -> (compare m1 m2) )
-;;
+compare : Nat -> Nat -> Cmp
+compare n1 n2 =
+  case n1 of
+    Z _ ->
+      case n2 of
+        Z _ -> EQ
+        S _ -> LT
+    S m1 ->
+      case n2 of
+        Z _  -> GT
+        S m2 -> compare m1 m2
 
-let list_compress : list -> list |>
-{   [] => []
-  | [0] => [0]
-  | [1] => [1]
-  | [0;0] => [0]
-  | [1;1] => [1]
-  | [2;0] => [2;0]
-  | [1;0;0] => [1;0]
-  | [0;1;1] => [0;1]
-  | [2;1;0;0] => [2;1;0]
-  | [2;2;1;0;0] => [2;1;0]
-  | [2;2;0] => [2;0]
-  | [2;2;2;0] => [2;0]
-  | [1;2;2;2;0] => [1;2;0] 
-} = ?"""
+compress : NatList -> NatList
+compress = ??
+
+PBE.constrain compress <|
+  PF \"\"\"
+    { [] => []
+    , [0] -> [0]
+    , [1] -> [1]
+    , [0,0] -> [0]
+    , [1,1] -> [1]
+    , [2,0] -> [2,0]
+    , [1,0,0] -> [1,0]
+    , [0,1,1] -> [0,1]
+    , [2,1,0,0] -> [2,1,0]
+    , [2,2,1,0,0] -> [2,1,0]
+    , [2,2,0] -> [2,0]
+    , [2,2,2,0] -> [2,0]
+    , [1,2,2,2,0] -> [1,2,0]
+    }
+  \"\"\""""
 
 list_concat =
-   """type nat =
-  | O
-  | S of nat
+   """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type llist =
-  | LNil
-  | LCons of list * llist
+type NatListList
+  = LNil ()
+  | LCons (NatList, NatListList)
 
-let rec append (l1:list) (l2:list) : list =
-  match l1 with
-  | Nil -> l2
-  | Cons (x, l1p) -> Cons (x, append l1p l2)
-;;
+append : NatList -> NatList -> NatList
+append l1 l2 =
+  case l1 of
+    Nil _ ->
+      l2
+    Cons a ->
+      Cons (get_2_1 p, append (get_2_2 p) l2)
 
-let list_concat : llist -> list |>
-  { LNil => []
-  | LCons ([], LNil) => []
-  | LCons ([0], LNil) => [0]
-  | LCons ([0], LCons([0], LNil)) => [0;0]
-  | LCons ([1], LNil) => [1]
-  | LCons ([1], LCons([1], LNil)) => [1;1]
-  } = ?"""
+concat : NatListList -> NatList
+concat = ??
+
+PBE.constrain concat <|
+  PF \"\"\"
+    { LNil -> []
+    , LCons ([], LNil) -> []
+    , LCons ([0], LNil) -> [0]
+    , LCons ([0], LCons([0], LNil)) -> [0,0]
+    , LCons ([1], LNil) -> [1]
+    , LCons ([1], LCons([1], LNil)) -> [1,1]
+    }
+  \"\"\""""
 
 list_drop =
-   """type nat =
-  | O
-  | S of nat
+   """Type Nat
+  = Z ()
+  | S ()
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-let list_drop : list -> nat -> list |>
-  { [] => ( 0 => []
-          | 1 => [] )
-  | [0] => ( 0 => [0]
-           | 1 => [] )
-  | [1] => ( 0 => [1]
-           | 1 => [] )
-  | [1; 0] => ( 0 => [1; 0]
-              | 1 => [0] )
-  | [0; 1] => ( 0 => [0; 1]
-              | 1 => [1]
-              | 2 => [] )
-  } = ?"""
+drop : NatList -> Nat -> NatList
+drop = ??
+
+PBE.constrain drop <|
+  PF \"\"\"
+    { [] ->
+        { Z () -> []
+        , S (Z ()) -> []
+        }
+    , [Z ()] ->
+        { Z () -> [Z ()]
+        , S (Z ()) -> []
+        }
+    , [S (Z ())] ->
+        { Z () -> [S (Z ())]
+        , S (Z ()) -> []
+        }
+    , [S (Z ()), Z ()] ->
+        { Z () -> [S (Z()), Z ()]
+        , S (Z ()) -> [Z ()]
+        }
+    , [Z (), S (Z ())] ->
+        { Z () -> [Z (), S (Z ())]
+        , S (Z ()) -> [S (Z ())]
+        , S (S (Z ())) -> []
+        }
+    }
+  \"\"\""""
 
 list_even_parity =
    """type nat =
