@@ -356,8 +356,15 @@ eval_ env exp =
               "Op not supported"
 
           EList _ args _ _ _ ->
-            Evaluator.fail
-              "List not supported"
+            args
+              |> List.map Tuple.second
+              |> List.foldr
+                   ( \element list ->
+                       eDatatype "Cons" [eTuple [element, list]]
+                   )
+                   ( eDatatype "Nil" [eTuple []]
+                   )
+              |> eval_ env
 
           EIf _ condition _ trueBranch _ falseBranch _ ->
             Evaluator.fail

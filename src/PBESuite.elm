@@ -59,22 +59,16 @@ let bool_xor : bool -> bool -> bool |>
   ; False => False => False } = ?"""
 
 list_append =
-   """type nat =
-  | O
-  | S of nat
+   """type NumList
+  = Nil ()
+  | Cons (Num, NumList)
 
-type list =
-  | Nil
-  | Cons of nat * list
+listAppend : (NumList, NumList) -> NumList
+listAppend = ??
 
-let list_append : list -> list -> list |>
-  { [] => ( [] => []
-          | [0] => [0])
-  | [0] => ( [] => [0]
-           | [0] => [0; 0])
-  | [1;0] => ( [] => [1; 0]
-             | [0] => [1; 0; 0])
-  } = ?"""
+PBE.constrain
+  listAppend
+  (PF "{([], []) -> [], ([], [0]) -> [0], ([0], []) -> [0], ([0], [0]) -> [0, 0], ([1, 0], []) -> [1, 0], ([1, 0], [0]) -> [1, 0, 0]}")"""
 
 list_compress =
    """type nat =

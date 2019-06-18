@@ -1092,6 +1092,28 @@ uvTuple =
             }
         )
 
+uvList : Parser UnVal
+uvList =
+  P.lazy <| \_ ->
+    P.inContext "list" <|
+      P.map
+        ( List.foldr
+            ( \element list ->
+                UVConstructor "Cons" (UVTuple [element, list])
+            )
+            ( UVConstructor "Nil" (UVTuple [])
+            )
+        )
+        ( LanguageKit.sequence
+            { start = "["
+            , separator = ","
+            , end = "]"
+            , spaces = spaces
+            , item = unval
+            , trailing = LanguageKit.Forbidden
+            }
+        )
+
 uvPartialFunction : Parser UnVal
 uvPartialFunction =
   P.lazy <| \_ ->
@@ -1129,6 +1151,7 @@ unval =
        , uvBool
        , uvString
        , uvTuple
+       , uvList -- syntactic sugar for constructors
        , uvPartialFunction
        , uvConstructor
        ]
