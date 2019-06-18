@@ -64,6 +64,57 @@ showTypeIdents =
     >> List.map Tuple.first
     >> String.join ", "
 
+freshIdent : T.TypeEnv -> String
+freshIdent gamma =
+  let
+    extractNumber : Ident -> Maybe Int
+    extractNumber ident =
+      case String.uncons ident of
+        Just ('x', rest) ->
+          Utils.natFromString rest
+
+        _ ->
+          Nothing
+
+    freshNumber : Int
+    freshNumber =
+      gamma
+        |> varsOfGamma
+        |> List.map extractNumber
+        |> Utils.filterJusts
+        |> List.maximum
+        |> Maybe.map ((+) 1)
+        |> Maybe.withDefault 0
+  in
+    "x" ++ toString freshNumber
+
+-- Given a type
+--   a -> b -> c -> ... -> z,
+-- this function returns
+--   Just (a, b -> c -> ... -> z).
+-- (As a base case, given a type a -> b, this function returns Just (a, b).)
+-- Otherwise, this function returns Nothing.
+curryArrow : Type -> Maybe (Type, Type)
+curryArrow tau =
+  case T.matchArrowRecurse tau of
+    Just (_, argTypes, returnType) ->
+      case argTypes of
+        argTypeHead :: argTypeRest ->
+          Just
+            ( argTypeHead
+            , if List.isEmpty argTypeRest then
+                returnType
+              else
+                T.rebuildArrow ([], argTypeRest, returnType)
+            )
+
+        -- Impossible
+        [] ->
+          Nothing
+
+    Nothing ->
+      Nothing
+
 --------------------------------------------------------------------------------
 -- Data Structures
 --------------------------------------------------------------------------------
@@ -292,62 +343,84 @@ gen { maxTermSize } initialInfo =
             let
               arrowOption =
                 let
-                  fromArrowType : ArrowType -> Maybe (Type, Type)
-                  fromArrowType (_, argTypes, returnType) =
-                    case argTypes of
-                      -- TODO Only support single arguments for now
-                      [argType] ->
-                        if T.typeEquiv gamma goalType returnType then
-                          Just (argType, returnType)
-                        else
-                          Nothing
+                  extractArrow : ArrowType -> Maybe (List Type, Type)
+                  extractArrow (_, argTypes, returnType) =
+                    if T.typeEquiv gamma goalType returnType then
+                      Just (argTypes, returnType)
+                    else
+                      Nothing
 
-                      _ ->
-                        Nothing
-
-                  possibleArrowType : NonDet (Type, Type)
+                  possibleArrowType : NonDet (List Type, Type)
                   possibleArrowType =
                     typePairs
                       |> List.map
                            ( Tuple.second
                                >> T.matchArrowRecurse
-                               >> Maybe.andThen fromArrowType
+                               >> Maybe.andThen extractArrow
                            )
                       |> Utils.filterJusts
                       |> NonDet.fromList
-
-                  possiblePartition : NonDet (List Int)
-                  possiblePartition =
-                    Utils.partitionIntegerPermutations (termSize - 1) 2
-                      |> NonDet.fromList
                 in
-                  NonDet.do possibleArrowType <| \(argType, returnType) ->
+                  NonDet.do possibleArrowType <| \(argTypes, returnType) ->
+                  let
+                    -- Number of sub-problems to split the budget for
+                    -- (head + number of arguments)
+                    subProblemCount =
+                      1 + List.length argTypes
+
+                    -- Number of applications in the resulting code
+                    applicationCount =
+                      subProblemCount - 1
+
+                    possiblePartition : NonDet (List Int)
+                    possiblePartition =
+                      NonDet.fromList <|
+                        Utils.partitionIntegerPermutations
+                          (termSize - applicationCount)
+                          subProblemCount
+                  in
                   NonDet.do possiblePartition <| \partition ->
                     case partition of
-                      -- Will always happen
-                      [k1, k2] ->
+                      -- Will always happen (subProblemCount >= 2 always)
+                      -- Also, |kArgs| = |argTypes|
+                      kHead :: kArgs ->
                         let
                           possibleHead : NonDet Exp
                           possibleHead =
                             let
                               arrowType =
-                                T.rebuildArrow ([], [argType], returnType)
+                                -- Safe because argTypes comes directly from
+                                -- matchArrowRecurse, so it cannot be empty.
+                                T.rebuildArrow ([], argTypes, returnType)
                             in
                               genE
-                                { termSize = k1 }
+                                { termSize = kHead }
                                 { info | goalType = arrowType }
 
-                          possibleArg : NonDet Exp
-                          possibleArg =
-                            genI
-                              { termSize = k2 }
-                              { info | goalType = argType }
+                          possibleArgs : NonDet (List Exp)
+                          possibleArgs =
+                            NonDet.oneOfEach <|
+                              List.map2
+                                ( \argType kArg ->
+                                    genI
+                                      { termSize = kArg }
+                                      { info | goalType = argType }
+                                )
+                                argTypes
+                                kArgs
                         in
                           NonDet.do possibleHead <| \head ->
-                          NonDet.do possibleArg <| \arg ->
-                            if T.structurallyDecreasing gamma head arg then
+                          NonDet.do possibleArgs <| \args ->
+                            if
+                              List.any
+                                (T.structurallyDecreasing gamma head)
+                                args
+                            then
                               NonDet.pure <|
-                                eApp0 head [replacePrecedingWhitespace1 arg]
+                                eApp0
+                                  head
+                                  ( List.map replacePrecedingWhitespace1 args
+                                  )
 
                             else
                               NonDet.none
@@ -363,33 +436,27 @@ gen { maxTermSize } initialInfo =
           NonDet.none
 
         _ ->
-          case T.matchArrowRecurse goalType of
-            Just (_, argTypes, returnType) ->
-              case argTypes of
-                -- TODO Only support single arguments for now
-                [argType] ->
-                  let
-                    argNamePat : Pat
-                    argNamePat =
-                      pVar0 "x"
+          case curryArrow goalType of
+            Just (argType, returnType) ->
+              let
+                argNamePat : Pat
+                argNamePat =
+                  pVar0 (freshIdent gamma)
 
-                    possibleFunctionBody : NonDet Exp
-                    possibleFunctionBody =
-                      genI
-                        { termSize = termSize - 1 }
-                        { info
-                        | gamma =
-                            T.addHasType
-                              (argNamePat, argType, Nothing)
-                              gamma
-                        , goalType =
-                            returnType
-                        }
-                  in
-                    NonDet.map (eFun0 [argNamePat]) possibleFunctionBody
-
-                _ ->
-                  NonDet.none
+                possibleFunctionBody : NonDet Exp
+                possibleFunctionBody =
+                  genI
+                    { termSize = termSize - 1 } -- -1 for lambda abstraction
+                    { info
+                    | gamma =
+                        T.addHasType
+                          (argNamePat, argType, Nothing)
+                          gamma
+                    , goalType =
+                        returnType
+                    }
+              in
+                NonDet.map (eFun0 [argNamePat]) possibleFunctionBody
 
             Nothing ->
               let
@@ -403,7 +470,7 @@ gen { maxTermSize } initialInfo =
                         Just (_, datatypeConstructors) ->
                           NonDet.do (NonDet.fromList datatypeConstructors) <|
                             \(ctorName, argTypes) ->
-                              -- TODO Only support single arguments for now
+                              -- Constructors only have single arguments for now
                               case argTypes of
                                 [argType] ->
                                   NonDet.map
@@ -542,7 +609,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                 NonDet.do (NonDet.fromList datatypeConstructors) <|
                   \(ctorName, argTypes) ->
                     case argTypes of
-                      -- Only support single arguments for now
+                      -- Constructors only have single arguments for now
                       [argType] ->
                         ctorName
                           |> extractConstructorArgWorlds
@@ -661,7 +728,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
 
         argName : Ident
         argName =
-          "x"
+          freshIdent gamma
 
         argNamePat : Pat
         argNamePat =
@@ -677,7 +744,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
             [arg] ->
               Just
                 ( env
-                    -- TODO Recursive function binding
+                    -- TODO Fancy fix rule for recursive function binding
                     |> U.addVarBinding
                          recFunctionName
                          (UPartialFunction () partialFunction)
@@ -686,7 +753,8 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                 , output
                 )
 
-            -- TODO Only support single-argument functions for now
+            -- Only support single-argument functions for now (should not be a
+            -- problem because of currying).
             _ ->
               Nothing
 
@@ -749,7 +817,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
         let
           argName : Ident
           argName =
-            "y"
+            freshIdent gamma
 
           argNamePat : Pat
           argNamePat =
@@ -894,15 +962,9 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
         NonDet.none
   in
     -- Apply IRefine-Fun first
-    case T.matchArrowRecurse goalType of
-      Just (_, argTypes, returnType) ->
-        case argTypes of
-          -- TODO Only support single-argument functions for now
-          [argType] ->
-            partialFunctionRefinement argType returnType
-
-          _ ->
-            NonDet.none
+    case curryArrow goalType of
+      Just (argType, returnType) ->
+        partialFunctionRefinement argType returnType
 
       Nothing ->
         NonDet.concat

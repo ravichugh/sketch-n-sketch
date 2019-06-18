@@ -73,8 +73,8 @@ identifierFromPat p =
       Nothing
 
 apply :
-  U.Env -> Exp -> List Ident -> List (UnExp ()) -> UnExpEvaluator
-apply currentEnv body parameters arguments =
+  U.Env -> Exp -> List Ident -> List Exp -> List (UnExp ()) -> UnExpEvaluator
+apply currentEnv body parameters eArguments arguments =
   let
     envExtension =
       Utils.zip parameters arguments
@@ -92,19 +92,24 @@ apply currentEnv body parameters arguments =
     increaseStackDepth oldState =
       { oldState | stackDepth = oldState.stackDepth + 1 }
   in
-    case compare argLength paramLength of
-      LT ->
-        Evaluator.succeed <|
-          UFunClosure () newEnv (List.drop argLength parameters) body
-
-      EQ ->
-        Evaluator.do Evaluator.get <| \oldState ->
-        Evaluator.do (Evaluator.put <| increaseStackDepth oldState) <| \_ ->
-        eval_ newEnv body
-
-      GT ->
-        Evaluator.fail
-          "Supplied too many arguments"
+    if argLength < paramLength then
+      -- Partially applied function
+      Evaluator.succeed <|
+        UFunClosure () newEnv (List.drop argLength parameters) body
+    else
+      Evaluator.do Evaluator.get <| \oldState ->
+      Evaluator.do (Evaluator.put <| increaseStackDepth oldState) <| \_ ->
+      Evaluator.do (eval_ newEnv body) <| \uBody ->
+        if argLength == paramLength then
+          -- Fully applied function
+          Evaluator.succeed <|
+            uBody
+        else -- argLength > paramLength
+          -- Applied too many arguments; try to evaluate a further application.
+          -- (Would ideally use "resume" here; re-wrapping in an Exp is a
+          -- workaround.)
+          eval_ currentEnv <|
+            eApp body (List.drop paramLength eArguments)
 
 eval_ : U.Env -> Exp -> UnExpEvaluator
 eval_ env exp =
@@ -182,7 +187,7 @@ eval_ env exp =
                     case uFunction of
                       UFunClosure _ functionEnv parameters body ->
                         Evaluator.andThen
-                          (apply functionEnv body parameters)
+                          (apply functionEnv body parameters eArgs)
                           uArgsEvaluation
 
                       UHoleClosure _ _ _ ->
@@ -193,7 +198,7 @@ eval_ env exp =
                           Utils.maybeFind uArgs partialFunction
                             |> Result.fromMaybe
                                  ( "Partial function applied to expression not"
-                                     ++ "in domain"
+                                     ++ " in domain"
                                  )
                             |> Result.andThen
                                  ( U.exampleToExp
@@ -201,6 +206,11 @@ eval_ env exp =
                                           "Partial function returned ?? example"
                                  )
                             |> Evaluator.fromResult
+                        )
+
+                      UApp _ head appliedArgs ->
+                        uArgsEvaluation |> Evaluator.map (\newArgs ->
+                          UApp () head (appliedArgs ++ newArgs)
                         )
 
                       _ ->
@@ -735,8 +745,15 @@ backprop u ex =
       (UHoleClosure _ env (i, j), _) ->
         Just [(i, (env, ex))]
 
-      (UApp _ (UHoleClosure _ env (i, _)) uArgs, _) ->
-        Just [(i, (env, ExPartialFunction [(uArgs, ex)]))]
+      (UApp _ uHead uArgs, _) ->
+        let
+          exHead =
+            List.foldr
+              (\uArg accExHead -> ExPartialFunction [([uArg], accExHead)])
+              ex
+              uArgs
+        in
+          backprop uHead exHead
 
       (UGet _ n i uArg, _) ->
         let

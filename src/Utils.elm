@@ -1848,3 +1848,36 @@ partitionIntegerPermutations : Int -> Int -> List (List Int)
 partitionIntegerPermutations n k =
   partitionInteger n k
     |> List.concatMap permutations
+
+--------------------------------------------------------------------------------
+
+natFromString : String -> Maybe Int
+natFromString =
+  let
+    ensureNonEmpty list =
+      if List.isEmpty list then
+        Nothing
+      else
+        Just list
+
+    charToInt c =
+      case c of
+        '0' -> Just 0
+        '1' -> Just 1
+        '2' -> Just 2
+        '3' -> Just 3
+        '4' -> Just 4
+        '5' -> Just 5
+        '6' -> Just 6
+        '7' -> Just 7
+        '8' -> Just 8
+        '9' -> Just 9
+        _   -> Nothing
+
+    accumulate n (val, placeValue) =
+      (n * (10 ^ placeValue) + val, placeValue + 1)
+  in
+    String.toList
+      >> ensureNonEmpty
+      >> Maybe.andThen (List.map charToInt >> projJusts)
+      >> Maybe.map (List.foldr accumulate (0, 0) >> Tuple.first)
