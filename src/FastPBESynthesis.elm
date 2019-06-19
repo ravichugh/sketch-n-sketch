@@ -6,7 +6,8 @@
 -- TODO:
 --   * isBaseType
 --   * incomplete recursive functions (fancy new fix rule)
---   * projection is always size 2
+--   * projection is always size 2 (but maybe this is okay because it will only
+--     be applied to variables?)
 
 module FastPBESynthesis exposing
   ( solve
@@ -974,19 +975,23 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
       else
         NonDet.none
   in
-    -- Apply IRefine-Fun first
-    case curryArrow goalType of
-      Just (argType, returnType) ->
-        partialFunctionRefinement argType returnType
+    -- TODO Should this be handled in each of the sub-cases? What about holes?
+    if List.isEmpty filteredWorlds then
+      NonDet.none
+    else
+      -- Apply IRefine-Fun first
+      case curryArrow goalType of
+        Just (argType, returnType) ->
+          partialFunctionRefinement argType returnType
 
-      Nothing ->
-        NonDet.concat
-          [ constantRefinement ()
-          , constructorRefinement ()
-          , tupleRefinement ()
-          , matchRefinement ()
-          , guessRefinement ()
-          ]
+        Nothing ->
+          NonDet.concat
+            [ constantRefinement ()
+            , constructorRefinement ()
+            , tupleRefinement ()
+            , matchRefinement ()
+            , guessRefinement ()
+            ]
 
 -- Currently does not check height; fills entire tree
 fillGuesses : { maxTermSize : Int } -> RTree -> RTree
