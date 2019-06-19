@@ -1433,10 +1433,20 @@ initModel =
       loadPBESuiteExample "init" PBESuite.init
 
     {e, v, ws, env} =
-      { e = initExp
-      , v = builtinVal "initVal" (VBase (VString "initValArg"))
-      , ws = []
-      , env = []
+      { e =
+          initExp
+      , v =
+          -- Blank SVG node
+          builtinVal "initVal" <|
+            VList
+              [ builtinVal "svg" (VBase (VString "svg"))
+              , builtinVal "svgArg1" (VList [])
+              , builtinVal "svgArg2" (VList [])
+              ]
+      , ws =
+          []
+      , env =
+          []
       }
   in
   let unwrap = Utils.fromOk "generating initModel" in
