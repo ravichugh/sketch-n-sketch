@@ -101,6 +101,7 @@ code {
   height: 0.75em;
 
   background-color: transparent;
+  padding: 0;
   border: none;
 
   position: relative;
@@ -119,11 +120,8 @@ code {
 }
 
 .dragger .ui-button.close {
-  -webkit-box-sizing: content-box;
-  -moz-box-sizing: content-box;
-  -ms-box-sizing: content-box;
-  -o-box-sizing: content-box;
-  box-sizing: content-box;
+  width: 1em;
+  height: 1em;
 }
 
 .ui-button.close:hover {
@@ -1279,8 +1277,8 @@ code {
 
 .popup-panel .dragger .close {
   position: absolute;
-  top: 1px;
-  right: 1px;
+  top: 3px;
+  right: 3px;
 }
 
 .popup-panel .text-button {
