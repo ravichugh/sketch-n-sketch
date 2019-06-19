@@ -334,25 +334,18 @@ refine_ depth sigma gamma worlds tau =
               worldFromEntry :
                 PartialFunction
                   -> U.Env
-                  -> (List (UnExp ()), Example)
-                  -> Maybe World
-              worldFromEntry partialFunction env (args, output) =
-                case args of
-                  [arg] ->
-                    Just
-                      ( env
-                          -- Recursive function binding
-                          |> U.addVarBinding
-                               functionName
-                               (UPartialFunction () partialFunction)
-                          -- Argument binding
-                          |> U.addVarBinding argName arg
-                      , output
-                      )
-
-                  -- TODO Only support single-argument functions for now
-                  _ ->
-                    Nothing
+                  -> (UnExp (), Example)
+                  -> World
+              worldFromEntry partialFunction env (arg, output) =
+                ( env
+                    -- Recursive function binding
+                    |> U.addVarBinding
+                         functionName
+                         (UPartialFunction () partialFunction)
+                    -- Argument binding
+                    |> U.addVarBinding argName arg
+                , output
+                )
 
               branchWorlds : World -> Maybe Worlds
               branchWorlds (env, ex) =
@@ -360,7 +353,7 @@ refine_ depth sigma gamma worlds tau =
                   ExPartialFunction partialFunction ->
                     partialFunction
                       |> List.map (worldFromEntry partialFunction env)
-                      |> Utils.projJusts
+                      |> Just
 
                   _ ->
                     Nothing

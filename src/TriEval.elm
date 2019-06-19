@@ -72,44 +72,74 @@ identifierFromPat p =
     _ ->
       Nothing
 
-apply :
-  U.Env -> Exp -> List Ident -> List Exp -> List (UnExp ()) -> UnExpEvaluator
-apply currentEnv body parameters eArguments arguments =
-  let
-    envExtension =
-      Utils.zip parameters arguments
-        |> U.pairsToEnv
+apply : U.Env -> UnExp () -> List (UnExp ()) -> UnExpEvaluator
+apply env head arguments =
+  case arguments of
+    [] ->
+      Evaluator.succeed head
 
-    newEnv =
-      envExtension ++ currentEnv
+    firstArgument :: restArguments ->
+      case head of
+        UFunClosure _ functionEnv parameter body ->
+          let
+            newEnv =
+              U.addVarBinding parameter firstArgument functionEnv
 
-    argLength =
-      List.length arguments
+            increaseStackDepth oldState =
+              { oldState | stackDepth = oldState.stackDepth + 1 }
+          in
+            Evaluator.do Evaluator.get <| \oldState ->
+            Evaluator.do (Evaluator.put <| increaseStackDepth oldState) <| \_ ->
+            Evaluator.do (eval_ newEnv body) <| \uBody ->
+              apply newEnv uBody restArguments
 
-    paramLength =
-      List.length parameters
+        UPartialFunction _ partialFunction ->
+          Utils.maybeFind firstArgument partialFunction
+            |> Result.fromMaybe
+                 ( "Partial function applied to expression not"
+                     ++ " in domain"
+                 )
+            |> Result.andThen
+                 ( U.exampleToExp
+                     >> Result.fromMaybe
+                          "Partial function returned ?? example"
+                 )
+            |> Evaluator.fromResult
+            |> Evaluator.andThen
+                 (\uResult -> apply env uResult restArguments)
 
-    increaseStackDepth oldState =
-      { oldState | stackDepth = oldState.stackDepth + 1 }
-  in
-    if argLength < paramLength then
-      -- Partially applied function
-      Evaluator.succeed <|
-        UFunClosure () newEnv (List.drop argLength parameters) body
-    else
-      Evaluator.do Evaluator.get <| \oldState ->
-      Evaluator.do (Evaluator.put <| increaseStackDepth oldState) <| \_ ->
-      Evaluator.do (eval_ newEnv body) <| \uBody ->
-        if argLength == paramLength then
-          -- Fully applied function
+        UHoleClosure _ _ _ ->
           Evaluator.succeed <|
-            uBody
-        else -- argLength > paramLength
-          -- Applied too many arguments; try to evaluate a further application.
-          -- (Would ideally use "resume" here; re-wrapping in an Exp is a
-          -- workaround.)
-          eval_ currentEnv <|
-            eApp body (List.drop paramLength eArguments)
+            List.foldl (UApp ()) head arguments
+
+        UApp _ _ _ ->
+          Evaluator.succeed <|
+            List.foldl (UApp ()) head arguments
+
+        _ ->
+          Evaluator.fail
+            "Not a proper application"
+
+buildClosure : List Pat -> Exp -> Evaluator EvalState String (Ident, Exp)
+buildClosure pats body =
+  case pats of
+    -- Impossible
+    [] ->
+      Evaluator.fail "Function with no parameters"
+
+    headPat :: restPats ->
+      let
+        newBody =
+          if List.isEmpty restPats then
+            body
+          else
+            eFun restPats body
+      in
+        headPat
+          |> identifierFromPat
+          |> Result.fromMaybe "Non-identifier pattern in function"
+          |> Result.map (\param -> (param, newBody))
+          |> Evaluator.fromResult
 
 eval_ : U.Env -> Exp -> UnExpEvaluator
 eval_ env exp =
@@ -144,12 +174,9 @@ eval_ env exp =
           -- E-Lambda
 
           EFun _ pats body _ ->
-            pats
-              |> List.map identifierFromPat
-              |> Utils.projJusts
-              |> Result.fromMaybe "Non-identifier pattern in function"
-              |> Result.map (\vars -> UFunClosure () env vars body)
-              |> Evaluator.fromResult
+            Evaluator.map
+              (Utils.uncurry (UFunClosure () env))
+              (buildClosure pats body)
 
           -- E-Var
 
@@ -172,51 +199,16 @@ eval_ env exp =
 
                   Nothing ->
                     Evaluator.fail <|
-                      "Variable not found: '" ++ x ++ "'"
+                      "Variable not found: '" ++ x ++ "': " ++ U.unparseEnv env
 
           -- E-App
 
           EApp _ eFunction eArgs _ _ ->
             let
               default () =
-                let
-                  uArgsEvaluation =
-                    Evaluator.mapM (eval_ env) eArgs
-                in
-                  eval_ env eFunction |> Evaluator.andThen (\uFunction ->
-                    case uFunction of
-                      UFunClosure _ functionEnv parameters body ->
-                        Evaluator.andThen
-                          (apply functionEnv body parameters eArgs)
-                          uArgsEvaluation
-
-                      UHoleClosure _ _ _ ->
-                        Evaluator.map (UApp () uFunction) uArgsEvaluation
-
-                      UPartialFunction _ partialFunction ->
-                        uArgsEvaluation |> Evaluator.andThen (\uArgs ->
-                          Utils.maybeFind uArgs partialFunction
-                            |> Result.fromMaybe
-                                 ( "Partial function applied to expression not"
-                                     ++ " in domain"
-                                 )
-                            |> Result.andThen
-                                 ( U.exampleToExp
-                                     >> Result.fromMaybe
-                                          "Partial function returned ?? example"
-                                 )
-                            |> Evaluator.fromResult
-                        )
-
-                      UApp _ head appliedArgs ->
-                        uArgsEvaluation |> Evaluator.map (\newArgs ->
-                          UApp () head (appliedArgs ++ newArgs)
-                        )
-
-                      _ ->
-                        Evaluator.fail
-                          "Not a proper application"
-                  )
+                Evaluator.do (eval_ env eFunction) <| \uFunction ->
+                Evaluator.do (Evaluator.mapM (eval_ env) eArgs) <| \uArgs ->
+                apply env uFunction uArgs
 
               evalGet (n, i, arg) =
                 eval_ env arg |> Evaluator.andThen (\uArg ->
@@ -404,22 +396,15 @@ eval_ env exp =
                       case unwrapExp binding of
                         -- Syntactic lambda; should be treated as
                         -- recursive function
-                        EFun _ paramPats body _ ->
-                          case
-                            paramPats
-                              |> List.map identifierFromPat
-                              |> Utils.projJusts
-                          of
-                            Just params ->
-                              Evaluator.succeed
+                        EFun _ pats body _ ->
+                          Evaluator.map
+                            ( \(param, newBody) ->
                                 ( nonRecEnv
-                                , (name, params, body) :: functionDefs
+                                , (name, param, newBody) :: functionDefs
                                 )
-
-                            Nothing ->
-                              Evaluator.fail <|
-                                "Non-identifier pattern in function (let"
-                                  ++ " binding)"
+                            )
+                            ( buildClosure pats body
+                            )
 
                         _ ->
                           Evaluator.succeed
@@ -525,9 +510,16 @@ eval_ env exp =
                       argList =
                         pbeArgList argCount
                     in
-                      Evaluator.succeed <|
-                        UFunClosure () env argList <|
-                          eApp (eVar head) (List.map eVar argList)
+                      case argList of
+                        firstArg :: restArgs ->
+                          Evaluator.succeed <|
+                            UFunClosure () env firstArg <|
+                              eFun (List.map pVar restArgs) <|
+                                eApp (eVar head) (List.map eVar argList)
+
+                        -- Impossible
+                        [] ->
+                          Evaluator.fail "PBE action with no arguments"
 
                   Nothing ->
                     Evaluator.fail <|
@@ -637,20 +629,15 @@ assertEqual u1 u2 =
       Maybe.map (\ex -> [(holeId, (env, ex))]) <|
         expToExample u1
 
-    (UApp _ u1 u1Args, UApp _ u2 u2Args) ->
-      if List.length u1Args == List.length u2Args then
-        let
-          funcConstraints =
-            assertEqual u1 u2
+    (UApp _ u1 u1Arg, UApp _ u2 u2Arg) ->
+      let
+        funcConstraints =
+          assertEqual u1 u2
 
-          argConstraints =
-            List.map2 assertEqual u1Args u2Args
-              |> Utils.projJusts
-              |> Maybe.map List.concat
-        in
-          Maybe.map2 (++) funcConstraints argConstraints
-      else
-        Nothing
+        argConstraints =
+          assertEqual u1Arg u2Arg
+      in
+        Maybe.map2 (++) funcConstraints argConstraints
 
     (UGet _ n1 i1 u1, UGet _ n2 i2 u2) ->
       if n1 == n2 && i1 == i2 then
@@ -746,16 +733,13 @@ backprop u ex =
         else
           Nothing
 
-      (UFunClosure _ env params body, ExPartialFunction bindings) ->
+      (UFunClosure _ env param body, ExPartialFunction bindings) ->
         let
-          backpropBinding (arguments, outputExample) =
-            if List.length params == List.length arguments then
-              evalBackprop
-                (U.pairsToEnv (Utils.zip params arguments) ++ env)
-                body
-                outputExample
-            else
-              Nothing
+          backpropBinding (argument, outputExample) =
+            evalBackprop
+              (U.addVarBinding param argument env)
+              body
+              outputExample
         in
           bindings
             |> List.map backpropBinding
@@ -765,13 +749,10 @@ backprop u ex =
       (UHoleClosure _ env (i, j), _) ->
         Just [(i, (env, ex))]
 
-      (UApp _ uHead uArgs, _) ->
+      (UApp _ uHead uArg, _) ->
         let
           exHead =
-            List.foldr
-              (\uArg accExHead -> ExPartialFunction [([uArg], accExHead)])
-              ex
-              uArgs
+            ExPartialFunction [(uArg, ex)]
         in
           backprop uHead exHead
 

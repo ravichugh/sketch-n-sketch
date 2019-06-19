@@ -866,10 +866,10 @@ menuBar model =
       in
         case maybeEntry of
           Just entry ->
-            [ menu "Code Tools" <| -- "Edit Code"
-                List.map
-                  (Utils.mapi1 entry)
-                  model.deuceToolsAndResults
+            [ -- menu "Code Tools" <| -- "Edit Code"
+              --   List.map
+              --     (Utils.mapi1 entry)
+              --     model.deuceToolsAndResults
             ]
           Nothing ->
             []

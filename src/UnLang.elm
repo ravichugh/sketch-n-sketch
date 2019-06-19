@@ -34,8 +34,8 @@ import Utils
 --------------------------------------------------------------------------------
 
 type alias FunctionDefinition =
-  -- (Name, Params, Body)
-  (Ident, List Ident, Exp)
+  -- (Name, Param, Body)
+  (Ident, Ident, Exp)
 
 type EnvBinding
   = VarBinding Ident (UnExp ())
@@ -50,7 +50,7 @@ type alias Env =
 
 type alias PartialFunction =
   List
-    ( List (UnExp ()) -- args
+    ( UnExp () -- arg
     , Example -- output
     )
 
@@ -69,9 +69,9 @@ type UnExp d
   | UString d String
   | UTuple d (List (UnExp d))
   | UPartialFunction d PartialFunction
-  | UFunClosure d Env (List Ident) Exp
+  | UFunClosure d Env Ident Exp
   | UHoleClosure d Env HoleIndex
-  | UApp d (UnExp d) (List (UnExp d))
+  | UApp d (UnExp d) (UnExp d)
   | UGet d Int Int (UnExp d)
   | UConstructorInverse  d Ident (UnExp d)
   | UCase d Env (UnExp d) (List (Ident, Ident, Exp))
@@ -87,7 +87,7 @@ type UnVal
   | UVString String
   | UVTuple (List UnVal)
   | UVPartialFunction PartialFunction
-  | UVFunClosure Env (List Ident) Exp
+  | UVFunClosure Env Ident Exp
 
 --------------------------------------------------------------------------------
 -- Examples
@@ -188,10 +188,10 @@ unparseEnv : Env -> String
 unparseEnv =
   let
     showFunction : FunctionDefinition -> String
-    showFunction (name, params, body) =
+    showFunction (name, param, body) =
       name
         ++ " "
-        ++ String.join " " params
+        ++ param
         ++ " = "
         ++ LeoUnparser.unparse body
 
@@ -448,22 +448,19 @@ unparse =
           UPartialFunction _ pf ->
             basic "<partial function>" (\w -> UPartialFunction w pf)
 
-          UFunClosure _ env args body ->
+          UFunClosure _ env param body ->
             let
-              argsString =
-                String.join ", " args
-
               unparsedString =
                 "["
                   ++ unparseEnv env
                   ++ "] λ"
-                  ++ argsString
+                  ++ param
                   ++ " ."
                   ++ LeoUnparser.unparse body
             in
               basic
                 unparsedString
-                (\w -> UFunClosure w env args body)
+                (\w -> UFunClosure w env param body)
 
           UHoleClosure _ env (i, j) ->
             let
@@ -478,8 +475,8 @@ unparse =
             in
               basic unparsedString (\w -> UHoleClosure w env (i, j))
 
-          UApp _ uFunction uArgs ->
-            if shouldBreak uArgs then
+          UApp _ uFunction uArg ->
+            if shouldBreak [uArg] then
               let
                 entry u =
                   State.do newline <| \_ ->
@@ -491,22 +488,15 @@ unparse =
               in
                 State.do (unparseHelper uFunction) <| \uFunctionWithInfo ->
                 State.do indent <| \_ ->
-                State.do (State.mapM entry uArgs) <| \uArgsWithInfo ->
+                State.do (entry uArg) <| \uArgWithInfo ->
                 State.do dedent <| \_ ->
                 State.do newline <| \_ ->
                 State.do State.get <| \end ->
                 State.pure <|
                   let
                     argString =
-                      uArgsWithInfo
-                        |> List.map
-                             ( \u ->
-                                 indentString (start.indent + 1)
-                                   -- ++ "("
-                                   ++ (getData u).val
-                                   -- ++ ")"
-                             )
-                        |> String.concat
+                      indentString (start.indent + 1)
+                        ++ (getData uArgWithInfo).val
                   in
                     UApp
                       ( withInfo
@@ -519,7 +509,7 @@ unparse =
                           end.pos
                       )
                       uFunctionWithInfo
-                      uArgsWithInfo
+                      uArgWithInfo
             else
               let
                 entry u =
@@ -530,14 +520,12 @@ unparse =
                     uWithInfo
               in
                 State.do (unparseHelper uFunction) <| \uFunctionWithInfo ->
-                State.do (State.mapM entry uArgs) <| \uArgsWithInfo ->
+                State.do (entry uArg) <| \uArgWithInfo ->
                 State.do State.get <| \end ->
                 State.pure <|
                   let
                     argString =
-                      uArgsWithInfo
-                        |> List.map (\u -> " (" ++ (getData u).val ++ ")")
-                        |> String.concat
+                      " (" ++ (getData uArgWithInfo).val ++ ")"
                   in
                     UApp
                       ( withInfo
@@ -548,7 +536,7 @@ unparse =
                           end.pos
                       )
                       uFunctionWithInfo
-                      uArgsWithInfo
+                      uArgWithInfo
 
           UGet _ n i uTuple ->
             let
@@ -708,8 +696,8 @@ mapData f u =
     UHoleClosure d env holeIndex ->
       UHoleClosure (f d) env holeIndex
 
-    UApp d uFunction uArgs ->
-      UApp (f d) (mapData f uFunction) (List.map (mapData f) uArgs)
+    UApp d uFunction uArg ->
+      UApp (f d) (mapData f uFunction) (mapData f uArg)
 
     UGet d n i uTuple ->
       UGet (f d) n i (mapData f uTuple)
@@ -748,9 +736,9 @@ statefulMap f u =
       UHoleClosure d env holeIndex ->
         State.pure <| UHoleClosure d env holeIndex
 
-      UApp d uFunction uArgs ->
+      UApp d uFunction uArg ->
         flip State.andThen (statefulMap f uFunction) <| \newFunction ->
-          State.map (UApp d newFunction) (State.mapM (statefulMap f) uArgs)
+          State.map (UApp d newFunction) (statefulMap f uArg)
 
       UGet d n i uTuple ->
         State.map (UGet d n i) (statefulMap f uTuple)
@@ -794,8 +782,8 @@ children u =
     UHoleClosure _ _ _ ->
       []
 
-    UApp _ uFunction uArgs ->
-      uFunction :: uArgs
+    UApp _ uFunction uArg ->
+      [uFunction, uArg]
 
     UGet _ _ _ uTuple ->
       [uTuple]
@@ -1118,11 +1106,10 @@ uvPartialFunction : Parser UnVal
 uvPartialFunction =
   P.lazy <| \_ ->
     let
-      binding : Parser (List (UnExp ()), Example)
+      binding : Parser (UnExp (), Example)
       binding =
         P.succeed (,)
-          -- TODO support n-ary functions
-          |= P.map (valToExp >> List.singleton) unval
+          |= P.map valToExp unval
           |. spaces
           |. P.symbol "->"
           |. spaces

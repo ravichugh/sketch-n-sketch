@@ -4833,7 +4833,7 @@ pbeActions =
 
 pbeName : String -> String
 pbeName s =
-  "PBE__" ++ s
+  "pbe__" ++ s
 
 pbeArgList : Int -> List Ident
 pbeArgList n =
@@ -4848,11 +4848,11 @@ pbeAction e =
       case unwrapExp eFunction of
         EVar _ action ->
           case action of
-            "PBE__constrain" ->
+            "pbe__constrain" ->
               Just <|
                 Constrain e1 e2
 
-            "PBE__defineHole" ->
+            "pbe__defineHole" ->
               Just <|
                 DefineHole e1 e2
 

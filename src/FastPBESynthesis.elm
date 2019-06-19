@@ -219,7 +219,7 @@ showTree =
               in
                 tupleName ++ "\n" ++ children
 
-            Fun { argName, possibleBody } ->
+            Fun { recFunctionName, argName, possibleBody } ->
               let
                 children =
                   possibleBody
@@ -227,7 +227,12 @@ showTree =
                     |> List.map (showTree_ (indentLevel + 1))
                     |> String.join "\n"
               in
-                "Fun \\" ++ argName ++ " ->\n" ++ children
+                "Fun ("
+                  ++ recFunctionName
+                  ++ ") \\"
+                  ++ argName
+                  ++ " ->\n"
+                  ++ children
 
             Match { scrutinee, possibleBranches } ->
               let
@@ -750,26 +755,18 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
         worldFromEntry :
           PartialFunction
             -> U.Env
-            -> (List (UnExp ()), Example)
-            -> Maybe World
-        worldFromEntry partialFunction env (args, output) =
-          case args of
-            [arg] ->
-              Just
-                ( env
-                    -- TODO Fancy fix rule for recursive function binding
-                    |> U.addVarBinding
-                         recFunctionName
-                         (UPartialFunction () partialFunction)
-                    -- Argument binding
-                    |> U.addVarBinding argName arg
-                , output
-                )
-
-            -- Only support single-argument functions for now (should not be a
-            -- problem because of currying).
-            _ ->
-              Nothing
+            -> (UnExp (), Example)
+            -> World
+        worldFromEntry partialFunction env (arg, output) =
+          ( env
+              -- TODO Fancy fix rule for recursive function binding
+              |> U.addVarBinding
+                   recFunctionName
+                   (UPartialFunction () partialFunction)
+              -- Argument binding
+              |> U.addVarBinding argName arg
+          , output
+          )
 
         branchWorlds : World -> Maybe Worlds
         branchWorlds (env, ex) =
@@ -777,7 +774,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
             ExPartialFunction partialFunction ->
               partialFunction
                 |> List.map (worldFromEntry partialFunction env)
-                |> Utils.projJusts
+                |> Just
 
             _ ->
               Nothing
