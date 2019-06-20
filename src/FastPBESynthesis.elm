@@ -297,6 +297,9 @@ nheight =
 -- Term Generation
 --------------------------------------------------------------------------------
 
+type alias TypeBinding =
+  (Ident, Type)
+
 gen : { maxTermSize : Int } -> HasGenInfo a -> NonDet Exp
 gen { maxTermSize } initialInfo =
   let
@@ -443,6 +446,22 @@ gen { maxTermSize } initialInfo =
             in
               arrowOption
 
+--    relGenE : TypeBinding -> { termSize : Int } -> HasGenInfo a -> NonDet Exp
+--    relGenE
+--     (relName, relType) { termSize } ({ sigma, gamma, goalType } as info) =
+--      case termSize of
+--        0 ->
+--          NonDet.none
+--
+--        1 ->
+--          if T.typeEquiv gamma goalType relType then
+--            NonDet.pure <|
+--              eVar relName
+--          else
+--            NonDet.none
+--
+--        _ ->
+
     genI : { termSize : Int } -> HasGenInfo a -> NonDet Exp
     genI { termSize } ({ sigma, gamma, goalType } as info) =
       case termSize of
@@ -484,7 +503,7 @@ gen { maxTermSize } initialInfo =
                         Just (_, datatypeConstructors) ->
                           NonDet.do (NonDet.fromList datatypeConstructors) <|
                             \(ctorName, argTypes) ->
-                              -- Constructors only have single arguments for now
+                              -- Constructors only have single arguments
                               case argTypes of
                                 [argType] ->
                                   NonDet.map
@@ -623,7 +642,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                 NonDet.do (NonDet.fromList datatypeConstructors) <|
                   \(ctorName, argTypes) ->
                     case argTypes of
-                      -- Constructors only have single arguments for now
+                      -- Constructors only have single arguments
                       [argType] ->
                         ctorName
                           |> extractConstructorArgWorlds
