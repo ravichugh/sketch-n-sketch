@@ -507,7 +507,7 @@ gen { maxTermSize } initialInfo =
                       NonDet.none
 
                 tupleOption =
-                  case tupleTypeArguments goalType of
+                  case Lang.tupleTypeArguments goalType of
                     Nothing ->
                       NonDet.none
 
@@ -830,10 +830,6 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
           argName =
             freshIdent varChar gamma
 
-          argNamePat : Pat
-          argNamePat =
-            pVar argName
-
           distributeWorlds : Exp -> Worlds -> Maybe (Dict Ident Worlds)
           distributeWorlds scrutinee worlds =
             worlds
@@ -849,10 +845,13 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                                     UVConstructor ctorName vInner ->
                                       Just
                                         ( ctorName
-                                        , ( U.addVarBinding
-                                              argName
-                                              (U.valToExp vInner)
+                                        , ( if vInner == UVTuple [] then
                                               env
+                                            else
+                                              U.addVarBinding
+                                                argName
+                                                (U.valToExp vInner)
+                                                env
                                           , ex
                                           )
                                         )
@@ -869,16 +868,30 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
               -> List DataConDef -> Ident -> Worlds -> (Pat, NonDet RTree)
           makePossibleBranch
            maybeSubBindSpec constructorDefs ctorName branchWorlds =
-            -- TODO Could possibly avoid lookup here, but not that big of a deal
+            -- Could possibly avoid lookup here, but not that big of a deal
             -- because the length of constructorDefs will almost always be very
             -- small.
             case Utils.maybeFind ctorName constructorDefs of
               Just [ctorArgType] ->
                 let
-                  newGamma =
-                    T.addHasType
-                      (argNamePat, ctorArgType, maybeSubBindSpec)
-                      gamma
+                  (argNamePat, newGamma) =
+                    case Lang.tupleTypeArguments ctorArgType of
+                      -- Empty tuples shouldn't get a name
+                      Just [] ->
+                        ( pVar "_"
+                        , gamma
+                        )
+
+                      _ ->
+                        let
+                          argNamePat =
+                            pVar argName
+                        in
+                          ( argNamePat
+                          , T.addHasType
+                              (argNamePat, ctorArgType, maybeSubBindSpec)
+                              gamma
+                          )
 
                   pat =
                     pDatatype

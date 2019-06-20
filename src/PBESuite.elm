@@ -18,7 +18,7 @@ bool_band =
   = F ()
   | T ()
 
-and : Bool -> Bool -> Bool
+and : Boolean -> Boolean -> Boolean
 and = ??
 
 PBE.constrain and <|
