@@ -6,8 +6,6 @@
 -- TODO:
 --   * isBaseType
 --   * incomplete recursive functions (fancy new fix rule)
---   * projection is always size 2 (but maybe this is okay because it will only
---     be applied to variables?)
 
 module FastPBESynthesis exposing
   ( solve
