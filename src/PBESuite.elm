@@ -1259,4 +1259,5 @@ suite =
     , ("tree_map", tree_map)
     , ("tree_nodes_at_level", tree_nodes_at_level)
     , ("tree_postorder", tree_postorder)
+    , ("tree_preorder", tree_preorder)
     ]
