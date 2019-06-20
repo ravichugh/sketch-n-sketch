@@ -102,7 +102,10 @@ valToExp= valToExpFull Nothing
 
 valToExpFull: Maybe Exp -> WS -> IndentStyle -> Val -> Exp
 valToExpFull copyFrom sp_ indent v =
-  let sp = Maybe.map (ws << precedingWhitespace) copyFrom |> Maybe.withDefault sp_ in
+  let sp = Maybe.andThen (\e ->
+    case unwrapExp e of
+       EApp _ _ _ _ _ -> Just <| ws <| "" -- If it's an application, we don't keep the whitespace. Could be an encoding of something.
+       _ -> Just <| ws <| precedingWhitespace e) copyFrom |> Maybe.withDefault sp_ in
   withDummyExpInfo <| case v.v_ of
     VConst mb num     -> EConst sp (Tuple.first num) dummyLoc noWidgetDecl
     VBase (VBool b)   -> EBase  sp <| EBool b
