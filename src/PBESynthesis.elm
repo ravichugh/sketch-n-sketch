@@ -195,32 +195,6 @@ refine_ depth sigma gamma worlds tau =
                (\e -> Utils.liftMaybePair2 (e, satisfiesWorlds filteredWorlds e))
           |> NonDet.collapseMaybe
 
-      -- IRefine-Constant
-      constantRefinement () =
-        let
-          extractConstant ex =
-            case (unwrapType tau, ex) of
-              (TNum _, ExNum n) ->
-                Just <| eConstDummyLoc0 n
-
-              (TBool _, ExBool b) ->
-                Just <| eBool0 b
-
-              (TString _, ExString s) ->
-                Just <| eStr0 s
-
-              _ ->
-                Nothing
-
-        in
-          filteredWorlds
-            |> List.map Tuple.second
-            |> Utils.collapseEqual
-            |> Maybe.andThen extractConstant
-            |> Utils.maybeToList
-            |> List.map (\e -> (e, []))
-            |> NonDet.fromList
-
       -- IRefine-Tuple
       tupleRefinement () =
         case tupleTypeArguments tau of
@@ -571,7 +545,6 @@ refine_ depth sigma gamma worlds tau =
     in
       NonDet.concat <|
         [ guessRefinement ()
-        , constantRefinement ()
         , tupleRefinement ()
         , partialFunctionRefinement ()
         , constructorRefinement ()

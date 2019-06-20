@@ -155,21 +155,35 @@ eval_ env exp =
         case e of
           -- E-Const
 
-          EConst _ n _ _ ->
-            Evaluator.succeed <|
-              UNum () n
+          EConst _ num _ _ ->
+            case Utils.intFromFloat num of
+              Just n ->
+                if n >= 0 then
+                  Evaluator.succeed <|
+                    Utils.iterate
+                      n
+                      (UConstructor () "S")
+                      (UConstructor () "Z" (UTuple () []))
+                else
+                  Evaluator.fail "Negative integers not supported"
+
+              Nothing ->
+                Evaluator.fail "Floats not supported"
 
           EBase _ baseVal ->
-            Evaluator.succeed <|
-              case baseVal of
-                EBool b ->
-                  UBool () b
+            case baseVal of
+              EBool b ->
+                Evaluator.succeed <|
+                  if b then
+                    UConstructor () "T" (UTuple () [])
+                  else
+                    UConstructor () "F" (UTuple () [])
 
-                EString _ s ->
-                  UString () s
+              EString _ s ->
+                Evaluator.fail "Strings not supported"
 
-                ENull ->
-                  UString () "null"
+              ENull ->
+                Evaluator.fail "Null not supported"
 
           -- E-Lambda
 
@@ -595,24 +609,6 @@ assertEqual u1 u2 =
       else
         Nothing
 
-    (UNum _ n1, UNum _ n2) ->
-      if n1 == n2 then
-        Just []
-      else
-        Nothing
-
-    (UBool _ b1, UBool _ b2) ->
-      if b1 == b2 then
-        Just []
-      else
-        Nothing
-
-    (UString _ s1, UString _ s2) ->
-      if s1 == s2 then
-        Just []
-      else
-        Nothing
-
     (UTuple _ us1, UTuple _ us2) ->
       if List.length us1 == List.length us2 then
         List.map2 assertEqual us1 us2
@@ -703,24 +699,6 @@ backprop u ex =
       (UConstructor _ uIdent uInner, ExConstructor exIdent exInner) ->
         if uIdent == exIdent then
           backprop uInner exInner
-        else
-          Nothing
-
-      (UNum _ uN, ExNum exN) ->
-        if uN == exN then
-          Just []
-        else
-          Nothing
-
-      (UBool _ uB, ExBool exB) ->
-        if uB == exB then
-          Just []
-        else
-          Nothing
-
-      (UString _ uS, ExString exS) ->
-        if uS == exS then
-          Just []
         else
           Nothing
 

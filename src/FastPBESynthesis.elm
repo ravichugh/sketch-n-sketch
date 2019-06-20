@@ -11,8 +11,6 @@ module FastPBESynthesis exposing
   ( solve
   )
 
-import PBESynthesis exposing (satisfiesWorlds)
-
 import Dict exposing (Dict)
 import Set
 
@@ -295,6 +293,10 @@ nheight : NonDet RTree -> Int
 nheight =
   NonDet.toList >> List.map height >> List.maximum >> Maybe.withDefault 0
 
+--------------------------------------------------------------------------------
+-- Term Generation
+--------------------------------------------------------------------------------
+
 gen : { maxTermSize : Int } -> HasGenInfo a -> NonDet Exp
 gen { maxTermSize } initialInfo =
   let
@@ -544,6 +546,31 @@ gen { maxTermSize } initialInfo =
         (\termSize -> genE { termSize = termSize } initialInfo)
         (List.range 1 maxTermSize)
 
+--------------------------------------------------------------------------------
+-- Satisfaction
+--------------------------------------------------------------------------------
+
+-- Nothing: False
+-- Just constraints: True, provided that constraints are met
+satisfiesWorlds : Worlds -> Exp -> Maybe Constraints
+satisfiesWorlds worlds exp =
+  let
+    satisfiesWorld : World -> Exp -> Maybe Constraints
+    satisfiesWorld (env, ex) =
+      TriEval.evalWithEnv env
+        >> TriEval.ensureConstraintFree
+        >> Maybe.andThen (flip TriEval.backprop ex)
+  in
+    worlds
+      |> List.map satisfiesWorld
+      |> flip Utils.applyList exp
+      |> Utils.projJusts
+      |> Maybe.map List.concat
+
+--------------------------------------------------------------------------------
+-- Synthesis
+--------------------------------------------------------------------------------
+
 guessAndCheck : { maxTermSize : Int } -> SynthesisProblem -> SynthesisSolution
 guessAndCheck params ({ worlds } as sp) =
   let
@@ -566,31 +593,6 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
       List.filter
         (Tuple.second >> (/=) ExDontCare)
         worlds
-
-    -- IRefine-Constant
-    constantRefinement () =
-      let
-        extractConstant : Example -> Maybe Exp
-        extractConstant ex =
-          case (unwrapType goalType, ex) of
-            (TNum _, ExNum n) ->
-              Just <| eConstDummyLoc0 n
-
-            (TBool _, ExBool b) ->
-              Just <| eBool0 b
-
-            (TString _, ExString s) ->
-              Just <| eStr0 s
-
-            _ ->
-              Nothing
-      in
-        filteredWorlds
-          |> List.map Tuple.second
-          |> Utils.collapseEqual
-          |> Maybe.andThen extractConstant
-          |> Maybe.map (\val -> Constant { val = val })
-          |> NonDet.fromMaybe
 
     -- IRefine-Constructor
     constructorRefinement () =
@@ -981,8 +983,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
 
         Nothing ->
           NonDet.concat
-            [ constantRefinement ()
-            , constructorRefinement ()
+            [ constructorRefinement ()
             , tupleRefinement ()
             , matchRefinement ()
             , guessRefinement ()

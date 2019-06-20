@@ -64,9 +64,6 @@ type alias HoleIndex =
 -- The d is for extra data
 type UnExp d
   = UConstructor d Ident (UnExp d)
-  | UNum d Num
-  | UBool d Bool
-  | UString d String
   | UTuple d (List (UnExp d))
   | UPartialFunction d PartialFunction
   | UFunClosure d Env Ident Exp
@@ -82,9 +79,6 @@ type UnExp d
 
 type UnVal
   = UVConstructor Ident UnVal
-  | UVNum Num
-  | UVBool Bool
-  | UVString String
   | UVTuple (List UnVal)
   | UVPartialFunction PartialFunction
   | UVFunClosure Env Ident Exp
@@ -95,9 +89,6 @@ type UnVal
 
 type Example
   = ExConstructor Ident Example
-  | ExNum Num
-  | ExBool Bool
-  | ExString String
   | ExTuple (List Example)
   | ExPartialFunction PartialFunction
   | ExDontCare
@@ -341,27 +332,6 @@ unparse =
                     )
                     name
                     uArgWithInfo
-
-          UNum _ n ->
-            let
-              nString =
-                toString n
-            in
-              basic nString (flip UNum n)
-
-          UBool _ b ->
-            let
-              bString =
-                if b then "True" else "False"
-            in
-              basic bString (flip UBool b)
-
-          UString _ s ->
-            let
-              sString =
-                "\"" ++ s ++ "\""
-            in
-              basic sString (flip UString s)
 
           UTuple _ us ->
             if List.isEmpty us then
@@ -636,15 +606,6 @@ getData u =
     UConstructor d _ _ ->
       d
 
-    UNum d _ ->
-      d
-
-    UBool d _ ->
-      d
-
-    UString d _ ->
-      d
-
     UTuple d _ ->
       d
 
@@ -674,15 +635,6 @@ mapData f u =
   case u of
     UConstructor d ident arg ->
       UConstructor (f d) ident (mapData f arg)
-
-    UNum d n ->
-      UNum (f d) n
-
-    UBool d b ->
-      UBool (f d) b
-
-    UString d s ->
-      UString (f d) s
 
     UTuple d args ->
       UTuple (f d) (List.map (mapData f) args)
@@ -714,15 +666,6 @@ statefulMap f u =
     case uNew of
       UConstructor d ident arg ->
         State.map (UConstructor d ident) (statefulMap f arg)
-
-      UNum d n ->
-        State.pure <| UNum d n
-
-      UBool d b ->
-        State.pure <| UBool d b
-
-      UString d s ->
-        State.pure <| UString d s
 
       UTuple d args ->
         State.map (UTuple d) (State.mapM (statefulMap f) args)
@@ -760,15 +703,6 @@ children u =
   case u of
     UConstructor _ _ arg ->
       [arg]
-
-    UNum _ _ ->
-      []
-
-    UBool _ _ ->
-      []
-
-    UString _ _ ->
-      []
 
     UTuple _ args ->
       args
@@ -850,18 +784,6 @@ expToVal u =
     UConstructor _ ident arg ->
       Maybe.map (UVConstructor ident) (expToVal arg)
 
-    UNum _ n ->
-      Just <|
-        UVNum n
-
-    UBool _ b ->
-      Just <|
-        UVBool b
-
-    UString _ s ->
-      Just <|
-        UVString s
-
     UTuple _ args ->
       args
         |> List.map expToVal
@@ -898,15 +820,6 @@ valToExp v =
     UVConstructor ident arg ->
       UConstructor () ident (valToExp arg)
 
-    UVNum n ->
-      UNum () n
-
-    UVBool b ->
-      UBool () b
-
-    UVString s ->
-      UString () s
-
     UVTuple args ->
       UTuple () (List.map valToExp args)
 
@@ -921,18 +834,6 @@ valToExample v =
   case v of
     UVConstructor ident arg ->
       Maybe.map (ExConstructor ident) (valToExample arg)
-
-    UVNum n ->
-      Just <|
-        ExNum n
-
-    UVBool b ->
-      Just <|
-        ExBool b
-
-    UVString s ->
-      Just <|
-        ExString s
 
     UVTuple args ->
       args
@@ -952,18 +853,6 @@ exampleToVal ex =
   case ex of
     ExConstructor ident arg ->
       Maybe.map (UVConstructor ident) (exampleToVal arg)
-
-    ExNum n ->
-      Just <|
-        UVNum n
-
-    ExBool b ->
-      Just <|
-        UVBool b
-
-    ExString s ->
-      Just <|
-        UVString s
 
     ExTuple args ->
       args
@@ -1026,34 +915,37 @@ uvConstructor =
 
 uvNum : Parser UnVal
 uvNum =
-  let
-    sign =
-      P.oneOf
-        [ P.succeed (-1)
-            |. P.symbol "-"
-        , P.succeed 1
-        ]
-  in
-    try <|
-      P.inContext "number" <|
-        P.succeed (\s n -> UVNum (s * n))
-          |= sign
-          |= P.float
+  P.inContext "number" <|
+    let
+      nonNegativeInt : Parser Int
+      nonNegativeInt =
+        P.int
+          |> P.andThen
+               ( \n ->
+                   if n < 0 then
+                     P.fail "Negative integer examples not supported"
+                   else
+                      P.succeed n
+               )
 
-uvBool : Parser UnVal
-uvBool =
-  P.inContext "boolean" <|
-    P.map UVBool <|
-      P.oneOf
-        [ token "True" True
-        , token "False" False
-        ]
+      buildNum : Int -> UnVal
+      buildNum n =
+        Utils.iterate
+          n
+          (UVConstructor "S")
+          (UVConstructor "Z" (UVTuple []))
+    in
+      P.map buildNum nonNegativeInt
 
-uvString : Parser UnVal
-uvString =
-  P.inContext "string" <|
-    P.map (\(_, content) -> UVString content)
-      singleLineString
+-- uvBool : Parser UnVal
+-- uvBool =
+--   P.inContext "boolean" <|
+--     P.oneOf
+--       [ ParserUtils.token "True" <|
+--           UVConstructor "T" (UVTuple [])
+--       , ParserUtils.token "False" <|
+--           UVConstructor "F" (UVTuple [])
+--       ]
 
 -- Parses 1-tuples as just the element it contains (handles "parenthesized
 -- expressions")
@@ -1137,8 +1029,6 @@ unval =
       |. spaces
       |= P.oneOf
            [ uvNum
-           , uvBool
-           , uvString
            , uvTuple
            , uvList -- syntactic sugar for constructors
            , uvPartialFunction

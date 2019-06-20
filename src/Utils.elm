@@ -1881,3 +1881,26 @@ natFromString =
       >> ensureNonEmpty
       >> Maybe.andThen (List.map charToInt >> projJusts)
       >> Maybe.map (List.foldr accumulate (0, 0) >> Tuple.first)
+
+--------------------------------------------------------------------------------
+
+intFromFloat : Float -> Maybe Int
+intFromFloat x =
+  let
+    xFloor =
+      floor x
+
+    xCeiling =
+      ceiling x
+  in
+    if xFloor == xCeiling then
+      Just xFloor
+    else
+      Nothing
+
+iterate : Int -> (a -> a) -> a -> a
+iterate n f x =
+  if n <= 0 then
+    x
+  else
+    iterate (n - 1) f (f x)
