@@ -3063,6 +3063,17 @@ minMaxNumTr nt1 nt2    = (minNumTr nt1 nt2, maxNumTr nt1 nt2)
 plusNumTr (n1,t1) (n2,t2)  = (n1 + n2, TrOp Plus [t1, t2])
 minusNumTr (n1,t1) (n2,t2) = (n1 + n2, TrOp Minus [t1, t2])
 
+tTuple__: WS -> List (Maybe WS, Type) -> WS -> Type__
+tTuple__ spBeforeOpenParen keyValues spBeforeCloseParen =
+  case keyValues of
+    [(spHead, head)] -> TParens spBeforeOpenParen head spBeforeCloseParen
+    _ ->
+      let typeList = tupleEncodingApply (withDummyTypeInfo << TVar space0) keyValues in
+      TRecord spBeforeOpenParen Nothing typeList  spBeforeCloseParen
+
+tTuple: WS -> List (Maybe WS, Type) -> WS -> Type
+tTuple spBeforeOpenParen keyValues spBeforeCloseParen =
+  withDummyTypeInfo <| tTuple__ spBeforeOpenParen keyValues spBeforeCloseParen
 
 ------------------------------------------------------------------------------
 -- Whitespace helpers

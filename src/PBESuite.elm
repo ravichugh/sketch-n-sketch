@@ -147,25 +147,27 @@ type NatList
   | Cons (Nat, NatList)
 
 type Cmp
-  = LT
-  | EQ
-  | GT
+  = LT ()
+  | EQ ()
+  | GT ()
 
-compare : Nat -> Nat -> Cmp
-compare n1 n2 =
-  case n1 of
-    Z _ ->
-      case n2 of
-        Z _ -> EQ
-        S _ -> LT
-    S m1 ->
-      case n2 of
-        Z _  -> GT
-        S m2 -> compare m1 m2
-
-compress : NatList -> NatList
-compress = ??
-
+let
+  compare : Nat -> Nat -> Cmp
+  compare n1 n2 =
+    case n1 of
+      Z _ ->
+        case n2 of
+          Z _ -> EQ ()
+          S _ -> LT ()
+      S m1 ->
+        case n2 of
+          Z _  -> GT ()
+          S m2 -> compare m1 m2
+in
+let
+  compress : NatList -> NatList
+  compress = ??
+in
 PBE.constrain compress <|
   PF \"\"\"
     { [] -> []
@@ -197,25 +199,28 @@ type NatListList
   = LNil ()
   | LCons (NatList, NatListList)
 
-append : NatList -> NatList -> NatList
-append l1 l2 =
-  case l1 of
-    Nil _ ->
-      l2
-    Cons a ->
-      Cons (get_2_1 p, append (get_2_2 p) l2)
-
-concat : NatListList -> NatList
-concat = ??
+let
+  append : NatList -> NatList -> NatList
+  append l1 l2 =
+    case l1 of
+      Nil _ ->
+        l2
+      Cons p ->
+        Cons (get_2_1 p, append (get_2_2 p) l2)
+in
+let
+  concat : NatListList -> NatList
+  concat = ??
+in
 
 PBE.constrain concat <|
   PF \"\"\"
-    { LNil -> []
-    , LCons ([], LNil) -> []
-    , LCons ([0], LNil) -> [0]
-    , LCons ([0], LCons([0], LNil)) -> [0,0]
-    , LCons ([1], LNil) -> [1]
-    , LCons ([1], LCons([1], LNil)) -> [1,1]
+    { LNil () -> []
+    , LCons ([], LNil ()) -> []
+    , LCons ([0], LNil ()) -> [0]
+    , LCons ([0], LCons([0], LNil ())) -> [0,0]
+    , LCons ([1], LNil ()) -> [1]
+    , LCons ([1], LCons([1], LNil ())) -> [1,1]
     }
   \"\"\""""
 
@@ -234,51 +239,56 @@ drop = ??
 PBE.constrain drop <|
   PF \"\"\"
     { [] ->
-        { Z () -> []
-        , S (Z ()) -> []
+        { 0 -> []
+        , 1 -> []
         }
-    , [Z ()] ->
-        { Z () -> [Z ()]
-        , S (Z ()) -> []
+    , [0] ->
+        { 0 -> [0]
+        , 1 -> []
         }
-    , [S (Z ())] ->
-        { Z () -> [S (Z ())]
-        , S (Z ()) -> []
+    , [1] ->
+        { 0 -> [1]
+        , 1 -> []
         }
-    , [S (Z ()), Z ()] ->
-        { Z () -> [S (Z()), Z ()]
-        , S (Z ()) -> [Z ()]
+    , [1, 0] ->
+        { 0 -> [1, 0]
+        , 1 -> [0]
         }
-    , [Z (), S (Z ())] ->
-        { Z () -> [Z (), S (Z ())]
-        , S (Z ()) -> [S (Z ())]
-        , S (S (Z ())) -> []
+    , [0, 1] ->
+        { 0 -> [0, 1]
+        , 1 -> [1]
+        , 2 -> []
         }
     }
   \"\"\""""
 
 list_even_parity =
-   """type nat =
-  | O
-  | S of nat
+   """type Nat
+  = Z ()
+  | S Nat
 
-type bool =
-  | True
-  | False
+type Boolean
+  = T ()
+  | F ()
 
-type list =
-  | Nil
-  | Cons of bool * list
+type BooleanList =
+  | Nil ()
+  | Cons (Boolean, BooleanList)
 
-let list_even_parity : list -> bool |>
-    { [] => True
-    | [ False ] => True
-    | [ True  ] => False
-    | [ False ; False ] => True
-    | [ False ; True ] => False
-    | [ True  ; False ] => False
-    | [ True  ; True ] => True
-    } = ?"""
+evenParity : BooleanList -> Boolean
+evenParity = ??
+
+PBE.constrain evenParity <|
+  PF \"\"\"
+    { [] -> T ()
+    , [F ()] -> T ()
+    , [T ()] -> F ()
+    , [F (), F ()] -> T ()
+    , [F (), T ()] -> F ()
+    , [T (), F ()] -> F ()
+    , [T (), T ()] -> T ()
+    }
+  \"\"\""""
 
 list_filter =
    """type nat =
