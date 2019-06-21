@@ -168,6 +168,7 @@ let
   compress : NatList -> NatList
   compress = ??
 in
+
 PBE.constrain compress <|
   PF \"\"\"
     { [] -> []
