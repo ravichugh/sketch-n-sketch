@@ -4,7 +4,6 @@
 --   * Refinement trees
 --------------------------------------------------------------------------------
 -- TODO:
---   * isBaseType
 --   * incomplete recursive functions (fancy new fix rule)
 
 module FastPBESynthesis exposing
@@ -47,10 +46,16 @@ varChar =
 -- Type Helpers
 --------------------------------------------------------------------------------
 
--- TODO
-isBaseType : Type -> Bool
-isBaseType tau =
-  T.matchArrowRecurse tau == Nothing
+isBaseType : DatatypeEnv -> Type -> Bool
+isBaseType sigma tau =
+  case unwrapType tau of
+    TVar _ datatypeName ->
+      sigma
+        |> Utils.maybeFind datatypeName
+        |> Utils.maybeToBool
+
+    _ ->
+      False
 
 showTypePairs : T.TypeEnv -> String
 showTypePairs =
@@ -144,9 +149,7 @@ type EarlyTerminationReason
   = OutOfMatchBudget
 
 type RTree
-  = Constant
-      { val : Exp }
-  | Ctor
+  = Ctor
       { height : Int
       , ctorName : Ident
       , possibleArg : NonDet RTree
@@ -184,9 +187,6 @@ showTree =
 
         val =
           case rtree of
-            Constant { val } ->
-              "Constant " ++ LeoUnparser.unparse val
-
             Ctor { ctorName, possibleArg } ->
               let
                 children =
@@ -268,9 +268,6 @@ showTree =
 height : RTree -> Int
 height rtree =
   case rtree of
-    Constant _ ->
-      0
-
     Ctor { height } ->
       height
 
@@ -995,7 +992,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                                   , possibleBranches = possibleBranches
                                   }
     guessRefinement () =
-      if isBaseType goalType then
+      if isBaseType sigma goalType then
         NonDet.pure <|
           Guess
             { sp = sp
@@ -1036,9 +1033,6 @@ fillGuesses params rtree =
 
     -- Recursive plumbing from here on down
 
-    Constant info ->
-      Constant info
-
     Ctor ({ possibleArg } as info) ->
       Ctor
         { info
@@ -1077,9 +1071,6 @@ fillGuesses params rtree =
 propagate : RTree -> SynthesisSolution
 propagate rtree =
   case rtree of
-    Constant { val } ->
-      NonDet.pure (val, [])
-
     Ctor { ctorName, possibleArg } ->
       NonDet.map
         ( Tuple.mapFirst <|

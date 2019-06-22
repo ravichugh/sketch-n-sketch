@@ -3,9 +3,9 @@ module PBESuite exposing (init, suite)
 import Dict exposing (Dict)
 
 init =
-   """type NumList
+   """type NatList
   = Nil ()
-  | Cons (Num, NumList)
+  | Cons (Nat, NatList)
 
 type Nat
   = Z ()
@@ -113,11 +113,15 @@ PBE.constrain xor <|
   \"\"\""""
 
 list_append =
-   """type NumList
-  = Nil ()
-  | Cons (Num, NumList)
+   """type Nat
+  = Z ()
+  | S Nat
 
-append : NumList -> NumList -> NumList
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
+
+append : NatList -> NatList -> NatList
 append = ??
 
 PBE.constrain append <|
