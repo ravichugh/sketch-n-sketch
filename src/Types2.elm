@@ -26,11 +26,13 @@ module Types2 exposing
   , TypeEnvElement(..)
   , ArrowType
   , addHasType
+  , varBindingUncons
   , lookupVar
   , typePairs
   , varsOfGamma
   , typeEquiv
   , rebuildArrow
+  , matchArrow
   , matchArrowRecurse
   , varOrAppToMaybeIdentAndArgTypes
 
@@ -232,6 +234,27 @@ addHasType :
   (Pat, Type, Maybe BindingSpecification) -> TypeEnv -> TypeEnv
 addHasType (p, t, maybeBindSpec) gamma =
   addHasMaybeType (p, Just t, maybeBindSpec) gamma
+
+
+varBindingUncons :
+  TypeEnv -> Maybe ((Ident, Type, Maybe BindingSpecification), TypeEnv)
+varBindingUncons gamma =
+  case gamma of
+    [] ->
+      Nothing
+
+    gammaHead :: gammaRest ->
+      case gammaHead of
+        HasType p (Just tau) mb ->
+          case unwrapPat p of
+            PVar _ ident _ ->
+              Just ((ident, tau, mb), gammaRest)
+
+            _ ->
+              varBindingUncons gammaRest
+
+        _ ->
+          varBindingUncons gammaRest
 
 
 addTypeVar : Ident -> TypeEnv -> TypeEnv

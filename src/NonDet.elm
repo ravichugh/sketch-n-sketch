@@ -13,6 +13,7 @@ module NonDet exposing
   , andThen
   , join
   , do
+  , pureDo
   , isEmpty
   , concat
   , concatMap
@@ -82,6 +83,10 @@ join =
 do : NonDet a -> (a -> NonDet b) -> NonDet b
 do =
   flip andThen
+
+pureDo : NonDet a -> (a -> b) -> NonDet b
+pureDo =
+  flip map
 
 --------------------------------------------------------------------------------
 -- Specific Library Functions

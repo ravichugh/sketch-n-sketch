@@ -1,9 +1,11 @@
 module State exposing
   ( State
   , map, andThen, pure, get, put, modify, run
-  , do, sequence, mapM
+  , do, pureDo, sequence, mapM
+  , nSequence
   )
 
+import NonDet exposing (NonDet)
 import Utils
 
 type alias RawState s a =
@@ -62,6 +64,10 @@ do : State s a -> (a -> State s b) -> State s b
 do =
   flip andThen
 
+pureDo : State s a -> (a -> b) -> State s b
+pureDo =
+  flip map
+
 sequence : List (State s a) -> State s (List a)
 sequence states =
   case states of
@@ -76,3 +82,11 @@ sequence states =
 mapM : (a -> State s b) -> List a -> State s (List b)
 mapM f =
   sequence << List.map f
+
+--------------------------------------------------------------------------------
+-- Compatibility with other monads
+--------------------------------------------------------------------------------
+
+nSequence : NonDet (State s a) -> State s (NonDet a)
+nSequence =
+  NonDet.toList >> sequence >> map NonDet.fromList

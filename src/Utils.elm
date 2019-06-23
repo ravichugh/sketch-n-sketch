@@ -1773,6 +1773,10 @@ uncurry : (a -> b -> c) -> (a, b) -> c
 uncurry f (x, y) =
   f x y
 
+uncurry3 : (a1 -> a2 -> a3 -> b) -> (a1, a2, a3) -> b
+uncurry3 f (x1, x2, x3) =
+  f x1 x2 x3
+
 uncurry4 : (a1 -> a2 -> a3 -> a4 -> b) -> (a1, a2, a3, a4) -> b
 uncurry4 f (x1, x2, x3, x4) =
   f x1 x2 x3 x4

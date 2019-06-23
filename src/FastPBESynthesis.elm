@@ -16,6 +16,8 @@ import Set
 import UnLang as U exposing (..)
 import TriEval
 
+import TermGen exposing (GenCached)
+
 import Types2 as T exposing (..)
 import Lang exposing (..)
 import Info exposing (withDummyInfo)
@@ -23,6 +25,7 @@ import Info exposing (withDummyInfo)
 import Utils
 
 import NonDet exposing (NonDet)
+import State exposing (State)
 
 import LeoUnparser
 
@@ -33,14 +36,6 @@ import LeoUnparser
 maxSolveDepth : Int
 maxSolveDepth =
   5
-
-functionChar : Char
-functionChar =
-  'f'
-
-varChar : Char
-varChar =
-  'x'
 
 --------------------------------------------------------------------------------
 -- Type Helpers
@@ -70,70 +65,9 @@ showTypeIdents =
     >> List.map Tuple.first
     >> String.join ", "
 
-freshIdent : Char -> T.TypeEnv -> String
-freshIdent firstChar gamma =
-  let
-    extractNumber : Ident -> Maybe Int
-    extractNumber ident =
-      case String.uncons ident of
-        Just (head, rest) ->
-          if head == firstChar then
-            Utils.natFromString rest
-          else
-            Nothing
-
-        _ ->
-          Nothing
-
-    freshNumber : Int
-    freshNumber =
-      gamma
-        |> varsOfGamma
-        |> List.map extractNumber
-        |> Utils.filterJusts
-        |> List.maximum
-        |> Maybe.map ((+) 1)
-        |> Maybe.withDefault 1
-  in
-    String.cons firstChar (toString freshNumber)
-
--- Given a type
---   a -> b -> c -> ... -> z,
--- this function returns
---   Just (a, b -> c -> ... -> z).
--- (As a base case, given a type a -> b, this function returns Just (a, b).)
--- Otherwise, this function returns Nothing.
-curryArrow : Type -> Maybe (Type, Type)
-curryArrow tau =
-  case T.matchArrowRecurse tau of
-    Just (_, argTypes, returnType) ->
-      case argTypes of
-        argTypeHead :: argTypeRest ->
-          Just
-            ( argTypeHead
-            , if List.isEmpty argTypeRest then
-                returnType
-              else
-                T.rebuildArrow ([], argTypeRest, returnType)
-            )
-
-        -- Impossible
-        [] ->
-          Nothing
-
-    Nothing ->
-      Nothing
-
 --------------------------------------------------------------------------------
 -- Data Structures
 --------------------------------------------------------------------------------
-
-type alias HasGenInfo a =
-  { a
-  | sigma : T.DatatypeEnv
-  , gamma : T.TypeEnv
-  , goalType : Type
-  }
 
 type alias SynthesisProblem =
   { sigma : T.DatatypeEnv
@@ -291,278 +225,6 @@ nheight =
   NonDet.toList >> List.map height >> List.maximum >> Maybe.withDefault 0
 
 --------------------------------------------------------------------------------
--- Term Generation
---------------------------------------------------------------------------------
-
-type alias TypeBinding =
-  (Ident, Type)
-
-gen : { maxTermSize : Int } -> HasGenInfo a -> NonDet Exp
-gen { maxTermSize } initialInfo =
-  let
-    genE : { termSize : Int } -> HasGenInfo a -> NonDet Exp
-    genE { termSize } ({ sigma, gamma, goalType } as info) =
-      let
-        typePairs =
-          T.typePairs gamma
-      in
-        case termSize of
-          0 ->
-            NonDet.none
-
-          1 ->
-            typePairs
-              |> List.filter (Tuple.second >> T.typeEquiv gamma goalType)
-              |> List.map (Tuple.first >> eVar)
-              |> NonDet.fromList
-
-          2 ->
-            let
-              getOption =
-                let
-                  -- Returns list of (n, i) pairs that work
-                  extractGet : List Type -> List (Int, Int)
-                  extractGet ts =
-                    let
-                      n =
-                        List.length ts
-                    in
-                      ts
-                        |> Utils.zipWithIndex
-                        |> List.filter
-                             (Tuple.first >> T.typeEquiv gamma goalType)
-                        -- i should be 1-indexed
-                        |> List.map
-                             (\(_, i) -> (n, i + 1))
-
-                  makeGets : (Ident, List (Int, Int)) -> List Exp
-                  makeGets (ident, getInfos) =
-                    List.map
-                      (\(n, i) -> Lang.fromTupleGet (n, i, eVar ident))
-                      getInfos
-                in
-                  typePairs
-                    |> List.map
-                         ( Tuple.mapSecond <|
-                             Lang.tupleTypeArguments >> Maybe.map extractGet
-                         )
-                    |> List.map Utils.liftMaybePair2
-                    |> Utils.filterJusts
-                    |> List.concatMap makeGets
-                    |> NonDet.fromList
-            in
-              getOption
-
-          _ ->
-            let
-              arrowOption =
-                let
-                  extractArrow : ArrowType -> Maybe (List Type, Type)
-                  extractArrow (_, argTypes, returnType) =
-                    if T.typeEquiv gamma goalType returnType then
-                      Just (argTypes, returnType)
-                    else
-                      Nothing
-
-                  possibleArrowType : NonDet (List Type, Type)
-                  possibleArrowType =
-                    typePairs
-                      |> List.map
-                           ( Tuple.second
-                               >> T.matchArrowRecurse
-                               >> Maybe.andThen extractArrow
-                           )
-                      |> Utils.filterJusts
-                      |> NonDet.fromList
-                in
-                  NonDet.do possibleArrowType <| \(argTypes, returnType) ->
-                  let
-                    -- Number of sub-problems to split the budget for
-                    -- (head + number of arguments)
-                    subProblemCount =
-                      1 + List.length argTypes
-
-                    -- Number of applications in the resulting code
-                    applicationCount =
-                      subProblemCount - 1
-
-                    possiblePartition : NonDet (List Int)
-                    possiblePartition =
-                      NonDet.fromList <|
-                        Utils.partitionIntegerPermutations
-                          (termSize - applicationCount)
-                          subProblemCount
-                  in
-                  NonDet.do possiblePartition <| \partition ->
-                    case partition of
-                      -- Will always happen (subProblemCount >= 2 always)
-                      -- Also, |kArgs| = |argTypes|
-                      kHead :: kArgs ->
-                        let
-                          possibleHead : NonDet Exp
-                          possibleHead =
-                            let
-                              arrowType =
-                                -- Safe because argTypes comes directly from
-                                -- matchArrowRecurse, so it cannot be empty.
-                                T.rebuildArrow ([], argTypes, returnType)
-                            in
-                              genE
-                                { termSize = kHead }
-                                { info | goalType = arrowType }
-
-                          possibleArgs : NonDet (List Exp)
-                          possibleArgs =
-                            NonDet.oneOfEach <|
-                              List.map2
-                                ( \argType kArg ->
-                                    genI
-                                      { termSize = kArg }
-                                      { info | goalType = argType }
-                                )
-                                argTypes
-                                kArgs
-                        in
-                          NonDet.do possibleHead <| \head ->
-                          NonDet.do possibleArgs <| \args ->
-                            if
-                              List.any
-                                (T.structurallyDecreasing gamma head)
-                                args
-                            then
-                              NonDet.pure <|
-                                eApp0
-                                  head
-                                  ( List.map replacePrecedingWhitespace1 args
-                                  )
-
-                            else
-                              NonDet.none
-                      _ ->
-                        NonDet.none
-            in
-              arrowOption
-
---    relGenE : TypeBinding -> { termSize : Int } -> HasGenInfo a -> NonDet Exp
---    relGenE
---     (relName, relType) { termSize } ({ sigma, gamma, goalType } as info) =
---      case termSize of
---        0 ->
---          NonDet.none
---
---        1 ->
---          if T.typeEquiv gamma goalType relType then
---            NonDet.pure <|
---              eVar relName
---          else
---            NonDet.none
---
---        _ ->
-
-    genI : { termSize : Int } -> HasGenInfo a -> NonDet Exp
-    genI { termSize } ({ sigma, gamma, goalType } as info) =
-      case termSize of
-        0 ->
-          NonDet.none
-
-        _ ->
-          case curryArrow goalType of
-            Just (argType, returnType) ->
-              let
-                argNamePat : Pat
-                argNamePat =
-                  pVar0 (freshIdent varChar gamma)
-
-                possibleFunctionBody : NonDet Exp
-                possibleFunctionBody =
-                  genI
-                    { termSize = termSize - 1 } -- -1 for lambda abstraction
-                    { info
-                    | gamma =
-                        T.addHasType
-                          (argNamePat, argType, Nothing)
-                          gamma
-                    , goalType =
-                        returnType
-                    }
-              in
-                NonDet.map (eFun0 [argNamePat]) possibleFunctionBody
-
-            Nothing ->
-              let
-                eOption =
-                  genE { termSize = termSize } info
-
-                constructorOption =
-                  case unwrapType goalType of
-                    TVar _ datatypeName ->
-                      case Utils.maybeFind datatypeName sigma of
-                        Just (_, datatypeConstructors) ->
-                          NonDet.do (NonDet.fromList datatypeConstructors) <|
-                            \(ctorName, argTypes) ->
-                              -- Constructors only have single arguments
-                              case argTypes of
-                                [argType] ->
-                                  NonDet.map
-                                    ( replacePrecedingWhitespace1
-                                        >> List.singleton
-                                        >> eDatatype ctorName
-                                    )
-                                    ( genI
-                                        { termSize = termSize - 1 }
-                                        { info | goalType = argType }
-                                    )
-
-                                _ ->
-                                  NonDet.none
-
-                        Nothing ->
-                          NonDet.none
-
-                    _ ->
-                      NonDet.none
-
-                tupleOption =
-                  case Lang.tupleTypeArguments goalType of
-                    Nothing ->
-                      NonDet.none
-
-                    Just argGoalTypes ->
-                      let
-                        tupleLength =
-                          List.length argGoalTypes
-
-                        possiblePartition : NonDet (List Int)
-                        possiblePartition =
-                          NonDet.fromList <|
-                            Utils.partitionIntegerPermutations
-                              (termSize - 1)
-                              tupleLength
-                      in
-                        NonDet.do possiblePartition <| \partition ->
-                          NonDet.map eTuple0 <|
-                            NonDet.oneOfEach <|
-                              List.map2
-                                ( \tau k ->
-                                    genI
-                                      { termSize = k}
-                                      { info | goalType = tau }
-                                )
-                                argGoalTypes
-                                partition
-              in
-                NonDet.concat
-                  [ eOption
-                  , constructorOption
-                  , tupleOption
-                  ]
-  in
-    NonDet.concat <|
-      List.map
-        (\termSize -> genE { termSize = termSize } initialInfo)
-        (List.range 1 maxTermSize)
-
---------------------------------------------------------------------------------
 -- Satisfaction
 --------------------------------------------------------------------------------
 
@@ -587,16 +249,26 @@ satisfiesWorlds worlds exp =
 -- Synthesis
 --------------------------------------------------------------------------------
 
-guessAndCheck : { maxTermSize : Int } -> SynthesisProblem -> SynthesisSolution
+guessAndCheck :
+  { maxTermSize : Int } -> SynthesisProblem -> GenCached SynthesisSolution
 guessAndCheck params ({ worlds } as sp) =
   let
     possibleSolution =
-      gen params sp
+      TermGen.upTo
+        { termKind = TermGen.E
+        , termSize = params.maxTermSize
+        , sigma = sp.sigma
+        , gamma = sp.gamma
+        , goalType = sp.goalType
+        }
   in
-    possibleSolution
-      |> NonDet.map
-           (\e -> Utils.liftMaybePair2 (e, satisfiesWorlds worlds e))
-      |> NonDet.collapseMaybe
+    State.map
+      ( NonDet.map
+          ( \e -> Utils.liftMaybePair2 (e, satisfiesWorlds worlds e)
+          )
+            >> NonDet.collapseMaybe
+      )
+      possibleSolution
 
 arefine :
   { maxScrutineeSize : Int, maxMatchDepth : Int }
@@ -750,7 +422,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
       let
         recFunctionName : Ident
         recFunctionName =
-          freshIdent functionChar gamma
+          TermGen.freshIdent TermGen.functionChar gamma
 
         recFunctionNamePat : Pat
         recFunctionNamePat =
@@ -762,7 +434,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
 
         argName : Ident
         argName =
-          freshIdent varChar gamma
+          TermGen.freshIdent TermGen.varChar gamma
 
         argNamePat : Pat
         argNamePat =
@@ -844,7 +516,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
         let
           argName : Ident
           argName =
-            freshIdent varChar gamma
+            TermGen.freshIdent TermGen.varChar gamma
 
           distributeWorlds : Exp -> Worlds -> Maybe (Dict Ident Worlds)
           distributeWorlds scrutinee worlds =
@@ -944,12 +616,15 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                     |> Dict.fromList
               in
                 NonDet.do
-                  ( gen
-                      { maxTermSize = params.maxScrutineeSize }
-                      { sigma = sigma
-                      , gamma = gamma
-                      , goalType = dType
-                      }
+                  -- TODO Cache the results for scrutinees
+                  ( Tuple.first << State.run Dict.empty <|
+                      TermGen.upTo
+                        { termKind = TermGen.E
+                        , termSize = params.maxScrutineeSize
+                        , sigma = sigma
+                        , gamma = gamma
+                        , goalType = dType
+                        }
                   ) <|
                   \scrutinee ->
                     Maybe.withDefault NonDet.none <|
@@ -1006,11 +681,11 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
       NonDet.none
     else
       -- Apply IRefine-Fun first
-      case curryArrow goalType of
-        Just (argType, returnType) ->
+      case T.matchArrow goalType of
+        Just (_, [argType], returnType) ->
           partialFunctionRefinement argType returnType
 
-        Nothing ->
+        _ ->
           NonDet.concat
             [ constructorRefinement ()
             , tupleRefinement ()
@@ -1019,54 +694,64 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
             ]
 
 -- Currently does not check height; fills entire tree
-fillGuesses : { maxTermSize : Int } -> RTree -> RTree
+fillGuesses : { maxTermSize : Int } -> RTree -> GenCached RTree
 fillGuesses params rtree =
   case rtree of
 
     -- This is the important case, the rest is just recursive plumbing
 
     Guess { sp } ->
-      Guess
-        { sp = sp
-        , guess = Just <| guessAndCheck params sp
-        }
+      State.pureDo (guessAndCheck params sp) <| \guess ->
+        Guess
+          { sp = sp
+          , guess = Just guess
+          }
 
     -- Recursive plumbing from here on down
 
     Ctor ({ possibleArg } as info) ->
-      Ctor
-        { info
-            | possibleArg =
-                NonDet.map (fillGuesses params) possibleArg
-        }
+      State.pureDo
+        ( possibleArg
+            |> NonDet.map (fillGuesses params)
+            |> State.nSequence
+        ) <| \newPossibleArg ->
+          Ctor
+            { info | possibleArg = newPossibleArg }
 
     Tuple ({ possibleComponents } as info) ->
-      Tuple
-        { info
-            | possibleComponents =
-                List.map (NonDet.map (fillGuesses params)) possibleComponents
-        }
+      State.pureDo
+        ( possibleComponents
+            |> List.map (NonDet.map (fillGuesses params) >> State.nSequence)
+            |> State.sequence
+        ) <| \newPossibleComponents ->
+          Tuple
+            { info | possibleComponents = newPossibleComponents }
 
     Fun ({ possibleBody } as info) ->
-      Fun
-        { info
-            | possibleBody =
-                NonDet.map (fillGuesses params) possibleBody
-        }
+      State.pureDo
+        ( possibleBody
+            |> NonDet.map (fillGuesses params)
+            |> State.nSequence
+        ) <| \newPossibleBody ->
+          Fun
+            { info | possibleBody = newPossibleBody }
 
     Match ({ possibleBranches } as info) ->
-      Match
-        { info
-            | possibleBranches =
-                List.map
-                  ( Tuple.mapSecond <|
-                      NonDet.map (fillGuesses params)
-                  )
-                  possibleBranches
-        }
+      State.pureDo
+        ( possibleBranches
+            |> List.map
+                 ( Tuple.mapSecond <|
+                     NonDet.map (fillGuesses params) >> State.nSequence
+                 )
+            |> List.map (\(p, s) -> State.map (\n -> (p, n)) s)
+            |> State.sequence
+        ) <| \newPossibleBranches ->
+          Match
+            { info | possibleBranches = newPossibleBranches }
 
     EarlyTermination info ->
-      EarlyTermination info
+      State.pure <|
+        EarlyTermination info
 
 propagate : RTree -> SynthesisSolution
 propagate rtree =
@@ -1173,7 +858,7 @@ nextStage s =
     Four -> Just Five
     Five -> Nothing
 
-synthesize : SynthesisProblem -> SynthesisSolution
+synthesize : SynthesisProblem -> GenCached SynthesisSolution
 synthesize sp =
   let
     synthesize_ stage =
@@ -1202,28 +887,30 @@ synthesize sp =
             }
             sp
 
-        solution =
+        statefulSolution =
           rtree
             |> (\rt -> let _ = Debug.log (List.map showTree (NonDet.toList rt) |> String.join "\n\n\n") () in rt)
             |> NonDet.map
                  ( fillGuesses { maxTermSize = maxTermSize }
-                     >> propagate
+                     >> State.map propagate
                  )
-            |> NonDet.join
+            |> State.nSequence
+            |> State.map NonDet.join
       in
-        if NonDet.isEmpty solution then
-          case nextStage stage of
-            Just newStage ->
-              -- Synthesis failure, trying next stage
-              synthesize_ newStage
+        State.do statefulSolution <| \solution ->
+          if NonDet.isEmpty solution then
+            case nextStage stage of
+              Just newStage ->
+                -- Synthesis failure, trying next stage
+                synthesize_ newStage
 
-            Nothing ->
-              -- Synthesis failure, no more stages to try
-              solution
+              Nothing ->
+                -- Synthesis failure, no more stages to try
+                statefulSolution
 
-        else
-          -- Synthesis success
-          solution
+          else
+            -- Synthesis success
+            statefulSolution
   in
     synthesize_ One
 
@@ -1231,13 +918,15 @@ synthesize sp =
 -- Iterative Constraint Solving
 --------------------------------------------------------------------------------
 
-solve_ : Int -> T.DatatypeEnv -> T.HoleEnv -> Constraints -> NonDet HoleFilling
+solve_ :
+  Int -> T.DatatypeEnv -> T.HoleEnv -> Constraints
+    -> GenCached (NonDet HoleFilling)
 solve_ depth sigma delta constraints =
   if depth == 0 then
-    NonDet.none
+    State.pure NonDet.none
   else
     let
-      solveOne : HoleId -> Worlds -> NonDet (Exp, Constraints)
+      solveOne : HoleId -> Worlds -> GenCached SynthesisSolution
       solveOne holeId worlds =
         case T.holeEnvGet holeId delta of
           Just (gamma, goalType) ->
@@ -1249,36 +938,56 @@ solve_ depth sigma delta constraints =
               }
 
           Nothing ->
-            NonDet.none
+            State.pure NonDet.none
 
-      solutions : NonDet (HoleFilling, Constraints)
-      solutions =
+      statefulSolutions : GenCached (NonDet (HoleFilling, Constraints))
+      statefulSolutions =
         constraints
           |> Utils.pairsToDictOfLists -- "Group" operation
           |> Dict.map solveOne
-          |> NonDet.oneOfEachDict
-          |> NonDet.map
-               ( Utils.unzipDict
-                   >> Tuple.mapSecond (Dict.values >> List.concat)
+          |> Dict.toList
+             --> L (h, S (N (e, k)))
+          |> List.map
+               (\(h, gcss) -> State.map (\ss -> (h, ss)) gcss)
+             --> L (S (h, N (e, k)))
+          |> State.sequence
+             --> S (L (h, N (e, k)))
+          |> State.map
+               (List.map <| \(h, ss) -> NonDet.map (\ek -> (h, ek)) ss)
+            -- S (L (N (h, (e, k))))
+          |> State.map
+               ( NonDet.oneOfEach
+                 --> S N L (h, (e, k))
+                   >> NonDet.map
+                        ( Dict.fromList
+                            >> Utils.unzipDict
+                            >> Tuple.mapSecond (Dict.values >> List.concat)
+                        )
                )
 
       oldConstraintSet =
         Set.fromList constraints
     in
-      NonDet.do solutions <| \(holeFilling, newConstraints) ->
-        let
-          newConstraintSet =
-            Set.fromList newConstraints
-        in
-        if Utils.isSubset newConstraintSet oldConstraintSet then
-          NonDet.pure holeFilling
-        else
-          solve_
-            (depth - 1)
-            sigma
-            delta
-            (Set.toList (Set.union oldConstraintSet newConstraintSet))
+      State.do statefulSolutions <| \solutions ->
+        State.map NonDet.join << State.nSequence <|
+          NonDet.pureDo solutions <|
+            \(holeFilling, newConstraints) ->
+              let
+                newConstraintSet =
+                  Set.fromList newConstraints
+              in
+                if Utils.isSubset newConstraintSet oldConstraintSet then
+                  State.pure <|
+                    NonDet.pure holeFilling
+                else
+                  solve_
+                    (depth - 1)
+                    sigma
+                    delta
+                    (Set.toList (Set.union oldConstraintSet newConstraintSet))
 
 solve : T.DatatypeEnv -> T.HoleEnv -> Constraints -> NonDet HoleFilling
-solve =
-  solve_ maxSolveDepth
+solve sigma delta constraints =
+  solve_ maxSolveDepth sigma delta constraints
+    |> State.run Dict.empty
+    |> Tuple.first
