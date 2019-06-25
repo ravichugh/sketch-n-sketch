@@ -2494,7 +2494,6 @@ inferType gamma stuff thisExp =
                              dataConTypes
                                |> Utils.zip pats
                                |> List.map (\(p, d) -> (p, d, maybeSubBindSpec))
-                               |> Debug.log "goodbye"
 
                            branchGamma =
                              List.foldl addHasType gamma patTypes

@@ -230,9 +230,9 @@ PBE.constrain concat <|
   \"\"\""""
 
 list_drop =
-   """Type Nat
+   """type Nat
   = Z ()
-  | S ()
+  | S Nat
 
 type NatList
   = Nil ()
@@ -276,8 +276,8 @@ type Boolean
   = T ()
   | F ()
 
-type BooleanList =
-  | Nil ()
+type BooleanList
+  = Nil ()
   | Cons (Boolean, BooleanList)
 
 evenParity : BooleanList -> Boolean

@@ -3,8 +3,6 @@
 -- but with the following additional optimizations:
 --   * Refinement trees
 --------------------------------------------------------------------------------
--- TODO:
---   * incomplete recursive functions (fancy new fix rule)
 
 module FastPBESynthesis exposing
   ( solve
@@ -53,11 +51,33 @@ isBaseType sigma tau =
       False
 
 showTypePairs : T.TypeEnv -> String
-showTypePairs =
-  T.typePairs
-    >> List.map (Tuple.mapSecond LeoUnparser.unparseType)
-    >> List.map (\(x, tau) -> x ++ " : " ++ tau)
-    >> String.join ", "
+showTypePairs gamma =
+  let
+    showTypePair (x, tau) =
+      let
+        typeString =
+          LeoUnparser.unparseType tau
+
+        bindString =
+          case T.bindSpec gamma (eVar x) of
+            Just Rec ->
+              "rec"
+
+            Just (Arg p) ->
+              "arg " ++ LeoUnparser.unparsePattern p
+
+            Just (Dec p) ->
+              "dec " ++ LeoUnparser.unparsePattern p
+
+            Nothing ->
+              "."
+      in
+        x ++ " : " ++ typeString ++ " {" ++ bindString ++ "} "
+  in
+    gamma
+      |> T.typePairs
+      |> List.map showTypePair
+      |> String.join ", "
 
 showTypeIdents : T.TypeEnv -> String
 showTypeIdents =
@@ -184,7 +204,11 @@ showTree =
                 "Match " ++ LeoUnparser.unparse scrutinee ++ "\n" ++ children
 
             Guess { sp } ->
-              "Guess [" ++ showTypePairs sp.gamma ++ "]"
+              "Guess <"
+                ++ LeoUnparser.unparseType sp.goalType
+                ++ ">["
+                ++ showTypePairs sp.gamma
+                ++ "]"
 
             EarlyTermination { reason } ->
               let
@@ -254,9 +278,8 @@ guessAndCheck :
 guessAndCheck params ({ worlds } as sp) =
   let
     possibleSolution =
-      TermGen.upTo
-        { termKind = TermGen.E
-        , termSize = params.maxTermSize
+      TermGen.upToE
+        { termSize = params.maxTermSize
         , sigma = sp.sigma
         , gamma = sp.gamma
         , goalType = sp.goalType
@@ -516,7 +539,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
         let
           argName : Ident
           argName =
-            TermGen.freshIdent TermGen.varChar gamma
+            TermGen.freshIdent TermGen.matchChar gamma
 
           distributeWorlds : Exp -> Worlds -> Maybe (Dict Ident Worlds)
           distributeWorlds scrutinee worlds =
@@ -618,9 +641,8 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                 NonDet.do
                   -- TODO Cache the results for scrutinees
                   ( Tuple.first << State.run Dict.empty <|
-                      TermGen.upTo
-                        { termKind = TermGen.E
-                        , termSize = params.maxScrutineeSize
+                      TermGen.upToE
+                        { termSize = params.maxScrutineeSize
                         , sigma = sigma
                         , gamma = gamma
                         , goalType = dType
