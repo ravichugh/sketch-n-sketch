@@ -724,26 +724,6 @@ gen ({ termKind, relBinding, genProblem } as genInput) =
 
 upToE : GenProblem -> GenCached (NonDet Exp)
 upToE gp =
---  let
---    helper i =
---      if i > gp.termSize then
---        State.pure NonDet.none
---      else
---        State.do
---          ( gen
---              { termKind = E
---              , relBinding = Nothing
---              , genProblem = { gp | termSize = i }
---              }
---          ) <| \result ->
---            if NonDet.isEmpty result then
---              helper (i + 1)
---            else
---              -- State.pure result
---              helper (i + 1)
---  in
---    helper 1
-
   List.range 1 gp.termSize
     |> List.map
          ( \i ->
