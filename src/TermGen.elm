@@ -6,6 +6,7 @@ module TermGen exposing
   , TermKind(..)
   , GenCached
   , upToE
+  , exactlyE
   )
 
 import Lang exposing (..)
@@ -153,6 +154,273 @@ genpI r relBinding gp =
 --
 -- ALSO: Make sure termSize > 0.
 
+-- An application generation helper for relGenE (option 1)
+relGenEApp1 : TypeBinding -> GenProblem -> GenCached (NonDet Exp)
+relGenEApp1
+ ((relName, relType, _) as relBinding)
+ ({ termSize, sigma, gamma, goalType } as gp) =
+  let
+    (revGoalTypeArgTypes, goalTypeReturnType) =
+      T.matchArrowRecurse goalType
+        |> Maybe.map (\(_, args, ret) -> (List.reverse args, ret))
+        |> Maybe.withDefault ([], goalType)
+
+    extractLastArgumentType : T.ArrowType -> Maybe Type
+    extractLastArgumentType (_, argTypes, returnType) =
+      if T.typeEquiv gamma goalTypeReturnType returnType then
+        let
+          helper rGoalArgs rArgs =
+            case (rGoalArgs, rArgs) of
+              (_, []) ->
+                Nothing
+
+              ([], rArgsHead :: _) ->
+                Just rArgsHead
+
+              (rGoalArgsHead :: rGoalArgsRest, rArgsHead :: rArgsRest) ->
+                if T.typeEquiv gamma rGoalArgsHead rArgsHead then
+                  helper rGoalArgsRest rArgsRest
+                else
+                  Nothing
+        in
+          helper revGoalTypeArgTypes (List.reverse argTypes)
+      else
+        Nothing
+
+    possibleArgumentType : NonDet Type
+    possibleArgumentType =
+      gamma
+        |> T.typePairs
+        |> List.map
+             ( Tuple.second
+                 >> T.matchArrowRecurse
+                 >> Maybe.andThen extractLastArgumentType
+             )
+        |> Utils.filterJusts
+        |> NonDet.fromList
+
+    possiblePartition : NonDet (List Int)
+    possiblePartition =
+      NonDet.fromList <|
+        Utils.partitionIntegerPermutations
+          (termSize - 1) -- -1 for the application
+          2
+
+    combinedGamma : T.TypeEnv
+    combinedGamma =
+      addTypeBinding relBinding gamma
+
+    appCombine : NonDet Exp -> NonDet Exp -> NonDet Exp
+    appCombine possibleHead possibleArgument =
+      NonDet.do possibleHead <| \head ->
+      NonDet.do possibleArgument <| \argument ->
+        if
+          T.structurallyDecreasing combinedGamma head argument
+        then
+          NonDet.pure <|
+            eApp0
+              head
+              [replacePrecedingWhitespace1 argument]
+
+        else
+          NonDet.none
+  in
+    State.map NonDet.join << State.nSequence <|
+      NonDet.do possibleArgumentType <| \argumentType ->
+      NonDet.do possiblePartition <| \partition ->
+        case partition of
+          -- Will always happen
+          [kHead, kArg] ->
+            let
+              headProblem : GenProblem
+              headProblem =
+                { gp
+                    | termSize =
+                        kHead
+                    , goalType =
+                        T.rebuildArrow
+                          ([], [argumentType], goalType)
+                }
+
+              argProblem : GenProblem
+              argProblem =
+                { gp
+                    | termSize =
+                        kArg
+                    , goalType =
+                        argumentType
+                }
+            in
+              NonDet.pure <|
+                State.do
+                  ( gen
+                      { termKind = E
+                      , relBinding = Nothing
+                      , genProblem = headProblem
+                      }
+                  ) <| \headSolution ->
+                State.do
+                  ( gen
+                      { termKind = E
+                      , relBinding = Just relBinding
+                      , genProblem = headProblem
+                      }
+                  ) <| \relHeadSolution ->
+                State.do
+                  ( gen
+                      { termKind = I
+                      , relBinding = Nothing
+                      , genProblem = argProblem
+                      }
+                  ) <| \argSolution ->
+                State.do
+                  ( gen
+                      { termKind = I
+                      , relBinding = Just relBinding
+                      , genProblem = argProblem
+                      }
+                  ) <| \relArgSolution ->
+                State.pure <|
+                  NonDet.concat
+                    [ appCombine relHeadSolution argSolution
+                    , appCombine headSolution relArgSolution
+                    , appCombine relHeadSolution relArgSolution
+                    ]
+
+          _ ->
+            NonDet.pure <|
+              State.pure NonDet.none
+
+-- An application generation helper for relGenE (option 2)
+relGenEApp2 : TypeBinding -> GenProblem -> GenCached (NonDet Exp)
+relGenEApp2
+ ((relName, relType, _) as relBinding)
+ ({ termSize, sigma, gamma, goalType } as gp) =
+  let
+    combinedGamma : T.TypeEnv
+    combinedGamma =
+      addTypeBinding relBinding gamma
+
+    appCombine : Exp -> NonDet (List Exp) -> NonDet Exp
+    appCombine head possibleArguments =
+      NonDet.do possibleArguments <| \arguments ->
+        if
+          List.any
+            (T.structurallyDecreasing combinedGamma head)
+            arguments
+        then
+          NonDet.pure <|
+            eApp0
+              head
+              (List.map replacePrecedingWhitespace1 arguments)
+        else
+          NonDet.none
+
+    relAtHeadOption : GenCached (NonDet Exp)
+    relAtHeadOption =
+      case T.matchArrowRecurse relType of
+        Just (_, relArgTypes, _) ->
+          let
+            eFunc : Exp
+            eFunc =
+              eVar relName
+
+            argCount : Int
+            argCount =
+              List.length relArgTypes
+
+            possiblePartition : NonDet (List Int)
+            possiblePartition =
+              NonDet.fromList <|
+                Utils.partitionIntegerPermutations
+                  -- -1 for head
+                  -- -1 per arg for application
+                  (termSize - 1 - argCount)
+                  argCount
+          in
+            State.map NonDet.join << State.nSequence <|
+              NonDet.pureDo possiblePartition
+                ( \partition ->
+                    ( List.map2
+                        ( \tau k ->
+                            gen
+                              { termKind = I
+                              , relBinding = Nothing
+                              , genProblem =
+                                  { gp
+                                     | termSize = k
+                                     , goalType = tau
+                                  }
+                              }
+                        )
+                        relArgTypes
+                        partition
+                    )
+                      |> State.sequence
+                      |> State.map
+                           (NonDet.oneOfEach >> appCombine eFunc)
+                )
+
+        Nothing ->
+          State.pure NonDet.none
+
+    fillArgs : (Ident, T.ArrowType) -> GenCached (NonDet Exp)
+    fillArgs (fName, (_, argTypes, returnType)) =
+      let
+        eFunc : Exp
+        eFunc =
+          eVar fName
+
+        argCount : Int
+        argCount =
+          List.length argTypes
+
+        possiblePartition : NonDet (List Int)
+        possiblePartition =
+          NonDet.fromList <|
+            Utils.partitionIntegerPermutations
+              -- -1 for head
+              -- -1 per arg for application
+              (termSize - 1 - argCount)
+              argCount
+      in
+        State.map NonDet.join << State.nSequence <|
+          NonDet.do possiblePartition <| \partition ->
+          NonDet.pureDo (parts (List.length partition))
+            ( \part ->
+                ( List.map3
+                    ( \tau k permit ->
+                        genpI permit relBinding
+                          { gp
+                             | termSize = k
+                             , goalType = tau
+                          }
+                    )
+                    argTypes
+                    partition
+                    part
+                )
+                  |> State.sequence
+                  |> State.map
+                       (NonDet.oneOfEach >> appCombine eFunc)
+            )
+
+    relInArgsOption : GenCached (NonDet Exp)
+    relInArgsOption =
+      gamma
+        |> T.typePairs
+        |> Utils.filterMap2 T.matchArrowRecurse
+        |> List.map fillArgs
+        |> State.sequence
+        |> State.map (NonDet.fromList >> NonDet.join)
+
+  in
+    [ relAtHeadOption
+    , relInArgsOption
+    ]
+      |> State.sequence
+      |> State.map (NonDet.fromList >> NonDet.join)
+
 relGenE : TypeBinding -> GenProblem -> GenCached (NonDet Exp)
 relGenE
  ((relName, relType, _) as relBinding)
@@ -190,137 +458,7 @@ relGenE
 
     -- All applications have size > 2
     _ ->
-      let
-        (revGoalTypeArgTypes, goalTypeReturnType) =
-          T.matchArrowRecurse goalType
-            |> Maybe.map (\(_, args, ret) -> (List.reverse args, ret))
-            |> Maybe.withDefault ([], goalType)
-
-        extractLastArgumentType : T.ArrowType -> Maybe Type
-        extractLastArgumentType (_, argTypes, returnType) =
-          if T.typeEquiv gamma goalType returnType then
-            List.head (List.reverse argTypes)
-          else
-            let
-              helper rGoalArgs rArgs =
-                case (rGoalArgs, rArgs) of
-                  (_, []) ->
-                    Nothing
-
-                  ([], rArgsHead :: _) ->
-                    Just rArgsHead
-
-                  (rGoalArgsHead :: rGoalArgsRest, rArgsHead :: rArgsRest) ->
-                    if T.typeEquiv gamma rGoalArgsHead rArgsHead then
-                      helper rGoalArgsRest rArgsRest
-                    else
-                      Nothing
-            in
-              helper revGoalTypeArgTypes (List.reverse argTypes)
-
-        possibleArgumentType : NonDet Type
-        possibleArgumentType =
-          gamma
-            |> T.typePairs
-            |> List.map
-                 ( Tuple.second
-                     >> T.matchArrowRecurse
-                     >> Maybe.andThen extractLastArgumentType
-                 )
-            |> Utils.filterJusts
-            |> NonDet.fromList
-
-        possiblePartition : NonDet (List Int)
-        possiblePartition =
-          NonDet.fromList <|
-            Utils.partitionIntegerPermutations
-              (termSize - 1) -- -1 for the application
-              2
-
-        combinedGamma : T.TypeEnv
-        combinedGamma =
-          addTypeBinding relBinding gamma
-
-        appCombine : NonDet Exp -> NonDet Exp -> NonDet Exp
-        appCombine possibleHead possibleArgument =
-          NonDet.do possibleHead <| \head ->
-          NonDet.do possibleArgument <| \argument ->
-            if
-              T.structurallyDecreasing combinedGamma head argument
-            then
-              NonDet.pure <|
-                eApp0
-                  head
-                  [replacePrecedingWhitespace1 argument]
-
-            else
-              NonDet.none
-      in
-        State.map NonDet.join << State.nSequence <|
-          NonDet.do possibleArgumentType <| \argumentType ->
-          NonDet.do possiblePartition <| \partition ->
-            case partition of
-              -- Will always happen
-              [kHead, kArg] ->
-                let
-                  headProblem : GenProblem
-                  headProblem =
-                    { gp
-                        | termSize =
-                            kHead
-                        , goalType =
-                            T.rebuildArrow
-                              ([], [argumentType], goalType)
-                    }
-
-                  argProblem : GenProblem
-                  argProblem =
-                    { gp
-                        | termSize =
-                            kArg
-                        , goalType =
-                            argumentType
-                    }
-                in
-                  NonDet.pure <|
-                    State.do
-                      ( gen
-                          { termKind = E
-                          , relBinding = Nothing
-                          , genProblem = headProblem
-                          }
-                      ) <| \headSolution ->
-                    State.do
-                      ( gen
-                          { termKind = E
-                          , relBinding = Just relBinding
-                          , genProblem = headProblem
-                          }
-                      ) <| \relHeadSolution ->
-                    State.do
-                      ( gen
-                          { termKind = I
-                          , relBinding = Nothing
-                          , genProblem = argProblem
-                          }
-                      ) <| \argSolution ->
-                    State.do
-                      ( gen
-                          { termKind = I
-                          , relBinding = Just relBinding
-                          , genProblem = argProblem
-                          }
-                      ) <| \relArgSolution ->
-                    State.pure <|
-                      NonDet.concat
-                        [ appCombine relHeadSolution argSolution
-                        , appCombine headSolution relArgSolution
-                        , appCombine relHeadSolution relArgSolution
-                        ]
-
-              _ ->
-                NonDet.pure <|
-                  State.pure NonDet.none
+      relGenEApp1 relBinding gp
 
 relGenI : TypeBinding -> GenProblem -> GenCached (NonDet Exp)
 relGenI
@@ -721,6 +859,14 @@ gen ({ termKind, relBinding, genProblem } as genInput) =
 
               (I, Nothing) ->
                 genI genProblem
+
+exactlyE : GenProblem -> GenCached (NonDet Exp)
+exactlyE gp =
+  gen
+    { termKind = E
+    , relBinding = Nothing
+    , genProblem = gp
+    }
 
 upToE : GenProblem -> GenCached (NonDet Exp)
 upToE gp =

@@ -1908,3 +1908,19 @@ iterate n f x =
     x
   else
     iterate (n - 1) f (f x)
+
+filterMap : (a -> Maybe b) -> List a -> List b
+filterMap f =
+  List.map f >> filterJusts
+
+filterMap1 : (a -> Maybe a1) -> List (a, b) -> List (a1, b)
+filterMap1 f =
+  filterMap
+    ( \(x, y) -> Maybe.map (\z -> (z, y)) (f x)
+    )
+
+filterMap2 : (b -> Maybe b1) -> List (a, b) -> List (a, b1)
+filterMap2 f =
+  filterMap
+    ( \(x, y) -> Maybe.map (\z -> (x, z)) (f y)
+    )

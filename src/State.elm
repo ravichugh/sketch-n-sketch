@@ -1,12 +1,15 @@
 module State exposing
   ( State
   , map, andThen, pure, get, put, modify, run
+  , trackTime
   , do, pureDo, sequence, mapM
   , nSequence
   )
 
 import NonDet exposing (NonDet)
 import Utils
+
+import ImpureGoodies
 
 type alias RawState s a =
   s -> (a, s)
@@ -57,6 +60,12 @@ modify f =
 run : s -> State s a -> (a, s)
 run s (S state) =
   state s
+
+trackTime : String -> State s a -> State s a
+trackTime msg (S state) =
+  S <| \s ->
+    ImpureGoodies.logTimedRun msg <| \_ ->
+      state s
 
 -- Library
 

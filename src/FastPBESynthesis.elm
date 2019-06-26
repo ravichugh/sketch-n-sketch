@@ -26,6 +26,7 @@ import NonDet exposing (NonDet)
 import State exposing (State)
 
 import LeoUnparser
+import ImpureGoodies
 
 --------------------------------------------------------------------------------
 -- Parameters
@@ -277,21 +278,38 @@ guessAndCheck :
   { maxTermSize : Int } -> SynthesisProblem -> GenCached SynthesisSolution
 guessAndCheck params ({ worlds } as sp) =
   let
-    possibleSolution =
-      TermGen.upToE
-        { termSize = params.maxTermSize
-        , sigma = sp.sigma
-        , gamma = sp.gamma
-        , goalType = sp.goalType
-        }
+    startTime =
+      ImpureGoodies.getCurrentTime ()
+
+    helper i =
+      --if ImpureGoodies.getCurrentTime () - startTime > 2000 then
+      --  State.pure NonDet.none
+      --else
+      if i > params.maxTermSize then
+        State.pure NonDet.none
+      else
+        let
+          possibleSolutionState =
+            TermGen.exactlyE
+              { termSize = i
+              , sigma = sp.sigma
+              , gamma = sp.gamma
+              , goalType = sp.goalType
+              }
+        in
+          State.do possibleSolutionState <| \possibleSolution ->
+            let
+              result =
+                NonDet.collapseMaybe <|
+                  NonDet.pureDo possibleSolution <| \e ->
+                    Utils.liftMaybePair2 (e, satisfiesWorlds worlds e)
+            in
+              if NonDet.isEmpty result then
+                helper (i + 1)
+              else
+                State.pure result
   in
-    State.map
-      ( NonDet.map
-          ( \e -> Utils.liftMaybePair2 (e, satisfiesWorlds worlds e)
-          )
-            >> NonDet.collapseMaybe
-      )
-      possibleSolution
+    helper 1
 
 arefine :
   { maxScrutineeSize : Int, maxMatchDepth : Int }
@@ -870,6 +888,7 @@ type SynthesisStage
   | Three
   | Four
   | Five
+  | Six
 
 nextStage : SynthesisStage -> Maybe SynthesisStage
 nextStage s =
@@ -878,7 +897,8 @@ nextStage s =
     Two -> Just Three
     Three -> Just Four
     Four -> Just Five
-    Five -> Nothing
+    Five -> Just Six
+    Six -> Nothing
 
 synthesize : SynthesisProblem -> GenCached SynthesisSolution
 synthesize sp =
@@ -888,18 +908,21 @@ synthesize sp =
         (maxScrutineeSize, maxMatchDepth, maxTermSize) =
           case stage of
             One ->
-              (1, 0, 13)
+              (1, 0, 10)
 
             Two ->
-              (1, 1, 13)
+              (1, 1, 10)
 
             Three ->
-              (1, 2, 13)
+              (1, 2, 10)
 
             Four ->
-              (6, 2, 13)
+              (1, 2, 13)
 
             Five ->
+              (6, 2, 13)
+
+            Six ->
               (6, 3, 13)
 
         rtree =
