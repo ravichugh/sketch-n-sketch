@@ -497,7 +497,10 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
               )
             |= optional (symbol "/")
             |. symbol ">"
-            |= repeat zeroOrMore (parseNode newParsingMode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
+            |= repeat zeroOrMore (
+                 succeed identity
+                 |. negativeLookAhead (childrenIncompatibleWith tagName)
+                 |= parseNode newParsingMode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
             |= optional (try <|
                  succeed (\sp -> RegularClosing sp)
                  |. symbol "</"
@@ -509,6 +512,17 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
      )
     )
 
+incompatible_p_children =
+  oneOf <| List.map symbol ["address", "article", "aside", "blockquote", "details", "div", "dl", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "menu", "nav", "ol", "p", "pre", "section", "table", "ul"]
+
+childrenIncompatibleWith: String -> Parser ()
+childrenIncompatibleWith tagName =
+  case tagName of
+    "p" -> succeed ()
+           |. symbol "<"
+           |. incompatible_p_children
+           |. spaces
+    _ -> fail "No child incompatible with this"
 
 parseNode: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
 parseNode parsingMode surroundingTagNames namespace =
