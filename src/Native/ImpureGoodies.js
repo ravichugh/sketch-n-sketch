@@ -8,7 +8,7 @@ var _user$project$Native_ImpureGoodies = {
     newPage : function(content) {
       var w = window.open("", "_blank", "");
       w.document.write(content);
-      return thunk({ctor: '_Tuple0'});
+      return {ctor: '_Tuple0'};
     },
 
     randomFloat : function(_) {
