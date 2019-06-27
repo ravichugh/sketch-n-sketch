@@ -115,6 +115,11 @@ type CodeEditorMode
   | CETypeInspector
   | CEProgrammingByExample
 
+type alias PBESynthesisResult =
+  { holeFillings : List HoleFilling
+  , timeTaken : Float
+  }
+
 type alias Model =
   { code : Code
   , lastParsedCode : Code
@@ -238,8 +243,8 @@ type alias Model =
   , needsToFocusOn : Maybe String
   , holeEnv : Types2.HoleEnv
     -- Nothing means synthesis has not been run yet,
-    -- Just [] means synthesis returned no results
-  , holeFillings : Maybe (List HoleFilling)
+    -- Just { holeFillings = [] } means synthesis returned no results
+  , pbeSynthesisResult : Maybe PBESynthesisResult
   , unExpOutput : Result String (UnExp (), Maybe UnLang.Constraints)
   , selectedHoles : Set HoleId
   , selectedUnExp : Maybe (UnExp ())
@@ -1601,7 +1606,7 @@ initModel =
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
     , holeEnv = initHoleEnv
-    , holeFillings = Nothing
+    , pbeSynthesisResult = Nothing
     , unExpOutput = initOutput
     , selectedHoles = Set.empty
     , selectedUnExp = Nothing

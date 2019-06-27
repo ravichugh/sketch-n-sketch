@@ -1031,8 +1031,10 @@ solve_ depth sigma delta constraints =
                     delta
                     (Set.toList (Set.union oldConstraintSet newConstraintSet))
 
-solve : T.DatatypeEnv -> T.HoleEnv -> Constraints -> NonDet HoleFilling
+solve :
+  T.DatatypeEnv -> T.HoleEnv -> Constraints -> (NonDet HoleFilling, Float)
 solve sigma delta constraints =
-  solve_ maxSolveDepth sigma delta constraints
-    |> State.run Dict.empty
-    |> Tuple.first
+  ImpureGoodies.timedRun <| \_ ->
+    solve_ maxSolveDepth sigma delta constraints
+      |> State.run Dict.empty
+      |> Tuple.first

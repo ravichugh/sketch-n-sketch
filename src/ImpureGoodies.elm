@@ -2,6 +2,9 @@ module ImpureGoodies exposing (..)
 
 import Native.ImpureGoodies
 
+newPage : String -> ()
+newPage content =
+  Native.ImpureGoodies.newPage content
 
 randomFloat : () -> Float
 randomFloat () =

@@ -789,34 +789,37 @@ menuBar model =
         []
 
     snsMenu =
-      menu "Sketch-n-Sketch"
-        [ [ simpleHtmlTextButton
-              [ Html.a
-                  [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md"
-                  , Attr.target "_blank"
-                  ]
-                  [ Html.text "Syntax Guide" ]
-              ]
-          , simpleHtmlTextButton
-              [ Html.a
-                  [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/preludeLeo.elm"
-                  , Attr.target "_blank"
-                  ]
-                  [ Html.text "Standard Library (Prelude)" ]
-              ]
-          , simpleHtmlTextButton
-              [ Html.a
-                  [ Attr.href "http://ravichugh.github.io/sketch-n-sketch/"
-                  , Attr.target "_blank"
-                  ]
-                  [ Html.text "About Sketch-n-Sketch" ]
-              ]
-          , disableableTextButton
-              True
-              params.strVersion
-              Controller.msgNoop
+      menu "Sketch-n-Myth"
+        [ [ simpleTextButton "Run PBE Benchmark Suite" Controller.msgBenchmarkPBE
           ]
         ]
+        -- [ [ simpleHtmlTextButton
+        --       [ Html.a
+        --           [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/README.md"
+        --           , Attr.target "_blank"
+        --           ]
+        --           [ Html.text "Syntax Guide" ]
+        --       ]
+        --   , simpleHtmlTextButton
+        --       [ Html.a
+        --           [ Attr.href "https://github.com/ravichugh/sketch-n-sketch/blob/master/examples/preludeLeo.elm"
+        --           , Attr.target "_blank"
+        --           ]
+        --           [ Html.text "Standard Library (Prelude)" ]
+        --       ]
+        --   , simpleHtmlTextButton
+        --       [ Html.a
+        --           [ Attr.href "http://ravichugh.github.io/sketch-n-sketch/"
+        --           , Attr.target "_blank"
+        --           ]
+        --           [ Html.text "About Sketch-n-Sketch" ]
+        --       ]
+        --   , disableableTextButton
+        --       True
+        --       params.strVersion
+        --       Controller.msgNoop
+        --   ]
+        -- ]
 
     fileMenu =
       menu "File"
@@ -835,21 +838,19 @@ menuBar model =
               (not model.needsSave)
               "Save"
               Controller.msgSave
-          ]
-        , [ simpleTextButton "Open..." <|
+          , simpleTextButton "Open..." <|
               Controller.msgOpenDialogBox Open
           ]
         , [ simpleTextButton "Export Code"
               Controller.msgExportCode
-          , simpleTextButton "Export HTML"
-              Controller.msgExportHtml
-          ]
-        , [ simpleTextButton "Import Code..." <|
+--           , simpleTextButton "Export HTML"
+--               Controller.msgExportHtml
+          , simpleTextButton "Import Code..." <|
               Controller.msgOpenDialogBox ImportCode
-          , disableableTextButton
-              True
-              "Import HTML"
-              Controller.msgNoop
+--          , disableableTextButton
+--              True
+--              "Import HTML"
+--              Controller.msgNoop
           ]
         ]
 
@@ -947,46 +948,6 @@ menuBar model =
 
     viewMenu =
       menu "View" <|
-        [ [ hoverMenu "Output Type"
-              [ simpleTextRadioButton
-                  (model.outputMode == Graphics)
-                  "Graphics"
-                  Controller.msgSetOutputGraphics
-              , simpleTextRadioButton
-                  (isHtmlText model.outputMode)
-                  "HTML (Text)"
-                  Controller.msgSetOutputHtmlText
-              , simpleTextRadioButton
-                  (model.outputMode == ValueText)
-                  "Value (Text)"
-                  Controller.msgSetOutputValueText
-              , simpleTextRadioButton
-                  (model.outputMode == PBE)
-                  "Programming by Example"
-                  Controller.msgSetOutputPBE
-              , simpleTextRadioButton
-                  (model.outputMode == StructuredEditor)
-                  "Tiny Structured Editors for Low, Low Prices"
-                  Controller.msgSetOutputStructuredEditor
-              ]
-          ]
-        , [ disableableTextButton True "Main Layer" Controller.msgNoop
-          , disableableTextButton True "Widget Layer" Controller.msgNoop
-          , hoverMenu "Ghost Layer" <|
-              booleanOption
-                model.showGhosts
-                "On"
-                "Off"
-                Controller.msgSetGhostsShown
-          ]
-        , [ simpleTextButton
-              "Reset Interface Layout"
-              Controller.msgResetInterfaceLayout
-          ]
-        ]
-
-    optionsMenu =
-      menu "Options" <|
         [ [ hoverMenu "Font Size"
               [ simpleTextRadioButton
                   ( case model.codeBoxInfo.fontSize of
@@ -1090,7 +1051,47 @@ menuBar model =
                   "Dark"
                   (Controller.msgSetColorScheme Dark)
               ]
-          , hoverMenu "Auto-Run"
+          , simpleTextButton
+              "Reset Interface Layout"
+              Controller.msgResetInterfaceLayout
+          ]
+        ]
+--        [ [ hoverMenu "Output Type"
+--              [ simpleTextRadioButton
+--                  (model.outputMode == Graphics)
+--                  "Graphics"
+--                  Controller.msgSetOutputGraphics
+--              , simpleTextRadioButton
+--                  (isHtmlText model.outputMode)
+--                  "HTML (Text)"
+--                  Controller.msgSetOutputHtmlText
+--              , simpleTextRadioButton
+--                  (model.outputMode == ValueText)
+--                  "Value (Text)"
+--                  Controller.msgSetOutputValueText
+--              , simpleTextRadioButton
+--                  (model.outputMode == PBE)
+--                  "Programming by Example"
+--                  Controller.msgSetOutputPBE
+--              , simpleTextRadioButton
+--                  (model.outputMode == StructuredEditor)
+--                  "Tiny Structured Editors for Low, Low Prices"
+--                  Controller.msgSetOutputStructuredEditor
+--              ]
+--          ]
+--        , [ disableableTextButton True "Main Layer" Controller.msgNoop
+--          , disableableTextButton True "Widget Layer" Controller.msgNoop
+--          , hoverMenu "Ghost Layer" <|
+--              booleanOption
+--                model.showGhosts
+--                "On"
+--                "Off"
+--                Controller.msgSetGhostsShown
+--          ]
+
+    optionsMenu =
+      menu "Options" <|
+        [ [ hoverMenu "Auto-Run"
               [ disableableTextButton
                   True "Every second" Controller.msgNoop
               , disableableTextButton
@@ -1357,7 +1358,7 @@ menuBar model =
             , maybeCodeToolsMenu
             , if model.outputToolsMenuMode then [outputToolsMenu] else []
             , [viewMenu]
-            , [optionsMenu]
+            -- , [optionsMenu]
             --, [templateNavigation]
             ]
           )
@@ -3310,8 +3311,8 @@ pbePopupPanel model =
               Html.div
                 [ Attr.class "pbe-synthesis-results"
                 ]
-                ( case model.holeFillings of
-                    Just holeFillings ->
+                ( case model.pbeSynthesisResult of
+                    Just { holeFillings } ->
                       let
                         nonEmptyHoleFillings =
                           List.filter (not << Dict.isEmpty) holeFillings

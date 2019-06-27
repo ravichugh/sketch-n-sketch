@@ -89,6 +89,7 @@ port module Controller exposing
   , msgClearUnExpPreview
   , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
   , msgLoadPBESuiteExample
+  , msgBenchmarkPBE
   )
 
 import Updatable exposing (Updatable)
@@ -3568,7 +3569,7 @@ resetDeuceState m =
                             else {dx=0, dy=0}
                 }
           }
-      , holeFillings = Nothing
+      , pbeSynthesisResult = Nothing
       , unExpOutput =
           Result.map (Tuple.mapSecond <| \_ -> Just []) m.unExpOutput
       , selectedHoles = Set.empty
@@ -4454,7 +4455,7 @@ possiblyClearHoleFillings model =
     model.holeExampleInputs == Dict.empty
       && model.backpropExampleInput == ""
   then
-    { model | holeFillings = Nothing }
+    { model | pbeSynthesisResult = Nothing }
   else
     model
 
@@ -4512,78 +4513,87 @@ msgUpdateBackpropExampleInput s =
 
 -- Collect and solve
 
-msgCollectAndSolve : Msg
-msgCollectAndSolve =
-  Msg "Collect and Solve" <| \model ->
-    let
-      maybeCollectedConstraints : Maybe Constraints
-      maybeCollectedConstraints =
-        model.unExpOutput
-          |> Result.toMaybe
-          |> Maybe.andThen Tuple.second
+collectAndSolve : Model -> Model
+collectAndSolve model =
+  let
+    maybeCollectedConstraints : Maybe Constraints
+    maybeCollectedConstraints =
+      model.unExpOutput
+        |> Result.toMaybe
+        |> Maybe.andThen Tuple.second
 
-      maybeBackpropExampleConstraints : Maybe Constraints
-      maybeBackpropExampleConstraints =
-        if model.backpropExampleInput == "" then
-          Just []
-        else
-          flip Maybe.andThen model.selectedUnExp <| \uSelected ->
-            model.backpropExampleInput
-              |> U.parseExample
-              |> Debug.log "parsed backprop example"
-              |> Result.toMaybe
-              |> Maybe.andThen (TriEval.backprop uSelected)
+    maybeBackpropExampleConstraints : Maybe Constraints
+    maybeBackpropExampleConstraints =
+      if model.backpropExampleInput == "" then
+        Just []
+      else
+        flip Maybe.andThen model.selectedUnExp <| \uSelected ->
+          model.backpropExampleInput
+            |> U.parseExample
+            |> Debug.log "parsed backprop example"
+            |> Result.toMaybe
+            |> Maybe.andThen (TriEval.backprop uSelected)
 
-      maybeHoleExampleConstraints : Maybe Constraints
-      maybeHoleExampleConstraints =
-        let
-          makeWorld : (U.Env, String) -> Maybe World
-          makeWorld =
-            Tuple.mapSecond
-              ( U.parseExample
-                  >> Debug.log "parsed hole example"
-                  >> Result.toMaybe
-              )
-              >> Utils.liftMaybePair2
-        in
-          model.holeExampleInputs
-            |> Dict.map (\_ -> Dict.values)
-            |> Dict.toList
-            |> List.map
-                 ( Tuple.mapSecond
-                       ( List.filter (\(_, input) -> input /= "")
-                           >> List.map makeWorld
-                           >> Utils.projJusts
-                       )
-                     >> Utils.liftMaybePair2
-                     >> Maybe.map (\(holeId, worlds) -> List.map ((,) holeId) worlds)
-                 )
-            |> Utils.projJusts
-            |> Maybe.map List.concat
-    in
-      case
-        ( maybeCollectedConstraints
-        , maybeBackpropExampleConstraints
-        , maybeHoleExampleConstraints
-        )
-      of
-        (Just k1, Just k2, Just k3) ->
-          { model
-              | holeFillings =
-                  Just << NonDet.toList <|
+    maybeHoleExampleConstraints : Maybe Constraints
+    maybeHoleExampleConstraints =
+      let
+        makeWorld : (U.Env, String) -> Maybe World
+        makeWorld =
+          Tuple.mapSecond
+            ( U.parseExample
+                >> Debug.log "parsed hole example"
+                >> Result.toMaybe
+            )
+            >> Utils.liftMaybePair2
+      in
+        model.holeExampleInputs
+          |> Dict.map (\_ -> Dict.values)
+          |> Dict.toList
+          |> List.map
+               ( Tuple.mapSecond
+                     ( List.filter (\(_, input) -> input /= "")
+                         >> List.map makeWorld
+                         >> Utils.projJusts
+                     )
+                   >> Utils.liftMaybePair2
+                   >> Maybe.map (\(holeId, worlds) -> List.map ((,) holeId) worlds)
+               )
+          |> Utils.projJusts
+          |> Maybe.map List.concat
+  in
+    case
+      ( maybeCollectedConstraints
+      , maybeBackpropExampleConstraints
+      , maybeHoleExampleConstraints
+      )
+    of
+      (Just k1, Just k2, Just k3) ->
+        { model
+            | pbeSynthesisResult =
+                let
+                  (holeFillings, timeTaken) =
                     PBESynth.solve
                       (Types2.getDataTypeDefs model.inputExp)
                       model.holeEnv
                       (k1 ++ k2 ++ k3)
-              , codeAtPbeSynthesis =
-                  Just model.code
-          }
+                in
+                  Just
+                    { holeFillings = NonDet.toList holeFillings
+                    , timeTaken = timeTaken
+                    }
+            , codeAtPbeSynthesis =
+                Just model.code
+        }
 
-        _ ->
-          { model
-              | holeFillings = Nothing
-              , codeAtPbeSynthesis = Nothing
-          }
+      _ ->
+        { model
+            | pbeSynthesisResult = Nothing
+            , codeAtPbeSynthesis = Nothing
+        }
+
+msgCollectAndSolve : Msg
+msgCollectAndSolve =
+  Msg "Collect and Solve" collectAndSolve
 
 --------------------------------------------------------------------------------
 -- UnExp Preview
@@ -4737,17 +4747,69 @@ msgTSEFLLPApplyTextEdit =
 
 --------------------------------------------------------------------------------
 
+loadPBESuiteExample : String -> String -> Model -> Model
+loadPBESuiteExample name programText model =
+  let
+    (exp, holeEnv, output) =
+      Model.loadPBESuiteExample name programText
+  in
+    { model
+        | code = programText
+        , inputExp = exp
+        , holeEnv = holeEnv
+        , unExpOutput = output
+    }
+
 msgLoadPBESuiteExample : String -> String -> Msg
 msgLoadPBESuiteExample name programText =
-  Msg "Load PBE Suite Example" <| \model ->
+  Msg "Load PBE Suite Example" <|
+    loadPBESuiteExample name programText
+      >> closeDialogBox PBESuiteList
+
+--------------------------------------------------------------------------------
+
+runPBESuiteExample :
+  String -> String -> Maybe PBESynthesisResult
+runPBESuiteExample name programText =
+  initModel
+    |> loadPBESuiteExample name programText
+    |> collectAndSolve
+    |> .pbeSynthesisResult
+
+makePBETable : Dict String (Maybe PBESynthesisResult) -> String
+makePBETable data =
+  let
+    makeRow (name, result) =
+      let
+        resultString =
+          case result of
+            Just { timeTaken } ->
+              toString timeTaken
+
+            Nothing ->
+              "Failed"
+      in
+        "<tr><td>" ++ name ++ "</td><td align=right>" ++ resultString ++ "</td></tr>"
+
+    tableEntries =
+      data
+        |> Dict.toList
+        |> List.map makeRow
+        |> String.concat
+  in
+    "<table border=1 cellpadding=3>"
+      ++"<tr><th><u>Example Name</u></th><th><u>Time Taken (ms)</u></th></tr>"
+      ++ tableEntries
+      ++ "</table>"
+
+msgBenchmarkPBE : Msg
+msgBenchmarkPBE =
+  Msg "Benchmark PBE" <| \model ->
     let
-      (exp, holeEnv, output) =
-        Model.loadPBESuiteExample name programText
+      _ =
+        PBESuite.suite
+          |> Dict.map runPBESuiteExample
+          |> makePBETable
+          |> ImpureGoodies.newPage
     in
-      closeDialogBox PBESuiteList <|
-        { model
-            | code = programText
-            , inputExp = exp
-            , holeEnv = holeEnv
-            , unExpOutput = output
-        }
+      model
