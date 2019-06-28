@@ -308,22 +308,26 @@ type Boolean
   = F ()
   | T ()
 
-let rec is_even (n:nat) : bool =
-  match n with
-  | O -> True
-  | S (n1) ->
-    match n1 with
-    | O -> False
-    | S (n2) -> is_even n2
-;;
+let
+  isEven : Nat -> Boolean
+  isEven n =
+    case n of
+      Z _  -> T ()
+      S m1 ->
+        case m1 of
+          Z _  -> F ()
+          S m2 -> isEven m2
 
-let rec is_nonzero (n:nat) : bool =
-  match n with
-  | O -> False
-  | S (n1) -> True
-;;
-
-let list_filter : (nat -> bool) -> list -> list |>
+  isNonzero : Nat -> Bool
+  isNonzero n =
+    case n of
+      Z _ -> F ()
+      S _ -> T ()
+in
+let
+  listFilter : (Nat -> Bool) -> NatList -> NatList
+  listFilter = ??
+in
 {
   is_even => ( [] => []
              | [0] => [0]
@@ -348,27 +352,32 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
-let rec sum (n1:nat) (n2:nat) : nat =
-  match n1 with
-  | O -> n2
-  | S (n1) -> S (sum n1 n2)
-;;
+let
+  sum : Nat -> Nat -> Nat
+  sum n1 n2 =
+    case n1 of
+      Z _ -> n2
+      S m -> S (sum m n2)
 
-let rec is_odd (n:nat) : bool =
-  match n with
-  | O -> False
-  | S (n) ->
-    (match n with
-    | O -> True
-    | S (n1) -> is_odd n1)
-;;
+  isOdd : Nat -> Boolean
+  isOdd n =
+    case n of
+      Z _  -> F ()
+      S m1 ->
+        case m1 of
+          Z _  -> T ()
+          S m2 -> isOdd m2
 
-let count_odd : nat -> nat -> nat =
-  fun (n1:nat) -> fun (n2:nat) ->
-    match is_odd n2 with
-    | True -> S (n1)
-    | False -> n1
-;;
+  countOdd : Nat -> Nat -> Nat
+  countOdd n1 n2 =
+    case isOdd n2 of
+      T _ -> S n1
+      F _ -> n1
+in
+let
+  listFold : (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
+  listFold = ??
+in
 
 let list_fold : (nat -> nat -> nat) -> nat -> list -> nat |>
     { sum => ( 0 => ( [] => 0
@@ -391,6 +400,9 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
+listHead : NatList -> NatList
+listHead = ??
+
 let list_hd : list -> nat |>
   { [] => 0
   | [0] => 0
@@ -406,12 +418,17 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
-let rec map (l:list) (f : nat -> nat) : list =
-     match l with
-       | Nil -> Nil
-       | Cons (n, ls) -> Cons (f n, map ls f)
-;;
-
+let
+  map : NatList -> (Nat -> Nat) -> NatList =
+  map xs f =
+    case xs of
+      Nil _ -> Nil ()
+      Cons p -> Cons (f (get_2_1 p), map (get_2_2 p) f)
+in
+let
+  listInc : NatList -> NatList
+  listInc = ??
+in
 let list_inc : list -> list |>
   { [] => []
   | [1;2] => [2;3]
@@ -428,9 +445,12 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
-type Nat
-= Z ()
-| S Nat
+type NatOpt
+  = None ()
+  | Some Nat
+
+listLast : NatList -> NatOpt
+listLast = ??
 
 let list_last : list -> natopt |>
   { [] => None
@@ -450,6 +470,9 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
+listLength : NatList -> Nat
+listLength = ??
+
 let list_length : list -> nat |>
   { [] => 0
   | [0] => 1
@@ -464,9 +487,17 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
-let zero (n:nat) : nat = O ;;
-let inc (n:nat): nat = S (n) ;;
+let
+  zero : Nat -> Nat
+  zero n = Z ()
 
+  inc : Nat -> Nat
+  inc n = S n
+in
+let
+  listMap : (Nat -> Nat) -> NatList -> NatList
+  listMap = ??
+in
 let list_map : (nat -> nat) -> list -> list |>
   { inc => ( [] => []
             | [0] => [1]
@@ -486,6 +517,9 @@ list_nth =
 type NatList
   = Nil ()
   | Cons (Nat, NatList)
+
+listNth : NatList -> Nat -> Nat
+listNth = ??
 
 let list_nth : list -> nat -> nat |>
   { [] => ( 0 => 0
@@ -512,6 +546,9 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
+listPairwiseSwap : NatList -> NatList
+listPairwiseSwap = ??
+
 let list_pairwise_swap : list -> list |>
 { [] => []
 | [0] => []
@@ -532,12 +569,19 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
-let rec append (l1:list) (l2:list) : list =
-  match l1 with
-  | Nil -> l2
-  | Cons (x, l1) -> Cons (x, append l1 l2)
-;;
-
+let
+  append : NatList -> NatList -> NatList
+  append l1 l2 =
+    case l1 of
+      Nil _ ->
+        l2
+      Cons p ->
+        Cons (get_2_1 p, append (get_2_2 p) l2)
+in
+let
+  listRevAppend : NatList -> NatList
+  listRevAppend = ??
+in
 let list_rev_append : list -> list |>
   { [] => []
   | [0] => [0]
@@ -555,23 +599,22 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
-let rec fold (l:list) (f:list -> nat -> list) (acc:list) : list =
-  match l with
-  | Nil -> acc
-  | Cons (x, l) -> fold l f (f acc x)
-;;
+let
+  fold : NatList -> (NatList -> Nat -> NatList) -> NatList -> NatList
+  fold xs f acc =
+    case xs of
+      Nil _ -> acc
+      Cons p -> fold (get_2_2 p) f (f acc (get_2_1 p))
 
-
-let snoc : list -> nat -> list =
-  let rec f (l:list) : nat -> list =
-    fun (n:nat) ->
-      match l with
-      | Nil -> Cons (n, Nil)
-      | Cons (x, xs) -> Cons (x, f xs n)
-  in
-    f
-;;
-
+  snoc : NatList -> Nat -> NatList
+  snoc xs n =
+    case xs of
+      Nil _ -> Cons (n, Nil ())
+      Cons p -> Cons (get_2_1 p, snoc (get_2_2 p) n)
+in
+let
+  listRevFold : NatList -> NatList
+in
 let list_rev_fold : list -> list |>
   { [] => []
   | [0] => [0]
@@ -589,16 +632,17 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
-let snoc : list -> nat -> list =
-  let rec f (l:list) : nat -> list =
-    fun (n:nat) ->
-      match l with
-      | Nil -> Cons (n, Nil)
-      | Cons (x, xs) -> Cons (x, f xs n)
-  in
-    f
-;;
-
+let
+  snoc : NatList -> Nat -> NatList
+  snoc xs n =
+    case xs of
+      Nil _ -> Cons (n, Nil ())
+      Cons p -> Cons (get_2_1 p, snoc (get_2_2 p) n)
+in
+let
+  listRevSnoc : NatList -> NatList
+  listRevSnoc = ??
+in
 let list_rev_snoc : list -> list |>
   { [] => []
   | [0] => [0]
@@ -615,6 +659,9 @@ list_rev_tailcall =
 type NatList
   = Nil ()
   | Cons (Nat, NatList)
+
+listRevTailcall : NatList -> NatList -> NatList
+listRevTailcall = ??
 
 let list_rev_tailcall : list -> list -> list |>
   { [] => ( [] => []
@@ -637,6 +684,9 @@ list_snoc =
 type NatList
   = Nil ()
   | Cons (Nat, NatList)
+
+listSnoc : NatList -> Nat -> NatList
+listSnoc = ??
 
 let list_snoc : list -> nat -> list |>
   { [] => ( 0 => [0]
@@ -663,29 +713,33 @@ type Cmp
   | EQ ()
   | GT ()
 
-let rec compare (n1 : nat) (n2 :nat) : cmp =
-  match n1 with
-  | O -> ( match n2 with
-           | O -> EQ
-           | S (m) -> LT
-         )
-  | S (m1) ->
-      ( match n2 with
-      | O -> GT
-      | S (m2) -> (compare m1 m2) )
-;;
+let
+  compare : Nat -> Nat -> Cmp
+  compare n1 n2 =
+    case n1 of
+      Z _ ->
+        case n2 of
+          Z _ -> EQ ()
+          S _ -> LT ()
+      S m1 ->
+        case n2 of
+          Z _  -> GT ()
+          S m2 -> compare m1 m2
 
-let rec insert (l : list) (n :nat) : list =
-  match l with
-  | Nil -> Cons(n, Nil)
-  | Cons(m, tl) ->
-    (match compare n m with
-     | LT -> Cons (n, Cons(m, tl))
-     | EQ -> l
-     | GT -> Cons (m, insert tl n)
-    )
-;;
-
+  insert : NatList -> Nat -> NatList
+  insert xs n =
+    case xs of
+      Nil _ -> Cons (n, Nil ())
+      Cons p ->
+        case compare n (get_2_1 p) of
+          LT _ -> Cons (n, Cons (get_2_1 p, get_2_2 p))
+          EQ _ -> xs
+          GT -> Cons (get_2_1 p, insert (get_2_2 p) n)
+in
+let
+  listSortSortedInsert : NatList -> NatList
+  listSortSortedInsert = ??
+in
 let list_sort_sorted_insert : list -> list |>
  { [] => []
  | [0] => [0]
@@ -710,17 +764,23 @@ type Cmp
   | EQ ()
   | GT ()
 
-let rec compare (n1 : nat) (n2 :nat) : cmp =
-  match n1 with
-  | O -> ( match n2 with
-           | O -> EQ
-           | S (m) -> LT
-         )
-  | S (m1) ->
-      ( match n2 with
-      | O -> GT
-      | S (m2) -> (compare m1 m2) )
-;;
+let
+  compare : Nat -> Nat -> Cmp
+  compare n1 n2 =
+    case n1 of
+      Z _ ->
+        case n2 of
+          Z _ -> EQ ()
+          S _ -> LT ()
+      S m1 ->
+        case n2 of
+          Z _  -> GT ()
+          S m2 -> compare m1 m2
+in
+let
+  listSortedInsert : NatList -> Nat -> NatList
+  listSortedInsert = ??
+in
 
 let list_sorted_insert : list -> nat -> list |>
   { [] => ( 0 => [0]
@@ -746,6 +806,8 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
+listStutter : NatList -> NatList
+listStutter = ??
 let list_stutter : list -> list |>
   { [] => []
   | [0] => [0;0]
