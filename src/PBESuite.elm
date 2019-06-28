@@ -3,7 +3,7 @@ module PBESuite exposing (init, suite)
 import Dict exposing (Dict)
 
 init =
-   """type NatList
+  """type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
@@ -14,7 +14,7 @@ type Nat
 ?? : Nat"""
 
 bool_band =
-   """type Boolean
+  """type Boolean
   = F ()
   | T ()
 
@@ -35,7 +35,7 @@ PBE.constrain and <|
   \"\"\""""
 
 bool_bor =
-   """type Boolean
+  """type Boolean
   = F ()
   | T ()
 
@@ -56,7 +56,7 @@ PBE.constrain or <|
   \"\"\""""
 
 bool_impl =
-   """type Boolean
+  """type Boolean
   = F ()
   | T ()
 
@@ -77,7 +77,7 @@ PBE.constrain impl <|
   \"\"\""""
 
 bool_neg =
-   """type Boolean
+  """type Boolean
   = F ()
   | T ()
 
@@ -92,7 +92,7 @@ PBE.constrain neg <|
   \"\"\""""
 
 bool_xor =
-   """type Boolean
+  """type Boolean
   = F ()
   | T ()
 
@@ -113,7 +113,7 @@ PBE.constrain xor <|
   \"\"\""""
 
 list_append =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -142,7 +142,7 @@ PBE.constrain append <|
   \"\"\""""
 
 list_compress =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -192,7 +192,7 @@ PBE.constrain compress <|
   \"\"\""""
 
 list_concat =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -230,7 +230,7 @@ PBE.constrain concat <|
   \"\"\""""
 
 list_drop =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -268,7 +268,7 @@ PBE.constrain drop <|
   \"\"\""""
 
 list_even_parity =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -296,17 +296,17 @@ PBE.constrain evenParity <|
   \"\"\""""
 
 list_filter =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type bool =
-  | True
-  | False
+type Boolean
+  = F ()
+  | T ()
 
 let rec is_even (n:nat) : bool =
   match n with
@@ -336,17 +336,17 @@ let list_filter : (nat -> bool) -> list -> list |>
 } = ?"""
 
 list_fold =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type bool =
-  | True
-  | False
+type Boolean
+  = F ()
+  | T ()
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let rec sum (n1:nat) (n2:nat) : nat =
   match n1 with
@@ -383,13 +383,13 @@ let list_fold : (nat -> nat -> nat) -> nat -> list -> nat |>
     } = ?"""
 
 list_hd =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_hd : list -> nat |>
   { [] => 0
@@ -398,13 +398,13 @@ let list_hd : list -> nat |>
   } = ?"""
 
 list_inc =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let rec map (l:list) (f : nat -> nat) : list =
      match l with
@@ -420,17 +420,17 @@ let list_inc : list -> list |>
   } = ?"""
 
 list_last =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type natopt =
-  | None
-  | Some of nat
+type Nat
+= Z ()
+| S Nat
 
 let list_last : list -> natopt |>
   { [] => None
@@ -442,13 +442,13 @@ let list_last : list -> natopt |>
   } = ?"""
 
 list_length =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_length : list -> nat |>
   { [] => 0
@@ -456,13 +456,13 @@ let list_length : list -> nat |>
   | [0;0] => 2 } = ?"""
 
 list_map =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let zero (n:nat) : nat = O ;;
 let inc (n:nat): nat = S (n) ;;
@@ -479,13 +479,13 @@ let list_map : (nat -> nat) -> list -> list |>
   } = ?"""
 
 list_nth =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_nth : list -> nat -> nat |>
   { [] => ( 0 => 0
@@ -504,13 +504,13 @@ let list_nth : list -> nat -> nat |>
   } = ?"""
 
 list_pairwise_swap =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_pairwise_swap : list -> list |>
 { [] => []
@@ -521,34 +521,16 @@ let list_pairwise_swap : list -> list |>
 | [1;0;1] => []
 | [0;1;0;1] => [1;0;1;0]
 } = ?
-(*
-{ [] => []
-| [0] => []
-| [1] => []
-| [2] => []
-| [2;2] => [2;2]
-| [0;1] => [1;0]
-| [1;0] => [0;1]
-| [1;2] => [2;1]
-| [2;1] => [1;2]
-| [0;2] => [2;0]
-| [0;1;0] => []
-| [0;1;0;1] => [1;0;1;0]
-| [1;0;1;0] => [0;1;0;1]
-| [1;2;1;2] => [2;1;2;1]
-| [2;1;2;1] => [1;2;1;2]
-| [0;2;0;2] => [2;0;2;0]
-} = ?
-*)"""
+"""
 
 list_rev_append =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let rec append (l1:list) (l2:list) : list =
   match l1 with
@@ -565,13 +547,13 @@ let list_rev_append : list -> list |>
   } = ?"""
 
 list_rev_fold =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let rec fold (l:list) (f:list -> nat -> list) (acc:list) : list =
   match l with
@@ -599,13 +581,13 @@ let list_rev_fold : list -> list |>
   } = ?"""
 
 list_rev_snoc =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let snoc : list -> nat -> list =
   let rec f (l:list) : nat -> list =
@@ -626,13 +608,13 @@ let list_rev_snoc : list -> list |>
   } = ?"""
 
 list_rev_tailcall =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_rev_tailcall : list -> list -> list |>
   { [] => ( [] => []
@@ -648,13 +630,13 @@ let list_rev_tailcall : list -> list -> list |>
   } = ?"""
 
 list_snoc =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_snoc : list -> nat -> list |>
   { [] => ( 0 => [0]
@@ -668,18 +650,18 @@ let list_snoc : list -> nat -> list |>
   } = ?"""
 
 list_sort_sorted_insert =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type cmp =
-  | LT
-  | EQ
-  | GT
+type Cmp
+  = LT ()
+  | EQ ()
+  | GT ()
 
 let rec compare (n1 : nat) (n2 :nat) : cmp =
   match n1 with
@@ -715,18 +697,18 @@ let list_sort_sorted_insert : list -> list |>
  } = ?"""
 
 list_sorted_insert =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type cmp =
-  | LT
-  | EQ
-  | GT
+type Cmp
+  = LT ()
+  | EQ ()
+  | GT ()
 
 let rec compare (n1 : nat) (n2 :nat) : cmp =
   match n1 with
@@ -756,13 +738,13 @@ let list_sorted_insert : list -> nat -> list |>
   } = ?"""
 
 list_stutter =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_stutter : list -> list |>
   { [] => []
@@ -771,13 +753,13 @@ let list_stutter : list -> list |>
   } = ?"""
 
 list_sum =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let rec fold (l:list) (f:nat -> nat -> nat) (acc:nat) : nat =
   match l with
@@ -798,13 +780,13 @@ let list_sum : list -> nat |>
   } = ?"""
 
 list_take =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_take : nat -> list -> list |>
   { 0 => ( [] => []
@@ -822,13 +804,13 @@ let list_take : nat -> list -> list |>
   } = ?"""
 
 list_tl =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 let list_tl : list -> list |>
   { [] => []
@@ -836,7 +818,7 @@ let list_tl : list -> list |>
   | [0; 0] => [0] } = ?"""
 
 nat_iseven =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -852,7 +834,7 @@ let nat_iseven : nat -> bool |>
   } = ?"""
 
 nat_max =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -860,10 +842,10 @@ type Boolean
   = False
   | True
 
-type cmp =
-  | LT
-  | EQ
-  | GT
+type Cmp
+  = LT ()
+  | EQ ()
+  | GT ()
 
 let rec compare (n1:nat) (n2:nat) : cmp =
   match n1 with
@@ -891,7 +873,7 @@ let nat_max : nat -> nat -> nat |>
 } = ?"""
 
 nat_pred =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -905,7 +887,7 @@ let nat_pred : nat -> nat |>
   ; S (S (O)) => S (O) } = ?"""
 
 nat_add =
-   """type Nat
+  """type Nat
   = Z ()
   | S Nat
 
@@ -926,18 +908,18 @@ let nat_add : nat -> nat -> nat |>
   } = ?"""
 
 tree_binsert =
-   """type cmp =
-  | CEq
-  | CGt
-  | CLt
+  """type Cmp
+  = LT ()
+  | EQ ()
+  | GT ()
 
-type nat =
-  | O
-  | S of nat
+type Nat
+= Z ()
+| S Nat
 
-type tree =
-  | Leaf
-  | Node of tree * nat * tree
+type NatTree
+  = Leaf ()
+  | Node (NatTree, Nat, NatTree)
 
 let rec comp_nat (n1:nat) (n2:nat) : cmp =
   match n1 with
@@ -978,17 +960,17 @@ let tree_binsert : tree -> nat -> tree |>
   } = ?"""
 
 tree_collect_leaves =
-   """type bool =
-  | True
-  | False
+  """type Boolean
+  = F ()
+  | T ()
 
 type tree =
   | Leaf
   | Node of tree * bool * tree
 
-type list =
-  | Nil
-  | Cons of bool * list
+type BooleanList
+  = Nil ()
+  | Cons (Boolean, BooleanList)
 
 let rec append (l1:list) (l2:list) : list =
   match l1 with
@@ -1006,17 +988,17 @@ let tree_collect_leaves : tree -> list |>
   } = ?"""
 
 tree_count_leaves =
-   """type bool =
-  | True
-  | False
+  """type Boolean
+  = F ()
+  | T ()
 
 type tree =
   | Leaf
   | Node of tree * bool * tree
 
-type nat =
-  | O
-  | S of nat
+type Nat
+= Z ()
+| S Nat
 
 let rec sum (n1:nat) (n2:nat) : nat =
   match n1 with
@@ -1036,13 +1018,13 @@ let tree_count_leaves : tree -> nat |>
   } = ?"""
 
 tree_count_nodes =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type tree =
-  | Leaf
-  | Node of tree * nat * tree
+type NatTree
+  = Leaf ()
+  | Node (NatTree, Nat, NatTree)
 
 let rec sum (n1:nat) (n2:nat) : nat =
   match n1 with
@@ -1060,17 +1042,17 @@ let tree_count_nodes : tree -> nat |>
   } = ?"""
 
 tree_inorder =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type tree =
-  | Leaf
-  | Node of tree * nat * tree
+type NatTree
+  = Leaf ()
+  | Node (NatTree, Nat, NatTree)
 
 let rec append (l1:list) (l2:list) : list =
   match l1 with
@@ -1087,17 +1069,17 @@ let tree_inorder: tree -> list |>
 } = ?"""
 
 tree_map =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type tree =
-  | Leaf
-  | Node of tree * nat * tree
+type NatTree
+  = Leaf ()
+  | Node (NatTree, Nat, NatTree)
 
 let rec div2 (n:nat) : nat =
   match n with
@@ -1126,17 +1108,17 @@ let tree_map : (nat -> nat) -> tree -> tree |>
 } = ?"""
 
 tree_nodes_at_level =
-   """type bool =
-  | True
-  | False
+  """type Boolean
+  = F ()
+  | T ()
 
 type tree =
   | Leaf
   | Node of tree * bool * tree
 
-type nat =
-  | O
-  | S of nat
+type Nat
+= Z ()
+| S Nat
 
 let rec sum (n1:nat) (n2:nat) : nat =
       match n1 with
@@ -1170,17 +1152,17 @@ let tree_nodes_at_level : tree -> nat -> nat |>
   } = ?"""
 
 tree_postorder =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type tree =
-  | Leaf
-  | Node of tree * nat * tree
+type NatTree
+  = Leaf ()
+  | Node (NatTree, Nat, NatTree)
 
 let rec append (l1:list) (l2:list) : list =
   match l1 with
@@ -1203,17 +1185,17 @@ let tree_postorder : tree -> list |>
 } = ?"""
 
 tree_preorder =
-   """type nat =
-  | O
-  | S of nat
+  """type Nat
+  = Z ()
+  | S Nat
 
-type list =
-  | Nil
-  | Cons of nat * list
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
-type tree =
-  | Leaf
-  | Node of tree * nat * tree
+type NatTree
+  = Leaf ()
+  | Node (NatTree, Nat, NatTree)
 
 let rec append (l1:list) (l2:list) : list =
   match l1 with
@@ -1238,41 +1220,41 @@ suite =
     , ("bool_neg", bool_neg)
     , ("bool_xor", bool_xor)
     , ("list_append", list_append)
---    , ("list_compress", list_compress)
---    , ("list_concat", list_concat)
---    , ("list_drop", list_drop)
---    , ("list_even_parity", list_even_parity)
---    , ("list_filter", list_filter)
---    , ("list_fold", list_fold)
---    , ("list_hd", list_hd)
---    , ("list_inc", list_inc)
---    , ("list_last", list_last)
---    , ("list_length", list_length)
---    , ("list_map", list_map)
---    , ("list_nth", list_nth)
---    , ("list_pairwise_swap", list_pairwise_swap)
---    , ("list_rev_append", list_rev_append)
---    , ("list_rev_fold", list_rev_fold)
---    , ("list_rev_snoc", list_rev_snoc)
---    , ("list_rev_tailcall", list_rev_tailcall)
---    , ("list_snoc", list_snoc)
---    , ("list_sort_sorted_insert", list_sort_sorted_insert)
---    , ("list_sorted_insert", list_sorted_insert)
---    , ("list_stutter", list_stutter)
---    , ("list_sum", list_sum)
---    , ("list_take", list_take)
---    , ("list_tl", list_tl)
---    , ("nat_iseven", nat_iseven)
---    , ("nat_max", nat_max)
---    , ("nat_pred", nat_pred)
---    , ("nat_add", nat_add)
---    , ("tree_binsert", tree_binsert)
---    , ("tree_collect_leaves", tree_collect_leaves)
---    , ("tree_count_leaves", tree_count_leaves)
---    , ("tree_count_nodes", tree_count_nodes)
---    , ("tree_inorder", tree_inorder)
---    , ("tree_map", tree_map)
---    , ("tree_nodes_at_level", tree_nodes_at_level)
---    , ("tree_postorder", tree_postorder)
---    , ("tree_preorder", tree_preorder)
+    , ("list_compress", list_compress)
+    , ("list_concat", list_concat)
+    , ("list_drop", list_drop)
+    , ("list_even_parity", list_even_parity)
+    , ("list_filter", list_filter)
+    , ("list_fold", list_fold)
+    , ("list_hd", list_hd)
+    , ("list_inc", list_inc)
+    , ("list_last", list_last)
+    , ("list_length", list_length)
+    , ("list_map", list_map)
+    , ("list_nth", list_nth)
+    , ("list_pairwise_swap", list_pairwise_swap)
+    , ("list_rev_append", list_rev_append)
+    , ("list_rev_fold", list_rev_fold)
+    , ("list_rev_snoc", list_rev_snoc)
+    , ("list_rev_tailcall", list_rev_tailcall)
+    , ("list_snoc", list_snoc)
+    , ("list_sort_sorted_insert", list_sort_sorted_insert)
+    , ("list_sorted_insert", list_sorted_insert)
+    , ("list_stutter", list_stutter)
+    , ("list_sum", list_sum)
+    , ("list_take", list_take)
+    , ("list_tl", list_tl)
+    , ("nat_iseven", nat_iseven)
+    , ("nat_max", nat_max)
+    , ("nat_pred", nat_pred)
+    , ("nat_add", nat_add)
+    , ("tree_binsert", tree_binsert)
+    , ("tree_collect_leaves", tree_collect_leaves)
+    , ("tree_count_leaves", tree_count_leaves)
+    , ("tree_count_nodes", tree_count_nodes)
+    , ("tree_inorder", tree_inorder)
+    , ("tree_map", tree_map)
+    , ("tree_nodes_at_level", tree_nodes_at_level)
+    , ("tree_postorder", tree_postorder)
+    , ("tree_preorder", tree_preorder)
     ]
