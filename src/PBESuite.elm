@@ -808,6 +808,7 @@ type NatList
 
 listStutter : NatList -> NatList
 listStutter = ??
+
 let list_stutter : list -> list |>
   { [] => []
   | [0] => [0;0]
@@ -823,18 +824,23 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
-let rec fold (l:list) (f:nat -> nat -> nat) (acc:nat) : nat =
-  match l with
-  | Nil -> acc
-  | Cons (x, l) -> fold l f (f acc x)
-;;
+let
+  fold : NatList -> (NatList -> Nat -> NatList) -> NatList -> NatList
+  fold xs f acc =
+    case xs of
+      Nil _ -> acc
+      Cons p -> fold (get_2_2 p) f (f acc (get_2_1 p))
 
-let rec add (n1:nat) (n2:nat) : nat =
-  match n1 with
-  | O -> n2
-  | S (n1) -> S (add n1 n2)
-;;
-
+  add : Nat -> Nat -> Nat
+  add n1 n2 =
+    case n1 of
+      Z _ -> n2
+      S m -> S (add m n2)
+in
+let
+  listSum : NatList -> NatList
+  listSum = ??
+in
 let list_sum : list -> nat |>
   { [] => 0
   | [1] => 1
@@ -849,6 +855,9 @@ list_take =
 type NatList
   = Nil ()
   | Cons (Nat, NatList)
+
+listTake : Nat -> NatList -> NatList
+listTake = ??
 
 let list_take : nat -> list -> list |>
   { 0 => ( [] => []
@@ -874,6 +883,9 @@ type NatList
   = Nil ()
   | Cons (Nat, NatList)
 
+listTail : NatList -> NatList
+listTail = ??
+
 let list_tl : list -> list |>
   { [] => []
   | [0] => []
@@ -885,8 +897,11 @@ nat_iseven =
   | S Nat
 
 type Boolean
-  = False
-  | True
+  = F ()
+  | T ()
+
+isEven : Nat -> Bool
+isEven = ??
 
 let nat_iseven : nat -> bool |>
   { 0 => True
@@ -901,25 +916,31 @@ nat_max =
   | S Nat
 
 type Boolean
-  = False
-  | True
+  = F ()
+  | T ()
 
 type Cmp
   = LT ()
   | EQ ()
   | GT ()
 
-let rec compare (n1:nat) (n2:nat) : cmp =
-  match n1 with
-  | O ->
-    (match n2 with
-    | O -> EQ
-    | S (m) -> LT)
-  | S (m1) ->
-    (match n2 with
-    | O -> GT
-    | S (m2) -> (compare m1 m2))
-;;
+let
+  compare : Nat -> Nat -> Cmp
+  compare n1 n2 =
+    case n1 of
+      Z _ ->
+        case n2 of
+          Z _ -> EQ ()
+          S _ -> LT ()
+      S m1 ->
+        case n2 of
+          Z _  -> GT ()
+          S m2 -> compare m1 m2
+in
+let
+  natMax : NatList -> NatList
+  natMax = ??
+in
 
 let nat_max : nat -> nat -> nat |>
 {
@@ -940,8 +961,11 @@ nat_pred =
   | S Nat
 
 type Boolean
-  = False
-  | True
+  = F ()
+  | T ()
+
+natPred : Nat -> Nat
+natPred = ??
 
 let nat_pred : nat -> nat |>
   { O => O
@@ -954,8 +978,11 @@ nat_add =
   | S Nat
 
 type Boolean
-  = False
-  | True
+  = F ()
+  | T ()
+
+natAdd : Nat -> Nat -> Nat
+natAdd = ??
 
 let nat_add : nat -> nat -> nat |>
   { 0 => ( 0 => 0
@@ -983,15 +1010,23 @@ type NatTree
   = Leaf ()
   | Node (NatTree, Nat, NatTree)
 
-let rec comp_nat (n1:nat) (n2:nat) : cmp =
-  match n1 with
-  | O -> (match n2 with
-          | O -> CEq
-          | S (n2) -> CLt)
-  | S (n1) -> (match n2 with
-              | O -> CGt
-              | S (n2) -> comp_nat n1 n2)
-;;
+let
+  compare : Nat -> Nat -> Cmp
+  compare n1 n2 =
+    case n1 of
+      Z _ ->
+        case n2 of
+          Z _ -> EQ ()
+          S _ -> LT ()
+      S m1 ->
+        case n2 of
+          Z _  -> GT ()
+          S m2 -> compare m1 m2
+in
+let
+  treeBInsert : NatTree -> Nat -> NatTree
+  treeBInsert = ??
+in
 
 let tree_binsert : tree -> nat -> tree |>
   { Leaf => ( 0 => Node (Leaf, 0, Leaf)
@@ -1026,19 +1061,27 @@ tree_collect_leaves =
   = F ()
   | T ()
 
-type tree =
-  | Leaf
-  | Node of tree * bool * tree
+type BooleanTree
+  = Leaf
+  | Node (BooleanTree, Boolean, BooleanTree)
 
 type BooleanList
   = Nil ()
   | Cons (Boolean, BooleanList)
 
-let rec append (l1:list) (l2:list) : list =
-  match l1 with
-  | Nil -> l2
-  | Cons (x, l1) -> Cons (x, append l1 l2)
-;;
+let
+  append : NatList -> NatList -> NatList
+  append l1 l2 =
+    case l1 of
+      Nil _ ->
+        l2
+      Cons p ->
+        Cons (get_2_1 p, append (get_2_2 p) l2)
+in
+let
+  treeCollectLeaves : NatTree -> NatList
+  treeCollectLeaves = ??
+in
 
 let tree_collect_leaves : tree -> list |>
   { Leaf => []
@@ -1054,19 +1097,24 @@ tree_count_leaves =
   = F ()
   | T ()
 
-type tree =
-  | Leaf
-  | Node of tree * bool * tree
+type BooleanTree
+  = Leaf
+  | Node (BooleanTree, Boolean, BooleanTree)
 
 type Nat
 = Z ()
 | S Nat
 
-let rec sum (n1:nat) (n2:nat) : nat =
-  match n1 with
-  | O -> n2
-  | S (n1) -> S (sum n1 n2)
-;;
+let
+  sum : Nat -> Nat -> Nat
+  sum n1 n2 =
+    case n1 of
+      Z _ -> n2
+      S m -> S (sum m n2)
+in
+  treeCountLeaves : NatTree -> Nat
+  treeCountLeaves = ??
+in
 
 let tree_count_leaves : tree -> nat |>
   { Leaf => 1
@@ -1088,11 +1136,16 @@ type NatTree
   = Leaf ()
   | Node (NatTree, Nat, NatTree)
 
-let rec sum (n1:nat) (n2:nat) : nat =
-  match n1 with
-  | O -> n2
-  | S (n1) -> S (sum n1 n2)
-;;
+let
+  sum : Nat -> Nat -> Nat
+  sum n1 n2 =
+    case n1 of
+      Z _ -> n2
+      S m -> S (sum m n2)
+in
+  treeCountNodes : NatTree -> Nat
+  treeCountNodes = ??
+in
 
 let tree_count_nodes : tree -> nat |>
   { Leaf => 0
@@ -1116,11 +1169,19 @@ type NatTree
   = Leaf ()
   | Node (NatTree, Nat, NatTree)
 
-let rec append (l1:list) (l2:list) : list =
-  match l1 with
-  | Nil -> l2
-  | Cons (x, l1) -> Cons (x, append l1 l2)
-;;
+let
+  append : NatList -> NatList -> NatList
+  append l1 l2 =
+    case l1 of
+      Nil _ ->
+        l2
+      Cons p ->
+        Cons (get_2_1 p, append (get_2_2 p) l2)
+in
+let
+  treeInOrder : NatListList -> NatList
+  treeInOrder = ??
+in
 
 let tree_inorder: tree -> list |>
 { Leaf => []
@@ -1143,18 +1204,24 @@ type NatTree
   = Leaf ()
   | Node (NatTree, Nat, NatTree)
 
-let rec div2 (n:nat) : nat =
-  match n with
-  | O -> O
-  | S (n1) -> match n1 with
-    | O -> O
-    | S (n2) -> S (div2 n2)
-;;
+let
+  div2 : Nat -> Nat
+  div2 n =
+    case n of
+      Z _ -> Z ()
+      S m1 ->
+        case m1 of
+          Z _ -> Z ()
+          S m2 -> S (div2 m2)
 
-let rec inc (n:nat) : nat =
-  S( n )
-;;
-
+  inc : Nat -> Nat
+  inc n =
+    S n
+in
+let
+  treeMap : (Nat -> Nat) -> NatTree -> NatTree
+  treeMap = ??
+in
 
 let tree_map : (nat -> nat) -> tree -> tree |>
 { div2 => ( Leaf => Leaf
@@ -1182,11 +1249,17 @@ type Nat
 = Z ()
 | S Nat
 
-let rec sum (n1:nat) (n2:nat) : nat =
-      match n1 with
-      | O -> n2
-      | S (n1p) -> S (sum n1p n2)
-;;
+let
+  sum : Nat -> Nat -> Nat
+  sum n1 n2 =
+    case n1 of
+      Z _ -> n2
+      S m -> S (sum m n2)
+in
+let
+  treeNodesAtLevel : NatTree -> Nat -> Nat
+  treeNodesAtLevel = ??
+in
 
 let tree_nodes_at_level : tree -> nat -> nat |>
   { Leaf =>
@@ -1226,11 +1299,19 @@ type NatTree
   = Leaf ()
   | Node (NatTree, Nat, NatTree)
 
-let rec append (l1:list) (l2:list) : list =
-  match l1 with
-  | Nil -> l2
-  | Cons (x, l1) -> Cons (x, append l1 l2)
-;;
+let
+  append : NatList -> NatList -> NatList
+  append l1 l2 =
+    case l1 of
+      Nil _ ->
+        l2
+      Cons p ->
+        Cons (get_2_1 p, append (get_2_2 p) l2)
+in
+let
+  treePostOrder : NatTree -> NatList
+  treePostOrder = ??
+in
 
 let tree_postorder : tree -> list |>
 {  Leaf => []
@@ -1259,11 +1340,19 @@ type NatTree
   = Leaf ()
   | Node (NatTree, Nat, NatTree)
 
-let rec append (l1:list) (l2:list) : list =
-  match l1 with
-  | Nil -> l2
-  | Cons (x, l1) -> Cons (x, append l1 l2)
-;;
+let
+  append : NatList -> NatList -> NatList
+  append l1 l2 =
+    case l1 of
+      Nil _ ->
+        l2
+      Cons p ->
+        Cons (get_2_1 p, append (get_2_2 p) l2)
+in
+let
+  treePreOrder : NatTree -> NatList
+  treePreOrder = ??
+in
 
 let tree_preorder : tree -> list |>
 { Leaf => []
