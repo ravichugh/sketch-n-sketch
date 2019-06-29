@@ -245,7 +245,7 @@ type alias Model =
     -- Nothing means synthesis has not been run yet,
     -- Just { holeFillings = [] } means synthesis returned no results
   , pbeSynthesisResult : Maybe PBESynthesisResult
-  , unExpOutput : Result String (UnExp (), Maybe UnLang.Constraints)
+  , unExpOutput : Result String (UnExp (), Result String UnLang.Constraints)
   , selectedHoles : Set HoleId
   , selectedUnExp : Maybe (UnExp ())
   , holeExampleInputs : Dict HoleId (Dict Int (UnLang.Env, String))
@@ -1407,7 +1407,7 @@ loadPBESuiteExample :
     -> String
     -> ( Exp
        , Types2.HoleEnv
-       , Result String (UnExp (), Maybe UnLang.Constraints)
+       , Result String (UnExp (), Result String UnLang.Constraints)
        )
 loadPBESuiteExample name programText =
   let

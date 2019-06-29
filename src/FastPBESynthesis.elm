@@ -262,7 +262,7 @@ satisfiesWorlds worlds exp =
     satisfiesWorld (env, ex) =
       TriEval.evalWithEnv env
         >> TriEval.ensureConstraintFree
-        >> Maybe.andThen (flip TriEval.backprop ex)
+        >> Maybe.andThen (flip TriEval.backprop ex >> Result.toMaybe)
   in
     worlds
       |> List.map satisfiesWorld

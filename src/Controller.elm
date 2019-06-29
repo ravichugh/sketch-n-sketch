@@ -3571,7 +3571,7 @@ resetDeuceState m =
           }
       , pbeSynthesisResult = Nothing
       , unExpOutput =
-          Result.map (Tuple.mapSecond <| \_ -> Just []) m.unExpOutput
+          Result.map (Tuple.mapSecond <| \_ -> Ok []) m.unExpOutput
       , selectedHoles = Set.empty
       , selectedUnExp = Nothing
       , holeExampleInputs = Dict.empty
@@ -4516,35 +4516,42 @@ msgUpdateBackpropExampleInput s =
 collectAndSolve : Model -> Model
 collectAndSolve model =
   let
-    maybeCollectedConstraints : Maybe Constraints
-    maybeCollectedConstraints =
+    resultCollectedConstraints : Result String Constraints
+    resultCollectedConstraints =
       model.unExpOutput
-        |> Result.toMaybe
-        |> Maybe.andThen Tuple.second
+        |> Result.andThen Tuple.second
 
-    maybeBackpropExampleConstraints : Maybe Constraints
-    maybeBackpropExampleConstraints =
+    resultBackpropExampleConstraints : Result String Constraints
+    resultBackpropExampleConstraints =
       if model.backpropExampleInput == "" then
-        Just []
+        Ok []
       else
-        flip Maybe.andThen model.selectedUnExp <| \uSelected ->
-          model.backpropExampleInput
-            |> U.parseExample
-            |> Debug.log "parsed backprop example"
-            |> Result.toMaybe
-            |> Maybe.andThen (TriEval.backprop uSelected)
+        case model.selectedUnExp of
+          Just uSelected ->
+            model.backpropExampleInput
+              |> U.parseExample
+              |> Result.mapError
+                   ( \_ ->
+                       "Could not parse backprop example '"
+                         ++ model.backpropExampleInput
+                         ++ "'"
+                    )
+              |> Debug.log "parsed backprop example"
+              |> Result.andThen (TriEval.backprop uSelected)
 
-    maybeHoleExampleConstraints : Maybe Constraints
-    maybeHoleExampleConstraints =
+          Nothing ->
+            Err "No selected output expression"
+
+    resultHoleExampleConstraints : Result String Constraints
+    resultHoleExampleConstraints =
       let
-        makeWorld : (U.Env, String) -> Maybe World
-        makeWorld =
-          Tuple.mapSecond
-            ( U.parseExample
-                >> Debug.log "parsed hole example"
-                >> Result.toMaybe
-            )
-            >> Utils.liftMaybePair2
+        makeWorld : (U.Env, String) -> Result String World
+        makeWorld ((_, exString) as worldInput) =
+          worldInput
+            |> Tuple.mapSecond U.parseExample
+            |> Utils.liftResultPair2
+            |> Result.mapError
+                 (\_ -> "Could not parse example '" ++ exString ++ "'")
       in
         model.holeExampleInputs
           |> Dict.map (\_ -> Dict.values)
@@ -4553,21 +4560,21 @@ collectAndSolve model =
                ( Tuple.mapSecond
                      ( List.filter (\(_, input) -> input /= "")
                          >> List.map makeWorld
-                         >> Utils.projJusts
+                         >> Utils.projOk
                      )
-                   >> Utils.liftMaybePair2
-                   >> Maybe.map (\(holeId, worlds) -> List.map ((,) holeId) worlds)
+                   >> Utils.liftResultPair2
+                   >> Result.map (\(holeId, worlds) -> List.map ((,) holeId) worlds)
                )
-          |> Utils.projJusts
-          |> Maybe.map List.concat
+          |> Utils.projOk
+          |> Result.map List.concat
   in
     case
-      ( maybeCollectedConstraints
-      , maybeBackpropExampleConstraints
-      , maybeHoleExampleConstraints
+      ( resultCollectedConstraints
+      , resultBackpropExampleConstraints
+      , resultHoleExampleConstraints
       )
     of
-      (Just k1, Just k2, Just k3) ->
+      (Ok k1, Ok k2, Ok k3) ->
         { model
             | pbeSynthesisResult =
                 let

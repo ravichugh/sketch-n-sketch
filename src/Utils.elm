@@ -1186,6 +1186,20 @@ filterErrs mxs = case mxs of
   Ok _  :: rest -> filterErrs rest
   Err x :: rest -> x :: filterErrs rest
 
+firstOk : e -> List (Result e a) -> Result e a
+firstOk default xs =
+  case xs of
+    [] ->
+      Err default
+
+    y :: ys ->
+      case y of
+        Ok _ ->
+          y
+
+        Err _ ->
+          firstOk default ys
+
 bindMaybe2 : (a -> b -> Maybe c) -> Maybe a -> Maybe b -> Maybe c
 bindMaybe2 f mx my = bindMaybe (\x -> bindMaybe (f x) my) mx
 
@@ -1748,6 +1762,14 @@ liftMaybePair1 (ma, b) =
 liftMaybePair2 : (a, Maybe b) -> Maybe (a, b)
 liftMaybePair2 (a, mb) =
   Maybe.map (\b -> (a, b)) mb
+
+liftResultPair1 : (Result e a, b) -> Result e (a, b)
+liftResultPair1 (ra, b) =
+  Result.map (\a -> (a, b)) ra
+
+liftResultPair2 : (a, Result e b) -> Result e (a, b)
+liftResultPair2 (a, rb) =
+  Result.map (\b -> (a, b)) rb
 
 --------------------------------------------------------------------------------
 

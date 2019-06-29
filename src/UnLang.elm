@@ -70,7 +70,7 @@ type UnExp d
   | UHoleClosure d Env HoleIndex
   | UApp d (UnExp d) (UnExp d)
   | UGet d Int Int (UnExp d)
-  | UConstructorInverse  d Ident (UnExp d)
+  | UConstructorInverse d Ident (UnExp d)
   | UCase d Env (UnExp d) (List (Ident, Ident, Exp))
 
 --------------------------------------------------------------------------------
@@ -174,6 +174,51 @@ lookupRecursiveFunction functionName =
 --==============================================================================
 --= Unparsing
 --==============================================================================
+
+unExpName : UnExp () -> String
+unExpName u =
+  case u of
+    UConstructor _ ident _ ->
+      "constructor (" ++ ident ++ ")"
+
+    UTuple _ components ->
+      "tuple (length " ++ toString (List.length components) ++ ")"
+
+    UPartialFunction _ _ ->
+      "partial function"
+
+    UFunClosure _ _ parameter _ ->
+      "function closure (parameter '" ++ parameter ++ "'"
+
+    UHoleClosure _ _ holeIndex ->
+      "hole closure (hole index '" ++ toString holeIndex ++ "'"
+
+    UApp _ _ _ ->
+      "application"
+
+    UGet _ n i _ ->
+      "get (" ++ toString n ++ "_" ++ toString i ++ ")"
+
+    UConstructorInverse _ ident _ ->
+      "constructor inverse (" ++ ident ++ ")"
+
+    UCase _ _ _ _ ->
+      "match"
+
+exampleName : Example -> String
+exampleName ex =
+  case ex of
+    ExConstructor ident _ ->
+      "constructor (" ++ ident ++ ")"
+
+    ExTuple components ->
+      "tuple (length " ++ toString (List.length components) ++ ")"
+
+    ExPartialFunction _ ->
+      "partial function"
+
+    ExDontCare ->
+      "\"don't care\""
 
 unparseEnv : Env -> String
 unparseEnv =

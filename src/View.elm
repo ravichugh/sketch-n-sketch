@@ -3071,8 +3071,8 @@ viewEnv env =
       ( List.map viewBinding env
       )
 
-viewCollectedConstraints : Maybe U.Constraints -> List (Html Msg)
-viewCollectedConstraints maybeConstraints =
+viewCollectedConstraints : Result String U.Constraints -> List (Html Msg)
+viewCollectedConstraints resultConstraints =
   let
     viewConstraint : U.Constraint -> Html Msg
     viewConstraint (holeId, (env, example)) =
@@ -3087,8 +3087,8 @@ viewCollectedConstraints maybeConstraints =
             ]
         ]
   in
-    case maybeConstraints of
-      Just constraints ->
+    case resultConstraints of
+      Ok constraints ->
         if List.isEmpty constraints then
           []
         else
@@ -3107,10 +3107,11 @@ viewCollectedConstraints maybeConstraints =
                 )
             ]
 
-      Nothing ->
+      Err reason ->
         [ Html.div
             []
-            [ Html.text "Could not resolve example collection."
+            [ Html.text <|
+                "Could not resolve example collection: " ++ reason
             ]
         ]
 
@@ -3347,8 +3348,8 @@ pbePopupPanel model =
               , synthesisResults
               ]
            , constraints
-               |> Maybe.map List.isEmpty
-               |> Maybe.withDefault False
+               |> Result.map List.isEmpty
+               |> Result.withDefault False
            )
 
         Err _ ->

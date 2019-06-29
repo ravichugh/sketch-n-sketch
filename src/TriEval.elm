@@ -36,7 +36,7 @@ maxStackDepth =
   100
 
 type alias EvalState =
-  { constraints : Maybe Constraints
+  { constraints : Result String Constraints
   , stackDepth : Int
   }
 
@@ -47,12 +47,12 @@ type alias UnExpEvaluator =
 -- Evaluator Helper
 --------------------------------------------------------------------------------
 
-withConstraints : Maybe Constraints -> UnExp () -> UnExpEvaluator
+withConstraints : Result String Constraints -> UnExp () -> UnExpEvaluator
 withConstraints ks u =
   let
     addConstraints oldState ks =
       { oldState | constraints =
-          Maybe.map2 (++) oldState.constraints ks
+          Result.map2 (++) oldState.constraints ks
       }
   in
     Evaluator.do Evaluator.get <| \oldState ->
@@ -237,6 +237,10 @@ eval_ env exp =
                             "Out of bounds index for 'get'"
 
                     UHoleClosure _ _ _ ->
+                      Evaluator.succeed <|
+                        UGet () n i uArg
+
+                    UConstructorInverse _ _ _ ->
                       Evaluator.succeed <|
                         UGet () n i uArg
 
@@ -578,52 +582,77 @@ setHoleIndexes =
 -- Full Evaluation
 --------------------------------------------------------------------------------
 
-evalWithEnv : U.Env -> Exp -> Result String (UnExp (), Maybe Constraints)
+evalWithEnv :
+  U.Env -> Exp -> Result String (UnExp (), Result String Constraints)
 evalWithEnv env =
   eval_ env
-    >> Evaluator.run { constraints = Just [], stackDepth = 0 }
+    >> Evaluator.run { constraints = Ok [], stackDepth = 0 }
     >> Result.map (Tuple.mapFirst setHoleIndexes)
     >> Result.map (Tuple.mapSecond .constraints)
 
-eval : Exp -> Result String (UnExp (), Maybe Constraints)
+eval :
+  Exp -> Result String (UnExp (), Result String Constraints)
 eval =
   evalWithEnv []
 
 ensureConstraintFree :
-  Result String (UnExp (), Maybe Constraints) -> Maybe (UnExp ())
+  Result String (UnExp (), Result String Constraints) -> Maybe (UnExp ())
 ensureConstraintFree =
   Result.toMaybe
     >> Maybe.andThen
-         (\(u, ks) -> if ks == Just [] then Just u else Nothing)
+         (\(u, ks) -> if ks == Ok [] then Just u else Nothing)
 
 --==============================================================================
 --= Constraints
 --==============================================================================
 
-assertEqual : UnExp () -> UnExp () -> Maybe Constraints
+assertEqual : UnExp () -> UnExp () -> Result String Constraints
 assertEqual u1 u2 =
   case (u1, u2) of
     (UConstructor _ ctorName1 uInner1, UConstructor _ ctorName2 uInner2) ->
       if ctorName1 == ctorName2 then
         assertEqual uInner1 uInner2
       else
-        Nothing
+        Err <|
+          "Constructor names do not match: '"
+            ++ ctorName1 ++ "' and '" ++ ctorName2 ++ "'"
 
     (UTuple _ us1, UTuple _ us2) ->
-      if List.length us1 == List.length us2 then
-        List.map2 assertEqual us1 us2
-          |> Utils.projJusts
-          |> Maybe.map List.concat
-      else
-        Nothing
+      let
+        us1Length =
+          List.length us1
+
+        us2Length =
+          List.length us2
+      in
+        if us1Length == us2Length then
+          List.map2 assertEqual us1 us2
+            |> Utils.projOk
+            |> Result.map List.concat
+        else
+          Err <|
+            "Tuple lengths do not match: "
+              ++ toString us1Length ++ " and " ++ toString us2Length
 
     (UHoleClosure _ env (holeId, _), _) ->
-      Maybe.map (\ex -> [(holeId, (env, ex))]) <|
-        expToExample u2
+      Result.map (\ex -> [(holeId, (env, ex))]) <|
+        Result.fromMaybe
+          ( "Right-hand side "
+              ++ U.unExpName u2
+              ++ " expression could not be converted to example"
+          )
+          ( expToExample u2
+          )
 
     (_, UHoleClosure _ env (holeId, _)) ->
-      Maybe.map (\ex -> [(holeId, (env, ex))]) <|
-        expToExample u1
+      Result.map (\ex -> [(holeId, (env, ex))]) <|
+        Result.fromMaybe
+          ( "Left-hand side "
+              ++ U.unExpName u1
+              ++ " expression could not be converted to example"
+          )
+          ( expToExample u1
+          )
 
     (UApp _ u1 u1Arg, UApp _ u2 u2Arg) ->
       let
@@ -633,23 +662,28 @@ assertEqual u1 u2 =
         argConstraints =
           assertEqual u1Arg u2Arg
       in
-        Maybe.map2 (++) funcConstraints argConstraints
+        Result.map2 (++) funcConstraints argConstraints
 
     (UGet _ n1 i1 u1, UGet _ n2 i2 u2) ->
       if n1 == n2 && i1 == i2 then
         assertEqual u1 u2
       else
-        Nothing
+        Err <|
+          "Tuple projections do not match: ("
+            ++ toString n1 ++ "_" ++ toString i1
+            ++ ") and ("
+            ++ toString n2 ++ "_" ++ toString i2
+            ++ ")"
 
     (UCase _ env1 u1 branches1, UCase _ env2 u2 branches2) ->
       if env1 /= env2 then
         Debug.log
           "WARN: env1 /= env2 for case statement in assertEqual"
-          Nothing
+          (Err "Case environments do not match")
       else if branches1 /= branches2 then
         Debug.log
           "WARN: branches1 /= branches2 for case statement in assertEqual"
-          Nothing
+          (Err "Case branches do not match")
       else
         assertEqual u1 u2
 
@@ -658,7 +692,7 @@ assertEqual u1 u2 =
         let
           _ = Debug.log "WARN: u1 == u2 case in assertEqual" ()
         in
-          Just []
+          Ok []
       else
         case expToExample u2 of
           Just ex2 ->
@@ -670,46 +704,56 @@ assertEqual u1 u2 =
                 backprop u2 ex1
 
               Nothing ->
-                Nothing
+                Err "Incompatible examples"
 
 --==============================================================================
 --= Backpropagation
 --==============================================================================
 
-evalBackprop : U.Env -> Exp -> Example -> Maybe Constraints
+evalBackprop : U.Env -> Exp -> Example -> Result String Constraints
 evalBackprop env exp example =
   exp
     |> evalWithEnv env
-    |> Result.toMaybe
-    |> Maybe.andThen
-         ( \(uResult, maybeEvalConstraints) ->
-             maybeEvalConstraints |> Maybe.andThen (\evalConstraints ->
-               Maybe.map
+    |> Result.andThen
+         ( \(uResult, resultEvalConstraints) ->
+             resultEvalConstraints |> Result.andThen (\evalConstraints ->
+               Result.map
                  ((++) evalConstraints)
                  (backprop uResult example)
              )
          )
 
-backprop : UnExp () -> Example -> Maybe Constraints
+backprop : UnExp () -> Example -> Result String Constraints
 backprop u ex =
   if ex == ExDontCare then
-    Just []
+    Ok []
   else
     case (u, ex) of
       (UConstructor _ uIdent uInner, ExConstructor exIdent exInner) ->
         if uIdent == exIdent then
           backprop uInner exInner
         else
-          Nothing
+          Err <|
+            "Constructor names do not match: '"
+              ++ uIdent ++ "' and '" ++ exIdent ++ "'"
 
       (UTuple _ uInners, ExTuple exInners) ->
-        if List.length uInners == List.length exInners then
-          exInners
-            |> List.map2 backprop uInners
-            |> Utils.projJusts
-            |> Maybe.map List.concat
-        else
-          Nothing
+        let
+          uLength =
+            List.length uInners
+
+          exLength =
+            List.length exInners
+        in
+          if List.length uInners == List.length exInners then
+            exInners
+              |> List.map2 backprop uInners
+              |> Utils.projOk
+              |> Result.map List.concat
+          else
+            Err <|
+              "Tuple lengths do not match: "
+                ++ toString uLength ++ " and " ++ toString exLength
 
       (UFunClosure _ env param body, ExPartialFunction bindings) ->
         let
@@ -721,11 +765,11 @@ backprop u ex =
         in
           bindings
             |> List.map backpropBinding
-            |> Utils.projJusts
-            |> Maybe.map List.concat
+            |> Utils.projOk
+            |> Result.map List.concat
 
       (UHoleClosure _ env (i, j), _) ->
-        Just [(i, (env, ex))]
+        Ok [(i, (env, ex))]
 
       (UApp _ uHead uArg, _) ->
         let
@@ -749,11 +793,12 @@ backprop u ex =
 
       (UCase _ env uScrutinee branches, _) ->
         let
-          tryBranch : UnExp () -> (Ident, Ident, Exp) -> Maybe Constraints
+          tryBranch :
+            UnExp () -> (Ident, Ident, Exp) -> Result String Constraints
           tryBranch uScrutinee (ctorName, argName, body) =
             -- Cannot be applicative because we only want to continue if the
             -- first computation succeeds
-            flip Maybe.andThen
+            flip Result.andThen
               ( backprop uScrutinee (ExConstructor ctorName ExDontCare)
               )
               ( \ks1 ->
@@ -765,12 +810,17 @@ backprop u ex =
                         env
                   in
                     evalBackprop newEnv body ex
-                      |> Maybe.map (\ks2 -> ks1 ++ ks2)
+                      |> Result.map (\ks2 -> ks1 ++ ks2)
               )
         in
           branches
             |> List.map (tryBranch uScrutinee)
-            |> Utils.firstMaybe
+            |> Utils.firstOk "Could not find suitable branch in case statement"
 
       _ ->
-        Nothing
+        Err <|
+          "Cannot backpropagate "
+            ++ U.exampleName ex
+            ++ " example into "
+            ++ U.unExpName u
+            ++ " expression."
