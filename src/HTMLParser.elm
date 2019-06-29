@@ -66,7 +66,7 @@ type HTMLCommentStyle = Less_Greater String {- The string should start with a ? 
                       | LessBang_Greater String
                       | LessBangDashDash_DashDashGreater String
 
-type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotClosing
+type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotClosing | ImplicitElem
 type HTMLEndOpeningStyle = RegularEndOpening {- usually > -} | SlashEndOpening {- add a slash before the '>' of the opening, does not mark the element as ended in non-void HTML elements -}
 -- HTMLInner may have unmatched closing tags inside it. You have to remove them to create a real innerHTML
 -- HTMLInner may have unescaped chars (e.g. <, >, & etc.)
@@ -461,6 +461,27 @@ mergeInners children = case children of
       _ -> h1 :: h2 :: mergeInners tail
   _ -> children
 
+wrapImplicitElems: String -> List HTMLNode -> List HTMLNode
+wrapImplicitElems tagName children =
+  case tagName of
+    "table" -> -- There could be an implicit <tbody> as first child
+      let firstChildTag childList = case childList of
+            [] -> Nothing
+            head :: tail ->
+              case head.val of
+                HTMLInner s1 -> firstChildTag tail
+                HTMLElement (HTMLTagString t) _ _ _ _ _ -> Just t.val
+                HTMLElement _ _ _ _ _ _ -> Nothing
+                HTMLComment _ -> firstChildTag tail
+                HTMLEntity _ _ -> firstChildTag tail
+                HTMLListNodeExp _ -> Nothing -- We don't know what's generated
+      in
+      case firstChildTag children of
+        Just "tr" ->
+          [withDummyInfo <| HTMLElement (HTMLTagString (withDummyInfo "tbody")) [] space0 RegularEndOpening children ImplicitElem]
+        _ -> children
+    _ -> children
+
 -- Always succeed if the string starts with <(letter)
 parseHTMLElement: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
 parseHTMLElement parsingMode surroundingTagNames namespace =
@@ -472,7 +493,7 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
          _ -> parsingMode
        in
        succeed (\attrs sp1 (endOpeningStyle, children, closingStyle)  ->
-             HTMLElement tagNode attrs sp1 endOpeningStyle (mergeInners children) closingStyle)
+             HTMLElement tagNode attrs sp1 endOpeningStyle (wrapImplicitElems tagName (mergeInners children)) closingStyle)
        |= repeat zeroOrMore (parseHTMLAttribute parsingMode)
        |= attributeSpaces
        |= oneOf ((
@@ -608,6 +629,7 @@ unparseClosing htmlTag closing =
         VoidClosing -> ""
         AutoClosing -> ""
         ForgotClosing -> ""
+        ImplicitElem -> ""
     _ -> "Don't know how to unparse tag " ++ toString htmlTag
 
 unparseCommentStyle: HTMLCommentStyle -> String

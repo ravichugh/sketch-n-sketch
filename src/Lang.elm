@@ -2697,9 +2697,10 @@ vHtmlTextUnapply v = case v.v_ of
     _ -> Nothing
   _ -> Nothing
 
-encoding_autoclosing = " "
-encoding_voidclosing = "  "
-encoding_forgotclosing = "   "
+encoding_autoclosing   = " "     -- <link ... />  (not necessary in HTML but tolerated)
+encoding_voidclosing   = "  "    -- <br> or <img>
+encoding_forgotclosing = "   "   -- <span>Hello <i>world</span>
+encoding_implicitelem  = "    "  -- implicit <tbody> inside <table>
 
 vHtmlTextDiffs d =
   VListDiffs [(1, ListElemUpdate d)]

@@ -73,6 +73,7 @@ htmlNodeToVal vb n =
         VoidClosing ->Vb.constructor vb "VoidClosing" []
         AutoClosing -> Vb.constructor vb "AutoClosing" []
         ForgotClosing ->Vb.constructor vb "ForgotClosing" []
+        ImplicitElem -> Vb.constructor vb "ImplicitElem" []
     ]
   HTMLComment style -> Vb.constructor vb "HTMLComment" [case style of
       Less_Greater content -> Vb.constructor vb "Less_Greater" [Vb.string vb content]
@@ -146,7 +147,8 @@ valToHtmlNode v =
            Ok ("VoidClosing", [])        -> Ok VoidClosing
            Ok ("AutoClosing", [])        -> Ok AutoClosing
            Ok ("ForgotClosing", [])      -> Ok ForgotClosing
-           _ -> Err <| "Expected RegularClosing space, VoidClosing, AutoClosing, ForgotClosing, got " ++ valToString closingV
+           Ok ("ImplicitElem", [])       -> Ok ImplicitElem
+           _ -> Err <| "Expected RegularClosing space, VoidClosing, AutoClosing, ForgotClosing or ImplicitElem, got " ++ valToString closingV
          )
         )
   Ok ("HTMLComment", [styleV]) ->

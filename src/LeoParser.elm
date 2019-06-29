@@ -778,13 +778,14 @@ htmlComment source comment =
     (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" "COMMENT")) source.start source.start),
     (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" string)) startString endString)] space0 Nothing space0
 
-htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->   Bool ->     Bool ->     Bool ->       WS ->                  WithInfo Exp_
-htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing forgotClosing spaceAfterTagClosing =
+htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->   Bool ->     Bool ->     Bool ->       Bool ->      WS ->                  WithInfo Exp_
+htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing forgotClosing implicitElem spaceAfterTagClosing =
   let origin = replaceInfo source << exp_ in
   let spaceBeforeTail = withDummyInfo <|
     if autoclosing then encoding_autoclosing else
     if voidClosing then encoding_voidclosing else
-    if forgotClosing then encoding_forgotclosing else "" in -- Hack: If there is a space and no children, mark the element autoclose.
+    if forgotClosing then encoding_forgotclosing else
+    if implicitElem then encoding_implicitelem else "" in -- Hack: If there is a space and no children, mark the element autoclose.
   let tag = case tagName of
     HTMLParser.HTMLTagString s -> withInfo (exp_ <| EBase space0 <| EString "\"" s.val) s.start s.end
     HTMLParser.HTMLTagExp e -> e
@@ -922,7 +923,8 @@ htmlToExp node =
                      (if isInterpolation then eMergeTexts start end else identity) <| Expr finalchildren)
                    (closingStyle == HTMLParser.AutoClosing)
                    (closingStyle == HTMLParser.VoidClosing)
-                   (closingStyle == HTMLParser.ForgotClosing)<|
+                   (closingStyle == HTMLParser.ForgotClosing)
+                   (closingStyle == HTMLParser.ImplicitElem) <|
                    case closingStyle of
                      HTMLParser.RegularClosing sp -> sp
                      _ -> space0
