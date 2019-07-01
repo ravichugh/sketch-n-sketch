@@ -4472,6 +4472,12 @@ String = {
             else
               \"*\" + content + \"*\"
           ) inserted
+        inserted =
+          Regex.replace \"\"\"\\s*<(h([1-6]))>((?:(?!</\\1\\s*>).)*)</\\1\\s*>\\s*\"\"\" (\\m ->
+              let n = String.toInt <| nth m.group 2
+                  hash = String.repeat n \"#\"
+              in \"\\n\\n\" + hash + \" \" + String.trim (nth m.group 3) + \"\\n\\n\"
+            ) inserted
         inserted = case Regex.extract \"\"\"^([\\s\\S]*)</p>\\s*<p>([\\s\\S]*)$\"\"\" inserted of
           Just [before, after] -> before + \"\\n\\n\" + after
           _ -> inserted
@@ -4904,6 +4910,7 @@ Html = {
   h4 = textElementHelper \"h4\"
   h5 = textElementHelper \"h5\"
   h6 = textElementHelper \"h6\"
+  pre = textElementHelper \"pre\"
 
   (elementHelper) tag styles attrs children =
     [ tag,  [\"style\", styles] :: attrs , children ]
@@ -5912,12 +5919,12 @@ div_ = Html.div
 TableWithButtons =
   let wrapData rows =
     let blankRow =
-      let numColumns =
-        case rows of
-          []     -> 0
-          row::_ -> List.length row
-      in
-      List.repeat numColumns \"?\"
+       let numColumns =
+         case rows of
+            []     -> 0
+            row::_ -> List.length row
+       in
+       List.repeat numColumns \"?\"
     in
     Update.applyLens
       { apply rows = List.map (\\row -> (False, row)) rows
