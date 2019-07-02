@@ -523,9 +523,9 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
           worldFromEntry partialFunction env (arg, output) =
             ( env
                 -- TODO Fancy fix rule for recursive function binding
-                |> U.addVarBinding
-                     recFunctionName
-                     (UPartialFunction () partialFunction)
+                -- |> U.addVarBinding
+                --      recFunctionName
+                --      (UPartialFunction () partialFunction)
                 -- Argument binding
                 |> U.addVarBinding argName arg
             , output
