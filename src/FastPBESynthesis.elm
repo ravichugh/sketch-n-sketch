@@ -204,12 +204,16 @@ showTree =
               in
                 "Match " ++ LeoUnparser.unparse scrutinee ++ "\n" ++ children
 
-            Guess { sp } ->
+            Guess { sp, guess } ->
               "Guess <"
                 ++ LeoUnparser.unparseType sp.goalType
                 ++ ">["
                 ++ showTypePairs sp.gamma
                 ++ "]"
+                ++ ( case guess of
+                       Nothing -> ""
+                       Just ss -> ": " ++ toString ss
+                   )
 
             EarlyTermination { reason } ->
               let
@@ -253,22 +257,24 @@ nheight =
 -- Satisfaction
 --------------------------------------------------------------------------------
 
--- Nothing: False
--- Just constraints: True, provided that constraints are met
-satisfiesWorlds : Worlds -> Exp -> Maybe Constraints
+-- Non-deterministically returns a list of constraints that ensures `exp`
+-- `worlds`. If the result is `NonDet.none`, then `exp` can never satisfy
+-- `worlds`.
+satisfiesWorlds : Worlds -> Exp -> NonDet Constraints
 satisfiesWorlds worlds exp =
   let
-    satisfiesWorld : World -> Exp -> Maybe Constraints
+    satisfiesWorld : World -> NonDet Constraints
     satisfiesWorld (env, ex) =
-      TriEval.evalWithEnv env
-        >> TriEval.ensureConstraintFree
-        >> Maybe.andThen (flip TriEval.backprop ex >> Result.toMaybe)
+      exp
+        |> TriEval.evalWithEnv env
+        |> TriEval.ensureConstraintFree
+        |> Maybe.map (flip TriEval.backprop ex)
+        |> Maybe.withDefault NonDet.none
   in
     worlds
       |> List.map satisfiesWorld
-      |> flip Utils.applyList exp
-      |> Utils.projJusts
-      |> Maybe.map List.concat
+      |> NonDet.oneOfEach
+      |> NonDet.map List.concat
 
 --------------------------------------------------------------------------------
 -- Synthesis
@@ -289,7 +295,7 @@ guessAndCheck params ({ worlds } as sp) =
         State.pure NonDet.none
       else
         let
-          possibleSolutionState =
+          possibleGuessState =
             TermGen.exactlyE
               { termSize = i
               , sigma = sp.sigma
@@ -297,12 +303,12 @@ guessAndCheck params ({ worlds } as sp) =
               , goalType = sp.goalType
               }
         in
-          State.do possibleSolutionState <| \possibleSolution ->
+          State.do possibleGuessState <| \possibleGuess ->
             let
               result =
-                NonDet.collapseMaybe <|
-                  NonDet.pureDo possibleSolution <| \e ->
-                    Utils.liftMaybePair2 (e, satisfiesWorlds worlds e)
+                NonDet.do possibleGuess <| \guess ->
+                NonDet.pureDo (satisfiesWorlds worlds guess) <| \constraints ->
+                  (guess, constraints)
             in
               if NonDet.isEmpty result then
                 helper (i + 1)
@@ -331,15 +337,15 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
           let
             extract : World -> Maybe World
             extract (env, ex) =
-                case ex of
-                  ExConstructor exCtorName exInner ->
-                    if exCtorName == ctorName then
-                      Just (env, exInner)
-                    else
-                      Nothing
-
-                  _ ->
+              case ex of
+                ExConstructor exCtorName exInner ->
+                  if exCtorName == ctorName then
+                    Just (env, exInner)
+                  else
                     Nothing
+
+                _ ->
+                  Nothing
           in
             filteredWorlds
               |> List.map extract

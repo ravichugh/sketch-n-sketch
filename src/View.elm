@@ -50,6 +50,7 @@ import LeoUnparser
 import Types2
 import TinyStructuredEditorsForLowLowPricesView
 import PBESuite
+import NonDet exposing (NonDet)
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -3071,48 +3072,48 @@ viewEnv env =
       ( List.map viewBinding env
       )
 
-viewCollectedConstraints : Result String U.Constraints -> List (Html Msg)
-viewCollectedConstraints resultConstraints =
+viewCollectedConstraints : NonDet U.Constraints -> List (Html Msg)
+viewCollectedConstraints possibleConstraints =
   let
     viewConstraint : U.Constraint -> Html Msg
     viewConstraint (holeId, (env, example)) =
       Html.li
         [ Attr.class "pbe-constraint"
         ]
-        [ viewEnv env
-        , Html.code
+        [ -- viewEnv env
+          Html.code
             []
             [ Html.text <|
-                toString holeId ++ " ↦ " ++ toString example
+                toString holeId
+                  ++ " ↦ "
+                  ++ U.unparseExample example
             ]
         ]
   in
-    case resultConstraints of
-      Ok constraints ->
-        if List.isEmpty constraints then
+    if NonDet.isEmpty possibleConstraints then
+      [ Html.div
           []
-        else
-            [ Html.div
-                [ Attr.class "pbe-constraint-header"
-                ]
-                [ Html.h2
-                    []
-                    [ Html.text "Collected Constraints"
-                    ]
-                ]
-            , Html.ul
-                [ Attr.class "pbe-constraint-list"
-                ]
-                ( List.map viewConstraint constraints
-                )
-            ]
-
-      Err reason ->
+          [ Html.text <|
+              "Could not resolve example collection."
+          ]
+      ]
+    else
+      flip List.concatMap (NonDet.toList possibleConstraints) <| \constraints ->
         [ Html.div
-            []
-            [ Html.text <|
-                "Could not resolve example collection: " ++ reason
+            [ Attr.class "pbe-constraint-header"
             ]
+            [ Html.h2
+                []
+                [ Html.text "Collected Constraints"
+                ]
+            ]
+        , Html.ul
+            [ Attr.class "pbe-constraint-list"
+            , Attr.style [("list-style-type", "decimal"), ("margin-left", "15px")]
+            ]
+            ( List.map viewConstraint constraints
+            )
+        , Html.hr [ Attr.style [("padding-top", "10px")]] []
         ]
 
 viewBackprop : Model -> List (Html Msg)
@@ -3265,13 +3266,13 @@ pbePopupPanel model =
   let
     (content, noConstraints) =
       case model.unExpOutput of
-        Ok (output, constraints) ->
+        Ok (output, possibleConstraints) ->
           let
             collectedConstraintsView =
               Html.div
                 [ Attr.class "pbe-collected-constraints"
                 ]
-                ( viewCollectedConstraints constraints
+                ( viewCollectedConstraints possibleConstraints
                 )
 
             backpropView =
@@ -3347,9 +3348,9 @@ pbePopupPanel model =
               , synthesizeButton
               , synthesisResults
               ]
-           , constraints
-               |> Result.map List.isEmpty
-               |> Result.withDefault False
+           , possibleConstraints
+               |> NonDet.toList
+               |> List.all List.isEmpty
            )
 
         Err _ ->

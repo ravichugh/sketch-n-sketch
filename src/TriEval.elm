@@ -18,6 +18,7 @@ import Utils
 
 import Evaluator exposing (Evaluator)
 import State exposing (State)
+import NonDet exposing (NonDet)
 
 import UnLang as U exposing (..)
 
@@ -36,7 +37,7 @@ maxStackDepth =
   100
 
 type alias EvalState =
-  { constraints : Result String Constraints
+  { constraints : NonDet Constraints
   , stackDepth : Int
   }
 
@@ -47,16 +48,18 @@ type alias UnExpEvaluator =
 -- Evaluator Helper
 --------------------------------------------------------------------------------
 
-withConstraints : Result String Constraints -> UnExp () -> UnExpEvaluator
+withConstraints : NonDet Constraints -> UnExp () -> UnExpEvaluator
 withConstraints ks u =
   let
-    addConstraints oldState ks =
+    addConstraints oldState =
       { oldState | constraints =
-          Result.map2 (++) oldState.constraints ks
+          NonDet.do oldState.constraints <| \old ->
+          NonDet.pureDo ks <| \new ->
+            old ++ new
       }
   in
     Evaluator.do Evaluator.get <| \oldState ->
-    Evaluator.do (Evaluator.put <| addConstraints oldState ks) <| \_ ->
+    Evaluator.do (Evaluator.put <| addConstraints oldState) <| \_ ->
     Evaluator.succeed u
 
 --------------------------------------------------------------------------------
@@ -583,39 +586,47 @@ setHoleIndexes =
 --------------------------------------------------------------------------------
 
 evalWithEnv :
-  U.Env -> Exp -> Result String (UnExp (), Result String Constraints)
+  U.Env -> Exp -> Result String (UnExp (), NonDet Constraints)
 evalWithEnv env =
   eval_ env
-    >> Evaluator.run { constraints = Ok [], stackDepth = 0 }
+    >> Evaluator.run { constraints = NonDet.pure [], stackDepth = 0 }
     >> Result.map (Tuple.mapFirst setHoleIndexes)
     >> Result.map (Tuple.mapSecond .constraints)
 
 eval :
-  Exp -> Result String (UnExp (), Result String Constraints)
+  Exp -> Result String (UnExp (), NonDet Constraints)
 eval =
   evalWithEnv []
 
 ensureConstraintFree :
-  Result String (UnExp (), Result String Constraints) -> Maybe (UnExp ())
-ensureConstraintFree =
-  Result.toMaybe
-    >> Maybe.andThen
-         (\(u, ks) -> if ks == Ok [] then Just u else Nothing)
+  Result String (UnExp (), NonDet Constraints) -> Maybe (UnExp ())
+ensureConstraintFree evalResult =
+  case evalResult of
+    Err _ ->
+      Nothing
+
+    Ok (u, possibleConstraintResults) ->
+      if
+        possibleConstraintResults
+          |> NonDet.toList
+          |> List.all List.isEmpty
+      then
+        Just u
+      else
+        Nothing
 
 --==============================================================================
 --= Constraints
 --==============================================================================
 
-assertEqual : UnExp () -> UnExp () -> Result String Constraints
+assertEqual : UnExp () -> UnExp () -> NonDet Constraints
 assertEqual u1 u2 =
   case (u1, u2) of
     (UConstructor _ ctorName1 uInner1, UConstructor _ ctorName2 uInner2) ->
       if ctorName1 == ctorName2 then
         assertEqual uInner1 uInner2
       else
-        Err <|
-          "Constructor names do not match: '"
-            ++ ctorName1 ++ "' and '" ++ ctorName2 ++ "'"
+        NonDet.none
 
     (UTuple _ us1, UTuple _ us2) ->
       let
@@ -627,72 +638,17 @@ assertEqual u1 u2 =
       in
         if us1Length == us2Length then
           List.map2 assertEqual us1 us2
-            |> Utils.projOk
-            |> Result.map List.concat
+            |> NonDet.oneOfEach
+            |> NonDet.map List.concat
         else
-          Err <|
-            "Tuple lengths do not match: "
-              ++ toString us1Length ++ " and " ++ toString us2Length
-
-    (UHoleClosure _ env (holeId, _), _) ->
-      Result.map (\ex -> [(holeId, (env, ex))]) <|
-        Result.fromMaybe
-          ( "Right-hand side "
-              ++ U.unExpName u2
-              ++ " expression could not be converted to example"
-          )
-          ( expToExample u2
-          )
-
-    (_, UHoleClosure _ env (holeId, _)) ->
-      Result.map (\ex -> [(holeId, (env, ex))]) <|
-        Result.fromMaybe
-          ( "Left-hand side "
-              ++ U.unExpName u1
-              ++ " expression could not be converted to example"
-          )
-          ( expToExample u1
-          )
-
-    (UApp _ u1 u1Arg, UApp _ u2 u2Arg) ->
-      let
-        funcConstraints =
-          assertEqual u1 u2
-
-        argConstraints =
-          assertEqual u1Arg u2Arg
-      in
-        Result.map2 (++) funcConstraints argConstraints
-
-    (UGet _ n1 i1 u1, UGet _ n2 i2 u2) ->
-      if n1 == n2 && i1 == i2 then
-        assertEqual u1 u2
-      else
-        Err <|
-          "Tuple projections do not match: ("
-            ++ toString n1 ++ "_" ++ toString i1
-            ++ ") and ("
-            ++ toString n2 ++ "_" ++ toString i2
-            ++ ")"
-
-    (UCase _ env1 u1 branches1, UCase _ env2 u2 branches2) ->
-      if env1 /= env2 then
-        Debug.log
-          "WARN: env1 /= env2 for case statement in assertEqual"
-          (Err "Case environments do not match")
-      else if branches1 /= branches2 then
-        Debug.log
-          "WARN: branches1 /= branches2 for case statement in assertEqual"
-          (Err "Case branches do not match")
-      else
-        assertEqual u1 u2
+          NonDet.none
 
     _ ->
       if u1 == u2 then
         let
           _ = Debug.log "WARN: u1 == u2 case in assertEqual" ()
         in
-          Ok []
+          NonDet.pure []
       else
         case expToExample u2 of
           Just ex2 ->
@@ -704,38 +660,36 @@ assertEqual u1 u2 =
                 backprop u2 ex1
 
               Nothing ->
-                Err "Incompatible examples"
+                NonDet.none
 
 --==============================================================================
 --= Backpropagation
 --==============================================================================
 
-evalBackprop : U.Env -> Exp -> Example -> Result String Constraints
+evalBackprop : U.Env -> Exp -> Example -> NonDet Constraints
 evalBackprop env exp example =
-  exp
-    |> evalWithEnv env
-    |> Result.andThen
-         ( \(uResult, resultEvalConstraints) ->
-             resultEvalConstraints |> Result.andThen (\evalConstraints ->
-               Result.map
-                 ((++) evalConstraints)
-                 (backprop uResult example)
-             )
-         )
+  case evalWithEnv env exp of
+    Err _ ->
+      NonDet.none
 
-backprop : UnExp () -> Example -> Result String Constraints
+    Ok (uResult, possibleEvalConstraints) ->
+      NonDet.map List.concat <|
+        NonDet.oneOfEach
+          [ possibleEvalConstraints
+          , backprop uResult example
+          ]
+
+backprop : UnExp () -> Example -> NonDet Constraints
 backprop u ex =
   if ex == ExDontCare then
-    Ok []
+    NonDet.pure []
   else
     case (u, ex) of
       (UConstructor _ uIdent uInner, ExConstructor exIdent exInner) ->
         if uIdent == exIdent then
           backprop uInner exInner
         else
-          Err <|
-            "Constructor names do not match: '"
-              ++ uIdent ++ "' and '" ++ exIdent ++ "'"
+          NonDet.none
 
       (UTuple _ uInners, ExTuple exInners) ->
         let
@@ -746,14 +700,11 @@ backprop u ex =
             List.length exInners
         in
           if List.length uInners == List.length exInners then
-            exInners
-              |> List.map2 backprop uInners
-              |> Utils.projOk
-              |> Result.map List.concat
+            List.map2 backprop uInners exInners
+              |> NonDet.oneOfEach
+              |> NonDet.map List.concat
           else
-            Err <|
-              "Tuple lengths do not match: "
-                ++ toString uLength ++ " and " ++ toString exLength
+            NonDet.none
 
       (UFunClosure _ env param body, ExPartialFunction bindings) ->
         let
@@ -765,11 +716,11 @@ backprop u ex =
         in
           bindings
             |> List.map backpropBinding
-            |> Utils.projOk
-            |> Result.map List.concat
+            |> NonDet.oneOfEach
+            |> NonDet.map List.concat
 
       (UHoleClosure _ env (i, j), _) ->
-        Ok [(i, (env, ex))]
+        NonDet.pure [(i, (env, ex))]
 
       (UApp _ uHead uArg, _) ->
         let
@@ -794,11 +745,13 @@ backprop u ex =
       (UCase _ env uScrutinee branches, _) ->
         let
           tryBranch :
-            UnExp () -> (Ident, Ident, Exp) -> Result String Constraints
+            UnExp ()
+              -> (Ident, Ident, Exp)
+              -> NonDet Constraints
           tryBranch uScrutinee (ctorName, argName, body) =
             -- Cannot be applicative because we only want to continue if the
             -- first computation succeeds
-            flip Result.andThen
+            NonDet.do
               ( backprop uScrutinee (ExConstructor ctorName ExDontCare)
               )
               ( \ks1 ->
@@ -810,17 +763,12 @@ backprop u ex =
                         env
                   in
                     evalBackprop newEnv body ex
-                      |> Result.map (\ks2 -> ks1 ++ ks2)
+                      |> NonDet.map (\ks2 -> ks1 ++ ks2)
               )
         in
           branches
-            |> List.map (tryBranch uScrutinee)
-            |> Utils.firstOk "Could not find suitable branch in case statement"
+            |> NonDet.fromList
+            |> NonDet.andThen (tryBranch uScrutinee)
 
       _ ->
-        Err <|
-          "Cannot backpropagate "
-            ++ U.exampleName ex
-            ++ " example into "
-            ++ U.unExpName u
-            ++ " expression."
+        NonDet.none

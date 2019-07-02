@@ -153,7 +153,7 @@ import ColorNum
 import Syntax exposing (Syntax)
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
-import NonDet
+import NonDet exposing (NonDet)
 import TinyStructuredEditorsForLowLowPrices
 import PBESuite
 
@@ -3571,7 +3571,7 @@ resetDeuceState m =
           }
       , pbeSynthesisResult = Nothing
       , unExpOutput =
-          Result.map (Tuple.mapSecond <| \_ -> Ok []) m.unExpOutput
+          Result.map (Tuple.mapSecond <| \_ -> NonDet.pure []) m.unExpOutput
       , selectedHoles = Set.empty
       , selectedUnExp = Nothing
       , holeExampleInputs = Dict.empty
@@ -4516,33 +4516,28 @@ msgUpdateBackpropExampleInput s =
 collectAndSolve : Model -> Model
 collectAndSolve model =
   let
-    resultCollectedConstraints : Result String Constraints
+    resultCollectedConstraints : NonDet U.Constraints
     resultCollectedConstraints =
       model.unExpOutput
-        |> Result.andThen Tuple.second
+        |> Result.map Tuple.second
+        |> Result.withDefault NonDet.none
 
-    resultBackpropExampleConstraints : Result String Constraints
+    resultBackpropExampleConstraints : NonDet U.Constraints
     resultBackpropExampleConstraints =
       if model.backpropExampleInput == "" then
-        Ok []
+        NonDet.pure []
       else
         case model.selectedUnExp of
           Just uSelected ->
             model.backpropExampleInput
               |> U.parseExample
-              |> Result.mapError
-                   ( \_ ->
-                       "Could not parse backprop example '"
-                         ++ model.backpropExampleInput
-                         ++ "'"
-                    )
-              |> Debug.log "parsed backprop example"
-              |> Result.andThen (TriEval.backprop uSelected)
+              |> Result.map (TriEval.backprop uSelected)
+              |> Result.withDefault NonDet.none
 
           Nothing ->
-            Err "No selected output expression"
+            NonDet.none
 
-    resultHoleExampleConstraints : Result String Constraints
+    resultHoleExampleConstraints : NonDet U.Constraints
     resultHoleExampleConstraints =
       let
         makeWorld : (U.Env, String) -> Result String World
@@ -4566,33 +4561,40 @@ collectAndSolve model =
                    >> Result.map (\(holeId, worlds) -> List.map ((,) holeId) worlds)
                )
           |> Utils.projOk
-          |> Result.map List.concat
+          |> Result.map (List.concat >> NonDet.pure)
+          |> Result.withDefault NonDet.none
+
+    synthesisResult =
+      -- TODO Inefficient to try all at once; interleave instead
+      NonDet.do resultCollectedConstraints <| \k1 ->
+      NonDet.do resultBackpropExampleConstraints <| \k2 ->
+      NonDet.do resultHoleExampleConstraints <| \k3 ->
+        let
+          constraints =
+            k1 ++ k2 ++ k3
+        in
+          if List.isEmpty constraints then
+            NonDet.none
+          else
+            NonDet.pure <|
+              PBESynth.solve
+                (Types2.getDataTypeDefs model.inputExp)
+                model.holeEnv
+                (k1 ++ k2 ++ k3)
   in
-    case
-      ( resultCollectedConstraints
-      , resultBackpropExampleConstraints
-      , resultHoleExampleConstraints
-      )
-    of
-      (Ok k1, Ok k2, Ok k3) ->
+    case List.head (NonDet.toList synthesisResult) of
+      Just (holeFillings, timeTaken) ->
         { model
             | pbeSynthesisResult =
-                let
-                  (holeFillings, timeTaken) =
-                    PBESynth.solve
-                      (Types2.getDataTypeDefs model.inputExp)
-                      model.holeEnv
-                      (k1 ++ k2 ++ k3)
-                in
-                  Just
-                    { holeFillings = NonDet.toList holeFillings
-                    , timeTaken = timeTaken
-                    }
+                Just
+                  { holeFillings = NonDet.toList holeFillings
+                  , timeTaken = timeTaken
+                  }
             , codeAtPbeSynthesis =
                 Just model.code
         }
 
-      _ ->
+      Nothing ->
         { model
             | pbeSynthesisResult = Nothing
             , codeAtPbeSynthesis = Nothing

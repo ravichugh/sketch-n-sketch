@@ -14,6 +14,7 @@ module NonDet exposing
   , join
   , do
   , pureDo
+  , map2
   , isEmpty
   , concat
   , concatMap
@@ -87,6 +88,12 @@ do =
 pureDo : NonDet a -> (a -> b) -> NonDet b
 pureDo =
   flip map
+
+map2 : (a -> b -> c) -> NonDet a -> NonDet b -> NonDet c
+map2 f na nb =
+  do na <| \a ->
+  pureDo nb <| \b ->
+    f a b
 
 --------------------------------------------------------------------------------
 -- Specific Library Functions

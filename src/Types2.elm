@@ -1270,21 +1270,21 @@ typecheck e =
     -- ]
   in
   let result = inferType initEnv { inputExp = e } e in
-  let _ = Debug.log "datatype defs" () in
-  let
-     _ =
-      e |> getDataTypeDefs
-        |> List.map (\(typeName, (argNames, dataConDefs)) ->
-             Debug.log (typeName ++ String.join " " (""::argNames)) (
-               dataConDefs
-                 |> List.map (\(dataCon, args) ->
-                      dataCon ++ " " ++ String.join ", " (List.map toString args)
-                      -- dataCon ++ " " ++ Utils.spaces (List.map unparseType args)
-                    )
-                 |> String.join " , "
-             )
-           )
-  in
+  --   let _ = Debug.log "datatype defs" () in
+  --   let
+  --      _ =
+  --       e |> getDataTypeDefs
+  --         |> List.map (\(typeName, (argNames, dataConDefs)) ->
+  --              Debug.log (typeName ++ String.join " " (""::argNames)) (
+  --                dataConDefs
+  --                  |> List.map (\(dataCon, args) ->
+  --                       dataCon ++ " " ++ String.join ", " (List.map toString args)
+  --                       -- dataCon ++ " " ++ Utils.spaces (List.map unparseType args)
+  --                     )
+  --                  |> String.join " , "
+  --              )
+  --            )
+  --   in
   (result.newExp, result.holeEnv)
 
 -- extra stuff for typechecker

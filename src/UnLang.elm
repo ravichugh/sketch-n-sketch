@@ -175,6 +175,29 @@ lookupRecursiveFunction functionName =
 --= Unparsing
 --==============================================================================
 
+unparseExample : Example -> String
+unparseExample =
+  let
+    exampleToValTotal : Example -> UnVal
+    exampleToValTotal ex =
+      case ex of
+        ExConstructor ident arg ->
+          UVConstructor ident (exampleToValTotal arg)
+
+        ExTuple args ->
+          args
+            |> List.map exampleToValTotal
+            |> UVTuple
+
+        ExPartialFunction pf ->
+          UVPartialFunction pf
+
+        ExDontCare ->
+          UVConstructor "⊤" (UVTuple [])
+  in
+    exampleToValTotal >> valToExp >> unparseSimple
+
+
 unExpName : UnExp () -> String
 unExpName u =
   case u of
@@ -857,7 +880,6 @@ expToVal u =
 
     UCase _ _ _ _ ->
       Nothing
-
 
 valToExp : UnVal -> UnExp ()
 valToExp v =
