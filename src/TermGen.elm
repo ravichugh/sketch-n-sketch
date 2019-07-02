@@ -227,7 +227,7 @@ relGenEApp1
         else
           NonDet.none
   in
-    State.map NonDet.join << State.nSequence <|
+    State.map (NonDet.dedup << NonDet.join) << State.nSequence <|
       NonDet.do possibleArgumentType <| \argumentType ->
       NonDet.do possiblePartition <| \partition ->
         case partition of
@@ -340,7 +340,7 @@ relGenEApp2
                   (termSize - 1 - argCount)
                   argCount
           in
-            State.map NonDet.join << State.nSequence <|
+            State.map (NonDet.dedup << NonDet.join) << State.nSequence <|
               NonDet.pureDo possiblePartition
                 ( \partition ->
                     ( List.map2
@@ -853,6 +853,7 @@ gen ({ termKind, relBinding, genProblem } as genInput) =
           State.andThen (record genInput) <|
             case (termKind, relBinding) of
               (E, Just rb) ->
+
                 relGenE rb genProblem
 
               (I, Just rb) ->

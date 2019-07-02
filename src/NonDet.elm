@@ -21,6 +21,7 @@ module NonDet exposing
   , oneOfEach
   , oneOfEachDict
   , collapseMaybe
+  , dedup
   )
 
 import Dict exposing (Dict)
@@ -125,3 +126,7 @@ oneOfEachDict =
 collapseMaybe : NonDet (Maybe a) -> NonDet a
 collapseMaybe =
   toList >> Utils.filterJusts >> fromList
+
+dedup : NonDet a -> NonDet a
+dedup =
+  toList >> Utils.dedup >> fromList

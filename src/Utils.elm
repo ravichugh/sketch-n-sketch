@@ -1946,3 +1946,27 @@ filterMap2 f =
   filterMap
     ( \(x, y) -> Maybe.map (\z -> (x, z)) (f y)
     )
+
+--------------------------------------------------------------------------------
+
+type Either a b
+  = Left a
+  | Right b
+
+partitionEithers : List (Either a b) -> (List a, List b)
+partitionEithers =
+  let
+    helper revLefts revRights list =
+      case list of
+        [] ->
+          ( List.reverse revLefts
+          , List.reverse revRights
+          )
+
+        (Left x) :: rest ->
+          helper (x :: revLefts) revRights rest
+
+        (Right y) :: rest ->
+          helper revLefts (y :: revRights) rest
+  in
+    helper [] []

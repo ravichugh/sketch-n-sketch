@@ -4564,41 +4564,34 @@ collectAndSolve model =
           |> Result.map (List.concat >> NonDet.pure)
           |> Result.withDefault NonDet.none
 
-    synthesisResult =
-      -- TODO Inefficient to try all at once; interleave instead
-      NonDet.do resultCollectedConstraints <| \k1 ->
-      NonDet.do resultBackpropExampleConstraints <| \k2 ->
-      NonDet.do resultHoleExampleConstraints <| \k3 ->
-        let
-          constraints =
-            k1 ++ k2 ++ k3
-        in
-          if List.isEmpty constraints then
-            NonDet.none
-          else
-            NonDet.pure <|
-              PBESynth.solve
-                (Types2.getDataTypeDefs model.inputExp)
-                model.holeEnv
-                (k1 ++ k2 ++ k3)
-  in
-    case List.head (NonDet.toList synthesisResult) of
-      Just (holeFillings, timeTaken) ->
-        { model
-            | pbeSynthesisResult =
-                Just
-                  { holeFillings = NonDet.toList holeFillings
-                  , timeTaken = timeTaken
-                  }
-            , codeAtPbeSynthesis =
-                Just model.code
-        }
+    possibleConstraints =
+      NonDet.map List.concat <|
+        NonDet.oneOfEach
+          [ resultCollectedConstraints
+          , resultBackpropExampleConstraints
+          , resultHoleExampleConstraints
+          ]
 
-      Nothing ->
-        { model
-            | pbeSynthesisResult = Nothing
-            , codeAtPbeSynthesis = Nothing
-        }
+    (holeFillings, timeTaken) =
+      PBESynth.solve
+        (Types2.getDataTypeDefs model.inputExp)
+        model.holeEnv
+        possibleConstraints
+  in
+    { model
+        | pbeSynthesisResult =
+            Just
+              { holeFillings = holeFillings
+              , timeTaken = timeTaken
+              }
+        , codeAtPbeSynthesis =
+            Just model.code
+    }
+    --  Nothing ->
+    --    { model
+    --        | pbeSynthesisResult = Nothing
+    --        , codeAtPbeSynthesis = Nothing
+    --    }
 
 msgCollectAndSolve : Msg
 msgCollectAndSolve =
