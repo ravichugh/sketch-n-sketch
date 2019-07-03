@@ -124,6 +124,8 @@ type RTree
       , scrutinee : Exp
       , possibleBranches : List (Pat, NonDet RTree)
       }
+  | Hole
+      {}
   | Guess
       { sp : SynthesisProblem
       , guess : Maybe SynthesisSolution
@@ -204,6 +206,9 @@ showTree =
               in
                 "Match " ++ LeoUnparser.unparse scrutinee ++ "\n" ++ children
 
+            Hole _ ->
+              "Hole"
+
             Guess { sp, guess } ->
               "Guess <"
                 ++ LeoUnparser.unparseType sp.goalType
@@ -248,6 +253,9 @@ height rtree =
 
     Match { height } ->
       height
+
+    Hole _ ->
+      0
 
     Guess _ ->
       0
@@ -744,6 +752,13 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                                     , possibleBranches = possibleBranches
                                     }
 
+    holeRefinement () =
+      if not worldsEmpty && filteredWorldsEmpty then
+        NonDet.pure <|
+          Hole {}
+      else
+        NonDet.none
+
     guessRefinement () =
       if not filteredWorldsEmpty && isBaseType sigma goalType then
         NonDet.pure <|
@@ -765,6 +780,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
           , tupleRefinement ()
           , matchRefinement ()
           , guessRefinement ()
+          , holeRefinement ()
           ]
 
 -- Currently does not check height; fills entire tree
@@ -809,6 +825,10 @@ fillGuesses params rtree =
         ) <| \newPossibleBody ->
           Fun
             { info | possibleBody = newPossibleBody }
+
+    Hole info ->
+      State.pure <|
+        Hole info
 
     Match ({ possibleBranches } as info) ->
       State.pureDo
@@ -909,6 +929,9 @@ propagate rtree =
           |> List.map (\(p, ne) -> NonDet.map (\e -> (p, e)) ne)
           |> NonDet.oneOfEach
           |> NonDet.map makeCase
+
+    Hole _ ->
+      NonDet.pure (Lang.eEmptyHole0, [])
 
     Guess { guess } ->
       Maybe.withDefault NonDet.none guess
