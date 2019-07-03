@@ -824,7 +824,7 @@ btString syntax bt =
 
 
 backtraceMessage syntax bt message =
-   (btString syntax bt) ++ "\n" ++ message
+   message ++ "\nTrace leading to this error:\n" ++ (btString syntax bt)
 
 errorWithBacktrace syntax bt message =
   errorMsg <| backtraceMessage syntax bt message
