@@ -755,7 +755,7 @@ backprop u ex =
             NonDet.do
               ( backprop uScrutinee (ExConstructor ctorName ExDontCare)
               )
-              ( \ks1 ->
+              ( \k1 ->
                   let
                     newEnv =
                       U.addVarBinding
@@ -763,8 +763,8 @@ backprop u ex =
                         (UConstructorInverse () ctorName uScrutinee)
                         env
                   in
-                    evalBackprop newEnv body ex
-                      |> NonDet.map (\ks2 -> ks1 ++ ks2)
+                    NonDet.pureDo (evalBackprop newEnv body ex) <| \k23 ->
+                      k1 ++ k23
               )
         in
           branches
