@@ -434,31 +434,30 @@ relGenE
           NonDet.pure <|
             eVar relName
       else
-        -- "Focusing"
-        case Lang.tupleTypeArguments relType of
-          Just componentTypes ->
-            let
-              n =
-                List.length componentTypes
-            in
-              componentTypes
-                |> Utils.zipWithIndex
-                |> List.filter
-                     (Tuple.first >> T.typeEquiv gamma goalType)
-                -- Should be 1-indexed, so use i + 1
-                |> List.map
-                     ( \(_, i) ->
-                         Lang.fromTupleGet (n, i + 1, eVar relName)
-                     )
-                |> NonDet.fromList
-                |> State.pure
-
-          Nothing ->
-            State.pure NonDet.none
+        State.pure NonDet.none
 
     -- No unary operators
     2 ->
-      State.pure NonDet.none
+      case Lang.tupleTypeArguments relType of
+        Just componentTypes ->
+          let
+            n =
+              List.length componentTypes
+          in
+            componentTypes
+              |> Utils.zipWithIndex
+              |> List.filter
+                   (Tuple.first >> T.typeEquiv gamma goalType)
+              -- Should be 1-indexed, so use i + 1
+              |> List.map
+                   ( \(_, i) ->
+                       Lang.fromTupleGet (n, i + 1, eVar relName)
+                   )
+              |> NonDet.fromList
+              |> State.pure
+
+        Nothing ->
+          State.pure NonDet.none
 
     -- All applications have size > 2
     _ ->

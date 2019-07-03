@@ -681,6 +681,7 @@ evalBackprop env exp example =
 
 backprop : UnExp () -> Example -> NonDet Constraints
 backprop u ex =
+ let _ = Debug.log "BACKPROP" (U.unparseSimple u, U.unparseExample ex) in
   if ex == ExDontCare then
     NonDet.pure []
   else

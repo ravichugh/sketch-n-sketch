@@ -3098,23 +3098,29 @@ viewCollectedConstraints possibleConstraints =
           ]
       ]
     else
-      flip List.concatMap (NonDet.toList possibleConstraints) <| \constraints ->
-        [ Html.div
-            [ Attr.class "pbe-constraint-header"
-            ]
-            [ Html.h2
-                []
-                [ Html.text "Collected Constraints"
-                ]
-            ]
-        , Html.ul
-            [ Attr.class "pbe-constraint-list"
-            , Attr.style [("list-style-type", "decimal"), ("margin-left", "15px")]
-            ]
-            ( List.map viewConstraint constraints
-            )
-        , Html.hr [ Attr.style [("padding-top", "10px")]] []
-        ]
+      [ Html.div
+          []
+          [ Html.text <|
+              "Examples collected!"
+          ]
+      ]
+--       flip List.concatMap (NonDet.toList possibleConstraints) <| \constraints ->
+--         [ Html.div
+--             [ Attr.class "pbe-constraint-header"
+--             ]
+--             [ Html.h2
+--                 []
+--                 [ Html.text "Collected Constraints"
+--                 ]
+--             ]
+--         , Html.ul
+--             [ Attr.class "pbe-constraint-list"
+--             , Attr.style [("list-style-type", "decimal"), ("margin-left", "15px")]
+--             ]
+--             ( List.map viewConstraint constraints
+--             )
+--         , Html.hr [ Attr.style [("padding-top", "10px")]] []
+--         ]
 
 viewBackprop : Model -> List (Html Msg)
 viewBackprop model =
