@@ -1182,36 +1182,6 @@ distanceInt (x1,y1) (x2,y2) =
 
 midpoint (x1,y1) (x2,y2) = ((x1 + x2) / 2, (y1 + y2) / 2)
 
--- n:number -> i:[0,n) -> RGB
-numToColor n i =
-  let j = round <| (i/n) * 500 in
-  if between j (  0, 360) then numToColor_ j   else -- color
-  if between j (360, 380) then (0, 0, 0)       else -- black
-  if between j (480, 500) then (255, 255, 255)      -- white
-  else                                              -- grayscale
-    let x =
-    round <| 255 * ((toFloat j - 380) / 100) in (x,x,x)
-
--- Maps a value in [0,360) to an RGB value that lies on the rainbow.
--- Note that you cannot get white or black from this.
--- Note that the choice of 0 to 360 implies degrees as a natural representation.
-numToColor_ : Int -> (Int, Int, Int)
-numToColor_ val =
-    let n    = toFloat <| val % 360
-        i    = floor n // 60
-        max  = 200
-        min  = 55
-        diff = max - min
-    in
-     case i of
-       0 -> (max, round <| min + diff * (1 - (60 - n) / 60),  min)
-       1 -> (round <| max - diff * (1 - (120 - n) / 60), max, min)
-       2 -> (min, max, round <| min + diff * (1 - (180 - n) / 60))
-       3 -> (min, round <| max - diff * (1 - (240 - n) / 60), max)
-       4 -> (round <| min + diff * (1 - (300 - n) / 60), min, max)
-       5 -> (max, min, round <| max - diff * (1 - (360 - n) / 60))
-       _ -> Debug.crash "numToColor"
-
 radiansToDegrees : Float -> Float
 radiansToDegrees rad = (rad / pi) * 180
 

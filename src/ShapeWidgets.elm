@@ -1057,7 +1057,7 @@ zoneToMaybePointFeature realZone =
 ------------------------------------------------------------------------------
 -- Params for Shape Widget Sliders (needed by Sync and View)
 
-wColorSlider = 250
+wColorSlider = 265 -- ColorNum.maxColorNum / 2
 wStrokeWidthSlider = 60
 wOpacitySlider = 20
 

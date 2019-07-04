@@ -18,6 +18,7 @@ import LangSvg exposing
 import ShapeWidgets exposing
   ( RealZone, RealZone(..), PointFeature(..), OtherFeature(..)
   )
+import ColorNum
 import MathExp
 import Solver
 import FastParser exposing (isPreludeLoc, substPlusOf)
@@ -1125,8 +1126,8 @@ computeFillAndStrokeTriggers (unfrozenLocIdSet, subst) maybeCounts (id, _, attrs
 -- Scale Updates Based on UI Params --
 
 colorNumPlus n dx =
-  let scale = 1 / (ShapeWidgets.wColorSlider / LangSvg.maxColorNum) in
-  let clamp = Utils.clamp 0 (LangSvg.maxColorNum - 1) in
+  let scale = 1 / (ShapeWidgets.wColorSlider / ColorNum.maxColorNum) in
+  let clamp = Utils.clamp 0 (ColorNum.maxColorNum - 1) in
   clamp (n + scale * toFloat dx)
 
 strokeWidthNumPlus n dx =

@@ -18,6 +18,7 @@ import ShapeWidgets exposing
   ( RealZone, RealZone(..)
   , SelectableFeature(..), GenericFeature(..), PointFeature(..), DistanceFeature(..), OtherFeature(..), ShapeFeature(..)
   )
+import ColorNum
 import SleekLayout exposing (canvasPosition)
 import Sync
 import Draw exposing (pointZoneStyles, colorPointSelected, colorPointNotSelected, colorLineSelected, colorLineNotSelected, colorInput, colorOutput, colorInputAndOutput)
@@ -1468,7 +1469,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
   let yOff = a + rotZoneDelta in
   let selectableFeature = ShapeFeature id shapeFeature in
   let ball =
-    let cx = x + (n / LangSvg.maxColorNum) * wGradient in
+    let cx = x + (n / ColorNum.maxColorNum) * wGradient in
     let cy = y - yOff + (h/2) in
     flip Svg.circle [] <|
       [ attr "stroke" "black" , attr "stroke-width" strokeWidth
@@ -1489,13 +1490,36 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
       , attr "width" (toString w) , attr "height" (toString h)
       ]
   in
+  let checkeredBg =
+    [ Svg.pattern
+        [ attr "id" "checker"
+        , attr "width" "6", attr "height" "6"
+        , attr "patternUnits" "userSpaceOnUse"
+        ]
+        [ flip Svg.rect [] <|
+            [ attr "fill" "lightgray"
+            , attr "width" "3" , attr "height" "3"
+            ]
+        , flip Svg.rect [] <|
+            [ attr "fill" "lightgray"
+            , attr "x" "3", attr "y" "3"
+            , attr "width" "3" , attr "height" "3"
+            ]
+        ]
+    , flip Svg.rect [] <|
+        [ attr "fill" "url(#checker)"
+        , attr "x" (toString x) , attr "y" (toString (y - yOff))
+        , attr "width" (toString w) , attr "height" (toString h)
+        ]
+    ]
+  in
   -- TODO would probably be faster with an image...
   let gradient () =
     List.map (\i ->
-      let (r,g,b) = Utils.numToColor ShapeWidgets.wColorSlider i in
+      let (r,g,b,o) = ColorNum.numToColorScaled w i in
 
       let fill =
-        "rgb" ++ Utils.parens (String.join "," (List.map toString [r,g,b]))
+        "rgba" ++ Utils.parens (String.join "," (List.map toString [r,g,b] ++ [toString o]))
       in
       flip Svg.rect [] <|
         [ attr "fill" fill
@@ -1505,7 +1529,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
   in
   [ Svg.g
       [onMouseDownAndStop (toggleSelected [selectableFeature])]
-      (gradient () ++ [box])
+      (checkeredBg ++ gradient () ++ [box])
   , ball
   ]
 

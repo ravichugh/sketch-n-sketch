@@ -4,7 +4,7 @@ module LangSvg exposing
   , AVal, AVal_(..), PathCounts, PathCmd(..), TransformCmd(..)
   , Attr, IndexedTree, RootedIndexedTree, IndexedTreeNode, IndexedTreeNode_(..)
   , NodeInfo, foldSlateNodeInfo
-  , maxColorNum, maxStrokeWidthNum
+  , maxStrokeWidthNum
   , dummySvgNode
   , rootIsShapeOrText
   , vListToIndexedTree
@@ -84,7 +84,7 @@ type AVal_
   | AString String
   | APoints (List Point)
   | ARgba Rgba
-  | AColorNum (NumTr, Maybe NumTr) -- Utils.numToColor [0,500), and opacity
+  | AColorNum (NumTr, Maybe NumTr) -- ColurNum.numToColor [0,500), and opacity
   | APath2 (List PathCmd, PathCounts)
   | ATransform (List TransformCmd)
   | ABounds (NumTr, NumTr, NumTr, NumTr)
@@ -118,7 +118,6 @@ replaceAv_ av av_ = { interpreted = av_, val = av.val }
 
 -- Max Attribute Values for Shape Widget Sliders --
 
-maxColorNum = 500
 maxStrokeWidthNum = 20
 
 
@@ -579,12 +578,12 @@ strAVal a = case a.interpreted of
   APath2 p  -> strAPathCmds (Tuple.first p)
   ATransform l -> Utils.spaces (List.map strTransformCmd l)
   ABounds bounds -> strBounds bounds
-  AColorNum (n, Nothing) ->
-    -- slight optimization:
-    strRgba_ (ColorNum.convert (Tuple.first n))
-  AColorNum (n, Just (opacity, _)) ->
-    let (r,g,b) = Utils.numToColor maxColorNum (Tuple.first n) in
-    strRgba_ [toFloat r, toFloat g, toFloat b, opacity]
+  AColorNum ((n, _), Nothing) ->
+    let (r,g,b,o) = ColorNum.numToColor n in
+    strRgba_ [toFloat r, toFloat g, toFloat b, o]
+  AColorNum ((n, _), Just (opacity, _)) ->
+    let (r,g,b,o) = ColorNum.numToColor n in
+    strRgba_ [toFloat r, toFloat g, toFloat b, o * opacity]
   AStyle styles -> strStyle styles
 
 
