@@ -18,9 +18,11 @@ module Types2 exposing
   , DataConDef
 
   , BindingSpecification(..)
+  , showBindSpec
   , bindSpec
   , subBindSpec
   , structurallyDecreasing
+  , structurallyDecreasingBindSpec
 
   , TypeEnv
   , TypeEnvElement(..)
@@ -177,9 +179,29 @@ aceTypeInfo exp =
 type alias TypeEnv = List TypeEnvElement
 
 type BindingSpecification
-  = Rec
+  = Rec (List Pat)
   | Arg Pat
   | Dec Pat
+
+showBindSpec : Maybe BindingSpecification -> String
+showBindSpec b =
+  let
+    bindString =
+      case b of
+        Just (Rec ps) ->
+          "rec "
+            ++ ( String.join ", " <| List.map LeoUnparser.unparsePattern ps)
+
+        Just (Arg p) ->
+          "arg " ++ LeoUnparser.unparsePattern p
+
+        Just (Dec p) ->
+          "dec " ++ LeoUnparser.unparsePattern p
+
+        Nothing ->
+          "."
+  in
+    "{" ++ bindString ++ "}"
 
 type TypeEnvElement
   = HasType Pat (Maybe Type) (Maybe BindingSpecification)
@@ -275,7 +297,7 @@ typeAliasesOfGamma =
 subBindSpec : BindingSpecification -> Maybe BindingSpecification
 subBindSpec b =
   case b of
-    Rec ->
+    Rec _ ->
       Nothing
 
     Arg f ->
@@ -286,22 +308,55 @@ subBindSpec b =
 
 structurallyDecreasing : TypeEnv -> Exp -> Exp -> Bool
 structurallyDecreasing gamma head arg =
-  case unwrapExp head of
-    EVar _ headName ->
-      case bindSpec gamma head of
-        Just Rec ->
-          case bindSpec gamma arg of
-            Just (Dec pat) ->
-              case unwrapPat pat of
-                PVar _ decName _ ->
-                  decName == headName
+  structurallyDecreasingBindSpec
+    { parent = bindSpec gamma head
+    , child = bindSpec gamma arg
+    }
+--  case unwrapExp head of
+--    EVar _ headName ->
+--      case bindSpec gamma head of
+--        Just (Rec _) ->
+--          case bindSpec gamma arg of
+--            Just (Dec pat) ->
+--              case unwrapPat pat of
+--                PVar _ decName _ ->
+--                  decName == headName
+--
+--                _ ->
+--                  False
+--            _ ->
+--              False
+--        _ ->
+--          True
+--    _ ->
+--      True
 
-                _ ->
-                  False
+structurallyDecreasingBindSpec :
+  { parent : Maybe BindingSpecification
+  , child : Maybe BindingSpecification
+  } -> Bool
+structurallyDecreasingBindSpec { parent, child } =
+  case parent of
+    Just (Rec parentPats) ->
+      case child of
+        Just (Dec childPat) ->
+          case unwrapPat childPat of
+            PVar _ childName _ ->
+              List.any
+                ( \parentPat ->
+                    case unwrapPat parentPat of
+                      PVar _ parentName _ ->
+                        parentName == childName
+
+                      _ ->
+                        False
+                )
+                parentPats
+
             _ ->
               False
         _ ->
-          True
+          False
     _ ->
       True
 
@@ -2077,13 +2132,18 @@ inferType gamma stuff thisExp =
                 let
                   assumedRecPatTypes : List (Pat, Maybe Type, Maybe BindingSpecification)
                   assumedRecPatTypes =
-                    listLetExpAndMaybeType
-                      |> List.map (\((LetExp _ _ pat _ _ _), maybeAnnotatedType) ->
-                           ( pat
-                           , maybeAnnotatedType
-                           , Just Rec
+                    let
+                      allPats =
+                        listLetExpAndMaybeType
+                          |> List.map (\((LetExp _ _ pat _ _ _), _) -> pat)
+                    in
+                      listLetExpAndMaybeType
+                        |> List.map (\((LetExp _ _ pat _ _ _), maybeAnnotatedType) ->
+                             ( pat
+                             , maybeAnnotatedType
+                             , Just (Rec allPats)
+                             )
                            )
-                         )
                 in
                   List.foldl addHasMaybeType accGamma assumedRecPatTypes
 

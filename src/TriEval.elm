@@ -5,7 +5,8 @@
 --   - Example collection (constraint collection)
 --------------------------------------------------------------------------------
 module TriEval exposing
-  ( evalWithEnv
+  ( setNoData
+  , evalWithEnv
   , eval
   , ensureConstraintFree
   , backprop
@@ -23,6 +24,7 @@ import NonDet exposing (NonDet)
 import UnLang as U exposing (..)
 
 import Lang exposing (..)
+import Types2 as T
 
 --==============================================================================
 --= Evaluation
@@ -36,19 +38,34 @@ maxStackDepth : Int
 maxStackDepth =
   100
 
+type alias Data =
+  { bindSpec : Maybe T.BindingSpecification
+  }
+
+-- "no data"
+nd : Data
+nd =
+  { bindSpec =
+      Nothing
+  }
+
+setNoData : UnExp d -> UnExp Data
+setNoData =
+  U.mapData (\_ -> nd)
+
 type alias EvalState =
   { constraints : NonDet Constraints
   , stackDepth : Int
   }
 
 type alias UnExpEvaluator =
-  Evaluator EvalState String (UnExp ())
+  Evaluator EvalState String (UnExp Data)
 
 --------------------------------------------------------------------------------
 -- Evaluator Helper
 --------------------------------------------------------------------------------
 
-withConstraints : NonDet Constraints -> UnExp () -> UnExpEvaluator
+withConstraints : NonDet Constraints -> UnExp Data -> UnExpEvaluator
 withConstraints ks u =
   let
     addConstraints oldState =
@@ -75,7 +92,7 @@ identifierFromPat p =
     _ ->
       Nothing
 
-apply : U.Env -> UnExp () -> List (UnExp ()) -> UnExpEvaluator
+apply : U.Env -> UnExp Data -> List (UnExp Data) -> UnExpEvaluator
 apply env head arguments =
   case arguments of
     [] ->
@@ -83,21 +100,39 @@ apply env head arguments =
 
     firstArgument :: restArguments ->
       case head of
-        UFunClosure _ functionEnv parameter body ->
+        UFunClosure { bindSpec } functionEnv maybeName parameter body ->
           let
-            newEnv =
-              U.addVarBinding parameter firstArgument functionEnv
-
-            increaseStackDepth oldState =
-              { oldState | stackDepth = oldState.stackDepth + 1 }
+            argBindSpec =
+              firstArgument
+                |> getData
+                |> .bindSpec
           in
-            Evaluator.do Evaluator.get <| \oldState ->
-            Evaluator.do (Evaluator.put <| increaseStackDepth oldState) <| \_ ->
-            Evaluator.do (eval_ newEnv body) <| \uBody ->
-              apply newEnv uBody restArguments
+            if
+              T.structurallyDecreasingBindSpec
+                { parent = bindSpec, child = argBindSpec }
+            then
+              let
+                newEnv =
+                  U.addVarBinding
+                    parameter
+                    (firstArgument, Maybe.map (T.Arg << pVar0) maybeName)
+                    functionEnv
+
+                increaseStackDepth oldState =
+                  { oldState | stackDepth = oldState.stackDepth + 1 }
+              in
+                Evaluator.do Evaluator.get <|
+                  \oldState ->
+                Evaluator.do (Evaluator.put <| increaseStackDepth oldState) <|
+                  \_ ->
+                Evaluator.do (eval_ newEnv body) <|
+                  \uBody ->
+                    apply newEnv uBody restArguments
+            else
+              Evaluator.fail "Non-structural recursion"
 
         UPartialFunction _ partialFunction ->
-          Utils.maybeFind firstArgument partialFunction
+          Utils.maybeFind (U.clearData firstArgument) partialFunction
             |> Result.fromMaybe
                  ( "Partial function applied to expression not"
                      ++ " in domain"
@@ -108,16 +143,17 @@ apply env head arguments =
                           "Partial function returned ?? example"
                  )
             |> Evaluator.fromResult
+            |> Evaluator.map setNoData
             |> Evaluator.andThen
                  (\uResult -> apply env uResult restArguments)
 
         UHoleClosure _ _ _ ->
           Evaluator.succeed <|
-            List.foldl (UApp ()) head arguments
+            List.foldl (UApp nd) head arguments
 
         UApp _ _ _ ->
           Evaluator.succeed <|
-            List.foldl (UApp ()) head arguments
+            List.foldl (UApp nd) head arguments
 
         _ ->
           Evaluator.fail
@@ -165,8 +201,8 @@ eval_ env exp =
                   Evaluator.succeed <|
                     Utils.iterate
                       n
-                      (UConstructor () "S")
-                      (UConstructor () "Z" (UTuple () []))
+                      (UConstructor nd "S")
+                      (UConstructor nd "Z" (UTuple nd []))
                 else
                   Evaluator.fail "Negative integers not supported"
 
@@ -178,9 +214,9 @@ eval_ env exp =
               EBool b ->
                 Evaluator.succeed <|
                   if b then
-                    UConstructor () "T" (UTuple () [])
+                    UConstructor nd "T" (UTuple nd [])
                   else
-                    UConstructor () "F" (UTuple () [])
+                    UConstructor nd "F" (UTuple nd [])
 
               EString _ s ->
                 Evaluator.fail "Strings not supported"
@@ -192,7 +228,7 @@ eval_ env exp =
 
           EFun _ pats body _ ->
             Evaluator.map
-              (Utils.uncurry (UFunClosure () env))
+              (Utils.uncurry (UFunClosure nd env Nothing))
               (buildClosure pats body)
 
           -- E-Var
@@ -204,7 +240,7 @@ eval_ env exp =
               --   _constrain x y
               "assert" ->
                 Evaluator.succeed <|
-                  UFunClosure () env "x" <|
+                  UFunClosure nd env Nothing "x" <|
                     eApp
                       (eVar "_constrain")
                       [ eApp (eVar "get_2_1") [eVar "x"]
@@ -225,7 +261,7 @@ eval_ env exp =
               --     ()
               "specifyFunction" ->
                 Evaluator.succeed <|
-                  UFunClosure () env "func" <|
+                  UFunClosure nd env Nothing "func" <|
                     eFun [pVar "ioList"] <|
                       eLet
                         [ ( "_"
@@ -259,7 +295,7 @@ eval_ env exp =
               --     ()
               "specifyFunction2" ->
                 Evaluator.succeed <|
-                  UFunClosure () env "func" <|
+                  UFunClosure nd env Nothing "func" <|
                     eFun [pVar "ioList"] <|
                       eLet
                         [ ( "_"
@@ -285,7 +321,7 @@ eval_ env exp =
               --   let _ = _constrain hole exp in hole
               "defineHole" ->
                 Evaluator.succeed <|
-                  UFunClosure () env "hole" <|
+                  UFunClosure nd env Nothing "hole" <|
                     eFun [pVar "exp"] <|
                       eLet
                         [ ( "_"
@@ -300,20 +336,39 @@ eval_ env exp =
 
               _ ->
                 case U.lookupVar varName env of
-                  Just u ->
-                    Evaluator.succeed u
+                  Just (u, bindSpec) ->
+                    Evaluator.succeed <|
+                      U.setData { bindSpec = bindSpec } u
 
                   Nothing ->
                     case U.lookupRecursiveFunction varName env of
-                      Just (functionEnv, functionDefs, (_, params, body)) ->
-                        let
-                          newFunctionEnv =
-                            U.addRecursiveBinding
-                              (functionEnv, functionDefs)
-                              functionEnv
-                        in
-                          Evaluator.succeed <|
-                            UFunClosure () newFunctionEnv params body
+                      Just
+                        ( functionEnv
+                        , functionDefs
+                        , (_, param, body)
+                        , bindSpec
+                        ) ->
+                          let
+                            newFunctionEnv =
+                              U.addRecursiveBinding
+                                ( functionEnv
+                                , functionDefs
+                                , Just <|
+                                    T.Rec
+                                      ( List.map
+                                          (Utils.fst3 >> pVar0)
+                                          functionDefs
+                                      )
+                                )
+                                functionEnv
+                          in
+                            Evaluator.succeed <|
+                              UFunClosure
+                                { bindSpec = bindSpec }
+                                newFunctionEnv
+                                ( Just varName )
+                                param
+                                body
 
                       Nothing ->
                         Evaluator.fail <|
@@ -334,10 +389,15 @@ eval_ env exp =
               evalGet (n, i, arg) =
                 eval_ env arg |> Evaluator.andThen (\uArg ->
                   case uArg of
-                    UTuple _ tupleArgs ->
+                    UTuple { bindSpec } tupleArgs ->
                       case Utils.maybeGeti1 i tupleArgs of
                         Just returnValue ->
-                          Evaluator.succeed returnValue
+                          Evaluator.succeed <|
+                            U.setData
+                              { bindSpec =
+                                  Maybe.andThen T.subBindSpec bindSpec
+                              }
+                              returnValue
 
                         Nothing ->
                           Evaluator.fail
@@ -345,11 +405,11 @@ eval_ env exp =
 
                     UHoleClosure _ _ _ ->
                       Evaluator.succeed <|
-                        UGet () n i uArg
+                        UGet nd n i uArg
 
                     UConstructorInverse _ _ _ ->
                       Evaluator.succeed <|
-                        UGet () n i uArg
+                        UGet nd n i uArg
 
                     _ ->
                       Evaluator.fail
@@ -361,7 +421,7 @@ eval_ env exp =
                   eval_ env e2 |> Evaluator.andThen (\u2 ->
                     withConstraints
                       (constrain u1 u2)
-                      (UTuple () [])
+                      (UTuple nd [])
                   )
                 )
 
@@ -369,16 +429,16 @@ eval_ env exp =
                 let
                   consMap uFunc uList =
                     case uList of
-                      UConstructor _ "Nil" (UTuple () []) ->
+                      UConstructor _ "Nil" (UTuple _ []) ->
                         Evaluator.succeed uList
 
-                      UConstructor _ "Cons" (UTuple () [uHead, uRest]) ->
+                      UConstructor _ "Cons" (UTuple _ [uHead, uRest]) ->
                         Evaluator.do (apply env uFunc [uHead]) <| \uNewHead ->
                         Evaluator.do (consMap uFunc uRest) <| \uNewRest ->
                         Evaluator.succeed <|
-                          UConstructor ()
+                          UConstructor nd
                             "Cons"
-                            (UTuple () [uNewHead, uNewRest])
+                            (UTuple nd [uNewHead, uNewRest])
 
                       _ ->
                         Evaluator.fail
@@ -453,32 +513,39 @@ eval_ env exp =
                         Evaluator.fail
                           "Non-record (constructor sugar) pattern match"
 
-              evalBranch uArg (_, argName, body) =
+              evalBranch scrutineeBindSpec uArg (_, argName, body) =
                 let
                   newEnv =
                     if argName == noBindingName then
                       env
                     else
-                      U.addVarBinding argName uArg env
+                      U.addVarBinding
+                        argName
+                        (uArg, Maybe.andThen T.subBindSpec scrutineeBindSpec)
+                        env
                 in
                   eval_ newEnv body
             in
               Evaluator.do (Evaluator.mapM toUBranch branches) <| \uBranches ->
               Evaluator.do (eval_ env e0) <| \u0 ->
                 case u0 of
-                  UConstructor () ctorName uArg ->
-                    uBranches
-                      |> Utils.findFirst (\(c, _, _) -> c == ctorName)
-                      |> Result.fromMaybe
-                           ( "Non-exhaustive pattern match, could not find '"
-                               ++ ctorName
-                               ++ "'"
-                           )
-                      |> Evaluator.fromResult
-                      |> Evaluator.andThen (evalBranch uArg)
+                  UConstructor _ ctorName uArg ->
+                    let
+                      scrutineeBindSpec =
+                        (getData u0).bindSpec
+                    in
+                      uBranches
+                        |> Utils.findFirst (\(c, _, _) -> c == ctorName)
+                        |> Result.fromMaybe
+                             ( "Non-exhaustive pattern match, could not find '"
+                                 ++ ctorName
+                                 ++ "'"
+                             )
+                        |> Evaluator.fromResult
+                        |> Evaluator.andThen (evalBranch scrutineeBindSpec uArg)
 
                   _ ->
-                    Evaluator.succeed (UCase () env u0 uBranches)
+                    Evaluator.succeed (UCase nd env u0 uBranches)
 
           -- E-Hole
 
@@ -486,7 +553,7 @@ eval_ env exp =
             case hole of
               EEmptyHole holeId ->
                 Evaluator.succeed <|
-                  UHoleClosure () env (holeId, -1)
+                  UHoleClosure nd env (holeId, -1)
 
               _ ->
                 Evaluator.fail
@@ -501,7 +568,7 @@ eval_ env exp =
                 Evaluator.do (eval_ env e1) <| \u1 ->
                 Evaluator.do (eval_ env e2) <| \u2 ->
                 Evaluator.succeed <|
-                  UTuple () [u1, u2]
+                  UTuple nd [u1, u2]
 
               _ ->
                 Evaluator.fail
@@ -542,7 +609,6 @@ eval_ env exp =
                       bindingEvaluation =
                         eval_ nonRecEnv binding
                     in
-                      Evaluator.do (eval_ nonRecEnv binding) <| \u ->
                       case unwrapExp binding of
                         -- Syntactic lambda; should be treated as
                         -- recursive function
@@ -557,17 +623,18 @@ eval_ env exp =
                             )
 
                         _ ->
-                          Evaluator.succeed
-                            ( U.addVarBinding name u nonRecEnv
-                            , functionDefs
-                            )
+                          Evaluator.do (eval_ nonRecEnv binding) <| \u ->
+                            Evaluator.succeed
+                              ( U.addVarBinding name (u, Nothing) nonRecEnv
+                              , functionDefs
+                              )
                 in
                   nameBindingPairs
                     |> Evaluator.foldlM addToEnv (env, [])
                     |> Evaluator.map
                          ( \(nonRecEnv, functionDefs) ->
                              U.addRecursiveBinding
-                               (nonRecEnv, functionDefs)
+                               (nonRecEnv, functionDefs, Nothing)
                                nonRecEnv
                          )
                     |> Evaluator.andThen
@@ -592,7 +659,7 @@ eval_ env exp =
                   Just tupleEntries ->
                     tupleEntries
                       |> Evaluator.mapM (Tuple.second >> eval_ env)
-                      |> Evaluator.map (UTuple ())
+                      |> Evaluator.map (UTuple nd)
 
                   Nothing ->
                     case
@@ -610,7 +677,7 @@ eval_ env exp =
                                   of
                                     Just (UVPartialFunction pf) ->
                                       Evaluator.succeed <|
-                                        UPartialFunction () pf
+                                        UPartialFunction nd pf
 
                                     _ ->
                                       Evaluator.fail
@@ -632,7 +699,7 @@ eval_ env exp =
 
                             [arg] ->
                               Evaluator.map
-                                (UConstructor () ctorName)
+                                (UConstructor nd ctorName)
                                 (eval_ env arg)
 
                             _ ->
@@ -682,6 +749,11 @@ setHoleIndexes =
   in
     statefulMap holeSetter >> State.run Dict.empty >> Tuple.first
 
+
+additionalPipeline : UnExp Data -> UnExp ()
+additionalPipeline =
+  U.clearData >> setHoleIndexes
+
 --------------------------------------------------------------------------------
 -- Full Evaluation
 --------------------------------------------------------------------------------
@@ -691,7 +763,7 @@ evalWithEnv :
 evalWithEnv env =
   eval_ env
     >> Evaluator.run { constraints = NonDet.pure [], stackDepth = 0 }
-    >> Result.map (Tuple.mapFirst setHoleIndexes)
+    >> Result.map (Tuple.mapFirst additionalPipeline)
     >> Result.map (Tuple.mapSecond .constraints)
 
 eval :
@@ -720,7 +792,7 @@ ensureConstraintFree evalResult =
 --= Constraints
 --==============================================================================
 
-constrain : UnExp () -> UnExp () -> NonDet Constraints
+constrain : UnExp Data -> UnExp Data -> NonDet Constraints
 constrain u1 u2 =
   case (u1, u2) of
     (UConstructor _ ctorName1 uInner1, UConstructor _ ctorName2 uInner2) ->
@@ -777,10 +849,10 @@ evalBackprop env exp example =
       NonDet.map List.concat <|
         NonDet.oneOfEach
           [ possibleEvalConstraints
-          , backprop uResult example
+          , backprop (setNoData uResult) example
           ]
 
-backprop : UnExp () -> Example -> NonDet Constraints
+backprop : UnExp Data -> Example -> NonDet Constraints
 backprop u ex =
  let _ = Debug.log "BACKPROP" (U.unparseSimple u, U.unparseExample ex) in
   if ex == ExDontCare then
@@ -808,11 +880,16 @@ backprop u ex =
           else
             NonDet.none
 
-      (UFunClosure _ env param body, ExPartialFunction bindings) ->
+      ( UFunClosure { bindSpec } env maybeName param body
+      , ExPartialFunction bindings) ->
         let
           backpropBinding (argument, outputExample) =
             evalBackprop
-              (U.addVarBinding param argument env)
+              ( U.addVarBinding
+                  param
+                  (argument, Maybe.map (T.Arg << pVar0) maybeName)
+                  env
+              )
               body
               outputExample
         in
@@ -827,7 +904,7 @@ backprop u ex =
       (UApp _ uHead uArg, _) ->
         let
           exHead =
-            ExPartialFunction [(uArg, ex)]
+            ExPartialFunction [(U.clearData uArg, ex)]
         in
           backprop uHead exHead
 
@@ -846,10 +923,7 @@ backprop u ex =
 
       (UCase _ env uScrutinee branches, _) ->
         let
-          tryBranch :
-            UnExp ()
-              -> (Ident, Ident, Exp)
-              -> NonDet Constraints
+          tryBranch : UnExp Data -> (Ident, Ident, Exp) -> NonDet Constraints
           tryBranch uScrutinee (ctorName, argName, body) =
             -- Cannot be applicative because we only want to continue if the
             -- first computation succeeds
@@ -858,10 +932,15 @@ backprop u ex =
               )
               ( \k1 ->
                   let
+                    scrutineeBindSpec =
+                      (getData uScrutinee).bindSpec
+
                     newEnv =
                       U.addVarBinding
                         argName
-                        (UConstructorInverse () ctorName uScrutinee)
+                        ( UConstructorInverse nd ctorName uScrutinee
+                        , Maybe.andThen T.subBindSpec scrutineeBindSpec
+                        )
                         env
                   in
                     NonDet.pureDo (evalBackprop newEnv body ex) <| \k23 ->

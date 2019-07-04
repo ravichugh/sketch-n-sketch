@@ -60,20 +60,10 @@ showTypePairs gamma =
           LeoUnparser.unparseType tau
 
         bindString =
-          case T.bindSpec gamma (eVar x) of
-            Just Rec ->
-              "rec"
-
-            Just (Arg p) ->
-              "arg " ++ LeoUnparser.unparsePattern p
-
-            Just (Dec p) ->
-              "dec " ++ LeoUnparser.unparsePattern p
-
-            Nothing ->
-              "."
+          T.showBindSpec <|
+            T.bindSpec gamma (eVar x)
       in
-        x ++ " : " ++ typeString ++ " {" ++ bindString ++ "} "
+        x ++ " : " ++ typeString ++ " " ++ bindString
   in
     gamma
       |> T.typePairs
@@ -282,7 +272,7 @@ satisfiesWorlds worlds exp =
       exp
         |> TriEval.evalWithEnv env
         |> TriEval.ensureConstraintFree
-        |> Maybe.map (flip TriEval.backprop ex)
+        |> Maybe.map (TriEval.setNoData >> flip TriEval.backprop ex)
         |> Maybe.withDefault NonDet.none
   in
     worlds
@@ -530,12 +520,12 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
               -> World
           worldFromEntry partialFunction env (arg, output) =
             ( env
-                -- TODO Fancy fix rule for recursive function binding
+                -- Old fix rule for recursive function binding
                 -- |> U.addVarBinding
                 --      recFunctionName
                 --      (UPartialFunction () partialFunction)
                 -- Argument binding
-                |> U.addVarBinding argName arg
+                |> U.addVarBinding argName (arg, Nothing)
             , output
             )
 
@@ -556,7 +546,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
               |> T.addHasType
                    ( recFunctionNamePat
                    , functionType
-                   , Just Rec
+                   , Just (Rec [recFunctionNamePat])
                    )
               |> T.addHasType
                    ( argNamePat
@@ -604,8 +594,10 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
             argName =
               TermGen.freshIdent TermGen.matchChar gamma
 
-            distributeWorlds : Exp -> Worlds -> Maybe (Dict Ident Worlds)
-            distributeWorlds scrutinee worlds =
+            distributeWorlds :
+              Exp -> Maybe T.BindingSpecification -> Worlds ->
+                Maybe (Dict Ident Worlds)
+            distributeWorlds scrutinee maybeSubBindSpec worlds =
               worlds
                 |> List.map
                      ( \(env, ex) ->
@@ -624,7 +616,9 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                                               else
                                                 U.addVarBinding
                                                   argName
-                                                  (U.valToExp vInner)
+                                                  ( U.valToExp vInner
+                                                  , maybeSubBindSpec
+                                                  )
                                                   env
                                             , ex
                                             )
@@ -710,47 +704,52 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                           , gamma = gamma
                           , goalType = dType
                           }
-                    ) <|
-                    \scrutinee ->
-                      Maybe.withDefault NonDet.none <|
-                        flip Maybe.map (distributeWorlds scrutinee worlds) <|
-                          \distributedWorlds ->
-                            if
-                              List.length constructorDefs /= 1
-                                && Dict.size distributedWorlds < 2
-                            then
-                              -- Uninformative match by Restriction (A)
-                              NonDet.none
-                            else
-                              let
-                                maybeSubBindSpec =
-                                  scrutinee
-                                    |> T.bindSpec gamma
-                                    |> Maybe.andThen T.subBindSpec
-
-                                possibleBranches =
-                                  dontCareWorlds
-                                    -- Gives preference to distributedWorlds
-                                    |> Dict.union
-                                         distributedWorlds
-                                    |> Dict.map
-                                         ( makePossibleBranch
-                                             maybeSubBindSpec
-                                             constructorDefs
-                                         )
-                                    |> Dict.values
-                              in
-                                NonDet.pure <|
-                                  Match
-                                    { height =
-                                        possibleBranches
-                                          |> List.map (Tuple.second >> nheight)
-                                          |> List.maximum
-                                          |> Maybe.withDefault 0
-                                          |> (+) 1
-                                    , scrutinee = scrutinee
-                                    , possibleBranches = possibleBranches
-                                    }
+                    ) <| \scrutinee ->
+                      let
+                        maybeSubBindSpec =
+                          scrutinee
+                            |> T.bindSpec gamma
+                            |> Maybe.andThen T.subBindSpec
+                      in
+                        Maybe.withDefault NonDet.none <|
+                          flip Maybe.map
+                            ( distributeWorlds
+                                scrutinee
+                                maybeSubBindSpec
+                                worlds
+                            ) <|  \distributedWorlds ->
+                              if
+                                List.length constructorDefs /= 1
+                                  && Dict.size distributedWorlds < 2
+                              then
+                                -- Uninformative match by Restriction (A)
+                                NonDet.none
+                              else
+                                let
+                                  possibleBranches =
+                                    dontCareWorlds
+                                      -- Gives preference to distributedWorlds
+                                      |> Dict.union
+                                           distributedWorlds
+                                      |> Dict.map
+                                           ( makePossibleBranch
+                                               maybeSubBindSpec
+                                               constructorDefs
+                                           )
+                                      |> Dict.values
+                                in
+                                  NonDet.pure <|
+                                    Match
+                                      { height =
+                                          possibleBranches
+                                            |> List.map
+                                                 (Tuple.second >> nheight)
+                                            |> List.maximum
+                                            |> Maybe.withDefault 0
+                                            |> (+) 1
+                                      , scrutinee = scrutinee
+                                      , possibleBranches = possibleBranches
+                                      }
 
     holeRefinement () =
       if not worldsEmpty && filteredWorldsEmpty then

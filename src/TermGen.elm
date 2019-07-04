@@ -498,7 +498,8 @@ relGenI
                 |> T.addHasType
                      ( recFunctionNamePat
                      , functionType
-                     , Just T.Rec
+                     , Just <|
+                         T.Rec [recFunctionNamePat]
                      )
                 |> T.addHasType
                      ( argNamePat
@@ -708,7 +709,8 @@ genI ({ termSize, sigma, gamma, goalType } as gp) =
                     |> T.addHasType
                          ( recFunctionNamePat
                          , functionType
-                         , Just T.Rec
+                         , Just <|
+                             T.Rec [recFunctionNamePat]
                          )
                     |> T.addHasType
                          ( argNamePat

@@ -4531,7 +4531,7 @@ collectAndSolve model =
           Just uSelected ->
             model.backpropExampleInput
               |> U.parseExample
-              |> Result.map (TriEval.backprop uSelected)
+              |> Result.map (TriEval.backprop (TriEval.setNoData uSelected))
               |> Result.withDefault NonDet.none
 
           Nothing ->
