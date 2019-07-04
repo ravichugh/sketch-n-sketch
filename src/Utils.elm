@@ -1970,3 +1970,9 @@ partitionEithers =
           helper revLefts (y :: revRights) rest
   in
     helper [] []
+
+--------------------------------------------------------------------------------
+
+all1 : (a -> Bool) -> List a -> Bool
+all1 predicate xs =
+  not (List.isEmpty xs) && List.all predicate xs

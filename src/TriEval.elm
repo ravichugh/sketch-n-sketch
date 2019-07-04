@@ -782,7 +782,7 @@ ensureConstraintFree evalResult =
       if
         possibleConstraintResults
           |> NonDet.toList
-          |> List.all List.isEmpty
+          |> Utils.all1 List.isEmpty
       then
         Just u
       else
@@ -839,22 +839,30 @@ constrain u1 u2 =
 --= Backpropagation
 --==============================================================================
 
-evalBackprop : U.Env -> Exp -> Example -> NonDet Constraints
-evalBackprop env exp example =
-  case evalWithEnv env exp of
-    Err _ ->
-      NonDet.none
+evalBackprop :
+  { allowEvaluationConstraints : Bool }
+    -> U.Env -> Exp -> Example -> NonDet Constraints
+evalBackprop { allowEvaluationConstraints } env exp example =
+  let
+    postPass =
+      if allowEvaluationConstraints then
+        Result.toMaybe
+      else
+        ensureConstraintFree >> Maybe.map (\u -> (u, NonDet.pure []))
+  in
+    case evalWithEnv env exp |> postPass of
+      Just (uResult, possibleEvalConstraints) ->
+        NonDet.map List.concat <|
+          NonDet.oneOfEach
+            [ possibleEvalConstraints
+            , backprop (setNoData uResult) example
+            ]
 
-    Ok (uResult, possibleEvalConstraints) ->
-      NonDet.map List.concat <|
-        NonDet.oneOfEach
-          [ possibleEvalConstraints
-          , backprop (setNoData uResult) example
-          ]
+      Nothing ->
+        NonDet.none
 
 backprop : UnExp Data -> Example -> NonDet Constraints
 backprop u ex =
- let _ = Debug.log "BACKPROP" (U.unparseSimple u, U.unparseExample ex) in
   if ex == ExDontCare then
     NonDet.pure []
   else
@@ -885,6 +893,7 @@ backprop u ex =
         let
           backpropBinding (argument, outputExample) =
             evalBackprop
+              { allowEvaluationConstraints = False }
               ( U.addVarBinding
                   param
                   (argument, Maybe.map (T.Arg << pVar0) maybeName)
@@ -943,8 +952,12 @@ backprop u ex =
                         )
                         env
                   in
-                    NonDet.pureDo (evalBackprop newEnv body ex) <| \k23 ->
-                      k1 ++ k23
+                    NonDet.map (\k23 -> k1 ++ k23) <|
+                      evalBackprop
+                        { allowEvaluationConstraints = False }
+                        newEnv
+                        body
+                        ex
               )
         in
           branches

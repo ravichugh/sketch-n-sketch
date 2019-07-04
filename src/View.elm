@@ -3354,11 +3354,9 @@ pbePopupPanel model =
               , synthesizeButton
               , synthesisResults
               ]
-           , let
-               ks =
-                 NonDet.toList possibleConstraints
-             in
-               not (List.isEmpty ks) && List.all List.isEmpty ks
+           , possibleConstraints
+               |> NonDet.toList
+               |> Utils.all1 List.isEmpty
            )
 
         Err _ ->
