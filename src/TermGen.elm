@@ -423,6 +423,194 @@ relGenEApp2
       |> State.sequence
       |> State.map (NonDet.fromList >> NonDet.join)
 
+-- An application generation helper for relGenE (option 3)
+relGenEApp3 : TypeBinding -> GenProblem -> GenCached (NonDet Exp)
+relGenEApp3
+ ((relName, relType, _) as relBinding)
+ ({ termSize, sigma, gamma, goalType } as gp) =
+  let
+    (revGoalTypeArgTypes, goalTypeReturnType) =
+      T.matchArrowRecurse goalType
+        |> Maybe.map (\(_, args, ret) -> (List.reverse args, ret))
+        |> Maybe.withDefault ([], goalType)
+
+    extractLastArgumentType : T.ArrowType -> Maybe Type
+    extractLastArgumentType (_, argTypes, returnType) =
+      if T.typeEquiv gamma goalTypeReturnType returnType then
+        let
+          helper rGoalArgs rArgs =
+            case (rGoalArgs, rArgs) of
+              (_, []) ->
+                Nothing
+
+              ([], rArgsHead :: _) ->
+                Just rArgsHead
+
+              (rGoalArgsHead :: rGoalArgsRest, rArgsHead :: rArgsRest) ->
+                if T.typeEquiv gamma rGoalArgsHead rArgsHead then
+                  helper rGoalArgsRest rArgsRest
+                else
+                  Nothing
+        in
+          helper revGoalTypeArgTypes (List.reverse argTypes)
+      else
+        Nothing
+
+    possibleArgumentType : NonDet Type
+    possibleArgumentType =
+      gamma
+        |> T.typePairs
+        |> List.map
+             ( Tuple.second
+                 >> T.matchArrowRecurse
+                 >> Maybe.andThen extractLastArgumentType
+             )
+        |> Utils.filterJusts
+        |> NonDet.fromList
+
+    possiblePartition : NonDet (List Int)
+    possiblePartition =
+      NonDet.fromList <|
+        Utils.partitionIntegerPermutations
+          (termSize - 1) -- -1 for the application
+          2
+
+    combinedGamma : T.TypeEnv
+    combinedGamma =
+      addTypeBinding relBinding gamma
+
+    appCombine : NonDet Exp -> NonDet Exp -> NonDet Exp
+    appCombine possibleHead possibleArgument =
+      NonDet.do possibleHead <| \head ->
+      NonDet.do possibleArgument <| \argument ->
+        if
+          T.structurallyDecreasing combinedGamma head argument
+        then
+          NonDet.pure <|
+            eApp0
+              head
+              [replacePrecedingWhitespace1 argument]
+
+        else
+          NonDet.none
+  in
+    State.map (NonDet.dedup << NonDet.join) << State.nSequence <|
+      NonDet.do possibleArgumentType <| \argumentType ->
+      NonDet.do possiblePartition <| \partition ->
+        case partition of
+          -- Will always happen
+          [kHead, kArg] ->
+            let
+              headProblem : GenProblem
+              headProblem =
+                { gp
+                    | termSize =
+                        kHead
+                    , goalType =
+                        T.rebuildArrow
+                          ([], [argumentType], goalType)
+                }
+
+              argProblem : GenProblem
+              argProblem =
+                { gp
+                    | termSize =
+                        kArg
+                    , goalType =
+                        argumentType
+                }
+
+              regularSolution =
+                State.do
+                  ( gen
+                      { termKind = E
+                      , relBinding = Nothing
+                      , genProblem = headProblem
+                      }
+                  ) <| \possibleHeadSolution ->
+                    let
+                      filteredHead =
+                        if kArg > 1 then
+                          NonDet.filter
+                            ( \e ->
+                                case T.bindSpec gamma e of
+                                  Just (T.Rec _) ->
+                                    False
+
+                                  _ ->
+                                    True
+                            )
+                            possibleHeadSolution
+                        else
+                          possibleHeadSolution
+                    in
+                      State.do
+                        ( gen
+                            { termKind = I
+                            , relBinding = Just relBinding
+                            , genProblem = argProblem
+                            }
+                        ) <| \possibleRelArgSolution ->
+                          State.pure <|
+                            appCombine
+                              filteredHead
+                              possibleRelArgSolution
+
+              relevantSolution =
+                State.do
+                  ( gen
+                      { termKind = E
+                      , relBinding = Just relBinding
+                      , genProblem = headProblem
+                      }
+                  ) <| \possibleRelHeadSolution ->
+                    let
+                      filteredHead =
+                        if kArg > 1 then
+                          NonDet.filter
+                            ( \e ->
+                                case T.bindSpec gamma e of
+                                  Just (T.Rec _) ->
+                                    False
+
+                                  _ ->
+                                    True
+                            )
+                            possibleRelHeadSolution
+                        else
+                          possibleRelHeadSolution
+                    in
+                      State.do
+                        ( gen
+                            { termKind = I
+                            , relBinding = Nothing
+                            , genProblem = argProblem
+                            }
+                        ) <| \possibleArgSolution ->
+                      State.do
+                        ( gen
+                            { termKind = I
+                            , relBinding = Just relBinding
+                            , genProblem = argProblem
+                            }
+                        ) <| \possibleRelArgSolution ->
+                          State.pure <|
+                            NonDet.concat
+                              [ appCombine filteredHead possibleArgSolution
+                              , appCombine filteredHead possibleRelArgSolution
+                              ]
+            in
+              NonDet.pure <|
+                State.map NonDet.concat <|
+                  State.sequence
+                    [ regularSolution
+                    , relevantSolution
+                    ]
+
+          _ ->
+            NonDet.pure <|
+              State.pure NonDet.none
+
 relGenE : TypeBinding -> GenProblem -> GenCached (NonDet Exp)
 relGenE
  ((relName, relType, _) as relBinding)
@@ -434,30 +622,31 @@ relGenE
           NonDet.pure <|
             eVar relName
       else
-        State.pure NonDet.none
+        -- "Focusing"
+        case Lang.tupleTypeArguments relType of
+          Just componentTypes ->
+            let
+              n =
+                List.length componentTypes
+            in
+              componentTypes
+                |> Utils.zipWithIndex
+                |> List.filter
+                     (Tuple.first >> T.typeEquiv gamma goalType)
+                -- Should be 1-indexed, so use i + 1
+                |> List.map
+                     ( \(_, i) ->
+                         Lang.fromTupleGet (n, i + 1, eVar relName)
+                     )
+                |> NonDet.fromList
+                |> State.pure
+
+          Nothing ->
+            State.pure NonDet.none
 
     -- No unary operators
     2 ->
-      case Lang.tupleTypeArguments relType of
-        Just componentTypes ->
-          let
-            n =
-              List.length componentTypes
-          in
-            componentTypes
-              |> Utils.zipWithIndex
-              |> List.filter
-                   (Tuple.first >> T.typeEquiv gamma goalType)
-              -- Should be 1-indexed, so use i + 1
-              |> List.map
-                   ( \(_, i) ->
-                       Lang.fromTupleGet (n, i + 1, eVar relName)
-                   )
-              |> NonDet.fromList
-              |> State.pure
-
-        Nothing ->
-          State.pure NonDet.none
+      State.pure NonDet.none
 
     -- All applications have size > 2
     _ ->
