@@ -1257,6 +1257,10 @@ opTypeTable =
 
 --------------------------------------------------------------------------------
 
+ignoreType : Exp -> Exp
+ignoreType =
+  setType (Just (tTuple0 []))
+
 typecheck : Exp -> (Exp, HoleEnv)
 typecheck e =
   let hasType x t = HasType (pVar0 x) (Result.toMaybe (parseT t)) Nothing in
@@ -1560,6 +1564,117 @@ inferType gamma stuff thisExp =
           { newExp = thisExp |> setType (Just <| withDummyTypeInfo <| TVar space0 "TEST")
           , holeEnv = emptyHoleEnv
           }
+
+        default () =
+          let
+            resultFunc =
+              inferType gamma stuff eFunc
+
+            inferArgTypesResult = -- if inferType eFunc fails to produce an arrow
+              inferTypes gamma stuff eArgs
+
+            (newFuncResult, newArgsResult, finishNewExp) =
+              case (unExpr resultFunc.newExp).val.typ of
+                Nothing ->
+                  ( resultFunc
+                  , inferArgTypesResult
+                  , setDeuceTypeInfo genericError
+                  )
+
+                Just eFuncType ->
+                  -- currently recursing into argTypes,
+                  -- but not recursing into nested EApps...
+                  --
+                  case matchArrowRecurse eFuncType of
+                    Nothing ->
+                      ( resultFunc
+                      , inferArgTypesResult
+                      , setDeuceTypeInfo <| DeuceTypeInfo <|
+                          [ Label <| ErrorHeaderText
+                              "Type Mismatch"
+                          , Label <| PlainText
+                              "You are giving an argument to something that is not a function!"
+                          , Label <| PlainText
+                              "Maybe you forgot some parentheses? Or a comma?"
+                          ]
+                      )
+
+                    Just ([], argTypes, retType) ->
+                      let
+                        numArgs     = List.length eArgs
+                        numArgTypes = List.length argTypes
+                      in
+                      if numArgs > numArgTypes then
+                        ( resultFunc
+                        , inferArgTypesResult
+                        , setDeuceTypeInfo <| DeuceTypeInfo <|
+                            [ Label <| ErrorHeaderText
+                                "Type Mismatch"
+                            , Label <| PlainText
+                                "The function has type"
+                            , Label <| TypeText <|
+                                unparseType eFuncType
+                            , Label <| PlainText <|
+                                "It takes " ++ toString numArgTypes ++ " arguments" ++
+                                "but you are giving it " ++ toString numArgs
+                            ]
+                        )
+
+                      else
+                        let
+                          (prefixArgTypes, suffixArgTypes) =
+                            Utils.split numArgs argTypes
+
+                          (allOkay, newArgsData) =
+                            Utils.zip eArgs prefixArgTypes
+                              |> List.map (\(e,t) ->
+                                   let result = checkType gamma stuff e t in
+                                   (result.okay, (result.newExp, result.holeEnv))
+                                 )
+                              |> List.unzip
+                              |> Tuple.mapFirst (List.all ((==) True))
+
+                          newArgsResult =
+                            { newExps =
+                                List.map Tuple.first newArgsData
+                            , holeEnv =
+                                List.map Tuple.second newArgsData
+                                  |> holeEnvUnion
+                            }
+
+                          finishNewExp =
+                            if allOkay then
+                              case suffixArgTypes of
+                                [] ->
+                                  setType (Just retType)
+                                _ ->
+                                  setType (Just (rebuildArrow ([], suffixArgTypes, retType)))
+                            else
+                              setDeuceTypeInfo genericError
+                        in
+                          ( resultFunc
+                          , newArgsResult
+                          , finishNewExp
+                          )
+
+                    Just _ ->
+                      ( resultFunc
+                      , inferArgTypesResult
+                      , setDeuceTypeInfo <| DeuceTypeInfo <|
+                          [ Label <| PlainText
+                              "Polymorphic function application not yet supported..."
+                          ]
+                      )
+
+            newExp =
+              EApp ws1 newFuncResult.newExp newArgsResult.newExps apptype ws2
+                |> replaceE__ thisExp
+                |> finishNewExp
+          in
+            { newExp = newExp
+            , holeEnv =
+                holeEnvUnion [newFuncResult.holeEnv, newArgsResult.holeEnv]
+            }
       in
         case Lang.toTupleGet thisExp of
           Just (n, i, arg) ->
@@ -1609,116 +1724,56 @@ inferType gamma stuff thisExp =
                 Nothing ->
                   failure ()
 
-          _ ->
+          Nothing ->
             let
-              resultFunc =
-                inferType gamma stuff eFunc
-
-              inferArgTypesResult = -- if inferType eFunc fails to produce an arrow
-                inferTypes gamma stuff eArgs
-
-              (newFuncResult, newArgsResult, finishNewExp) =
-                case (unExpr resultFunc.newExp).val.typ of
-                  Nothing ->
-                    ( resultFunc
-                    , inferArgTypesResult
-                    , setDeuceTypeInfo genericError
-                    )
-
-                  Just eFuncType ->
-                    -- currently recursing into argTypes,
-                    -- but not recursing into nested EApps...
-                    --
-                    case matchArrowRecurse eFuncType of
-                      Nothing ->
-                        ( resultFunc
-                        , inferArgTypesResult
-                        , setDeuceTypeInfo <| DeuceTypeInfo <|
-                            [ Label <| ErrorHeaderText
-                                "Type Mismatch"
-                            , Label <| PlainText
-                                "You are giving an argument to something that is not a function!"
-                            , Label <| PlainText
-                                "Maybe you forgot some parentheses? Or a comma?"
-                            ]
-                        )
-
-                      Just ([], argTypes, retType) ->
-                        let
-                          numArgs     = List.length eArgs
-                          numArgTypes = List.length argTypes
-                        in
-                        if numArgs > numArgTypes then
-                          ( resultFunc
-                          , inferArgTypesResult
-                          , setDeuceTypeInfo <| DeuceTypeInfo <|
-                              [ Label <| ErrorHeaderText
-                                  "Type Mismatch"
-                              , Label <| PlainText
-                                  "The function has type"
-                              , Label <| TypeText <|
-                                  unparseType eFuncType
-                              , Label <| PlainText <|
-                                  "It takes " ++ toString numArgTypes ++ " arguments" ++
-                                  "but you are giving it " ++ toString numArgs
-                              ]
-                          )
-
-                        else
-                          let
-                            (prefixArgTypes, suffixArgTypes) =
-                              Utils.split numArgs argTypes
-
-                            (allOkay, newArgsData) =
-                              Utils.zip eArgs prefixArgTypes
-                                |> List.map (\(e,t) ->
-                                     let result = checkType gamma stuff e t in
-                                     (result.okay, (result.newExp, result.holeEnv))
-                                   )
-                                |> List.unzip
-                                |> Tuple.mapFirst (List.all ((==) True))
-
-                            newArgsResult =
-                              { newExps =
-                                  List.map Tuple.first newArgsData
-                              , holeEnv =
-                                  List.map Tuple.second newArgsData
-                                    |> holeEnvUnion
-                              }
-
-                            finishNewExp =
-                              if allOkay then
-                                case suffixArgTypes of
-                                  [] ->
-                                    setType (Just retType)
-                                  _ ->
-                                    setType (Just (rebuildArrow ([], suffixArgTypes, retType)))
-                              else
-                                setDeuceTypeInfo genericError
-                          in
-                            ( resultFunc
-                            , newArgsResult
-                            , finishNewExp
-                            )
-
-                      Just _ ->
-                        ( resultFunc
-                        , inferArgTypesResult
-                        , setDeuceTypeInfo <| DeuceTypeInfo <|
-                            [ Label <| PlainText
-                                "Polymorphic function application not yet supported..."
-                            ]
-                        )
-
-              newExp =
-                EApp ws1 newFuncResult.newExp newArgsResult.newExps apptype ws2
-                  |> replaceE__ thisExp
-                  |> finishNewExp
+              ignoreCollect thisTyp args =
+                { newExp =
+                    thisExp
+                      |> mapExp ignoreType
+                      |> setType (Just thisTyp)
+                , holeEnv =
+                    args
+                      |> List.map (inferType gamma stuff >> .holeEnv)
+                      |> holeEnvUnion
+                }
             in
-              { newExp = newExp
-              , holeEnv =
-                  holeEnvUnion [newFuncResult.holeEnv, newArgsResult.holeEnv]
-              }
+              -- Check for library functions
+              case unwrapExp eFunc of
+                EVar _ action ->
+                  case (action, eArgs) of
+                    ("assert", [_]) ->
+                      ignoreCollect (tTuple0 []) eArgs
+
+                    ("specifyFunction", [_, _]) ->
+                      ignoreCollect (tTuple0 []) eArgs
+
+                    ("specifyFunction2", [_, _]) ->
+                      ignoreCollect (tTuple0 []) eArgs
+
+                    ("defineHole", [hole, exp]) ->
+                      let
+                        holeResult =
+                          inferType gamma stuff hole
+
+                        expResult =
+                          inferType gamma stuff exp
+                      in
+                        { newExp =
+                            mapExp ignoreType thisExp
+                              |> setType (unExpr holeResult.newExp).val.typ
+                        , holeEnv =
+                            holeEnvUnion
+                              [ holeResult.holeEnv
+                              , expResult.holeEnv
+                              ]
+                        }
+
+                    _ ->
+                      default ()
+
+                _ ->
+                  default ()
+
 
     -- mostly just copying EApp for now...
     --

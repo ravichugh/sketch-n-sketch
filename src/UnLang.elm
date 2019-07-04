@@ -124,10 +124,6 @@ type alias HoleFilling =
 --= Environment Functions
 --==============================================================================
 
-pairsToEnv : List (Ident, UnExp ()) -> Env
-pairsToEnv =
-  List.map (Utils.uncurry VarBinding)
-
 addVarBinding : Ident -> UnExp () -> Env -> Env
 addVarBinding i u env =
   VarBinding i u :: env

@@ -197,26 +197,130 @@ eval_ env exp =
 
           -- E-Var
 
-          EVar _ x ->
-            case U.lookupVar x env of
-              Just u ->
-                Evaluator.succeed u
+          EVar _ varName ->
+            -- Library functions
+            case varName of
+              -- assert (x == y) =
+              --   _constrain x y
+              "assert" ->
+                Evaluator.succeed <|
+                  UFunClosure () env "x" <|
+                    eApp
+                      (eVar "_constrain")
+                      [ eApp (eVar "get_2_1") [eVar "x"]
+                      , eApp (eVar "get_2_2") [eVar "x"]
+                      ]
 
-              Nothing ->
-                case U.lookupRecursiveFunction x env of
-                  Just (functionEnv, functionDefs, (_, params, body)) ->
-                    let
-                      newFunctionEnv =
-                        U.addRecursiveBinding
-                          (functionEnv, functionDefs)
-                          functionEnv
-                    in
-                      Evaluator.succeed <|
-                        UFunClosure () newFunctionEnv params body
+              -- specifyFunction func ioList =
+              --   let
+              --     _ =
+              --       _map
+              --         ( \pair ->
+              --             _constrain
+              --               (func (get_2_1 pair))
+              --               (get_2_2 pair)
+              --         )
+              --         ioList
+              --   in
+              --     ()
+              "specifyFunction" ->
+                Evaluator.succeed <|
+                  UFunClosure () env "func" <|
+                    eFun [pVar "ioList"] <|
+                      eLet
+                        [ ( "_"
+                          , eApp
+                              (eVar "_map")
+                              [ eFun [pVar "pair"] <|
+                                  eApp
+                                    (eVar "_constrain")
+                                    [ eApp
+                                        (eVar "func")
+                                        [eApp (eVar "get_2_1") [eVar "pair"]]
+                                    , eApp (eVar "get_2_2") [eVar "pair"]
+                                    ]
+                              , eVar "ioList"
+                              ]
+                          )
+                        ]
+                        (eTuple [])
+
+              -- specifyFunction2 func ioList =
+              --   let
+              --     _ =
+              --       _map
+              --         ( \triple ->
+              --             _constrain
+              --               (func (get_3_1 pair) (get_3_2 triple))
+              --               (get_3_3 pair)
+              --         )
+              --         ioList
+              --   in
+              --     ()
+              "specifyFunction2" ->
+                Evaluator.succeed <|
+                  UFunClosure () env "func" <|
+                    eFun [pVar "ioList"] <|
+                      eLet
+                        [ ( "_"
+                          , eApp
+                              (eVar "_map")
+                              [ eFun [pVar "triple"] <|
+                                  eApp
+                                    (eVar "_constrain")
+                                    [ eApp
+                                        (eVar "func")
+                                        [ eApp (eVar "get_3_1") [eVar "triple"]
+                                        , eApp (eVar "get_3_2") [eVar "triple"]
+                                        ]
+                                    , eApp (eVar "get_3_3") [eVar "triple"]
+                                    ]
+                              , eVar "ioList"
+                              ]
+                          )
+                        ]
+                        (eTuple [])
+
+              -- defineHole hole exp =
+              --   let _ = _constrain hole exp in hole
+              "defineHole" ->
+                Evaluator.succeed <|
+                  UFunClosure () env "hole" <|
+                    eFun [pVar "exp"] <|
+                      eLet
+                        [ ( "_"
+                          , eApp
+                              (eVar "_constrain")
+                              [ eVar "hole"
+                              , eVar "exp"
+                              ]
+                          )
+                        ]
+                        (eVar "hole")
+
+              _ ->
+                case U.lookupVar varName env of
+                  Just u ->
+                    Evaluator.succeed u
 
                   Nothing ->
-                    Evaluator.fail <|
-                      "Variable not found: '" ++ x ++ "': " ++ U.unparseEnv env
+                    case U.lookupRecursiveFunction varName env of
+                      Just (functionEnv, functionDefs, (_, params, body)) ->
+                        let
+                          newFunctionEnv =
+                            U.addRecursiveBinding
+                              (functionEnv, functionDefs)
+                              functionEnv
+                        in
+                          Evaluator.succeed <|
+                            UFunClosure () newFunctionEnv params body
+
+                      Nothing ->
+                        Evaluator.fail <|
+                          "Variable not found: '"
+                            ++ varName
+                            ++ "': "
+                            ++ U.unparseEnv env
 
           -- E-App
 
@@ -256,37 +360,53 @@ eval_ env exp =
                 eval_ env e1 |> Evaluator.andThen (\u1 ->
                   eval_ env e2 |> Evaluator.andThen (\u2 ->
                     withConstraints
-                      (assertEqual u1 u2)
+                      (constrain u1 u2)
                       (UTuple () [])
                   )
                 )
 
-              evalDefineHole e1 e2 =
-                -- Desugars to:
-                --   let _ = PBE.constrain e1 e2 in e1
-                eval_ env <|
-                  eLet
-                    [ ( "_"
-                      , eApp
-                          (eSelect (eVar "PBE") "constrain")
-                          [e1, e2]
-                      )
-                    ]
-                    e1
+              evalMap eMapF eMapList =
+                let
+                  consMap uFunc uList =
+                    case uList of
+                      UConstructor _ "Nil" (UTuple () []) ->
+                        Evaluator.succeed uList
+
+                      UConstructor _ "Cons" (UTuple () [uHead, uRest]) ->
+                        Evaluator.do (apply env uFunc [uHead]) <| \uNewHead ->
+                        Evaluator.do (consMap uFunc uRest) <| \uNewRest ->
+                        Evaluator.succeed <|
+                          UConstructor ()
+                            "Cons"
+                            (UTuple () [uNewHead, uNewRest])
+
+                      _ ->
+                        Evaluator.fail
+                          "_map applied to non-list"
+                in
+                  Evaluator.do (eval_ env eMapF) <| \uFunc ->
+                  Evaluator.do (eval_ env eMapList) <| \uList ->
+                    consMap uFunc uList
             in
               case Lang.toTupleGet exp of
                 Just tupleGet ->
                   evalGet tupleGet
 
                 Nothing ->
-                  case Lang.pbeAction exp of
-                    Just (Constrain e1 e2) ->
-                      evalConstrain e1 e2
+                  case unwrapExp eFunction of
+                    -- Built-ins
+                    EVar _ action ->
+                      case (action, eArgs) of
+                        ("_constrain", [e1, e2]) ->
+                          evalConstrain e1 e2
 
-                    Just (DefineHole e1 e2) ->
-                      evalDefineHole e1 e2
+                        ("_map", [eMapF, eMapList]) ->
+                          evalMap eMapF eMapList
 
-                    Nothing ->
+                        _ ->
+                          default ()
+
+                    _ ->
                       default ()
 
           -- E-Match
@@ -375,8 +495,17 @@ eval_ env exp =
           -- Misc.
 
           EOp _ _ op args _ ->
-            Evaluator.fail
-              "Op not supported"
+            case (op.val, args) of
+              -- Used for assert: a == b ===> (a, b)
+              (Eq, [e1, e2]) ->
+                Evaluator.do (eval_ env e1) <| \u1 ->
+                Evaluator.do (eval_ env e2) <| \u2 ->
+                Evaluator.succeed <|
+                  UTuple () [u1, u2]
+
+              _ ->
+                Evaluator.fail
+                  "Arbitrary operator not supported"
 
           EList _ args _ _ _ ->
             args
@@ -520,35 +649,7 @@ eval_ env exp =
                   "Could not get record entries"
 
           ESelect _ target _ _ selector ->
-            case unwrapExp target of
-              EVar _ "PBE" ->
-                case Dict.get selector pbeActions of
-                  Just argCount ->
-                    let
-                      head =
-                        pbeName selector
-
-                      argList =
-                        pbeArgList argCount
-                    in
-                      case argList of
-                        firstArg :: restArgs ->
-                          Evaluator.succeed <|
-                            UFunClosure () env firstArg <|
-                              eFun (List.map pVar restArgs) <|
-                                eApp (eVar head) (List.map eVar argList)
-
-                        -- Impossible
-                        [] ->
-                          Evaluator.fail "PBE action with no arguments"
-
-                  Nothing ->
-                    Evaluator.fail <|
-                      "Unknown PBE action '" ++ selector ++ "'"
-
-              _ ->
-                Evaluator.fail
-                  "Arbitrary select not supported"
+            Evaluator.fail "Select not supported"
 
 --------------------------------------------------------------------------------
 -- Additional Pipeline Operations
@@ -619,12 +720,12 @@ ensureConstraintFree evalResult =
 --= Constraints
 --==============================================================================
 
-assertEqual : UnExp () -> UnExp () -> NonDet Constraints
-assertEqual u1 u2 =
+constrain : UnExp () -> UnExp () -> NonDet Constraints
+constrain u1 u2 =
   case (u1, u2) of
     (UConstructor _ ctorName1 uInner1, UConstructor _ ctorName2 uInner2) ->
       if ctorName1 == ctorName2 then
-        assertEqual uInner1 uInner2
+        constrain uInner1 uInner2
       else
         NonDet.none
 
@@ -637,7 +738,7 @@ assertEqual u1 u2 =
           List.length us2
       in
         if us1Length == us2Length then
-          List.map2 assertEqual us1 us2
+          List.map2 constrain us1 us2
             |> NonDet.oneOfEach
             |> NonDet.map List.concat
         else
@@ -646,7 +747,7 @@ assertEqual u1 u2 =
     _ ->
       if u1 == u2 then
         let
-          _ = Debug.log "WARN: u1 == u2 case in assertEqual" ()
+          _ = Debug.log "WARN: u1 == u2 case in constrain" ()
         in
           NonDet.pure []
       else

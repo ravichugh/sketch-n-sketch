@@ -3075,6 +3075,10 @@ tTuple: WS -> List (Maybe WS, Type) -> WS -> Type
 tTuple spBeforeOpenParen keyValues spBeforeCloseParen =
   withDummyTypeInfo <| tTuple__ spBeforeOpenParen keyValues spBeforeCloseParen
 
+tTuple0 : List Type -> Type
+tTuple0 ts =
+  tTuple space0 (List.map ((,) Nothing) ts) space0
+
 ------------------------------------------------------------------------------
 -- Whitespace helpers
 ------------------------------------------------------------------------------
@@ -4822,55 +4826,6 @@ tupleTypeArguments t =
       tupleEncodingUnapply keyValues
         |> Maybe.map (List.map Tuple.second)
 
-    _ ->
-      Nothing
-
---------------------------------------------------------------------------------
--- PBE Built-In Functions
---------------------------------------------------------------------------------
-
-type PBEAction
-  = Constrain Exp Exp
-  | DefineHole Exp Exp
-
-
--- Name -> number of args
-pbeActions : Dict String Int
-pbeActions =
-  Dict.fromList
-    [ ("constrain", 2)
-    , ("defineHole", 2)
-    ]
-
-pbeName : String -> String
-pbeName s =
-  "pbe__" ++ s
-
-pbeArgList : Int -> List Ident
-pbeArgList n =
-  List.range 0 (n - 1)
-    |> List.map (toString >> pbeName)
-
-pbeAction : Exp -> Maybe PBEAction
-pbeAction e =
-  case unwrapExp e of
-    -- All actions only take two arguments, for now
-    EApp _ eFunction [e1, e2] _ _ ->
-      case unwrapExp eFunction of
-        EVar _ action ->
-          case action of
-            "pbe__constrain" ->
-              Just <|
-                Constrain e1 e2
-
-            "pbe__defineHole" ->
-              Just <|
-                DefineHole e1 e2
-
-            _ ->
-              Nothing
-        _ ->
-          Nothing
     _ ->
       Nothing
 
