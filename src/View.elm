@@ -3119,7 +3119,6 @@ viewCollectedConstraints possibleConstraints =
              ]
              ( List.map viewConstraint constraints
              )
-         , Html.hr [ Attr.style [("padding-top", "10px")]] []
          ]
 
 viewBackprop : Model -> List (Html Msg)
