@@ -718,13 +718,13 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                                 maybeSubBindSpec
                                 worlds
                             ) <|  \distributedWorlds ->
-                              if
-                                List.length constructorDefs /= 1
-                                  && Dict.size distributedWorlds < 2
-                              then
-                                -- Uninformative match by Restriction (A)
-                                NonDet.none
-                              else
+                              -- if
+                              --   List.length constructorDefs /= 1
+                              --     && Dict.size distributedWorlds < 2
+                              -- then
+                              --   -- Uninformative match by Restriction (A)
+                              --   NonDet.none
+                              -- else
                                 let
                                   possibleBranches =
                                     dontCareWorlds
