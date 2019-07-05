@@ -924,6 +924,10 @@ insertAllIntoSet : List a -> Set a -> Set a
 insertAllIntoSet items set =
   items |> List.foldl Set.insert set
 
+removeAllFromSet : List a -> Set a -> Set a
+removeAllFromSet items set =
+  items |> List.foldl Set.remove set
+
 maybeLast list =
   case list of
     []    -> Nothing

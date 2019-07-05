@@ -919,18 +919,18 @@ expDescriptionParts program targetEId =
   let equivalentEIds =
     outerSameValueExpByEId program targetEId |> expEffectiveEIds |> Set.fromList
   in
-  expDescriptionParts_ program program targetEId equivalentEIds
+  expDescriptionParts_ program program Set.empty targetEId equivalentEIds
 
-expDescriptionParts_ : Exp -> Exp -> EId -> Set EId -> List String
-expDescriptionParts_ program exp targetEId equivalentEIds =
-  let recurse e = expDescriptionParts_ program e targetEId equivalentEIds in
+expDescriptionParts_ : Exp -> Exp -> Set Ident -> EId -> Set EId -> List String
+expDescriptionParts_ program exp numericIdents targetEId equivalentEIds =
+  let recurse e numericIdents = expDescriptionParts_ program e numericIdents targetEId equivalentEIds in
   let varIdentOrDefault e default = expToMaybeIdent e |> Maybe.withDefault default in
-  let searchChildren () =
+  let searchChildren numericIdents =
     -- Recurse lazily through children.
     childExps exp
     |> Utils.mapFirstSuccess
         (\child ->
-          case recurse child of
+          case recurse child numericIdents of
             []    -> Nothing
             parts -> Just parts
         )
@@ -939,9 +939,25 @@ expDescriptionParts_ program exp targetEId equivalentEIds =
   if exp.val.eid == targetEId then
     [simpleExpName exp]
   else
+    let numericIdents_ =
+      -- Overly conservative. ECase branches not distinguished.
+      let identsToRemove =
+        case exp.val.e__ of
+          EFun _ pats _ _          -> identifiersListInPats pats
+          ECase _ _ branches _     -> identifiersListInPats (branchPats branches)
+          ELet _ _ _ pat _ _ _ _ _ -> identifiersListInPat pat
+          _                        -> []
+      in
+      Utils.removeAllFromSet identsToRemove numericIdents
+    in
     case exp.val.e__ of
-      ELet _ _ _ pat _ assigns _ body _ ->
+      ELet _ _ isRec pat _ assigns _ body _ ->
         let namedAssigns = tryMatchExpReturningList pat assigns in
+        let numericIdents__ =
+          -- Conservative numericIdents_ by assuming recursive let.
+          let (newNumericIdents, _) = namedAssigns |> List.filter (\(_, e) -> isSurelyNumeric numericIdents_ e) |> List.unzip in
+          Utils.insertAllIntoSet newNumericIdents numericIdents_
+        in
         case List.filter (\(ident, e) -> findExpByEId e targetEId /= Nothing) namedAssigns of
           [] ->
             if Set.member assigns.val.eid equivalentEIds then
@@ -959,8 +975,8 @@ expDescriptionParts_ program exp targetEId equivalentEIds =
                       []        -> []
                       pathedPatIdents -> [String.join "" pathedPatIdents]
               in
-              case recurse assigns of
-                []          -> recurse body
+              case recurse assigns (if isRec then numericIdents__ else numericIdents_) of
+                []          -> recurse body numericIdents__
                 deeperParts -> scopeNames ++ deeperParts
 
           identsAndMatchingExp ->
@@ -970,14 +986,14 @@ expDescriptionParts_ program exp targetEId equivalentEIds =
             if Set.member matchingExp.val.eid equivalentEIds then
               (Utils.dropLast 1 idents) ++ [varIdentOrDefault matchingExp ident]
             else
-              case recurse matchingExp of
+              case recurse matchingExp (if isRec then numericIdents__ else numericIdents_) of
                 []          -> Debug.crash <| "LangTools.expDescriptionParts expected to find targetEId in\n" ++ unparseWithIds matchingExp ++ "\nin\n" ++ unparseWithIds assigns
                 deeperParts -> idents ++ deeperParts
 
       -- Try to use name of the function argument the expression is bound to.
       EApp ws1 fExp es appType ws2 ->
         -- Probably faster to first check for target in es (which will usually fail); avoids searching for binding of fExp
-        case searchChildren () of
+        case searchChildren numericIdents_ of
           [] -> []
           childrenResult ->
             expToMaybeIdent fExp
@@ -1012,24 +1028,24 @@ expDescriptionParts_ program exp targetEId equivalentEIds =
 
       -- Points
       EList _ [(_, head1), (_, head2)] _ Nothing _ ->
-        case (recurse head1, recurse head2) of
+        case (recurse head1 numericIdents_, recurse head2 numericIdents_) of
           (["num"], _) ->
-            if isSurelyNumeric Set.empty head2
+            if isSurelyNumeric numericIdents_ head2
             then ["x"]
-            else searchChildren ()
+            else searchChildren numericIdents_
 
           ([], ["num"]) ->
-            if isSurelyNumeric Set.empty head1
+            if isSurelyNumeric numericIdents_ head1
             then ["y"]
-            else searchChildren ()
+            else searchChildren numericIdents_
 
           _ ->
-            searchChildren ()
+            searchChildren numericIdents_
 
       -- If deeper expressions produce a default name, use the type annotation instead.
       -- Motivation: want to produce the name "point" instead of "pair" in ([10, 20] : Point).
       EColonType _ typedExp _ tipe _ ->
-        case searchChildren () of
+        case searchChildren numericIdents_ of
           [] -> []
           [childName] ->
             if simpleExpName typedExp == childName
@@ -1040,7 +1056,7 @@ expDescriptionParts_ program exp targetEId equivalentEIds =
             scopedResults
 
       _ ->
-        searchChildren ()
+        searchChildren numericIdents_
 
 
 -- Still needs to be rewritten to handle scopes created by case branches.
@@ -1733,18 +1749,10 @@ identifiersListPatsOnly : Exp -> List Ident
 identifiersListPatsOnly exp =
   let folder e__ acc =
     case e__ of
-      EFun _ pats _ _ ->
-        (List.concatMap identifiersListInPat pats) ++ acc
-
-      ECase _ _ branches _ ->
-        let pats = branchPats branches in
-        (List.concatMap identifiersListInPat pats) ++ acc
-
-      ELet _ _ _ pat _ _ _ _ _ ->
-        (identifiersListInPat pat) ++ acc
-
-      _ ->
-        acc
+      EFun _ pats _ _          -> identifiersListInPats pats ++ acc
+      ECase _ _ branches _     -> identifiersListInPats (branchPats branches) ++ acc
+      ELet _ _ _ pat _ _ _ _ _ -> identifiersListInPat pat ++ acc
+      _                        -> acc
   in
   foldExpViaE__
     folder
