@@ -220,8 +220,8 @@ relGenEApp1
           T.structurallyDecreasing combinedGamma head argument
         then
           NonDet.pure <|
-            eApp0
-              head
+            eApp
+              (replacePrecedingWhitespace0 head)
               [replacePrecedingWhitespace1 argument]
 
         else

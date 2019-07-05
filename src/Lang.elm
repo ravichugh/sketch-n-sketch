@@ -3326,10 +3326,13 @@ replacePrecedingWhitespace : String -> Exp -> Exp
 replacePrecedingWhitespace newWs exp =
   mapPrecedingWhitespace (\_ -> newWs) exp
 
+replacePrecedingWhitespace0 : Exp -> Exp
+replacePrecedingWhitespace0 =
+  replacePrecedingWhitespace ""
+
 replacePrecedingWhitespace1 : Exp -> Exp
 replacePrecedingWhitespace1 =
   replacePrecedingWhitespace " "
-
 
 replacePrecedingWhitespacePat : String -> Pat -> Pat
 replacePrecedingWhitespacePat newWs pat =

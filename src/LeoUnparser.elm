@@ -95,7 +95,7 @@ getArgConstructorNameString keyValues =
 -- Tries to unparse a record as a data constructor
 -- (Has redundancy with Lang.dataTypeEncodingUnapply)
 tryUnparseDataConstructor
-  :  (t -> String) -> (t -> Maybe String) -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
+  :  (t -> String -> String) -> (t -> Maybe String) -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
   -> WS -> List (Maybe WS, WS, String, WS, t) -> WS
   -> Maybe String
 tryUnparseDataConstructor unparseTerm name args wsBefore fields wsBeforeEnd =
@@ -112,32 +112,23 @@ tryUnparseDataConstructor unparseTerm name args wsBefore fields wsBeforeEnd =
   in
     case (maybeNameString, maybeArgs) of
       (Just nameString, Just args) ->
-        let
-          argsString =
-            args
-              |> Lang.ensureRecordNumericArgEntriesInOrder
-              |> List.map
-                   ( \(_, _, _, _, elBinding) ->
-                       unparseTerm elBinding
-                   )
-              |> String.concat
-        in
-          Just <|
-            wsBefore.val
-              ++ nameString
-              ++ argsString
+        args
+          |> Lang.ensureRecordNumericArgEntriesInOrder
+          |> List.map (\(_, _, _, _, x) -> x)
+          |> List.foldl unparseTerm (wsBefore.val ++ nameString)
+          |> Just
 
       _ ->
         Nothing
 
 tryUnparseRecordSugars
-  :  (t -> String)
+  :  (t -> String -> String)
   -> (t -> Maybe String)
   -> (t -> Maybe (List (Maybe WS, WS, Ident, WS, t)))
   -> WS -> List (Maybe WS, WS, String, WS, t) -> WS
   -> (() -> String) -> String
 tryUnparseRecordSugars unparseTerm name args wsBefore decls wsBeforeEnd default =
-  case tryUnparseTuple unparseTerm wsBefore decls wsBeforeEnd of
+  case tryUnparseTuple (\x -> unparseTerm x "") wsBefore decls wsBeforeEnd of
     Just s ->
       s
     Nothing ->
@@ -205,7 +196,7 @@ unparsePattern p =
       unparsePattern tail
 
     PRecord wsBefore elems wsAfter ->
-      tryUnparseRecordSugars unparsePattern Lang.getPatString Lang.getPatEntries wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars (\x acc -> acc ++ unparsePattern x) Lang.getPatString Lang.getPatEntries wsBefore elems wsAfter <| \_ ->
         let maybeJustKey eqSpace key value =
           let default = eqSpace ++ "=" ++ unparsePattern value in
           if eqSpace == "" then
@@ -255,7 +246,7 @@ unparseType tipe =
         Just restType -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws2.val ++ "|" ++ (unparseType restType) ++ ws3.val ++ "]"
         Nothing       -> ws1.val ++ "[" ++ (String.concat (List.map unparseType typeList)) ++ ws3.val ++ "]"
     TRecord wsBefore mb elems wsAfter ->
-      tryUnparseRecordSugars unparseType Lang.getTypeString Lang.getTypeEntries wsBefore elems wsAfter <| \_ ->
+      tryUnparseRecordSugars (\x acc -> acc ++ unparseType x) Lang.getTypeString Lang.getTypeEntries wsBefore elems wsAfter <| \_ ->
       wsBefore.val
         ++ "{"
         ++ (case mb of
@@ -394,6 +385,35 @@ wrapWithTightParens unparsed =
   in
   ws ++ "(" ++ trimmed ++ ")"
 
+-- Not just for help converting Little to Leo. Allows synthesis ot not have to worry about so many cases.
+unparseArg e =
+  case (unwrapExp e) of
+     EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
+     EOp _ _ _ _ _        -> wrapWithTightParens (unparse e)
+     EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
+     _                    -> unparse e
+
+unparseArgWithRendering arg currentRendering =
+  let
+    argStr =
+      unparseArg arg
+    argIsLambda =
+      case unwrapExp arg of
+        EFun _ _ _ _ ->
+          True
+        _ ->
+          False
+    mbWrapArg =
+      if
+        Utils.wouldNotRecognizeTokenSplit currentRendering argStr
+          || argIsLambda
+      then
+        " (" ++ String.trim argStr ++ ")"
+      else
+        argStr
+  in
+    currentRendering ++ mbWrapArg
+
 unparse : Exp -> String
 unparse e =
   case (unwrapExp e) of
@@ -445,26 +465,11 @@ unparse e =
         _ -> default ()
 
     EApp wsBefore function arguments appType _ ->
-      -- Not just for help converting Little to Leo. Allows synthesis ot not have to worry about so many cases.
-      let unparseArg e =
-        case (unwrapExp e) of
-           EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
-           EOp _ _ _ _ _        -> wrapWithTightParens (unparse e)
-           EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
-           _                    -> unparse e
-      in
       case appType of
         SpaceApp ->
 
           (++) wsBefore.val <|
-               Utils.foldLeft (unparse function) arguments <|
-                 \currentRendering arg ->
-                   let argStr = unparseArg arg in
-                   let mbWrapArg = if Utils.wouldNotRecognizeTokenSplit currentRendering argStr then
-                     "(" ++ argStr ++ ")"
-                     else argStr
-                   in
-                   currentRendering ++ mbWrapArg
+            List.foldl unparseArgWithRendering (unparse function) arguments
             -- NOTE: to help with converting Little to Leo
             -- ++ String.concat (List.map unparse arguments)
         LeftApp lws ->
@@ -555,7 +560,9 @@ unparse e =
       case recordEntriesFromDeclarations decls of
         Nothing -> default ()
         Just fields ->
-          tryUnparseRecordSugars (\arg -> wrapWithParensIfLessPrecedence OpRight e arg (unparse arg)) Lang.getExpString Lang.getExpEntries
+          tryUnparseRecordSugars
+            (\arg rendering -> wrapWithParensIfLessPrecedence OpRight e arg (unparseArgWithRendering arg rendering))
+              Lang.getExpString Lang.getExpEntries
               wsBefore fields wsAfter default
 
     ESelect ws0 exp wsBeforeDot wsAfterDot id ->
