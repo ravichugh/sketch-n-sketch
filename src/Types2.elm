@@ -2741,7 +2741,7 @@ checkType
 checkType gamma stuff thisExp expectedType =
   case ( (unExpr thisExp).val.e__
        , expectedType.val.t__
-       , matchArrow expectedType
+       , matchArrowRecurse expectedType
        ) of
 
     (_, TParens _ innerExpectedType _, _) ->
@@ -2775,123 +2775,124 @@ checkType gamma stuff thisExp expectedType =
     -- EParens and TParens cases, above.
     --
     (EFun ws1 pats body ws2, _, Just (typeVars, argTypes, retType)) ->
-      if List.length pats < List.length argTypes then
-        { okay = False
-        , newExp =
-            thisExp
-              |> setDeuceTypeInfo
-                   (deucePlainLabels <|
-                      "TODO List.length pats < List.length argTypes"
-                        :: List.map unparsePattern pats
-                        ++ List.map unparseType argTypes)
-        , holeEnv =
-            emptyHoleEnv
-        }
+      let
+        maybeBindSpec =
+          let
+            thisEid =
+              (unExpr thisExp).val.eid
+          in
+            case parentByEId stuff.inputExp (unExpr thisExp).val.eid of
+              Just (Just parent) ->
+                case unwrapExp parent of
+                  ELet _ _ (Declarations _ _ _ letExpGroups) _ _ ->
+                    letExpGroups
+                         -- Consider only recursive letExpGroups
+                      |> List.filter Tuple.first
+                      |> List.concatMap Tuple.second
+                      |> List.map (\(LetExp _ _ pat _ _ exp) -> (pat, exp))
+                      |> Utils.findFirst (Tuple.second >> expEId >> (==) thisEid)
+                      |> Maybe.map (Tuple.first >> Arg)
 
-      -- TODO (Justin) Structural recursion preservation with currying?
-      else if List.length pats > List.length argTypes then
-        let
-          -- Break up thisExp EFun into two nested EFuns, and check that.
-          --
-          result =
-            checkType gamma stuff rewrittenThisExp expectedType
-
-          (prefixPats, suffixPats) =
-            Utils.split (List.length argTypes) pats
-
-          rewrittenBody =
-            -- TODO: Probably need to do something better with ids/breadcrumbs...
-            Expr (withDummyInfo (exp_ (EFun space0 suffixPats body space0)))
-
-          rewrittenThisExp =
-            -- TODO: Probably need to do something better with ids/breadcrumbs...
-            Expr (withDummyInfo (exp_ (EFun space0 prefixPats rewrittenBody space0)))
-
-          (newPrefixPats, newSuffixPats, newBody) =
-            case (unExpr result.newExp).val.e__ of
-              EFun _ newPrefixPats innerFunc _ ->
-                case (unExpr innerFunc).val.e__ of
-                  EFun _ newSuffixPats newCheckedBody _ ->
-                    (newPrefixPats, newSuffixPats, newCheckedBody)
                   _ ->
-                    Debug.crash "the structure of the rewritten EFun has changed..."
+                    Nothing
+
               _ ->
-                Debug.crash "the structure of the rewritten EFun has changed..."
+                Nothing
+        patTypes =
+          Utils.zip pats argTypes
+            |> List.map (\(p, t) -> (p, t, maybeBindSpec))
+        newGamma_ =
+          List.foldl addTypeVar gamma typeVars
+        newGamma =
+          List.foldl addHasType newGamma_ patTypes
+        newPats =
+          List.map (\(p,t,_) -> p |> setPatType (Just t)) patTypes
+      in
+        if List.length pats < List.length argTypes then
+          { okay = False
+          , newExp =
+              thisExp
+                |> setDeuceTypeInfo
+                     (deucePlainLabels <|
+                        "TODO List.length pats < List.length argTypes"
+                          :: List.map unparsePattern pats
+                          ++ List.map unparseType argTypes)
+          , holeEnv =
+              emptyHoleEnv
+          }
 
-          newExp =
-            -- Keeping the structure of the original EFun in tact, not
-            -- the rewrittenThisExp version. May need to track some
-            -- breadcrumbs for stuffing type info into selection polygons...
+        else if List.length pats > List.length argTypes then
+          let
+            -- Break up thisExp EFun into two nested EFuns, and check that.
             --
-            EFun ws1 (newPrefixPats ++ newSuffixPats) newBody ws2
-              |> replaceE__ thisExp
-              |> copyTypeInfoFrom result.newExp
-        in
-        { okay = result.okay
-        , newExp = newExp
-        , holeEnv = result.holeEnv
-        }
+            result =
+              checkType newGamma stuff rewrittenThisExp expectedType
 
-      else {- List.length pats == List.length argTypes -}
-        let
-          maybeBindSpec =
-            let
-              thisEid =
-                (unExpr thisExp).val.eid
-            in
-              case parentByEId stuff.inputExp (unExpr thisExp).val.eid of
-                Just (Just parent) ->
-                  case unwrapExp parent of
-                    ELet _ _ (Declarations _ _ _ letExpGroups) _ _ ->
-                      letExpGroups
-                           -- Consider only recursive letExpGroups
-                        |> List.filter Tuple.first
-                        |> List.concatMap Tuple.second
-                        |> List.map (\(LetExp _ _ pat _ _ exp) -> (pat, exp))
-                        |> Utils.findFirst (Tuple.second >> expEId >> (==) thisEid)
-                        |> Maybe.map (Tuple.first >> Arg)
+            (prefixPats, suffixPats) =
+              Utils.split (List.length argTypes) newPats
 
+            rewrittenBody =
+              -- TODO: Probably need to do something better with ids/breadcrumbs...
+              Expr (withDummyInfo (exp_ (EFun space0 suffixPats body space0)))
+
+            rewrittenThisExp =
+              -- TODO: Probably need to do something better with ids/breadcrumbs...
+              Expr (withDummyInfo (exp_ (EFun space0 prefixPats rewrittenBody space0)))
+
+            (newPrefixPats, newSuffixPats, newBody) =
+              case (unExpr result.newExp).val.e__ of
+                EFun _ newPrefixPats innerFunc _ ->
+                  case (unExpr innerFunc).val.e__ of
+                    EFun _ newSuffixPats newCheckedBody _ ->
+                      (newPrefixPats, newSuffixPats, newCheckedBody)
                     _ ->
-                      Nothing
-
+                      Debug.crash "the structure of the rewritten EFun has changed..."
                 _ ->
-                  Nothing
-          patTypes =
-            Utils.zip pats argTypes
-              |> List.map (\(p, t) -> (p, t, maybeBindSpec))
-          newGamma_ =
-            List.foldl addTypeVar gamma typeVars
-          newGamma =
-            List.foldl addHasType newGamma_ patTypes
-          newPats =
-            List.map (\(p,t,_) -> p |> setPatType (Just t)) patTypes
-          result =
-            checkType newGamma stuff body retType
-        in
-          if result.okay then
-            { okay = True
-            , newExp =
-                EFun ws1 newPats result.newExp ws2
-                  |> replaceE__ thisExp
-                  |> setType (Just expectedType)
-            , holeEnv = result.holeEnv
-            }
+                  Debug.crash "the structure of the rewritten EFun has changed..."
 
-          else
-            let
-              maybeActualType =
-                (unExpr result.newExp).val.typ
-                  |> Maybe.map (\actualRetType ->
-                       rebuildArrow (typeVars, argTypes, actualRetType)
-                     )
-            in
-            { okay = False
-            , newExp =
-                EFun ws1 newPats result.newExp ws2
-                  |> replaceE__ thisExp
-                  |> setDeuceTypeInfo (expectedButGot stuff.inputExp expectedType maybeActualType)
-            , holeEnv = result.holeEnv
-            }
+            newExp =
+              -- Keeping the structure of the original EFun in tact, not
+              -- the rewrittenThisExp version. May need to track some
+              -- breadcrumbs for stuffing type info into selection polygons...
+              --
+              EFun ws1 (newPrefixPats ++ newSuffixPats) newBody ws2
+                |> replaceE__ thisExp
+                |> copyTypeInfoFrom result.newExp
+          in
+          { okay = result.okay
+          , newExp = newExp
+          , holeEnv = result.holeEnv
+          }
+
+        else {- List.length pats == List.length argTypes -}
+          let
+            result =
+              checkType newGamma stuff body retType
+          in
+            if result.okay then
+              { okay = True
+              , newExp =
+                  EFun ws1 newPats result.newExp ws2
+                    |> replaceE__ thisExp
+                    |> setType (Just expectedType)
+              , holeEnv = result.holeEnv
+              }
+
+            else
+              let
+                maybeActualType =
+                  (unExpr result.newExp).val.typ
+                    |> Maybe.map (\actualRetType ->
+                         rebuildArrow (typeVars, argTypes, actualRetType)
+                       )
+              in
+              { okay = False
+              , newExp =
+                  EFun ws1 newPats result.newExp ws2
+                    |> replaceE__ thisExp
+                    |> setDeuceTypeInfo (expectedButGot stuff.inputExp expectedType maybeActualType)
+              , holeEnv = result.holeEnv
+              }
 
     (EIf ws0 guardExp ws1 thenExp ws2 elseExp ws3, _, _) ->
       let
