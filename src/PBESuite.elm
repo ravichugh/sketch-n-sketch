@@ -13,7 +13,7 @@ type Nat
 
 ?? : Nat"""
 
-bool_band =
+bool_band = (,)
   """type Boolean
   = F ()
   | T ()
@@ -26,9 +26,9 @@ specifyFunction2 and
   , (T (), F (), F ())
   , (F (), T (), F ())
   , (F (), F (), F ())
-  ]"""
+  ]""" 4
 
-bool_bor =
+bool_bor = (,)
   """type Boolean
   = F ()
   | T ()
@@ -41,9 +41,9 @@ specifyFunction2 or
   , (T (), F (), T ())
   , (F (), T (), T ())
   , (F (), F (), F ())
-  ]"""
+  ]""" 4
 
-bool_impl =
+bool_impl = (,)
   """type Boolean
   = F ()
   | T ()
@@ -56,9 +56,9 @@ specifyFunction2 impl
   , (T (), F (), T ())
   , (F (), T (), T ())
   , (F (), F (), F ())
-  ]"""
+  ]""" 4
 
-bool_neg =
+bool_neg = (,)
   """type Boolean
   = F ()
   | T ()
@@ -69,9 +69,9 @@ neg p = ??
 specifyFunction neg
   [ (T (), F ())
   , (F (), T ())
-  ]"""
+  ]""" 2
 
-bool_xor =
+bool_xor = (,)
   """type Boolean
   = F ()
   | T ()
@@ -84,9 +84,9 @@ specifyFunction2 xor
   , (T (), F (), T ())
   , (F (), T (), T ())
   , (F (), F (), F ())
-  ]"""
+  ]""" 4
 
-list_append =
+list_append = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -105,9 +105,9 @@ specifyFunction2 append
   , ([0], [0], [0, 0])
   , ([1, 0], [], [1, 0])
   , ([1, 0], [0], [1, 0, 0])
-  ]"""
+  ]""" 6
 
-list_compress =
+list_compress = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -153,9 +153,9 @@ specifyFunction2 compress
   , ([2,2,0], [2,0])
   , ([2,2,2,0], [2,0])
   , ([1,2,2,2,0], [1,2,0])
-  ]"""
+  ]""" 13
 
-list_concat =
+list_concat = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -189,9 +189,9 @@ specifyFunction concat
   , (LCons ([0], LCons([0], LNil ())), [0,0])
   , (LCons ([1], LNil ()), [1])
   , (LCons ([1], LCons([1], LNil ())), [1,1])
-  ]"""
+  ]""" 6
 
-list_drop =
+list_drop = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -215,9 +215,9 @@ specifyFunction2 drop
   , ([0, 1], 0, [0, 1])
   , ([0, 1], 1, [1])
   , ([0, 1], 2, [])
-  ]"""
+  ]""" 11
 
-list_even_parity =
+list_even_parity = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -241,9 +241,9 @@ specifyFunction evenParity
   , ([F (), T ()], F ())
   , ([T (), F ()], F ())
   , ([T (), T ()], T ())
-  ]"""
+  ]""" 7
 
-list_filter =
+list_filter = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -286,9 +286,9 @@ specifyFunction2 listFilter
   , ([0, 1], isEven, [0])
   , ([], isNonzero, [])
   , ([0], isNonzero, [])
-  ]"""
+  ]""" 8
 
-list_fold =
+list_fold = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -338,9 +338,9 @@ specifyFunction (\\p -> listFold (get_3_1 p) (get_3_2 p) (get_3_3 p))
   , (([1], countOdd, 0), 1)
   , (([2, 1], countOdd, 0), 1)
   , (([3, 2, 1], countOdd, 0), 2)
-  ]"""
+  ]""" 9
 
-list_hd =
+list_hd = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -356,9 +356,9 @@ specifyFunction listHead
   [ ([], 0)
   , ([0], 0)
   , ([1], 1)
-  ]"""
+  ]""" 3
 
-list_inc =
+list_inc = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -384,9 +384,9 @@ specifyFunction listInc
   , ([1, 2], [2, 3])
   , ([0, 0], [1, 1])
   , ([3, 4, 5], [4, 5, 6])
-  ]"""
+  ]""" 4
 
-list_last =
+list_last = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -409,9 +409,9 @@ specifyFunction listLast
   , ([2, 1], Some 1)
   , ([1, 2], Some 2)
   , ([3, 2, 1], Some 1)
-  ]"""
+  ]""" 6
 
-list_length =
+list_length = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -427,9 +427,9 @@ specifyFunction listLength
   [ ([], 0)
   , ([0], 1)
   , ([0, 0], 2)
-  ]"""
+  ]""" 3
 
-list_map =
+list_map = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -459,9 +459,9 @@ specifyFunction2 listMap
   , ([], zero, [])
   , ([0], zero, [0])
   , ([0, 0], zero, [0, 0])
-  ]"""
+  ]""" 8
 
-list_nth =
+list_nth = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -487,9 +487,9 @@ specifyFunction2 listNth
   , ([3, 2, 1], 0, 3)
   , ([3, 2, 1], 1, 2)
   , ([3, 2, 1], 2, 1)
-  ]"""
+  ]""" 13
 
-list_pairwise_swap =
+list_pairwise_swap = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -509,9 +509,9 @@ specifyFunction listPairwiseSwap
   , ([1, 0], [0, 1])
   , ([1, 0, 1], [])
   , ([0, 1, 0, 1], [1, 0, 1, 0])
-  ]"""
+  ]""" 7
 
-list_rev_append =
+list_rev_append = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -540,9 +540,9 @@ specifyFunction listRevAppend
   , ([1], [1])
   , ([0, 1], [1, 0])
   , ([0, 0, 1], [1, 0, 0])
-  ]"""
+  ]""" 5
 
-list_rev_fold =
+list_rev_fold = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -575,9 +575,9 @@ specifyFunction listRevFold
   , ([1], [1])
   , ([0, 1], [1, 0])
   , ([0, 0, 1], [1, 0, 0])
-  ]"""
+  ]""" 5
 
-list_rev_snoc =
+list_rev_snoc = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -604,9 +604,9 @@ specifyFunction listRevSnoc
   , ([1], [1])
   , ([0, 1], [1, 0])
   , ([0, 0, 1], [1, 0, 0])
-  ]"""
+  ]""" 5
 
-list_rev_tailcall =
+list_rev_tailcall = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -618,7 +618,7 @@ type NatList
 listRevTailcall : NatList -> NatList -> NatList
 listRevTailcall xs acc = ??
 
-specifyFunction2 listRevTailcaill
+specifyFunction2 listRevTailcall
   [ ([], [], [])
   , ([], [0], [0])
   , ([], [1], [1])
@@ -627,9 +627,9 @@ specifyFunction2 listRevTailcaill
   , ([1], [], [1])
   , ([1], [0], [1, 0])
   , ([0, 1], [], [1, 0])
-  ]"""
+  ]""" 8
 
-list_snoc =
+list_snoc = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -650,9 +650,9 @@ specifyFunction2 listSnoc
   , ([1, 0], 1, [1, 0, 1])
   , ([2, 1, 0], 0, [2, 1, 0, 0])
   , ([2, 1, 0], 1, [2, 1, 0, 1])
-  ]"""
+  ]""" 8
 
-list_sort_sorted_insert =
+list_sort_sorted_insert = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -702,9 +702,9 @@ specifyFunction listSortSortedInsert
   , ([1, 0], [0, 1])
   , ([1, 1], [1])
   , ([0, 1, 1], [0, 1])
-  ]"""
+  ]""" 7
 
-list_sorted_insert =
+list_sorted_insert = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -749,9 +749,9 @@ specifyFunction2 listSortedInsert
   , ([2], 1, [1, 2])
   , ([0, 1], 0, [0, 1])
   , ([0, 1], 2, [0, 1, 2])
-  ]"""
+  ]""" 12
 
-list_stutter =
+list_stutter = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -767,9 +767,9 @@ specifyFunction listStutter
   [ ([], [])
   , ([0], [0, 0])
   , ([1, 0], [1, 1, 0, 0])
-  ]"""
+  ]""" 3
 
-list_sum =
+list_sum = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -800,9 +800,9 @@ specifyFunction listSum
   [ ([], 0)
   , ([1], 1)
   , ([2, 1], 3)
-  ]"""
+  ]""" 3
 
-list_take =
+list_take = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -827,9 +827,9 @@ specifyFunction2 listTake
   , (2, [1], [1])
   , (2, [0, 1], [0, 1])
   , (2, [1, 0, 1], [1, 0])
-  ]"""
+  ]""" 12
 
-list_tl =
+list_tl = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -845,9 +845,9 @@ specifyFunction listTail
   [ ([], [])
   , ([0], [])
   , ([0, 0], [0])
-  ]"""
+  ]""" 3
 
-nat_iseven =
+nat_iseven = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -864,9 +864,9 @@ specifyFunction isEven
   , (1, F ())
   , (2, T ())
   , (3, F ())
-  ]"""
+  ]""" 4
 
-nat_max =
+nat_max = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -908,9 +908,9 @@ specifyFunction2 natMax
   , (2, 0, 2)
   , (2, 1, 2)
   , (2, 2, 2)
-  ]"""
+  ]""" 9
 
-nat_pred =
+nat_pred = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -926,9 +926,9 @@ specifyFunction natPred
   [ (0, 0)
   , (1, 0)
   , (2, 1)
-  ]"""
+  ]""" 3
 
-nat_add =
+nat_add = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -950,9 +950,9 @@ specifyFunction2 natAdd
   , (2, 0, 2)
   , (2, 1, 3)
   , (2, 2, 4)
-  ]"""
+  ]""" 9
 
-tree_binsert =
+tree_binsert = (,)
   """type Cmp
   = LT ()
   | EQ ()
@@ -1005,9 +1005,9 @@ specifyFunction2 treeBInsert
   , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Node (Leaf (), 2, Leaf ())))
   , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 1, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
   , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), 0, Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
-  ]"""
+  ]""" 20
 
-tree_collect_leaves =
+tree_collect_leaves = (,)
   """type Boolean
   = F ()
   | T ()
@@ -1021,7 +1021,7 @@ type BooleanList
   | Cons (Boolean, BooleanList)
 
 let
-  append : NatList -> NatList -> NatList
+  append : BooleanList -> BooleanList -> BooleanList
   append l1 l2 =
     case l1 of
       Nil _ ->
@@ -1030,20 +1030,20 @@ let
         Cons (get_2_1 p, append (get_2_2 p) l2)
 in
 let
-  treeCollectLeaves : NatTree -> NatList
+  treeCollectLeaves : BooleanTree -> BooleanList
   treeCollectLeaves tree = ??
 in
 
 specifyFunction treeCollectLeaves
-  [ (Leaf () => [])
+  [ (Leaf (), [])
   , (Node (Leaf (), True, Leaf ()), [True])
   , (Node (Leaf (), False, Leaf ()), [False])
   , (Node (Node (Leaf (), True, Leaf ()), False, Leaf ()), [True, False])
   , (Node (Node (Leaf (), False, Leaf ()), True, Leaf ()), [False, True])
   , (Node (Leaf (), False, Node (Leaf (), True, Leaf ())), [False, True])
-  ]"""
+  ]""" 6
 
-tree_count_leaves =
+tree_count_leaves = (,)
   """type Boolean
   = F ()
   | T ()
@@ -1075,9 +1075,9 @@ specifyFunction treeCountLeaves
   , (Node (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), True, Leaf ()), 4)
   , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 4)
   , (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
-  ]"""
+  ]""" 7
 
-tree_count_nodes =
+tree_count_nodes = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -1093,20 +1093,21 @@ let
       Z _ -> n2
       S m -> S (sum m n2)
 in
+let
   treeCountNodes : NatTree -> Nat
   treeCountNodes tree = ??
 in
 
-specifyFunction treeContNodes
+specifyFunction treeCountNodes
   [ (Leaf (), 0)
   , (Node (Leaf (), 0, Leaf ()), 1)
   , (Node (Node (Leaf (), 0, Leaf ()), 0, Leaf ()), 2)
   , (Node (Leaf (), 0, Node(Leaf (), 0, Leaf ())), 2)
   , (Node (Node (Leaf (), 0, Node (Leaf (), 0, Leaf ())), 0, Leaf ()), 3)
   , (Node (Leaf (), 0, Node (Leaf (), 0, Node (Leaf (), 0, Leaf ()))), 3)
-  ]"""
+  ]""" 6
 
-tree_inorder =
+tree_inorder = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -1129,7 +1130,7 @@ let
         Cons (get_2_1 p, append (get_2_2 p) l2)
 in
 let
-  treeInOrder : NatListList -> NatList
+  treeInOrder : NatTree -> NatList
   treeInOrder xss = ??
 in
 
@@ -1139,9 +1140,9 @@ specifyFunction treeInOrder
   , (Node (Leaf (), 2, Leaf ()), [2])
   , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
   , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
-  ]"""
+  ]""" 5
 
-tree_map =
+tree_map = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -1181,16 +1182,16 @@ specifyFunction2 treeMap
   , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), div2, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
   , (Leaf (), inc, Leaf ())
   , (Node (Leaf (), 0, Leaf ()), inc, Node (Leaf (), 1, Leaf ()))
-  ]"""
+  ]""" 7
 
-tree_nodes_at_level =
+tree_nodes_at_level = (,)
   """type Boolean
   = F ()
   | T ()
 
-type BooleanTree =
-  | Leaf ()
-  | Node of (BooleanTree, Boolean, BooleanTree)
+type BooleanTree
+  = Leaf ()
+  | Node (BooleanTree, Boolean, BooleanTree)
 
 type Nat
 = Z ()
@@ -1204,7 +1205,7 @@ let
       S m -> S (sum m n2)
 in
 let
-  treeNodesAtLevel : NatTree -> Nat -> Nat
+  treeNodesAtLevel : BooleanTree -> Nat -> Nat
   treeNodesAtLevel tree n = ??
 in
 
@@ -1220,9 +1221,9 @@ specifyFunction2 treeNodesAtLevel
   , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 2, 0)
   , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 0, 1)
   , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1, 1)
-  ]"""
+  ]""" 11
 
-tree_postorder =
+tree_postorder = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -1259,9 +1260,9 @@ specifyFunction treePostorder
   , (Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) ), [2, 1, 0])
   , (Node (Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) ), 0, Leaf ()), [2, 1, 0, 0])
   , (Node (Leaf (), 2, Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) )), [2, 1, 0, 2])
-  ]"""
+  ]""" 9
 
-tree_preorder =
+tree_preorder = (,)
   """type Nat
   = Z ()
   | S Nat
@@ -1294,9 +1295,9 @@ specifyFunction treePreorder
   , (Node (Leaf (), 2, Leaf ()), [2])
   , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [2, 1])
   , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
-  ]"""
+  ]""" 5
 
-suite : Dict String String
+suite : Dict String (String, Int)
 suite =
   Dict.fromList
     [ ("bool_band", bool_band)
@@ -1309,8 +1310,8 @@ suite =
     , ("list_concat", list_concat)
     , ("list_drop", list_drop)
     , ("list_even_parity", list_even_parity)
-    , ("list_filter", list_filter)
-    , ("list_fold", list_fold)
+    -- , ("list_filter", list_filter)
+    -- , ("list_fold", list_fold)
     , ("list_hd", list_hd)
     , ("list_inc", list_inc)
     , ("list_last", list_last)
@@ -1318,28 +1319,28 @@ suite =
     , ("list_map", list_map)
     , ("list_nth", list_nth)
     -- , ("list_pairwise_swap", list_pairwise_swap)
-    , ("list_rev_append", list_rev_append)
-    , ("list_rev_fold", list_rev_fold)
-    , ("list_rev_snoc", list_rev_snoc)
-    , ("list_rev_tailcall", list_rev_tailcall)
+    -- , ("list_rev_append", list_rev_append)
+    -- , ("list_rev_fold", list_rev_fold)
+    -- , ("list_rev_snoc", list_rev_snoc)
+    -- , ("list_rev_tailcall", list_rev_tailcall)
     , ("list_snoc", list_snoc)
-    , ("list_sort_sorted_insert", list_sort_sorted_insert)
-    , ("list_sorted_insert", list_sorted_insert)
+    -- , ("list_sort_sorted_insert", list_sort_sorted_insert)
+    -- , ("list_sorted_insert", list_sorted_insert)
     , ("list_stutter", list_stutter)
-    , ("list_sum", list_sum)
+    -- , ("list_sum", list_sum)
     , ("list_take", list_take)
     , ("list_tl", list_tl)
     , ("nat_iseven", nat_iseven)
-    , ("nat_max", nat_max)
+    -- , ("nat_max", nat_max)
     , ("nat_pred", nat_pred)
     , ("nat_add", nat_add)
-    , ("tree_binsert", tree_binsert)
+    -- , ("tree_binsert", tree_binsert)
     , ("tree_collect_leaves", tree_collect_leaves)
-    , ("tree_count_leaves", tree_count_leaves)
-    , ("tree_count_nodes", tree_count_nodes)
-    , ("tree_inorder", tree_inorder)
+    -- , ("tree_count_leaves", tree_count_leaves)
+    -- , ("tree_count_nodes", tree_count_nodes)
+    -- , ("tree_inorder", tree_inorder)
     , ("tree_map", tree_map)
-    , ("tree_nodes_at_level", tree_nodes_at_level)
-    , ("tree_postorder", tree_postorder)
-    , ("tree_preorder", tree_preorder)
+    -- , ("tree_nodes_at_level", tree_nodes_at_level)
+    -- , ("tree_postorder", tree_postorder)
+    -- , ("tree_preorder", tree_preorder)
     ]

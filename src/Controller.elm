@@ -4771,34 +4771,43 @@ msgLoadPBESuiteExample name programText =
 --------------------------------------------------------------------------------
 
 runPBESuiteExample :
-  String -> String -> Maybe PBESynthesisResult
-runPBESuiteExample name programText =
+  String -> (String, Int) -> (Int, Maybe PBESynthesisResult)
+runPBESuiteExample name (programText, exampleCount) =
   initModel
     |> loadPBESuiteExample name programText
     |> collectAndSolve
     |> .pbeSynthesisResult
+    |> (,) exampleCount
 
-makePBETable : Dict String (Maybe PBESynthesisResult) -> String
+makePBETable : Dict String (Int, Maybe PBESynthesisResult) -> String
 makePBETable data =
   let
-    makeRow (name, result) =
+    makeRow (name, (exampleCount, result)) =
       let
         resultString =
           case result of
             Just { holeFillings, timeTaken } ->
-              "\\benchmarkExperimentOne{TODO}{"
+              "\\benchmarkExperimentOne{"
+                ++ toString exampleCount
+                ++ "}{"
                 ++ toString (List.length holeFillings)
                 ++ "}{"
                 ++ toString timeTaken
                 ++ "}"
 
             Nothing ->
-              "\\benchmarkExperimentOne{TODO}{Failed}{Failed}"
+              "\\benchmarkExperimentOne{"
+                ++ toString exampleCount
+                ++ "}{Failed}{Failed}"
       in
         "\\benchmarkName{"
           ++ name
           ++ "}<br />"
           ++ resultString
+          ++ "<br />"
+          ++ "\\benchmarkExperimentTwo{?}{?}{?}{?}{?}"
+          ++ "<br />"
+          ++ "\\benchmarkExperimentThree{?}{?}{?}{?}{?}"
           ++ "<br />"
   in
     data

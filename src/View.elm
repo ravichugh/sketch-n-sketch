@@ -2289,7 +2289,7 @@ fileNewDialogBox model =
 
 filePBESuiteListDialogBox model =
   let
-    viewExample name programText =
+    viewExample name (programText, _) =
       styledUiButton
         "wide"
         name
