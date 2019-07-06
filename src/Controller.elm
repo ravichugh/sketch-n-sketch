@@ -4843,7 +4843,7 @@ makePBETable data =
 
         resultString2 =
           if exampleCount2 == -1 then
-            "\\benchmakrExperimentTwo{}{}{}{}"
+            "\\benchmarkExperimentTwo{---}{---}{---}{---}"
           else
             case result2 of
               Just ({ holeFillings, timeTaken }, numGood) ->
