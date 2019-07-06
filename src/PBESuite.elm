@@ -266,26 +266,26 @@ let
           Z _  -> F ()
           S m2 -> isEven m2
 
-  isNonzero : Nat -> Bool
+  isNonzero : Nat -> Boolean
   isNonzero n =
     case n of
       Z _ -> F ()
       S _ -> T ()
 in
 let
-  listFilter : (Nat -> Bool) -> NatList -> NatList
-  listFilter predicate xs = ??
+  listFilter : NatList -> (Nat -> Boolean) -> NatList
+  listFilter xs predicate = ??
 in
 
 specifyFunction2 listFilter
-  [ (isEven, [], [])
-  , (isEven, [0], [0])
-  , (isEven, [1], [])
-  , (isEven, [2], [2])
-  , (isEven, [0, 0], [0, 0])
-  , (isEven, [0, 1], [0])
-  , (isNonzero, [], [])
-  , (isNonzero, [0], [])
+  [ ([], isEven, [])
+  , ([0], isEven, [0])
+  , ([1], isEven, [])
+  , ([2], isEven, [2])
+  , ([0, 0], isEven, [0, 0])
+  , ([0, 1], isEven, [0])
+  , ([], isNonzero, [])
+  , ([0], isNonzero, [])
   ]"""
 
 list_fold =
@@ -324,20 +324,20 @@ let
       F _ -> n1
 in
 let
-  listFold : (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
-  listFold f acc xs = ??
+  listFold : NatList -> (Nat -> Nat -> Nat) -> Nat -> Nat
+  listFold xs f acc = ??
 in
 
 specifyFunction (\\p -> listFold (get_3_1 p) (get_3_2 p) (get_3_3 p))
-  [ ((sum, 0, []), 0)
-  , ((sum, 0, [1]), 1)
-  , ((sum, 0, [2, 1]), 3)
-  , ((sum, 0, [3, 2, 1]), 6)
-  , ((sum, 1, []), 1)
-  , ((countOdd, 0, []), 0)
-  , ((countOdd, 0, [1]), 1)
-  , ((countOdd, 0, [2, 1]), 1)
-  , ((countOdd, 0, [3, 2, 1]), 2)
+  [ (([], sum, 0), 0)
+  , (([1], sum, 0), 1)
+  , (([2, 1], sum, 0), 3)
+  , (([3, 2, 1], sum, 0), 6)
+  , (([], sum, 1), 1)
+  , (([], countOdd, 0), 0)
+  , (([1], countOdd, 0), 1)
+  , (([2, 1], countOdd, 0), 1)
+  , (([3, 2, 1], countOdd, 0), 2)
   ]"""
 
 list_hd =
@@ -403,7 +403,7 @@ listLast : NatList -> NatOpt
 listLast xs = ??
 
 specifyFunction listLast
-  [ ([], None ()
+  [ ([], None ())
   , ([1], Some 1)
   , ([2], Some 2)
   , ([2, 1], Some 1)
@@ -446,19 +446,19 @@ let
   inc n = S n
 in
 let
-  listMap : (Nat -> Nat) -> NatList -> NatList
-  listMap f = let rec xs = ?? in xs
+  listMap : NatList -> (Nat -> Nat) -> NatList
+  listMap xs f = ??
 in
 
 specifyFunction2 listMap
-  [ (inc, [], [])
-  , (inc, [0], [1])
-  , (inc, [0, 0], [1, 1])
-  , (inc, [1], [2])
-  , (inc, [1, 1], [2, 2])
-  , (zero, [], [])
-  , (zero, [0], [0])
-  , (zero, [0, 0], [0, 0])
+  [ ([], inc, [])
+  , ([0], inc, [1])
+  , ([0, 0], inc, [1, 1])
+  , ([1], inc, [2])
+  , ([1, 1], inc, [2, 2])
+  , ([], zero, [])
+  , ([0], zero, [0])
+  , ([0, 0], zero, [0, 0])
   ]"""
 
 list_nth =
@@ -531,15 +531,16 @@ let
 in
 let
   listRevAppend : NatList -> NatList
-  listRevAppend = ??
+  listRevAppend xs = ??
 in
-let list_rev_append : list -> list |>
-  { [] => []
-  | [0] => [0]
-  | [1] => [1]
-  | [0;1] => [1;0]
-  | [0;0;1] => [1;0;0]
-  } = ?"""
+
+specifyFunction listRevAppend
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0, 1], [1, 0])
+  , ([0, 0, 1], [1, 0, 0])
+  ]"""
 
 list_rev_fold =
   """type Nat
@@ -565,14 +566,16 @@ let
 in
 let
   listRevFold : NatList -> NatList
+  listRevFold xs = ??
 in
-let list_rev_fold : list -> list |>
-  { [] => []
-  | [0] => [0]
-  | [1] => [1]
-  | [0;1] => [1;0]
-  | [0;0;1] => [1;0;0]
-  } = ?"""
+
+specifyFunction listRevFold
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0, 1], [1, 0])
+  , ([0, 0, 1], [1, 0, 0])
+  ]"""
 
 list_rev_snoc =
   """type Nat
@@ -592,15 +595,16 @@ let
 in
 let
   listRevSnoc : NatList -> NatList
-  listRevSnoc = ??
+  listRevSnoc xs = ??
 in
-let list_rev_snoc : list -> list |>
-  { [] => []
-  | [0] => [0]
-  | [1] => [1]
-  | [0;1] => [1;0]
-  | [0;0;1] => [1;0;0]
-  } = ?"""
+
+specifyFunction listRevSnoc
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0, 1], [1, 0])
+  , ([0, 0, 1], [1, 0, 0])
+  ]"""
 
 list_rev_tailcall =
   """type Nat
@@ -612,20 +616,18 @@ type NatList
   | Cons (Nat, NatList)
 
 listRevTailcall : NatList -> NatList -> NatList
-listRevTailcall = ??
+listRevTailcall xs acc = ??
 
-let list_rev_tailcall : list -> list -> list |>
-  { [] => ( [] => []
-          | [0] => [0]
-          | [1] => [1]
-          | [1;0] => [1;0]
-          )
-  | [0] => ( [] => [0] )
-  | [1] => ( [] => [1]
-           | [0] => [1;0]
-           )
-  | [0;1] => ( [] => [1;0] )
-  } = ?"""
+specifyFunction2 listRevTailcaill
+  [ ([], [], [])
+  , ([], [0], [0])
+  , ([], [1], [1])
+  , ([], [1, 0], [1, 0])
+  , ([0], [], [0])
+  , ([1], [], [1])
+  , ([1], [0], [1, 0])
+  , ([0, 1], [], [1, 0])
+  ]"""
 
 list_snoc =
   """type Nat
@@ -637,18 +639,18 @@ type NatList
   | Cons (Nat, NatList)
 
 listSnoc : NatList -> Nat -> NatList
-listSnoc = ??
+listSnoc xs n = ??
 
-let list_snoc : list -> nat -> list |>
-  { [] => ( 0 => [0]
-          | 1 => [1] )
-  | [0] => ( 0 => [0; 0]
-           | 1 => [0; 1] )
-  | [1; 0] => ( 0 => [1; 0; 0]
-              | 1 => [1; 0; 1] )
-  | [2; 1; 0] => ( 0 => [2; 1; 0; 0]
-                 | 1 => [2; 1; 0; 1] )
-  } = ?"""
+specifyFunction2 listSnoc
+  [ ([], 0, [0])
+  , ([], 1, [1])
+  , ([0], 0, [0, 0])
+  , ([0], 1, [0, 1])
+  , ([1, 0], 0, [1, 0, 0])
+  , ([1, 0], 1, [1, 0, 1])
+  , ([2, 1, 0], 0, [2, 1, 0, 0])
+  , ([2, 1, 0], 1, [2, 1, 0, 1])
+  ]"""
 
 list_sort_sorted_insert =
   """type Nat
@@ -689,17 +691,18 @@ let
 in
 let
   listSortSortedInsert : NatList -> NatList
-  listSortSortedInsert = ??
+  listSortSortedInsert xs = ??
 in
-let list_sort_sorted_insert : list -> list |>
- { [] => []
- | [0] => [0]
- | [1] => [1]
- | [0;0] => [0]
- | [1;0] => [0;1]
- | [1;1] => [1]
- | [0;1;1] => [0;1]
- } = ?"""
+
+specifyFunction listSortSortedInsert
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0, 0], [0])
+  , ([1, 0], [0, 1])
+  , ([1, 1], [1])
+  , ([0, 1, 1], [0, 1])
+  ]"""
 
 list_sorted_insert =
   """type Nat
@@ -730,23 +733,23 @@ let
 in
 let
   listSortedInsert : NatList -> Nat -> NatList
-  listSortedInsert = ??
+  listSortedInsert xs n = ??
 in
 
-let list_sorted_insert : list -> nat -> list |>
-  { [] => ( 0 => [0]
-          | 1 => [1]
-          | 2 => [2] )
-  | [0] => ( 0 => [0]
-           | 1 => [0;1] )
-  | [1] => ( 0 => [0;1]
-           | 1 => [1]
-           | 2 => [1;2] )
-  | [2] => ( 0 => [0;2]
-           | 1 => [1;2])
-  | [0;1] => ( 0 => [0;1]
-             | 2 => [0;1;2] )
-  } = ?"""
+specifyFunction2 listSortedInsert
+  [ ([], 0, [0])
+  , ([], 1, [1])
+  , ([], 2, [2])
+  , ([0], 0, [0])
+  , ([0], 1, [0, 1])
+  , ([1], 0, [0, 1])
+  , ([1], 1, [1])
+  , ([1], 2, [1, 2])
+  , ([2], 0, [0, 2])
+  , ([2], 1, [1, 2])
+  , ([0, 1], 0, [0, 1])
+  , ([0, 1], 2, [0, 1, 2])
+  ]"""
 
 list_stutter =
   """type Nat
@@ -758,13 +761,13 @@ type NatList
   | Cons (Nat, NatList)
 
 listStutter : NatList -> NatList
-listStutter = ??
+listStutter xs = ??
 
-let list_stutter : list -> list |>
-  { [] => []
-  | [0] => [0;0]
-  | [1;0] => [1;1;0;0]
-  } = ?"""
+specifyFunction listStutter
+  [ ([], [])
+  , ([0], [0, 0])
+  , ([1, 0], [1, 1, 0, 0])
+  ]"""
 
 list_sum =
   """type Nat
@@ -790,13 +793,14 @@ let
 in
 let
   listSum : NatList -> NatList
-  listSum = ??
+  listSum xs = ??
 in
-let list_sum : list -> nat |>
-  { [] => 0
-  | [1] => 1
-  | [2; 1] => 3
-  } = ?"""
+
+specifyFunction listSum
+  [ ([], 0)
+  , ([1], 1)
+  , ([2, 1], 3)
+  ]"""
 
 list_take =
   """type Nat
@@ -808,22 +812,22 @@ type NatList
   | Cons (Nat, NatList)
 
 listTake : Nat -> NatList -> NatList
-listTake = ??
+listTake n xs = ??
 
-let list_take : nat -> list -> list |>
-  { 0 => ( [] => []
-         | [1] => []
-         | [0;1] => []
-         | [1;0;1] => [] )
-  | 1 => ( []    => []
-         | [1]   => [1]
-         | [0;1] => [0]
-         | [1;0;1] => [1] )
-  | 2 => ( []    => []
-         | [1]   => [1]
-         | [0;1] => [0;1]
-         | [1;0;1] => [1;0] )
-  } = ?"""
+specifyFunction2 listTake
+  [ (0, [], [])
+  , (0, [1], [])
+  , (0, [0, 1], [])
+  , (0, [1, 0, 1], [])
+  , (1, [], [])
+  , (1, [1], [1])
+  , (1, [0, 1], [0])
+  , (1, [1, 0, 1], [1])
+  , (2, [], [])
+  , (2, [1], [1])
+  , (2, [0, 1], [0, 1])
+  , (2, [1, 0, 1], [1, 0])
+  ]"""
 
 list_tl =
   """type Nat
@@ -835,12 +839,13 @@ type NatList
   | Cons (Nat, NatList)
 
 listTail : NatList -> NatList
-listTail = ??
+listTail xs = ??
 
-let list_tl : list -> list |>
-  { [] => []
-  | [0] => []
-  | [0; 0] => [0] } = ?"""
+specifyFunction listTail
+  [ ([], [])
+  , ([0], [])
+  , ([0, 0], [0])
+  ]"""
 
 nat_iseven =
   """type Nat
@@ -851,15 +856,15 @@ type Boolean
   = F ()
   | T ()
 
-isEven : Nat -> Bool
-isEven = ??
+isEven : Nat -> Boolean
+isEven n = ??
 
-let nat_iseven : nat -> bool |>
-  { 0 => True
-  | 1 => False
-  | 2 => True
-  | 3 => False
-  } = ?"""
+specifyFunction isEven
+  [ (0, T ())
+  , (1, F ())
+  , (2, T ())
+  , (3, F ())
+  ]"""
 
 nat_max =
   """type Nat
@@ -889,22 +894,21 @@ let
           S m2 -> compare m1 m2
 in
 let
-  natMax : NatList -> NatList
-  natMax = ??
+  natMax : Nat -> Nat -> Nat
+  natMax m n = ??
 in
 
-let nat_max : nat -> nat -> nat |>
-{
-  0 => ( 0 => 0
-       | 1 => 1
-       | 2 => 2 )
-| 1 => ( 0 => 1
-       | 1 => 1
-       | 2 => 2 )
-| 2 => ( 0 => 2
-       | 1 => 2
-       | 2 => 2 )
-} = ?"""
+specifyFunction2 natMax
+  [ (0, 0, 0)
+  , (0, 1, 1)
+  , (0, 2, 2)
+  , (1, 0, 1)
+  , (1, 1, 1)
+  , (1, 2, 2)
+  , (2, 0, 2)
+  , (2, 1, 2)
+  , (2, 2, 2)
+  ]"""
 
 nat_pred =
   """type Nat
@@ -916,12 +920,13 @@ type Boolean
   | T ()
 
 natPred : Nat -> Nat
-natPred = ??
+natPred n = ??
 
-let nat_pred : nat -> nat |>
-  { O => O
-  ; S (O) => O
-  ; S (S (O)) => S (O) } = ?"""
+specifyFunction natPred
+  [ (0, 0)
+  , (1, 0)
+  , (2, 1)
+  ]"""
 
 nat_add =
   """type Nat
@@ -933,19 +938,19 @@ type Boolean
   | T ()
 
 natAdd : Nat -> Nat -> Nat
-natAdd = ??
+natAdd m n = ??
 
-let nat_add : nat -> nat -> nat |>
-  { 0 => ( 0 => 0
-         | 1 => 1
-         | 2 => 2 )
-  | 1 => ( 0 => 1
-         | 1 => 2
-         | 2 => 3 )
-  | 2 => ( 0 => 2
-         | 1 => 3
-         | 2 => 4 )
-  } = ?"""
+specifyFunction2 natAdd
+  [ (0, 0, 0)
+  , (0, 1, 1)
+  , (0, 2, 2)
+  , (1, 0, 1)
+  , (1, 1, 2)
+  , (1, 2, 3)
+  , (2, 0, 2)
+  , (2, 1, 3)
+  , (2, 2, 4)
+  ]"""
 
 tree_binsert =
   """type Cmp
@@ -976,36 +981,31 @@ let
 in
 let
   treeBInsert : NatTree -> Nat -> NatTree
-  treeBInsert = ??
+  treeBInsert t n = ??
 in
 
-let tree_binsert : tree -> nat -> tree |>
-  { Leaf => ( 0 => Node (Leaf, 0, Leaf)
-            | 1 => Node (Leaf, 1, Leaf)
-            | 2 => Node (Leaf, 2, Leaf))
-  | Node (Leaf, 1, Leaf) => ( 0 => Node (Node (Leaf, 0, Leaf), 1, Leaf)
-                            | 1 => Node (Leaf, 1, Leaf)
-                            | 2 => Node (Leaf, 1, Node (Leaf, 2, Leaf)))
-  | Node (Leaf, 0, Leaf) => ( 0 => Node (Leaf, 0, Leaf)
-                            | 1 => Node (Leaf, 0, Node (Leaf, 1, Leaf))
-                            | 2 => Node (Leaf, 0, Node (Leaf, 2, Leaf)))
-  | Node (Leaf, 2, Leaf) => ( 0 => Node (Node (Leaf, 0, Leaf), 2, Leaf)
-                            | 1 => Node (Node (Leaf, 1, Leaf), 2, Leaf)
-                            | 2 => Node (Leaf, 2, Leaf))
-  | Node (Node (Leaf, 0, Leaf), 1, Leaf) =>
-      ( 0 => Node (Node (Leaf, 0, Leaf), 1, Leaf)
-      | 1 => Node (Node (Leaf, 0, Leaf), 1, Leaf)
-      | 2 => Node (Node (Leaf, 0, Leaf), 1, Node(Leaf, 2, Leaf)))
-  | Node (Leaf, 0, Node (Leaf, 1, Leaf)) =>
-      ( 2 => Node (Leaf, 0, Node (Leaf, 1, Node(Leaf, 2, Leaf))))
-  | Node (Node (Leaf, 1, Leaf), 2, Leaf) =>
-      ( 0 => Node (Node (Node(Leaf, 0, Leaf), 1, Leaf), 2, Leaf))
-  | Node (Leaf, 1, Node (Leaf, 2, Leaf)) =>
-      ( 0 => Node (Node (Leaf, 0, Leaf), 1, Node (Leaf, 2, Leaf))
-      | 1 => Node (Leaf, 1, Node (Leaf, 2, Leaf)))
-  | Node (Node (Leaf, 1, Leaf), 2, Leaf) =>
-      ( 0 => Node (Node (Node(Leaf, 0, Leaf), 1, Leaf), 2, Leaf))
-  } = ?"""
+specifyFunction2 treeBInsert
+  [ (Leaf (), 0, Node (Leaf (), 0, Leaf ()))
+  , (Leaf (), 1, Node (Leaf (), 1, Leaf ()))
+  , (Leaf (), 2, Node (Leaf (), 2, Leaf ()))
+  , (Node (Leaf (), 1, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (Node (Leaf (), 1, Leaf ()), 1, Node (Leaf (), 1, Leaf ()))
+  , (Node (Leaf (), 1, Leaf ()), 2, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
+  , (Node (Leaf (), 0, Leaf ()), 0, Node (Leaf (), 0, Leaf ()))
+  , (Node (Leaf (), 0, Leaf ()), 1, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
+  , (Node (Leaf (), 0, Leaf ()), 2, Node (Leaf (), 0, Node (Leaf (), 2, Leaf ())))
+  , (Node (Leaf (), 2, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 2, Leaf ()))
+  , (Node (Leaf (), 2, Leaf ()), 1, Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()))
+  , (Node (Leaf (), 2, Leaf ()), 2, Node (Leaf (), 2, Leaf ()))
+  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 1, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Node (Node (Leaf (), 0, Leaf ()), 1, Node(Leaf (), 2, Leaf ())))
+  , (Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())), 2, Node (Leaf (), 0, Node (Leaf (), 1, Node(Leaf (), 2, Leaf ()))))
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), 0, Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Node (Leaf (), 2, Leaf ())))
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 1, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), 0, Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
+  ]"""
 
 tree_collect_leaves =
   """type Boolean
@@ -1013,7 +1013,7 @@ tree_collect_leaves =
   | T ()
 
 type BooleanTree
-  = Leaf
+  = Leaf ()
   | Node (BooleanTree, Boolean, BooleanTree)
 
 type BooleanList
@@ -1031,17 +1031,17 @@ let
 in
 let
   treeCollectLeaves : NatTree -> NatList
-  treeCollectLeaves = ??
+  treeCollectLeaves tree = ??
 in
 
-let tree_collect_leaves : tree -> list |>
-  { Leaf => []
-  | Node (Leaf, True, Leaf) => [True]
-  | Node (Leaf, False, Leaf) => [False]
-  | Node (Node (Leaf, True, Leaf), False, Leaf) => [True; False]
-  | Node (Node (Leaf, False, Leaf), True, Leaf) => [False; True]
-  | Node (Leaf, False, Node (Leaf, True, Leaf)) => [False; True]
-  } = ?"""
+specifyFunction treeCollectLeaves
+  [ (Leaf () => [])
+  , (Node (Leaf (), True, Leaf ()), [True])
+  , (Node (Leaf (), False, Leaf ()), [False])
+  , (Node (Node (Leaf (), True, Leaf ()), False, Leaf ()), [True, False])
+  , (Node (Node (Leaf (), False, Leaf ()), True, Leaf ()), [False, True])
+  , (Node (Leaf (), False, Node (Leaf (), True, Leaf ())), [False, True])
+  ]"""
 
 tree_count_leaves =
   """type Boolean
@@ -1049,7 +1049,7 @@ tree_count_leaves =
   | T ()
 
 type BooleanTree
-  = Leaf
+  = Leaf ()
   | Node (BooleanTree, Boolean, BooleanTree)
 
 type Nat
@@ -1064,19 +1064,18 @@ let
       S m -> S (sum m n2)
 in
   treeCountLeaves : NatTree -> Nat
-  treeCountLeaves = ??
+  treeCountLeaves tree = ??
 in
 
-let tree_count_leaves : tree -> nat |>
-  { Leaf => 1
-  | Node (Leaf, True, Leaf) => 2
-  | Node (Node (Leaf, True, Leaf), True, Leaf) => 3
-  | Node (Leaf, True, Node (Leaf, True, Leaf)) => 3
-  | Node (Node (Node (Leaf, True, Leaf), True, Leaf), True, Leaf) => 4
-  | Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)) => 4
-  | Node (Node (Leaf, True, Leaf), True,
-      Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf))) => 6
-  } = ?"""
+specifyFunction treeCountLeaves
+  [ (Leaf (), 1)
+  , (Node (Leaf (), True, Leaf ()), 2)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 3)
+  , (Node (Leaf (), True, Node (Leaf (), True, Leaf ())), 3)
+  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), True, Leaf ()), 4)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 4)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
+  ]"""
 
 tree_count_nodes =
   """type Nat
@@ -1095,17 +1094,17 @@ let
       S m -> S (sum m n2)
 in
   treeCountNodes : NatTree -> Nat
-  treeCountNodes = ??
+  treeCountNodes tree = ??
 in
 
-let tree_count_nodes : tree -> nat |>
-  { Leaf => 0
-  | Node(Leaf, 0, Leaf) => 1
-  | Node(Node(Leaf, 0, Leaf), 0, Leaf) => 2
-  | Node(Leaf, 0, Node(Leaf, 0, Leaf)) => 2
-  | Node(Node(Leaf, 0, Node(Leaf, 0, Leaf)), 0, Leaf) => 3
-  | Node(Leaf, 0, Node(Leaf, 0, Node(Leaf, 0, Leaf))) => 3
-  } = ?"""
+specifyFunction treeContNodes
+  [ (Leaf (), 0)
+  , (Node (Leaf (), 0, Leaf ()), 1)
+  , (Node (Node (Leaf (), 0, Leaf ()), 0, Leaf ()), 2)
+  , (Node (Leaf (), 0, Node(Leaf (), 0, Leaf ())), 2)
+  , (Node (Node (Leaf (), 0, Node (Leaf (), 0, Leaf ())), 0, Leaf ()), 3)
+  , (Node (Leaf (), 0, Node (Leaf (), 0, Node (Leaf (), 0, Leaf ()))), 3)
+  ]"""
 
 tree_inorder =
   """type Nat
@@ -1131,16 +1130,16 @@ let
 in
 let
   treeInOrder : NatListList -> NatList
-  treeInOrder = ??
+  treeInOrder xss = ??
 in
 
-let tree_inorder: tree -> list |>
-{ Leaf => []
-| Node (Leaf, 1, Leaf) => [1]
-| Node (Leaf, 2, Leaf) => [2]
-| Node (Node (Leaf, 1, Leaf), 2, Leaf) => [1;2]
-| Node (Leaf, 1, Node (Leaf, 2, Leaf)) => [1;2]
-} = ?"""
+specifyFunction treeInOrder
+  [ (Leaf (), [])
+  , (Node (Leaf (), 1, Leaf ()), [1])
+  , (Node (Leaf (), 2, Leaf ()), [2])
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
+  ]"""
 
 tree_map =
   """type Nat
@@ -1170,31 +1169,28 @@ let
     S n
 in
 let
-  treeMap : (Nat -> Nat) -> NatTree -> NatTree
-  treeMap = ??
+  treeMap : NatTree -> (Nat -> Nat) -> NatTree
+  treeMap tree f = ??
 in
 
-let tree_map : (nat -> nat) -> tree -> tree |>
-{ div2 => ( Leaf => Leaf
-          | Node (Leaf, 0, Leaf) => Node (Leaf, 0, Leaf)
-          | Node (Leaf, 2, Leaf) => Node (Leaf, 1, Leaf)
-          | Node (Node (Leaf, 2, Leaf), 2, Leaf) =>
-              Node (Node (Leaf, 1, Leaf), 1, Leaf)
-          | Node (Leaf, 1, Node (Leaf, 2, Leaf)) =>
-              Node (Leaf, 0, Node (Leaf, 1, Leaf))
-          )
-| inc =>  ( Leaf => Leaf
-          | Node (Leaf, 0, Leaf) => Node (Leaf, 1, Leaf) )
-} = ?"""
+specifyFunction2 treeMap
+  [ (Leaf (), div2, Leaf ())
+  , (Node (Leaf (), 0, Leaf ()), div2, Node (Leaf (), 0, Leaf ()))
+  , (Node (Leaf (), 2, Leaf ()), div2, Node (Leaf (), 1, Leaf ()))
+  , (Node (Node (Leaf (), 2, Leaf ()), 2, Leaf ()), div2, Node (Node (Leaf (), 1, Leaf ()), 1, Leaf ()))
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), div2, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
+  , (Leaf (), inc, Leaf ())
+  , (Node (Leaf (), 0, Leaf ()), inc, Node (Leaf (), 1, Leaf ()))
+  ]"""
 
 tree_nodes_at_level =
   """type Boolean
   = F ()
   | T ()
 
-type tree =
-  | Leaf
-  | Node of tree * bool * tree
+type BooleanTree =
+  | Leaf ()
+  | Node of (BooleanTree, Boolean, BooleanTree)
 
 type Nat
 = Z ()
@@ -1209,33 +1205,22 @@ let
 in
 let
   treeNodesAtLevel : NatTree -> Nat -> Nat
-  treeNodesAtLevel = ??
+  treeNodesAtLevel tree n = ??
 in
 
-let tree_nodes_at_level : tree -> nat -> nat |>
-  { Leaf =>
-    ( 0 => 0
-    | 1 => 0
-    )
-  | Node (Leaf, True, Leaf) =>
-    ( 0 => 1
-    | 1 => 0
-    )
-  | Node (Node (Leaf, True, Leaf), True, Leaf) =>
-    ( 0 => 1
-    | 1 => 1
-    )
-  | Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)) =>
-    ( 0 => 1
-    | 1 => 2
-    | 2 => 0
-    )
-  | Node (Node
-      (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)), True, Leaf) =>
-    ( 0 => 1
-    | 1 => 1
-    )
-  } = ?"""
+specifyFunction2 treeNodesAtLevel
+  [ (Leaf (), 0, 0)
+  , (Leaf (), 1, 0)
+  , (Node (Leaf (), True, Leaf ()), 0, 1)
+  , (Node (Leaf (), True, Leaf ()), 1, 0)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 0, 1)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 1, 1)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 0, 1)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 1, 2)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 2, 0)
+  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 0, 1)
+  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1, 1)
+  ]"""
 
 tree_postorder =
   """type Nat
@@ -1260,23 +1245,21 @@ let
         Cons (get_2_1 p, append (get_2_2 p) l2)
 in
 let
-  treePostOrder : NatTree -> NatList
-  treePostOrder = ??
+  treePostorder : NatTree -> NatList
+  treePostorder tree = ??
 in
 
-let tree_postorder : tree -> list |>
-{  Leaf => []
-| Node (Leaf, 1, Leaf) => [1]
-| Node (Leaf, 2, Leaf) => [2]
-| Node (Node (Leaf, 1, Leaf), 2, Leaf) => [1;2]
-| Node (Leaf, 1, Node (Leaf, 2, Leaf)) => [2;1]
-| Node (Node (Leaf, 1, Leaf), 0, Node (Leaf, 2, Leaf) ) => [1;2;0]
-| Node (Node (Leaf, 2, Leaf), 0, Node (Leaf, 1, Leaf) ) => [2;1;0]
-| Node (Node (Node (Leaf, 2, Leaf), 0, Node (Leaf, 1, Leaf) ), 0, Leaf) =>
-    [2;1;0;0]
-| Node (Leaf, 2, Node (Node (Leaf, 2, Leaf), 0, Node (Leaf, 1, Leaf) )) =>
-    [2;1;0;2]
-} = ?"""
+specifyFunction treePostorder
+  [ (Leaf (), [])
+  , (Node (Leaf (), 1, Leaf ()), [1])
+  , (Node (Leaf (), 2, Leaf ()), [2])
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [2, 1])
+  , (Node (Node (Leaf (), 1, Leaf ()), 0, Node (Leaf (), 2, Leaf ()) ), [1, 2, 0])
+  , (Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) ), [2, 1, 0])
+  , (Node (Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) ), 0, Leaf ()), [2, 1, 0, 0])
+  , (Node (Leaf (), 2, Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) )), [2, 1, 0, 2])
+  ]"""
 
 tree_preorder =
   """type Nat
@@ -1301,17 +1284,17 @@ let
         Cons (get_2_1 p, append (get_2_2 p) l2)
 in
 let
-  treePreOrder : NatTree -> NatList
-  treePreOrder = ??
+  treePreorder : NatTree -> NatList
+  treePreorder tree = ??
 in
 
-let tree_preorder : tree -> list |>
-{ Leaf => []
-| Node (Leaf, 1, Leaf) => [1]
-| Node (Leaf, 2, Leaf) => [2]
-| Node (Node (Leaf, 1, Leaf), 2, Leaf) => [2;1]
-| Node (Leaf, 1, Node (Leaf, 2, Leaf)) => [1;2]
-} = ?"""
+specifyFunction treePreorder
+  [ (Leaf (), [])
+  , (Node (Leaf (), 1, Leaf ()), [1])
+  , (Node (Leaf (), 2, Leaf ()), [2])
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [2, 1])
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
+  ]"""
 
 suite : Dict String String
 suite =
@@ -1334,7 +1317,7 @@ suite =
     , ("list_length", list_length)
     , ("list_map", list_map)
     , ("list_nth", list_nth)
-    , ("list_pairwise_swap", list_pairwise_swap)
+    -- , ("list_pairwise_swap", list_pairwise_swap)
     , ("list_rev_append", list_rev_append)
     , ("list_rev_fold", list_rev_fold)
     , ("list_rev_snoc", list_rev_snoc)

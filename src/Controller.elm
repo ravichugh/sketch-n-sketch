@@ -4785,24 +4785,26 @@ makePBETable data =
       let
         resultString =
           case result of
-            Just { timeTaken } ->
-              toString timeTaken
+            Just { holeFillings, timeTaken } ->
+              "\\benchmarkExperimentOne{TODO}{"
+                ++ toString (List.length holeFillings)
+                ++ "}{"
+                ++ toString timeTaken
+                ++ "}"
 
             Nothing ->
-              "Failed"
+              "\\benchmarkExperimentOne{TODO}{Failed}{Failed}"
       in
-        "<tr><td>" ++ name ++ "</td><td align=right>" ++ resultString ++ "</td></tr>"
-
-    tableEntries =
-      data
-        |> Dict.toList
-        |> List.map makeRow
-        |> String.concat
+        "\\benchmarkName{"
+          ++ name
+          ++ "}<br />"
+          ++ resultString
+          ++ "<br />"
   in
-    "<table border=1 cellpadding=3>"
-      ++"<tr><th><u>Example Name</u></th><th><u>Time Taken (ms)</u></th></tr>"
-      ++ tableEntries
-      ++ "</table>"
+    data
+      |> Dict.toList
+      |> List.map makeRow
+      |> String.join "\\\\<br />"
 
 msgBenchmarkPBE : Msg
 msgBenchmarkPBE =
