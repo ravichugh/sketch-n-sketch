@@ -2289,11 +2289,21 @@ fileNewDialogBox model =
 
 filePBESuiteListDialogBox model =
   let
-    viewExample name (programText, _) =
-      styledUiButton
-        "wide"
-        name
-        (Controller.msgLoadPBESuiteExample name programText)
+    viewExample name (programText, ex1, _, ex2, ex2Count) =
+      [ styledUiButton
+          "wide"
+          name
+          (Controller.msgLoadPBESuiteExample name (programText ++ ex1))
+      ] ++
+        ( if ex2Count /= -1 then
+            [ styledUiButton
+                "wide"
+                (name ++ " (fewer examples)")
+                (Controller.msgLoadPBESuiteExample name (programText ++ ex2))
+            ]
+          else
+            []
+      )
   in
     bigDialogBox
       True
@@ -2305,6 +2315,7 @@ filePBESuiteListDialogBox model =
       ( PBESuite.suite
           |> Dict.map viewExample
           |> Dict.values
+          |> List.concat
       )
 
 fileSaveAsDialogBox model =

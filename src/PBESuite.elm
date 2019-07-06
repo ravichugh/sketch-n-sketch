@@ -13,7 +13,7 @@ type Nat
 
 ?? : Nat"""
 
-bool_band = (,)
+bool_band = (,,,,)
   """type Boolean
   = F ()
   | T ()
@@ -21,14 +21,21 @@ bool_band = (,)
 and : Boolean -> Boolean -> Boolean
 and p q = ??
 
-specifyFunction2 and
+"""
+  """specifyFunction2 and
   [ (T (), T (), T ())
   , (T (), F (), F ())
   , (F (), T (), F ())
   , (F (), F (), F ())
   ]""" 4
+  """specifyFunction2 and
+  [ (T (), T (), T ())
+  , (T (), F (), F ())
+  , (F (), T (), F ())
+  -- , (F (), F (), F ())
+  ]""" 3
 
-bool_bor = (,)
+bool_bor = (,,,,)
   """type Boolean
   = F ()
   | T ()
@@ -36,14 +43,21 @@ bool_bor = (,)
 or : Boolean -> Boolean -> Boolean
 or p q = ??
 
-specifyFunction2 or
+"""
+  """specifyFunction2 or
   [ (T (), T (), T ())
   , (T (), F (), T ())
   , (F (), T (), T ())
   , (F (), F (), F ())
   ]""" 4
+  """specifyFunction2 or
+  [ -- (T (), T (), T ())
+    (T (), F (), T ())
+  , (F (), T (), T ())
+  , (F (), F (), F ())
+  ]""" 3
 
-bool_impl = (,)
+bool_impl = (,,,,)
   """type Boolean
   = F ()
   | T ()
@@ -51,14 +65,21 @@ bool_impl = (,)
 impl : Boolean -> Boolean -> Boolean
 impl p q = ??
 
-specifyFunction2 impl
+"""
+  """specifyFunction2 impl
   [ (T (), T (), T ())
   , (T (), F (), T ())
   , (F (), T (), T ())
   , (F (), F (), F ())
   ]""" 4
+  """specifyFunction2 impl
+  [ (T (), T (), T ())
+  , (T (), F (), T ())
+  , (F (), T (), T ())
+  , (F (), F (), F ())
+  ]""" (-1)
 
-bool_neg = (,)
+bool_neg = (,,,,)
   """type Boolean
   = F ()
   | T ()
@@ -66,12 +87,17 @@ bool_neg = (,)
 neg : Boolean -> Boolean
 neg p = ??
 
-specifyFunction neg
+"""
+  """specifyFunction neg
   [ (T (), F ())
   , (F (), T ())
   ]""" 2
+  """specifyFunction neg
+  [ (T (), F ())
+  , (F (), T ())
+  ]""" (-1)
 
-bool_xor = (,)
+bool_xor = (,,,,)
   """type Boolean
   = F ()
   | T ()
@@ -79,14 +105,21 @@ bool_xor = (,)
 xor : Boolean -> Boolean -> Boolean
 xor p q = ??
 
-specifyFunction2 xor
+"""
+  """specifyFunction2 xor
   [ (T (), T (), F ())
   , (T (), F (), T ())
   , (F (), T (), T ())
   , (F (), F (), F ())
   ]""" 4
+  """specifyFunction2 xor
+  [ (T (), T (), F ())
+  , (T (), F (), T ())
+  , (F (), T (), T ())
+  , (F (), F (), F ())
+  ]""" (-1)
 
-list_append = (,)
+list_append = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -98,7 +131,8 @@ type NatList
 append : NatList -> NatList -> NatList
 append xs ys = ??
 
-specifyFunction2 append
+"""
+  """specifyFunction2 append
   [ ([], [], [])
   , ([], [0], [0])
   , ([0], [], [0])
@@ -106,8 +140,16 @@ specifyFunction2 append
   , ([1, 0], [], [1, 0])
   , ([1, 0], [0], [1, 0, 0])
   ]""" 6
+  """specifyFunction2 append
+  [ ([], [], [])
+  , ([], [0], [0])
+  , ([0], [], [0])
+  , ([0], [0], [0, 0])
+  , ([1, 0], [], [1, 0])
+  , ([1, 0], [0], [1, 0, 0])
+  ]""" (-1)
 
-list_compress = (,)
+list_compress = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -139,7 +181,8 @@ let
   compress xs = ??
 in
 
-specifyFunction2 compress
+"""
+  """specifyFunction2 compress
   [ ([], [])
   , ([0], [0])
   , ([1], [1])
@@ -154,8 +197,23 @@ specifyFunction2 compress
   , ([2,2,2,0], [2,0])
   , ([1,2,2,2,0], [1,2,0])
   ]""" 13
+  """specifyFunction2 compress
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0,0], [0])
+  , ([1,1], [1])
+  , ([2,0], [2,0])
+  , ([1,0,0], [1,0])
+  , ([0,1,1], [0,1])
+  , ([2,1,0,0], [2,1,0])
+  , ([2,2,1,0,0], [2,1,0])
+  , ([2,2,0], [2,0])
+  , ([2,2,2,0], [2,0])
+  , ([1,2,2,2,0], [1,2,0])
+  ]""" (-1)
 
-list_concat = (,)
+list_concat = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -182,7 +240,8 @@ let
   concat xss = ??
 in
 
-specifyFunction concat
+"""
+  """specifyFunction concat
   [ (LNil (), [])
   , (LCons ([], LNil ()), [])
   , (LCons ([0], LNil ()), [0])
@@ -190,8 +249,16 @@ specifyFunction concat
   , (LCons ([1], LNil ()), [1])
   , (LCons ([1], LCons([1], LNil ())), [1,1])
   ]""" 6
+  """specifyFunction concat
+  [ (LNil (), [])
+  , (LCons ([], LNil ()), [])
+  , (LCons ([0], LNil ()), [0])
+  , (LCons ([0], LCons([0], LNil ())), [0,0])
+  , (LCons ([1], LNil ()), [1])
+  , (LCons ([1], LCons([1], LNil ())), [1,1])
+  ]""" (-1)
 
-list_drop = (,)
+list_drop = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -203,7 +270,8 @@ type NatList
 drop : NatList -> Nat -> NatList
 drop xs n = ??
 
-specifyFunction2 drop
+"""
+  """specifyFunction2 drop
   [ ([], 0, [])
   , ([], 1, [])
   , ([0], 0, [0])
@@ -216,8 +284,21 @@ specifyFunction2 drop
   , ([0, 1], 1, [1])
   , ([0, 1], 2, [])
   ]""" 11
+  """specifyFunction2 drop
+  [ ([], 0, [])
+  , ([], 1, [])
+  , ([0], 0, [0])
+  , ([0], 1, [])
+  , ([1], 0, [1])
+  , ([1], 1, [])
+  , ([1, 0], 0, [1, 0])
+  , ([1, 0], 1, [0])
+  , ([0, 1], 0, [0, 1])
+  , ([0, 1], 1, [1])
+  , ([0, 1], 2, [])
+  ]""" (-1)
 
-list_even_parity = (,)
+list_even_parity = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -233,7 +314,8 @@ type BooleanList
 evenParity : BooleanList -> Boolean
 evenParity xs = ??
 
-specifyFunction evenParity
+"""
+  """specifyFunction evenParity
   [ ([], T ())
   , ([F ()], T ())
   , ([T ()], F ())
@@ -242,8 +324,17 @@ specifyFunction evenParity
   , ([T (), F ()], F ())
   , ([T (), T ()], T ())
   ]""" 7
+  """specifyFunction evenParity
+  [ ([], T ())
+  , ([F ()], T ())
+  , ([T ()], F ())
+  , ([F (), F ()], T ())
+  , ([F (), T ()], F ())
+  , ([T (), F ()], F ())
+  , ([T (), T ()], T ())
+  ]""" (-1)
 
-list_filter = (,)
+list_filter = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -277,7 +368,8 @@ let
   listFilter xs predicate = ??
 in
 
-specifyFunction2 listFilter
+"""
+  """specifyFunction2 listFilter
   [ ([], isEven, [])
   , ([0], isEven, [0])
   , ([1], isEven, [])
@@ -287,8 +379,18 @@ specifyFunction2 listFilter
   , ([], isNonzero, [])
   , ([0], isNonzero, [])
   ]""" 8
+  """specifyFunction2 listFilter
+  [ ([], isEven, [])
+  , ([0], isEven, [0])
+  , ([1], isEven, [])
+  , ([2], isEven, [2])
+  , ([0, 0], isEven, [0, 0])
+  , ([0, 1], isEven, [0])
+  , ([], isNonzero, [])
+  , ([0], isNonzero, [])
+  ]""" (-1)
 
-list_fold = (,)
+list_fold = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -328,7 +430,8 @@ let
   listFold xs f acc = ??
 in
 
-specifyFunction (\\p -> listFold (get_3_1 p) (get_3_2 p) (get_3_3 p))
+"""
+  """specifyFunction (\\p -> listFold (get_3_1 p) (get_3_2 p) (get_3_3 p))
   [ (([], sum, 0), 0)
   , (([1], sum, 0), 1)
   , (([2, 1], sum, 0), 3)
@@ -339,8 +442,19 @@ specifyFunction (\\p -> listFold (get_3_1 p) (get_3_2 p) (get_3_3 p))
   , (([2, 1], countOdd, 0), 1)
   , (([3, 2, 1], countOdd, 0), 2)
   ]""" 9
+  """specifyFunction (\\p -> listFold (get_3_1 p) (get_3_2 p) (get_3_3 p))
+  [ (([], sum, 0), 0)
+  , (([1], sum, 0), 1)
+  , (([2, 1], sum, 0), 3)
+  , (([3, 2, 1], sum, 0), 6)
+  , (([], sum, 1), 1)
+  , (([], countOdd, 0), 0)
+  , (([1], countOdd, 0), 1)
+  , (([2, 1], countOdd, 0), 1)
+  , (([3, 2, 1], countOdd, 0), 2)
+  ]""" (-1)
 
-list_hd = (,)
+list_hd = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -352,13 +466,19 @@ type NatList
 listHead : NatList -> Nat
 listHead xs = ??
 
-specifyFunction listHead
+"""
+  """specifyFunction listHead
   [ ([], 0)
   , ([0], 0)
   , ([1], 1)
   ]""" 3
+  """specifyFunction listHead
+  [ ([], 0)
+  , ([0], 0)
+  , ([1], 1)
+  ]""" (-1)
 
-list_inc = (,)
+list_inc = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -379,14 +499,21 @@ let
   listInc xs = ??
 in
 
-specifyFunction listInc
+"""
+  """specifyFunction listInc
   [ ([], [])
   , ([1, 2], [2, 3])
   , ([0, 0], [1, 1])
   , ([3, 4, 5], [4, 5, 6])
   ]""" 4
+  """specifyFunction listInc
+  [ ([], [])
+  , ([1, 2], [2, 3])
+  , ([0, 0], [1, 1])
+  , ([3, 4, 5], [4, 5, 6])
+  ]""" (-1)
 
-list_last = (,)
+list_last = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -402,7 +529,8 @@ type NatOpt
 listLast : NatList -> NatOpt
 listLast xs = ??
 
-specifyFunction listLast
+"""
+  """specifyFunction listLast
   [ ([], None ())
   , ([1], Some 1)
   , ([2], Some 2)
@@ -410,8 +538,16 @@ specifyFunction listLast
   , ([1, 2], Some 2)
   , ([3, 2, 1], Some 1)
   ]""" 6
+  """specifyFunction listLast
+  [ ([], None ())
+  , ([1], Some 1)
+  , ([2], Some 2)
+  , ([2, 1], Some 1)
+  , ([1, 2], Some 2)
+  , ([3, 2, 1], Some 1)
+  ]""" (-1)
 
-list_length = (,)
+list_length = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -423,13 +559,19 @@ type NatList
 listLength : NatList -> Nat
 listLength xs = ??
 
-specifyFunction listLength
+"""
+  """specifyFunction listLength
   [ ([], 0)
   , ([0], 1)
   , ([0, 0], 2)
   ]""" 3
+  """specifyFunction listLength
+  [ ([], 0)
+  , ([0], 1)
+  , ([0, 0], 2)
+  ]""" (-1)
 
-list_map = (,)
+list_map = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -450,7 +592,8 @@ let
   listMap xs f = ??
 in
 
-specifyFunction2 listMap
+"""
+  """specifyFunction2 listMap
   [ ([], inc, [])
   , ([0], inc, [1])
   , ([0, 0], inc, [1, 1])
@@ -460,8 +603,18 @@ specifyFunction2 listMap
   , ([0], zero, [0])
   , ([0, 0], zero, [0, 0])
   ]""" 8
+  """specifyFunction2 listMap
+  [ ([], inc, [])
+  , ([0], inc, [1])
+  , ([0, 0], inc, [1, 1])
+  , ([1], inc, [2])
+  , ([1, 1], inc, [2, 2])
+  , ([], zero, [])
+  , ([0], zero, [0])
+  , ([0, 0], zero, [0, 0])
+  ]""" (-1)
 
-list_nth = (,)
+list_nth = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -473,7 +626,8 @@ type NatList
 listNth : NatList -> Nat -> Nat
 listNth xs n = ??
 
-specifyFunction2 listNth
+"""
+  """specifyFunction2 listNth
   [ ([], 0, 0)
   , ([], 1, 0)
   , ([2], 0, 2)
@@ -488,8 +642,23 @@ specifyFunction2 listNth
   , ([3, 2, 1], 1, 2)
   , ([3, 2, 1], 2, 1)
   ]""" 13
+  """specifyFunction2 listNth
+  [ ([], 0, 0)
+  , ([], 1, 0)
+  , ([2], 0, 2)
+  , ([2], 1, 0)
+  , ([1, 2], 0, 1)
+  , ([1, 2], 1, 2)
+  , ([1], 0, 1)
+  , ([1], 1, 0)
+  , ([2, 1], 0, 2)
+  , ([2, 1], 1, 1)
+  , ([3, 2, 1], 0, 3)
+  , ([3, 2, 1], 1, 2)
+  , ([3, 2, 1], 2, 1)
+  ]""" (-1)
 
-list_pairwise_swap = (,)
+list_pairwise_swap = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -501,7 +670,8 @@ type NatList
 listPairwiseSwap : NatList -> NatList
 listPairwiseSwap xs = ??
 
-specifyFunction listPairwiseSwap
+"""
+  """specifyFunction listPairwiseSwap
   [ ([], [])
   , ([0], [])
   , ([1], [])
@@ -510,8 +680,17 @@ specifyFunction listPairwiseSwap
   , ([1, 0, 1], [])
   , ([0, 1, 0, 1], [1, 0, 1, 0])
   ]""" 7
+  """specifyFunction listPairwiseSwap
+  [ ([], [])
+  , ([0], [])
+  , ([1], [])
+  , ([0, 1], [1, 0])
+  , ([1, 0], [0, 1])
+  , ([1, 0, 1], [])
+  , ([0, 1, 0, 1], [1, 0, 1, 0])
+  ]""" (-1)
 
-list_rev_append = (,)
+list_rev_append = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -534,15 +713,23 @@ let
   listRevAppend xs = ??
 in
 
-specifyFunction listRevAppend
+"""
+  """specifyFunction listRevAppend
   [ ([], [])
   , ([0], [0])
   , ([1], [1])
   , ([0, 1], [1, 0])
   , ([0, 0, 1], [1, 0, 0])
   ]""" 5
+  """specifyFunction listRevAppend
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0, 1], [1, 0])
+  , ([0, 0, 1], [1, 0, 0])
+  ]""" (-1)
 
-list_rev_fold = (,)
+list_rev_fold = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -569,15 +756,23 @@ let
   listRevFold xs = ??
 in
 
-specifyFunction listRevFold
+"""
+  """specifyFunction listRevFold
   [ ([], [])
   , ([0], [0])
   , ([1], [1])
   , ([0, 1], [1, 0])
   , ([0, 0, 1], [1, 0, 0])
   ]""" 5
+  """specifyFunction listRevFold
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0, 1], [1, 0])
+  , ([0, 0, 1], [1, 0, 0])
+  ]""" (-1)
 
-list_rev_snoc = (,)
+list_rev_snoc = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -598,15 +793,23 @@ let
   listRevSnoc xs = ??
 in
 
-specifyFunction listRevSnoc
+"""
+  """specifyFunction listRevSnoc
   [ ([], [])
   , ([0], [0])
   , ([1], [1])
   , ([0, 1], [1, 0])
   , ([0, 0, 1], [1, 0, 0])
   ]""" 5
+  """specifyFunction listRevSnoc
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0, 1], [1, 0])
+  , ([0, 0, 1], [1, 0, 0])
+  ]""" (-1)
 
-list_rev_tailcall = (,)
+list_rev_tailcall = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -618,7 +821,8 @@ type NatList
 listRevTailcall : NatList -> NatList -> NatList
 listRevTailcall xs acc = ??
 
-specifyFunction2 listRevTailcall
+"""
+  """specifyFunction2 listRevTailcall
   [ ([], [], [])
   , ([], [0], [0])
   , ([], [1], [1])
@@ -628,8 +832,18 @@ specifyFunction2 listRevTailcall
   , ([1], [0], [1, 0])
   , ([0, 1], [], [1, 0])
   ]""" 8
+  """specifyFunction2 listRevTailcall
+  [ ([], [], [])
+  , ([], [0], [0])
+  , ([], [1], [1])
+  , ([], [1, 0], [1, 0])
+  , ([0], [], [0])
+  , ([1], [], [1])
+  , ([1], [0], [1, 0])
+  , ([0, 1], [], [1, 0])
+  ]""" (-1)
 
-list_snoc = (,)
+list_snoc = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -641,7 +855,8 @@ type NatList
 listSnoc : NatList -> Nat -> NatList
 listSnoc xs n = ??
 
-specifyFunction2 listSnoc
+"""
+  """specifyFunction2 listSnoc
   [ ([], 0, [0])
   , ([], 1, [1])
   , ([0], 0, [0, 0])
@@ -651,8 +866,18 @@ specifyFunction2 listSnoc
   , ([2, 1, 0], 0, [2, 1, 0, 0])
   , ([2, 1, 0], 1, [2, 1, 0, 1])
   ]""" 8
+  """specifyFunction2 listSnoc
+  [ ([], 0, [0])
+  , ([], 1, [1])
+  , ([0], 0, [0, 0])
+  , ([0], 1, [0, 1])
+  , ([1, 0], 0, [1, 0, 0])
+  , ([1, 0], 1, [1, 0, 1])
+  , ([2, 1, 0], 0, [2, 1, 0, 0])
+  , ([2, 1, 0], 1, [2, 1, 0, 1])
+  ]""" (-1)
 
-list_sort_sorted_insert = (,)
+list_sort_sorted_insert = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -694,7 +919,8 @@ let
   listSortSortedInsert xs = ??
 in
 
-specifyFunction listSortSortedInsert
+"""
+  """specifyFunction listSortSortedInsert
   [ ([], [])
   , ([0], [0])
   , ([1], [1])
@@ -703,8 +929,17 @@ specifyFunction listSortSortedInsert
   , ([1, 1], [1])
   , ([0, 1, 1], [0, 1])
   ]""" 7
+  """specifyFunction listSortSortedInsert
+  [ ([], [])
+  , ([0], [0])
+  , ([1], [1])
+  , ([0, 0], [0])
+  , ([1, 0], [0, 1])
+  , ([1, 1], [1])
+  , ([0, 1, 1], [0, 1])
+  ]""" (-1)
 
-list_sorted_insert = (,)
+list_sorted_insert = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -736,7 +971,8 @@ let
   listSortedInsert xs n = ??
 in
 
-specifyFunction2 listSortedInsert
+"""
+  """specifyFunction2 listSortedInsert
   [ ([], 0, [0])
   , ([], 1, [1])
   , ([], 2, [2])
@@ -750,8 +986,22 @@ specifyFunction2 listSortedInsert
   , ([0, 1], 0, [0, 1])
   , ([0, 1], 2, [0, 1, 2])
   ]""" 12
+  """specifyFunction2 listSortedInsert
+  [ ([], 0, [0])
+  , ([], 1, [1])
+  , ([], 2, [2])
+  , ([0], 0, [0])
+  , ([0], 1, [0, 1])
+  , ([1], 0, [0, 1])
+  , ([1], 1, [1])
+  , ([1], 2, [1, 2])
+  , ([2], 0, [0, 2])
+  , ([2], 1, [1, 2])
+  , ([0, 1], 0, [0, 1])
+  , ([0, 1], 2, [0, 1, 2])
+  ]""" (-1)
 
-list_stutter = (,)
+list_stutter = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -763,13 +1013,19 @@ type NatList
 listStutter : NatList -> NatList
 listStutter xs = ??
 
-specifyFunction listStutter
+"""
+  """specifyFunction listStutter
   [ ([], [])
   , ([0], [0, 0])
   , ([1, 0], [1, 1, 0, 0])
   ]""" 3
+  """specifyFunction listStutter
+  [ ([], [])
+  , ([0], [0, 0])
+  , ([1, 0], [1, 1, 0, 0])
+  ]""" (-1)
 
-list_sum = (,)
+list_sum = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -796,13 +1052,19 @@ let
   listSum xs = ??
 in
 
-specifyFunction listSum
+"""
+  """specifyFunction listSum
   [ ([], 0)
   , ([1], 1)
   , ([2, 1], 3)
   ]""" 3
+  """specifyFunction listSum
+  [ ([], 0)
+  , ([1], 1)
+  , ([2, 1], 3)
+  ]""" (-1)
 
-list_take = (,)
+list_take = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -814,7 +1076,8 @@ type NatList
 listTake : Nat -> NatList -> NatList
 listTake n xs = ??
 
-specifyFunction2 listTake
+"""
+  """specifyFunction2 listTake
   [ (0, [], [])
   , (0, [1], [])
   , (0, [0, 1], [])
@@ -828,8 +1091,22 @@ specifyFunction2 listTake
   , (2, [0, 1], [0, 1])
   , (2, [1, 0, 1], [1, 0])
   ]""" 12
+  """specifyFunction2 listTake
+  [ (0, [], [])
+  , (0, [1], [])
+  , (0, [0, 1], [])
+  , (0, [1, 0, 1], [])
+  , (1, [], [])
+  , (1, [1], [1])
+  , (1, [0, 1], [0])
+  , (1, [1, 0, 1], [1])
+  , (2, [], [])
+  , (2, [1], [1])
+  , (2, [0, 1], [0, 1])
+  , (2, [1, 0, 1], [1, 0])
+  ]""" (-1)
 
-list_tl = (,)
+list_tl = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -841,13 +1118,19 @@ type NatList
 listTail : NatList -> NatList
 listTail xs = ??
 
-specifyFunction listTail
+"""
+  """specifyFunction listTail
   [ ([], [])
   , ([0], [])
   , ([0, 0], [0])
   ]""" 3
+  """specifyFunction listTail
+  [ ([], [])
+  , ([0], [])
+  , ([0, 0], [0])
+  ]""" (-1)
 
-nat_iseven = (,)
+nat_iseven = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -859,14 +1142,21 @@ type Boolean
 isEven : Nat -> Boolean
 isEven n = ??
 
-specifyFunction isEven
+"""
+  """specifyFunction isEven
   [ (0, T ())
   , (1, F ())
   , (2, T ())
   , (3, F ())
   ]""" 4
+  """specifyFunction isEven
+  [ (0, T ())
+  , (1, F ())
+  , (2, T ())
+  , (3, F ())
+  ]""" (-1)
 
-nat_max = (,)
+nat_max = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -898,7 +1188,8 @@ let
   natMax m n = ??
 in
 
-specifyFunction2 natMax
+"""
+  """specifyFunction2 natMax
   [ (0, 0, 0)
   , (0, 1, 1)
   , (0, 2, 2)
@@ -909,8 +1200,19 @@ specifyFunction2 natMax
   , (2, 1, 2)
   , (2, 2, 2)
   ]""" 9
+  """specifyFunction2 natMax
+  [ (0, 0, 0)
+  , (0, 1, 1)
+  , (0, 2, 2)
+  , (1, 0, 1)
+  , (1, 1, 1)
+  , (1, 2, 2)
+  , (2, 0, 2)
+  , (2, 1, 2)
+  , (2, 2, 2)
+  ]""" (-1)
 
-nat_pred = (,)
+nat_pred = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -922,13 +1224,19 @@ type Boolean
 natPred : Nat -> Nat
 natPred n = ??
 
-specifyFunction natPred
+"""
+  """specifyFunction natPred
   [ (0, 0)
   , (1, 0)
   , (2, 1)
   ]""" 3
+  """specifyFunction natPred
+  [ (0, 0)
+  , (1, 0)
+  , (2, 1)
+  ]""" (-1)
 
-nat_add = (,)
+nat_add = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -940,7 +1248,8 @@ type Boolean
 natAdd : Nat -> Nat -> Nat
 natAdd m n = ??
 
-specifyFunction2 natAdd
+"""
+  """specifyFunction2 natAdd
   [ (0, 0, 0)
   , (0, 1, 1)
   , (0, 2, 2)
@@ -951,8 +1260,19 @@ specifyFunction2 natAdd
   , (2, 1, 3)
   , (2, 2, 4)
   ]""" 9
+  """specifyFunction2 natAdd
+  [ (0, 0, 0)
+  , (0, 1, 1)
+  , (0, 2, 2)
+  , (1, 0, 1)
+  , (1, 1, 2)
+  , (1, 2, 3)
+  , (2, 0, 2)
+  , (2, 1, 3)
+  , (2, 2, 4)
+  ]""" (-1)
 
-tree_binsert = (,)
+tree_binsert = (,,,,)
   """type Cmp
   = LT ()
   | EQ ()
@@ -984,7 +1304,8 @@ let
   treeBInsert t n = ??
 in
 
-specifyFunction2 treeBInsert
+"""
+  """specifyFunction2 treeBInsert
   [ (Leaf (), 0, Node (Leaf (), 0, Leaf ()))
   , (Leaf (), 1, Node (Leaf (), 1, Leaf ()))
   , (Leaf (), 2, Node (Leaf (), 2, Leaf ()))
@@ -1006,8 +1327,30 @@ specifyFunction2 treeBInsert
   , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 1, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
   , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), 0, Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
   ]""" 20
+  """specifyFunction2 treeBInsert
+  [ (Leaf (), 0, Node (Leaf (), 0, Leaf ()))
+  , (Leaf (), 1, Node (Leaf (), 1, Leaf ()))
+  , (Leaf (), 2, Node (Leaf (), 2, Leaf ()))
+  , (Node (Leaf (), 1, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (Node (Leaf (), 1, Leaf ()), 1, Node (Leaf (), 1, Leaf ()))
+  , (Node (Leaf (), 1, Leaf ()), 2, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
+  , (Node (Leaf (), 0, Leaf ()), 0, Node (Leaf (), 0, Leaf ()))
+  , (Node (Leaf (), 0, Leaf ()), 1, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
+  , (Node (Leaf (), 0, Leaf ()), 2, Node (Leaf (), 0, Node (Leaf (), 2, Leaf ())))
+  , (Node (Leaf (), 2, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 2, Leaf ()))
+  , (Node (Leaf (), 2, Leaf ()), 1, Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()))
+  , (Node (Leaf (), 2, Leaf ()), 2, Node (Leaf (), 2, Leaf ()))
+  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 1, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Node (Node (Leaf (), 0, Leaf ()), 1, Node(Leaf (), 2, Leaf ())))
+  , (Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())), 2, Node (Leaf (), 0, Node (Leaf (), 1, Node(Leaf (), 2, Leaf ()))))
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), 0, Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Node (Leaf (), 2, Leaf ())))
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 1, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), 0, Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
+  ]""" (-1)
 
-tree_collect_leaves = (,)
+tree_collect_leaves = (,,,,)
   """type Boolean
   = F ()
   | T ()
@@ -1034,7 +1377,8 @@ let
   treeCollectLeaves tree = ??
 in
 
-specifyFunction treeCollectLeaves
+"""
+  """specifyFunction treeCollectLeaves
   [ (Leaf (), [])
   , (Node (Leaf (), True, Leaf ()), [True])
   , (Node (Leaf (), False, Leaf ()), [False])
@@ -1042,8 +1386,16 @@ specifyFunction treeCollectLeaves
   , (Node (Node (Leaf (), False, Leaf ()), True, Leaf ()), [False, True])
   , (Node (Leaf (), False, Node (Leaf (), True, Leaf ())), [False, True])
   ]""" 6
+  """specifyFunction treeCollectLeaves
+  [ (Leaf (), [])
+  , (Node (Leaf (), True, Leaf ()), [True])
+  , (Node (Leaf (), False, Leaf ()), [False])
+  , (Node (Node (Leaf (), True, Leaf ()), False, Leaf ()), [True, False])
+  , (Node (Node (Leaf (), False, Leaf ()), True, Leaf ()), [False, True])
+  , (Node (Leaf (), False, Node (Leaf (), True, Leaf ())), [False, True])
+  ]""" (-1)
 
-tree_count_leaves = (,)
+tree_count_leaves = (,,,,)
   """type Boolean
   = F ()
   | T ()
@@ -1067,7 +1419,8 @@ in
   treeCountLeaves tree = ??
 in
 
-specifyFunction treeCountLeaves
+"""
+  """specifyFunction treeCountLeaves
   [ (Leaf (), 1)
   , (Node (Leaf (), True, Leaf ()), 2)
   , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 3)
@@ -1076,8 +1429,17 @@ specifyFunction treeCountLeaves
   , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 4)
   , (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
   ]""" 7
+  """specifyFunction treeCountLeaves
+  [ (Leaf (), 1)
+  , (Node (Leaf (), True, Leaf ()), 2)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 3)
+  , (Node (Leaf (), True, Node (Leaf (), True, Leaf ())), 3)
+  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), True, Leaf ()), 4)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 4)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
+  ]""" (-1)
 
-tree_count_nodes = (,)
+tree_count_nodes = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -1098,7 +1460,8 @@ let
   treeCountNodes tree = ??
 in
 
-specifyFunction treeCountNodes
+"""
+  """specifyFunction treeCountNodes
   [ (Leaf (), 0)
   , (Node (Leaf (), 0, Leaf ()), 1)
   , (Node (Node (Leaf (), 0, Leaf ()), 0, Leaf ()), 2)
@@ -1106,8 +1469,16 @@ specifyFunction treeCountNodes
   , (Node (Node (Leaf (), 0, Node (Leaf (), 0, Leaf ())), 0, Leaf ()), 3)
   , (Node (Leaf (), 0, Node (Leaf (), 0, Node (Leaf (), 0, Leaf ()))), 3)
   ]""" 6
+  """specifyFunction treeCountNodes
+  [ (Leaf (), 0)
+  , (Node (Leaf (), 0, Leaf ()), 1)
+  , (Node (Node (Leaf (), 0, Leaf ()), 0, Leaf ()), 2)
+  , (Node (Leaf (), 0, Node(Leaf (), 0, Leaf ())), 2)
+  , (Node (Node (Leaf (), 0, Node (Leaf (), 0, Leaf ())), 0, Leaf ()), 3)
+  , (Node (Leaf (), 0, Node (Leaf (), 0, Node (Leaf (), 0, Leaf ()))), 3)
+  ]""" (-1)
 
-tree_inorder = (,)
+tree_inorder = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -1134,15 +1505,23 @@ let
   treeInOrder xss = ??
 in
 
-specifyFunction treeInOrder
+"""
+  """specifyFunction treeInOrder
   [ (Leaf (), [])
   , (Node (Leaf (), 1, Leaf ()), [1])
   , (Node (Leaf (), 2, Leaf ()), [2])
   , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
   , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
   ]""" 5
+  """specifyFunction treeInOrder
+  [ (Leaf (), [])
+  , (Node (Leaf (), 1, Leaf ()), [1])
+  , (Node (Leaf (), 2, Leaf ()), [2])
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
+  ]""" (-1)
 
-tree_map = (,)
+tree_map = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -1174,7 +1553,8 @@ let
   treeMap tree f = ??
 in
 
-specifyFunction2 treeMap
+"""
+  """specifyFunction2 treeMap
   [ (Leaf (), div2, Leaf ())
   , (Node (Leaf (), 0, Leaf ()), div2, Node (Leaf (), 0, Leaf ()))
   , (Node (Leaf (), 2, Leaf ()), div2, Node (Leaf (), 1, Leaf ()))
@@ -1183,8 +1563,17 @@ specifyFunction2 treeMap
   , (Leaf (), inc, Leaf ())
   , (Node (Leaf (), 0, Leaf ()), inc, Node (Leaf (), 1, Leaf ()))
   ]""" 7
+  """specifyFunction2 treeMap
+  [ (Leaf (), div2, Leaf ())
+  , (Node (Leaf (), 0, Leaf ()), div2, Node (Leaf (), 0, Leaf ()))
+  , (Node (Leaf (), 2, Leaf ()), div2, Node (Leaf (), 1, Leaf ()))
+  , (Node (Node (Leaf (), 2, Leaf ()), 2, Leaf ()), div2, Node (Node (Leaf (), 1, Leaf ()), 1, Leaf ()))
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), div2, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
+  , (Leaf (), inc, Leaf ())
+  , (Node (Leaf (), 0, Leaf ()), inc, Node (Leaf (), 1, Leaf ()))
+  ]""" (-1)
 
-tree_nodes_at_level = (,)
+tree_nodes_at_level = (,,,,)
   """type Boolean
   = F ()
   | T ()
@@ -1209,7 +1598,8 @@ let
   treeNodesAtLevel tree n = ??
 in
 
-specifyFunction2 treeNodesAtLevel
+"""
+  """specifyFunction2 treeNodesAtLevel
   [ (Leaf (), 0, 0)
   , (Leaf (), 1, 0)
   , (Node (Leaf (), True, Leaf ()), 0, 1)
@@ -1222,8 +1612,21 @@ specifyFunction2 treeNodesAtLevel
   , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 0, 1)
   , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1, 1)
   ]""" 11
+  """specifyFunction2 treeNodesAtLevel
+  [ (Leaf (), 0, 0)
+  , (Leaf (), 1, 0)
+  , (Node (Leaf (), True, Leaf ()), 0, 1)
+  , (Node (Leaf (), True, Leaf ()), 1, 0)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 0, 1)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 1, 1)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 0, 1)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 1, 2)
+  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 2, 0)
+  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 0, 1)
+  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1, 1)
+  ]""" (-1)
 
-tree_postorder = (,)
+tree_postorder = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -1250,7 +1653,8 @@ let
   treePostorder tree = ??
 in
 
-specifyFunction treePostorder
+"""
+  """specifyFunction treePostorder
   [ (Leaf (), [])
   , (Node (Leaf (), 1, Leaf ()), [1])
   , (Node (Leaf (), 2, Leaf ()), [2])
@@ -1261,8 +1665,19 @@ specifyFunction treePostorder
   , (Node (Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) ), 0, Leaf ()), [2, 1, 0, 0])
   , (Node (Leaf (), 2, Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) )), [2, 1, 0, 2])
   ]""" 9
+  """specifyFunction treePostorder
+  [ (Leaf (), [])
+  , (Node (Leaf (), 1, Leaf ()), [1])
+  , (Node (Leaf (), 2, Leaf ()), [2])
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [2, 1])
+  , (Node (Node (Leaf (), 1, Leaf ()), 0, Node (Leaf (), 2, Leaf ()) ), [1, 2, 0])
+  , (Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) ), [2, 1, 0])
+  , (Node (Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) ), 0, Leaf ()), [2, 1, 0, 0])
+  , (Node (Leaf (), 2, Node (Node (Leaf (), 2, Leaf ()), 0, Node (Leaf (), 1, Leaf ()) )), [2, 1, 0, 2])
+  ]""" (-1)
 
-tree_preorder = (,)
+tree_preorder = (,,,,)
   """type Nat
   = Z ()
   | S Nat
@@ -1289,15 +1704,23 @@ let
   treePreorder tree = ??
 in
 
-specifyFunction treePreorder
+"""
+  """specifyFunction treePreorder
   [ (Leaf (), [])
   , (Node (Leaf (), 1, Leaf ()), [1])
   , (Node (Leaf (), 2, Leaf ()), [2])
   , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [2, 1])
   , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
   ]""" 5
+  """specifyFunction treePreorder
+  [ (Leaf (), [])
+  , (Node (Leaf (), 1, Leaf ()), [1])
+  , (Node (Leaf (), 2, Leaf ()), [2])
+  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [2, 1])
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
+  ]""" (-1)
 
-suite : Dict String (String, Int)
+suite : Dict String (String, String, Int, String, Int)
 suite =
   Dict.fromList
     [ ("bool_band", bool_band)

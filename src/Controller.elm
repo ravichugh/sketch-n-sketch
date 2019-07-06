@@ -4770,25 +4770,66 @@ msgLoadPBESuiteExample name programText =
 
 --------------------------------------------------------------------------------
 
-runPBESuiteExample :
-  String -> (String, Int) -> (Int, Maybe PBESynthesisResult)
-runPBESuiteExample name (programText, exampleCount) =
-  initModel
-    |> loadPBESuiteExample name programText
-    |> collectAndSolve
-    |> .pbeSynthesisResult
-    |> (,) exampleCount
+tryHoleFilling : Exp -> U.HoleFilling -> Bool
+tryHoleFilling root holeFilling =
+  root
+    |> Lang.fillHoles (Dict.toList holeFilling)
+    |> TriEval.eval
+    |> TriEval.ensureConstraintFree
+    |> Utils.maybeToBool
 
-makePBETable : Dict String (Int, Maybe PBESynthesisResult) -> String
+runPBESuiteExample :
+  String -> (String, String, Int, String, Int) ->
+    ((Int, Maybe PBESynthesisResult), (Int, Maybe (PBESynthesisResult, Int)))
+runPBESuiteExample name (programText, ex1, ex1Count, ex2, ex2Count) =
+  let
+    model1 =
+      initModel
+        |> loadPBESuiteExample name (programText ++ ex1)
+
+    fullVersion =
+      model1.inputExp
+
+    run1 =
+      model1
+        |> collectAndSolve
+        |> .pbeSynthesisResult
+        |> (,) ex1Count
+
+    run2 =
+      if ex2Count == -1 then
+        (-1, Nothing)
+      else
+        initModel
+          |> loadPBESuiteExample name (programText ++ ex2)
+          |> collectAndSolve
+          |> .pbeSynthesisResult
+          |> Maybe.map
+               ( \sr ->
+                   ( sr
+                   , sr.holeFillings
+                       |> List.map (tryHoleFilling fullVersion)
+                       |> Utils.count identity
+                   )
+               )
+          |> (,) ex2Count
+
+
+  in
+    (run1, run2)
+
+makePBETable :
+  Dict String ((Int, Maybe PBESynthesisResult), (Int, Maybe (PBESynthesisResult, Int)))
+    -> String
 makePBETable data =
   let
-    makeRow (name, (exampleCount, result)) =
+    makeRow (name, ((exampleCount1, result1), (exampleCount2, result2))) =
       let
-        resultString =
-          case result of
+        resultString1 =
+          case result1 of
             Just { holeFillings, timeTaken } ->
               "\\benchmarkExperimentOne{"
-                ++ toString exampleCount
+                ++ toString exampleCount1
                 ++ "}{"
                 ++ toString (List.length holeFillings)
                 ++ "}{"
@@ -4797,15 +4838,36 @@ makePBETable data =
 
             Nothing ->
               "\\benchmarkExperimentOne{"
-                ++ toString exampleCount
+                ++ toString exampleCount1
                 ++ "}{Failed}{Failed}"
+
+        resultString2 =
+          if exampleCount2 == -1 then
+            "\\benchmakrExperimentTwo{}{}{}{}"
+          else
+            case result2 of
+              Just ({ holeFillings, timeTaken }, numGood) ->
+                "\\benchmarkExperimentTwo{"
+                  ++ toString exampleCount2
+                  ++ "}{"
+                  ++ toString numGood
+                  ++ "}{"
+                  ++ toString (List.length holeFillings)
+                  ++ "}{"
+                  ++ toString timeTaken
+                  ++ "}"
+
+              Nothing ->
+                "\\benchmarkExperimentTwo{"
+                  ++ toString exampleCount2
+                  ++ "}{Failed}{Failed}{Failed}"
       in
         "\\benchmarkName{"
           ++ name
           ++ "}<br />"
-          ++ resultString
+          ++ resultString1
           ++ "<br />"
-          ++ "\\benchmarkExperimentTwo{?}{?}{?}{?}{?}"
+          ++ resultString2
           ++ "<br />"
           ++ "\\benchmarkExperimentThree{?}{?}{?}{?}{?}"
           ++ "<br />"
