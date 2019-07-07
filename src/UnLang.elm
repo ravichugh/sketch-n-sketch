@@ -1149,3 +1149,15 @@ example =
 parseExample : String -> Result P.Error Example
 parseExample =
   P.run example
+
+--==============================================================================
+--= Miscellaneous
+--==============================================================================
+
+holeFillingSize : HoleFilling -> Int
+holeFillingSize =
+  let
+    expSize =
+      Lang.flattenExpTree >> List.length
+  in
+    Dict.values >> List.map expSize >> List.sum

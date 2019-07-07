@@ -288,38 +288,18 @@ guessAndCheck :
   { maxTermSize : Int } -> SynthesisProblem -> GenCached SynthesisSolution
 guessAndCheck params ({ worlds } as sp) =
   let
-    startTime =
-      ImpureGoodies.getCurrentTime ()
-
-    helper i =
-      --if ImpureGoodies.getCurrentTime () - startTime > 2000 then
-      --  State.pure NonDet.none
-      --else
-      if i > params.maxTermSize then
-        State.pure NonDet.none
-      else
-        let
-          possibleGuessState =
-            TermGen.exactlyE
-              { termSize = i
-              , sigma = sp.sigma
-              , gamma = sp.gamma
-              , goalType = sp.goalType
-              }
-        in
-          State.do possibleGuessState <| \possibleGuess ->
-            let
-              result =
-                NonDet.do possibleGuess <| \guess ->
-                NonDet.pureDo (satisfiesWorlds worlds guess) <| \constraints ->
-                  (guess, constraints)
-            in
-              if NonDet.isEmpty result then
-                helper (i + 1)
-              else
-                State.pure result
+    possibleGuessState =
+      TermGen.upToE
+        { termSize = params.maxTermSize
+        , sigma = sp.sigma
+        , gamma = sp.gamma
+        , goalType = sp.goalType
+        }
   in
-    helper 1
+    State.pureDo possibleGuessState <| \possibleGuess ->
+    NonDet.do possibleGuess <| \guess ->
+    NonDet.pureDo (satisfiesWorlds worlds guess) <| \constraints ->
+      (guess, constraints)
 
 arefine :
   { maxScrutineeSize : Int, maxMatchDepth : Int }
@@ -991,7 +971,7 @@ synthesize stage sp =
       -- |> (\rt -> let _ = Debug.log (List.map showTree (NonDet.toList rt) |> String.join "\n\n\n") () in rt)
       |> NonDet.map
            ( fillGuesses { maxTermSize = maxTermSize }
-               >> State.map (\rt -> let _ = Debug.log (showTree rt) () in rt)
+               -- >> State.map (\rt -> let _ = Debug.log (showTree rt) () in rt)
                >> State.map propagate
            )
       |> State.nSequence

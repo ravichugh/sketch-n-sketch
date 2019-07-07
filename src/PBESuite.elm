@@ -68,16 +68,16 @@ impl p q = ??
 """
   """specifyFunction2 impl
   [ (T (), T (), T ())
-  , (T (), F (), T ())
+  , (T (), F (), F ())
   , (F (), T (), T ())
-  , (F (), F (), F ())
+  , (F (), F (), T ())
   ]""" 4
   """specifyFunction2 impl
   [ (T (), T (), T ())
-  , (T (), F (), T ())
-  , (F (), T (), T ())
-  , (F (), F (), F ())
-  ]""" (-1)
+  , (T (), F (), F ())
+  -- , (F (), T (), T ())
+  , (F (), F (), T ())
+  ]""" 3
 
 bool_neg = (,,,,)
   """type Boolean
@@ -116,8 +116,8 @@ xor p q = ??
   [ (T (), T (), F ())
   , (T (), F (), T ())
   , (F (), T (), T ())
-  , (F (), F (), F ())
-  ]""" (-1)
+  -- , (F (), F (), F ())
+  ]""" 3
 
 list_append = (,,,,)
   """type Nat
@@ -147,7 +147,7 @@ append xs ys = ??
   , ([0], [0], [0, 0])
   , ([1, 0], [], [1, 0])
   , ([1, 0], [0], [1, 0, 0])
-  ]""" (-1)
+  ]""" 4
 
 list_compress = (,,,,)
   """type Nat
@@ -1415,7 +1415,7 @@ let
       Z _ -> n2
       S m -> S (sum m n2)
 in
-  treeCountLeaves : NatTree -> Nat
+  treeCountLeaves : BooleanTree -> Nat
   treeCountLeaves tree = ??
 in
 
@@ -1732,7 +1732,7 @@ suite =
     -- , ("list_compress", list_compress)
     , ("list_concat", list_concat)
     , ("list_drop", list_drop)
-    , ("list_even_parity", list_even_parity)
+    -- , ("list_even_parity", list_even_parity)
     -- , ("list_filter", list_filter)
     -- , ("list_fold", list_fold)
     , ("list_hd", list_hd)
@@ -1751,7 +1751,7 @@ suite =
     -- , ("list_sorted_insert", list_sorted_insert)
     , ("list_stutter", list_stutter)
     -- , ("list_sum", list_sum)
-    , ("list_take", list_take)
+    -- , ("list_take", list_take)
     , ("list_tl", list_tl)
     , ("nat_iseven", nat_iseven)
     -- , ("nat_max", nat_max)
@@ -1762,7 +1762,7 @@ suite =
     -- , ("tree_count_leaves", tree_count_leaves)
     -- , ("tree_count_nodes", tree_count_nodes)
     -- , ("tree_inorder", tree_inorder)
-    , ("tree_map", tree_map)
+    -- , ("tree_map", tree_map)
     -- , ("tree_nodes_at_level", tree_nodes_at_level)
     -- , ("tree_postorder", tree_postorder)
     -- , ("tree_preorder", tree_preorder)

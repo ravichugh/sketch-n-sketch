@@ -3344,6 +3344,7 @@ pbePopupPanel model =
                               []
                               ( nonEmptyHoleFillings
                                   |> Utils.dedup -- TODO be more efficient
+                                  |> List.sortBy U.holeFillingSize
                                   |> List.map (viewHoleFilling model)
                               )
                           ]

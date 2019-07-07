@@ -4782,6 +4782,7 @@ runPBESuiteExample :
   String -> (String, String, Int, String, Int) ->
     ((Int, Maybe PBESynthesisResult), (Int, Maybe (PBESynthesisResult, Int)))
 runPBESuiteExample name (programText, ex1, ex1Count, ex2, ex2Count) =
+  let _ = Debug.log "Starting" name in
   let
     model1 =
       initModel
@@ -4794,6 +4795,7 @@ runPBESuiteExample name (programText, ex1, ex1Count, ex2, ex2Count) =
       model1
         |> collectAndSolve
         |> .pbeSynthesisResult
+        |> Maybe.map (\sr -> { sr | holeFillings = Utils.dedup sr.holeFillings })
         |> (,) ex1Count
 
     run2 =
@@ -4804,6 +4806,7 @@ runPBESuiteExample name (programText, ex1, ex1Count, ex2, ex2Count) =
           |> loadPBESuiteExample name (programText ++ ex2)
           |> collectAndSolve
           |> .pbeSynthesisResult
+          |> Maybe.map (\sr -> { sr | holeFillings = Utils.dedup sr.holeFillings })
           |> Maybe.map
                ( \sr ->
                    ( sr
