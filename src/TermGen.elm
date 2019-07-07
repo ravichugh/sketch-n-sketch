@@ -219,10 +219,19 @@ relGenEApp1
         if
           T.structurallyDecreasing combinedGamma head argument
         then
-          NonDet.pure <|
-            eApp
-              (replacePrecedingWhitespace0 head)
-              [replacePrecedingWhitespace1 argument]
+          let
+            ap =
+              case T.bindSpec combinedGamma head of
+                Just (T.Rec _) ->
+                  eAppSpecial
+
+                _ ->
+                  eApp
+          in
+            NonDet.pure <|
+              ap
+                (replacePrecedingWhitespace0 head)
+                [replacePrecedingWhitespace1 argument]
 
         else
           NonDet.none

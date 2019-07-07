@@ -3336,18 +3336,65 @@ pbePopupPanel model =
                           List.filter (not << Dict.isEmpty) holeFillings
                       in
                         if List.length nonEmptyHoleFillings > 0 then
-                          [ Html.h2
-                              []
-                              [ Html.text "Results"
-                              ]
-                          , Html.ol
-                              []
-                              ( nonEmptyHoleFillings
-                                  |> Utils.dedup -- TODO be more efficient
-                                  |> List.sortBy U.holeFillingSize
-                                  |> List.map (viewHoleFilling model)
-                              )
-                          ]
+                          let
+                            windowSize =
+                              3
+
+                            sortedHoleFillings =
+                              nonEmptyHoleFillings
+                                |> Utils.dedup -- TODO be more efficient
+                                |> List.sortBy U.holeFillingSize
+
+                            recPred =
+                              Dict.values >> List.any Lang.containsRecursiveCall
+
+                            (topRec, others_) =
+                              Utils.takeSatisfying
+                                windowSize recPred sortedHoleFillings
+
+                            (topNonRec, others) =
+                              Utils.takeSatisfying
+                                windowSize (not << recPred) others_
+                          in
+                            ( if not <| List.isEmpty topRec then
+                                [ Html.h2
+                                    []
+                                    [ Html.text "Top Recursive Results"
+                                    ]
+                                , Html.ol
+                                    []
+                                    ( List.map (viewHoleFilling model) topRec
+                                    )
+                                ]
+                              else
+                                []
+                            ) ++
+                            ( if not <| List.isEmpty topNonRec then
+                                [ Html.h2
+                                    []
+                                    [ Html.text "Top Non-Recursive Results"
+                                    ]
+                                , Html.ol
+                                    []
+                                    ( List.map (viewHoleFilling model) topNonRec
+                                    )
+                                ]
+                              else
+                                []
+                            ) ++
+                            ( if not <| List.isEmpty others then
+                                [ Html.h2
+                                    []
+                                    [ Html.text "Other Results"
+                                    ]
+                                , Html.ol
+                                    []
+                                    ( List.map (viewHoleFilling model) others
+                                    )
+                                ]
+                              else
+                                []
+                            )
                         else
                           [ Html.div
                               [ Attr.class "pbe-no-synthesis-results"

@@ -41,6 +41,10 @@ newline2 : WS
 newline2 =
   ws "\n\n"
 
+specialWhitespace : WS
+specialWhitespace =
+  ws "~"
+
 --------------------------------------------------------------------------------
 -- Miscellaneous
 --------------------------------------------------------------------------------
@@ -2433,6 +2437,7 @@ eFalse = eBool False
 eNull  = withDummyExpInfo <| EBase space1 <| ENull
 eIf c t e   = withDummyExpInfo <| EIf space0 c space1 t space1 e space0
 
+eAppSpecial (Expr e) es = Expr <| withInfo (exp_ <| EApp space1 (Expr e) es SpaceApp specialWhitespace) e.start (Utils.maybeLast es |> Maybe.map (\(Expr e_) -> e_.end) |> Maybe.withDefault e.end)
 eApp (Expr e) es  = Expr <| withInfo (exp_ <| EApp space1 (Expr e) es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map (\(Expr e_) -> e_.end) |> Maybe.withDefault e.end)
 eApp0 (Expr e) es = Expr <| withInfo (exp_ <| EApp space0 (Expr e) es SpaceApp space0) e.start (Utils.maybeLast es |> Maybe.map (\(Expr e_) -> e_.end) |> Maybe.withDefault e.end)
 eCall fName es   = eApp (eVar0 fName) es
@@ -4876,3 +4881,20 @@ fillHole root (holeIdToReplace, newExp) =
 fillHoles : List (HoleId, Exp) -> Exp -> Exp
 fillHoles replacements exp =
   List.foldl (fillHole exp) exp replacements
+
+--------------------------------------------------------------------------------
+-- Recursive function usage check
+--------------------------------------------------------------------------------
+
+containsRecursiveCall : Exp -> Bool
+containsRecursiveCall =
+  let
+    predicate e =
+      case unwrapExp e of
+        EApp _ _ _ _ possiblySpecial ->
+          possiblySpecial == specialWhitespace
+
+        _ ->
+          False
+  in
+    findFirstNode predicate >> Utils.maybeToBool

@@ -1976,3 +1976,32 @@ partitionEithers =
 all1 : (a -> Bool) -> List a -> Bool
 all1 predicate xs =
   not (List.isEmpty xs) && List.all predicate xs
+
+--------------------------------------------------------------------------------
+
+partitionWithContext :
+  ((List a, List a) -> a -> Bool) -> List a -> (List a, List a)
+partitionWithContext predicate =
+  let
+    helper (oks, notOks) xs =
+      case xs of
+        [] ->
+          (List.reverse oks, List.reverse notOks)
+
+        xHead :: xRest ->
+          if predicate (oks, notOks) xHead then
+            helper (xHead :: oks, notOks) xRest
+          else
+            helper (oks, xHead :: notOks) xRest
+  in
+    helper ([], [])
+
+partition : (a -> Bool) -> List a -> (List a, List a)
+partition predicate =
+  partitionWithContext (\_ -> predicate)
+
+-- Take only the first n that satisfy the predicate
+takeSatisfying : Int -> (a -> Bool) -> List a -> (List a, List a)
+takeSatisfying n predicate =
+  partitionWithContext <| \(oks, _) x ->
+    List.length oks < n && predicate x

@@ -1598,8 +1598,13 @@ code {
 
 .pbe-synthesis-results ol {
   padding-left: 35px;
-  max-height: 300px;
+  max-height: 150px;
   overflow-y: scroll;
+  margin-bottom: 10px;
+}
+
+.pbe-synthesis-results ol:last-child {
+  margin-bottom: 0;
 }
 
 .pbe-hole-filling {
