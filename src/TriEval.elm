@@ -108,8 +108,9 @@ apply env head arguments =
                 |> .bindSpec
           in
             if
-              T.structurallyDecreasingBindSpec
-                { parent = bindSpec, child = argBindSpec }
+              True
+              -- T.structurallyDecreasingBindSpec
+              --   { parent = bindSpec, child = argBindSpec }
             then
               let
                 newEnv =
@@ -840,15 +841,29 @@ constrain u1 u2 =
 --==============================================================================
 
 evalBackprop :
-  { allowEvaluationConstraints : Bool }
+  { allowEvaluationConstraints : Bool, compareExp : Maybe (UnExp ()) }
     -> U.Env -> Exp -> Example -> NonDet Constraints
-evalBackprop { allowEvaluationConstraints } env exp example =
+evalBackprop { allowEvaluationConstraints, compareExp } env exp example =
   let
-    postPass =
+    postPass1 =
       if allowEvaluationConstraints then
         Result.toMaybe
       else
         ensureConstraintFree >> Maybe.map (\u -> (u, NonDet.pure []))
+
+    postPass2 ((uResult, _) as input) =
+      case compareExp of
+        Just uCompare ->
+          if U.equalModuloEnv uCompare uResult then
+            Nothing
+          else
+            Just input
+
+        Nothing ->
+          Just input
+
+    postPass =
+      postPass1 >> Maybe.andThen postPass2
   in
     case evalWithEnv env exp |> postPass of
       Just (uResult, possibleEvalConstraints) ->
@@ -893,7 +908,9 @@ backprop u ex =
         let
           backpropBinding (argument, outputExample) =
             evalBackprop
-              { allowEvaluationConstraints = False }
+              { allowEvaluationConstraints = False
+              , compareExp = Nothing
+              }
               ( U.addVarBinding
                   param
                   (argument, Maybe.map (T.Arg << pVar0) maybeName)
@@ -954,7 +971,9 @@ backprop u ex =
                   in
                     NonDet.map (\k23 -> k1 ++ k23) <|
                       evalBackprop
-                        { allowEvaluationConstraints = False }
+                        { allowEvaluationConstraints = False
+                        , compareExp = Just (clearData u)
+                        }
                         newEnv
                         body
                         ex

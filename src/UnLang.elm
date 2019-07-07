@@ -824,6 +824,52 @@ flatten : UnExp d -> List (UnExp d)
 flatten u =
   u :: List.concatMap flatten (children u)
 
+equalModuloEnv : UnExp () -> UnExp () -> Bool
+equalModuloEnv u1 u2 =
+  case (u1, u2) of
+    (UConstructor _ name1 arg1, UConstructor _ name2 arg2) ->
+      name1 == name2 && equalModuloEnv arg1 arg2
+
+    (UTuple _ components1, UTuple _ components2) ->
+      List.length components1 == List.length components2
+        && List.all identity (List.map2 equalModuloEnv components1 components2)
+
+    -- Equality not supported for partial functions
+    (UPartialFunction _ pf1, UPartialFunction _ pf2) ->
+      False
+
+    (UFunClosure _ _ name1 param1 body1, UFunClosure _ _ name2 param2 body2) ->
+      name1 == name2 && param1 == param2 && body1 == body2
+
+    (UHoleClosure _ _ holeIndex1, UHoleClosure _ _ holeIndex2) ->
+      holeIndex1 == holeIndex2
+
+    (UApp _ uFunc1 arg1, UApp _ uFunc2 arg2) ->
+      equalModuloEnv uFunc1 uFunc2
+        && equalModuloEnv arg1 arg2
+
+    (UGet _ n1 i1 arg1, UGet _ n2 i2 arg2) ->
+      n1 == n2
+        && i1 == i2
+        && equalModuloEnv arg1 arg2
+
+    (UConstructorInverse _ name1 arg1, UConstructorInverse _ name2 arg2) ->
+      name1 == name2
+        && equalModuloEnv arg1 arg2
+
+    (UCase _ _ scrutinee1 branches1, UCase _ _ scrutinee2 branches2) ->
+      let
+        branchEqual (ctor1, param1, body1) (ctor2, param2, body2) =
+          ctor1 == ctor2
+            && param1 == param2
+            && body1 == body2
+      in
+        equalModuloEnv scrutinee1 scrutinee2
+          && List.all identity (List.map2 branchEqual branches1 branches2)
+
+    _ ->
+      False
+
 --==============================================================================
 --= UnExp Helper Functions
 --==============================================================================
