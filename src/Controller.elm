@@ -4778,11 +4778,48 @@ tryHoleFilling root holeFilling =
     |> TriEval.ensureConstraintFree
     |> Utils.maybeToBool
 
+-- (good, total)
+type alias PBEStats =
+  { topRecursive : (Int, Int)
+  , topNonRecursive : (Int, Int)
+  , others : (Int, Int)
+  , window : U.Window
+  , timeTaken : Float
+  }
+
+pbeStats : Exp -> PBESynthesisResult -> PBEStats
+pbeStats fullVersion { holeFillings, timeTaken } =
+  let
+    singleStat : List U.HoleFilling -> (Int, Int)
+    singleStat holeFillings =
+      ( holeFillings
+          |> List.map (tryHoleFilling fullVersion)
+          |> Utils.count identity
+      , List.length holeFillings
+      )
+
+    window =
+      U.window holeFillings
+  in
+    { topRecursive =
+        singleStat window.topRecursive
+    , topNonRecursive =
+        singleStat window.topNonRecursive
+    , others =
+        singleStat window.others
+    , window =
+        window
+    , timeTaken =
+        timeTaken
+    }
+
 runPBESuiteExample :
   String -> (String, String, Int, String, Int) ->
-    ((Int, Maybe PBESynthesisResult), (Int, Maybe (PBESynthesisResult, Int)))
+    ( (Int, Maybe PBESynthesisResult)
+    , (Int, Maybe PBEStats)
+    )
 runPBESuiteExample name (programText, ex1, ex1Count, ex2, ex2Count) =
-  let _ = Debug.log "Starting" name in
+  let _ = Debug.log "Running suite example" name in
   let
     model1 =
       initModel
@@ -4806,27 +4843,16 @@ runPBESuiteExample name (programText, ex1, ex1Count, ex2, ex2Count) =
           |> loadPBESuiteExample name (programText ++ ex2)
           |> collectAndSolve
           |> .pbeSynthesisResult
-          |> Maybe.map (\sr -> { sr | holeFillings = Utils.dedup sr.holeFillings })
-          |> Maybe.map
-               ( \sr ->
-                   ( sr
-                   , sr.holeFillings
-                       |> List.map (tryHoleFilling fullVersion)
-                       |> Utils.count identity
-                   )
-               )
+          |> Maybe.map (pbeStats fullVersion)
           |> (,) ex2Count
 
 
   in
     (run1, run2)
 
-makePBETable :
-  Dict String ((Int, Maybe PBESynthesisResult), (Int, Maybe (PBESynthesisResult, Int)))
-    -> String
 makePBETable data =
   let
-    makeRow (name, ((exampleCount1, result1), (exampleCount2, result2))) =
+    makeRow (name, ((exampleCount1, result1), (exampleCount2, stats2))) =
       let
         resultString1 =
           case result1 of
@@ -4846,19 +4872,38 @@ makePBETable data =
 
         resultString2 =
           if exampleCount2 == -1 then
-            "\\benchmarkExperimentTwo{---}{---}{---}{---}"
+            "\\benchmarkExperimentTwo{---}{---}{---}{---}{---}{---}{---}{---}"
           else
-            case result2 of
-              Just ({ holeFillings, timeTaken }, numGood) ->
-                "\\benchmarkExperimentTwo{"
-                  ++ toString exampleCount2
-                  ++ "}{"
-                  ++ toString numGood
-                  ++ "}{"
-                  ++ toString (List.length holeFillings)
-                  ++ "}{"
-                  ++ toString timeTaken
-                  ++ "}"
+            case stats2 of
+              Just s ->
+                let
+                  totalGood =
+                    [ s.topRecursive, s.topNonRecursive, s.others ]
+                      |> List.map Tuple.first
+                      |> List.sum
+
+                  totalCount =
+                    [ s.topRecursive, s.topNonRecursive, s.others ]
+                      |> List.map Tuple.second
+                      |> List.sum
+                in
+                  "\\benchmarkExperimentTwo{"
+                    ++ toString exampleCount2
+                    ++ "}{"
+                    ++ toString totalGood
+                    ++ "}{"
+                    ++ toString totalCount
+                    ++ "}{"
+                    ++ toString s.timeTaken
+                    ++ "}{"
+                    ++ toString (Tuple.first s.topNonRecursive)
+                    ++ "}{"
+                    ++ toString (Tuple.second s.topNonRecursive)
+                    ++ "}{"
+                    ++ toString (Tuple.first s.topRecursive)
+                    ++ "}{"
+                    ++ toString (Tuple.second s.topRecursive)
+                    ++ "}"
 
               Nothing ->
                 "\\benchmarkExperimentTwo{"

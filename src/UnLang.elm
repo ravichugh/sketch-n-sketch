@@ -1197,6 +1197,44 @@ parseExample =
   P.run example
 
 --==============================================================================
+-- Windows
+--==============================================================================
+
+type alias Window =
+  { topRecursive : List HoleFilling
+  , topNonRecursive : List HoleFilling
+  , others : List HoleFilling
+  }
+
+windowSize : Int
+windowSize =
+  3
+
+window : List HoleFilling -> Window
+window holeFillings =
+  let
+    sortedHoleFillings =
+      holeFillings
+        |> Utils.dedup
+        |> List.sortBy holeFillingSize
+
+    recPred =
+      Dict.values >> List.any Lang.containsRecursiveCall
+
+    (topRecursive, others_) =
+      Utils.takeSatisfying
+        windowSize recPred sortedHoleFillings
+
+    (topNonRecursive, others) =
+      Utils.takeSatisfying
+        windowSize (not << recPred) others_
+  in
+    { topRecursive = topRecursive
+    , topNonRecursive = topNonRecursive
+    , others = others
+    }
+
+--==============================================================================
 --= Miscellaneous
 --==============================================================================
 
@@ -1207,3 +1245,4 @@ holeFillingSize =
       Lang.flattenExpTree >> List.length
   in
     Dict.values >> List.map expSize >> List.sum
+

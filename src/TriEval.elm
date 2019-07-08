@@ -911,7 +911,8 @@ backprop_ depth u ex =
             NonDet.none
 
       ( UFunClosure { bindSpec } env maybeName param body
-      , ExPartialFunction bindings) ->
+      , ExPartialFunction bindings
+      ) ->
         let
           backpropBinding (argument, outputExample) =
             evalBackprop
