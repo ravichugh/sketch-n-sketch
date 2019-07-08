@@ -1,7 +1,6 @@
 --------------------------------------------------------------------------------
 -- This module contains all the code for Programming by Example (PBE) synthesis,
--- but with the following additional optimizations:
---   * Refinement trees
+-- but with optimizations.
 --------------------------------------------------------------------------------
 
 module FastPBESynthesis exposing
@@ -676,7 +675,6 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                       |> Dict.fromList
                 in
                   NonDet.do
-                    -- TODO Cache the results for scrutinees
                     ( Tuple.first << State.run Dict.empty <|
                         TermGen.upToE
                           { termSize = params.maxScrutineeSize
@@ -744,6 +742,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
       else
         NonDet.none
 
+    -- IRefine-Guess
     guessRefinement () =
       if not filteredWorldsEmpty && isBaseType sigma goalType then
         NonDet.pure <|
@@ -925,22 +924,15 @@ propagate rtree =
       NonDet.none
 
 type SynthesisStage
-  = One
+  = Zero0
+  | Zero1
+  | Zero2
+  | Zero3
+  | One
   | Two
   | Three
   | Four
   | Five
-  | Six
-
-nextStage : SynthesisStage -> Maybe SynthesisStage
-nextStage s =
-  case s of
-    One -> Just Two
-    Two -> Just Three
-    Three -> Just Four
-    Four -> Just Five
-    Five -> Just Six
-    Six -> Nothing
 
 synthesize :
   SynthesisStage -> SynthesisProblem -> GenCached SynthesisSolution
@@ -948,6 +940,18 @@ synthesize stage sp =
   let
     (maxScrutineeSize, maxMatchDepth, maxTermSize) =
       case stage of
+        Zero0 ->
+          (1, 0, 1)
+
+        Zero1 ->
+          (1, 0, 3)
+
+        Zero2 ->
+          (1, 0, 5)
+
+        Zero3 ->
+          (1, 0, 7)
+
         One ->
           (1, 0, 10)
 
@@ -958,13 +962,10 @@ synthesize stage sp =
           (1, 2, 10)
 
         Four ->
-          (1, 2, 13)
+          (6, 2, 10)
 
         Five ->
-          (6, 2, 13)
-
-        Six ->
-          (6, 3, 13)
+          (6, 3, 10)
 
     rtree =
       arefine
@@ -989,7 +990,7 @@ synthesize stage sp =
 
 type alias SolveProblem =
   { depth : Int
-  , maybeStage : Maybe SynthesisStage
+  , stage : SynthesisStage
   , constraints : Constraints
   }
 
@@ -1003,114 +1004,95 @@ solve_ sigma delta problems =
     [] ->
       State.pure []
 
-    ({ depth, maybeStage, constraints } as problem) :: restProblems ->
-      if depth == 0 then
-        solve_ sigma delta restProblems
-      else
-        case maybeStage of
-          Nothing ->
-            let
-              updatedProblem =
-                { depth = depth - 1
-                , maybeStage = Just One
-                , constraints = constraints
-                }
-            in
-              solve_
-                sigma
-                delta
-                (restProblems ++ [updatedProblem])
+    ({ depth, stage, constraints } as problem) :: restProblems ->
+      let
+        _ =
+          Debug.log
+            "(depth, stage, numConstraints)"
+            (depth, stage, List.length constraints)
+      in
+        if depth == maxSolveDepth then
+          solve_ sigma delta restProblems
+        else
+          let
+            solveOne : HoleId -> Worlds -> GenCached SynthesisSolution
+            solveOne holeId worlds =
+              case T.holeEnvGet holeId delta of
+                Just (gamma, goalType) ->
+                  synthesize
+                    stage
+                    { sigma = sigma
+                    , gamma = gamma
+                    , worlds = worlds
+                    , goalType = goalType
+                    }
 
-          Just stage ->
-            let
-              solveOne : HoleId -> Worlds -> GenCached SynthesisSolution
-              solveOne holeId worlds =
-                case T.holeEnvGet holeId delta of
-                  Just (gamma, goalType) ->
-                    synthesize
-                      stage
-                      { sigma = sigma
-                      , gamma = gamma
-                      , worlds = worlds
-                      , goalType = goalType
-                      }
+                Nothing ->
+                  State.pure NonDet.none
 
-                  Nothing ->
-                    State.pure NonDet.none
+            statefulSolutions : GenCached (NonDet (HoleFilling, Constraints))
+            statefulSolutions =
+              constraints
+                |> Utils.pairsToDictOfLists -- "Group" operation
+                |> Dict.map solveOne
+                |> Dict.toList
+                   --> L (h, S (N (e, k)))
+                |> List.map
+                     (\(h, gcss) -> State.map (\ss -> (h, ss)) gcss)
+                   --> L (S (h, N (e, k)))
+                |> State.sequence
+                   --> S (L (h, N (e, k)))
+                |> State.map
+                     (List.map <| \(h, ss) -> NonDet.map (\ek -> (h, ek)) ss)
+                  -- S (L (N (h, (e, k))))
+                |> State.map
+                     ( NonDet.oneOfEach
+                       --> S N L (h, (e, k))
+                         >> NonDet.map
+                              ( Dict.fromList
+                                  >> Utils.unzipDict
+                                  >> Tuple.mapSecond
+                                       (Dict.values >> List.concat)
+                              )
+                     )
 
-              statefulSolutions : GenCached (NonDet (HoleFilling, Constraints))
-              statefulSolutions =
-                constraints
-                  |> Utils.pairsToDictOfLists -- "Group" operation
-                  |> Dict.map solveOne
-                  |> Dict.toList
-                     --> L (h, S (N (e, k)))
-                  |> List.map
-                       (\(h, gcss) -> State.map (\ss -> (h, ss)) gcss)
-                     --> L (S (h, N (e, k)))
-                  |> State.sequence
-                     --> S (L (h, N (e, k)))
-                  |> State.map
-                       (List.map <| \(h, ss) -> NonDet.map (\ek -> (h, ek)) ss)
-                    -- S (L (N (h, (e, k))))
-                  |> State.map
-                       ( NonDet.oneOfEach
-                         --> S N L (h, (e, k))
-                           >> NonDet.map
-                                ( Dict.fromList
-                                    >> Utils.unzipDict
-                                    >> Tuple.mapSecond
-                                         (Dict.values >> List.concat)
-                                )
-                       )
-
-              oldConstraintSet =
-                Set.fromList constraints
-            in
-              State.do statefulSolutions <| \solutions ->
-                let
-                  result =
-                    Utils.partitionEithers << NonDet.toList <|
-                      NonDet.pureDo solutions <|
-                        \(holeFilling, newConstraints) ->
-                        let
-                          newConstraintSet =
-                            Set.fromList newConstraints
-                        in
-                          if
-                            Utils.isSubset newConstraintSet oldConstraintSet
-                          then
-                            Utils.Left holeFilling
-                          else
-                            Utils.Right
-                              { depth =
-                                  depth
-                              , maybeStage =
-                                  nextStage stage
-                              , constraints =
-                                  Set.toList <|
-                                    Set.union oldConstraintSet newConstraintSet
-                              }
-                in
-                  case result of
-                    ([], newProblems) ->
+            oldConstraintSet =
+              Set.fromList constraints
+          in
+            State.do statefulSolutions <| \solutions ->
+              let
+                result =
+                  Utils.partitionEithers << NonDet.toList <|
+                    NonDet.pureDo solutions <|
+                      \(holeFilling, newConstraints) ->
                       let
-                        updatedProblem =
-                          { depth = depth
-                          , maybeStage = nextStage stage
-                          , constraints = constraints
-                          }
+                        newConstraintSet =
+                          Set.fromList newConstraints
                       in
-                        solve_
-                          sigma
-                          delta
-                          ( restProblems
-                              ++ newProblems
-                              ++ [updatedProblem]
-                          )
+                        if
+                          Utils.isSubset newConstraintSet oldConstraintSet
+                        then
+                          Utils.Left holeFilling
+                        else
+                          Utils.Right
+                            { depth =
+                                depth + 1
+                            , stage =
+                                stage
+                            , constraints =
+                                Set.toList <|
+                                  Set.union oldConstraintSet newConstraintSet
+                            }
+              in
+                case result of
+                  ([], newProblems) ->
+                    solve_
+                      sigma
+                      delta
+                      (newProblems ++ restProblems)
 
-                    (trueSolutions, _) ->
-                      State.pure trueSolutions
+                  (trueSolutions, _) ->
+                    State.pure trueSolutions
 
 solve :
   T.DatatypeEnv
@@ -1118,19 +1100,27 @@ solve :
     -> NonDet Constraints
     -> (List HoleFilling, Float)
 solve sigma delta possibleConstraints =
-  ImpureGoodies.timedRun <| \_ ->
-    Tuple.first <|
-      State.run Dict.empty <|
-        solve_
-          sigma
-          delta
-          ( List.map
+  let
+    constraintsList =
+      NonDet.toList possibleConstraints
+
+    problems =
+      List.concatMap
+        ( \stage ->
+            List.map
               ( \constraints ->
-                  { depth = maxSolveDepth
-                  , maybeStage = Just One
+                  { depth = 0
+                  , stage = stage
                   , constraints = constraints
                   }
               )
-              ( NonDet.toList possibleConstraints
-              )
-          )
+              constraintsList
+        )
+        [Zero0, Zero1, Zero2, Zero3, One, Two, Three, Four, Five]
+
+    _ = Debug.log "HELLO" (List.map (\p -> (p.stage, p.depth)) problems)
+  in
+    ImpureGoodies.timedRun <| \_ ->
+      Tuple.first <|
+        State.run Dict.empty <|
+          solve_ sigma delta problems

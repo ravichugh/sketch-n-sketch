@@ -891,6 +891,7 @@ tryRun old =
               { old
                   | unExpOutput = result
                   , errorBox = Nothing
+                  , pbeSynthesisResult = Nothing
               }
 
       (Ok parsedExp, _) ->

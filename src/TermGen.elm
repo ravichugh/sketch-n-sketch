@@ -1052,7 +1052,6 @@ gen ({ termKind, relBinding, genProblem } as genInput) =
           State.andThen (record genInput) <|
             case (termKind, relBinding) of
               (E, Just rb) ->
-
                 relGenE rb genProblem
 
               (I, Just rb) ->

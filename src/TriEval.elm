@@ -9,6 +9,7 @@ module TriEval exposing
   , evalWithEnv
   , eval
   , ensureConstraintFree
+  , backprop_
   , backprop
   )
 
@@ -36,7 +37,7 @@ import Types2 as T
 
 maxBackpropDepth : Int
 maxBackpropDepth =
-  5
+  7
 
 maxStackDepth : Int
 maxStackDepth =
@@ -933,7 +934,7 @@ backprop_ depth u ex =
             |> NonDet.oneOfEach
             |> NonDet.map List.concat
 
-      (UHoleClosure _ env (i, j), _) ->
+      (UHoleClosure _ env (i, _), _) ->
         NonDet.pure [(i, (env, ex))]
 
       (UApp _ uHead uArg, _) ->
