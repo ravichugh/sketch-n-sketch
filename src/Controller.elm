@@ -4918,8 +4918,6 @@ makePBETable data =
           ++ "<br />"
           ++ resultString2
           ++ "<br />"
-          ++ "\\benchmarkExperimentThree{?}{?}{?}{?}{?}"
-          ++ "<br />"
   in
     data
       |> Dict.toList
