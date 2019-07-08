@@ -971,7 +971,7 @@ synthesize stage sp =
       -- |> (\rt -> let _ = Debug.log (List.map showTree (NonDet.toList rt) |> String.join "\n\n\n") () in rt)
       |> NonDet.map
            ( fillGuesses { maxTermSize = maxTermSize }
-               -- >> State.map (\rt -> let _ = Debug.log (showTree rt) () in rt)
+               >> State.map (\rt -> let _ = Debug.log (showTree rt) () in rt)
                >> State.map propagate
            )
       |> State.nSequence

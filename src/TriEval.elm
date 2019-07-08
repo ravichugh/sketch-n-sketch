@@ -34,6 +34,10 @@ import Types2 as T
 -- Declarations
 --------------------------------------------------------------------------------
 
+maxBackpropDepth : Int
+maxBackpropDepth =
+  5
+
 maxStackDepth : Int
 maxStackDepth =
   100
@@ -841,9 +845,10 @@ constrain u1 u2 =
 --==============================================================================
 
 evalBackprop :
-  { allowEvaluationConstraints : Bool, compareExp : Maybe (UnExp ()) }
+  Int
+    -> { allowEvaluationConstraints : Bool, compareExp : Maybe (UnExp ()) }
     -> U.Env -> Exp -> Example -> NonDet Constraints
-evalBackprop { allowEvaluationConstraints, compareExp } env exp example =
+evalBackprop depth { allowEvaluationConstraints, compareExp } env exp example =
   let
     postPass1 =
       if allowEvaluationConstraints then
@@ -870,21 +875,23 @@ evalBackprop { allowEvaluationConstraints, compareExp } env exp example =
         NonDet.map List.concat <|
           NonDet.oneOfEach
             [ possibleEvalConstraints
-            , backprop (setNoData uResult) example
+            , backprop_ (depth + 1) (setNoData uResult) example
             ]
 
       Nothing ->
         NonDet.none
 
-backprop : UnExp Data -> Example -> NonDet Constraints
-backprop u ex =
-  if ex == ExDontCare then
+backprop_ : Int -> UnExp Data -> Example -> NonDet Constraints
+backprop_ depth u ex =
+  if depth > maxBackpropDepth then
+    NonDet.none
+  else if ex == ExDontCare then
     NonDet.pure []
   else
     case (u, ex) of
       (UConstructor _ uIdent uInner, ExConstructor exIdent exInner) ->
         if uIdent == exIdent then
-          backprop uInner exInner
+          backprop_ depth uInner exInner
         else
           NonDet.none
 
@@ -897,7 +904,7 @@ backprop u ex =
             List.length exInners
         in
           if List.length uInners == List.length exInners then
-            List.map2 backprop uInners exInners
+            List.map2 (backprop_ depth) uInners exInners
               |> NonDet.oneOfEach
               |> NonDet.map List.concat
           else
@@ -908,6 +915,7 @@ backprop u ex =
         let
           backpropBinding (argument, outputExample) =
             evalBackprop
+              depth
               { allowEvaluationConstraints = False
               , compareExp = Nothing
               }
@@ -932,7 +940,7 @@ backprop u ex =
           exHead =
             ExPartialFunction [(U.clearData uArg, ex)]
         in
-          backprop uHead exHead
+          backprop_ depth uHead exHead
 
       (UGet _ n i uArg, _) ->
         let
@@ -942,10 +950,10 @@ backprop u ex =
                 ++ [ex]
                 ++ List.repeat (n - i) ExDontCare
         in
-          backprop uArg exTuple
+          backprop_ depth uArg exTuple
 
       (UConstructorInverse _ ident uArg, _) ->
-        backprop uArg (ExConstructor ident ex)
+        backprop_ depth uArg (ExConstructor ident ex)
 
       (UCase _ env uScrutinee branches, _) ->
         let
@@ -954,7 +962,7 @@ backprop u ex =
             -- Cannot be applicative because we only want to continue if the
             -- first computation succeeds
             NonDet.do
-              ( backprop uScrutinee (ExConstructor ctorName ExDontCare)
+              ( backprop_ depth uScrutinee (ExConstructor ctorName ExDontCare)
               )
               ( \k1 ->
                   let
@@ -971,6 +979,7 @@ backprop u ex =
                   in
                     NonDet.map (\k23 -> k1 ++ k23) <|
                       evalBackprop
+                        depth
                         { allowEvaluationConstraints = False
                         , compareExp = Just (clearData u)
                         }
@@ -985,3 +994,7 @@ backprop u ex =
 
       _ ->
         NonDet.none
+
+backprop : UnExp Data -> Example -> NonDet Constraints
+backprop =
+  backprop_ 0
