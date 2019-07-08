@@ -731,8 +731,14 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                                       , possibleBranches = possibleBranches
                                       }
 
+    -- IRefine-Hole
     holeRefinement () =
-      if not worldsEmpty && filteredWorldsEmpty then
+      if
+        not worldsEmpty
+          && filteredWorldsEmpty
+          -- If the goal type is unit, don't synthesize a hole
+          && Lang.tupleTypeArguments goalType /= Just []
+      then
         NonDet.pure <|
           Hole {}
       else
