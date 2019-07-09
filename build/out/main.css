@@ -459,7 +459,7 @@ code {
 .status-bar {
   height: 35px;
   line-height: 35px;
-  padding: 0 15px;
+  padding: 0 5px 0 10px;
   border-bottom: 1px solid var(--subtle-border-color);
   overflow: hidden;
   position: relative;
@@ -500,7 +500,7 @@ code {
   border-color: #330000;
 }
 
-/* Action Bar */
+/* Action Bar - partly merged into status bar */
 
 .action-bar {
   border-bottom: 1px solid var(--subtle-border-color);
@@ -512,7 +512,7 @@ code {
   user-select: none;
 }
 
-.action-bar .text-button {
+.status-bar .text-button {
   display: inline-block;
   white-space: nowrap;
   height: 35px;
@@ -520,7 +520,7 @@ code {
   padding: 0 15px;
 }
 
-.action-bar .run,
+.status-bar .run,
 .action-bar .emoji {
   display: inline-block;
 
@@ -531,7 +531,6 @@ code {
   position: relative;
 
   float: right;
-  margin-right: 10px;
 }
 
 .action-bar .emoji {
@@ -539,7 +538,7 @@ code {
   top: 7px;
 }
 
-.action-bar .run {
+.status-bar .run {
   top: 5px; /* (height of bar - height of button) / 2 */
   padding: 0 15px;
 
@@ -553,11 +552,11 @@ code {
   /* transition: background-color 0.1s; */
 }
 
-.action-bar .run:hover {
+.status-bar .run:hover {
   background-color: #33BB00;
 }
 
-.action-bar .run:active {
+.status-bar .run:active {
   background-color: #339900;
   border-bottom-width: 1px;
 }
@@ -570,7 +569,8 @@ code {
    *   height of status bar + height of action bar
    *     + border of code panel + border action bar
    */
-  top: 72px;
+  /* top: 72px; */
+  top: 35px;
   right: 0;
   /* bottom =
    *   mode bar height + mode bar border-top height

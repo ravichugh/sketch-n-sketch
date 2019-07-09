@@ -993,7 +993,7 @@ oneSafeResult newExp =
 pbeShortcutActive : Model -> Bool
 pbeShortcutActive model =
   Utils.and
-    [ List.member Keys.keyAlt model.keysDown
+    [ List.member Keys.keyShift model.keysDown
     , model.codeEditorMode == CEText
     ]
 
@@ -1003,6 +1003,7 @@ deuceShortcutActive model =
     shiftDown =
       List.member Keys.keyShift model.keysDown
   in
+   False &&
     Utils.and
       [ model.codeEditorMode == CEText
       , model.enableDeuceBoxSelection

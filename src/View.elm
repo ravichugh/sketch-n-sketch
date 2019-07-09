@@ -1032,26 +1032,26 @@ menuBar model =
                   "24"
                   (Controller.msgUpdateFontSize 24)
               ]
-          , hoverMenu "Color Scheme"
-              [ simpleTextRadioButton
-                  ( case model.colorScheme of
-                      Light ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Light"
-                  (Controller.msgSetColorScheme Light)
-              , simpleTextRadioButton
-                  ( case model.colorScheme of
-                      Dark ->
-                        True
-                      _ ->
-                        False
-                  )
-                  "Dark"
-                  (Controller.msgSetColorScheme Dark)
-              ]
+          -- , hoverMenu "Color Scheme"
+          --     [ simpleTextRadioButton
+          --         ( case model.colorScheme of
+          --             Light ->
+          --               True
+          --             _ ->
+          --               False
+          --         )
+          --         "Light"
+          --         (Controller.msgSetColorScheme Light)
+          --     , simpleTextRadioButton
+          --         ( case model.colorScheme of
+          --             Dark ->
+          --               True
+          --             _ ->
+          --               False
+          --         )
+          --         "Dark"
+          --         (Controller.msgSetColorScheme Dark)
+          --     ]
           , simpleTextButton
               "Reset Interface Layout"
               Controller.msgResetInterfaceLayout
@@ -1606,6 +1606,7 @@ codePanel model =
             [ Attr.class "needs-run-light"
             ]
             []
+        , runButton
         ]
     codePanelWarning =
       Html.div
@@ -1666,10 +1667,10 @@ codePanel model =
         ]
         [ modeIcon Model.CEText
         , modeSeparator
-        , modeIcon Model.CEDeuceClick
-        , modeSeparator
-        , modeIcon Model.CETypeInspector
-        , modeSeparator
+        -- , modeIcon Model.CEDeuceClick
+        -- , modeSeparator
+        -- , modeIcon Model.CETypeInspector
+        -- , modeSeparator
         , modeIcon Model.CEProgrammingByExample
         , modeSeparator
         ]
@@ -1684,7 +1685,7 @@ codePanel model =
           ]
       ]
       [ statusBar
-      , actionBar
+      -- , actionBar
       , editor
       , modeBar
       , codePanelWarning
@@ -3122,28 +3123,31 @@ viewCollectedConstraints possibleConstraints =
         constraintsListLen =
           List.length constraintsList
       in
-        flip Utils.concatMapi1 constraintsList <| \(i, constraints) ->
-          [ Html.div
-              [ Attr.class "pbe-constraint-header"
-              ]
-              [ Html.h2
-                  []
-                  [ Html.text <|
-                      "Collected Constraints ("
-                        ++ toString i
-                        ++ " of "
-                        ++ toString constraintsListLen
-                        ++ ")"
+        if constraintsList == [[]] then
+          []
+        else
+          flip Utils.concatMapi1 constraintsList <| \(i, constraints) ->
+            [ Html.div
+                [ Attr.class "pbe-constraint-header"
+                ]
+                [ Html.h2
+                    []
+                    [ Html.text <|
+                        "Collected Constraints ("
+                          ++ toString i
+                          ++ " of "
+                          ++ toString constraintsListLen
+                          ++ ")"
 
-                  ]
-              ]
-          , Html.ul
-              [ Attr.class "pbe-constraint-list"
-              , Attr.style [("list-style-type", "decimal"), ("margin-left", "15px")]
-              ]
-              ( List.map viewConstraint constraints
-              )
-          ]
+                    ]
+                ]
+            , Html.ul
+                [ Attr.class "pbe-constraint-list"
+                , Attr.style [("list-style-type", "decimal"), ("margin-left", "15px")]
+                ]
+                ( List.map viewConstraint constraints
+                )
+            ]
 
 viewBackprop : Model -> List (Html Msg)
 viewBackprop model =

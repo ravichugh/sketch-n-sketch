@@ -403,10 +403,24 @@ unparseArgWithRendering arg currentRendering =
           True
         _ ->
           False
+    argIsDataCon =
+      case unwrapExp arg of
+        ERecord _ _ decls _ ->
+          case recordEntriesFromDeclarations decls of
+            Just entries ->
+              entries
+                |> Lang.entriesToMaybeCtorNameAndArgExps
+                |> Utils.maybeToBool
+            Nothing ->
+              False
+        _ ->
+          False
     mbWrapArg =
       if
         Utils.wouldNotRecognizeTokenSplit currentRendering argStr
-          || argIsLambda
+          || ( String.trimLeft currentRendering /= ""
+                 && (argIsLambda || argIsDataCon)
+             )
       then
         " (" ++ String.trim argStr ++ ")"
       else

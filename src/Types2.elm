@@ -157,7 +157,8 @@ aceTypeInfo exp =
               in
               { row = 0, type_ = "warning", text="Type errors below..." }
       in
-        summaryAnnotation :: errorAnnotations
+        -- summaryAnnotation :: errorAnnotations
+        errorAnnotations
 
   , tooltips =
       let addTooltip e =
