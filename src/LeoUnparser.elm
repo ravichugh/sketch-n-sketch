@@ -418,9 +418,10 @@ unparseArgWithRendering arg currentRendering =
     mbWrapArg =
       if
         Utils.wouldNotRecognizeTokenSplit currentRendering argStr
-          || ( String.trimLeft currentRendering /= ""
-                 && (argIsLambda || argIsDataCon)
-             )
+          || argIsLambda
+          -- || ( String.trimLeft currentRendering /= ""
+          --        && (argIsLambda || argIsDataCon)
+          --    )
       then
         " (" ++ String.trim argStr ++ ")"
       else

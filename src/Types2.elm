@@ -2801,7 +2801,8 @@ checkType gamma stuff thisExp expectedType =
                 Nothing
         patTypes =
           Utils.zip pats argTypes
-            |> List.map (\(p, t) -> (p, t, maybeBindSpec))
+            |> List.map (\(p, t) -> (p, t, Nothing))
+            |> Utils.mapHead (Utils.mapThd3 (\_ -> maybeBindSpec))
         newGamma_ =
           List.foldl addTypeVar gamma typeVars
         newGamma =
