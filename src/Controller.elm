@@ -4755,8 +4755,11 @@ loadPBESuiteExample name programText model =
   let
     (exp, holeEnv, output) =
       Model.loadPBESuiteExample name programText
+
+    resetModel =
+      resetDeuceState model
   in
-    { model
+    { resetModel
         | code = programText
         , inputExp = exp
         , holeEnv = holeEnv
