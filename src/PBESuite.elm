@@ -182,7 +182,7 @@ let
 in
 
 """
-  """specifyFunction2 compress
+  """specifyFunction compress
   [ ([], [])
   , ([0], [0])
   , ([1], [1])
