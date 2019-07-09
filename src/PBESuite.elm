@@ -364,8 +364,13 @@ let
       S _ -> T ()
 in
 let
-  listFilter : NatList -> (Nat -> Boolean) -> NatList
-  listFilter xs predicate = ??
+  listFilter : (Nat -> Boolean) -> NatList -> NatList
+  listFilter predicate =
+    let
+      fixListFilter : NatList -> NatList
+      fixListFilter xs = ??
+    in
+      fixListFilter
 in
 
 """
@@ -426,8 +431,13 @@ let
       F _ -> n1
 in
 let
-  listFold : NatList -> (Nat -> Nat -> Nat) -> Nat -> Nat
-  listFold xs f acc = ??
+  listFold : (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
+  listFold f acc =
+    let
+      fixListFold : NatList -> Nat
+      fixListFold xs = ??
+    in
+      fixListFold
 in
 
 """
@@ -739,11 +749,16 @@ type NatList
   | Cons (Nat, NatList)
 
 let
-  fold : NatList -> (NatList -> Nat -> NatList) -> NatList -> NatList
-  fold xs f acc =
-    case xs of
-      Nil _ -> acc
-      Cons p -> fold (get_2_2 p) f (f acc (get_2_1 p))
+  fold : (NatList -> Nat -> NatList) -> NatList -> NatList -> NatList
+  fold f acc =
+    let
+      fixFold : NatList -> NatList
+      fixFold xs =
+        case xs of
+          Nil _ -> acc
+          Cons p -> f (fixFold (get_2_2 p)) (get_2_1 p)
+    in
+      fixFold
 
   snoc : NatList -> Nat -> NatList
   snoc xs n =
@@ -1035,11 +1050,16 @@ type NatList
   | Cons (Nat, NatList)
 
 let
-  fold : NatList -> (NatList -> Nat -> NatList) -> NatList -> NatList
-  fold xs f acc =
-    case xs of
-      Nil _ -> acc
-      Cons p -> fold (get_2_2 p) f (f acc (get_2_1 p))
+  fold : (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
+  fold f acc =
+    let
+      fixFold : NatList -> Nat
+      fixFold xs =
+        case xs of
+          Nil _ -> acc
+          Cons p -> f (fixFold (get_2_2 p)) (get_2_1 p)
+    in
+      fixFold
 
   add : Nat -> Nat -> Nat
   add n1 n2 =
@@ -1048,7 +1068,7 @@ let
       S m -> S (add m n2)
 in
 let
-  listSum : NatList -> NatList
+  listSum : NatList -> Nat
   listSum xs = ??
 in
 
@@ -1415,6 +1435,7 @@ let
       Z _ -> n2
       S m -> S (sum m n2)
 in
+let
   treeCountLeaves : BooleanTree -> Nat
   treeCountLeaves tree = ??
 in
@@ -1734,7 +1755,7 @@ suite =
     , ("list_drop", list_drop)
     -- , ("list_even_parity", list_even_parity)
     -- , ("list_filter", list_filter)
-    -- , ("list_fold", list_fold)
+    , ("list_fold", list_fold)
     , ("list_hd", list_hd)
     , ("list_inc", list_inc)
     , ("list_last", list_last)
@@ -1743,18 +1764,18 @@ suite =
     , ("list_nth", list_nth)
     -- , ("list_pairwise_swap", list_pairwise_swap)
     -- , ("list_rev_append", list_rev_append)
-    -- , ("list_rev_fold", list_rev_fold)
-    -- , ("list_rev_snoc", list_rev_snoc)
-    -- , ("list_rev_tailcall", list_rev_tailcall)
+    , ("list_rev_fold", list_rev_fold)
+    , ("list_rev_snoc", list_rev_snoc)
+    , ("list_rev_tailcall", list_rev_tailcall)
     , ("list_snoc", list_snoc)
     -- , ("list_sort_sorted_insert", list_sort_sorted_insert)
     -- , ("list_sorted_insert", list_sorted_insert)
     , ("list_stutter", list_stutter)
-    -- , ("list_sum", list_sum)
-    -- , ("list_take", list_take)
+    , ("list_sum", list_sum)
+    , ("list_take", list_take)
     , ("list_tl", list_tl)
     , ("nat_iseven", nat_iseven)
-    -- , ("nat_max", nat_max)
+    , ("nat_max", nat_max)
     , ("nat_pred", nat_pred)
     , ("nat_add", nat_add)
     -- , ("tree_binsert", tree_binsert)
@@ -1765,5 +1786,5 @@ suite =
     -- , ("tree_map", tree_map)
     -- , ("tree_nodes_at_level", tree_nodes_at_level)
     -- , ("tree_postorder", tree_postorder)
-    -- , ("tree_preorder", tree_preorder)
+    , ("tree_preorder", tree_preorder)
     ]
