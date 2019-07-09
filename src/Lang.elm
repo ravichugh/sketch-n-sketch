@@ -4898,3 +4898,30 @@ containsRecursiveCall =
           False
   in
     findFirstNode predicate >> Utils.maybeToBool
+
+--------------------------------------------------------------------------------
+-- Contains head check
+--------------------------------------------------------------------------------
+
+containsHead : Exp -> Exp -> Bool
+containsHead app argument =
+  case unwrapExp app of
+    EApp _ head _ _ _ ->
+      containsHead head argument
+
+    EVar _ headIdent ->
+      let
+        predicate e =
+          case unwrapExp e of
+            EVar _ argIdent ->
+              argIdent == headIdent
+
+            _ ->
+              False
+      in
+        argument
+          |> findFirstNode predicate
+          |> Utils.maybeToBool
+
+    _ ->
+      False

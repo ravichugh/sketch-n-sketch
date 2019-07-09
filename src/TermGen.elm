@@ -218,6 +218,7 @@ relGenEApp1
       NonDet.do possibleArgument <| \argument ->
         if
           T.structurallyDecreasing combinedGamma head argument
+            && not (Lang.containsHead head argument)
         then
           let
             ap =
