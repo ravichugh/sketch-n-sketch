@@ -1118,7 +1118,7 @@ solve sigma delta possibleConstraints =
         )
         [Zero0, Zero1, Zero2, Zero3, One, Two, Three, Four, Five]
 
-    _ = Debug.log "HELLO" (List.map (\p -> (p.stage, p.depth)) problems)
+    _ = Debug.log "Problems" (List.map (\p -> (p.stage, p.depth)) problems)
   in
     ImpureGoodies.timedRun <| \_ ->
       Tuple.first <|
