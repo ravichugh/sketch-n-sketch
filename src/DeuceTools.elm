@@ -1106,7 +1106,7 @@ introduceVariableTool model selections =
     toolName = "Introduce Local Variable"
 
     (name, func, predVal) =
-      case Debug.log "selections" selections of
+      case {- Debug.log "selections" -} selections of
         ([], [], [], [], [], [], [], [], []) ->
           (toolName, InactiveDeuceTransform, Possible)
         (_, _, [], _, _, _, _, _, _) ->
