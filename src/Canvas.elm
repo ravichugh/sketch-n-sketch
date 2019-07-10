@@ -1203,6 +1203,9 @@ isRotateZone realZone =
 
 -- Stuff for Basic Zones -------------------------------------------------------
 
+hideBoundsWidgetsOnHover =
+  onMouseOver <| Msg "Hide Bounds Widgets" <| \m -> { m | hoveredBoundsWidgets = [] }
+
 draggableZone svgFunc addStroke model id shape realZone attrs =
   let showStroke = False in -- set to True for debugging
   flip svgFunc [] <|
@@ -1528,7 +1531,7 @@ zoneColor_ realZone shapeFeature model id shape x y (n, trace) =
         ]) (List.map toFloat (List.range 0 w))
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [selectableFeature])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature]), hideBoundsWidgetsOnHover]
       (checkeredBg ++ gradient () ++ [box])
   , ball
   ]
@@ -1582,7 +1585,7 @@ zoneOpacity_ realZone shapeFeature model id shape x y (n, trace) =
       ]
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [selectableFeature])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature]), hideBoundsWidgetsOnHover]
       ([box])
   , ball
   ]
@@ -1651,7 +1654,7 @@ zoneStrokeWidth_ model id shape x y (n, trace) =
        ]
   in
   [ Svg.g
-      [onMouseDownAndStop (toggleSelected [selectableFeature])]
+      [onMouseDownAndStop (toggleSelected [selectableFeature]), hideBoundsWidgetsOnHover]
       [box, triangle]
   , ball
   ]
