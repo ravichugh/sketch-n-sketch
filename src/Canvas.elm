@@ -786,7 +786,7 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
               , attr "stroke" "black"
               , attr "stroke-width" "7px"
               -- , attr "stroke-dasharray" "20,10"
-              , attr "opacity" (if isCurrentContext then "0.6" else "0.07")
+              , attr "opacity" (if isCurrentContext then "0.6" else "0.1")
               , attr "rx" (toString ShapeWidgets.widgetBoundsPadding)
               , attr "ry" (toString ShapeWidgets.widgetBoundsPadding)
               , attr "x" (toString left)
