@@ -1433,8 +1433,12 @@ code {
 .pbe-hole-env {
   display: inline-block;
   background-color: rgba(0, 0, 0, 0.05);
+
   width: 50%;
   min-height: calc(1em + 10px);
+  max-height: 5em;
+  overflow-y: scroll;
+
   padding: 5px;
   border: 2px dashed rgba(0, 0, 0, 0.3);
   border-radius: 5px;
@@ -1605,6 +1609,14 @@ code {
 
 .pbe-synthesis-results ol:last-child {
   margin-bottom: 0;
+}
+
+.pbe-synthesis-results .time-taken {
+  font-size: 0.7em;
+  float: right;
+  padding: 2px;
+  font-style: italic;
+  border: 1px dashed var(--subtle-border-color);
 }
 
 .pbe-hole-filling {

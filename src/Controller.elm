@@ -877,7 +877,8 @@ tryRun old =
       in
         { old | history = updatedHistory }
   in
-    case (ImpureGoodies.logTimedRun "parsing time" <| \() -> Syntax.parser old.syntax old.code, old.outputMode) of
+    -- case (ImpureGoodies.logTimedRun "parsing time" <| \() -> Syntax.parser old.syntax old.code, old.outputMode) of
+    case (Syntax.parser old.syntax old.code, old.outputMode) of
       (Err err, _) ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       (Ok parsedExp, PBE) ->
@@ -1935,7 +1936,7 @@ tryPreserveIDs old new =
 deuceRefresh : Exp -> Model -> Model
 deuceRefresh preUnparsedExp old =
   let
-    parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
+    parseResult = -- ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
       Syntax.parser old.syntax old.code
 
     (newInputExp, newLastParsedCode) =
@@ -1969,7 +1970,7 @@ deuceRefresh preUnparsedExp old =
 refreshInputExp : Model -> Model
 refreshInputExp old =
   let
-    parseResult = ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
+    parseResult = -- ImpureGoodies.logTimedRun "parsing time refresh" <| \() ->
       Syntax.parser old.syntax old.code
 
     (newInputExp, holeEnv, newCodeBoxInfo, newLastParsedCode, typeChecks) =
@@ -2978,7 +2979,7 @@ msgSetExampleByName name = msgNew name
 --------------------------------------------------------------------------------
 
 showCodePreview old code =
-  case ImpureGoodies.logTimedRun "parsing time preview" <| \() -> Syntax.parser old.syntax code of
+  case {- ImpureGoodies.logTimedRun "parsing time preview" <| \() -> -} Syntax.parser old.syntax code of
     Ok exp  -> showExpPreview old exp []
     Err err -> { old | preview = Just (code, [], Err (showError err)) }
 

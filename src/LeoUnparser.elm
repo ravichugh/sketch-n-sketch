@@ -51,6 +51,21 @@ unparseBaseValue ebv =
 -- Records as sugar for other types with `Lang.recordConstructorName`
 --------------------------------------------------------------------------------
 
+removeParens : String -> String
+removeParens string =
+  let
+    stringList =
+      String.toList string
+  in
+    case (List.head stringList, Utils.maybeLast stringList) of
+      (Just '(', Just ')') ->
+        string
+          |> String.dropLeft 1
+          |> String.dropRight 1
+
+      _ ->
+        string
+
 -- Tries to unparse a record as a tuple
 tryUnparseTuple
   :  (t -> String)
@@ -67,6 +82,7 @@ tryUnparseTuple unparseTerm wsBefore keyValues wsBeforeEnd =
                  (\(wsBeforeComma, elBinding) ->
                    (wsBeforeComma |> Maybe.map (\spc -> spc.val ++ ",") |> Maybe.withDefault "") ++ unparseTerm elBinding
                  )
+            |> List.map removeParens
             |> String.join ""
       in
         Just <|

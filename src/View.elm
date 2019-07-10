@@ -3126,28 +3126,36 @@ viewCollectedConstraints possibleConstraints =
         if constraintsList == [[]] then
           []
         else
-          flip Utils.concatMapi1 constraintsList <| \(i, constraints) ->
-            [ Html.div
-                [ Attr.class "pbe-constraint-header"
-                ]
-                [ Html.h2
-                    []
-                    [ Html.text <|
-                        "Collected Constraints ("
-                          ++ toString i
-                          ++ " of "
-                          ++ toString constraintsListLen
-                          ++ ")"
-
-                    ]
-                ]
-            , Html.ul
-                [ Attr.class "pbe-constraint-list"
-                , Attr.style [("list-style-type", "decimal"), ("margin-left", "15px")]
-                ]
-                ( List.map viewConstraint constraints
-                )
-            ]
+          [ Html.div
+              []
+              [ Html.text <|
+                  "Successfully collected "
+                    ++ Utils.pluralize constraintsListLen "set"
+                    ++ " of constraints."
+              ]
+          ]
+--          flip Utils.concatMapi1 constraintsList <| \(i, constraints) ->
+--            [ Html.div
+--                [ Attr.class "pbe-constraint-header"
+--                ]
+--                [ Html.h2
+--                    []
+--                    [ Html.text <|
+--                        "Collected Constraints ("
+--                          ++ toString i
+--                          ++ " of "
+--                          ++ toString constraintsListLen
+--                          ++ ")"
+--
+--                    ]
+--                ]
+--            , Html.ul
+--                [ Attr.class "pbe-constraint-list"
+--                , Attr.style [("list-style-type", "decimal"), ("margin-left", "15px")]
+--                ]
+--                ( List.map viewConstraint constraints
+--                )
+--            ]
 
 viewBackprop : Model -> List (Html Msg)
 viewBackprop model =
@@ -3345,69 +3353,79 @@ pbePopupPanel model =
             synthesisResults =
               Html.div
                 [ Attr.class "pbe-synthesis-results"
-                ]
-                ( case model.pbeSynthesisResult of
-                    Just { holeFillings } ->
-                      if List.any (not << Dict.isEmpty) holeFillings then
-                        let
-                          { topRecursive, topNonRecursive, others } =
-                            U.window holeFillings
-                        in
-                          ( if not <| List.isEmpty topRecursive then
-                              [ Html.h2
-                                  []
-                                  [ Html.text "Top Recursive Results"
-                                  ]
-                              , Html.ol
-                                  []
-                                  ( List.map
-                                      (viewHoleFilling model)
-                                      topRecursive
-                                  )
+                ] <|
+                  case model.pbeSynthesisResult of
+                    Just { holeFillings, timeTaken } ->
+                      [ Html.div
+                          [ Attr.class "time-taken"
+                          ]
+                          [ Html.text <|
+                              "Time taken: "
+                                ++ toString timeTaken
+                                ++ "ms"
+                          ]
+                      ] ++
+                      ( if List.any (not << Dict.isEmpty) holeFillings then
+                          let
+                            { topRecursive, topNonRecursive, others } =
+                              U.window holeFillings
+                          in
+                            ( if not <| List.isEmpty topRecursive then
+                                [ Html.h2
+                                    []
+                                    [ Html.text "Top Recursive Results"
+                                    ]
+                                , Html.ol
+                                    []
+                                    ( List.map
+                                        (viewHoleFilling model)
+                                        topRecursive
+                                    )
+                                ]
+                              else
+                                []
+                            ) ++
+                            ( if not <| List.isEmpty topNonRecursive then
+                                [ Html.h2
+                                    []
+                                    [ Html.text "Top Non-Recursive Results"
+                                    ]
+                                , Html.ol
+                                    []
+                                    ( List.map
+                                        (viewHoleFilling model)
+                                        topNonRecursive
+                                    )
+                                ]
+                              else
+                                []
+                            ) ++
+                            ( if not <| List.isEmpty others then
+                                [ Html.h2
+                                    []
+                                    [ Html.text "Other Results"
+                                    ]
+                                , Html.ol
+                                    []
+                                    ( List.map
+                                        (viewHoleFilling model)
+                                        others
+                                    )
+                                ]
+                              else
+                                []
+                            )
+                        else
+                          [ Html.div
+                              [ Attr.class "pbe-no-synthesis-results"
                               ]
-                            else
-                              []
-                          ) ++
-                          ( if not <| List.isEmpty topNonRecursive then
-                              [ Html.h2
-                                  []
-                                  [ Html.text "Top Non-Recursive Results"
-                                  ]
-                              , Html.ol
-                                  []
-                                  ( List.map
-                                      (viewHoleFilling model)
-                                      topNonRecursive
-                                  )
+                              [ Html.text "No results."
                               ]
-                            else
-                              []
-                          ) ++
-                          ( if not <| List.isEmpty others then
-                              [ Html.h2
-                                  []
-                                  [ Html.text "Other Results"
-                                  ]
-                              , Html.ol
-                                  []
-                                  ( List.map
-                                      (viewHoleFilling model)
-                                      others
-                                  )
-                              ]
-                            else
-                              []
-                          )
-                      else
-                        [ Html.div
-                            [ Attr.class "pbe-no-synthesis-results"
-                            ]
-                            [ Html.text "No results."
-                            ]
-                        ]
+                          ]
+                      )
+
                     Nothing ->
                       []
-                )
           in
             ( [ collectedConstraintsView
               , backpropView

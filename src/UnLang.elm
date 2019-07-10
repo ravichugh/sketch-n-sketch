@@ -258,25 +258,30 @@ unparseEnv =
       name
         ++ " "
         ++ param
-        ++ " = "
-        ++ LeoUnparser.unparse body
+        ++ " = ..."
+        -- ++ LeoUnparser.unparse body
 
-    showBinding : EnvBinding -> String
+    showBinding : EnvBinding -> List String
     showBinding binding =
       case binding of
         VarBinding ident (u, b) ->
-          ident ++ " → " ++ unparseSimple u ++ " " ++ T.showBindSpec b
+          [ ident ++ " → " ++ unparseSimple u ++ " " ++ T.showBindSpec b
+          ]
 
         RecursiveBinding functionEnv functions b ->
-          String.concat
-            [ "<"
-            , functions
-                |> List.map showFunction
-                |> String.join " ; "
-            , ">" ++ T.showBindSpec b
+          if List.isEmpty functions then
+            []
+          else
+            [ String.concat
+                [ "<"
+                , functions
+                    |> List.map showFunction
+                    |> String.join " ; "
+                , ">" ++ T.showBindSpec b
+                ]
             ]
   in
-    List.map showBinding >> String.join ", "
+    List.concatMap showBinding >> String.join ", "
 
 type alias UnparseState =
   { pos : Pos
@@ -503,14 +508,15 @@ unparse =
                     ""
 
               unparsedString =
-                "["
-                  ++ unparseEnv env
-                  ++ "] "
-                  ++ namePrefix
+                --   "["
+                --     -- ++ unparseEnv env
+                --     ++ "..."
+                --     ++ "] "
+                     namePrefix
                   ++ "λ"
                   ++ param
-                  ++ " ."
-                  ++ LeoUnparser.unparse body
+                  ++ " -> ..."
+                  -- ++ LeoUnparser.unparse body
             in
               basic
                 unparsedString
@@ -519,9 +525,10 @@ unparse =
           UHoleClosure _ env (i, j) ->
             let
               unparsedString =
-                "["
-                  ++ unparseEnv env
-                  ++ "] ??("
+                  -- "["
+                  -- ++ unparseEnv env
+                  -- ++ "]
+                    "??("
                   ++ toString i
                   ++ ", "
                   ++ toString j
@@ -620,8 +627,8 @@ unparse =
 
           UCase _ env uScrutinee branches ->
             let
-              unparsedEnv =
-                "[" ++ unparseEnv env ++ "]"
+              -- unparsedEnv =
+              --   "[" ++ unparseEnv env ++ "]"
 
               unparseBranch (ctorName, argName, body) =
                 let
@@ -646,26 +653,26 @@ unparse =
                       ++ "...\n"
                       ++ indentString start.indent
             in
-              State.do (eatString unparsedEnv) <| \_ ->
-              State.do newline <| \_ ->
+              -- State.do (eatString unparsedEnv) <| \_ ->
+              -- State.do newline <| \_ ->
               State.do (eatString "case ") <| \_ ->
               State.do (unparseHelper uScrutinee) <| \uScrutineeWithInfo ->
-              State.do (eatString " of") <| \_ ->
-              State.do indent <| \_ ->
-              State.do newline <| \_ ->
-              State.do (State.mapM unparseBranch branches) <| \branchStrings ->
-              State.do dedent <| \_ ->
+              State.do (eatString " of {...}") <| \_ ->
+              -- State.do indent <| \_ ->
+              -- State.do newline <| \_ ->
+              -- State.do (State.mapM unparseBranch branches) <| \branchStrings ->
+              -- State.do dedent <| \_ ->
               State.do State.get <| \end ->
               State.pure <|
                 UCase
                   ( withInfo
-                      ( unparsedEnv
-                          ++ indentString start.indent
-                          ++ "case "
+                      (   -- unparsedEnv
+                          -- ++ indentString start.indent
+                             "case "
                           ++ (getData uScrutineeWithInfo).val
-                          ++ " of"
-                          ++ indentString (start.indent + 1)
-                          ++ String.join "" branchStrings
+                          ++ " of {...}"
+                          -- ++ indentString (start.indent + 1)
+                          -- ++ String.join "" branchStrings
                       )
                       start.pos
                       end.pos
