@@ -3356,20 +3356,20 @@ pbePopupPanel model =
                 ] <|
                   case model.pbeSynthesisResult of
                     Just { holeFillings, timeTaken } ->
-                      [ Html.div
-                          [ Attr.class "time-taken"
-                          ]
-                          [ Html.text <|
-                              "Time taken: "
-                                ++ toString timeTaken
-                                ++ "ms"
-                          ]
-                      ] ++
                       ( if List.any (not << Dict.isEmpty) holeFillings then
                           let
                             { topRecursive, topNonRecursive, others } =
                               U.window holeFillings
                           in
+                            [ Html.div
+                                [ Attr.class "time-taken"
+                                ]
+                                [ Html.text <|
+                                    "Time taken: "
+                                      ++ toString timeTaken
+                                      ++ "ms"
+                                ]
+                            ] ++
                             ( if not <| List.isEmpty topRecursive then
                                 [ Html.h2
                                     []
@@ -3419,7 +3419,10 @@ pbePopupPanel model =
                           [ Html.div
                               [ Attr.class "pbe-no-synthesis-results"
                               ]
-                              [ Html.text "No results."
+                              [ Html.text <|
+                                  "No results (time taken: "
+                                    ++ toString timeTaken
+                                    ++ "ms)."
                               ]
                           ]
                       )
