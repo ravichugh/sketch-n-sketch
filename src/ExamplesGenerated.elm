@@ -6083,32 +6083,33 @@ uist19_lambda_logo_overview =
  """
 y = 127
 
-num = 158
+x = 158
 
 w = 156
 
-color = 360
+color = 362
 
 strokeWidth = 5
 
 logoFunc x y w color strokeWidth =
   let topLeft = [x, y] in
-  let square1 = square \"#fcc712\" topLeft w in
+  let square1 = square 140 topLeft w in
   let y2 = y + w in
   let xYPair = [ x+ w, y2] in
   let line1 = line color strokeWidth topLeft xYPair in
   let line2 = line color strokeWidth [x, y2] [ (2! * x + w)/ 2!, (2! * y + w) / 2!] in
   let polygon1 =
     let pts = [[x, y], [ x+ w, y], xYPair, [x, y2]] in
-    let [color, strokeColor, strokeWidth] = [\"none\", 360, 5] in
+    let [color, strokeColor, strokeWidth] = [529, 360, 5] in
       polygon color strokeColor strokeWidth pts in
   [square1, line1, line2, polygon1]
 
-squareLineLine = logoFunc num y w color strokeWidth
+logo = logoFunc x y w color strokeWidth
 
 svg (concat [
-  squareLineLine
+  logo
 ])
+
 """
 
 uist19_logo_via_three_tris =
@@ -6435,23 +6436,23 @@ generalCategory =
 
 uist19Category =
   ( "UIST'19 Examples"
-  , [ makeExample "(i) Koch Snowflake" uist19_koch
-    , makeExample "(ii) Tree Branch" uist19_tree_branch
-    , makeExample "(iii) Target" uist19_target
-    , makeExample "(iv) Precision Floor Plan" uist19_precision_floor_plan
-    , makeExample "(v) Mondrian Arch" uist19_mondrian_arch
-    , makeExample "(vi) Balance Scale" uist19_balance_scale
-    , makeExample "(vii) Box Volume" uist19_box_volume
-    , makeExample "(viii) Xs" uist19_Xs
-    , makeExample "(ix) Battery" uist19_battery
-    , makeExample "(x) Ladder" uist19_ladder
-    , makeExample "(xi) Logo (via Three Tris)" uist19_logo_via_three_tris
-    , makeExample "(xii) N Boxes" uist19_n_boxes
-    , makeExample "(xiii) Ferris Wheel" uist19_ferris_wheel
+  , [ makeExample "Overview: Lambda Logo" uist19_lambda_logo_overview
+    , makeExample "(i) Koch Snowflake" uist19_koch
+    , makeExample "(ii) Precision Floor Plan" uist19_precision_floor_plan
+    , makeExample "(iii) Mondrian Arch" uist19_mondrian_arch
+    , makeExample "(iv) Balance Scale" uist19_balance_scale
+    , makeExample "(v) Box Volume" uist19_box_volume
+    , makeExample "(vi) Xs" uist19_Xs
+    , makeExample "(vii) Battery" uist19_battery
+    , makeExample "(viii) Ladder" uist19_ladder
+    , makeExample "(ix) Logo (via Three Tris)" uist19_logo_via_three_tris
+    , makeExample "(x) N Boxes" uist19_n_boxes
+    , makeExample "(xi) Ferris Wheel" uist19_ferris_wheel
+    , makeExample "(xii) Tree Branch" uist19_tree_branch
+    , makeExample "(xiii) Target" uist19_target
     , makeExample "(xiv) Pencil Tip" uist19_pencil_tip
     , makeExample "(xv) Arrows" uist19_arrows
     , makeExample "(xvi) Rails" uist19_rails
-    , makeExample "(Appendix) Overview: Lambda Logo" uist19_lambda_logo_overview
     ]
   )
 
