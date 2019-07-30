@@ -1,2 +1,3 @@
 (executable
-  (name main))
+  (name main)
+  (libraries lwt cohttp cohttp-lwt-unix atdgen))

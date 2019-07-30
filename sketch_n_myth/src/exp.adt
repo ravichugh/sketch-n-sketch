@@ -1,0 +1,9 @@
+type exp = [
+    EVar of string
+  | EFun of pat * exp
+  | EApp of exp * exp
+  | ETuple of (exp list)
+  | ECase of exp * (branch list)
+]
+and
+type branch =
