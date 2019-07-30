@@ -10,6 +10,7 @@ import Time
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as E
+import Html.Lazy
 import Json.Decode as Json
 import Json.Encode as JsonE
 import Svg
@@ -3378,7 +3379,9 @@ pbePopupPanel model =
                                 , Html.ol
                                     []
                                     ( List.map
-                                        (viewHoleFilling model)
+                                        ( Html.Lazy.lazy <|
+                                          viewHoleFilling model
+                                        )
                                         topRecursive
                                     )
                                 ]
