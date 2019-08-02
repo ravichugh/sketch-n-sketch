@@ -31,6 +31,7 @@ module Types2 exposing
   , varBindingUncons
   , lookupVar
   , typePairs
+  , showTypePairs
   , varsOfGamma
   , typeEquiv
   , rebuildArrow
@@ -514,6 +515,25 @@ typePairs gamma =
       |> varsOfGamma
       |> List.map typePair
       |> Utils.filterJusts
+
+showTypePairs : TypeEnv -> String
+showTypePairs gamma =
+  let
+    showTypePair (x, tau) =
+      let
+        typeString =
+          LeoUnparser.unparseType tau
+
+        bindString =
+          showBindSpec <|
+            bindSpec gamma (eVar x)
+      in
+        x ++ " : " ++ typeString ++ " " ++ bindString
+  in
+    gamma
+      |> typePairs
+      |> List.map showTypePair
+      |> String.join ", "
 
 varsOfGamma gamma =
   case gamma of

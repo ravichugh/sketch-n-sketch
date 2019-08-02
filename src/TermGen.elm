@@ -1,5 +1,6 @@
 module TermGen exposing
-  ( freshIdent
+  ( emptyCache
+  , freshIdent
   , functionChar
   , varChar
   , matchChar
@@ -51,7 +52,6 @@ freshIdent firstChar gamma =
         |> Maybe.withDefault 1
   in
     String.cons firstChar (toString freshNumber)
-
 
 functionChar : Char
 functionChar =
@@ -109,16 +109,65 @@ type alias GenInput =
   }
 
 type alias GenCache =
-  Dict GenInput (NonDet Exp)
+  Dict String (NonDet Exp)
+
+emptyCache : GenCache
+emptyCache =
+  Dict.empty
 
 type alias GenCached a =
   State GenCache a
 
+hash : GenInput -> String
+hash { termKind, relBinding, genProblem } =
+  let
+    tkString =
+      case termKind of
+        E -> "E"
+        I -> "I"
+
+    rbString =
+      case relBinding of
+        Nothing ->
+          ""
+
+        Just (name, tau, maybeBindSpec) ->
+          name
+            ++ "`"
+            ++ LeoUnparser.unparseType tau
+            ++ "`"
+            ++ T.showBindSpec maybeBindSpec
+
+    gpString =
+      let
+        -- Sigma never changes, so no need to keep track of it in the cache
+        { termSize, gamma, goalType } =
+          genProblem
+
+        tsString =
+          toString termSize
+
+        gammaString =
+          T.showTypePairs gamma
+
+        gtString =
+          LeoUnparser.unparseType goalType
+      in
+        tsString ++ ";" ++ gammaString ++ ";" ++ gtString
+  in
+    tkString ++ ";" ++ rbString ++ ";" ++ gpString
+
 record : GenInput -> NonDet Exp -> GenCached (NonDet Exp)
 record gi exp =
+  -- let _ = ImpureGoodies.genCachePut (hash gi) exp in
   State.do State.get <| \cache ->
-  State.do (State.put (Dict.insert gi exp cache)) <| \_ ->
+  State.do (State.put (Dict.insert (hash gi) exp cache)) <| \_ ->
   State.pure exp
+
+lookup : GenInput -> GenCache -> Maybe (NonDet Exp)
+lookup gi =
+  -- ImpureGoodies.genCacheGet (hash gi)
+  Dict.get (hash gi)
 
 genpI : TermPermit -> TypeBinding -> GenProblem -> GenCached (NonDet Exp)
 genpI r relBinding gp =
@@ -293,7 +342,7 @@ relGenEApp1
                       }
                   ) <| \relArgSolution ->
                 State.pure <|
-                  NonDet.concat
+                  NonDet.union
                     [ appCombine relHeadSolution argSolution
                     , appCombine headSolution relArgSolution
                     , appCombine relHeadSolution relArgSolution
@@ -605,13 +654,13 @@ relGenEApp3
                             }
                         ) <| \possibleRelArgSolution ->
                           State.pure <|
-                            NonDet.concat
+                            NonDet.union
                               [ appCombine filteredHead possibleArgSolution
                               , appCombine filteredHead possibleRelArgSolution
                               ]
             in
               NonDet.pure <|
-                State.map NonDet.concat <|
+                State.map NonDet.union <|
                   State.sequence
                     [ regularSolution
                     , relevantSolution
@@ -1045,7 +1094,7 @@ gen ({ termKind, relBinding, genProblem } as genInput) =
     State.pure NonDet.none
   else
     State.do State.get <| \cache ->
-      case Dict.get genInput cache of
+      case lookup genInput cache of
         Just answer ->
           State.pure answer
 

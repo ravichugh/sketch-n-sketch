@@ -201,3 +201,15 @@ whitespaceFromMetadata = Native.ImpureGoodies.whitespaceFromMetadata
 
 whitespaceToMetadata: String -> metadata
 whitespaceToMetadata = Native.ImpureGoodies.whitespaceToMetadata
+
+genCacheClear : () -> ()
+genCacheClear =
+  Native.ImpureGoodies.genCacheClear
+
+genCachePut : string -> nonDetExp -> ()
+genCachePut =
+  Native.ImpureGoodies.genCachePut
+
+genCacheGet : string -> Maybe nonDetExp
+genCacheGet =
+  Native.ImpureGoodies.genCacheGet

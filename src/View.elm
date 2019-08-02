@@ -3380,7 +3380,7 @@ pbePopupPanel model =
                                     []
                                     ( List.map
                                         ( Html.Lazy.lazy <|
-                                          viewHoleFilling model
+                                            viewHoleFilling model
                                         )
                                         topRecursive
                                     )

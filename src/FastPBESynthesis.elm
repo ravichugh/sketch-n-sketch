@@ -50,31 +50,6 @@ isBaseType sigma tau =
     _ ->
       False
 
-showTypePairs : T.TypeEnv -> String
-showTypePairs gamma =
-  let
-    showTypePair (x, tau) =
-      let
-        typeString =
-          LeoUnparser.unparseType tau
-
-        bindString =
-          T.showBindSpec <|
-            T.bindSpec gamma (eVar x)
-      in
-        x ++ " : " ++ typeString ++ " " ++ bindString
-  in
-    gamma
-      |> T.typePairs
-      |> List.map showTypePair
-      |> String.join ", "
-
-showTypeIdents : T.TypeEnv -> String
-showTypeIdents =
-  T.typePairs
-    >> List.map Tuple.first
-    >> String.join ", "
-
 --------------------------------------------------------------------------------
 -- Data Structures
 --------------------------------------------------------------------------------
@@ -675,7 +650,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
                       |> Dict.fromList
                 in
                   NonDet.do
-                    ( Tuple.first << State.run Dict.empty <|
+                    ( Tuple.first << State.run TermGen.emptyCache <|
                         TermGen.upToE
                           { termSize = params.maxScrutineeSize
                           , sigma = sigma
@@ -759,7 +734,7 @@ arefine params ({ sigma, gamma, worlds, goalType } as sp) =
         partialFunctionRefinement argType returnType
 
       _ ->
-        NonDet.concat
+        NonDet.union
           [ constructorRefinement ()
           , tupleRefinement ()
           , matchRefinement ()
@@ -1122,5 +1097,5 @@ solve sigma delta possibleConstraints =
   in
     ImpureGoodies.timedRun <| \_ ->
       Tuple.first <|
-        State.run Dict.empty <|
+        State.run TermGen.emptyCache <|
           solve_ sigma delta problems

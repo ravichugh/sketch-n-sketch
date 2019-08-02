@@ -1,30 +1,23 @@
 --------------------------------------------------------------------------------
--- Simple wrapper around List Monad for nondeterminism
+-- Simple wrapper around List monad for nondeterminism.
 --------------------------------------------------------------------------------
 
 module NonDet exposing
   ( NonDet
-  , none
-  , fromList
-  , fromMaybe
-  , toList
-  , map
-  , pure
-  , andThen
-  , join
-  , do
-  , pureDo
-  , map2
+
+  , none, fromList, toList
+
+  , map, pure, andThen, join
+  , do, pureDo
+
   , isEmpty
-  , concat
-  , concatMap
+  , union
   , oneOfEach
-  , oneOfEachDict
-  , collapseMaybe
-  , dedup
   , filter
+  , dedup
   )
 
+import Set exposing (Set)
 import Dict exposing (Dict)
 import Utils
 
@@ -41,15 +34,11 @@ type NonDet a =
 
 none : NonDet a
 none =
-  N []
+  fromList []
 
 fromList : List a -> NonDet a
 fromList =
   N
-
-fromMaybe : Maybe a -> NonDet a
-fromMaybe =
-  Utils.maybeToList >> N
 
 --------------------------------------------------------------------------------
 -- Collection
@@ -73,11 +62,11 @@ pure =
 
 andThen : (a -> NonDet b) -> NonDet a -> NonDet b
 andThen f =
-  toList >> List.map f >> concat
+  toList >> List.map f >> union
 
 join : NonDet (NonDet a) -> NonDet a
 join =
-  toList >> concat
+  toList >> union
 
 --------------------------------------------------------------------------------
 -- Generic Library Functions
@@ -91,12 +80,6 @@ pureDo : NonDet a -> (a -> b) -> NonDet b
 pureDo =
   flip map
 
-map2 : (a -> b -> c) -> NonDet a -> NonDet b -> NonDet c
-map2 f na nb =
-  do na <| \a ->
-  pureDo nb <| \b ->
-    f a b
-
 --------------------------------------------------------------------------------
 -- Specific Library Functions
 --------------------------------------------------------------------------------
@@ -105,33 +88,20 @@ isEmpty : NonDet a -> Bool
 isEmpty =
   (==) none
 
-concat : List (NonDet a) -> NonDet a
-concat =
+-- "Sum"
+union : List (NonDet a) -> NonDet a
+union =
   List.map toList >> List.concat >> fromList
 
-concatMap : (a -> NonDet b) -> List a -> NonDet b
-concatMap f =
-  List.map f >> concat
-
+-- "Product"
 oneOfEach : List (NonDet a) -> NonDet (List a)
 oneOfEach =
   List.map toList >> Utils.oneOfEach >> fromList
 
-oneOfEachDict : Dict k (NonDet a) -> NonDet (Dict k a)
-oneOfEachDict =
-  Dict.toList
-    >> List.map (\(h, nx) -> map ((,) h) nx)
-    >> oneOfEach
-    >> map Dict.fromList
-
-collapseMaybe : NonDet (Maybe a) -> NonDet a
-collapseMaybe =
-  toList >> Utils.filterJusts >> fromList
-
-dedup : NonDet a -> NonDet a
-dedup =
-  toList >> Utils.dedup >> fromList
-
 filter : (a -> Bool) -> NonDet a -> NonDet a
 filter predicate =
   toList >> List.filter predicate >> fromList
+
+dedup : NonDet a -> NonDet a
+dedup =
+  toList >> Set.fromList >> Set.toList >> fromList
