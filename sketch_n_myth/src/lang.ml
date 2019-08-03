@@ -11,6 +11,7 @@ type exp =
   | ECtor of string * exp
   | ECase of exp * (string * string * exp) list
   | EHole of hole_name
+  | EAssert of exp * exp
   [@@deriving yojson]
 
 type typ =
@@ -29,9 +30,11 @@ type res =
   | RApp of exp * exp
   | RProj of int * exp
   | RCase of env * exp * (string * string * exp) list
+  [@@deriving yojson]
 
 and env =
   (string * res) list
+  [@@deriving yojson]
 
 type type_ctx =
   (string * typ) list
@@ -48,3 +51,25 @@ type hole_ctx =
 type hole_filling =
   (hole_name * exp) list
   [@@deriving yojson]
+
+type value =
+  | VTuple of value list
+  | VCtor of string * value
+
+type res_constraint =
+  res * value
+
+type res_constraints =
+  res_constraint list
+
+type example =
+  | ExTuple of example list
+  | ExCtor of string * example
+  | ExPartialFunction of value * example
+  | ExTop
+
+type world =
+  env * example
+
+type worlds =
+  world list
