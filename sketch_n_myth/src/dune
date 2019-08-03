@@ -1,3 +1,5 @@
 (executable
   (name main)
-  (libraries lwt cohttp cohttp-lwt-unix atdgen))
+  (libraries
+    lwt cohttp cohttp-lwt-unix yojson ppx_deriving_yojson.runtime)
+  (preprocess (pps ppx_deriving_yojson)))

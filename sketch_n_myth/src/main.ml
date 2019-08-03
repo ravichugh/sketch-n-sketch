@@ -1,31 +1,25 @@
 open Lwt
-open Cohttp
 open Cohttp_lwt_unix
 
-let add (m : int) (n : int) =
-	m + n
-
 let server =
-  let callback _conn req body =
-    let
-      _meth =
-        req
-          |> Request.meth
-          |> Code.string_of_method
-    in
-    let
-      _headers =
-        req
-          |> Request.headers
-          |> Header.to_string
-    in
-      Cohttp_lwt.Body.to_string body >|=
-      ( fun body ->
-          Printf.sprintf "%s\n" body
-      ) >>=
-      ( fun body ->
-          Server.respond_string ~status:`OK ~body ()
-      )
+  let callback _ _ body =
+    body
+      |>  Cohttp_lwt.Body.to_string
+      >|= Yojson.Safe.from_string
+      >|= Lang.exp_of_yojson
+      >>= begin fun res ->
+            match res with
+              | Ok _ ->
+                  Server.respond_string
+                    ~status:`OK
+                    ~body:"ok!\n"
+                    ()
+              | Error _ ->
+                  Server.respond_string
+                    ~status:`OK
+                    ~body:"error!\n"
+                    ()
+          end
   in
     Server.create
       ~mode:(`TCP (`Port 9090))
