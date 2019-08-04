@@ -1,6 +1,6 @@
 # Directory
 
-| Concept                                     | File
+| Concept                                     | File (in `src/`)
 | ------------------------------------------- | ------------------------------
 | Syntax of Core Sketch-n-Myth                | [`lang.ml`](src/lang.ml)
 | Result classification                       | ---
