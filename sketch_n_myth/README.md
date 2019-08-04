@@ -8,11 +8,11 @@
 | Evaluation                                  | [`eval.ml`](src/eval.ml)
 | Resumption                                  | ---
 | Result/value coercion                       | [`lang.ml`](src/lang.ml)
-| Result consistency                          | [`res_consistency`](src/res_consistency.ml)
+| Result consistency                          | [`res_consistency.ml`](src/res_consistency.ml)
 | Example, constraint, and world satisfaction | ---
 | Constraint simplification                   | ---
 | Example unevaluation                        | ---
 | Constraint solving                          | ---
 | Live IRefinement                            | ---
-| Live EGuessing (term generation)            | [`term_gen`](src/term_gen.ml)
+| Live EGuessing (term generation)            | [`term_gen.ml`](src/term_gen.ml)
 | Live world consistency                      | ---
