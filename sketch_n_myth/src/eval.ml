@@ -26,27 +26,27 @@ let rec eval env exp =
     | ETuple comps ->
         comps
           |> List.map (eval env)
-          |> Utils.result_sequence
-          |> Utils.result_map
+          |> Result2.sequence
+          |> Result2.map
                begin fun evals -> evals
                  |> List.split
-                 |> Utils.map_left (fun rs -> RTuple rs)
-                 |> Utils.map_right List.concat
+                 |> Pair2.map_left (fun rs -> RTuple rs)
+                 |> Pair2.map_right List.concat
                end
 
     | ECtor (name, arg) ->
         arg
           |> eval env
-          |> Utils.result_map
-               (Utils.map_left @@ fun x -> RCtor (name, x))
+          |> Result2.map
+               (Pair2.map_left @@ fun x -> RCtor (name, x))
 
     | EApp (e1, e2) ->
-        Utils.result_bind (eval env e1) @@ fun (r1, ks1) ->
-        Utils.result_bind (eval env e2) @@ fun (r2, ks2) ->
+        Result2.bind (eval env e1) @@ fun (r1, ks1) ->
+        Result2.bind (eval env e2) @@ fun (r2, ks2) ->
         begin match r1 with
           | RFix (f_env, f, x, body) ->
-              Utils.result_map
-                ( Utils.map_right @@
+              Result2.map
+                ( Pair2.map_right @@
                     fun ks3 -> ks1 @ ks2 @ ks3
                 )
                 ( eval
@@ -65,7 +65,7 @@ let rec eval env exp =
           Error "Negative tuple projection index"
 
         else
-          Utils.result_bind (eval env arg) @@ fun (r_arg, ks_arg) ->
+          Result2.bind (eval env arg) @@ fun (r_arg, ks_arg) ->
           begin match r_arg with
             | RTuple comps ->
                 begin match List.nth_opt comps i with
@@ -84,13 +84,13 @@ let rec eval env exp =
           end
 
     | ECase (scrutinee, branches) ->
-        Utils.result_bind (eval env scrutinee) @@ fun (r0, ks0) ->
+        Result2.bind (eval env scrutinee) @@ fun (r0, ks0) ->
         begin match r0 with
           | RCtor (name, r_arg) ->
               begin match List.assoc_opt name branches with
                 | Some (arg_name, body) ->
-                    Utils.result_map
-                      ( Utils.map_right @@
+                    Result2.map
+                      ( Pair2.map_right @@
                           fun ks_body -> ks0 @ ks_body
                       )
                       ( eval
@@ -115,9 +115,9 @@ let rec eval env exp =
         end
 
     | EAssert (e1, e2) ->
-        Utils.result_bind (eval env e1) @@ fun (r1, ks1) ->
-        Utils.result_bind (eval env e2) @@ fun (r2, ks2) ->
-        begin match Lang.results_consistent r1 r2 with
+        Result2.bind (eval env e1) @@ fun (r1, ks1) ->
+        Result2.bind (eval env e2) @@ fun (r2, ks2) ->
+        begin match Res_consistency.check r1 r2 with
           | Some ks3 ->
               Ok
                 ( RTuple []

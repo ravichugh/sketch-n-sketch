@@ -1,5 +1,10 @@
 open Lwt
-open Cohttp_lwt_unix
+
+let respond_ok body =
+  Cohttp_lwt_unix.Server.respond_string
+    ~status:`OK
+    ~body
+    ()
 
 let server =
   let callback _ _ body =
@@ -11,34 +16,22 @@ let server =
             | Ok exp ->
                 begin match Eval.eval [] exp with
                   | Ok (res, _) ->
-                      let
-                        output =
-                          res
-                            |> Lang.res_to_yojson
-                            |> Yojson.Safe.to_string
-                      in
-                        Server.respond_string
-                          ~status:`OK
-                          ~body:output
-                          ()
+                      res
+                        |> Lang.res_to_yojson
+                        |> Yojson.Safe.to_string
+                        |> respond_ok
 
                   | Error e ->
-                      Server.respond_string
-                        ~status:`OK
-                        ~body:("error: " ^ e)
-                        ()
+                      respond_ok @@ "error: " ^ e
                 end
 
             | Error _ ->
-                Server.respond_string
-                  ~status:`OK
-                  ~body:("json type error")
-                  ()
+                respond_ok "json type error"
           end
   in
-    Server.create
+    Cohttp_lwt_unix.Server.create
       ~mode:(`TCP (`Port 9090))
-      (Server.make ~callback ())
+      (Cohttp_lwt_unix.Server.make ~callback ())
 
 let () =
   ignore (Lwt_main.run server)

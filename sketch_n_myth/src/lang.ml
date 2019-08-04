@@ -83,45 +83,20 @@ let rec res_to_value (r : res) : value option =
     | RTuple comps ->
         comps
           |> List.map res_to_value
-          |> Utils.option_sequence
-          |> Utils.option_map (fun vcomps -> VTuple vcomps)
+          |> Option2.sequence
+          |> Option2.map (fun vcomps -> VTuple vcomps)
 
     | RCtor (name, arg) ->
-        Utils.option_map
+        Option2.map
           (fun v -> VCtor (name, v))
           (res_to_value arg)
 
     | _ ->
       None
 
-let rec results_consistent (r1 : res) (r2 : res) : res_constraints option =
-  if r1 == r2 then
-    Some []
-
-  else
-    match (r1, r2) with
-      | (RTuple comps1, RTuple comps2) ->
-          if List.length comps1 <> List.length comps2 then
-            None
-          else
-            List.map2 results_consistent comps1 comps2
-              |> Utils.option_sequence
-              |> Utils.option_map List.concat
-
-      | (RCtor (_, arg1), RCtor (_, arg2)) ->
-          results_consistent arg1 arg2
-
-      | _ ->
-          begin match res_to_value r1 with
-            | Some v1 ->
-                Some [(r2, v1)]
-
-            | None ->
-                begin match res_to_value r2 with
-                  | Some v2 ->
-                      Some [(r1, v2)]
-
-                  | None ->
-                      None
-                end
-          end
+let rec value_to_res (v : value) : res =
+  match v with
+    | VTuple comps ->
+        RTuple (List.map value_to_res comps)
+    | VCtor (name, v_arg) ->
+        RCtor (name, value_to_res v_arg)
