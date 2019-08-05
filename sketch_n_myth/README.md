@@ -8,7 +8,7 @@
 | Evaluation                                  | [`eval.ml`](src/eval.ml)
 | Resumption                                  | [`eval.ml`](src/eval.ml)
 | Result/value/example coercion               | [`res_util.ml`](src/res_util.ml)
-| Result consistency                          | [`res_consistency.ml`](src/res_consistency.ml)
+| Result consistency                          | [`res_util.ml`](src/res_util.ml)
 | Example, constraint, and world satisfaction | Metatheory only
 | Constraint simplification                   | [`uneval.ml`](src/uneval.ml)
 | Example unevaluation                        | [`uneval.ml`](src/uneval.ml)

@@ -129,7 +129,7 @@ let rec eval env exp =
     | EAssert (e1, e2) ->
         Result2.bind (eval env e1) @@ fun (r1, ks1) ->
         Result2.bind (eval env e2) @@ fun (r2, ks2) ->
-        begin match Res_consistency.check r1 r2 with
+        begin match Res_util.consistent r1 r2 with
           | Some ks3 ->
               Ok
                 ( RTuple []

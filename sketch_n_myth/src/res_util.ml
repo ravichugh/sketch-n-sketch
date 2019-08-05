@@ -68,3 +68,35 @@ let rec value_to_example v =
 
     | VCtor (name, v_arg) ->
         ExCtor (name, value_to_example v_arg)
+
+let rec consistent r1 r2 =
+  if r1 == r2 then
+    Some []
+
+  else
+    match (r1, r2) with
+      | (RTuple comps1, RTuple comps2) ->
+          if List.length comps1 <> List.length comps2 then
+            None
+          else
+            List.map2 consistent comps1 comps2
+              |> Option2.sequence
+              |> Option2.map List.concat
+
+      | (RCtor (_, arg1), RCtor (_, arg2)) ->
+          consistent arg1 arg2
+
+      | _ ->
+          begin match res_to_value r1 with
+            | Some v1 ->
+                Some [(r2, v1)]
+
+            | None ->
+                begin match res_to_value r2 with
+                  | Some v2 ->
+                      Some [(r1, v2)]
+
+                  | None ->
+                      None
+                end
+          end
