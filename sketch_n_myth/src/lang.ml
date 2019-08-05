@@ -5,7 +5,7 @@ type hole_name =
   [@@deriving yojson]
 
 type exp =
-  | EFix of string * string * exp
+  | EFix of (string option) * string * exp
   | EApp of exp * exp
   | EVar of string
   | ETuple of exp list
@@ -24,7 +24,7 @@ type typ =
 
 type res =
   (* Determinate results *)
-  | RFix of env * string * string * exp
+  | RFix of env * (string option) * string * exp
   | RTuple of res list
   | RCtor of string * res
   (* Indeterminate results *)
