@@ -265,7 +265,6 @@ let rec resume hf res =
               )
         end
 
-
 and resume_env (hf : hole_filling) (env : env) : eval_env_result =
   env
     |> List.map

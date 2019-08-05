@@ -1,5 +1,3 @@
-(* Types *)
-
 type hole_name =
   int
   [@@deriving yojson]
@@ -76,27 +74,9 @@ type world =
 type worlds =
   world list
 
-(* Functions *)
+type hole_constraint =
+  | Unsolved hole_name * worlds
+  | Solved hole_name * exp
 
-let rec res_to_value (r : res) : value option =
-  match r with
-    | RTuple comps ->
-        comps
-          |> List.map res_to_value
-          |> Option2.sequence
-          |> Option2.map (fun vcomps -> VTuple vcomps)
-
-    | RCtor (name, arg) ->
-        Option2.map
-          (fun v -> VCtor (name, v))
-          (res_to_value arg)
-
-    | _ ->
-      None
-
-let rec value_to_res (v : value) : res =
-  match v with
-    | VTuple comps ->
-        RTuple (List.map value_to_res comps)
-    | VCtor (name, v_arg) ->
-        RCtor (name, value_to_res v_arg)
+type hole_constraints =
+  hole_constraint list

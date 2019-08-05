@@ -3,7 +3,7 @@
 | Concept                                     | File (in `src/`)
 | ------------------------------------------- | ------------------------------
 | Syntax of Core Sketch-n-Myth                | [`lang.ml`](src/lang.ml)
-| Result classification                       | Metatheory only
+| Result classification                       | [`res_util.ml`](src/res_util.ml)
 | Type checking                               | In Elm codebase
 | Evaluation                                  | [`eval.ml`](src/eval.ml)
 | Resumption                                  | [`eval.ml`](src/eval.ml)
