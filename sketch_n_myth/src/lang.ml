@@ -65,7 +65,7 @@ type res_constraints =
 type example =
   | ExTuple of example list
   | ExCtor of string * example
-  | ExPartialFunction of value * example
+  | ExInputOutput of value * example
   | ExTop
 
 type world =
@@ -74,9 +74,65 @@ type world =
 type worlds =
   world list
 
-type hole_constraint =
-  | Unsolved hole_name * worlds
-  | Solved hole_name * exp
+type hole_constraint_kind =
+  | Unsolved of worlds
+  | Solved of exp
+
+module Hole_constraints : sig
+  type t
+
+  val empty : t
+  val singleton : hole_name -> hole_constraint_kind -> t
+  val merge : t -> t -> t option
+  val merge_all : t list -> t option
+end = struct
+  module Hole_map =
+    Map.Make(struct type t = hole_name let compare = compare end)
+
+  type t =
+    hole_constraint_kind Hole_map.t
+
+  let empty =
+    Hole_map.empty
+
+  let singleton =
+    Hole_map.singleton
+
+  exception Merge_failure
+
+  let merge ks1 ks2 =
+    try
+      Some
+        begin
+          Hole_map.union
+            begin fun _hole_name k1 k2 ->
+              begin match (k1, k2) with
+                | (Unsolved w1, Unsolved w2) ->
+                    Some (Unsolved (w1 @ w2))
+
+                | (Solved e1, Solved e2) ->
+                    if e1 = e2 then
+                      Some (Solved e1)
+                    else
+                      raise_notrace Merge_failure
+
+                | (Unsolved _w, Solved _e)
+                | (Solved _e, Unsolved _w) ->
+                    raise_notrace Merge_failure
+              end
+            end
+            ks1
+            ks2
+        end
+    with
+      Merge_failure ->
+        None
+
+  let merge_all =
+    List.fold_left
+      (fun maybe_acc ks -> Option2.bind maybe_acc (merge ks))
+      (Some empty)
+end
 
 type hole_constraints =
-  hole_constraint list
+  Hole_constraints.t

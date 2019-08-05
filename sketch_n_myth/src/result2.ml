@@ -33,3 +33,11 @@ let sequence xs =
           end
   in
     helper [] xs
+
+let to_option r =
+  match r with
+    | Ok x ->
+        Some x
+
+    | Error _ ->
+        None

@@ -18,12 +18,12 @@ let rec check r1 r2 =
           check arg1 arg2
 
       | _ ->
-          begin match res_to_value r1 with
+          begin match Res_util.res_to_value r1 with
             | Some v1 ->
                 Some [(r2, v1)]
 
             | None ->
-                begin match res_to_value r2 with
+                begin match Res_util.res_to_value r2 with
                   | Some v2 ->
                       Some [(r1, v2)]
 

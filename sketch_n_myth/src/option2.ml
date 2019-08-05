@@ -14,6 +14,9 @@ let bind ox f =
     | None ->
         None
 
+let and_then f ox =
+  bind ox f
+
 let sequence xs =
   let rec helper acc =
     function

@@ -1,6 +1,6 @@
 open Lang
 
-let final r =
+let rec final r =
   determinate r || indeterminate r
 
 and final_env (env : env) : bool =
@@ -8,21 +8,21 @@ and final_env (env : env) : bool =
 
 and determinate r =
   match r with
-    | RFix of (env, _, _, _) ->
+    | RFix (env, _, _, _) ->
         final_env env
 
-    | RTuple of comps ->
+    | RTuple comps ->
         List.for_all final comps
 
-    | RCtor of (name, arg) ->
+    | RCtor (_, arg) ->
         final arg
 
     | _ ->
-        False
+        false
 
-and rec indeterminate r =
+and indeterminate r =
   match r with
-    | RHole of (env, _) ->
+    | RHole (env, _) ->
         final_env env
 
     | RApp (r1, r2) ->
@@ -31,8 +31,11 @@ and rec indeterminate r =
     | RProj (_, arg) ->
         indeterminate arg
 
-    | RCase of (env, scrutinee, _) ->
+    | RCase (env, scrutinee, _) ->
         final_env env && indeterminate scrutinee
+
+    | _ ->
+        false
 
 let rec res_to_value r =
   match r with
@@ -54,5 +57,14 @@ let rec value_to_res v =
   match v with
     | VTuple comps ->
         RTuple (List.map value_to_res comps)
+
     | VCtor (name, v_arg) ->
         RCtor (name, value_to_res v_arg)
+
+let rec value_to_example v =
+  match v with
+    | VTuple comps ->
+        ExTuple (List.map value_to_example comps)
+
+    | VCtor (name, v_arg) ->
+        ExCtor (name, value_to_example v_arg)
