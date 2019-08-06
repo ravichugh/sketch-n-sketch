@@ -7,7 +7,7 @@ type exp =
   | EApp of exp * exp
   | EVar of string
   | ETuple of exp list
-  | EProj of int * exp
+  | EProj of int * int * exp
   | ECtor of string * exp
   | ECase of exp * (string * (string * exp)) list
   | EHole of hole_name
@@ -28,7 +28,7 @@ type res =
   (* Indeterminate results *)
   | RHole of env * hole_name
   | RApp of res * res
-  | RProj of int * res
+  | RProj of int * int * res
   | RCase of env * res * (string * (string * exp)) list
   [@@deriving yojson]
 
@@ -46,10 +46,6 @@ type datatype_ctx =
 
 type hole_ctx =
   (hole_name * (type_ctx * typ)) list
-  [@@deriving yojson]
-
-type hole_filling =
-  (hole_name * exp) list
   [@@deriving yojson]
 
 type value =
@@ -74,6 +70,54 @@ type world =
 type worlds =
   world list
 
+(* Simple version of "hole filling" data structure *)
+type hole_bindings =
+  (hole_name * exp) list
+  [@@deriving yojson]
+
+module Hole_filling : sig
+  type t
+
+  val empty : t
+  val find : hole_name -> t -> exp option
+  val bindings : t -> hole_bindings
+  val extend : t -> t -> t option
+end = struct
+  module Hole_map =
+    Map.Make(struct type t = hole_name let compare = compare end)
+
+  type t =
+    exp Hole_map.t
+
+  let empty =
+    Hole_map.empty
+
+  let find =
+    Hole_map.find_opt
+
+  let bindings =
+    Hole_map.bindings
+
+  exception Extension_failure
+
+  let extend f_base f_new =
+    try
+      Some
+        begin
+          Hole_map.union
+            (* The two maps should be disjoint *)
+            (fun _ _ _ -> raise_notrace Extension_failure)
+            f_base
+            f_new
+        end
+    with
+      Extension_failure ->
+        None
+end
+
+type hole_filling =
+  Hole_filling.t
+
 type hole_constraint_kind =
   | Unsolved of worlds
   | Solved of exp
@@ -83,6 +127,7 @@ module Hole_constraints : sig
 
   val empty : t
   val singleton : hole_name -> hole_constraint_kind -> t
+  val from_filling : hole_filling -> t
   val merge : t -> t -> t option
   val merge_all : t list -> t option
 end = struct
@@ -97,6 +142,15 @@ end = struct
 
   let singleton =
     Hole_map.singleton
+
+  let from_filling filling =
+    let
+      add_binding ks (hole_name, exp) =
+        Hole_map.add hole_name (Solved exp) ks
+    in
+      filling
+        |> Hole_filling.bindings
+        |> List.fold_left add_binding empty
 
   exception Merge_failure
 

@@ -28,7 +28,7 @@ and indeterminate r =
     | RApp (r1, r2) ->
         indeterminate r1 && final r2
 
-    | RProj (_, arg) ->
+    | RProj (_, _, arg) ->
         indeterminate arg
 
     | RCase (env, scrutinee, _) ->

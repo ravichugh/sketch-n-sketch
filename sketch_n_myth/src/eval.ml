@@ -65,32 +65,33 @@ let rec eval env exp =
                   (Pair2.map_right @@ fun ks3 -> ks1 @ ks2 @ ks3)
                   (eval new_env body)
 
-          | r1 ->
+          | _ ->
               Ok
                 ( RApp (r1, r2)
                 , ks1 @ ks2
                 )
         end
 
-    | EProj (i, arg) ->
-        if i < 0 then
-          Error "Negative tuple projection index"
-
+    | EProj (n, i, arg) ->
+        if i <= 0 then
+          Error "Non-positive projection index"
+        else if i > n then
+          Error "Projection index greater than projection length"
         else
           Result2.bind (eval env arg) @@ fun (r_arg, ks_arg) ->
           begin match r_arg with
             | RTuple comps ->
-                begin match List.nth_opt comps i with
-                  | Some ri ->
-                      Ok (ri, ks_arg)
+                if n <> List.length comps then
+                  Error "Projection length does not match tuple size"
+                else (* 0 < i <= n = |comps| *)
+                  Ok
+                    ( List.nth comps (i - 1)
+                    , ks_arg
+                    )
 
-                  | None ->
-                      Error "Projection index greater than tuple size"
-                end
-
-            | r ->
+            | _ ->
                 Ok
-                  ( RProj (i, r)
+                  ( RProj (n, i, r_arg)
                   , ks_arg
                   )
           end
@@ -98,8 +99,8 @@ let rec eval env exp =
     | ECase (scrutinee, branches) ->
         Result2.bind (eval env scrutinee) @@ fun (r0, ks0) ->
         begin match r0 with
-          | RCtor (name, r_arg) ->
-              begin match List.assoc_opt name branches with
+          | RCtor (ctor_name, r_arg) ->
+              begin match List.assoc_opt ctor_name branches with
                 | Some (arg_name, body) ->
                     Result2.map
                       ( Pair2.map_right @@
@@ -114,7 +115,7 @@ let rec eval env exp =
                     Error
                       ( "Non-exhaustive pattern match, "
                       ^ "could not find constructor '"
-                      ^ name
+                      ^ ctor_name
                       ^ "'"
                       )
               end
@@ -143,7 +144,7 @@ let rec eval env exp =
 let rec resume hf res =
   match res with
     | RHole (env, name) ->
-        begin match List.assoc_opt name hf with
+        begin match Hole_filling.find name hf with
           | Some binding ->
               Result2.bind (eval env binding) @@ fun (r, ks) ->
               Result2.pure_bind (resume hf r) @@ fun (r', ks') ->
@@ -184,7 +185,7 @@ let rec resume hf res =
     | RApp (r1, r2) ->
         Result2.bind (resume hf r1) @@ fun (r1', ks1) ->
         Result2.bind (resume hf r2) @@ fun (r2', ks2) ->
-        begin match r1 with
+        begin match r1' with
           | RFix (f_env, f, x, body) ->
               let
                 new_env =
@@ -202,32 +203,33 @@ let rec resume hf res =
               , ks1 @ ks2 @ ks @ ks'
               )
 
-          | r1' ->
+          | _ ->
               Ok
                 ( RApp (r1', r2')
                 , ks1 @ ks2
                 )
         end
 
-    | RProj (i, arg) ->
-        if i < 0 then
-          Error "Negative tuple projection index"
-
+    | RProj (n, i, arg) ->
+        if i <= 0 then
+          Error "Non-positive projection index"
+        else if i > n then
+          Error "Projection index greater than projection length"
         else
           Result2.bind (resume hf arg) @@ fun (arg', ks_arg) ->
           begin match arg' with
             | RTuple comps ->
-                begin match List.nth_opt comps i with
-                  | Some ri ->
-                      Ok (ri, ks_arg)
+                if n <> List.length comps then
+                  Error "Projection length does not match tuple size"
+                else (* 0 < i <= n = |comps| *)
+                  Ok
+                    ( List.nth comps (i - 1)
+                    , ks_arg
+                    )
 
-                  | None ->
-                      Error "Projection index greater than tuple size"
-                end
-
-            | r' ->
+            | _ ->
                 Ok
-                  ( RProj (i, r')
+                  ( RProj (n, i, arg')
                   , ks_arg
                   )
           end
@@ -235,8 +237,8 @@ let rec resume hf res =
     | RCase (env, scrutinee, branches) ->
         Result2.bind (resume hf scrutinee) @@ fun (r0, ks0) ->
         begin match r0 with
-          | RCtor (name, r_arg) ->
-              begin match List.assoc_opt name branches with
+          | RCtor (ctor_name, r_arg) ->
+              begin match List.assoc_opt ctor_name branches with
                 | Some (arg_name, body) ->
                     Result2.map
                       ( Pair2.map_right @@
@@ -253,7 +255,7 @@ let rec resume hf res =
                     Error
                       ( "Non-exhaustive pattern match, "
                       ^ "could not find constructor '"
-                      ^ name
+                      ^ ctor_name
                       ^ "'"
                       )
               end
