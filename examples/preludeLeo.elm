@@ -2325,6 +2325,7 @@ String = {
       onInsert callbackOnInserted string =
         onDeleteInsertLeftRight (\left deleted inserted right -> callbackOnInserted inserted) string
 
+      -- Enables to change the inserted text during back-propagation.
       onDeleteInsertLeftRight callbackOnLeftDeletedInsertedRight string = Update.lens {
         apply string = string
         update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
@@ -2348,6 +2349,37 @@ String = {
               aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs
            in aux 0 outputNew [] sDiffs
        } string
+
+
+      -- Same version but also enables to change some state as well.
+      onDeleteInsertLeftRightState callbackOnLeftDeletedInsertedRightState string state = Update.lens {
+          apply (string, state) = string
+          update {input=(string, originalState), outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
+            let aux offset outputNewUpdated revDiffsUpdated oldDiffs state = case oldDiffs of
+              [] -> Ok (InputsWithDiffs [
+                ( (outputNewUpdated, state)
+                , Update.mbPairDiffs (
+                    Just <| VStringDiffs <| List.reverse revDiffsUpdated,
+                    Update.diffs originalState state
+                  )
+                )])
+              ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
+                let inserted = substring (start + offset) (start + offset + replaced) outputNewUpdated in
+                let left = take (start+offset) outputNewUpdated in
+                let right = drop (start+offset+replaced) outputNewUpdated in
+                let deleted = substring start end outputOld in
+                let (newInserted, state) = callbackOnLeftDeletedInsertedRightState left deleted inserted right state in
+                let lengthNewInserted = length newInserted in
+                let newOffset = offset + lengthNewInserted - (end - start) in
+                let (newOutputNewUpdated, newDiff) = if inserted /= newInserted then
+                   ( take (start + offset) outputNewUpdated +
+                     newInserted + drop (start + offset + replaced) outputNewUpdated
+                   , StringUpdate start end lengthNewInserted)
+                   else (outputNewUpdated, headDiff)
+                in
+                aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs state
+             in aux 0 outputNew [] sDiffs originalState
+         } (string, state)
 
       fixTagUpdates string = Update.lens {
          apply string = string
