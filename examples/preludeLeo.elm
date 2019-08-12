@@ -2352,7 +2352,7 @@ String = {
 
 
       -- Same version but also enables to change some state as well.
-      onDeleteInsertLeftRightState callbackOnLeftDeletedInsertedRightState string state = Update.lens {
+      onDeleteInsertLeftRightState callbackOnLeftDeletedInsertedRightState state string = Update.lens {
           apply (string, state) = string
           update {input=(string, originalState), outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
             let aux offset outputNewUpdated revDiffsUpdated oldDiffs state = case oldDiffs of
