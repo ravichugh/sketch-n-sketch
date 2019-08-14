@@ -867,8 +867,8 @@ attrsToExp lastPos attrs =
                Expr tailAttrExp] InfixApp space0) head.start tailAttrExp.end
            )
 
-childrenToExp: Pos -> Bool -> List HTMLParser.HTMLNode -> Parser (Pos, Bool, WithInfo Exp_)
-childrenToExp lastPos wasInterpolated children =
+childrenToExp: String -> Pos -> Bool -> List HTMLParser.HTMLNode -> Parser (Pos, Bool, WithInfo Exp_)
+childrenToExp parentTag lastPos wasInterpolated children =
   case children of
     [] -> succeed <| (,,) lastPos wasInterpolated <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
     head::tail ->
@@ -877,8 +877,8 @@ childrenToExp lastPos wasInterpolated children =
         HTMLParser.HTMLEntity _ _ -> True
         _ -> wasInterpolated
       in
-      htmlToExp head |> andThen (\headExp ->
-        childrenToExp head.end newWasInterpolation tail |> andThen (\(end, isInterpolation, tailExp) ->
+      htmlToExp parentTag head |> andThen (\headExp ->
+        childrenToExp parentTag head.end newWasInterpolation tail |> andThen (\(end, isInterpolation, tailExp) ->
           case unwrapExp (Expr headExp) of
             EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp or a HTMLEntity
                let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") headExp.end tailExp.start in
@@ -896,10 +896,11 @@ eMergeTexts start end (Expr children as childrenExpr) =
   Expr <| withInfo (exp_ <|
     EApp space1 (Expr <| withInfo (exp_ <| EVar space0 "__mergeHtmlText__") start start) [childrenExpr] SpaceApp space0) start end
 
-htmlToExp: HTMLParser.HTMLNode -> ParserI Exp_
-htmlToExp node =
+htmlToExp: String -> HTMLParser.HTMLNode -> ParserI Exp_
+htmlToExp parentTag node =
   case node.val of
     HTMLParser.HTMLInner content ->
+      if parentTag == "script" || parentTag == "style" then succeed <| htmlText node content else
       case Regex.find (Regex.All) forbiddenTagsInHtmlInner content of
         [] -> succeed <| htmlText node content
         l ->
@@ -910,15 +911,15 @@ htmlToExp node =
         --(HTMLParser.ForgotClosing, _)   -> fail <| "Line " ++ toString node.start.line ++ " there is a missing closing tag </" ++ HTMLParser.unparseTagName tagName ++ ">"
         --(_, HTMLParser.SlashEndOpening) -> fail <| "Line " ++ toString node.start.line ++ " don't use / because <" ++ HTMLParser.unparseTagName tagName ++ "> is not an auto-closing tag and requires in any case a </" ++ HTMLParser.unparseTagName tagName ++ ">"
         _ ->
-          let endPos = case tagName of
-            HTMLParser.HTMLTagString v -> v.end
-            HTMLParser.HTMLTagExp e -> e.end
+          let (endPos, tagStr) = case tagName of
+            HTMLParser.HTMLTagString v -> (v.end, v.val)
+            HTMLParser.HTMLTagExp e -> (e.end, "@")
           in
           attrsToExp endPos attrs |>
           andThen (\finalattrs ->
             let start = { line = sp0.end.line, col = sp0.end.col + (if endOpeningStyle == HTMLParser.RegularEndOpening then 1 else 2) } in
-            childrenToExp start False children |>
-              andThen (\(end, isInterpolation, finalchildren) ->
+            childrenToExp tagStr start False children |>
+               andThen (\(end, isInterpolation, finalchildren) ->
                  succeed <| htmlnode node tagName (Expr finalattrs) sp0 (
                      (if isInterpolation then eMergeTexts start end else identity) <| Expr finalchildren)
                    (closingStyle == HTMLParser.AutoClosing)
@@ -928,7 +929,7 @@ htmlToExp node =
                    case closingStyle of
                      HTMLParser.RegularClosing sp -> sp
                      _ -> space0
-              )
+               )
             )
     HTMLParser.HTMLComment commentStyle ->
       succeed <| htmlComment node commentStyle
@@ -1040,7 +1041,7 @@ htmlliteral =
               ]
             )
         , tagName = inContext "HTML special tag name" <| wrapWithSyntax LeoSyntax <| simpleExpression 0 NoSpace
-        })) |> andThen htmlToExp)
+        })) |> andThen (htmlToExp "top level"))
 
 --------------------------------------------------------------------------------
 -- General Base Values
