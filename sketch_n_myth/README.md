@@ -9,7 +9,7 @@
 | Resumption                                  | [`eval.ml`](src/eval.ml)
 | Example syntax                              | [`lang.ml`](src/lang.ml)
 | Result/value/example coercion               | [`res.ml`](src/res.ml)
-| Example world and example satisfication     | Metatheory only
+| Example (world) satisfication               | Metatheory only
 | Constraint syntax                           | [`lang.ml`](src/lang.ml)
 | Constraint merging                          | [`lang.ml`](src/constraints.ml)
 | Live bidirectional example satisfaction     | [`uneval.ml`](src/uneval.ml)
