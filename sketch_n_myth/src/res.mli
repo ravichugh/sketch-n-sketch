@@ -9,4 +9,4 @@ val value_to_res : value -> res
 
 val value_to_example : value -> example
 
-val consistent : res -> res -> res_constraints option
+val consistent : res -> res -> resumption_assertions option

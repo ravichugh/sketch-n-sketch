@@ -3,8 +3,8 @@ open Lang
 val simplify :
   hole_ctx ->
   datatype_ctx ->
-  res_constraints ->
-  hole_constraints Nondet.t
+  resumption_assertions ->
+  constraints Nondet.t
 
 val uneval :
   hole_ctx ->
@@ -12,12 +12,12 @@ val uneval :
   hole_filling ->
   res ->
   example ->
-  hole_constraints Nondet.t
+  constraints Nondet.t
 
-val live_bidirectional_eval :
+val check :
   hole_ctx ->
   datatype_ctx ->
   hole_filling ->
-  res ->
-  example ->
-  hole_constraints Nondet.t
+  exp ->
+  worlds ->
+  constraints Nondet.t

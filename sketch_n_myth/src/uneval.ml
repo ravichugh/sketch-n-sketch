@@ -10,32 +10,32 @@ let guesses
 
 let rec simplify delta sigma rcs =
   let simplify_one (res, value) =
-    if Res_util.final res then
+    if Res.final res then
       uneval
         delta
         sigma
-        Hole_filling.empty
+        Hole_map.empty
         res
-        (Res_util.value_to_example value)
+        (Res.value_to_example value)
     else
       Nondet.none
   in
     rcs
       |> List.map simplify_one
       |> Nondet.one_of_each
-      |> Nondet.map Hole_constraints.merge_all
+      |> Nondet.map Constraints.merge
       |> Nondet.collapse_option
 
 and uneval delta sigma hf res ex =
   match (res, ex) with
     | (_, ExTop) ->
-        Nondet.pure Hole_constraints.empty
+        Nondet.pure Constraints.empty
 
     | (RTuple comps1, ExTuple comps2) ->
         if List.length comps1 = List.length comps2 then
           List.map2 (uneval delta sigma hf) comps1 comps2
             |> Nondet.one_of_each
-            |> Nondet.map Hole_constraints.merge_all
+            |> Nondet.map Constraints.merge
             |> Nondet.collapse_option
         else
           Nondet.none
@@ -48,15 +48,23 @@ and uneval delta sigma hf res ex =
 
     | (RHole (env, hole_name), _) ->
         Nondet.pure @@
-          Hole_constraints.singleton hole_name (Unsolved [(env, ex)])
+          Constraints.unsolved_singleton hole_name [(env, ex)]
 
-    | (RFix (_, _, _, _), ExInputOutput (input, output)) ->
-        live_bidirectional_eval delta sigma hf
-          (RApp (res, Res_util.value_to_res input))
-          output
+    | (RFix (env, f, x, body), ExInputOutput (input, output)) ->
+        let fix_extension =
+          begin match f with
+            | Some f_name ->
+                (f_name, res) :: env
+
+            | None ->
+                env
+          end
+        in
+          check delta sigma hf body @@
+            [((x, Res.value_to_res input) :: fix_extension, output)]
 
     | (RApp (r1, r2), _) ->
-        begin match Res_util.res_to_value r2 with
+        begin match Res.res_to_value r2 with
           | Some v2 ->
               uneval delta sigma hf r1 @@
                 ExInputOutput (v2, ex)
@@ -78,11 +86,12 @@ and uneval delta sigma hf res ex =
           ( guesses delta sigma scrutinee
           ) @@ fun hf_guesses ->
         Nondet.bind
-          ( Nondet.lift_option @@ Hole_filling.extend hf hf_guesses
+          ( Nondet.lift_option @@
+              Constraints.merge_solved [hf; hf_guesses]
           ) @@ fun hf' ->
         let
           ks_guesses =
-            Hole_constraints.from_filling hf_guesses
+            (hf_guesses, Hole_map.empty)
         in
         Nondet.bind
           ( Nondet.lift_result @@ Eval.resume hf' scrutinee
@@ -96,13 +105,8 @@ and uneval delta sigma hf res ex =
               | RCtor (ctor_name, r_arg) ->
                   begin match List.assoc_opt ctor_name branches with
                     | Some (arg_name, body) ->
-                        live_bidirectional_eval delta sigma hf'
-                        ( RApp
-                            ( RFix (env, None, arg_name, body)
-                            , r_arg
-                            )
-                        )
-                        ex
+                        check delta sigma hf' body @@
+                          [((arg_name, r_arg) :: env, ex)]
 
                     | None ->
                         Nondet.none
@@ -114,20 +118,29 @@ and uneval delta sigma hf res ex =
         in
           Nondet.bind possible_ks_branch @@ fun ks_branch ->
           Nondet.lift_option @@
-            Hole_constraints.merge_all
-              [ks_guesses; ks_scrutinee; ks_branch]
+            Constraints.merge [ks_guesses; ks_scrutinee; ks_branch]
 
     | _ ->
         Nondet.none
 
-and
-  live_bidirectional_eval delta sigma hf res ex =
-    match Eval.resume hf res with
-      | Ok (r, rcs) ->
-          Nondet.bind (simplify delta sigma rcs) @@ fun ks1 ->
-          Nondet.bind (uneval delta sigma hf r ex) @@ fun ks2 ->
-          Nondet.lift_option @@
-            Hole_constraints.merge ks1 ks2
+and check delta sigma hf exp worlds =
+  let
+    check_one (env, ex) =
+      match Eval.eval env exp with
+        | Ok (r, []) ->
+            begin match Eval.resume hf r with
+              | Ok (r', []) ->
+                  uneval delta sigma hf r' ex
 
-      | Error _ ->
-          Nondet.none
+              | _ ->
+                  Nondet.none
+            end
+
+        | _ ->
+            Nondet.none
+  in
+    worlds
+      |> List.map check_one
+      |> Nondet.one_of_each
+      |> Nondet.map Constraints.merge
+      |> Nondet.collapse_option

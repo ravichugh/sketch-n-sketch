@@ -1,10 +1,10 @@
 open Lang
 
 type eval_result =
-  (res * res_constraints, string) result
+  (res * resumption_assertions, string) result
 
 type eval_env_result =
-  (env * res_constraints, string) result
+  (env * resumption_assertions, string) result
 
 let rec eval env exp =
   match exp with
@@ -130,7 +130,7 @@ let rec eval env exp =
     | EAssert (e1, e2) ->
         Result2.bind (eval env e1) @@ fun (r1, ks1) ->
         Result2.bind (eval env e2) @@ fun (r2, ks2) ->
-        begin match Res_util.consistent r1 r2 with
+        begin match Res.consistent r1 r2 with
           | Some ks3 ->
               Ok
                 ( RTuple []
@@ -144,7 +144,7 @@ let rec eval env exp =
 let rec resume hf res =
   match res with
     | RHole (env, name) ->
-        begin match Hole_filling.find name hf with
+        begin match Hole_map.find_opt name hf with
           | Some binding ->
               Result2.bind (eval env binding) @@ fun (r, ks) ->
               Result2.pure_bind (resume hf r) @@ fun (r', ks') ->

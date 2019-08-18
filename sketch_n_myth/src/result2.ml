@@ -41,3 +41,11 @@ let to_option r =
 
     | Error _ ->
         None
+
+let with_default default r =
+  match r with
+    | Ok x ->
+        x
+
+    | Error _ ->
+        default

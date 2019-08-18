@@ -2,6 +2,12 @@ type hole_name =
   int
   [@@deriving yojson]
 
+module Hole_map =
+  Map.Make(struct type t = hole_name let compare = compare end)
+
+type 'a hole_map =
+  'a Hole_map.t
+
 type exp =
   | EFix of (string option) * string * exp
   | EApp of exp * exp
@@ -52,12 +58,6 @@ type value =
   | VTuple of value list
   | VCtor of string * value
 
-type res_constraint =
-  res * value
-
-type res_constraints =
-  res_constraint list
-
 type example =
   | ExTuple of example list
   | ExCtor of string * example
@@ -70,123 +70,17 @@ type world =
 type worlds =
   world list
 
-(* Simple version of "hole filling" data structure *)
-type hole_bindings =
-  (hole_name * exp) list
-  [@@deriving yojson]
-
-module Hole_filling : sig
-  type t
-
-  val empty : t
-  val find : hole_name -> t -> exp option
-  val bindings : t -> hole_bindings
-  val extend : t -> t -> t option
-end = struct
-  module Hole_map =
-    Map.Make(struct type t = hole_name let compare = compare end)
-
-  type t =
-    exp Hole_map.t
-
-  let empty =
-    Hole_map.empty
-
-  let find =
-    Hole_map.find_opt
-
-  let bindings =
-    Hole_map.bindings
-
-  exception Extension_failure
-
-  let extend f_base f_new =
-    try
-      Some
-        begin
-          Hole_map.union
-            (* The two maps should be disjoint *)
-            (fun _ _ _ -> raise_notrace Extension_failure)
-            f_base
-            f_new
-        end
-    with
-      Extension_failure ->
-        None
-end
-
 type hole_filling =
-  Hole_filling.t
+  exp hole_map
 
-type hole_constraint_kind =
-  | Unsolved of worlds
-  | Solved of exp
+type unsolved_constraints =
+  worlds hole_map
 
-module Hole_constraints : sig
-  type t
+type constraints =
+  hole_filling * unsolved_constraints
 
-  val empty : t
-  val singleton : hole_name -> hole_constraint_kind -> t
-  val from_filling : hole_filling -> t
-  val merge : t -> t -> t option
-  val merge_all : t list -> t option
-end = struct
-  module Hole_map =
-    Map.Make(struct type t = hole_name let compare = compare end)
+type resumption_assertion =
+  res * value
 
-  type t =
-    hole_constraint_kind Hole_map.t
-
-  let empty =
-    Hole_map.empty
-
-  let singleton =
-    Hole_map.singleton
-
-  let from_filling filling =
-    let
-      add_binding ks (hole_name, exp) =
-        Hole_map.add hole_name (Solved exp) ks
-    in
-      filling
-        |> Hole_filling.bindings
-        |> List.fold_left add_binding empty
-
-  exception Merge_failure
-
-  let merge ks1 ks2 =
-    try
-      Some
-        begin
-          Hole_map.union
-            begin fun _hole_name k1 k2 ->
-              begin match (k1, k2) with
-                | (Unsolved w1, Unsolved w2) ->
-                    Some (Unsolved (w1 @ w2))
-
-                | (Solved e1, Solved e2) ->
-                    if e1 = e2 then
-                      Some (Solved e1)
-                    else
-                      raise_notrace Merge_failure
-
-                | (Unsolved _w, Solved _e)
-                | (Solved _e, Unsolved _w) ->
-                    raise_notrace Merge_failure
-              end
-            end
-            ks1
-            ks2
-        end
-    with
-      Merge_failure ->
-        None
-
-  let merge_all =
-    List.fold_left
-      (fun maybe_acc ks -> Option2.bind maybe_acc (merge ks))
-      (Some empty)
-end
-
-type hole_constraints =
-  Hole_constraints.t
+type resumption_assertions =
+  resumption_assertion list
