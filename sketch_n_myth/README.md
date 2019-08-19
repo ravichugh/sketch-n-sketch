@@ -10,7 +10,7 @@
 
 Utility/helper modules end with the character "2" so as to be consistent with
 one another as well as distinct from the OCaml standard library (e.g.
-[`List2`](src/list2.ml)).
+[`List2`](src/list2.mli) and [`Option2`](src/option2.mli)).
 
 The module [`Pervasives2`](lib/pervasives2/pervasives2.mli) found in the
 [`lib/pervasives2/`](lib/pervasives2/) directory contains a small set of core
@@ -40,4 +40,4 @@ All other source code can be found in the [`src`](src/) directory.
 | Hole filling                                | ---
 | Type-and-example-directed refinement        | ---
 | Type-and-example-directed branching         | ---
-| Type-directed guessing (term generation)    | [`term_gen.mli`](src/term_gen.mli)[`term_gen.ml`](src/term_gen.ml)
+| Type-directed guessing (term generation)    | [`term_gen.mli`](src/term_gen.mli)/[`term_gen.ml`](src/term_gen.ml)
