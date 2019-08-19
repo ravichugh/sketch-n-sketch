@@ -1,9 +1,11 @@
-# Building and Running
+# Sketch-n-Myth
+
+## Building and Running
 
 *To build and run the server:* From the top-level directory, run `make serve`.
 *To build without running:* From the top-level directory, run `make build`.
 
-# Module Conventions
+## Module Conventions
 
 Utility/helper modules end with the character "2" so as to be consistent with
 one another as well as distinct from the OCaml standard library (e.g.
@@ -15,7 +17,7 @@ utilities and is automatically `open`ed in every file.
 
 All other source code can be found in the [`src`](src/) directory.
 
-# Index
+## Index
 
 | Concept                                     | File (in [`src/`](src/))
 | ------------------------------------------- | ------------------------------
