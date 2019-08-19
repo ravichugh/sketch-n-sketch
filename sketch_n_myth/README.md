@@ -2,9 +2,11 @@
 
 ## Building and Running
 
-**To build and run the server:** From the top-level directory, run `make serve`.
+***To build and run the server:***
+From the root directory (where this `README` is), run `make serve`.
 
-**To build without running:** From the top-level directory, run `make build`.
+***To build without running:***
+From the root directory (where this `README` is), run `make build`.
 
 ## Module Conventions
 
