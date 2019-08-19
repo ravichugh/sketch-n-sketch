@@ -8,23 +8,6 @@ let bind xs f =
   List.map f xs
     |> List.concat
 
-let filter_somes xs =
-  let rec helper acc =
-    function
-      | [] ->
-          List.rev acc
-
-      | head :: tail ->
-          begin match head with
-            | Some x ->
-                helper (x :: acc) tail
-
-            | None ->
-                helper acc tail
-          end
-  in
-    helper [] xs
-
 let maximum =
   function
     | [] ->
@@ -51,3 +34,23 @@ let sequence mxs =
     )
     mxs
     ([[]])
+
+let filter_map f xs =
+  let rec helper acc =
+    function
+      | [] ->
+          List.rev acc
+
+      | head :: tail ->
+          begin match f head with
+            | Some y ->
+                helper (y :: acc) tail
+
+            | None ->
+                helper acc tail
+          end
+  in
+    helper [] xs
+
+let filter_somes =
+  filter_map identity

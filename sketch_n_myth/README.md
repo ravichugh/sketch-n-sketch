@@ -1,6 +1,23 @@
-# Directory
+# Building and Running
 
-| Concept                                     | File (in `src/`)
+*To build and run the server:* From the top-level directory, run `make serve`.
+*To build without running:* From the top-level directory, run `make build`.
+
+# Module Conventions
+
+Utility/helper modules end with the character "2" so as to be consistent with
+one another as well as distinct from the OCaml standard library (e.g.
+[`List2`](src/list2.ml)).
+
+The module [`Pervasives2`](lib/pervasives2/pervasives2.ml) found in the
+[`lib/pervasives2/`](lib/pervasives2/) directory contains a small set of core
+utilities and is automatically `open`ed in every file.
+
+All other source code can be found in the [`src`](src/) directory.
+
+# Index
+
+| Concept                                     | File (in [`src/`](src/))
 | ------------------------------------------- | ------------------------------
 | Syntax of Core Sketch-n-Myth                | [`lang.ml`](src/lang.ml)
 | Result classification                       | [`res.ml`](src/res.ml)

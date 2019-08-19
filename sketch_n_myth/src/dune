@@ -1,5 +1,18 @@
-(executable
-  (name main)
-  (libraries
-    lwt cohttp cohttp-lwt-unix yojson ppx_deriving_yojson.runtime)
-  (preprocess (pps ppx_deriving_yojson)))
+( executable
+  ( name
+      main
+  )
+  ( libraries
+      ; user libraries
+      pervasives2
+
+      ; opam libraries
+      lwt cohttp cohttp-lwt-unix yojson ppx_deriving_yojson.runtime
+  )
+  ( flags
+      (-open Pervasives2)
+  )
+  ( preprocess
+      (pps ppx_deriving_yojson)
+  )
+)

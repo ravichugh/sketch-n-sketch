@@ -1,5 +1,3 @@
-open Lwt
-
 let respond_ok body =
   Cohttp_lwt_unix.Server.respond_string
     ~status:`OK
@@ -8,6 +6,7 @@ let respond_ok body =
 
 let server =
   let callback _ _ body =
+    let open Lwt in
     body
       |>  Cohttp_lwt.Body.to_string
       >|= Yojson.Safe.from_string
@@ -34,4 +33,4 @@ let server =
       (Cohttp_lwt_unix.Server.make ~callback ())
 
 let () =
-  ignore (Lwt_main.run server)
+  identity @@ ignore (Lwt_main.run server)
