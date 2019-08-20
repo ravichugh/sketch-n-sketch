@@ -547,7 +547,7 @@ and gen (gen_input : gen_input) : exp Nondet.t =
             end
 
 (*******************************************************************************
- * Exports
+ * Term generation exports
  *)
 
 let clear_cache _ =
