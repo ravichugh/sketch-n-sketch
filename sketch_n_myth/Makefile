@@ -1,8 +1,8 @@
-serve:
-	dune exec src/main.exe
-
 build:
 	dune build src/main.exe
+
+serve:
+	dune exec src/main.exe
 
 clean:
 	dune clean

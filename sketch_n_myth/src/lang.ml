@@ -13,7 +13,7 @@ type exp =
   | EApp of exp * exp
   | EVar of string
   | ETuple of exp list
-  | EProj of int * int * exp
+  | EProj of int * int * exp (* (n, i, exp) *)
   | ECtor of string * exp
   | ECase of exp * (string * (string * exp)) list
   | EHole of hole_name
@@ -42,8 +42,19 @@ and env =
   (string * res) list
   [@@deriving yojson]
 
+type bind_spec =
+  | NoSpec
+  | Rec of string
+  | Arg of string
+  | Dec of string
+  [@@deriving yojson]
+
+type type_binding =
+  string * (typ * bind_spec)
+  [@@deriving yojson]
+
 type type_ctx =
-  (string * typ) list
+  type_binding list
   [@@deriving yojson]
 
 type datatype_ctx =
@@ -84,3 +95,16 @@ type resumption_assertion =
 
 type resumption_assertions =
   resumption_assertion list
+
+type gen_goal =
+  { sigma : datatype_ctx
+  ; gamma : type_ctx
+  ; goal_type : typ
+  }
+
+type synthesis_goal =
+  { sigma : datatype_ctx
+  ; gamma : type_ctx
+  ; goal_type : typ
+  ; worlds : worlds
+  }

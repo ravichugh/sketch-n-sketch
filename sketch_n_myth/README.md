@@ -27,6 +27,7 @@ All other source code can be found in the [`src`](src/) directory.
 | Syntax of Core Sketch-n-Myth                | [`lang.ml`](src/lang.ml)
 | Result classification                       | [`res.mli`](src/res.mli)/[`res.ml`](src/res.ml)
 | Type checking                               | In Elm codebase
+| Type equality                               | [`type.mli`](src/type.mli)/[`type.ml`](src/type.ml)
 | Evaluation                                  | [`eval.mli`](src/eval.mli)/[`eval.ml`](src/eval.ml)
 | Resumption                                  | [`eval.mli`](src/eval.mli)/[`eval.ml`](src/eval.ml)
 | Example syntax                              | [`lang.ml`](src/lang.ml)

@@ -1,4 +1,5 @@
 let respond_ok body =
+  let open Term_gen in
   Cohttp_lwt_unix.Server.respond_string
     ~status:`OK
     ~body

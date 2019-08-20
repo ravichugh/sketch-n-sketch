@@ -33,3 +33,11 @@ let sequence xs =
           end
   in
     helper [] xs
+
+let with_default default ox =
+  match ox with
+    | Some x ->
+        x
+
+    | None ->
+        default

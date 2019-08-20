@@ -46,7 +46,7 @@ let one_of_each =
   List2.sequence
 
 let is_empty xs =
-  xs == none
+  xs = none
 
 let filter =
   List.filter

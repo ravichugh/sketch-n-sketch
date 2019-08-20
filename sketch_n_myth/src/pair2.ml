@@ -1,3 +1,6 @@
+let pair x y =
+  (x, y)
+
 let map_left f (x, y) =
   (f x, y)
 

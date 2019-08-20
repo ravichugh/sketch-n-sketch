@@ -70,7 +70,7 @@ let rec value_to_example v =
         ExCtor (name, value_to_example v_arg)
 
 let rec consistent r1 r2 =
-  if r1 == r2 then
+  if r1 = r2 then
     Some []
 
   else
