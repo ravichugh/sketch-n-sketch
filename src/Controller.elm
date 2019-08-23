@@ -4973,20 +4973,36 @@ msgCoreRun : Msg
 msgCoreRun =
   Msg "Core Run" identity
 
-msgReceiveCoreEval : Result Http.Error String -> Msg
-msgReceiveCoreEval result =
+msgReceiveCoreEval : Result Http.Error (Result String Core.Lang.Res) -> Msg
+msgReceiveCoreEval httpResult =
   Msg "Receive Core Eval" <| \model ->
-    let _ =
-      result
-        |> Result.mapError toString
-        |> Debug.log "[CORE RUN] Before result"
-        |> Result.andThen
-             ( JSDecode.decodeString Core.Decode.res
-                 >> Result.mapError toString
-             )
-        |> Debug.log "[CORE RUN] Result"
-    in
-      model
+    case httpResult of
+      Ok responseResult ->
+        case responseResult of
+          Ok cexp ->
+            let _ =
+              Debug.log "[CORE RUN] Result" cexp
+            in
+              model
+
+          Err responseError ->
+            let _ =
+              Debug.log "[CORE RUN] Response error" responseError
+            in
+              model
+
+      Err httpError ->
+        let _ =
+          Debug.log "[CORE RUN] HTTP error" httpError
+        in
+          model
+
+coreEvalResponse : JSDecode.Decoder (Result String Core.Lang.Res)
+coreEvalResponse =
+  JSDecode.oneOf
+    [ JSDecode.map Ok <| JSDecode.field "Ok" Core.Decode.res
+    , JSDecode.map Err <| JSDecode.field "Error" JSDecode.string
+    ]
 
 requestCoreEval : Core.Lang.Exp -> Cmd Msg
 requestCoreEval e =
@@ -4996,7 +5012,7 @@ requestCoreEval e =
       , headers = []
       , url = "http://lvh.me:9090"
       , body = Http.jsonBody (Core.Encode.exp e)
-      , expect = Http.expectString
+      , expect = Http.expectJson coreEvalResponse
       , timeout = Nothing
       , withCredentials = False
       }

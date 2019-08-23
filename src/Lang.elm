@@ -2579,6 +2579,7 @@ eEmptyHoleVal0    = withDummyExpInfo <| EHole space0 dummyEmptyHole
 eEmptyHoleVal     = withDummyExpInfo <| EHole space1 dummyEmptyHole
 eCase e branches  = withDummyExpInfo <| ECase space1 e branches space1
 eCase0 e branches = withDummyExpInfo <| ECase space0 e branches space0
+eParens e         = withDummyExpInfo <| EParens space1 e Parens space0
 
 eColonType (Expr e) t = withInfo (exp_ <| EColonType space1 (Expr e) space1 t space0) e.start t.end
 

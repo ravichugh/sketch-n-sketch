@@ -6,7 +6,6 @@ let cors_headers =
     ]
 
 let respond_ok body =
-  let open Term_gen in
   Cohttp_lwt_unix.Server.respond_string
     ~status:`OK
     ~headers:cors_headers
@@ -24,17 +23,19 @@ let server =
             | Ok exp ->
                 begin match Eval.eval [] exp with
                   | Ok (res, _) ->
-                      res
-                        |> Lang.res_to_yojson
-                        |> Yojson.Safe.to_string
-                        |> respond_ok
+                      respond_ok @@
+                        "{\"Ok\": "
+                          ^ Yojson.Safe.to_string (Lang.res_to_yojson res)
+                          ^ "}"
 
                   | Error e ->
-                      respond_ok @@ "error: " ^ e
+                      respond_ok @@
+                        "{\"Error\": \"" ^ e ^ "\"}"
                 end
 
-            | Error _ ->
-                respond_ok "json type error"
+            | Error e ->
+                respond_ok @@
+                  "{\"Error\": \"" ^ e ^ "\"}"
           end
   in
     Cohttp_lwt_unix.Server.create

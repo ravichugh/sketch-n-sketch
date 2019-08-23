@@ -6,6 +6,7 @@
 --------------------------------------------------------------------------------
 module TriEval exposing
   ( setNoData
+  , setHoleIndexes
   , evalWithEnv
   , eval
   , ensureConstraintFree
@@ -745,7 +746,6 @@ setHoleIndexes =
           State.pure u
   in
     statefulMap holeSetter >> State.run Dict.empty >> Tuple.first
-
 
 additionalPipeline : UnExp Data -> UnExp ()
 additionalPipeline =
