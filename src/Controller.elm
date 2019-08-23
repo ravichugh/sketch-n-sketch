@@ -90,6 +90,7 @@ port module Controller exposing
   , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
   , msgLoadPBESuiteExample
   , msgBenchmarkPBE
+  , msgCoreRun
   )
 
 import Updatable exposing (Updatable)
@@ -156,6 +157,10 @@ import History exposing (History)
 import NonDet exposing (NonDet)
 import TinyStructuredEditorsForLowLowPrices
 import PBESuite
+import Core.Lang
+import Core.Compile
+import Core.Encode
+import Core.Decode
 
 import ImpureGoodies exposing (nativeDict)
 
@@ -169,6 +174,7 @@ import Set
 import String
 import Char
 import Time
+import Http
 
 --Html Libraries
 import Html
@@ -192,6 +198,7 @@ import PageVisibility exposing (Visibility(..))
 import UpdatedEnv
 
 import Json.Decode as JSDecode
+import Json.Encode
 
 import Lazy
 
@@ -1307,6 +1314,25 @@ issueCommandBasedOnCaption kind oldModel newModel =
                   |> Maybe.withDefault newModel.code
         }
 
+    "Core Run" ->
+      case Syntax.parser newModel.syntax newModel.code of
+        Ok exp ->
+          case Core.Compile.exp exp of
+            Ok coreExp ->
+              let _ =
+                Debug.log ("[CORE RUN] Compiled code: " ++ toString coreExp) ()
+              in
+              let _ =
+                Debug.log ("[CORE RUN] Compiled JSON: " ++ (Json.Encode.encode 0 <| Core.Encode.exp coreExp)) ()
+              in
+                requestCoreEval coreExp
+
+            Err e ->
+              Debug.log ("[CORE RUN] Compilation error: " ++ toString e) Cmd.none
+
+        Err e ->
+          Debug.log ("[CORE RUN] Parse error: " ++ toString e) Cmd.none
+
     _ ->
       let dispatchIfChanged: (Model -> a) -> (a -> Cmd Msg) -> Cmd Msg
           dispatchIfChanged submodel cmdBuilder =
@@ -2109,7 +2135,8 @@ msgKeyDown keyCode =
               let _ = Debug.log "TODO Enter" () in
               upstateRun old
             PBE ->
-              upstateRun old
+              old
+              --upstateRun old
             -- ShowValue -> doCallUpdate old
             _ ->
               old
@@ -4939,3 +4966,41 @@ msgBenchmarkPBE =
           |> ImpureGoodies.newPage
     in
       model
+
+--------------------------------------------------------------------------------
+
+msgCoreRun : Msg
+msgCoreRun =
+  Msg "Core Run" identity
+
+msgReceiveCoreEval : Result Http.Error String -> Msg
+msgReceiveCoreEval result =
+  Msg "Receive Core Eval" <| \model ->
+    let _ =
+      result
+        |> Result.mapError toString
+        |> Debug.log "[CORE RUN] Before result"
+        |> Result.andThen
+             ( JSDecode.decodeString Core.Decode.res
+                 >> Result.mapError toString
+             )
+        |> Debug.log "[CORE RUN] Result"
+    in
+      model
+
+requestCoreEval : Core.Lang.Exp -> Cmd Msg
+requestCoreEval e =
+  Http.send msgReceiveCoreEval <|
+    Http.request
+      { method = "POST"
+      , headers = []
+      , url = "http://lvh.me:9090"
+      , body = Http.jsonBody (Core.Encode.exp e)
+      , expect = Http.expectString
+      , timeout = Nothing
+      , withCredentials = False
+      }
+    -- Http.post
+    --   "localhost:9090"
+    --   (Http.jsonBody (Core.Encode.exp e))
+    --   (Core.Decode.exp

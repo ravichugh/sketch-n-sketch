@@ -1565,7 +1565,7 @@ codePanel model =
     runButton =
       Html.div
         [ Attr.class "run"
-        , E.onClick Controller.msgRun
+        , E.onClick Controller.msgCoreRun
         ]
         [ Html.text "Run ▸"
         ]

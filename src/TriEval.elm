@@ -88,15 +88,6 @@ withConstraints ks u =
 -- Core Evaluation
 --------------------------------------------------------------------------------
 
-identifierFromPat : Pat -> Maybe Ident
-identifierFromPat p =
-  case unwrapPat p of
-    PVar _ ident _ ->
-      Just ident
-
-    _ ->
-      Nothing
-
 apply : U.Env -> UnExp Data -> List (UnExp Data) -> UnExpEvaluator
 apply env head arguments =
   case arguments of

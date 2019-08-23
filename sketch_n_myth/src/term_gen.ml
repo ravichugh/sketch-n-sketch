@@ -9,7 +9,7 @@ let fresh_ident first_char gamma =
     let ident_len =
       String.length ident
     in
-      if ident_len > 0 && String.get ident 0 = first_char then
+      if ident_len > 0 && Char.equal (String.get ident 0) first_char then
         ident
           |> StringLabels.sub ~pos:1 ~len:(ident_len - 1)
           |> int_of_string_opt
@@ -409,8 +409,9 @@ and gen_i
 
             | TData datatype_name ->
                 Nondet.bind
-                  ( Nondet.lift_option @@
-                      List.assoc_opt datatype_name goal.sigma
+                  ( List.assoc_opt datatype_name goal.sigma
+                      |> Option2.map Nondet.from_list
+                      |> Option2.with_default Nondet.none
                   ) @@ fun (ctor_name, arg_type) ->
                 let possible_arg =
                   gen
@@ -502,8 +503,9 @@ and rel_gen_i
 
         | TData datatype_name ->
             Nondet.bind
-              ( Nondet.lift_option @@
-                  List.assoc_opt datatype_name goal.sigma
+              ( List.assoc_opt datatype_name goal.sigma
+                  |> Option2.map Nondet.from_list
+                  |> Option2.with_default Nondet.none
               ) @@ fun (ctor_name, arg_type) ->
             let possible_arg =
               gen

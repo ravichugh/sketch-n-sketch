@@ -1,7 +1,15 @@
+let cors_headers =
+  Cohttp.Header.add_list (Cohttp.Header.init ())
+    [ ("Access-Control-Allow-Origin", "*")
+    ; ("Access-Control-Allow-Headers", "Accept, Content-Type")
+    ; ("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    ]
+
 let respond_ok body =
   let open Term_gen in
   Cohttp_lwt_unix.Server.respond_string
     ~status:`OK
+    ~headers:cors_headers
     ~body
     ()
 

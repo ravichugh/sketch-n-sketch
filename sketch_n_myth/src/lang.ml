@@ -13,7 +13,7 @@ type exp =
   | EApp of exp * exp
   | EVar of string
   | ETuple of exp list
-  | EProj of int * int * exp (* (n, i, exp) *)
+  | EProj of int * int * exp (* (n, i, arg) *)
   | ECtor of string * exp
   | ECase of exp * (string * (string * exp)) list
   | EHole of hole_name
@@ -58,7 +58,7 @@ type type_ctx =
   [@@deriving yojson]
 
 type datatype_ctx =
-  (string * (string * typ)) list
+  (string * (string * typ) list) list
   [@@deriving yojson]
 
 type hole_ctx =

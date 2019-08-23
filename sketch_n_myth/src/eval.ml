@@ -6,6 +6,9 @@ type eval_result =
 type eval_env_result =
   (env * resumption_assertions, string) result
 
+let ignore_binding (s : string) : bool =
+  String.length s > 0 && Char.equal (String.get s 0) '_'
+
 let rec eval env exp =
   match exp with
     | EFix (f, x, body) ->
@@ -52,14 +55,23 @@ let rec eval env exp =
         begin match r1 with
           | RFix (f_env, f, x, body) ->
               let
-                new_env =
+                f_env_extension =
                   begin match f with
                     | Some f_name ->
-                        (x, r2) :: (f_name, r1) :: f_env
+                        [(f_name, r1)]
 
                     | None ->
-                        (x, r2) :: f_env
+                        []
                   end
+              in
+              let x_env_extension =
+                if ignore_binding x then
+                  []
+                else
+                  [(x, r2)]
+              in
+              let new_env =
+                x_env_extension @ f_env_extension @ f_env
               in
                 Result2.map
                   (Pair2.map_right @@ fun ks3 -> ks1 @ ks2 @ ks3)
@@ -188,14 +200,23 @@ let rec resume hf res =
         begin match r1' with
           | RFix (f_env, f, x, body) ->
               let
-                new_env =
+                f_env_extension =
                   begin match f with
                     | Some f_name ->
-                        (x, r2') :: (f_name, r1') :: f_env
+                        [(f_name, r1')]
 
                     | None ->
-                        (x, r2') :: f_env
+                        []
                   end
+              in
+              let x_env_extension =
+                if ignore_binding x then
+                  []
+                else
+                  [(x, r2')]
+              in
+              let new_env =
+                x_env_extension @ f_env_extension @ f_env
               in
               Result2.bind (eval new_env body) @@ fun (r, ks) ->
               Result2.pure_bind (resume hf r) @@ fun (r', ks') ->

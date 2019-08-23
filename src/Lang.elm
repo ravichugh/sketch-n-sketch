@@ -2337,6 +2337,15 @@ withDummyExpInfoEId eid e__ = withDummyRange (makeExp_ e__ eid)
 withDummyBranchInfo b_      = WithInfo b_ dummyPos dummyPos
 withDummyTypeInfo t__       = WithInfo (type_ t__) dummyPos dummyPos
 
+identifierFromPat : Pat -> Maybe Ident
+identifierFromPat p =
+  case unwrapPat p of
+    PVar _ ident _ ->
+      Just ident
+
+    _ ->
+      Nothing
+
 replaceE__ : Exp -> Exp__ -> Exp
 replaceE__ (Expr e) e__ = let e_ = e.val in Expr { e | val = { e_ | e__ = e__ } }
 

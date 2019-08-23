@@ -1,6 +1,6 @@
 #!/bin/bash
-curl \
+curl -v \
   -H "Content-Type: application/json" \
   -d "@$1" \
   -X POST \
-  http://localhost:9090
+  localhost:9090
