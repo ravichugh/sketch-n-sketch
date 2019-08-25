@@ -62,12 +62,13 @@ type datatype_ctx =
   [@@deriving yojson]
 
 type hole_ctx =
-  (hole_name * (type_ctx * typ)) list
+  (hole_name * (type_ctx * typ * bind_spec)) list
   [@@deriving yojson]
 
 type value =
   | VTuple of value list
   | VCtor of string * value
+  [@@deriving yojson]
 
 type example =
   | ExTuple of example list
@@ -92,9 +93,11 @@ type constraints =
 
 type resumption_assertion =
   res * value
+  [@@deriving yojson]
 
 type resumption_assertions =
   resumption_assertion list
+  [@@deriving yojson]
 
 type gen_goal =
   { sigma : datatype_ctx

@@ -90,7 +90,7 @@ port module Controller exposing
   , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
   , msgLoadPBESuiteExample
   , msgBenchmarkPBE
-  , msgCoreRun
+  , msgRequestCoreRun
   )
 
 import Updatable exposing (Updatable)
@@ -159,8 +159,10 @@ import TinyStructuredEditorsForLowLowPrices
 import PBESuite
 import Core.Lang
 import Core.Compile
+import Core.Uncompile
 import Core.Encode
 import Core.Decode
+import Core.Bridge
 
 import ImpureGoodies exposing (nativeDict)
 
@@ -889,18 +891,19 @@ tryRun old =
       (Err err, _) ->
         Err (oldWithUpdatedHistory, showError err, Nothing)
       (Ok parsedExp, PBE) ->
-        let
-          result =
-            TriEval.eval parsedExp
-              |> Result.mapError (\s -> "[Error] " ++ s)
-        in
-          Ok <|
-            refreshInputExp
-              { old
-                  | unExpOutput = result
-                  , errorBox = Nothing
-                  , pbeSynthesisResult = Nothing
-              }
+        Ok old
+        -- let
+        --   result =
+        --     TriEval.eval parsedExp
+        --       |> Result.mapError (\s -> "[Error] " ++ s)
+        -- in
+        --   Ok <|
+        --     refreshInputExp
+        --       { old
+        --           | unExpOutput = result
+        --           , errorBox = Nothing
+        --           , pbeSynthesisResult = Nothing
+        --       }
 
       (Ok parsedExp, _) ->
         let
@@ -1313,25 +1316,6 @@ issueCommandBasedOnCaption kind oldModel newModel =
                 newModel.codeAtPbeSynthesis
                   |> Maybe.withDefault newModel.code
         }
-
-    "Core Run" ->
-      case Syntax.parser newModel.syntax newModel.code of
-        Ok exp ->
-          case Core.Compile.exp exp of
-            Ok coreExp ->
-              let _ =
-                Debug.log ("[CORE RUN] Compiled code: " ++ toString coreExp) ()
-              in
-              let _ =
-                Debug.log ("[CORE RUN] Compiled JSON: " ++ (Json.Encode.encode 0 <| Core.Encode.exp coreExp)) ()
-              in
-                requestCoreEval coreExp
-
-            Err e ->
-              Debug.log ("[CORE RUN] Compilation error: " ++ toString e) Cmd.none
-
-        Err e ->
-          Debug.log ("[CORE RUN] Parse error: " ++ toString e) Cmd.none
 
     _ ->
       let dispatchIfChanged: (Model -> a) -> (a -> Cmd Msg) -> Cmd Msg
@@ -4969,54 +4953,35 @@ msgBenchmarkPBE =
 
 --------------------------------------------------------------------------------
 
-msgCoreRun : Msg
-msgCoreRun =
-  Msg "Core Run" identity
+msgRequestCoreRun : Msg
+msgRequestCoreRun =
+  NewModelAndCmd "Reqest Core Run"  <| \model ->
+    case Core.Bridge.compile model.code of
+      Ok (cexp, _) ->
+        (model, Core.Bridge.eval cexp msgReceiveCoreRun)
 
-msgReceiveCoreEval : Result Http.Error (Result String Core.Lang.Res) -> Msg
-msgReceiveCoreEval httpResult =
-  Msg "Receive Core Eval" <| \model ->
-    case httpResult of
-      Ok responseResult ->
-        case responseResult of
-          Ok cexp ->
-            let _ =
-              Debug.log "[CORE RUN] Result" cexp
-            in
-              model
+      Err err ->
+        ({ model | unExpOutput = Err err }, Cmd.none)
 
-          Err responseError ->
-            let _ =
-              Debug.log "[CORE RUN] Response error" responseError
-            in
-              model
+msgReceiveCoreRun :
+  Core.Bridge.Failable
+    (Result String (Core.Lang.Res, Core.Lang.ResumptionAssertions))
+  -> Msg
+msgReceiveCoreRun response =
+  Msg "Receive Core Run" <| \model ->
+    case response of
+      Core.Bridge.HttpError httpError ->
+        { model | unExpOutput = Err ("Http error: " ++ toString httpError) }
 
-      Err httpError ->
-        let _ =
-          Debug.log "[CORE RUN] HTTP error" httpError
-        in
-          model
+      Core.Bridge.ServerError serverError ->
+        { model | unExpOutput = Err ("Server error: " ++ serverError) }
 
-coreEvalResponse : JSDecode.Decoder (Result String Core.Lang.Res)
-coreEvalResponse =
-  JSDecode.oneOf
-    [ JSDecode.map Ok <| JSDecode.field "Ok" Core.Decode.res
-    , JSDecode.map Err <| JSDecode.field "Error" JSDecode.string
-    ]
+      Core.Bridge.Success evalResponse ->
+        case evalResponse of
+          Err evalError ->
+            { model | unExpOutput = Err ("Evaluation error: " ++ evalError) }
 
-requestCoreEval : Core.Lang.Exp -> Cmd Msg
-requestCoreEval e =
-  Http.send msgReceiveCoreEval <|
-    Http.request
-      { method = "POST"
-      , headers = []
-      , url = "http://lvh.me:9090"
-      , body = Http.jsonBody (Core.Encode.exp e)
-      , expect = Http.expectJson coreEvalResponse
-      , timeout = Nothing
-      , withCredentials = False
-      }
-    -- Http.post
-    --   "localhost:9090"
-    --   (Http.jsonBody (Core.Encode.exp e))
-    --   (Core.Decode.exp
+          Ok (res, assertions) ->
+            { model | unExpOutput =
+                Ok (Core.Uncompile.res res, NonDet.pure [])
+            }

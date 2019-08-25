@@ -1562,12 +1562,19 @@ codePanel model =
         ]
         [ -- Html.text emoji
         ]
+    synthesizeButton =
+      Html.div
+        [ Attr.class "run"
+        , E.onClick Controller.msgNoop
+        ]
+        [ Html.text "Run & Synthesize ▸"
+        ]
     runButton =
       Html.div
         [ Attr.class "run"
-        , E.onClick Controller.msgCoreRun
+        , E.onClick Controller.msgRequestCoreRun
         ]
-        [ Html.text "Run ▸"
+        [ Html.text "Run ▹"
         ]
     actionBar =
       Html.div
@@ -1607,6 +1614,7 @@ codePanel model =
             [ Attr.class "needs-run-light"
             ]
             []
+        , synthesizeButton
         , runButton
         ]
     codePanelWarning =

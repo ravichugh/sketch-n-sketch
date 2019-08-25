@@ -540,6 +540,7 @@ code {
 
 .status-bar .run {
   top: 5px; /* (height of bar - height of button) / 2 */
+  margin-left: 5px;
   padding: 0 15px;
 
   cursor: pointer;

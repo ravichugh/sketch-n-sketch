@@ -1,13 +1,17 @@
 module Core.Compile exposing
   ( exp
+  , holeContext
+  , datatypeContext
   )
 
 import Lang as L
 import Core.Lang as C
+import Types2 as T
 
 import Utils
 
 type CompileError
+  -- Expression errors
   = NegativeNumberNotSupported Int
   | NonIntegralNumberNotSupported Float
   | StringNotSupported String
@@ -25,6 +29,16 @@ type CompileError
   | NonUnaryConstructorApplication L.Exp
   | RecordNotSupported L.Exp
   | ImproperRecord L.Exp
+  -- Type errors
+  | ImproperArrowType L.Type
+  | InternalTypeNotSupported L.Type
+  | NonVarBindSpec (Maybe T.BindingSpecification)
+  | MultiPatBindSpec (Maybe T.BindingSpecification)
+  | BindingWithoutType T.TypeEnvElement
+  | NonVarTypeBinding T.TypeEnvElement
+  | TypeVarNotSupported T.TypeEnvElement
+  | TypeAliasNotSupported T.TypeEnvElement
+  | NonUnaryConstructorDefinition String
 
 zeroName : String
 zeroName =
@@ -213,9 +227,9 @@ exp lexp =
                   exp body
 
                 [(name, binding)] ->
-                  L.eApp (L.eFun [L.pVar name] body) [binding]
-                    |> exp
-                    |> Result.map (annotateRecursiveName name)
+                  Result.map2 C.EApp
+                    (Result.map (C.EFix Nothing name) (exp body))
+                    (Result.map (annotateRecursiveName name) (exp binding))
 
                 head :: tail ->
                   exp <|
@@ -267,3 +281,132 @@ exp lexp =
 
     L.ESelect _ _ _ _ _ ->
       Err (SelectNotSupported lexp)
+
+typ : L.Type -> Result CompileError C.Typ
+typ tau =
+  case T.matchArrow tau of
+    Just ([], [argType], retType) ->
+      Result.map2 C.TArr (typ argType) (typ retType)
+
+    Just _ ->
+      Err (ImproperArrowType tau)
+
+    Nothing ->
+      case L.tupleTypeArguments tau of
+        Just components ->
+          components
+            |> List.map typ
+            |> Utils.projOk
+            |> Result.map C.TTuple
+
+        Nothing ->
+          case L.unwrapType tau of
+            L.TVar _ datatypeName ->
+              Ok (C.TData datatypeName)
+
+            L.TParens _ tauInner _ ->
+              typ tauInner
+
+            _ ->
+              Err (InternalTypeNotSupported tau)
+
+bindSpec : Maybe T.BindingSpecification -> Result CompileError C.BindSpec
+bindSpec b =
+  let
+    unwrapVar : L.Pat -> Result CompileError String
+    unwrapVar p =
+      case L.unwrapPat p of
+        L.PVar _ x _ ->
+          Ok x
+
+        _ ->
+          Err (NonVarBindSpec b)
+  in
+    case b of
+      Just (T.Rec ps) ->
+        case ps of
+          [p] ->
+            Result.map C.Rec (unwrapVar p)
+
+          _ ->
+            Err (MultiPatBindSpec b)
+
+      Just (T.Arg p) ->
+        Result.map C.Arg (unwrapVar p)
+
+      Just (T.Dec p) ->
+        Result.map C.Dec (unwrapVar p)
+
+      Nothing ->
+        Ok C.NoSpec
+
+typeContext : T.TypeEnv -> Result CompileError C.TypeContext
+typeContext =
+  let
+    typeEnvElement
+      : T.TypeEnvElement -> Result CompileError (Maybe C.TypeBinding)
+    typeEnvElement t =
+      case t of
+        T.HasType pat maybeType maybeBindSpec ->
+          case L.unwrapPat pat of
+            L.PVar _ x _ ->
+              Result.map2 (\tau bs -> Just (x, (tau, bs)))
+                ( maybeType
+                    |> Result.fromMaybe (BindingWithoutType t)
+                    |> Result.andThen typ
+                )
+                ( bindSpec maybeBindSpec
+                )
+
+            _ ->
+              Err (NonVarTypeBinding t)
+
+        T.TypeVar _ ->
+          Err (TypeVarNotSupported t)
+
+        T.TypeAlias _ _ ->
+          Err (TypeAliasNotSupported t)
+
+        T.TypeDef _ ->
+          Ok Nothing
+  in
+    List.map typeEnvElement
+      >> Utils.projOk
+      >> Result.map Utils.filterJusts
+
+holeContext : T.HoleEnv -> Result CompileError C.HoleContext
+holeContext =
+  let
+    holeEnvElement :
+      T.HoleEnvElement
+        -> Result CompileError (C.HoleName, (C.TypeContext, C.Typ, C.BindSpec))
+    holeEnvElement (holeId, (gamma, tau)) =
+      Result.map2 (\gamma_ tau_ -> (holeId, (gamma_, tau_, C.NoSpec)))
+        (typeContext gamma)
+        (typ tau)
+  in
+    List.map holeEnvElement >> Utils.projOk
+
+datatypeContext : T.DatatypeEnv -> Result CompileError C.DatatypeContext
+datatypeContext =
+  let
+    datatypeConstructor :
+      (L.Ident, List L.Type) -> Result CompileError (String, C.Typ)
+    datatypeConstructor (ctorName, argTypes) =
+      case argTypes of
+        [argType] ->
+          Result.map ((,) ctorName) (typ argType)
+
+        _ ->
+          Err (NonUnaryConstructorDefinition ctorName)
+
+    datatypeDef :
+      (L.Ident, (List L.Ident, List T.DataConDef))
+        -> Result CompileError (String, List (String, C.Typ))
+    datatypeDef (datatypeName, (_, constructors)) =
+      constructors
+        |> List.map datatypeConstructor
+        |> Utils.projOk
+        |> Result.map ((,) datatypeName)
+  in
+    List.map datatypeDef >> Utils.projOk

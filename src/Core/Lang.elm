@@ -31,8 +31,40 @@ type Res
 type alias Env =
   List (String, Res)
 
+type BindSpec
+  = NoSpec
+  | Rec String
+  | Arg String
+  | Dec String
+
+type alias TypeBinding =
+  (String, (Typ, BindSpec))
+
+type alias TypeContext =
+  List TypeBinding
+
 type alias DatatypeContext =
   List (String, List (String, Typ))
+
+type alias HoleContext =
+  List (HoleName, (TypeContext, Typ, BindSpec))
+
+type Value
+  = VTuple (List Value)
+  | VCtor String Value
+
+type alias HoleFilling =
+  List (HoleName, Exp)
+
+type alias ResumptionAssertion =
+  (Res, Value)
+
+type alias ResumptionAssertions =
+  List ResumptionAssertion
+
+--------------------------------------------------------------------------------
+-- Helper functions
+--------------------------------------------------------------------------------
 
 nullaryCtor : String -> Exp
 nullaryCtor name =

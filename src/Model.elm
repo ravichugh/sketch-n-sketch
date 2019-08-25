@@ -1439,22 +1439,23 @@ initModel =
     (initExp, initHoleEnv, initOutput) =
       loadPBESuiteExample "init" PBESuite.init
 
-    {e, v, ws, env} =
-      { e =
-          initExp
-      , v =
-          -- Blank SVG node
-          builtinVal "initVal" <|
-            VList
-              [ builtinVal "svg" (VBase (VString "svg"))
-              , builtinVal "svgArg1" (VList [])
-              , builtinVal "svgArg2" (VList [])
-              ]
-      , ws =
-          []
-      , env =
-          []
-      }
+    e =
+      initExp
+
+    v =
+      -- Blank SVG node
+      builtinVal "initVal" <|
+        VList
+          [ builtinVal "svg" (VBase (VString "svg"))
+          , builtinVal "svgArg1" (VList [])
+          , builtinVal "svgArg2" (VList [])
+          ]
+
+    ws =
+      []
+
+    env =
+      []
   in
   let unwrap = Utils.fromOk "generating initModel" in
   let (slideCount, movieCount, movieDuration, movieContinue, slate) =
@@ -1609,7 +1610,7 @@ initModel =
     , needsToFocusOn = Nothing
     , holeEnv = initHoleEnv
     , pbeSynthesisResult = Nothing
-    , unExpOutput = initOutput
+    , unExpOutput = Err ""
     , selectedHoles = Set.empty
     , selectedUnExp = Nothing
     , holeExampleInputs = Dict.empty

@@ -1,7 +1,9 @@
 module Core.Decode exposing
-  ( exp
-  , typ
+  ( ctor
+  , holeName
+  , exp
   , res
+  , resumptionAssertions
   )
 
 import Json.Decode exposing (..)
@@ -17,6 +19,10 @@ option decode =
     [ map Just decode
     , null Nothing
     ]
+
+holeName : Decoder HoleName
+holeName =
+  int
 
 exp : Decoder Exp
 exp =
@@ -168,3 +174,30 @@ env =
         (index 2 res)
   in
     list envBinding
+
+value : Decoder Core.Lang.Value
+value =
+  ctor <| \ctorName ->
+    case ctorName of
+      "VTuple" ->
+        map VTuple
+          (index 1 (list value))
+
+      "VCtor" ->
+        map2 VCtor
+          (index 1 string)
+          (index 2 value)
+
+      _ ->
+        fail "Ill-formed value"
+
+resumptionAssertions : Decoder ResumptionAssertions
+resumptionAssertions =
+  let
+    resumptionAssertion : Decoder ResumptionAssertion
+    resumptionAssertion =
+      map2 (,)
+        (index 0 res)
+        (index 1 value)
+  in
+    list resumptionAssertion

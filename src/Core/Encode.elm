@@ -1,18 +1,18 @@
 module Core.Encode exposing
   ( exp
-  , typ
-  , res
+  , resumptionAssertions
   , datatypeContext
+  , holeContext
   )
 
-import Json.Encode exposing (..)
-import Core.Lang exposing (..)
+import Json.Encode as E exposing (..)
+import Core.Lang as C exposing (..)
 
-ctor : String -> List Value -> Value
+ctor : String -> List E.Value -> E.Value
 ctor name args =
   list (string name :: args)
 
-option : (a -> Value) -> Maybe a -> Value
+option : (a -> E.Value) -> Maybe a -> E.Value
 option encode mx =
   case mx of
     Just x ->
@@ -21,7 +21,7 @@ option encode mx =
     Nothing ->
       null
 
-exp : Exp -> Value
+exp : Exp -> E.Value
 exp e =
   case e of
     EFix f x body ->
@@ -44,7 +44,7 @@ exp e =
 
     ECase scrutinee branches ->
       let
-        branch : (String, (String, Exp)) -> Value
+        branch : (String, (String, Exp)) -> E.Value
         branch (ctorName, (argName, body)) =
           list [string ctorName, list [string argName, exp body]]
       in
@@ -59,7 +59,7 @@ exp e =
     EAssert e1 e2 ->
       ctor "EAssert" [exp e1, exp e2]
 
-typ : Typ -> Value
+typ : Typ -> E.Value
 typ t =
   case t of
     TArr t1 t2 ->
@@ -71,7 +71,7 @@ typ t =
     TData name ->
       ctor "TData" [string name]
 
-res : Res -> Value
+res : Res -> E.Value
 res r =
   case r of
     RFix en f x body ->
@@ -94,7 +94,7 @@ res r =
 
     RCase en scrutinee branches ->
       let
-        branch : (String, (String, Exp)) -> Value
+        branch : (String, (String, Exp)) -> E.Value
         branch (ctorName, (argName, body)) =
           list [string ctorName, list [string argName, exp body]]
       in
@@ -104,24 +104,75 @@ res r =
           , list (List.map branch branches)
           ]
 
-env : Env -> Value
+env : Env -> E.Value
 env =
   let
-    envBinding : (String, Res) -> Value
+    envBinding : (String, Res) -> E.Value
     envBinding (x, r) =
       list [string x, res r]
   in
     List.map envBinding >> list
 
-datatypeContext : DatatypeContext -> Value
+bindSpec : BindSpec -> E.Value
+bindSpec bs =
+  case bs of
+    NoSpec ->
+      ctor "NoSpec" []
+
+    Rec f ->
+      ctor "Rec" [string f]
+
+    Arg f ->
+      ctor "Arg" [string f]
+
+    Dec f ->
+      ctor "Dec" [string f]
+
+typeContext : TypeContext -> E.Value
+typeContext =
+  let
+    typeBinding : TypeBinding -> E.Value
+    typeBinding (x, (tau, bs)) =
+      list [string x, list [typ tau, bindSpec bs]]
+  in
+    List.map typeBinding >> list
+
+datatypeContext : DatatypeContext -> E.Value
 datatypeContext =
   let
-    constructor : (String, Typ) -> Value
+    constructor : (String, Typ) -> E.Value
     constructor (ctorName, argType) =
       list [string ctorName, typ argType]
 
-    datatypeBinding : (String, List (String, Typ)) -> Value
+    datatypeBinding : (String, List (String, Typ)) -> E.Value
     datatypeBinding (datatypeName, constructors) =
       list [string datatypeName, list (List.map constructor constructors)]
   in
     List.map datatypeBinding >> list
+
+holeContext : HoleContext -> E.Value
+holeContext =
+  let
+    holeBinding : (HoleName, (TypeContext, Typ, BindSpec)) -> E.Value
+    holeBinding (holeName, (gamma, tau, bs)) =
+      list [int holeName, list [typeContext gamma, typ tau, bindSpec bs]]
+  in
+    List.map holeBinding >> list
+
+value : C.Value -> E.Value
+value v =
+  case v of
+    VTuple vs ->
+      ctor "VTuple" [list (List.map value vs)]
+
+    VCtor ctorName arg ->
+      ctor "VCtor" [string ctorName, value arg]
+
+resumptionAssertions : ResumptionAssertions -> E.Value
+resumptionAssertions =
+  let
+    resumptionAssertion : ResumptionAssertion -> E.Value
+    resumptionAssertion (r, v) =
+      list [res r, value v]
+  in
+    List.map resumptionAssertion >> list

@@ -17,6 +17,9 @@ let bind rx f =
     | Error e ->
         Error e
 
+let and_then f rx =
+  bind rx f
+
 let sequence xs =
   let rec helper acc =
     function
@@ -49,3 +52,11 @@ let with_default default r =
 
     | Error _ ->
         default
+
+let unwrap f g r =
+  match r with
+    | Ok x ->
+        f x
+
+    | Error y ->
+        g y
