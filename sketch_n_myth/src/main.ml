@@ -49,7 +49,9 @@ type synthesis_request =
   [@@deriving yojson]
 
 type synthesis_response =
-  (Lang.hole_name * Lang.exp) list list
+  { time_taken : float
+  ; hole_fillings : (Lang.hole_name * Lang.exp) list list
+  }
   [@@deriving yojson]
 
 (* Server code *)
@@ -79,7 +81,9 @@ let server =
       | "/synthesize" ->
           handle synthesis_request_of_yojson synthesis_response_to_yojson @@
             fun {delta; sigma; assertions} ->
-              []
+              { time_taken = -1.0
+              ; hole_fillings = []
+              }
 
       | _ ->
           Cohttp_lwt_unix.Server.respond_not_found ()

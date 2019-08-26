@@ -48,6 +48,7 @@ import Types2
 import TriEval
 import PBESuite
 import NonDet exposing (NonDet)
+import Core.Lang
 
 import ImpureGoodies
 
@@ -246,7 +247,7 @@ type alias Model =
     -- Nothing means synthesis has not been run yet,
     -- Just { holeFillings = [] } means synthesis returned no results
   , pbeSynthesisResult : Maybe PBESynthesisResult
-  , unExpOutput : Result String (UnExp (), NonDet UnLang.Constraints)
+  , unExpOutput : Result String (UnExp (), Core.Lang.ResumptionAssertions)
   , selectedHoles : Set HoleId
   , selectedUnExp : Maybe (UnExp ())
   , holeExampleInputs : Dict HoleId (Dict Int (UnLang.Env, String))
@@ -1409,7 +1410,7 @@ loadPBESuiteExample :
     -> String
     -> ( Exp
        , Types2.HoleEnv
-       , Result String (UnExp (), NonDet UnLang.Constraints)
+       , Result String (UnExp ())
        )
 loadPBESuiteExample name programText =
   let
@@ -1423,7 +1424,7 @@ loadPBESuiteExample name programText =
     output =
       TriEval.eval exp
   in
-    (exp, holeEnv, output)
+    (exp, holeEnv, Result.map Tuple.first output)
 
 initModel : Model
 initModel =
@@ -1436,7 +1437,7 @@ initModel =
 --         Ok ff -> ff
 --  in
   let
-    (initExp, initHoleEnv, initOutput) =
+    (initExp, initHoleEnv, _) =
       loadPBESuiteExample "init" PBESuite.init
 
     e =

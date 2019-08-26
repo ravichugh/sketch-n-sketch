@@ -52,6 +52,7 @@ import Types2
 import TinyStructuredEditorsForLowLowPricesView
 import PBESuite
 import NonDet exposing (NonDet)
+import Core.Lang as C
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -1562,19 +1563,12 @@ codePanel model =
         ]
         [ -- Html.text emoji
         ]
-    synthesizeButton =
-      Html.div
-        [ Attr.class "run"
-        , E.onClick Controller.msgNoop
-        ]
-        [ Html.text "Run & Synthesize ▸"
-        ]
     runButton =
       Html.div
         [ Attr.class "run"
         , E.onClick Controller.msgRequestCoreRun
         ]
-        [ Html.text "Run ▹"
+        [ Html.text "Run ▸"
         ]
     actionBar =
       Html.div
@@ -1614,7 +1608,6 @@ codePanel model =
             [ Attr.class "needs-run-light"
             ]
             []
-        , synthesizeButton
         , runButton
         ]
     codePanelWarning =
@@ -3166,6 +3159,42 @@ viewCollectedConstraints possibleConstraints =
 --                )
 --            ]
 
+viewAssertions : C.ResumptionAssertions -> List (Html Msg)
+viewAssertions assertions =
+  let
+    viewAssertion : C.ResumptionAssertion -> Html Msg
+    viewAssertion (r, v) =
+      Html.li
+        [ Attr.class "pbe-constraint"
+        ]
+        [ Html.code
+            []
+            [ Html.text <|
+                toString r
+                  ++ " ⇒ "
+                  ++ toString v
+            ]
+        ]
+
+    assertionsLen =
+      List.length assertions
+  in
+    [ Html.div
+        [ Attr.class "pbe-constraint-header"
+        ]
+        [ Html.h2
+            []
+            [ Html.text "Resumption Assertions"
+            ]
+        ]
+    , Html.ul
+        [ Attr.class "pbe-constraint-list"
+        , Attr.style [("list-style-type", "decimal"), ("margin-left", "15px")]
+        ]
+        ( List.map viewAssertion assertions
+        )
+    ]
+
 viewBackprop : Model -> List (Html Msg)
 viewBackprop model =
   case model.selectedUnExp of
@@ -3316,13 +3345,13 @@ pbePopupPanel model =
   let
     (content, noConstraints) =
       case model.unExpOutput of
-        Ok (output, possibleConstraints) ->
+        Ok (output, assertions) ->
           let
             collectedConstraintsView =
               Html.div
                 [ Attr.class "pbe-collected-constraints"
                 ]
-                ( viewCollectedConstraints possibleConstraints
+                ( viewAssertions assertions
                 )
 
             backpropView =
@@ -3353,7 +3382,7 @@ pbePopupPanel model =
                 [ Attr.class "pbe-synthesize"
                 ]
                 [ Html.button
-                    [ E.onClick Controller.msgCollectAndSolve
+                    [ E.onClick Controller.msgRequestCoreSynthesis
                     ]
                     [ Html.text "Synthesize"
                     ]
@@ -3447,9 +3476,7 @@ pbePopupPanel model =
               , synthesizeButton
               , synthesisResults
               ]
-           , possibleConstraints
-               |> NonDet.toList
-               |> Utils.all1 List.isEmpty
+           , List.isEmpty assertions
            )
 
         Err _ ->

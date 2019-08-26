@@ -84,13 +84,13 @@ port module Controller exposing
   , msgUnsetSelectedUnExp
   , msgUpdateHoleExampleInput
   , msgUpdateBackpropExampleInput
-  , msgCollectAndSolve
   , msgShowUnExpPreview
   , msgClearUnExpPreview
   , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
   , msgLoadPBESuiteExample
   , msgBenchmarkPBE
   , msgRequestCoreRun
+  , msgRequestCoreSynthesis
   )
 
 import Updatable exposing (Updatable)
@@ -3584,7 +3584,7 @@ resetDeuceState m =
           }
       , pbeSynthesisResult = Nothing
       , unExpOutput =
-          Result.map (Tuple.mapSecond <| \_ -> NonDet.pure []) m.unExpOutput
+          Result.map (Tuple.mapSecond <| \_ -> []) m.unExpOutput
       , selectedHoles = Set.empty
       , selectedUnExp = Nothing
       , holeExampleInputs = Dict.empty
@@ -4526,89 +4526,89 @@ msgUpdateBackpropExampleInput s =
 
 -- Collect and solve
 
-collectAndSolve : Model -> Model
-collectAndSolve model =
-  let
-    resultCollectedConstraints : NonDet U.Constraints
-    resultCollectedConstraints =
-      model.unExpOutput
-        |> Result.map Tuple.second
-        |> Result.withDefault NonDet.none
-
-    resultBackpropExampleConstraints : NonDet U.Constraints
-    resultBackpropExampleConstraints =
-      if model.backpropExampleInput == "" then
-        NonDet.pure []
-      else
-        case model.selectedUnExp of
-          Just uSelected ->
-            model.backpropExampleInput
-              |> U.parseExample
-              |> Result.map (TriEval.backprop (TriEval.setNoData uSelected))
-              |> Result.withDefault NonDet.none
-
-          Nothing ->
-            NonDet.none
-
-    resultHoleExampleConstraints : NonDet U.Constraints
-    resultHoleExampleConstraints =
-      let
-        makeWorld : (U.Env, String) -> Result String World
-        makeWorld ((_, exString) as worldInput) =
-          worldInput
-            |> Tuple.mapSecond U.parseExample
-            |> Utils.liftResultPair2
-            |> Result.mapError
-                 (\_ -> "Could not parse example '" ++ exString ++ "'")
-      in
-        model.holeExampleInputs
-          |> Dict.map (\_ -> Dict.values)
-          |> Dict.toList
-          |> List.map
-               ( Tuple.mapSecond
-                     ( List.filter (\(_, input) -> input /= "")
-                         >> List.map makeWorld
-                         >> Utils.projOk
-                     )
-                   >> Utils.liftResultPair2
-                   >> Result.map (\(holeId, worlds) -> List.map ((,) holeId) worlds)
-               )
-          |> Utils.projOk
-          |> Result.map (List.concat >> NonDet.pure)
-          |> Result.withDefault NonDet.none
-
-    possibleConstraints =
-      NonDet.map List.concat <|
-        NonDet.oneOfEach
-          [ resultCollectedConstraints
-          , resultBackpropExampleConstraints
-          , resultHoleExampleConstraints
-          ]
-
-    (holeFillings, timeTaken) =
-      PBESynth.solve
-        (Types2.getDataTypeDefs model.inputExp)
-        model.holeEnv
-        possibleConstraints
-  in
-    { model
-        | pbeSynthesisResult =
-            Just
-              { holeFillings = holeFillings
-              , timeTaken = timeTaken
-              }
-        , codeAtPbeSynthesis =
-            Just model.code
-    }
-    --  Nothing ->
-    --    { model
-    --        | pbeSynthesisResult = Nothing
-    --        , codeAtPbeSynthesis = Nothing
-    --    }
-
-msgCollectAndSolve : Msg
-msgCollectAndSolve =
-  Msg "Collect and Solve" collectAndSolve
+-- collectAndSolve : Model -> Model
+-- collectAndSolve model =
+--   let
+--     resultCollectedConstraints : NonDet U.Constraints
+--     resultCollectedConstraints =
+--       model.unExpOutput
+--         |> Result.map Tuple.second
+--         |> Result.withDefault NonDet.none
+--
+--     resultBackpropExampleConstraints : NonDet U.Constraints
+--     resultBackpropExampleConstraints =
+--       if model.backpropExampleInput == "" then
+--         NonDet.pure []
+--       else
+--         case model.selectedUnExp of
+--           Just uSelected ->
+--             model.backpropExampleInput
+--               |> U.parseExample
+--               |> Result.map (TriEval.backprop (TriEval.setNoData uSelected))
+--               |> Result.withDefault NonDet.none
+--
+--           Nothing ->
+--             NonDet.none
+--
+--     resultHoleExampleConstraints : NonDet U.Constraints
+--     resultHoleExampleConstraints =
+--       let
+--         makeWorld : (U.Env, String) -> Result String World
+--         makeWorld ((_, exString) as worldInput) =
+--           worldInput
+--             |> Tuple.mapSecond U.parseExample
+--             |> Utils.liftResultPair2
+--             |> Result.mapError
+--                  (\_ -> "Could not parse example '" ++ exString ++ "'")
+--       in
+--         model.holeExampleInputs
+--           |> Dict.map (\_ -> Dict.values)
+--           |> Dict.toList
+--           |> List.map
+--                ( Tuple.mapSecond
+--                      ( List.filter (\(_, input) -> input /= "")
+--                          >> List.map makeWorld
+--                          >> Utils.projOk
+--                      )
+--                    >> Utils.liftResultPair2
+--                    >> Result.map (\(holeId, worlds) -> List.map ((,) holeId) worlds)
+--                )
+--           |> Utils.projOk
+--           |> Result.map (List.concat >> NonDet.pure)
+--           |> Result.withDefault NonDet.none
+--
+--     possibleConstraints =
+--       NonDet.map List.concat <|
+--         NonDet.oneOfEach
+--           [ resultCollectedConstraints
+--           , resultBackpropExampleConstraints
+--           , resultHoleExampleConstraints
+--           ]
+--
+--     (holeFillings, timeTaken) =
+--       PBESynth.solve
+--         (Types2.getDataTypeDefs model.inputExp)
+--         model.holeEnv
+--         possibleConstraints
+--   in
+--     { model
+--         | pbeSynthesisResult =
+--             Just
+--               { holeFillings = holeFillings
+--               , timeTaken = timeTaken
+--               }
+--         , codeAtPbeSynthesis =
+--             Just model.code
+--     }
+--     --  Nothing ->
+--     --    { model
+--     --        | pbeSynthesisResult = Nothing
+--     --        , codeAtPbeSynthesis = Nothing
+--     --    }
+--
+-- msgCollectAndSolve : Msg
+-- msgCollectAndSolve =
+--   Msg "Collect and Solve" collectAndSolve
 
 --------------------------------------------------------------------------------
 -- UnExp Preview
@@ -4762,27 +4762,28 @@ msgTSEFLLPApplyTextEdit =
 
 --------------------------------------------------------------------------------
 
-loadPBESuiteExample : String -> String -> Model -> Model
-loadPBESuiteExample name programText model =
-  let
-    (exp, holeEnv, output) =
-      Model.loadPBESuiteExample name programText
-
-    resetModel =
-      resetDeuceState model
-  in
-    { resetModel
-        | code = programText
-        , inputExp = exp
-        , holeEnv = holeEnv
-        , unExpOutput = output
-    }
+--loadPBESuiteExample : String -> String -> Model -> Model
+--loadPBESuiteExample name programText model =
+--  let
+--    (exp, holeEnv, output) =
+--      Model.loadPBESuiteExample name programText
+--
+--    resetModel =
+--      resetDeuceState model
+--  in
+--    { resetModel
+--        | code = programText
+--        , inputExp = exp
+--        , holeEnv = holeEnv
+--        , unExpOutput = output
+--    }
 
 msgLoadPBESuiteExample : String -> String -> Msg
 msgLoadPBESuiteExample name programText =
-  Msg "Load PBE Suite Example" <|
-    loadPBESuiteExample name programText
-      >> closeDialogBox PBESuiteList
+  NewModelAndCmd "Load PBE Suite Example" <| \model ->
+    { model | code = programText }
+      |> closeDialogBox PBESuiteList
+      |> coreRun
 
 --------------------------------------------------------------------------------
 
@@ -4839,14 +4840,14 @@ runPBESuiteExample name (programText, ex1, ex1Count, ex2, ex2Count) =
   let
     model1 =
       initModel
-        |> loadPBESuiteExample name (programText ++ ex1)
+        -- |> loadPBESuiteExample name (programText ++ ex1)
 
     fullVersion =
       model1.inputExp
 
     run1 =
       model1
-        |> collectAndSolve
+        -- |> collectAndSolve
         |> .pbeSynthesisResult
         |> Maybe.map (\sr -> { sr | holeFillings = Utils.dedup sr.holeFillings })
         |> (,) ex1Count
@@ -4856,8 +4857,8 @@ runPBESuiteExample name (programText, ex1, ex1Count, ex2, ex2Count) =
         (-1, Nothing)
       else
         initModel
-          |> loadPBESuiteExample name (programText ++ ex2)
-          |> collectAndSolve
+          -- |> loadPBESuiteExample name (programText ++ ex2)
+          -- |> collectAndSolve
           |> .pbeSynthesisResult
           |> Maybe.map (pbeStats fullVersion)
           |> (,) ex2Count
@@ -4953,15 +4954,18 @@ msgBenchmarkPBE =
 
 --------------------------------------------------------------------------------
 
+coreRun : Model -> (Model, Cmd Msg)
+coreRun model =
+  case Core.Bridge.compile model.code of
+    Ok (cexp, _) ->
+      (model, Core.Bridge.eval cexp msgReceiveCoreRun)
+
+    Err err ->
+      ({ model | unExpOutput = Err err }, Cmd.none)
+
 msgRequestCoreRun : Msg
 msgRequestCoreRun =
-  NewModelAndCmd "Reqest Core Run"  <| \model ->
-    case Core.Bridge.compile model.code of
-      Ok (cexp, _) ->
-        (model, Core.Bridge.eval cexp msgReceiveCoreRun)
-
-      Err err ->
-        ({ model | unExpOutput = Err err }, Cmd.none)
+  NewModelAndCmd "Reqest Core Run" coreRun
 
 msgReceiveCoreRun :
   Core.Bridge.Failable
@@ -4983,5 +4987,74 @@ msgReceiveCoreRun response =
 
           Ok (res, assertions) ->
             { model | unExpOutput =
-                Ok (Core.Uncompile.res res, NonDet.pure [])
+                Ok (Core.Uncompile.res res, assertions)
             }
+
+--------------------------------------------------------------------------------
+
+coreSynthesis : Model -> (Model, Cmd Msg)
+coreSynthesis model =
+  case model.unExpOutput of
+    Ok (_, assertions) ->
+      let
+        (datatypeEnv, holeEnv) =
+          model.inputExp
+            |> Types2.typecheck
+            |> Tuple.mapFirst Types2.getDataTypeDefs
+      in
+        case Core.Compile.holeContext holeEnv of
+          Ok holeContext ->
+            case Core.Compile.datatypeContext datatypeEnv of
+              Ok datatypeContext ->
+                ( model
+                , Core.Bridge.synthesize
+                    (holeContext, datatypeContext, assertions)
+                    msgReceiveCoreSynthesis
+                )
+
+              Err e ->
+                ( { model | unExpOutput =
+                      Err <|
+                        "Datatype context compilation error: " ++ toString e
+                  }
+                , Cmd.none
+                )
+
+          Err e ->
+            ( { model | unExpOutput =
+                  Err <|
+                    "Hole context compilation error: " ++ toString e
+              }
+            , Cmd.none
+            )
+
+    Err _ ->
+      (model, Cmd.none)
+
+msgRequestCoreSynthesis : Msg
+msgRequestCoreSynthesis =
+  NewModelAndCmd "Reqest Core Synthesis" coreSynthesis
+
+msgReceiveCoreSynthesis :
+  Core.Bridge.Failable (List Core.Lang.HoleFilling, Float) -> Msg
+msgReceiveCoreSynthesis response =
+  Msg "Receive Core Synthesis" <| \model ->
+    case response of
+      Core.Bridge.HttpError httpError ->
+        { model | unExpOutput = Err ("Http error: " ++ toString httpError) }
+
+      Core.Bridge.ServerError serverError ->
+        { model | unExpOutput = Err ("Server error: " ++ serverError) }
+
+      Core.Bridge.Success (holeFillings, timeTaken) ->
+        { model | pbeSynthesisResult =
+            Just
+              { holeFillings =
+                  List.map
+                    (Dict.fromList >> Dict.map (\_ -> Core.Uncompile.exp))
+                    holeFillings
+
+              , timeTaken =
+                  timeTaken
+              }
+        }
