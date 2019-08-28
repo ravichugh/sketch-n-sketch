@@ -100,14 +100,13 @@ type resumption_assertions =
   [@@deriving yojson]
 
 type gen_goal =
-  { sigma : datatype_ctx
-  ; gamma : type_ctx
+  { gamma : type_ctx
   ; goal_type : typ
   }
 
 type synthesis_goal =
-  { sigma : datatype_ctx
-  ; gamma : type_ctx
+  { gamma : type_ctx
+  ; hole_name : hole_name
   ; goal_type : typ
   ; worlds : worlds
   }

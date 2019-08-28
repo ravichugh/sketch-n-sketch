@@ -58,7 +58,8 @@ type term_kind =
   | I
 
 type gen_input =
-  { term_kind : term_kind
+  { sigma : datatype_ctx
+  ; term_kind : term_kind
   ; term_size : int
   ; rel_binding : type_binding option
   ; goal : gen_goal
@@ -152,19 +153,23 @@ let record (gen_input : gen_input) (solution : exp Nondet.t) : exp Nondet.t =
  *)
 
 let rec gen_e
-  (term_size : int) (goal : gen_goal)
+  (sigma : datatype_ctx)
+  (term_size : int)
+  (goal : gen_goal)
   : exp Nondet.t =
     match goal.gamma with
       | binding :: gamma_rest ->
           Nondet.union
             [ gen
-                { term_kind = E
+                { sigma
+                ; term_kind = E
                 ; term_size
                 ; rel_binding = Some binding
                 ; goal = { goal with gamma = gamma_rest }
                 }
             ; gen
-                { term_kind = E
+                { sigma
+                ; term_kind = E
                 ; term_size
                 ; rel_binding = None
                 ; goal = { goal with gamma = gamma_rest }
@@ -176,6 +181,7 @@ let rec gen_e
 
 (* A helper for the application part of rel_gen_e *)
 and rel_gen_e_app
+  (sigma : datatype_ctx)
   (term_size : int)
   ((rel_name, (rel_type, _)) as rel_binding : type_binding)
   ({ gamma; goal_type } as goal : gen_goal)
@@ -209,20 +215,19 @@ and rel_gen_e_app
           (* Will always happen*)
           | [k_head; k_arg] ->
               let head_goal =
-                { sigma = goal.sigma
-                ; gamma = goal.gamma
+                { gamma = goal.gamma
                 ; goal_type = TArr (arg_type, goal_type)
                 }
               in
               let arg_goal =
-                { sigma = goal.sigma
-                ; gamma = goal.gamma
+                { gamma = goal.gamma
                 ; goal_type = arg_type
                 }
               in
                 Nondet.bind
                   ( gen
-                      { term_kind = E
+                      { sigma
+                      ; term_kind = E
                       ; term_size = k_head
                       ; rel_binding = None
                       ; goal = head_goal
@@ -230,7 +235,8 @@ and rel_gen_e_app
                   ) @@ fun head_solution ->
                 Nondet.bind
                   ( gen
-                      { term_kind = E
+                      { sigma
+                      ; term_kind = E
                       ; term_size = k_head
                       ; rel_binding = Some rel_binding
                       ; goal = head_goal
@@ -238,7 +244,8 @@ and rel_gen_e_app
                   ) @@ fun rel_head_solution ->
                 Nondet.bind
                   ( gen
-                      { term_kind = I
+                      { sigma
+                      ; term_kind = I
                       ; term_size = k_arg
                       ; rel_binding = None
                       ; goal = arg_goal
@@ -246,7 +253,8 @@ and rel_gen_e_app
                   ) @@ fun arg_solution ->
                 Nondet.bind
                   ( gen
-                      { term_kind = I
+                      { sigma
+                      ; term_kind = I
                       ; term_size = k_arg
                       ; rel_binding = Some rel_binding
                       ; goal = arg_goal
@@ -270,6 +278,7 @@ and rel_gen_e_app
               Nondet.none
 
 and rel_gen_e
+  (sigma : datatype_ctx)
   (term_size : int)
   ((rel_name, (rel_type, _)) as rel_binding : type_binding)
   ({ goal_type } as goal : gen_goal)
@@ -302,9 +311,10 @@ and rel_gen_e
 
       (* All applications have size > 2 *)
       | _ ->
-        rel_gen_e_app term_size rel_binding goal
+        rel_gen_e_app sigma term_size rel_binding goal
 
 and genp_i
+  (sigma : datatype_ctx)
   (term_size : int)
   (tp : term_permission)
   (rel_binding : type_binding)
@@ -322,13 +332,15 @@ and genp_i
             (None, goal.gamma)
     in
       gen
-        { term_kind = I
+        { sigma
+        ; term_kind = I
         ; term_size
         ; rel_binding = rel_binding'
         ; goal = { goal with gamma = gamma' }
         }
 
 and gen_i
+  (sigma : datatype_ctx)
   (term_size : int)
   (goal : gen_goal)
   : exp Nondet.t =
@@ -336,13 +348,15 @@ and gen_i
       | binding :: gamma_rest ->
           Nondet.union
             [ gen
-                { term_kind = I
+                { sigma
+                ; term_kind = I
                 ; term_size
                 ; rel_binding = Some binding
                 ; goal = { goal with gamma = gamma_rest }
                 }
             ; gen
-                { term_kind = I
+                { sigma
+                ; term_kind = I
                 ; term_size
                 ; rel_binding = None
                 ; goal = { goal with gamma = gamma_rest }
@@ -360,13 +374,12 @@ and gen_i
                 in
                 let possible_body =
                   gen
-                    { term_kind = I
+                    { sigma
+                    ; term_kind = I
                     ; term_size = term_size - 1 (* -1 for lambda *)
                     ; rel_binding = None
                     ; goal =
-                        { sigma =
-                            goal.sigma
-                        ; gamma =
+                        { gamma =
                             [ (arg_name, (tau1, Dec f_name))
                             ; (f_name, (goal.goal_type, Rec f_name))
                             ]
@@ -394,12 +407,12 @@ and gen_i
                       List.map2
                         begin fun tau n ->
                           gen
-                            { term_kind = I
+                            { sigma
+                            ; term_kind = I
                             ; term_size = n
                             ; rel_binding = None
                             ; goal =
-                                { sigma = goal.sigma
-                                ; gamma = []
+                                { gamma = []
                                 ; goal_type = tau
                                 }
                             }
@@ -409,18 +422,18 @@ and gen_i
 
             | TData datatype_name ->
                 Nondet.bind
-                  ( List.assoc_opt datatype_name goal.sigma
+                  ( List.assoc_opt datatype_name sigma
                       |> Option2.map Nondet.from_list
                       |> Option2.with_default Nondet.none
                   ) @@ fun (ctor_name, arg_type) ->
                 let possible_arg =
                   gen
-                    { term_kind = I
+                    { sigma
+                    ; term_kind = I
                     ; term_size = term_size - 1 (* -1 for constructor *)
                     ; rel_binding = None
                     ; goal =
-                        { sigma = goal.sigma
-                        ; gamma = []
+                        { gamma = []
                         ; goal_type = arg_type
                         }
                     }
@@ -430,6 +443,7 @@ and gen_i
           end
 
 and rel_gen_i
+  (sigma : datatype_ctx)
   (term_size : int)
   (rel_binding : type_binding)
   (goal : gen_goal)
@@ -437,7 +451,8 @@ and rel_gen_i
     (* All E-forms are I-forms *)
     let e_option =
       gen
-        { term_kind = E
+        { sigma
+        ; term_kind = E
         ; term_size
         ; rel_binding = Some rel_binding
         ; goal
@@ -454,13 +469,12 @@ and rel_gen_i
             in
             let possible_body =
               gen
-                { term_kind = I
+                { sigma
+                ; term_kind = I
                 ; term_size = term_size - 1 (* -1 for lambda *)
                 ; rel_binding = Some rel_binding
                 ; goal =
-                    { sigma =
-                        goal.sigma
-                    ; gamma =
+                    { gamma =
                         (arg_name, (tau1, Dec f_name))
                           :: (f_name, (goal.goal_type, Rec f_name))
                           :: goal.gamma
@@ -491,9 +505,8 @@ and rel_gen_i
                 Nondet.one_of_each @@
                   List2.map3
                     begin fun tau n tp ->
-                      genp_i n tp rel_binding
-                        { sigma = goal.sigma
-                        ; gamma = goal.gamma
+                      genp_i sigma n tp rel_binding
+                        { gamma = goal.gamma
                         ; goal_type = tau
                         }
                     end
@@ -503,18 +516,18 @@ and rel_gen_i
 
         | TData datatype_name ->
             Nondet.bind
-              ( List.assoc_opt datatype_name goal.sigma
+              ( List.assoc_opt datatype_name sigma
                   |> Option2.map Nondet.from_list
                   |> Option2.with_default Nondet.none
               ) @@ fun (ctor_name, arg_type) ->
             let possible_arg =
               gen
-                { term_kind = I
+                { sigma
+                ; term_kind = I
                 ; term_size = term_size - 1 (* -1 for constructor *)
                 ; rel_binding = Some rel_binding
                 ; goal =
-                    { sigma = goal.sigma
-                    ; gamma = goal.gamma
+                    { gamma = goal.gamma
                     ; goal_type = arg_type
                     }
                 }
@@ -533,20 +546,24 @@ and gen (gen_input : gen_input) : exp Nondet.t =
           solution
 
       | None ->
-          record gen_input @@
-            begin match (gen_input.term_kind, gen_input.rel_binding) with
-              | (E, None) ->
-                  gen_e gen_input.term_size gen_input.goal
+          let
+            { term_size; sigma; goal; _ } =
+              gen_input
+          in
+            record gen_input @@
+              begin match (gen_input.term_kind, gen_input.rel_binding) with
+                | (E, None) ->
+                    gen_e sigma term_size goal
 
-              | (E, Some rb) ->
-                  rel_gen_e gen_input.term_size rb gen_input.goal
+                | (E, Some rb) ->
+                    rel_gen_e sigma term_size rb goal
 
-              | (I, None) ->
-                  gen_i gen_input.term_size gen_input.goal
+                | (I, None) ->
+                    gen_i sigma term_size goal
 
-              | (I, Some rb) ->
-                  rel_gen_i gen_input.term_size rb gen_input.goal
-            end
+                | (I, Some rb) ->
+                    rel_gen_i sigma term_size rb goal
+              end
 
 (*******************************************************************************
  * Term generation exports
@@ -555,12 +572,13 @@ and gen (gen_input : gen_input) : exp Nondet.t =
 let clear_cache _ =
   Hashtbl.reset gen_cache
 
-let up_to_e max_size goal =
+let up_to_e sigma max_size goal =
   List2.range 1 max_size
     |> List.map
          begin fun term_size ->
            gen
-             { term_kind = E
+             { sigma
+             ; term_kind = E
              ; rel_binding = None
              ; term_size
              ; goal

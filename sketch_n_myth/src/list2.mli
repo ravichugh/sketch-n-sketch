@@ -15,3 +15,9 @@ val remove_first : 'a -> 'a list -> 'a list
 (* Should only use on comparable types *)
 val permutations : 'a list -> 'a list list
 val map3 : ('a -> 'b -> 'c -> 'd) -> 'a list -> 'b list -> 'c list -> 'd list
+val hd_opt : 'a list -> 'a option
+val tl_opt : 'a list -> 'a list option
+val uncons : 'a list -> ('a * 'a list) option
+val is_empty : 'a list -> bool
+val transpose : 'a list list -> 'a list list
+val collapse_equal : 'a list -> 'a option

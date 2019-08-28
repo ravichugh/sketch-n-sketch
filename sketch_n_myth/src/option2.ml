@@ -6,6 +6,9 @@ let map f =
     | None ->
         None
 
+let pure_bind ox f =
+  map f ox
+
 let bind ox f =
   match ox with
     | Some x ->
@@ -41,3 +44,11 @@ let with_default default ox =
 
     | None ->
         default
+
+let sequence_left (ox, y) =
+  match ox with
+    | Some x ->
+        Some (x, y)
+
+    | None ->
+        None

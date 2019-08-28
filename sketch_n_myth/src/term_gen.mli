@@ -12,4 +12,4 @@ val clear_cache : unit -> unit
 
 (* Generates e-terms up to (and including) some size.
  *)
-val up_to_e : int -> gen_goal -> exp Nondet.t
+val up_to_e : datatype_ctx -> int -> gen_goal -> exp Nondet.t

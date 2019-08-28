@@ -101,3 +101,53 @@ let map3 f xs1 xs2 xs3 =
     (fun (x1, x2) x3 -> f x1 x2 x3)
     (List.combine xs1 xs2)
     xs3
+
+let hd_opt xs =
+  match xs with
+    | [] ->
+        None
+
+    | head :: tail ->
+        Some head
+
+let tl_opt xs =
+  match xs with
+    | [] ->
+        None
+
+    | head :: tail ->
+        Some tail
+
+let uncons xs =
+  match xs with
+    | [] ->
+        None
+
+    | head :: tail ->
+        Some (head, tail)
+
+let is_empty xs =
+  match xs with
+    | [] ->
+        true
+
+    | _ :: _ ->
+        false
+
+let rec transpose xss =
+  if List.for_all is_empty xss then
+    []
+  else
+    filter_map hd_opt xss
+      :: transpose (List.map (tl_opt >> Option2.with_default []) xss)
+
+let collapse_equal xs =
+  match xs with
+    | [] ->
+        None
+
+    | head :: tail ->
+        if List.for_all (fun x -> x = head) tail then
+          Some head
+        else
+          None
