@@ -4,7 +4,7 @@ open Lang
  * Identifier generation
  *)
 
-let fresh_ident first_char gamma =
+let fresh_ident gamma first_char =
   let extract_number (ident : string) : int option =
     let ident_len =
       String.length ident
@@ -367,10 +367,10 @@ and gen_i
           begin match goal.goal_type with
             | TArr (tau1, tau2) ->
                 let f_name =
-                  fresh_ident function_char []
+                  fresh_ident [] function_char
                 in
                 let arg_name =
-                  fresh_ident variable_char []
+                  fresh_ident [] variable_char
                 in
                 let possible_body =
                   gen
@@ -462,10 +462,10 @@ and rel_gen_i
       match goal.goal_type with
         | TArr (tau1, tau2) ->
             let f_name =
-              fresh_ident function_char goal.gamma
+              fresh_ident goal.gamma function_char
             in
             let arg_name =
-              fresh_ident variable_char goal.gamma
+              fresh_ident goal.gamma variable_char
             in
             let possible_body =
               gen

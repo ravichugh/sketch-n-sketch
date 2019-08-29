@@ -1,6 +1,6 @@
 open Lang
 
-val fresh_ident : char -> type_ctx -> string
+val fresh_ident : type_ctx -> char -> string
 val function_char : char
 val variable_char : char
 val match_char : char

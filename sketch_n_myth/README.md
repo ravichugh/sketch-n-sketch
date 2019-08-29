@@ -42,5 +42,5 @@ All other source code can be found in the [`src`](src/) directory.
 | Constraint solving                          | ---
 | Hole filling                                | ---
 | Type-and-example-directed refinement        | [`refine.mli`](src/refine.mli)/[`refine.ml`](src/refine.ml)
-| Type-and-example-directed branching         | (TODO) [`branch.mli`](src/branch.mli)/[`branch.ml`](src/branch.ml)
+| Type-and-example-directed branching         | [`branch.mli`](src/branch.mli)/[`branch.ml`](src/branch.ml)
 | Type-directed guessing (term generation)    | [`term_gen.mli`](src/term_gen.mli)/[`term_gen.ml`](src/term_gen.ml)

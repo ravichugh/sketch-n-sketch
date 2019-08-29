@@ -17,13 +17,13 @@ let refine delta sigma ({ gamma; goal_type; } as g) =
           in
           let f_name =
             Term_gen.fresh_ident
-              Term_gen.function_char
               gamma
+              Term_gen.function_char
           in
           let x_name =
             Term_gen.fresh_ident
-              Term_gen.function_char
               gamma
+              Term_gen.function_char
           in
           let refined_worlds_opt =
             filtered_worlds
