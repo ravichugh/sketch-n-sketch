@@ -81,6 +81,7 @@ let server =
       | "/synthesize" ->
           handle synthesis_request_of_yojson synthesis_response_to_yojson @@
             fun {delta; sigma; assertions} ->
+              let _ = (delta, sigma, assertions) in
               { time_taken = -1.0
               ; hole_fillings = []
               }

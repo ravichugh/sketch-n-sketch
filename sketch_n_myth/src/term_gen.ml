@@ -183,7 +183,7 @@ let rec gen_e
 and rel_gen_e_app
   (sigma : datatype_ctx)
   (term_size : int)
-  ((rel_name, (rel_type, _)) as rel_binding : type_binding)
+  (rel_binding : type_binding)
   ({ gamma; goal_type } as goal : gen_goal)
   : exp Nondet.t =
     let possible_arg_type =
@@ -573,7 +573,7 @@ let clear_cache _ =
   Hashtbl.reset gen_cache
 
 let up_to_e sigma max_size goal =
-  List2.range 1 max_size
+  List2.range ~low:1 ~high:max_size
     |> List.map
          begin fun term_size ->
            gen

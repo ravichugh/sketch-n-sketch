@@ -1,9 +1,9 @@
 open Lang
 
 let filter (ws : worlds) : worlds =
-  List.filter (fun (env, ex) -> ex <> ExTop) ws
+  List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
-let refine delta sigma ({ gamma; goal_type; } as g) =
+let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
   let
     filtered_worlds =
       filter g.worlds

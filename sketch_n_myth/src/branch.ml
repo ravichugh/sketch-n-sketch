@@ -32,7 +32,7 @@ module Ctor_map = struct
 end
 
 let filter (ws : worlds) : worlds =
-  List.filter (fun (env, ex) -> ex <> ExTop) ws
+  List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
 let distribute
   (arg_name : string)
@@ -46,7 +46,7 @@ let distribute
       | _ ->
           None
 
-let branch params delta sigma { gamma; hole_name; goal_type; worlds } =
+let branch params _delta sigma { gamma; goal_type; worlds } =
   let
     filtered_worlds =
       filter worlds

@@ -107,7 +107,7 @@ let hd_opt xs =
     | [] ->
         None
 
-    | head :: tail ->
+    | head :: _ ->
         Some head
 
 let tl_opt xs =
@@ -115,7 +115,7 @@ let tl_opt xs =
     | [] ->
         None
 
-    | head :: tail ->
+    | _ :: tail ->
         Some tail
 
 let uncons xs =
