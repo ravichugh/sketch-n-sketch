@@ -40,7 +40,7 @@ All other source code can be found in the [`src`](src/) directory.
 | Result consistency                          | [`res.mli`](src/res.mli)/[`res.ml`](src/res.ml)
 | Assertion satisfaction and simplification   | [`uneval.mli`](src/uneval.mli)/[`uneval.ml`](src/uneval.ml)
 | Constraint solving                          | ---
-| Hole filling                                | ---
+| Hole filling                                | [`fill.mli`](src/fill.mli)/[`fill.ml`](src/fill.ml)
 | Type-and-example-directed refinement        | [`refine.mli`](src/refine.mli)/[`refine.ml`](src/refine.ml)
 | Type-and-example-directed branching         | [`branch.mli`](src/branch.mli)/[`branch.ml`](src/branch.ml)
 | Type-directed guessing (term generation)    | [`term_gen.mli`](src/term_gen.mli)/[`term_gen.ml`](src/term_gen.ml)
