@@ -1,6 +1,6 @@
 ( library
   ( name
-      pervasives2
+      stdlib2
   )
   ( wrapped
       false

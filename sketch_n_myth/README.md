@@ -2,6 +2,11 @@
 
 ## Building and Running
 
+***Important note:***
+Sketch-n-Myth is built with OCaml v4.08.1. When first working with the
+Sketch-n-Myth codebase, please run `make deps` to download all the necessary
+Opam dependencies.
+
 ***To build and run the server:***
 From the root directory (where this `README` is), run `make serve`.
 
@@ -14,9 +19,9 @@ Utility/helper modules end with the character "2" so as to be consistent with
 one another as well as distinct from the OCaml standard library (e.g.
 [`List2`](src/list2.mli) and [`Option2`](src/option2.mli)).
 
-The module [`Pervasives2`](lib/pervasives2/pervasives2.mli) found in the
-[`lib/pervasives2/`](lib/pervasives2/) directory contains a small set of core
-utilities and is automatically `open`ed in every file.
+The module [`Stdlib2`](lib/stdlib2/stdlib2.mli) found in the
+[`lib/stdlib2/`](lib/stdlib2/) directory contains a small set of core utilities
+and is automatically `open`ed in every file.
 
 All other source code can be found in the [`src`](src/) directory.
 

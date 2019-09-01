@@ -1,6 +1,3 @@
-let identity x =
-  x
-
 let (<<) f g x =
   f (g x)
 
