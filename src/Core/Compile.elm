@@ -379,7 +379,7 @@ holeContext =
   let
     holeEnvElement :
       T.HoleEnvElement
-        -> Result CompileError (C.HoleName, (C.TypeContext, C.Typ, C.BindSpec))
+        -> Result CompileError (C.HoleName, (C.TypeContext, C.Typ))
     holeEnvElement (holeId, (gamma, tau)) =
       Result.map2 (\gamma_ tau_ -> (holeId, (gamma_, tau_)))
         (typeContext gamma)
