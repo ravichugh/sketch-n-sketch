@@ -38,25 +38,8 @@ let sequence mxs =
     mxs
     ([[]])
 
-let filter_map f xs =
-  let rec helper acc =
-    function
-      | [] ->
-          List.rev acc
-
-      | head :: tail ->
-          begin match f head with
-            | Some y ->
-                helper (y :: acc) tail
-
-            | None ->
-                helper acc tail
-          end
-  in
-    helper [] xs
-
 let filter_somes xs =
-  filter_map Fun.id xs
+  List.filter_map Fun.id xs
 
 let intersperse sep xs =
   let rec helper acc =
@@ -138,7 +121,7 @@ let rec transpose xss =
   if List.for_all is_empty xss then
     []
   else
-    filter_map hd_opt xss
+    List.filter_map hd_opt xss
       :: transpose (List.map (tl_opt >> Option2.with_default []) xss)
 
 let collapse_equal xs =

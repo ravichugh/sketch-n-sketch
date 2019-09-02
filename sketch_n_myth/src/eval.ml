@@ -40,8 +40,8 @@ let rec eval env exp =
           |> Result2.map
                begin fun evals -> evals
                  |> List.split
-                 |> Pair2.map_left (fun rs -> RTuple rs)
-                 |> Pair2.map_right List.concat
+                 |> Pair2.map_fst (fun rs -> RTuple rs)
+                 |> Pair2.map_snd List.concat
                end
 
     | ECtor (name, arg) ->
@@ -81,7 +81,7 @@ let rec eval env exp =
                   x_env_extension @ f_env_extension @ f_env
                 in
                   Result2.map
-                    (Pair2.map_right @@ fun ks3 -> ks1 @ ks2 @ ks3)
+                    (Pair2.map_snd @@ fun ks3 -> ks1 @ ks2 @ ks3)
                     (eval new_env body)
 
             | _ ->
@@ -126,7 +126,7 @@ let rec eval env exp =
                 begin match List.assoc_opt ctor_name branches with
                   | Some (arg_name, body) ->
                       Result2.map
-                        ( Pair2.map_right @@
+                        ( Pair2.map_snd @@
                             fun ks_body -> ks0 @ ks_body
                         )
                         ( eval
@@ -208,8 +208,8 @@ let rec resume hf res =
           |> Result2.map
                begin fun rs -> rs
                  |> List.split
-                 |> Pair2.map_left (fun rs -> RTuple rs)
-                 |> Pair2.map_right List.concat
+                 |> Pair2.map_fst (fun rs -> RTuple rs)
+                 |> Pair2.map_snd List.concat
                end
 
     | RCtor (name, arg) ->
@@ -300,7 +300,7 @@ let rec resume hf res =
                 begin match List.assoc_opt ctor_name branches with
                   | Some (arg_name, body) ->
                       Result2.map
-                        ( Pair2.map_right @@
+                        ( Pair2.map_snd @@
                             fun ks_body -> ks0 @ ks_body
                         )
                         ( resume hf @@
@@ -332,13 +332,13 @@ and resume_env (hf : hole_filling) (env : env) : eval_env_result =
   env
     |> List.map
          begin fun binding -> binding
-           |> Pair2.map_right (resume hf)
-           |> Pair2.lift_right_result
+           |> Pair2.map_snd (resume hf)
+           |> Pair2.lift_snd_result
          end
     |> Result2.sequence
     |> Result2.map
          begin fun binding -> binding
            |> List.map (fun (x, (r, ks)) -> ((x, r), ks))
            |> List.split
-           |> Pair2.map_right List.concat
+           |> Pair2.map_snd List.concat
          end

@@ -19,6 +19,9 @@ let from_hole_filling hf =
 let from_unsolved_constraints us =
   (Hole_map.empty, us)
 
+let from_both hf u =
+  (hf, u)
+
 let solved_singleton h e =
   (Hole_map.singleton h e, Hole_map.empty)
 

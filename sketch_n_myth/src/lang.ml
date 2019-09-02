@@ -62,7 +62,7 @@ type datatype_ctx =
   [@@deriving yojson]
 
 type hole_ctx =
-  (hole_name * (type_ctx * typ * bind_spec)) list
+  (hole_name * (type_ctx * typ)) list
   [@@deriving yojson]
 
 type value =
@@ -100,13 +100,10 @@ type resumption_assertions =
   [@@deriving yojson]
 
 type gen_goal =
-  { gamma : type_ctx
-  ; goal_type : typ
-  }
+  type_ctx * typ * string option
 
 type synthesis_goal =
-  { gamma : type_ctx
-  ; hole_name : hole_name
-  ; goal_type : typ
-  ; worlds : worlds
-  }
+  gen_goal * worlds
+
+type fill_goal =
+  hole_name * synthesis_goal

@@ -153,9 +153,9 @@ datatypeContext =
 holeContext : HoleContext -> E.Value
 holeContext =
   let
-    holeBinding : (HoleName, (TypeContext, Typ, BindSpec)) -> E.Value
-    holeBinding (holeName, (gamma, tau, bs)) =
-      list [int holeName, list [typeContext gamma, typ tau, bindSpec bs]]
+    holeBinding : (HoleName, (TypeContext, Typ)) -> E.Value
+    holeBinding (holeName, (gamma, tau)) =
+      list [int holeName, list [typeContext gamma, typ tau]]
   in
     List.map holeBinding >> list
 

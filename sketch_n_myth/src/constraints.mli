@@ -3,6 +3,7 @@ open Lang
 val empty : constraints
 val from_hole_filling : hole_filling -> constraints
 val from_unsolved_constraints : unsolved_constraints -> constraints
+val from_both : hole_filling -> unsolved_constraints -> constraints
 
 val solved_singleton : hole_name -> exp -> constraints
 val unsolved_singleton : hole_name -> worlds -> constraints

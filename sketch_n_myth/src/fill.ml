@@ -1,4 +1,5 @@
 open Lang
+open Nondet.Syntax
 
 type params =
   { max_scrutinee_size : int
@@ -6,64 +7,87 @@ type params =
   ; max_term_size : int
   }
 
-let refine_branch params delta sigma hf goal =
-  let refinement_nd =
-    Refine.refine delta sigma goal
-      |> Nondet.lift_option
-  in
-  let branch_nd =
-    if params.max_match_depth > 0 then
-      Branch.branch
-        { max_scrutinee_size = params.max_scrutinee_size }
-        delta
-        sigma
-        goal
-    else
-      Nondet.none
-  in
-  Nondet.bind
-    ( refinement_nd :: branch_nd
-    ) @@ fun (exp, subgoals) ->
-  let new_params =
-    match exp with
-      | ECase (_, _) ->
-          { params with max_match_depth = params.max_match_depth - 1 }
-
-      | _ ->
-          params
+let refine_or_branch params delta sigma _hf (hole_name, synthesis_goal) =
+  let+ (exp, subgoals) =
+    Nondet.union
+      [ Nondet.lift_option @@
+          Refine.refine
+            delta
+            sigma
+            synthesis_goal
+      ; if params.max_match_depth > 0 then
+          Branch.branch
+            { Branch.max_scrutinee_size = params.max_scrutinee_size }
+            delta
+            sigma
+            synthesis_goal
+        else
+          Nondet.none
+      ]
   in
   let delta' =
     List.map
-      ( fun { gamma; hole_name; goal_type } ->
-        (hole_name, (gamma, goal_Type, NoSpec))
+      ( fun (hole_name, ((gamma, goal_type, _), _)) ->
+          (hole_name, (gamma, goal_type))
       )
       subgoals
   in
-  let new_delta =
-    delta' @ delta
+  let solved_constraints =
+    Hole_map.singleton hole_name exp
   in
-  let child_nd =
+  let unsolved_constraints =
     subgoals
-      (* TODO what about updating hf? *)
-      |> List.map (fill new_params new_delta sigma hf)
-      |> Nondet.one_of_each
-      |> Nondet.map
-           ( List.split
-               >> Pair2.map_left Constraints.merge
-               >> Pair2.map_right List.concat
-               >> Option2.sequence_left
+      |> List.map
+           ( fun (hole_name, (_, worlds)) ->
+               Hole_map.singleton hole_name worlds
            )
-      |> Nondet.collapse_option
+      |> Constraints.merge_unsolved
   in
-  Nondet.bind child_nd @@ fun (child_constraints, child_delta) ->
-  Nondet.lift_option @@
-    Option2.sequence_left @@
-      ( Constraints.merge
-          [ Constraints.solved_singleton goal.hole_name exp
-          ; child_constraints
-          ]
-      , child_delta @ delta'
-      )
+    ( Constraints.from_both
+        solved_constraints
+        unsolved_constraints
+    , delta'
+    )
 
-let fill params delta sigma hf goal =
-  raise Exit
+let guess_and_check params delta sigma hf (hole_name, (gen_goal, worlds)) =
+  let* exp =
+    Term_gen.up_to_e sigma params.max_term_size gen_goal
+  in
+  let binding =
+    Hole_map.singleton hole_name exp
+  in
+  let* extended_hf =
+    Nondet.lift_option @@
+      Constraints.merge_solved [binding; hf]
+  in
+  let* constraints =
+    Uneval.check delta sigma extended_hf exp worlds
+  in
+    Nondet.lift_option @@
+      Option2.sequence_fst
+        ( Constraints.merge
+            [ Constraints.from_hole_filling binding
+            ; constraints
+            ]
+        , []
+        )
+
+let defer _params _delta _sigma _hf (hole_name, (_, worlds)) =
+  if
+    List.length worlds > 0
+      && List.for_all (fun (_, ex) -> ex = ExTop) worlds
+  then
+    Nondet.pure
+      ( Constraints.solved_singleton hole_name (EHole hole_name)
+      , []
+      )
+  else
+    Nondet.none
+
+let fill params delta sigma hf fill_goal =
+  Nondet.union @@
+    List.map
+      ( fun rule ->
+          rule params delta sigma hf fill_goal
+      )
+      [ refine_or_branch; guess_and_check; defer ]

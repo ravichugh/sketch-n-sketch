@@ -62,3 +62,13 @@ let structurally_decreasing gamma ~head ~arg =
   structurally_decreasing_bind_spec
     ~head_spec:(bind_spec gamma head)
     ~arg_spec:(bind_spec gamma arg)
+
+let matches_dec annot bind_spec =
+  match annot with
+    | Some f ->
+        structurally_decreasing_bind_spec
+          ~head_spec:(Rec f)
+          ~arg_spec:bind_spec
+
+    | None ->
+        true

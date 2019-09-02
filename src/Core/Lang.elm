@@ -47,7 +47,7 @@ type alias DatatypeContext =
   List (String, List (String, Typ))
 
 type alias HoleContext =
-  List (HoleName, (TypeContext, Typ, BindSpec))
+  List (HoleName, (TypeContext, Typ))
 
 type Value
   = VTuple (List Value)

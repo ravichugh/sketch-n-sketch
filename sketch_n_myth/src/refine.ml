@@ -3,11 +3,14 @@ open Lang
 let filter (ws : worlds) : worlds =
   List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
-let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
+let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
   let open Option2.Syntax in
+  let* _ =
+    Option2.guard (Option.is_none goal_dec)
+  in
   let
     filtered_worlds =
-      filter g.worlds
+      filter worlds
   in
     match goal_type with
       (* Refine-Fix *)
@@ -52,16 +55,16 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
               |> Option2.sequence
           in
           let new_goal =
-            { gamma =
-                (f_name, (TArr (tau1, tau2), Rec f_name))
-                  :: (x_name, (tau1, Arg f_name))
-                  :: gamma
-            ; hole_name
-            ; goal_type =
-                tau2
-            ; worlds =
-                refined_worlds
-            }
+            ( hole_name
+            , ( ( (f_name, (TArr (tau1, tau2), Rec f_name))
+                    :: (x_name, (tau1, Arg f_name))
+                    :: gamma
+                , tau2
+                , None
+                )
+              , refined_worlds
+              )
+            )
           in
           let exp =
             EFix (Some f_name, x_name, EHole hole_name)
@@ -91,11 +94,9 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
               let new_goals =
                 List.map2
                   ( fun tau refined_worlds ->
-                      { gamma
-                      ; hole_name = Fresh.gen_hole ()
-                      ; goal_type = tau
-                      ; worlds = refined_worlds
-                      }
+                      ( Fresh.gen_hole ()
+                      , ((gamma, tau, None), refined_worlds)
+                      )
                   )
                   taus
                   refined_worldss
@@ -103,7 +104,7 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
               let exp =
                 ETuple
                   ( List.map
-                      (fun { hole_name; _ } -> EHole hole_name)
+                      (fun (hole_name, _) -> EHole hole_name)
                       new_goals
                   )
               in
@@ -129,24 +130,25 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
               |> Option2.sequence
               |> Option2.and_then
                    ( List.split
-                       >> Pair2.map_left List2.collapse_equal
-                       >> Option2.sequence_left
+                       >> Pair2.map_fst List2.collapse_equal
+                       >> Option2.sequence_fst
                    )
           in
-          let* arg_type =
+          let+ arg_type =
             List.assoc_opt ctor_name datatype_ctors
           in
-          let+ new_goal =
-            { gamma
-            ; hole_name = Fresh.gen_hole ()
-            ; goal_type = arg_type
-            ; worlds = refined_worlds
-            }
+          let hole_name =
+            Fresh.gen_hole ()
+          in
+          let new_goal =
+            ( hole_name
+            , ((gamma, arg_type, None), refined_worlds)
+            )
           in
           let exp =
             ECtor
               ( ctor_name
-              , EHole new_goal.hole_name
+              , EHole hole_name
               )
           in
             (exp, [new_goal])

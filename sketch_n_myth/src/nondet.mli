@@ -20,6 +20,7 @@ val join : ('a t) t -> 'a t
 val pure_bind : 'a t -> ('a -> 'b) -> 'b t
 val bind : 'a t -> ('a -> 'b t) -> 'b t
 val and_then : ('a -> 'b t) -> 'a t -> 'b t
+val guard : bool -> unit t
 
 (* Specific library functions *)
 

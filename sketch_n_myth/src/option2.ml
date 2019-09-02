@@ -20,6 +20,9 @@ let bind ox f =
 let and_then f ox =
   bind ox f
 
+let guard b =
+  if b then Some () else None
+
 let sequence xs =
   let rec helper acc =
     function
@@ -45,7 +48,7 @@ let with_default default ox =
     | None ->
         default
 
-let sequence_left (ox, y) =
+let sequence_fst (ox, y) =
   match ox with
     | Some x ->
         Some (x, y)

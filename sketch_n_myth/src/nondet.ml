@@ -37,6 +37,9 @@ let bind xs f =
 let and_then f xs =
   bind xs f
 
+let guard b =
+  if b then pure () else none
+
 (* Specific library functions *)
 
 let union =

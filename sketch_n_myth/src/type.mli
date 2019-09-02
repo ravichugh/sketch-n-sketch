@@ -23,3 +23,6 @@ val structurally_decreasing_bind_spec :
 
 val structurally_decreasing :
   type_ctx -> head:exp -> arg:exp -> bool
+
+val matches_dec :
+  string option -> bind_spec -> bool

@@ -46,8 +46,11 @@ let distribute
       | _ ->
           None
 
-let branch params _delta sigma { gamma; goal_type; worlds } =
+let branch params _delta sigma ((gamma, goal_type, goal_dec), worlds) =
   let open Nondet.Syntax in
+  let* _ =
+    Nondet.guard (Option.is_none goal_dec)
+  in
   let
     filtered_worlds =
       filter worlds
@@ -65,13 +68,14 @@ let branch params _delta sigma { gamma; goal_type; worlds } =
   in
   let* scrutinee =
     Term_gen.up_to_e sigma params.max_scrutinee_size
-      { gamma
-      ; goal_type = TData data_name
-      }
+      ( gamma
+      , TData data_name
+      , None
+      )
   in
   let top_worlds =
     data_ctors
-      |> List.map (Pair2.map_right @@ fun _ -> ([], ExTop))
+      |> List.map (Pair2.map_snd @@ fun _ -> ([], ExTop))
       |> Ctor_map.from_assoc_many
   in
   let* distributed_worldss =
@@ -102,15 +106,21 @@ let branch params _delta sigma { gamma; goal_type; worlds } =
                 |> Type.bind_spec gamma
                 |> Type.sub_bind_spec
             in
+            let hole_name =
+              Fresh.gen_hole ()
+            in
             let goal =
-              { gamma = (arg_name, (arg_type, arg_bind_spec)) :: gamma
-              ; hole_name = Fresh.gen_hole ()
-              ; goal_type
-              ; worlds = distributed_worlds
-              }
+              ( hole_name
+              , ( ( (arg_name, (arg_type, arg_bind_spec)) :: gamma
+                  , goal_type
+                  , None
+                  )
+                , distributed_worlds
+                )
+              )
             in
             let branch =
-              (ctor_name, (arg_name, EHole goal.hole_name))
+              (ctor_name, (arg_name, EHole hole_name))
             in
               (branch, goal) :: acc
         )
@@ -119,4 +129,4 @@ let branch params _delta sigma { gamma; goal_type; worlds } =
   in
     branches_goals
       |> List.split
-      |> Pair2.map_left (fun branches -> ECase (scrutinee, branches))
+      |> Pair2.map_fst (fun branches -> ECase (scrutinee, branches))

@@ -6,7 +6,6 @@ val concat_map : ('a -> 'b list) -> 'a list -> 'b list
 val maximum : 'a list -> 'a option
 val repeat : int -> 'a -> 'a list
 val sequence : ('a list) list -> ('a list) list
-val filter_map : ('a -> 'b option) -> 'a list -> 'b list
 val filter_somes : 'a option list -> 'a list
 val intersperse : 'a -> 'a list -> 'a list
 (* Inclusive on both ends *)
