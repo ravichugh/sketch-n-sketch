@@ -25,8 +25,8 @@ let solved_singleton h e =
 let unsolved_singleton h w =
   (Hole_map.empty, Hole_map.singleton h w)
 
-exception Merge_failure
 let merge_solved fs =
+  let exception Merge_failure in
   (* The two maps should be disjoint *)
   let merge =
     Hole_map.union (fun _ _ _ -> raise_notrace Merge_failure)
@@ -44,11 +44,16 @@ let merge_unsolved us =
     List.fold_left merge Hole_map.empty us
 
 let merge (ks : constraints list) =
+  let open Option2.Syntax in
   let (fs, us) =
     List.split ks
   in
-    Option2.bind (merge_solved fs) @@ fun f ->
-    let u = merge_unsolved us in
+  let* f =
+    merge_solved fs
+  in
+  let u =
+    merge_unsolved us
+  in
     if hole_maps_disjoint f u then
       Some (f, u)
     else

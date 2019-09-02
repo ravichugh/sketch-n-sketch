@@ -47,6 +47,7 @@ let distribute
           None
 
 let branch params _delta sigma { gamma; goal_type; worlds } =
+  let open Nondet.Syntax in
   let
     filtered_worlds =
       filter worlds
@@ -54,26 +55,26 @@ let branch params _delta sigma { gamma; goal_type; worlds } =
   let arg_name =
     Term_gen.fresh_ident gamma Term_gen.match_char
   in
-  Nondet.bind
-    ( Nondet.from_list sigma
-    ) @@ fun (data_name, data_ctors) ->
+  let* (data_name, data_ctors) =
+    Nondet.from_list sigma
+  in
   let ctor_info : (string * typ) Ctor_map.t =
     data_ctors
       |> List.map (fun typ -> (arg_name, typ))
       |> Ctor_map.from_assoc
   in
-  Nondet.bind
-    ( Term_gen.up_to_e sigma params.max_scrutinee_size
-        { gamma
-        ; goal_type = TData data_name
-        }
-    ) @@ fun scrutinee ->
+  let* scrutinee =
+    Term_gen.up_to_e sigma params.max_scrutinee_size
+      { gamma
+      ; goal_type = TData data_name
+      }
+  in
   let top_worlds =
     data_ctors
       |> List.map (Pair2.map_right @@ fun _ -> ([], ExTop))
       |> Ctor_map.from_assoc_many
   in
-  let distributed_worldss_nd =
+  let* distributed_worldss =
     filtered_worlds
       |> List.map (distribute arg_name scrutinee)
       |> Option2.sequence
@@ -85,17 +86,17 @@ let branch params _delta sigma { gamma; goal_type; worlds } =
            )
       |> Nondet.lift_option
   in
-  Nondet.bind
-    distributed_worldss_nd
-    @@ fun distributed_worldss ->
-  let branches_goals_nd =
+  let+ branches_goals =
     Nondet.lift_option @@
       Ctor_map.fold
         ( fun ctor_name distributed_worlds acc_opt ->
-            Option2.bind acc_opt @@ fun acc ->
-            Option2.pure_bind
-              ( Ctor_map.find_opt ctor_name ctor_info
-              ) @@ fun (arg_name, arg_type) ->
+            let open! Option2.Syntax in
+            let* acc =
+              acc_opt
+            in
+            let+ (arg_name, arg_type) =
+              Ctor_map.find_opt ctor_name ctor_info
+            in
             let arg_bind_spec =
               scrutinee
                 |> Type.bind_spec gamma
@@ -116,9 +117,6 @@ let branch params _delta sigma { gamma; goal_type; worlds } =
         distributed_worldss
         (Some [])
   in
-  Nondet.pure_bind
-    branches_goals_nd
-    @@ fun branches_goals ->
-  branches_goals
-    |> List.split
-    |> Pair2.map_left (fun branches -> ECase (scrutinee, branches))
+    branches_goals
+      |> List.split
+      |> Pair2.map_left (fun branches -> ECase (scrutinee, branches))

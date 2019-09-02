@@ -65,3 +65,10 @@ let lift_option op =
 let lift_result r =
   Result2.to_option r
     |> lift_option
+
+(* Syntax *)
+
+module Syntax = struct
+  let ( let+ ) = pure_bind
+  let ( let* ) = bind
+end

@@ -56,7 +56,7 @@ let filter_map f xs =
     helper [] xs
 
 let filter_somes xs =
-  filter_map identity xs
+  filter_map Fun.id xs
 
 let intersperse sep xs =
   let rec helper acc =

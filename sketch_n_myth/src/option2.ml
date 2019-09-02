@@ -52,3 +52,8 @@ let sequence_left (ox, y) =
 
     | None ->
         None
+
+module Syntax = struct
+  let ( let+ ) = pure_bind
+  let ( let* ) = bind
+end

@@ -38,3 +38,10 @@ val collapse_option : ('a option) t -> 'a t
 
 val lift_option : 'a option -> 'a t
 val lift_result : ('a, 'e) result -> 'a t
+
+(* Syntax *)
+
+module Syntax : sig
+  val ( let+ ) : 'a t -> ('a -> 'b) -> 'b t
+  val ( let* ) : 'a t -> ('a -> 'b t) -> 'b t
+end

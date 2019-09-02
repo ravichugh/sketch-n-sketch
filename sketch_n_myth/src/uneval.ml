@@ -27,6 +27,7 @@ let rec simplify delta sigma rcs =
       |> Nondet.collapse_option
 
 and uneval delta sigma hf res ex =
+  let open Nondet.Syntax in
   match (res, ex) with
     | (_, ExTop) ->
         Nondet.pure Constraints.empty
@@ -82,41 +83,39 @@ and uneval delta sigma hf res ex =
             )
 
     | (RCase (env, scrutinee, branches), _) ->
-        Nondet.bind
-          ( guesses delta sigma scrutinee
-          ) @@ fun hf_guesses ->
-        Nondet.bind
-          ( Nondet.lift_option @@
-              Constraints.merge_solved [hf; hf_guesses]
-          ) @@ fun hf' ->
+        let* hf_guesses =
+          guesses delta sigma scrutinee
+        in
+        let* hf' =
+          Nondet.lift_option @@
+            Constraints.merge_solved [hf; hf_guesses]
+        in
         let
           ks_guesses =
             (hf_guesses, Hole_map.empty)
         in
-        Nondet.bind
-          ( Nondet.lift_result @@ Eval.resume hf' scrutinee
-          ) @@ fun (r_scrutinee, rcs_scrutinee) ->
-        Nondet.bind
-          ( simplify delta sigma rcs_scrutinee
-          ) @@ fun ks_scrutinee ->
-        let
-          possible_ks_branch =
-            begin match r_scrutinee with
-              | RCtor (ctor_name, r_arg) ->
-                  begin match List.assoc_opt ctor_name branches with
-                    | Some (arg_name, body) ->
-                        check delta sigma hf' body @@
-                          [((arg_name, r_arg) :: env, ex)]
-
-                    | None ->
-                        Nondet.none
-                  end
-
-              | _ ->
-                  Nondet.none
-            end
+        let* (r_scrutinee, rcs_scrutinee) =
+          Nondet.lift_result @@ Eval.resume hf' scrutinee
         in
-          Nondet.bind possible_ks_branch @@ fun ks_branch ->
+        let* ks_scrutinee =
+          simplify delta sigma rcs_scrutinee
+        in
+        let* ks_branch =
+          begin match r_scrutinee with
+            | RCtor (ctor_name, r_arg) ->
+                begin match List.assoc_opt ctor_name branches with
+                  | Some (arg_name, body) ->
+                      check delta sigma hf' body @@
+                        [((arg_name, r_arg) :: env, ex)]
+
+                  | None ->
+                      Nondet.none
+                end
+
+            | _ ->
+                Nondet.none
+          end
+        in
           Nondet.lift_option @@
             Constraints.merge [ks_guesses; ks_scrutinee; ks_branch]
 

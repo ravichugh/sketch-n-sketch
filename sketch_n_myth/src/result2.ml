@@ -60,3 +60,8 @@ let unwrap f g r =
 
     | Error y ->
         g y
+
+module Syntax = struct
+  let ( let+ ) = pure_bind
+  let ( let* ) = bind
+end

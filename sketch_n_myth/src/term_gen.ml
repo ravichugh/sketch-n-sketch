@@ -1,4 +1,5 @@
 open Lang
+open Nondet.Syntax
 
 (*******************************************************************************
  * Identifier generation
@@ -44,8 +45,10 @@ type term_permission =
   | Not
 
 let parts (k : int) : term_permission list Nondet.t =
-  Nondet.pure_bind (Nondet.from_list (List2.range ~low:1 ~high:k)) @@ fun i ->
-  List2.repeat (i - 1) Not @ [Must] @ List2.repeat (k - i) May
+  let+ i =
+    Nondet.from_list (List2.range ~low:1 ~high:k)
+  in
+    List2.repeat (i - 1) Not @ [Must] @ List2.repeat (k - i) May
 
 (*******************************************************************************
  * Caching
@@ -186,20 +189,6 @@ and rel_gen_e_app
   (rel_binding : type_binding)
   ({ gamma; goal_type } as goal : gen_goal)
   : exp Nondet.t =
-    let possible_arg_type =
-      gamma
-        |> List2.filter_map
-             ( fun (_, (tau, _)) ->
-                 Type.domain_of_codomain ~codomain:goal_type tau
-             )
-        |> Nondet.from_list
-    in
-    let possible_partition =
-      Nondet.from_list @@
-        Int2.partition_permutations
-          ~n:(term_size - 1) (* -1 for application *)
-          ~k:2
-    in
     let combined_gamma =
       rel_binding :: gamma
     in
@@ -209,73 +198,85 @@ and rel_gen_e_app
       else
         None
     in
-      Nondet.bind possible_arg_type @@ fun arg_type ->
-      Nondet.bind possible_partition @@ fun partition ->
-        match partition with
-          (* Will always happen*)
-          | [k_head; k_arg] ->
-              let head_goal =
-                { gamma = goal.gamma
-                ; goal_type = TArr (arg_type, goal_type)
+    let* arg_type =
+      gamma
+        |> List2.filter_map
+             ( fun (_, (tau, _)) ->
+                 Type.domain_of_codomain ~codomain:goal_type tau
+             )
+        |> Nondet.from_list
+    in
+    let* partition =
+      Nondet.from_list @@
+        Int2.partition_permutations
+          ~n:(term_size - 1) (* -1 for application *)
+          ~k:2
+    in
+      match partition with
+        (* Will always happen*)
+        | [k_head; k_arg] ->
+            let head_goal =
+              { gamma = goal.gamma
+              ; goal_type = TArr (arg_type, goal_type)
+              }
+            in
+            let arg_goal =
+              { gamma = goal.gamma
+              ; goal_type = arg_type
+              }
+            in
+            let* head_solution =
+              gen
+                { sigma
+                ; term_kind = E
+                ; term_size = k_head
+                ; rel_binding = None
+                ; goal = head_goal
                 }
-              in
-              let arg_goal =
-                { gamma = goal.gamma
-                ; goal_type = arg_type
+            in
+            let* rel_head_solution =
+              gen
+                { sigma
+                ; term_kind = E
+                ; term_size = k_head
+                ; rel_binding = Some rel_binding
+                ; goal = head_goal
                 }
-              in
-                Nondet.bind
-                  ( gen
-                      { sigma
-                      ; term_kind = E
-                      ; term_size = k_head
-                      ; rel_binding = None
-                      ; goal = head_goal
-                      }
-                  ) @@ fun head_solution ->
-                Nondet.bind
-                  ( gen
-                      { sigma
-                      ; term_kind = E
-                      ; term_size = k_head
-                      ; rel_binding = Some rel_binding
-                      ; goal = head_goal
-                      }
-                  ) @@ fun rel_head_solution ->
-                Nondet.bind
-                  ( gen
-                      { sigma
-                      ; term_kind = I
-                      ; term_size = k_arg
-                      ; rel_binding = None
-                      ; goal = arg_goal
-                      }
-                  ) @@ fun arg_solution ->
-                Nondet.bind
-                  ( gen
-                      { sigma
-                      ; term_kind = I
-                      ; term_size = k_arg
-                      ; rel_binding = Some rel_binding
-                      ; goal = arg_goal
-                      }
-                  ) @@ fun rel_arg_solution ->
-                Nondet.from_list @@
-                  List2.filter_somes
-                    [ app_combine rel_head_solution arg_solution
-                    ; app_combine head_solution rel_arg_solution
-                    ; app_combine rel_head_solution rel_arg_solution
-                    ]
+            in
+            let* arg_solution =
+              gen
+                { sigma
+                ; term_kind = I
+                ; term_size = k_arg
+                ; rel_binding = None
+                ; goal = arg_goal
+                }
+            in
+            let* rel_arg_solution =
+              gen
+                { sigma
+                ; term_kind = I
+                ; term_size = k_arg
+                ; rel_binding = Some rel_binding
+                ; goal = arg_goal
+                }
+            in
+              Nondet.from_list @@
+                List2.filter_somes
+                  [ app_combine rel_head_solution arg_solution
+                  ; app_combine head_solution rel_arg_solution
+                  ; app_combine rel_head_solution rel_arg_solution
+                  ]
 
-          | _ ->
-              print_endline
-                ( "WARNING: integer partition is incorrect size (is "
-                ^ string_of_int (List.length partition)
-                ^ ", should be 2, called with n = "
-                ^ string_of_int (term_size - 1)
-                ^ ")"
-                );
-              Nondet.none
+        | _ ->
+            print_endline
+              ( "WARNING: integer partition is incorrect size (is "
+              ^ string_of_int (List.length partition)
+              ^ ", should be 2, called with n = "
+              ^ string_of_int (term_size - 1)
+              ^ ")"
+              );
+            Nondet.none
 
 and rel_gen_e
   (sigma : datatype_ctx)
@@ -372,7 +373,7 @@ and gen_i
                 let arg_name =
                   fresh_ident [] variable_char
                 in
-                let possible_body =
+                let+ body =
                   gen
                     { sigma
                     ; term_kind = I
@@ -388,20 +389,18 @@ and gen_i
                         }
                     }
                 in
-                  Nondet.pure_bind possible_body @@ fun body ->
-                    EFix (Some f_name, arg_name, body)
+                  EFix (Some f_name, arg_name, body)
 
             | TTuple taus ->
                 let tuple_size =
                   List.length taus
                 in
-                let possible_partition =
+                let* partition =
                   Nondet.from_list @@
                     Int2.partition_permutations
                       ~n:(term_size - 1) (* -1 for tuple *)
                       ~k:tuple_size
                 in
-                Nondet.bind possible_partition @@ fun partition ->
                   Nondet.map (fun es -> ETuple es) @@
                     Nondet.one_of_each @@
                       List.map2
@@ -421,12 +420,12 @@ and gen_i
                         partition
 
             | TData datatype_name ->
-                Nondet.bind
-                  ( List.assoc_opt datatype_name sigma
-                      |> Option2.map Nondet.from_list
-                      |> Option2.with_default Nondet.none
-                  ) @@ fun (ctor_name, arg_type) ->
-                let possible_arg =
+                let* (ctor_name, arg_type) =
+                  List.assoc_opt datatype_name sigma
+                    |> Option2.map Nondet.from_list
+                    |> Option2.with_default Nondet.none
+                in
+                let+ arg =
                   gen
                     { sigma
                     ; term_kind = I
@@ -438,8 +437,7 @@ and gen_i
                         }
                     }
                 in
-                  Nondet.pure_bind possible_arg @@ fun arg ->
-                    ECtor (ctor_name, arg)
+                  ECtor (ctor_name, arg)
           end
 
 and rel_gen_i
@@ -467,7 +465,7 @@ and rel_gen_i
             let arg_name =
               fresh_ident goal.gamma variable_char
             in
-            let possible_body =
+            let+ body =
               gen
                 { sigma
                 ; term_kind = I
@@ -483,24 +481,21 @@ and rel_gen_i
                     }
                 }
             in
-              Nondet.pure_bind possible_body @@ fun body ->
-                EFix (Some f_name, arg_name, body)
+              EFix (Some f_name, arg_name, body)
 
         | TTuple taus ->
             let tuple_size =
               List.length taus
             in
-            let possible_partition =
+            let* partition =
               Nondet.from_list @@
                 Int2.partition_permutations
                   ~n:(term_size - 1) (* -1 for tuple *)
                   ~k:tuple_size
             in
-            let possible_part =
+            let* part =
               parts tuple_size
             in
-            Nondet.bind possible_partition @@ fun partition ->
-            Nondet.bind possible_part @@ fun part ->
               Nondet.map (fun es -> ETuple es) @@
                 Nondet.one_of_each @@
                   List2.map3
@@ -515,12 +510,12 @@ and rel_gen_i
                     part
 
         | TData datatype_name ->
-            Nondet.bind
-              ( List.assoc_opt datatype_name sigma
-                  |> Option2.map Nondet.from_list
-                  |> Option2.with_default Nondet.none
-              ) @@ fun (ctor_name, arg_type) ->
-            let possible_arg =
+            let* (ctor_name, arg_type) =
+              List.assoc_opt datatype_name sigma
+                |> Option2.map Nondet.from_list
+                |> Option2.with_default Nondet.none
+            in
+            let+ arg =
               gen
                 { sigma
                 ; term_kind = I
@@ -532,8 +527,7 @@ and rel_gen_i
                     }
                 }
             in
-              Nondet.pure_bind possible_arg @@ fun arg ->
-                ECtor (ctor_name, arg)
+              ECtor (ctor_name, arg)
     in
       Nondet.union [e_option; i_option]
 

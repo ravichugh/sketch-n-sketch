@@ -4,6 +4,7 @@ let filter (ws : worlds) : worlds =
   List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
 let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
+  let open Option2.Syntax in
   let
     filtered_worlds =
       filter g.worlds
@@ -25,7 +26,7 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
               gamma
               Term_gen.function_char
           in
-          let refined_worlds_opt =
+          let+ refined_worlds =
             filtered_worlds
               |> List.map
                    ( fun (env, io_ex) ->
@@ -50,28 +51,27 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
                    )
               |> Option2.sequence
           in
-          Option2.pure_bind refined_worlds_opt @@ fun refined_worlds ->
-            let new_goal =
-              { gamma =
-                  (f_name, (TArr (tau1, tau2), Rec f_name))
-                    :: (x_name, (tau1, Arg f_name))
-                    :: gamma
-              ; hole_name
-              ; goal_type =
-                  tau2
-              ; worlds =
-                  refined_worlds
-              }
-            in
-            let exp =
-              EFix (Some f_name, x_name, EHole hole_name)
-            in
-              (exp, [new_goal])
+          let new_goal =
+            { gamma =
+                (f_name, (TArr (tau1, tau2), Rec f_name))
+                  :: (x_name, (tau1, Arg f_name))
+                  :: gamma
+            ; hole_name
+            ; goal_type =
+                tau2
+            ; worlds =
+                refined_worlds
+            }
+          in
+          let exp =
+            EFix (Some f_name, x_name, EHole hole_name)
+          in
+            (exp, [new_goal])
 
       (* Refine-Tuple *)
 
       | TTuple taus ->
-          let refined_worldss_opt =
+          let* refined_worldss =
             filtered_worlds
               |> List.map
                    ( fun (env, tuple_ex) ->
@@ -85,7 +85,6 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
               |> Option2.sequence
               |> Option2.map List2.transpose
           in
-          Option2.bind refined_worldss_opt @@ fun refined_worldss ->
             if List.length refined_worldss <> List.length taus then
               None
             else
@@ -113,10 +112,10 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
       (* Refine-Ctor *)
 
       | TData datatype_name ->
-          Option2.bind
-            ( List.assoc_opt datatype_name sigma
-            ) @@ fun datatype_ctors ->
-          let info_opt =
+          let* datatype_ctors =
+            List.assoc_opt datatype_name sigma
+          in
+          let* (ctor_name, refined_worlds) =
             filtered_worlds
               |> List.map
                    ( fun (env, ctor_ex) ->
@@ -134,21 +133,20 @@ let refine _delta sigma ({ gamma; goal_type; } as g : synthesis_goal) =
                        >> Option2.sequence_left
                    )
           in
-          Option2.bind info_opt @@ fun (ctor_name, refined_worlds) ->
-          Option2.bind
-            ( List.assoc_opt ctor_name datatype_ctors
-            ) @@ fun arg_type ->
-              let new_goal =
-                { gamma
-                ; hole_name = Fresh.gen_hole ()
-                ; goal_type = arg_type
-                ; worlds = refined_worlds
-                }
-              in
-              let exp =
-                ECtor
-                  ( ctor_name
-                  , EHole new_goal.hole_name
-                  )
-              in
-                Some (exp, [new_goal])
+          let* arg_type =
+            List.assoc_opt ctor_name datatype_ctors
+          in
+          let+ new_goal =
+            { gamma
+            ; hole_name = Fresh.gen_hole ()
+            ; goal_type = arg_type
+            ; worlds = refined_worlds
+            }
+          in
+          let exp =
+            ECtor
+              ( ctor_name
+              , EHole new_goal.hole_name
+              )
+          in
+            (exp, [new_goal])
