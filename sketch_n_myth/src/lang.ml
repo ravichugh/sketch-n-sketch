@@ -62,7 +62,7 @@ type datatype_ctx =
   [@@deriving yojson]
 
 type hole_ctx =
-  (hole_name * (type_ctx * typ)) list
+  (hole_name * (type_ctx * typ * string option)) list
   [@@deriving yojson]
 
 type value =
@@ -107,3 +107,9 @@ type synthesis_goal =
 
 type fill_goal =
   hole_name * synthesis_goal
+
+type synthesis_params =
+  { max_scrutinee_size : int
+  ; max_match_depth : int
+  ; max_term_size : int
+  }

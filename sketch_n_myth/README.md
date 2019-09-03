@@ -44,7 +44,7 @@ All other source code can be found in the [`src`](src/) directory.
 | Example unevaluation                        | [`uneval.mli`](src/uneval.mli)/[`uneval.ml`](src/uneval.ml)
 | Result consistency                          | [`res.mli`](src/res.mli)/[`res.ml`](src/res.ml)
 | Assertion satisfaction and simplification   | [`uneval.mli`](src/uneval.mli)/[`uneval.ml`](src/uneval.ml)
-| Constraint solving                          | ---
+| Constraint solving                          | [`solve.mli`](src/solve.mli)/[`solve.ml`](src/solve.ml)
 | Hole filling                                | [`fill.mli`](src/fill.mli)/[`fill.ml`](src/fill.ml)
 | Type-and-example-directed refinement        | [`refine.mli`](src/refine.mli)/[`refine.ml`](src/refine.ml)
 | Type-and-example-directed branching         | [`branch.mli`](src/branch.mli)/[`branch.ml`](src/branch.ml)

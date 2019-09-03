@@ -1,12 +1,6 @@
 open Lang
 open Nondet.Syntax
 
-type params =
-  { max_scrutinee_size : int
-  ; max_match_depth : int
-  ; max_term_size : int
-  }
-
 let refine_or_branch params delta sigma _hf (hole_name, synthesis_goal) =
   let+ (exp, subgoals) =
     Nondet.union
@@ -17,7 +11,7 @@ let refine_or_branch params delta sigma _hf (hole_name, synthesis_goal) =
             synthesis_goal
       ; if params.max_match_depth > 0 then
           Branch.branch
-            { Branch.max_scrutinee_size = params.max_scrutinee_size }
+            params.max_scrutinee_size
             delta
             sigma
             synthesis_goal
@@ -26,11 +20,7 @@ let refine_or_branch params delta sigma _hf (hole_name, synthesis_goal) =
       ]
   in
   let delta' =
-    List.map
-      ( fun (hole_name, ((gamma, goal_type, _), _)) ->
-          (hole_name, (gamma, goal_type))
-      )
-      subgoals
+    List.map (Pair2.map_snd fst) subgoals
   in
   let solved_constraints =
     Hole_map.singleton hole_name exp

@@ -1,9 +1,5 @@
 open Lang
 
-type params =
-  { max_scrutinee_size : int
-  }
-
 module Ctor_map = struct
   include
     Map.Make
@@ -46,7 +42,8 @@ let distribute
       | _ ->
           None
 
-let branch params _delta sigma ((gamma, goal_type, goal_dec), worlds) =
+let branch
+ max_scrutinee_size _delta sigma ((gamma, goal_type, goal_dec), worlds) =
   let open Nondet.Syntax in
   let* _ =
     Nondet.guard (Option.is_none goal_dec)
@@ -67,7 +64,7 @@ let branch params _delta sigma ((gamma, goal_type, goal_dec), worlds) =
       |> Ctor_map.from_assoc
   in
   let* scrutinee =
-    Term_gen.up_to_e sigma params.max_scrutinee_size
+    Term_gen.up_to_e sigma max_scrutinee_size
       ( gamma
       , TData data_name
       , None

@@ -81,10 +81,30 @@ let server =
       | "/synthesize" ->
           handle synthesis_request_of_yojson synthesis_response_to_yojson @@
             fun {delta; sigma; assertions} ->
-              let _ = (delta, sigma, assertions) in
-              { time_taken = -1.0
-              ; hole_fillings = []
-              }
+              let initial_time =
+                Sys.time ()
+              in
+              let params =
+                { Lang.max_scrutinee_size = 3
+                ; Lang.max_term_size = 10
+                ; Lang.max_match_depth = 1
+                }
+              in
+              let synthesis_result =
+                assertions
+                  |> Uneval.simplify delta sigma
+                  |> Nondet.and_then (Solve.solve params delta sigma)
+              in
+              let final_time =
+                Sys.time ()
+              in
+                { time_taken =
+                    final_time -. initial_time
+                ; hole_fillings =
+                    synthesis_result
+                      |> Nondet.map (fst >> Lang.Hole_map.bindings)
+                      |> Nondet.to_list
+                }
 
       | _ ->
           Cohttp_lwt_unix.Server.respond_not_found ()
