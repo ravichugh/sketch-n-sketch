@@ -75,9 +75,10 @@ let guess_and_check params delta sigma hf (hole_name, (gen_goal, worlds)) =
         , []
         )
 
-let defer _params _delta _sigma _hf (hole_name, (_gen_goal, worlds)) =
+let defer _params _delta _sigma _hf (hole_name, ((_, typ, _), worlds)) =
   if
-    List.length worlds > 0
+    not (Type.equal typ (TTuple []))
+      && List.length worlds > 0
       && List.for_all (fun (_, ex) -> ex = ExTop) worlds
   then
     Nondet.pure
