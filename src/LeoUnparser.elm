@@ -862,8 +862,20 @@ unparseHtmlAttributes interpolationStyle attrExp =
         EList attrNameSpace [(atEncoded, attrName), (spBeforeEq, attrValue)] spAfterEq Nothing _ ->
           let atAfterEqual = if atEncoded.val == " " && interpolationStyle /= Raw then "@" else ""  in
           let beforeSpace = if attrNameSpace.val == "" then " " else attrNameSpace.val in
-          case unwrapExp attrName of
-            EBase _ (EString _ attrNameStr) ->
+          let mbAttrName =
+                case unwrapExp attrName of
+                  EBase _ (EString _ attrNameStr) -> Just attrNameStr
+                  EApp precedingWs maybeHtmlAttributeWrap [elem] _ _ -> -- Special case when an attribute's value become a key
+                    case unwrapExp maybeHtmlAttributeWrap of
+                      EVar _ "__htmlRawAttribute__" ->
+                        case unwrapExp elem of
+                          EBase _ (EString _ attrNameStr) -> Just attrNameStr
+                          _ -> Nothing
+                      _ -> Nothing
+                  _ -> Nothing
+          in
+          case mbAttrName of
+            Just attrNameStr ->
               let attrValueToConsider = case attrNameStr of -- Removes __mbstylesplit__
                 "style" -> eAppUnapply1 attrValue |> Maybe.map Tuple.second |> Maybe.withDefault attrValue
                 _ -> attrValue
@@ -933,7 +945,7 @@ unparseHtmlAttributes interpolationStyle attrExp =
                               beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ unparsedContent
                     _ -> default ()
                 _ -> default ()
-            _ -> " @[" ++ unparse attr ++"]"
+            Nothing -> " @[" ++ unparse attr ++"]"
         _ -> " @[" ++ unparse attr ++"]"
       ) |> String.join ""
     Nothing -> case (unwrapExp attrExp) of
