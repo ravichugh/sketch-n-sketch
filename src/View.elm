@@ -3405,7 +3405,7 @@ pbePopupPanel model =
                                 [ Html.text <|
                                     "Time taken: "
                                       ++ toString timeTaken
-                                      ++ "ms"
+                                      ++ "s"
                                 ]
                             ] ++
                             ( if not <| List.isEmpty topRecursive then
@@ -3462,7 +3462,7 @@ pbePopupPanel model =
                               [ Html.text <|
                                   "No results (time taken: "
                                     ++ toString timeTaken
-                                    ++ "ms)."
+                                    ++ "s)."
                               ]
                           ]
                       )
