@@ -62,7 +62,7 @@ let guess_and_check params delta sigma hf (hole_name, (gen_goal, worlds)) =
         , []
         )
 
-let defer _params _delta _sigma _hf (hole_name, (_, worlds)) =
+let defer _params _delta _sigma _hf (hole_name, (_gen_goal, worlds)) =
   if
     List.length worlds > 0
       && List.for_all (fun (_, ex) -> ex = ExTop) worlds
@@ -77,7 +77,5 @@ let defer _params _delta _sigma _hf (hole_name, (_, worlds)) =
 let fill params delta sigma hf fill_goal =
   Nondet.union @@
     List.map
-      ( fun rule ->
-          rule params delta sigma hf fill_goal
-      )
+      (fun rule -> rule params delta sigma hf fill_goal)
       [ refine_or_branch; guess_and_check; defer ]
