@@ -19,6 +19,7 @@ type CompileError
   | ZeroParameterFunction L.Exp
   | NonIdentifierPattern L.Pat
   | ZeroArgumentApplication L.Exp
+  | ImproperFunctionSpecification (List L.Exp)
   | OperatorNotSupported L.Exp
   | IfNotSupported L.Exp
   | NonConstructorBranchPattern L.Pat
@@ -63,6 +64,90 @@ consName =
 nilName : String
 nilName =
   "Nil"
+
+--   specifyFunction f [(in1, out1), ..., (inN, outN)]
+-- ~>
+--   let _ = assert (f in1 == out1) in
+--   let _ = assert (f inN == outN) in
+--     ()
+specifyFunction : L.Exp -> List L.Exp -> Maybe (Result CompileError C.Exp)
+specifyFunction eHead eArgs =
+  let
+    prefix =
+      "specifyFunction"
+
+    handle argCount =
+      case eArgs of
+        [eFuncName, eFuncArgs] ->
+          case (L.unwrapExp eFuncName, L.unwrapExp eFuncArgs) of
+            (L.EVar _ funcName, L.EList _ entries _ _ _) ->
+              Result.andThen exp <|
+                List.foldl
+                  ( \(_, larg) restResult ->
+                      flip Result.andThen restResult <| \rest ->
+                        case L.unwrapExp larg of
+                          L.ERecord _ _ declarations _ ->
+                            case
+                              declarations
+                                |> L.recordEntriesFromDeclarations
+                                |> Maybe.andThen L.tupleEncodingUnapply
+                                |> Maybe.map (List.map Tuple.second)
+                            of
+                              Just tupleEntries ->
+                                if List.length tupleEntries /= argCount + 1 then
+                                  Err (ImproperFunctionSpecification eArgs)
+                                else
+                                  case Utils.maybeInitLast tupleEntries of
+                                    Just (eIns, eOut) ->
+                                      Ok <|
+                                        L.eLet
+                                          [ ( "_"
+                                            , L.eApp
+                                                ( L.eVar "assert"
+                                                )
+                                                [ L.eTuple
+                                                    [ L.eApp
+                                                        (L.eVar funcName)
+                                                        eIns
+                                                    , eOut
+                                                    ]
+                                                ]
+                                            )
+                                          ]
+                                          rest
+
+                                    Nothing ->
+                                      Err (ImproperFunctionSpecification eArgs)
+
+                              Nothing ->
+                                Err (ImproperFunctionSpecification eArgs)
+
+                          _ ->
+                            Err (ImproperFunctionSpecification eArgs)
+                  )
+                  (Ok <| L.eTuple [])
+                  entries
+
+            _ ->
+              Err (ImproperFunctionSpecification eArgs)
+
+        _ ->
+          Err (ImproperFunctionSpecification eArgs)
+  in
+    Maybe.map handle <|
+      case L.unwrapExp eHead of
+        L.EVar _ headName ->
+          if headName == prefix then
+            Just 1
+          else if String.startsWith prefix headName then
+            headName
+              |> String.dropLeft (String.length prefix)
+              |> Utils.natFromString
+          else
+            Nothing
+
+        _ ->
+          Nothing
 
 exp : L.Exp -> Result CompileError C.Exp
 exp lexp =
@@ -127,6 +212,7 @@ exp lexp =
 
             [eArg] ->
               case L.unwrapExp eHead of
+                -- assert e ~> assert (get1 e) (get2 e)
                 L.EVar _ "assert" ->
                   Result.map
                     ( \arg ->
@@ -140,8 +226,13 @@ exp lexp =
                   Result.map2 C.EApp (exp eHead) (exp eArg)
 
             argHead :: argTail ->
-              exp <|
-                L.eApp (L.eApp eHead [argHead]) argTail
+              case specifyFunction eHead eArgs of
+                Just c ->
+                  c
+
+                Nothing ->
+                  exp <|
+                    L.eApp (L.eApp eHead [argHead]) argTail
 
     L.EOp _ _ op args _ ->
       case (op.val, args) of
