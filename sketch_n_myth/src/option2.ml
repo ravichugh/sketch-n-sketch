@@ -56,6 +56,14 @@ let sequence_fst (ox, y) =
     | None ->
         None
 
+let sequence_snd (x, oy) =
+  match oy with
+    | Some y ->
+        Some (x, y)
+
+    | None ->
+        None
+
 module Syntax = struct
   let ( let+ ) = pure_bind
   let ( let* ) = bind

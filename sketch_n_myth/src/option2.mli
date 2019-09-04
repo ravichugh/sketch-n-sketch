@@ -6,6 +6,7 @@ val guard : bool -> unit option
 val sequence : 'a option list -> 'a list option
 val with_default : 'a -> 'a option -> 'a
 val sequence_fst : ('a option * 'b) -> ('a * 'b) option
+val sequence_snd : ('a * 'b option) -> ('a * 'b) option
 
 module Syntax : sig
   val ( let+ ) : 'a option -> ('a -> 'b) -> 'b option

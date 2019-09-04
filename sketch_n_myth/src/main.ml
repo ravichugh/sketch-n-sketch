@@ -105,7 +105,8 @@ let server =
                     final_time -. initial_time
                 ; hole_fillings =
                     synthesis_result
-                      |> Nondet.map (fst >> Lang.Hole_map.bindings)
+                      |> Nondet.map (fst >> Clean.clean delta)
+                      |> Nondet.collapse_option
                       |> Nondet.to_list
                 }
 

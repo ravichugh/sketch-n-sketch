@@ -12,7 +12,6 @@ let ignore_binding (s : string) : bool =
 (* Note: fuel gets applied at every application. *)
 module FuelLimited = struct
   let rec eval fuel env exp =
-    print_endline (string_of_int fuel);
     let open Result2.Syntax in
     let* _ =
       Result2.guard "Ran out of fuel" (fuel > 0)
