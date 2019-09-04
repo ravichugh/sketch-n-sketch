@@ -153,9 +153,18 @@ datatypeContext =
 holeContext : HoleContext -> E.Value
 holeContext =
   let
-    holeBinding : (HoleName, (TypeContext, Typ, Maybe String)) -> E.Value
-    holeBinding (holeName, (gamma, tau, dec)) =
-      list [int holeName, list [typeContext gamma, typ tau, option string dec]]
+    holeBinding :
+      (HoleName, (TypeContext, Typ, Maybe String, Int)) -> E.Value
+    holeBinding (holeName, (gamma, tau, dec, matchDepth)) =
+      list
+        [ int holeName
+        , list
+            [ typeContext gamma
+            , typ tau
+            , option string dec
+            , int matchDepth
+            ]
+        ]
   in
     List.map holeBinding >> list
 

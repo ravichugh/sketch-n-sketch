@@ -61,8 +61,10 @@ type datatype_ctx =
   (string * (string * typ) list) list
   [@@deriving yojson]
 
+(* (hole name, (type context, type, function decrease requirement, match depth))
+ *)
 type hole_ctx =
-  (hole_name * (type_ctx * typ * string option)) list
+  (hole_name * (type_ctx * typ * string option * int)) list
   [@@deriving yojson]
 
 type value =

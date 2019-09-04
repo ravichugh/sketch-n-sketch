@@ -2,25 +2,38 @@ open Lang
 open Nondet.Syntax
 
 let refine_or_branch params delta sigma _hf (hole_name, synthesis_goal) =
-  let+ (exp, subgoals) =
+  let* (additional_depth, (exp, subgoals)) =
     Nondet.union
-      [ Nondet.lift_option @@
-          Refine.refine
-            delta
-            sigma
-            synthesis_goal
+      [ Nondet.map (Pair2.pair 0) @@
+          Nondet.lift_option @@
+            Refine.refine
+              delta
+              sigma
+              synthesis_goal
       ; if params.max_match_depth > 0 then
-          Branch.branch
-            params.max_scrutinee_size
-            delta
-            sigma
-            synthesis_goal
+          Nondet.map (Pair2.pair 1) @@
+            Branch.branch
+              params.max_scrutinee_size
+              delta
+              sigma
+              synthesis_goal
         else
           Nondet.none
       ]
   in
+  let+ (_, _, _, parent_depth) =
+    Nondet.lift_option @@
+      List.assoc_opt hole_name delta
+  in
+  let match_depth =
+    parent_depth + additional_depth
+  in
   let delta' =
-    List.map (Pair2.map_snd fst) subgoals
+    List.map
+      ( Pair2.map_snd @@ fun ((gamma, goal_type, goal_dec), _) ->
+          (gamma, goal_type, goal_dec, match_depth)
+      )
+      subgoals
   in
   let solved_constraints =
     Hole_map.singleton hole_name exp

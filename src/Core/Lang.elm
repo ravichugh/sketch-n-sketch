@@ -46,8 +46,9 @@ type alias TypeContext =
 type alias DatatypeContext =
   List (String, List (String, Typ))
 
+-- (hole name, (type context, type, function decrease requirement, match depth))
 type alias HoleContext =
-  List (HoleName, (TypeContext, Typ, Maybe String))
+  List (HoleName, (TypeContext, Typ, Maybe String, Int))
 
 type Value
   = VTuple (List Value)

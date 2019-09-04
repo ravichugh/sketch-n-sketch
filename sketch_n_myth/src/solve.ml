@@ -5,7 +5,7 @@ let step params sigma acc (hole_name, worlds) =
   let* ((f_previous, us_previous), delta_previous) =
     acc
   in
-  let* (gamma, typ, dec) =
+  let* (gamma, typ, dec, match_depth) =
     Nondet.lift_option @@
       List.assoc_opt hole_name delta_previous
   in
@@ -13,7 +13,12 @@ let step params sigma acc (hole_name, worlds) =
     (hole_name, ((gamma, typ, dec), worlds))
   in
   let* ((f_new, us_new), delta_new) =
-    Fill.fill params delta_previous sigma f_previous fill_goal
+    Fill.fill
+      { params with max_match_depth = params.max_match_depth - match_depth }
+      delta_previous
+      sigma
+      f_previous
+      fill_goal
   in
   let+ f_merged =
     Nondet.lift_option @@
