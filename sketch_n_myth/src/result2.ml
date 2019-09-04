@@ -20,6 +20,9 @@ let bind rx f =
 let and_then f rx =
   bind rx f
 
+let guard e b =
+  if b then Ok () else Error e
+
 let sequence xs =
   let rec helper acc =
     function

@@ -20,6 +20,12 @@ option decode =
     , null Nothing
     ]
 
+pair : Decoder a -> Decoder b -> Decoder (a, b)
+pair decodeA decodeB =
+  map2 (,)
+    (index 0 decodeA)
+    (index 1 decodeB)
+
 holeName : Decoder HoleName
 holeName =
   int
@@ -62,14 +68,7 @@ exp =
         let
           branch : Decoder (String, (String, Exp))
           branch =
-            map2 (,)
-              ( index 1 string
-              )
-              ( index 2 <|
-                  map2 (,)
-                    (index 1 string)
-                    (index 2 exp)
-              )
+            pair string (pair string exp)
         in
           map2 ECase
             (index 1 exp)
@@ -77,7 +76,7 @@ exp =
 
       "EHole" ->
         map EHole
-          (index 1 int)
+          (index 1 holeName)
 
       "EAssert" ->
         map2 EAssert
@@ -130,7 +129,7 @@ res =
       "RHole" ->
         map2 RHole
           (index 1 env)
-          (index 2 int)
+          (index 2 holeName)
 
       "RApp" ->
         map2 RApp
@@ -147,14 +146,7 @@ res =
         let
           branch : Decoder (String, (String, Exp))
           branch =
-            map2 (,)
-              ( index 1 string
-              )
-              ( index 2 <|
-                  map2 (,)
-                    (index 1 string)
-                    (index 2 exp)
-              )
+            pair string (pair string exp)
         in
           map3 RCase
             (index 1 env)
@@ -169,9 +161,7 @@ env =
   let
     envBinding : Decoder (String, Res)
     envBinding =
-      map2 (,)
-        (index 0 string)
-        (index 1 res)
+      pair string res
   in
     list envBinding
 
