@@ -60,7 +60,7 @@ let branch
   in
   let ctor_info : (string * typ) Ctor_map.t =
     data_ctors
-      |> List.map (fun typ -> (arg_name, typ))
+      |> List.map (Pair2.map_snd @@ fun typ -> (arg_name, typ))
       |> Ctor_map.from_assoc
   in
   let* scrutinee =
