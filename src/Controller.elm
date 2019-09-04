@@ -4956,12 +4956,29 @@ msgBenchmarkPBE =
 
 coreRun : Model -> (Model, Cmd Msg)
 coreRun model =
-  case Core.Bridge.compile model.code of
-    Ok (cexp, _) ->
-      (model, Core.Bridge.eval cexp msgReceiveCoreRun)
+  case Syntax.parser Syntax.Leo model.code of
+    Ok lexp ->
+      case Core.Compile.exp lexp of
+        Ok cexp ->
+          ( { model | inputExp = lexp }
+          , Core.Bridge.eval cexp msgReceiveCoreRun
+          )
 
-    Err err ->
-      ({ model | unExpOutput = Err err }, Cmd.none)
+        Err e ->
+          ( { model | unExpOutput =
+                Err <|
+                  "Compilation error: " ++ toString e
+            }
+          , Cmd.none
+          )
+
+    Err e ->
+      ( { model | unExpOutput =
+            Err <|
+              "Parse error: " ++ toString e
+        }
+      , Cmd.none
+      )
 
 msgRequestCoreRun : Msg
 msgRequestCoreRun =

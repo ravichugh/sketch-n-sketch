@@ -142,8 +142,8 @@ let lookup (gen_input : gen_input) : exp Nondet.t option =
     |> Hashtbl.find_opt gen_cache
 
 let record (gen_input : gen_input) (solution : exp Nondet.t) : exp Nondet.t =
-    Hashtbl.add gen_cache (hash gen_input) solution;
-    solution
+  Hashtbl.add gen_cache (hash gen_input) solution;
+  solution
 
 (*******************************************************************************
  * Term generation

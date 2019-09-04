@@ -170,8 +170,8 @@ env =
     envBinding : Decoder (String, Res)
     envBinding =
       map2 (,)
-        (index 1 string)
-        (index 2 res)
+        (index 0 string)
+        (index 1 res)
   in
     list envBinding
 

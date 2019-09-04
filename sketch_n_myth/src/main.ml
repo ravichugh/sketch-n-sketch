@@ -81,6 +81,9 @@ let server =
       | "/synthesize" ->
           handle synthesis_request_of_yojson synthesis_response_to_yojson @@
             fun {delta; sigma; assertions} ->
+              let () =
+                Term_gen.clear_cache ()
+              in
               let initial_time =
                 Sys.time ()
               in

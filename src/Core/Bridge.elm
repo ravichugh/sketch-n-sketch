@@ -1,6 +1,5 @@
 module Core.Bridge exposing
-  ( compile
-  , Failable(..)
+  ( Failable(..)
   , eval
   , synthesize
   )
@@ -16,29 +15,6 @@ import Core.Encode
 import Core.Decode
 
 import Syntax
-
---------------------------------------------------------------------------------
--- Synchronous functions
---------------------------------------------------------------------------------
-
-compile : String -> Result String (C.Exp, C.DatatypeContext)
-compile code =
-  case Syntax.parser Syntax.Leo code of
-    Ok lexp ->
-      case Core.Compile.exp lexp of
-        Ok cexp ->
-          -- call Types2.getDataTypeDefs lexp
-          Ok (cexp, [])
-
-        Err err ->
-          Err (toString err)
-
-    Err err ->
-      Err (toString err)
-
---------------------------------------------------------------------------------
--- Asynchronous functions
---------------------------------------------------------------------------------
 
 url : String
 url =
@@ -137,7 +113,9 @@ synthesize (delta, sigma, assertions) =
           ( D.field "hole_fillings" <|
               D.list <|
                 D.list <|
-                  D.map2 (,) Core.Decode.holeName Core.Decode.exp
+                  D.map2 (,)
+                    (D.index 0 Core.Decode.holeName)
+                    (D.index 1 Core.Decode.exp)
           )
           ( D.field "time_taken" D.float
           )
