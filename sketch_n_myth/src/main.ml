@@ -84,6 +84,13 @@ let server =
               let () =
                 Term_gen.clear_cache ()
               in
+              let () =
+                delta
+                  |> List.map fst
+                  |> List2.maximum
+                  |> Option2.with_default 0
+                  |> Fresh.set_largest_hole
+              in
               let initial_time =
                 Sys.time ()
               in
