@@ -4,6 +4,7 @@ open Nondet.Syntax
 (* Core algorithm *)
 
 let step params sigma acc (hole_name, worlds) =
+  let _ = Debug.readln () in
   let* ((f_previous, us_previous), delta_previous) =
     acc
   in
@@ -11,9 +12,26 @@ let step params sigma acc (hole_name, worlds) =
     Nondet.lift_option @@
       List.assoc_opt hole_name delta_previous
   in
+  Debug.println
+    "--------------------------------------------------------------------------------";
+  Debug.println @@
+      "stepping on ??"
+      ^ string_of_int hole_name
+      ^ " ("
+      ^ string_of_int params.max_scrutinee_size
+      ^ ", "
+      ^ string_of_int params.max_match_depth
+      ^ ", "
+      ^ string_of_int params.max_term_size
+      ^ ")";
   let fill_goal =
     (hole_name, ((gamma, typ, dec), worlds))
   in
+  Debug.println "\ntype:";
+  Debug.print_typ typ;
+  Debug.println "\nprevious:";
+  Debug.print_hf f_previous;
+  Debug.println "";
   let* ((f_new, us_new), delta_new) =
     Fill.fill
       { params with max_match_depth = params.max_match_depth - match_depth }
@@ -22,10 +40,16 @@ let step params sigma acc (hole_name, worlds) =
       f_previous
       fill_goal
   in
+  Debug.println "\nnew:";
+  Debug.print_hf f_new;
+  Debug.println "";
   let+ f_merged =
     Nondet.lift_option @@
       Constraints.merge_solved [f_previous; f_new]
   in
+  Debug.println "merged:";
+  Debug.print_hf f_merged;
+  Debug.println "";
   let us_merged =
     Constraints.merge_unsolved [us_previous; us_new]
   in
@@ -65,7 +89,7 @@ let next_stage (stage : stage) : stage option =
         Some Two
 
     | Two ->
-        Some Three
+        None (* Some Three *)
 
     | Three ->
         Some Four

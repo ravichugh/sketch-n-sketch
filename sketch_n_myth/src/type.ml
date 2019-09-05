@@ -15,6 +15,17 @@ let rec equal tau1 tau2 =
     | _ ->
         false
 
+let is_base tau =
+  match tau with
+    | TArr _ ->
+        false
+
+    | TTuple _ ->
+        false
+
+    | TData _ ->
+        true
+
 let rec domain_of_codomain ~codomain tau =
   match tau with
     | TArr (tau1, tau2) ->

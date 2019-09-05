@@ -280,8 +280,8 @@ and rel_gen_e_app
                   ]
 
         | _ ->
-            print_endline
-              ( "WARNING: integer partition is incorrect size (is "
+            Warn.println
+              ( "integer partition is incorrect size (is "
               ^ string_of_int (List.length partition)
               ^ ", should be 2, called with n = "
               ^ string_of_int (term_size - 1)
@@ -317,7 +317,9 @@ and rel_gen_e
                     component_types
                       |> List.mapi Pair2.pair
                       |> List.filter (snd >> Type.equal goal_type)
-                      |> List.map (fun (i, _) -> EProj (n, i, EVar rel_name))
+                      (* Should be 1-indexed, so use i + 1 *)
+                      |> List.map
+                           (fun (i, _) -> EProj (n, i + 1, EVar rel_name))
                       |> Nondet.from_list
 
               | _ ->

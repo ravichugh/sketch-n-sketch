@@ -77,6 +77,7 @@ type example =
   | ExCtor of string * example
   | ExInputOutput of value * example
   | ExTop
+  [@@deriving yojson]
 
 type world =
   env * example

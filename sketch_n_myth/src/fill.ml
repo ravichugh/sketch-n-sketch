@@ -1,7 +1,8 @@
 open Lang
 open Nondet.Syntax
 
-let refine_or_branch params delta sigma _hf (hole_name, synthesis_goal) =
+let refine_or_branch
+ params delta sigma _hf (hole_name, synthesis_goal) =
   let* (additional_depth, (exp, subgoals)) =
     Nondet.union
       [ Nondet.map (Pair2.pair 0) @@
@@ -52,7 +53,15 @@ let refine_or_branch params delta sigma _hf (hole_name, synthesis_goal) =
     , delta'
     )
 
-let guess_and_check params delta sigma hf (hole_name, (gen_goal, worlds)) =
+let guess_and_check
+ params delta sigma hf (hole_name, ((gamma, goal_type, _) as gen_goal, worlds)) =
+  (* Only guess at base types *)
+  let* _ =
+    Nondet.guard (Type.is_base goal_type)
+  in
+  Debug.println "TERMGEN";
+  Debug.println "with gamma:";
+  Debug.print_type_ctx gamma;
   let* exp =
     Term_gen.up_to_e sigma params.max_term_size gen_goal
   in
@@ -66,6 +75,9 @@ let guess_and_check params delta sigma hf (hole_name, (gen_goal, worlds)) =
   let* constraints =
     Uneval.check delta sigma extended_hf exp worlds
   in
+  Debug.println "\nThe expression";
+  Debug.print_exp exp;
+  Debug.println "has made it!";
     Nondet.lift_option @@
       Option2.sequence_fst
         ( Constraints.merge
@@ -75,9 +87,10 @@ let guess_and_check params delta sigma hf (hole_name, (gen_goal, worlds)) =
         , []
         )
 
-let defer _params _delta _sigma _hf (hole_name, ((_, typ, _), worlds)) =
+let defer
+ _params _delta _sigma _hf (hole_name, ((_, goal_type, _), worlds)) =
   if
-    not (Type.equal typ (TTuple []))
+    not (Type.equal goal_type (TTuple []))
       && List.length worlds > 0
       && List.for_all (fun (_, ex) -> ex = ExTop) worlds
   then

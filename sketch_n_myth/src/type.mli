@@ -2,6 +2,8 @@ open Lang
 
 val equal : typ -> typ -> bool
 
+val is_base : typ -> bool
+
 (* Suppose tau = a -> (b -> (c -> d)). Then:
  *   domain_of_codomain ~codomain:d tau = Some c
  *   domain_of_codomain ~codomain:(c -> d) tau = Some b
