@@ -87,16 +87,10 @@ let server =
               let initial_time =
                 Sys.time ()
               in
-              let params =
-                { Lang.max_scrutinee_size = 3
-                ; Lang.max_term_size = 10
-                ; Lang.max_match_depth = 1
-                }
-              in
               let synthesis_result =
                 assertions
                   |> Uneval.simplify delta sigma
-                  |> Nondet.and_then (Solve.solve params delta sigma)
+                  |> Nondet.and_then (Solve.staged_solve delta sigma)
               in
               let final_time =
                 Sys.time ()

@@ -1,6 +1,8 @@
 open Lang
 open Nondet.Syntax
 
+(* Core algorithm *)
+
 let step params sigma acc (hole_name, worlds) =
   let* ((f_previous, us_previous), delta_previous) =
     acc
@@ -47,3 +49,64 @@ let rec solve params delta sigma (f0, unsolved_constraints) =
         unsolved_bindings
     in
       solve params delta_final sigma k_final
+
+(* Staging *)
+
+type stage =
+  | One
+  | Two
+  | Three
+  | Four
+  | Five
+
+let next_stage (stage : stage) : stage option =
+  match stage with
+    | One ->
+        Some Two
+
+    | Two ->
+        Some Three
+
+    | Three ->
+        Some Four
+
+    | Four ->
+        Some Five
+
+    | Five ->
+        None
+
+let staged_solve delta sigma constraints =
+  let rec helper stage_opt =
+    let* stage =
+      Nondet.lift_option stage_opt
+    in
+    let (max_scrutinee_size, max_match_depth, max_term_size) =
+      match stage with
+        | One ->
+            (1, 0, 13)
+
+        | Two ->
+            (1, 1, 13)
+
+        | Three ->
+            (1, 2, 13)
+
+        | Four ->
+            (6, 2, 13)
+
+        | Five ->
+            (6, 3, 13)
+    in
+    let params =
+      { max_scrutinee_size; max_match_depth; max_term_size }
+    in
+    let solution_nd =
+      solve params delta sigma constraints
+    in
+      if Nondet.is_empty solution_nd then
+        helper (next_stage stage)
+      else
+        solution_nd
+  in
+    helper (Some One)

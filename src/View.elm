@@ -53,6 +53,7 @@ import TinyStructuredEditorsForLowLowPricesView
 import PBESuite
 import NonDet exposing (NonDet)
 import Core.Lang as C
+import Core.Uncompile
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -3164,17 +3165,26 @@ viewAssertions assertions =
   let
     viewAssertion : C.ResumptionAssertion -> Html Msg
     viewAssertion (r, v) =
-      Html.li
-        [ Attr.class "pbe-constraint"
-        ]
-        [ Html.code
-            []
-            [ Html.text <|
-                toString r
-                  ++ " ⇒ "
-                  ++ toString v
-            ]
-        ]
+      let
+        rString =
+          U.unparseSimple <|
+            Core.Uncompile.res r
+
+        vString =
+          U.unparseSimple <|
+            Core.Uncompile.res (C.valueToRes v)
+      in
+        Html.li
+          [ Attr.class "pbe-constraint"
+          ]
+          [ Html.code
+              []
+              [ Html.text <|
+                  rString
+                    ++ " ⇒ "
+                    ++ vString
+              ]
+          ]
 
     assertionsLen =
       List.length assertions

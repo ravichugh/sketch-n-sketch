@@ -70,3 +70,12 @@ type alias ResumptionAssertions =
 nullaryCtor : String -> Exp
 nullaryCtor name =
   ECtor name (ETuple [])
+
+valueToRes : Value -> Res
+valueToRes v =
+  case v of
+    VTuple components ->
+      RTuple (List.map valueToRes components)
+
+    VCtor ctorName arg ->
+      RCtor ctorName (valueToRes arg)
