@@ -5,7 +5,11 @@
 ***Important note:***
 Sketch-n-Myth is built with OCaml v4.08.1. When first working with the
 Sketch-n-Myth codebase, please run `make deps` to download all the necessary
-Opam dependencies.
+opam dependencies.
+
+For best performance, please use an installation of OCaml that supports
+[flambda](https://caml.inria.fr/pub/docs/manual-ocaml/flambda.html)
+(e.g. `4.08.1+flambda` obtained via `opam switch create 4.08.1+flambda`).
 
 ***To build and run the server:***
 From the root directory (where this `README` is), run `make serve`.

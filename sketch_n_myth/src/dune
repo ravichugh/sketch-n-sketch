@@ -10,8 +10,11 @@
       lwt cohttp cohttp-lwt-unix yojson ppx_deriving_yojson.runtime
   )
   ( flags
-      (-open Stdlib2)
-      ; (-open Stdlib2 -w +a-4-9-42-48 -warn-error -a+1..66-3-33)
+      ; (-open Stdlib2)
+      (-open Stdlib2 -w +a-4-9-42-48 -warn-error -a+1..66-3-33)
+  )
+  ( ocamlopt_flags
+      (-O3)
   )
   ( preprocess
       (pps ppx_deriving_yojson)
