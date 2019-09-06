@@ -201,11 +201,19 @@ and rel_gen_e_app
     let combined_gamma =
       rel_binding :: gamma
     in
-    let app_combine (head : exp) (arg : exp) : exp option =
-      if Type.structurally_decreasing combined_gamma ~head ~arg then
-        Some (EApp (head, arg))
-      else
-        None
+    let app_combine
+     (head_nd : exp Nondet.t) (arg_nd : exp Nondet.t) : exp Nondet.t =
+      let* head =
+        head_nd
+      in
+      let* arg =
+        arg_nd
+      in
+      let+ _ =
+        Nondet.guard @@
+          Type.structurally_decreasing combined_gamma ~head ~arg
+      in
+        EApp (head, arg)
     in
     let* arg_type =
       gamma
@@ -236,7 +244,7 @@ and rel_gen_e_app
               , None
               )
             in
-            let* head_solution =
+            let head_solution_nd =
               gen
                 { sigma
                 ; term_kind = E
@@ -245,7 +253,7 @@ and rel_gen_e_app
                 ; goal = head_goal
                 }
             in
-            let* rel_head_solution =
+            let rel_head_solution_nd =
               gen
                 { sigma
                 ; term_kind = E
@@ -254,7 +262,7 @@ and rel_gen_e_app
                 ; goal = head_goal
                 }
             in
-            let* arg_solution =
+            let arg_solution_nd =
               gen
                 { sigma
                 ; term_kind = I
@@ -263,7 +271,7 @@ and rel_gen_e_app
                 ; goal = arg_goal
                 }
             in
-            let* rel_arg_solution =
+            let rel_arg_solution_nd =
               gen
                 { sigma
                 ; term_kind = I
@@ -272,12 +280,11 @@ and rel_gen_e_app
                 ; goal = arg_goal
                 }
             in
-              Nondet.from_list @@
-                List2.filter_somes
-                  [ app_combine rel_head_solution arg_solution
-                  ; app_combine head_solution rel_arg_solution
-                  ; app_combine rel_head_solution rel_arg_solution
-                  ]
+              Nondet.union @@
+                [ app_combine rel_head_solution_nd arg_solution_nd
+                ; app_combine head_solution_nd rel_arg_solution_nd
+                ; app_combine rel_head_solution_nd rel_arg_solution_nd
+                ]
 
         | _ ->
             Warn.println

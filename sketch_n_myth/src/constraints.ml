@@ -46,7 +46,7 @@ let merge_unsolved us =
   in
     List.fold_left merge Hole_map.empty us
 
-let merge (ks : constraints list) =
+let merge ks =
   let open Option2.Syntax in
   let (fs, us) =
     List.split ks

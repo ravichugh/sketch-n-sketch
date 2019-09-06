@@ -1,7 +1,7 @@
 open Lang
 
 let debug_mode =
-  true
+  false
 
 let debug func =
   if debug_mode then
@@ -42,6 +42,19 @@ let print_worlds worlds = debug @@ fun _ ->
   in
     print_endline @@ "{ " ^ s ^ "\n}"
 
+let print_unsolved_constraints us = debug @@ fun _ ->
+  us
+    |> Hole_map.bindings
+    |> List.map
+         ( fun (h, ws) ->
+             print_endline @@
+               "??"
+                 ^ (string_of_int h)
+                 ^ ": ";
+              print_worlds ws
+         )
+    |> (fun _ -> ())
+
 let print_exp exp = debug @@ fun _ ->
   print_endline @@ Yojson.Safe.to_string (exp_to_yojson exp)
 
@@ -63,3 +76,6 @@ let print_type_ctx gamma = debug @@ fun _ ->
       gamma
   in
     print_endline @@ "< " ^ s ^ "\n>"
+
+let print_int n = debug @@ fun _ ->
+  print_endline (string_of_int n)

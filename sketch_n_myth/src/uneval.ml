@@ -1,4 +1,5 @@
 open Lang
+open Nondet.Syntax
 
 let guesses
   (_delta : hole_ctx)
@@ -27,7 +28,6 @@ let rec simplify delta sigma rcs =
       |> Nondet.collapse_option
 
 and uneval delta sigma hf res ex =
-  let open Nondet.Syntax in
   match (res, ex) with
     | (_, ExTop) ->
         Nondet.pure Constraints.empty
@@ -143,3 +143,38 @@ and check delta sigma hf exp worlds =
       |> Nondet.one_of_each
       |> Nondet.map Constraints.merge
       |> Nondet.collapse_option
+
+let rec simplify_constraints delta sigma ((f_prev, u_prev) as k_prev) =
+  let* k_new =
+    u_prev
+      |> Hole_map.bindings
+      |> List.map
+           ( fun (hole_name, worlds) ->
+               match Hole_map.find_opt hole_name f_prev with
+                 | Some exp ->
+                     check delta sigma f_prev exp worlds
+
+                 | None ->
+                     Nondet.pure @@
+                       Constraints.unsolved_singleton hole_name worlds
+           )
+      |> Nondet.one_of_each
+      |> Nondet.map Constraints.merge
+      |> Nondet.collapse_option
+      |> Nondet.map
+           ( Pair2.map_snd @@
+               Hole_map.map @@
+                 List.sort_uniq compare
+           )
+  in
+  let* k_merged =
+    Nondet.lift_option @@
+      Constraints.merge
+        [ Constraints.from_hole_filling f_prev
+        ; k_new
+        ]
+  in
+    if k_merged = k_prev then
+      Nondet.pure k_merged
+    else
+      simplify_constraints delta sigma k_merged

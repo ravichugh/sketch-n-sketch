@@ -50,6 +50,9 @@ let step params sigma acc (hole_name, worlds) =
   Debug.println "merged:";
   Debug.print_hf f_merged;
   Debug.println "";
+  Debug.println "new us:";
+  Debug.print_unsolved_constraints us_new;
+  Debug.println "";
   let us_merged =
     Constraints.merge_unsolved [us_previous; us_new]
   in
@@ -58,21 +61,24 @@ let step params sigma acc (hole_name, worlds) =
   in
     ((f_merged, us_merged), delta_merged)
 
-let rec solve params delta sigma (f0, unsolved_constraints) =
-  if Hole_map.is_empty unsolved_constraints then
-    Nondet.pure (f0, delta)
-  else
-    (* Here is where we choose an order arbitrarily *)
-    let unsolved_bindings =
-      Hole_map.bindings unsolved_constraints
-    in
-    let* (k_final, delta_final) =
-      List.fold_left
-        (step params sigma)
-        (Nondet.pure (Constraints.from_hole_filling f0, delta))
-        unsolved_bindings
-    in
-      solve params delta_final sigma k_final
+let rec solve params delta sigma constraints =
+  let* (f0, unsolved_constraints) =
+    Uneval.simplify_constraints delta sigma constraints
+  in
+    if Hole_map.is_empty unsolved_constraints then
+      Nondet.pure (f0, delta)
+    else
+      (* Here is where we choose an order arbitrarily *)
+      let unsolved_bindings =
+        Hole_map.bindings unsolved_constraints
+      in
+      let* (k_final, delta_final) =
+        List.fold_left
+          (step params sigma)
+          (Nondet.pure (Constraints.from_hole_filling f0, delta))
+          unsolved_bindings
+      in
+        solve params delta_final sigma k_final
 
 (* Staging *)
 
@@ -89,7 +95,7 @@ let next_stage (stage : stage) : stage option =
         Some Two
 
     | Two ->
-        None (* Some Three *)
+        Some Three
 
     | Three ->
         Some Four
