@@ -205,19 +205,21 @@ After publishing, make sure you update the dependency to SNS in your project via
 
 ## How to speed up update?
 
-In this version, Sketch-n-sketch sometimes needs to recompute certain expressions to update them, and can remember others in cache.
+There are a few kinds of expressions that Sketch-n-sketch remembers without having to recompute them, and some that it automatically recomputes. Recomputation can take a quadratic time, so beware of some pitfalls.
 
-There are a few kinds of expressions that Sketch-n-sketch remembers without having to recompute them:
-
-* Consecutive let definitions
+* Consecutive let definitions are cached.
   Every time you assign compute and assign a value to a variable, the original value of the expression can be retrieved from the variable itself.
-  Except if the pattern matching is a record pattern, because record extraction makes it impossible to retrieve the original value, e.g., from the cached value of `a`, we cannot obtain the original value of `A` in
-  `let {a} = A in X` (`A` could evaluate to more fields).
-  A work-around for this is either to define  
-  `let a = A.a`  
-  or add the "as" keyword to redefine A:  
-  `let {a} as x = A`
-  
+  Except if
+  * the pattern matching is a record pattern, because record extraction makes it impossible to retrieve the original value, e.g., from the cached value of `a`, we cannot obtain the original value of `A` in
+    `let {a} = A in X` (`A` could evaluate to more fields).
+    A work-around for this is either to define  
+    `let a = A.a`  
+    or add the "as" keyword to redefine A:  
+    `let {a} as x = A`
+  * the pattern matching is a wilcard pattern like `_`.
+  This will only trigger the recomputation of the right-hand-side, but it won't propagate to anything else.
+  To avoid that, just put a dummy variable to ensure it caches the result.
+
 * Intermediate results of pipelines
   In the expression `S |> F |> G`, the intermediate results are cached because the expression is rewritten to a let definition like above.
   But the expressions F and G are not cached and will be recomputed.

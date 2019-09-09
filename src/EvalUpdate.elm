@@ -183,7 +183,7 @@ builtinEnv =
               |> Result.andThen (\prog ->
                   Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ builtinEnv) prog
                 )
-              |> Result.map (Tuple.first >> Tuple.first)
+              |> Result.map (\((v, ws), env) -> v)
               |> Vb.result Vb.identity (Vb.fromVal program)
               |> (\x -> Ok (x, []))
           _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString penv ++ " and " ++ LangUtils.valToString program
@@ -232,6 +232,77 @@ builtinEnv =
                       (Ok (Err msg), Ok (Err msg2), _) -> if msg == msg2 then ok1 ([oldpEnv, oldProgram], []) else Err <| "Cannot change the error message of __evaluate__ to " ++ msg2
                       (Ok (Err msg), Ok (Ok x), _) -> Err <| "Cannot change the outpur of __evaluate__ from error '"++msg++"' to " ++ valToString x ++ "'"
                       (_, Ok (Err msg2), _) -> Err <| "Don't know how to update the result of a correct __evaluate__ by an error '" ++ msg2 ++ "'"
+                    )
+            _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString oldpEnv ++ " and " ++ LangUtils.valToString oldProgram
+    )
+  , ("__evaluateWithCache__", builtinVal "EvalUpdate.__evaluateWithCache__" <| VFun "__evaluateWithCache__" ["environment", "program"] (twoArgs "__evaluate__" <| \penv program ->
+      case (Vu.list (Vu.tuple2 Vu.string Vu.identity) penv, program.v_) of
+          (Ok env, VBase (VString s)) ->
+              Syntax.parser Syntax.Leo s
+              |> Result.mapError (ParserUtils.showError)
+              |> Result.andThen (\prog ->
+                  Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ builtinEnv) prog
+                )
+              |> Result.map (\((v, ws), env) -> (v, env))
+              |> Vb.result (Vb.tuple2 Vb.identity (Vb.list (Vb.tuple2 Vb.string Vb.identity))) (Vb.fromVal program)
+              |> (\x -> Ok (x, []))
+          _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString penv ++ " and " ++ LangUtils.valToString program
+    ) <| Just <| twoArgsUpdate "__evaluateWithCache__" <| \oldpEnv oldProgram oldValr newValr d ->
+          case (Vu.list (Vu.tuple2 Vu.string Vu.identity) oldpEnv, oldProgram.v_) of
+            (Ok env, VBase (VString s)) ->
+              let parsed = Syntax.parser Syntax.Leo s in
+              case parsed of
+                 Err err -> let (error, reverser) = ParserUtils.showErrorReversible err in
+                  case Vu.result Vu.identity newValr of
+                     Ok (Err msg2) ->
+                        case reverser msg2 of
+                           Just newProgram ->
+                             let newProgramV = Vb.string (Vb.fromVal oldProgram) newProgram in
+                             let newProgramDiffs = defaultVDiffs oldProgram newProgramV in
+                             flip  Results.map  newProgramDiffs <| \pd ->
+                               ([oldpEnv, newProgramV], Maybe.map (\d -> [(1, d)]) pd |> Maybe.withDefault [])
+                           Nothing -> Err <| "No way to change the outpur of __evaluate__ from error to " ++ msg2 ++ "'"
+                     Err msg -> Err msg
+                     Ok (Ok x) -> Err <| "Cannot change the outpur of __evaluate__ from error to " ++ valToString x ++ "'"
+                 Ok x -> ok1 x |> Results.andThen (\prog ->
+                    case (Vu.result (Vu.tuple2 Vu.identity (Vu.list (Vu.tuple2 Vu.string Vu.identity))) oldValr,
+                          Vu.result (Vu.tuple2 Vu.identity (Vu.list (Vu.tuple2 Vu.string Vu.identity))) newValr,
+                          vDatatypeDiffsGet "_1" d) of
+                      (Ok (Ok (oldVal, oldEnvCache)), Ok (Ok (newVal, _)), Just dds) ->
+                          case dds of
+                            VRecordDiffs dictDiffs ->
+                              case (Dict.get "_1" dictDiffs, Dict.get "_2" dictDiffs) of
+                                (_, Just _) -> Err <| "Cannot modify the cache of __evaluateWithCache"
+                                (Nothing, _) ->
+                                  Err <| "Expected VRecordDiffs with 1 element, got " ++ toString dds
+                                (Just dd, _) ->
+                                  let initEnv = env ++ builtinEnv in
+                                  let previousLets = UpdateStack.keepLets initEnv oldEnvCache in
+                                  UpdateStack.updateContext "Eval.__evaluateWithCache__" initEnv prog previousLets oldVal newVal dd
+                                 |> update
+                                 |> Results.filter (\(newEnv, newProg) ->
+                                     let envLength = List.length env in
+                                     newEnv.changes |> Utils.findFirst (\(i, _) -> i >= envLength) |> Utils.maybeIsEmpty
+                                   )
+                                 |> Results.andThen (\(newEnv, newProg) ->
+                                   let x = Syntax.unparser Syntax.Leo newProg.val in
+                                   let newProgram = replaceV_ oldProgram <| VBase <| VString x in
+                                   let newEnvValue = newEnv.val |> Vb.list (Vb.tuple2 Vb.string Vb.identity) (Vb.fromVal oldpEnv) in
+                                   let newEnvDiffs = newEnv.changes
+                                     |> List.map (\(i, d) -> (i, ListElemUpdate <| VRecordDiffs <| Dict.fromList  [("_2", d)]))
+                                     |>(\d -> [(0,  VListDiffs d)]) in
+                                   UpdateUtils.defaultVDiffs oldProgram newProgram |> Results.map (\mbd -> case mbd of
+                                     Nothing -> ([newEnvValue, newProgram], newEnvDiffs )
+                                     Just d -> ([newEnvValue, newProgram], newEnvDiffs ++ [(1, d)])
+                                   )
+                                 )
+                            _ -> Err <| "Expected VRecordDiffs with diff on variable only, got " ++ toString dds
+                      (_, _, Nothing) -> Err <| "Expected VRecordDiffs with 1 element, got " ++ toString d
+                      (Err msg, _, _) -> Err msg
+                      (_, Err msg, _) -> Err msg
+                      (Ok (Err msg), Ok (Err msg2), _) -> if msg == msg2 then ok1 ([oldpEnv, oldProgram], []) else Err <| "Cannot change the error message of __evaluate__ to " ++ msg2
+                      (Ok (Err msg), Ok (Ok (x, _)), _) -> Err <| "Cannot change the outpur of __evaluateWithCache__ from error '"++msg++"' to " ++ valToString x ++ "'"
+                      (_, Ok (Err msg2), _) -> Err <| "Don't know how to update the result of a correct __evaluateWithCache__ by an error '" ++ msg2 ++ "'"
                     )
             _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString oldpEnv ++ " and " ++ LangUtils.valToString oldProgram
     )
