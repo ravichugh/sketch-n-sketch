@@ -1,6 +1,6 @@
 {
   "name": "sketch-n-sketch",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Bidirectional programming library that sketch-n-sketch relies on",
   "main": "sns-core.js",
   "scripts": {

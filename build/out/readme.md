@@ -203,5 +203,25 @@ After publishing, make sure you update the dependency to SNS in your project via
 
     npm update sketch-n-sketch
 
+## How to speed up update?
 
+In this version, Sketch-n-sketch sometimes needs to recompute certain expressions to update them, and can remember others in cache.
 
+There are a few kinds of expressions that Sketch-n-sketch remembers without having to recompute them:
+
+* Consecutive let definitions
+  Every time you assign compute and assign a value to a variable, the original value of the expression can be retrieved from the variable itself.
+  Except if the pattern matching is a record pattern, because record extraction makes it impossible to retrieve the original value, e.g., from the cached value of `a`, we cannot obtain the original value of `A` in
+  `let {a} = A in X` (`A` could evaluate to more fields).
+  A work-around for this is either to define  
+  `let a = A.a`  
+  or add the "as" keyword to redefine A:  
+  `let {a} as x = A`
+  
+* Intermediate results of pipelines
+  In the expression `S |> F |> G`, the intermediate results are cached because the expression is rewritten to a let definition like above.
+  But the expressions F and G are not cached and will be recomputed.
+* List literals, record literals, branches of if-then-else (NOT the conditional), branches of case statement (NOT the input)
+
+So in general, it's better to name any intermediate computation result.
+It's a bad idea (for now) to pipeline anything inside a branch (if or case) because the pipeline will need to be recomputed.
