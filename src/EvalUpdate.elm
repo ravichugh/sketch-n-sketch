@@ -787,7 +787,7 @@ run syntax e =
 runWithEnv : Syntax -> Exp -> Result String ((Val, Widgets), Env)
 runWithEnv syntax e =
 -- doEval syntax initEnv e |> Result.map Tuple.first
-  ImpureGoodies.logTimedRun "Eval.run" <| \() ->
+  --ImpureGoodies.logTimedRun "Eval.run" <| \() ->
     Eval.doEval Eval.withParentsProvenanceWidgets syntax preludeEnv e
 
 doUpdate : Exp -> Env -> Val -> Result String Val -> Results String (UpdatedEnv, UpdatedExp)
@@ -906,27 +906,15 @@ parse s =
 unparse: Exp -> String
 unparse e = Syntax.unparser Syntax.Leo e
 
-evalExp: Exp -> Result String Val
-evalExp exp = run Syntax.Leo exp |> Result.map Tuple.first
+evalExp: Exp -> Result String (Val, Env)
+evalExp exp = evaluateRaw [] exp
 
-updateExp: Exp -> Val -> Val -> Results String Exp
-updateExp oldExp oldVal newVal =
-  let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
-  in
-  case thediffs of
-    Err msg -> Err msg
-    Ok (LazyList.Nil ) -> Err "[Internal error] expected a diff or an error, got Nil"
-    Ok (LazyList.Cons Nothing _ ) -> ok1 oldExp
-    Ok ll ->
-        Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
-         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
-         (update <| updateContext "initial update" preludeEnv oldExp [] oldVal newVal diffs)) |>
-         Results.filter (\(newEnv, newExp) -> newEnv.changes == []) |>
-         Results.map (\(newEnv, newExp) -> newExp.val)
+evalExpWithoutCache: Exp -> Result String Val
+evalExpWithoutCache exp = evalExp exp |> Result.map Tuple.first
 
 -- Same as updateExp, but with an additional environment that can change.
-updateEnvExp: Env -> Exp -> Val -> Val -> Results String (Env, Exp)
-updateEnvExp env oldExp oldVal newVal =
+updateEnvExp: Env -> Exp -> (Val, Env) -> Val -> Results String (Env, Exp)
+updateEnvExp env oldExp (oldVal, oldEnvCache) newVal =
   let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
   in
   case thediffs of
@@ -935,13 +923,27 @@ updateEnvExp env oldExp oldVal newVal =
     Ok (LazyList.Cons Nothing _ ) -> ok1 (env, oldExp)
     Ok ll ->
         Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
-         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
-         (update <| updateContext "initial update" (env ++ preludeEnv) oldExp [] oldVal newVal diffs)) |>
+         let initEnv = env ++ preludeEnv in
+         let previousLets = UpdateStack.keepLets initEnv oldEnvCache in
+         (update <| updateContext "initial update" initEnv oldExp previousLets oldVal newVal diffs)) |>
          Results.filter (\(newEnv, newExp) ->
            case Utils.maybeLast newEnv.changes of
              Nothing -> True
              Just (i, d) -> i < List.length env) |>
          Results.map (\(newEnv, newExp) -> (List.take (List.length env) newEnv.val, newExp.val))
+
+updateExp: Exp -> (Val, Env) -> Val -> Results String Exp
+updateExp oldExp oldValEnvCache newVal =
+  updateEnvExp [] oldExp oldValEnvCache newVal
+  |> Results.map Tuple.second
+
+updateExpWithoutCache: Exp -> Val -> Results String Exp
+updateExpWithoutCache oldExp newVal =
+  evaluateRaw [] oldExp
+  |> Results.fromResult
+  |> Results.andThen (\oldValEnvCache ->
+    updateExp oldExp oldValEnvCache newVal
+   )
 
 valToNative: Val -> Result String a
 valToNative v = case v.v_ of
@@ -961,7 +963,7 @@ valToNative v = case v.v_ of
   VClosure recIdents pats body closureEnv ->
     Ok <| ImpureGoodies.hideType (\x ->
       let arg = nativeToVal (Vb.fromVal v) x in
-      case evaluateRaw [("fun", v), ("arg", arg)] (eApp (eVar "fun") [eVar "arg"]) |> Result.andThen valToNative of
+      case evaluateRawWithoutCache [("fun", v), ("arg", arg)] (eApp (eVar "fun") [eVar "arg"]) |> Result.andThen valToNative of
         Err msg -> Debug.crash <| "Native version of closure crashed with : " ++ msg
         Ok result -> result)
   _ -> Err <| "Don't know how to convert dictionaries to native values"
@@ -991,22 +993,28 @@ envToObject: Env -> Result String objectAsEnvOfConsts
 envToObject env =
   valToNative (Vb.record Vb.identity (builtinVal "EvalUpdate.nativeToVal") (Dict.fromList env))
 
-evaluateRaw: Env -> Exp -> Result String Val
+evaluateRawWithoutCache: Env -> Exp -> Result String Val
+evaluateRawWithoutCache env exp =
+  evaluateRaw env exp
+  |> Result.map Tuple.first
+
+-- Return the resulting environment as well
+evaluateRaw: Env -> Exp -> Result String (Val, Env)
 evaluateRaw env exp =
    Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ preludeEnv) exp
-  |> Result.map (Tuple.first >> Tuple.first)
+  |> Result.map (\((val, ws), env) -> (val, env))
 
-evaluateEnv: objectAsEnvOfConsts -> Exp -> Result String Val
+evaluateEnv: objectAsEnvOfConsts -> Exp -> Result String (Val, Env)
 evaluateEnv objectAsEnvOfConsts exp =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (flip evaluateRaw exp)
 
-evaluateString: String -> Result String Val
+evaluateString: String -> Result String (Val, Env)
 evaluateString stringSource =
   parse stringSource
   |> Result.andThen (evaluateRaw [])
 
-evaluateEnvString: objectAsEnvOfConsts -> String -> Result String Val
+evaluateEnvString: objectAsEnvOfConsts -> String -> Result String (Val, Env)
 evaluateEnvString objectAsEnvOfConsts stringSource =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (\env ->
@@ -1016,8 +1024,8 @@ evaluateEnvString objectAsEnvOfConsts stringSource =
 updateRaw: Env -> Exp -> Val -> Results String (Env, Exp)
 updateRaw env exp newVal =
   evaluateRaw env exp
-  |> Result.andThen (\oldVal ->
-    updateEnvExp env exp oldVal newVal)
+  |> Result.andThen (\oldValEnvCache ->
+    updateEnvExp env exp oldValEnvCache newVal)
 
 resultWithNativeEnv = LazyList.map (\(newEnv, newExp) ->
         (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", newExp))
@@ -1033,11 +1041,11 @@ updateEnv objectAsEnvOfConsts exp newVal =
     |> Result.map resultWithNativeEnv
     )
 
-updateEnvWithOld: objectAsEnvOfConsts -> Exp -> Val -> Val -> Results String (objectAsEnvOfConsts, Exp)
-updateEnvWithOld objectAsEnvOfConsts exp oldVal newVal =
+updateEnvWithOld: objectAsEnvOfConsts -> Exp -> (Val, Env) -> Val -> Results String (objectAsEnvOfConsts, Exp)
+updateEnvWithOld objectAsEnvOfConsts exp oldValEnvCache newVal =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (\env ->
-    updateEnvExp env exp oldVal newVal
+    updateEnvExp env exp oldValEnvCache newVal
     |> Result.map resultWithNativeEnv
     )
 
@@ -1049,11 +1057,11 @@ updateString strSource newVal =
     |> Result.map (LazyList.map (\(newenv, newExp) ->
               unparse newExp)))
 
-updateStringWithOld: String -> Val -> Val -> Results String String
-updateStringWithOld strSource  oldVal newVal =
+updateStringWithOld: String -> (Val, Env)-> Val -> Results String String
+updateStringWithOld strSource  oldValEnvCache newVal =
     parse strSource
     |> Result.andThen (\exp ->
-    updateEnvExp [] exp oldVal newVal
+    updateEnvExp [] exp oldValEnvCache newVal
     |> Result.map (LazyList.map (\(newenv, newExp) -> unparse newExp)))
 
 updateEnvString: objectAsEnvOfConsts -> String -> Val -> Results String (objectAsEnvOfConsts2, String)
@@ -1066,57 +1074,63 @@ updateEnvString objectAsEnvOfConsts strSource newVal =
     |> Result.map resultStringWithNativeEnv
     ))
 
-updateEnvStringWithOld: objectAsEnvOfConsts -> String -> Val -> Val -> Results String (objectAsEnvOfConsts2, String)
-updateEnvStringWithOld objectAsEnvOfConsts strSource oldVal newVal =
+updateEnvStringWithOld: objectAsEnvOfConsts -> String -> (Val, Env) -> Val -> Results String (objectAsEnvOfConsts2, String)
+updateEnvStringWithOld objectAsEnvOfConsts strSource oldValEnvCache newVal =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (\env ->
     parse strSource
     |> Result.andThen (\exp ->
-    updateEnvExp env exp oldVal newVal
+    updateEnvExp env exp oldValEnvCache newVal
     |> Result.map resultStringWithNativeEnv
     ))
 type alias StringObjEnvType envA envB envC = {
-    evaluate: envA -> String -> Result String Val,
-    update: envB -> String -> Val -> Results String (envC, String),
-    updateWithOld: envB -> String -> Val -> Val -> Results String (envC, String)
+    evaluate: envA -> String -> Result String (Val, Env),
+    update: envB -> String -> (Val, Env) -> Val -> Results String (envC, String),
+    evaluateWithoutCache: envA -> String -> Result String Val,
+    updateWithoutCache: envB -> String -> Val -> Results String (envC, String)
   }
 
 stringObjEnv: StringObjEnvType envA envB envC
 stringObjEnv = {
     -- JSObj -> StringSource-> Result StringError Val
     evaluate = evaluateEnvString, -- Takes an object (environment) and a string, returns a Val
+    update = updateEnvStringWithOld,
+    evaluateWithoutCache = \env source -> evaluateEnvString env source |> Result.map Tuple.first,
     -- JSObj -> StringSource-> Val -> Result StringError (LazyList (JSObj, String))
-    update = updateEnvString, -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
-    updateWithOld = updateEnvStringWithOld
+    updateWithoutCache = updateEnvString -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
   }
 
 type alias StringType envA envB envC  = {
-    evaluate: String -> Result String Val,
-    update: String -> Val -> Results String String,
-    updateWithOld: String -> Val -> Val -> Results String String,
+    evaluate: String -> Result String (Val, Env),
+    update: String -> (Val, Env) -> Val -> Results String String,
+    evaluateWithoutCache: String -> Result String Val,
+    updateWithoutCache: String -> Val -> Results String String,
     objEnv: StringObjEnvType envA envB envC
   }
 string: StringType envA envB envC
 string = {
     -- StringSource -> Result StringError Val
     evaluate = evaluateString, -- Takes a string, returns a Val
+    evaluateWithoutCache = evaluateString >> Result.map Tuple.first,
     -- StringSource -> Val -> Result StringError (LazyList StringSource)
-    update = updateString, -- Takes a string (program), a new val, returns a list of new strings (programs=
-    updateWithOld = updateStringWithOld,
+    update = updateStringWithOld, -- Takes a string (program), a new val, returns a list of new strings (programs=
+    updateWithoutCache= updateString,
     objEnv = stringObjEnv
   }
 
 type alias ObjEnvType envA envB envC = {
-    evaluate: envA -> Exp -> Result String Val,
-    update: envB -> Exp -> Val -> Results String (envB, Exp),
-    updateWithOld: envB -> Exp -> Val -> Val -> Results String (envB, Exp),
+    evaluate: envA -> Exp -> Result String (Val, Env),
+    update: envB -> Exp -> (Val, Env) -> Val -> Results String (envB, Exp),
+    evaluateWithoutCache: envA -> Exp -> Result String Val,
+    updateWithoutCache: envB -> Exp -> Val -> Results String (envB, Exp),
     string: StringObjEnvType envA envB envC
   }
 objEnv: ObjEnvType envA envB envC
 objEnv = {
     evaluate = evaluateEnv,
-    update = updateEnv,
-    updateWithOld = updateEnvWithOld,
+    update = updateEnvWithOld,
+    evaluateWithoutCache = \envA exp -> evaluateEnv envA exp |> Result.map Tuple.first,
+    updateWithoutCache = updateEnv,
     string = stringObjEnv
   }
 
@@ -1424,8 +1438,10 @@ lang = {
 
 api: {
   parse: String -> Result String Exp,
-  evaluate: Exp -> Result String Val,
-  update: Exp -> Val -> Val -> Results String Exp,
+  evaluate: Exp -> Result String (Val, Env),
+  update: Exp -> (Val, Env)-> Val -> Results String Exp,
+  evaluateWithoutCache: Exp -> Result String Val,
+  updateWithoutCache: Exp -> Val -> Results String Exp,
   lazyList: LazyListType a,
   unparse: Exp -> String,
   process: Result err a -> (a -> Result err b) -> Result err b,
@@ -1435,6 +1451,10 @@ api: {
   valToHTMLSource: Val -> Result String String,
   string: StringType envA envB envC,
   objEnv: ObjEnvType envA envB envC,
+  fromOk: Result String a -> a,
+  foldResult: (err -> b) -> (a -> b) -> Result err a -> b,
+  first: (a, b) -> a,
+  second: (a, b) -> b,
   lang: LangApi array_metadata_name_Pat array_Declaration array_Pat array_Branch array_Exp metadata metadata2 value
   }
 api = {
@@ -1445,6 +1465,8 @@ api = {
   -- updateExp: Exp -> Val -> Val -> Result String (LazyList Exp)
   update = updateExp,
   lazyList = lazyList,
+  evaluateWithoutCache = evalExpWithoutCache,
+  updateWithoutCache = updateExpWithoutCache,
   -- unparse: Exp -> String
   unparse = unparse,
   -- process: Result err a -> (a -> Result err b) -> Result err b,
@@ -1459,5 +1481,13 @@ api = {
   valToHTMLSource = LangSvg.valToHTMLSource HTMLParser.HTML,
   string = string,
   objEnv = objEnv,
-  lang = lang
+  lang = lang,
+  fromOk = \res -> case res of
+    Ok x -> x
+    Err msg -> Debug.crash msg,
+  foldResult = \errHandler okHandler res -> case res of
+    Ok x -> okHandler x
+    Err msg -> errHandler msg,
+  first = Tuple.first,
+  second = Tuple.second
   }
