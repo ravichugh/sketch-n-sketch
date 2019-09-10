@@ -5720,15 +5720,18 @@ nodejs = {
                 let extractedWrites = List.concatMap (\\(_, action) -> case action of
                      Write oldContent newContent diffs -> [(newContent, Just diffs)]
                      _ -> []) sameName in
-                let (finalContent, finalDiffs) =
+                let (finalContent, mbFinalDiffs) =
                       Update.merge oldContent ((newContent, Just diffs) :: extractedWrites)
                 in
-                let finalAction =
+                let finalNameAction =
                   case listDict.get name fileOperations of
-                    Just (Create content) -> Create finalContent
-                    _ -> Write oldContent finalContent finalDiffs
+                    Just (Create content) -> [(name, Create finalContent)]
+                    _ ->
+                      case mbFinalDiffs of
+                        Just finalDiffs -> [(name, Write oldContent finalContent finalDiffs)]
+                        _ -> []
                 in
-                process otherNames ((name, finalAction) :: revAcc)
+                process otherNames (finalNameAction ++ revAcc)
               Rename newName ->
                 if List.all (\\(_, action) -> case action of Rename _ -> True) tail then
                   process tail ((name, action)::revAcc)
