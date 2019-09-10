@@ -295,7 +295,7 @@ keywords =
     , "floor"
     , "ceiling"
     , "round"
-    , "toString"
+    , "__toString__"
     , "sqrt"
     , "explode"
     , "mod"
@@ -752,7 +752,7 @@ operator =
             , succeed Round
                 |. keywordWithSpace "round"
             , succeed ToStr
-                |. keywordWithSpace "toString"
+                |. keywordWithSpace "__toString__"
             , succeed Sqrt
                 |. keywordWithSpace "sqrt"
             , succeed Explode

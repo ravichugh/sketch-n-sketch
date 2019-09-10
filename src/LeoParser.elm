@@ -1686,7 +1686,7 @@ opFromIdentifier identifier =
       Just Ceil
     "round" ->
       Just Round
-    "toString" ->
+    "__toString__" ->
       Just ToStr
     "sqrt" ->
       Just Sqrt

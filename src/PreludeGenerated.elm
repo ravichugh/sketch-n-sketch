@@ -2087,8 +2087,10 @@ fromPolar (r, t) = (r * cos t, r * sin t)
 
 -- Strings and lists
 
--- toString is an op
 -- (++) is interpreted as append
+
+toString : a -> String
+toString x = __toString__ -- Delegate to builtin __toString__
 
 -- Higher-order helpers
 
@@ -2421,7 +2423,7 @@ Result = {
 --            | EChildDiffs (TupleDiffs EDiffs) -- Also for records
 
 --type EWhitespaceDiffs = EOnlyWhitespaceDiffs | EAnyDiffs
-  
+
 -- The diff primitive is:
 --
 --   type alias DiffOp : Value -> Value -> Result String (Maybe VDiffs)
@@ -4976,7 +4978,7 @@ Html = {
       else
       Ok (InputsWithDiffs [(input, Nothing)])
     } model
-  
+
   do = onClickCallback
 
   button name title model controller =
@@ -6039,14 +6041,14 @@ lookupAttr [_, attrs, _] k = lookup k attrs
 
 -- lookupAttrWithDefault: (-> AttrVal SVG AttrName AttrVal)
 lookupAttrWithDefault default [_, attrs, _] k =
-  lookupWithDefault default k attrs 
+  lookupWithDefault default k attrs
 
 -- Pairs of Type-Specific Lookup Functions
 -- lookupNumAttr: (-> SVG AttrName (union Num Null))
 lookupNumAttr [_, attrs, _] k =
   let val = lookup k attrs in
   \"Error: typecase not yet implemented for Elm syntax\"
-  
+
 -- lookupNumAttrWithDefault: (-> Num SVG AttrName Num)
 lookupNumAttrWithDefault default shape k =
   let val = lookupNumAttr shape k in
@@ -6066,7 +6068,7 @@ lookupPointsAttrWithDefault default shape k =
 lookupStringAttr [_, attrs, _] k =
   let val = lookup k attrs in
   \"Error: typecase not yet implemented for Elm syntax\"
-  
+
 -- lookupStringAttrWithDefault: (-> String SVG AttrName String)
 lookupStringAttrWithDefault default shape k =
   let val = lookupStringAttr shape k in
@@ -6107,7 +6109,7 @@ vec2DScalarDiv num vec =
 -- vec2DLength: (-> Point Point Num)
 vec2DLength [x1, y1] [x2, y2] =
   let [dx, dy] = [ x2- x1, y2 - y1] in
-  sqrt (dx * dx + dy * dy) 
+  sqrt (dx * dx + dy * dy)
 
 
 -- === Circles ===
@@ -6155,7 +6157,7 @@ circleSouth circle =
 -- circleWest: (-> Circle Point)
 circleWest circle =
   let [cx, cy] = circleCenter circle in
-    [ cx- circleRadius circle, cy] 
+    [ cx- circleRadius circle, cy]
 
 
 --; argument order - color, width, x, y, radius
@@ -6164,7 +6166,7 @@ circleWest circle =
 ring c w x y r =
   ['circle',
      [ ['cx', x], ['cy', y], ['r', r], ['fill', 'none'], ['stroke', c], ['stroke-width', w] ],
-     []] 
+     []]
 
 
 -- === Ellipses ===
@@ -6220,7 +6222,7 @@ ellipseSouth ellipse =
 -- ellipseWest: (-> Ellipse Point)
 ellipseWest ellipse =
   let [cx, cy] = ellipseCenter ellipse in
-    [ cx- ellipseRadiusX ellipse, cy] 
+    [ cx- ellipseRadiusX ellipse, cy]
 
 
 -- === Bounds-based shapes (Oval and Box) ===
@@ -6313,7 +6315,7 @@ boundedShapeCenter shape =
   [ (boundedShapeLeft shape + boundedShapeRight shape)
     / 2, (boundedShapeTop shape + boundedShapeBot shape)
     / 2
-  ] 
+  ]
 
 
 -- === Rectangles ===
@@ -6392,7 +6394,7 @@ rectLeftCenter rect =
 rectCenter rect =
   vec2DPlus
     (rectLeftTop rect)
-    [ rectWidth rect / 2, rectHeight rect / 2 ] 
+    [ rectWidth rect / 2, rectHeight rect / 2 ]
 
 
 -- === Lines ===
@@ -6427,7 +6429,7 @@ lineEnd line =
 
 -- lineMidPoint: (-> Line Point)
 lineMidPoint line =
-  halfwayBetween (lineStart line) (lineEnd line) 
+  halfwayBetween (lineStart line) (lineEnd line)
 
 
 --; argument order - fill, stroke, width, points
@@ -6436,7 +6438,7 @@ lineMidPoint line =
 polygon fill stroke w pts =
   ['polygon',
      [ ['fill', fill], ['points', pts], ['stroke', stroke], ['stroke-width', w] ],
-     []] 
+     []]
 
 --; argument order - fill, stroke, width, points
 --; See polygon
@@ -6444,7 +6446,7 @@ polygon fill stroke w pts =
 polyline fill stroke w pts =
   ['polyline',
      [ ['fill', fill], ['points', pts], ['stroke', stroke], ['stroke-width', w] ],
-     []] 
+     []]
 
 --; argument order - fill, stroke, width, d
 --; Given SVG path command d, create path with given fill color, stroke and width
@@ -6453,7 +6455,7 @@ polyline fill stroke w pts =
 path fill stroke w d =
   ['path',
      [ ['fill', fill], ['stroke', stroke], ['stroke-width', w], ['d', d] ],
-     []] 
+     []]
 
 --; argument order - x, y, string
 --; place a text string with top left corner at (x,y) - with default color & font
@@ -6461,7 +6463,7 @@ path fill stroke w d =
 text x y s =
    ['text', [['x', x], ['y', y], ['style', 'fill:black'],
             ['font-family', 'Tahoma, sans-serif']],
-           [['TEXT', s]]] 
+           [['TEXT', s]]]
 
 --; argument order - shape, new attribute
 --; Add a new attribute to a given Shape
@@ -6471,10 +6473,10 @@ addAttr [shapeKind, oldAttrs, children] newAttr =
 
 -- consAttr: (-> SVG AttrPair SVG)
 consAttr [shapeKind, oldAttrs, children] newAttr =
-  [shapeKind, cons newAttr oldAttrs, children] 
+  [shapeKind, cons newAttr oldAttrs, children]
 
 --; Given a list of shapes, compose into a single SVG
-svg shapes = ['svg', [], shapes] 
+svg shapes = ['svg', [], shapes]
 
 --; argument order - x-maximum, y-maximum, shapes
 --; Given a list of shapes, compose into a single SVG within the x & y maxima
@@ -6483,26 +6485,26 @@ svgViewBox xMax yMax shapes =
   let [sx, sy] = [toString xMax, toString yMax] in
   ['svg',
     [['x', '0'], ['y', '0'], ['viewBox', joinStrings ' ' ['0', '0', sx, sy]]],
-    shapes] 
+    shapes]
 
 --; As rect, except x & y represent the center of the defined rectangle
 -- rectByCenter: (-> Color Num Num Num Num Rect)
 rectByCenter fill cx cy w h =
-  rect fill (cx - w / 2) (cy - h / 2) w h 
+  rect fill (cx - w / 2) (cy - h / 2) w h
 
 --; As square, except x & y represent the center of the defined rectangle
 -- squareByCenter: (-> Color Num Num Num Rect)
-squareByCenter fill cx cy w = rectByCenter fill cx cy w w 
+squareByCenter fill cx cy w = rectByCenter fill cx cy w w
 
 --; Some shapes with given default values for fill, stroke, and stroke width
 -- TODO remove these
-circle_ =    circle 'red' 
-ellipse_ =   ellipse 'orange' 
-rect_ =      rect '#999999' 
-square_ =    square '#999999' 
-line_ =      line 'blue' 2 
-polygon_ =   polygon 'green' 'purple' 3 
-path_ =      path 'transparent' 'goldenrod' 5 
+circle_ =    circle 'red'
+ellipse_ =   ellipse 'orange'
+rect_ =      rect '#999999'
+square_ =    square '#999999'
+line_ =      line 'blue' 2
+polygon_ =   polygon 'green' 'purple' 3
+path_ =      path 'transparent' 'goldenrod' 5
 
 --; updates an SVG by comparing differences with another SVG
 --; Note: accDiff pre-condition: indices in increasing order
@@ -6521,20 +6523,20 @@ updateCanvas [_, svgAttrs, oldShapes] diff =
         else
           [cons oldShape accShapes, accDiff] in
   let newShapes = reverse (fst (foldl f initAcc oldShapesI)) in
-    ['svg', svgAttrs, newShapes] 
+    ['svg', svgAttrs, newShapes]
 
 addBlob newShapes ['svg', svgAttrs, oldShapes] =
   ['svg', svgAttrs, append oldShapes newShapes]
 
 --  groupMap: (forall (a b) (-> (List a) (-> a b) (List b)))
-groupMap xs f = map f xs 
+groupMap xs f = map f xs
 
-autoChose _ x _ = x 
-inferred x _ _ = x 
-flow _ x = x 
+autoChose _ x _ = x
+inferred x _ _ = x
+flow _ x = x
 
-twoPi = 2 * pi 
-halfPi = pi / 2 
+twoPi = 2 * pi
+halfPi = pi / 2
 
 --; Helper function for nPointsOnCircle, calculates angle of points
 --; Note: angles are calculated clockwise from the traditional pi/2 mark
@@ -6581,13 +6583,13 @@ nStar fill stroke w n len1 len2 rot cx cy =
 setZones s shape = addAttr shape ['ZONES', s]
 
 -- zones: (-> String (List SVG) (List SVG))
-zones s shapes = map (setZones s) shapes 
+zones s shapes = map (setZones s) shapes
 -- TODO eta-reduced version:
 -- (def zones (\\s (map (setZones s))))
 
 --; Remove all zones from shapes except for the first in the list
 -- hideZonesTail: (-> (List SVG) (List SVG))
-hideZonesTail hd :: tl = hd :: zones 'none' tl 
+hideZonesTail hd :: tl = hd :: zones 'none' tl
 
 --; Turn all zones to basic for a given list of shapes except for the first shape
 -- basicZonesTail: (-> (List SVG) (List SVG))
@@ -6597,9 +6599,9 @@ basicZonesTail hd :: tl = hd :: zones 'basic' tl
 ghost =
   -- consAttr (instead of addAttr) makes internal calls to
   -- Utils.maybeRemoveFirst 'HIDDEN' slightly faster
-  \\shape -> consAttr shape ['HIDDEN', ''] 
+  \\shape -> consAttr shape ['HIDDEN', '']
 
-ghosts = map ghost 
+ghosts = map ghost
 
 --; hSlider_ : Bool -> Bool -> Int -> Int -> Int -> Num -> Num -> Str -> Num
 --; -> [Num (List Svg)]
@@ -6626,7 +6628,7 @@ hSlider_ dropBall roundInt x0 x1 y minVal maxVal caption srcVal =
     [ line 'black' 3! x0 y x1 y,
       text (x1 + 10) (y + 5) (caption + toString targetVal),
       circle 'black' x0 y 4!, circle 'black' x1 y 4!, ball ] in
-  [targetVal, ghosts shapes] 
+  [targetVal, ghosts shapes]
 -- TODO only draw zones for ball
 
 vSlider_ dropBall roundInt y0 y1 x minVal maxVal caption srcVal =
@@ -6642,11 +6644,11 @@ vSlider_ dropBall roundInt y0 y1 x minVal maxVal caption srcVal =
     [ line 'black' 3! x y0 x y1,
       -- (text (+ x1 10) (+ y 5) (+ caption (toString targetVal)))
       circle 'black' x y0 4!, circle 'black' x y1 4!, ball ] in
-  [targetVal, ghosts shapes] 
+  [targetVal, ghosts shapes]
 -- TODO only draw zones for ball
 
-hSlider = hSlider_ False 
-vSlider = vSlider_ False 
+hSlider = hSlider_ False
+vSlider = vSlider_ False
 
 --; button_ : Bool -> Num -> Num -> String -> Num -> SVG
 --; Similar to sliders, but just has boolean values
@@ -6666,9 +6668,9 @@ button_ dropBall xStart y caption xCur =
       if dropBall then         circle 'black' 0! 0! 0! else
                            circle 'red' xBall y rBall ] in
   let shapes = append (zones 'none' shapes1) (zones 'basic' shapes2) in
-  [val, ghosts shapes] 
+  [val, ghosts shapes]
 
-button = button_ False 
+button = button_ False
 
 xySlider xStart xEnd yStart yEnd xMin xMax yMin yMax xCaption yCaption xCur yCur =
     let [rCorner, wEdge, rBall] = [4!, 3!, 10!] in
@@ -6693,7 +6695,7 @@ xySlider xStart xEnd yStart yEnd xMin xMax yMin yMax xCaption yCaption xCur yCur
         text (xStart + xDiff / 2 - 40) (yEnd + 20) (xCaption + toString xVal),
         text (xEnd + 10) (yStart + yDiff / 2) (yCaption + toString yVal) ] in
     [ [ xVal, yVal ], ghosts shapes ]
-    
+
 -- enumSlider: (forall a (-> Num Num Num [a|(List a)] String Num [a (List SVG)]))
 enumSlider x0 x1 ((ya::_) as enum) caption srcVal =
   let n = len enum in
@@ -6719,7 +6721,7 @@ enumSlider x0 x1 ((ya::_) as enum) caption srcVal =
           (range 1! (n - 1!)) in
     let label = [ text (x1 + 10!) (y + 5!) (caption + toString item) ] in
     concat [ rail, endpoints, tickpoints, ball, label ] in
-  [item, ghosts shapes] 
+  [item, ghosts shapes]
 
 addSelectionSliders y0 seeds shapesCaps =
   let shapesCapsSeeds = zipOld shapesCaps (take seeds (len shapesCaps)) in
@@ -6733,7 +6735,7 @@ addSelectionSliders y0 seeds shapesCaps =
     let [item, slider] = enumSlider 20! 170! (y0 + mult i 30!) enum cap seed in
     let shape1 = addAttr shape ['SELECTED', item] in -- TODO overwrite existing
     shape1::slider in
-  concat (mapi foo shapesCapsSeeds) 
+  concat (mapi foo shapesCapsSeeds)
 
 -- Text Widgets
 
@@ -6792,7 +6794,7 @@ polygonPoints [shapeKind, _, _]asshape =
   case shapeKind of
     'polygon'-> lookupPointsAttrWithDefault [] shape 'points'
     _->         []
-    
+
 -- allPointsOfPathCmds_: (-> PathCmds (List [(union Num String) (union Num String)]))
 allPointsOfPathCmds_ cmds = case cmds
 of
@@ -6808,7 +6810,7 @@ of
   'C'::x1::y1::x2::y2::x::y::rest->
     append [[x1, y1], [x2, y2], [x, y]] (allPointsOfPathCmds_ rest)
 
-  _-> [let _ = debug \"Prelude.allPointsOfPathCmds_: not Nums...\" in [-1, -1]] 
+  _-> [let _ = debug \"Prelude.allPointsOfPathCmds_: not Nums...\" in [-1, -1]]
 
 -- (typ allPointsOfPathCmds (-> PathCmds (List Point)))
 -- (def allPointsOfPathCmds (\\cmds
@@ -6824,7 +6826,7 @@ allPointsOfPathCmds cmds =
   \"Error: typecase not yet implemented for Elm syntax\" in
   -- foo: (-> [(union Num String) (union Num String)] Point)
   let foo [x, y] = [toNum x, toNum y] in
-  map foo (allPointsOfPathCmds_ cmds) 
+  map foo (allPointsOfPathCmds_ cmds)
 
 
 -- Raw Shapes
@@ -6864,7 +6866,7 @@ rawPath fill stroke w d rot =
   let [cx, cy] = middleOfPoints (allPointsOfPathCmds d) in
   rotateAround rot cx cy
     (rawShape 'path'
-      [ ['fill', fill], ['d', d], ['stroke', stroke], ['stroke-width', w] ]) 
+      [ ['fill', fill], ['d', d], ['stroke', stroke], ['stroke-width', w] ])
 
 
 -- Shapes via Bounding Boxes
@@ -6875,7 +6877,7 @@ box bounds fill stroke strokeWidth =
     [ ['LEFT', x], ['TOP', y], ['RIGHT', xw], ['BOT', yh],
       ['fill', fill], ['stroke', stroke], ['stroke-width', strokeWidth]
     ], []
-  ] 
+  ]
 
 -- string fill/stroke/stroke-width attributes to avoid sliders
 -- hiddenBoundingBox: (-> Bounds BoundedShape)
@@ -6915,7 +6917,7 @@ groupWithPad pad bounds shapes =
        cons (hiddenBoundingBox paddedBounds) shapes]
 
 -- group: (-> Bounds (List SVG) SVG)
-group = groupWithPad let nGroupPad = 20 in nGroupPad 
+group = groupWithPad let nGroupPad = 20 in nGroupPad
 
 -- NOTE:
 --   keep the names nGroupPad and nPolyPathPad (and values)
@@ -6923,7 +6925,7 @@ group = groupWithPad let nGroupPad = 20 in nGroupPad
 
 -- (def group (groupWithPad 15))
 
-polyPathGroup = groupWithPad let nPolyPathPad = 10 in nPolyPathPad 
+polyPathGroup = groupWithPad let nPolyPathPad = 10 in nPolyPathPad
 
 -- TODO make one pass over pts
 -- boundsOfPoints: (-> (List Point) Bounds)
@@ -6933,7 +6935,7 @@ boundsOfPoints pts =
   let top =   minimum (map snd pts) in
   let bot =   maximum (map snd pts) in
     [left, top, right, bot]
-    
+
 -- extremeShapePoints: (-> SVG Points)
 extremeShapePoints ([kind, _, _] as shape) =
   case kind of
@@ -6964,7 +6966,7 @@ extremeShapePoints ([kind, _, _] as shape) =
 -- anchoredGroup: (-> (List SVG) SVG)
 anchoredGroup shapes =
   let bounds = boundsOfPoints (concat (map extremeShapePoints shapes)) in
-  group bounds shapes 
+  group bounds shapes
 
 -- (def group (\\(bounds shapes)
 --   ['g' [['BOUNDS' bounds]]
@@ -6985,7 +6987,7 @@ rectangle fill stroke strokeWidth rot bounds =
   let [left, top, right, bot] = bounds in
   let [cx, cy] = [ left+ (right - left) / 2!, top + (bot - top) / 2!] in
   let shape = rotateAround rot cx cy (box bounds fill stroke strokeWidth) in
-  shape 
+  shape
 -- (group bounds [shape])
 
 -- TODO no longer used...
@@ -6993,7 +6995,7 @@ rectangle fill stroke strokeWidth rot bounds =
 rotatedEllipse fill cx cy rx ry rot =
   let bounds = [ cx- rx, cy - ry, cx + rx, cy + ry] in
   let shape = rotateAround rot cx cy (ellipse fill cx cy rx ry) in
-  group bounds [shape] 
+  group bounds [shape]
 
 -- TODO take rot
 -- oval: (-> Color Color Num Bounds BoundedShape)
@@ -7004,7 +7006,7 @@ oval fill stroke strokeWidth bounds =
        [ ['LEFT', left], ['TOP', top], ['RIGHT', right], ['BOT', bot],
          ['fill', fill], ['stroke', stroke], ['stroke-width', strokeWidth] ],
        []] in
-  shape 
+  shape
 
 -- ; TODO take rot
 -- (def oval (\\(fill stroke strokeWidth bounds)
@@ -7031,7 +7033,7 @@ stretchyPolygon bounds fill stroke strokeWidth percentages =
   let [xScale, yScale] = [scaleBetween left right, scaleBetween top bot] in
   let pts = map \\[xPct, yPct] -> [ xScale xPct, yScale yPct ] percentages in
   -- (group bounds [(polygon fill stroke strokeWidth pts)])
-  polyPathGroup bounds [polygon fill stroke strokeWidth pts] 
+  polyPathGroup bounds [polygon fill stroke strokeWidth pts]
 
 -- TODO no longer used...
 pointyPath fill stroke w d =
@@ -7048,7 +7050,7 @@ pointyPath fill stroke w d =
   ['g', [],
     cons
       (path fill stroke w d)
-      []] 
+      []]
 -- turning off points for now
 -- (pointsOf d)) ]
 
@@ -7090,14 +7092,14 @@ stretchyPath bounds fill stroke w d =
   polyPathGroup bounds
     (cons
       (path fill stroke w (toPath d))
-      []) 
+      [])
 -- turning off points for now
 -- (pointsOf d)))
 -- evalOffset: (-> [Num Num] Num)
 evalOffset [base, off] =
   case off of
     0-> base
-    _-> base + off 
+    _-> base + off
 
 stickyPolygon bounds fill stroke strokeWidth offsets =
   let pts = map \\[xOff, yOff] -> [ evalOffset xOff, evalOffset yOff ] offsets in
@@ -7124,7 +7126,7 @@ blobs blobs =
        [['g', gAttrs, consAttr shape ['BLOB', toString (i + 1)] :: shapes]]
       [shape]-> [consAttr shape ['BLOB', toString (i + 1)]]
       _->       blob in
-  svg (concat (mapi modifyBlob blobs)) 
+  svg (concat (mapi modifyBlob blobs))
 
 
 -- === Relations ===
@@ -7134,13 +7136,13 @@ halfwayBetween pt1 pt2 =
 
 -- nextInLine: (-> Point Point Point)
 nextInLine pt1 pt2 =
-  vec2DPlus pt2 (vec2DMinus pt2 pt1) 
+  vec2DPlus pt2 (vec2DMinus pt2 pt1)
 
 -- Point on line segment, at `ratio` location.
 -- onLine: (-> Point Point Num Point)
 onLine pt1 pt2 ratio =
   let vec = vec2DMinus pt2 pt1 in
-  vec2DPlus pt1 (vec2DScalarMult ratio vec) 
+  vec2DPlus pt1 (vec2DScalarMult ratio vec)
 
 -- === Basic Replicate ===
 
@@ -7150,7 +7152,7 @@ horizontalArray n sep func [x, y] =
   let draw_i i =
     let xi = x + i * sep in
     func [xi, y] in
-  concat (map draw_i (zeroTo n)) 
+  concat (map draw_i (zeroTo n))
 
 linearArrayFromTo n func [xStart, yStart] [xEnd, yEnd] =
   let xsep = (xEnd - xStart) / (n - 1) in
@@ -7159,7 +7161,7 @@ linearArrayFromTo n func [xStart, yStart] [xEnd, yEnd] =
     let xi = xStart + i * xsep in
     let yi = yStart + i * ysep in
     func [xi, yi] in
-  concat (map draw_i (zeroTo n)) 
+  concat (map draw_i (zeroTo n))
 
 -- To reduce size of resulting trace,
 -- could subtract up to M>1 at a time.
@@ -7167,7 +7169,7 @@ linearArrayFromTo n func [xStart, yStart] [xEnd, yEnd] =
 floorAndLocalFreeze n =
   if le n 1 then 0 else
   --else
-  1    + floorAndLocalFreeze (n - 1) 
+  1    + floorAndLocalFreeze (n - 1)
 
 -- (let _ ; draw point widget to control anchor
 --   ([cx cy] : Point)
@@ -7182,10 +7184,10 @@ radialArray n radius rot func [cx, cy] =
   let endpoints = nPointsOnCircle n rot cx cy radius in
   let bounds =
     [ cx- radius, cy - radius, cx + radius, cy + radius] in
-  [group bounds (cons center (concat (map func endpoints)))] 
+  [group bounds (cons center (concat (map func endpoints)))]
 
 offsetAnchor dx dy f =
-  \\[x, y] -> f [ x+ dx, y + dy] 
+  \\[x, y] -> f [ x+ dx, y + dy]
 
 horizontalArrayByBounds n sep func [left_0, top, right_0, bot] =
   let w_i = right_0     - left_0 in
@@ -7193,7 +7195,7 @@ horizontalArrayByBounds n sep func [left_0, top, right_0, bot] =
   let right_i i = left_i i + w_i in
   let draw_i i = func [left_i i, top, right_i i, bot] in
   let bounds =  [left_0, top, right_i (n - 1), bot] in
-    [groupWithPad 30 bounds (concat (map draw_i (zeroTo n)))] 
+    [groupWithPad 30 bounds (concat (map draw_i (zeroTo n)))]
 
 repeatInsideBounds n sep func[left, top, right, bot]as bounds =
   let w_i = (right - left - sep * (n - 1)) / n in
@@ -7201,27 +7203,27 @@ repeatInsideBounds n sep func[left, top, right, bot]as bounds =
     let left_i = left + i * (w_i + sep) in
     let right_i = left_i + w_i in
     func [left_i, top, right_i, bot] in
-  [groupWithPad 30 bounds (concat (map draw_i (zeroTo n)))] 
+  [groupWithPad 30 bounds (concat (map draw_i (zeroTo n)))]
 
 
-draw = svg 
+draw = svg
 
 showOne x y val =
    ['text', [['x', x], ['y', y], ['style', 'fill:black'],
             ['font-family', 'monospace'],
             ['font-size', '12pt']],
-           [['TEXT', toString val]]] 
+           [['TEXT', toString val]]]
 
-show = showOne 20 30 
+show = showOne 20 30
 
 showList vals =
-  ['g', [], mapi \\[i, val] -> showOne 20 ((i + 1) * 30) val vals] 
+  ['g', [], mapi \\[i, val] -> showOne 20 ((i + 1) * 30) val vals]
 
 rectWithBorder stroke strokeWidth fill x y w h =
   addAttr (addAttr
     (rect fill x y w h)
       [\"stroke\", stroke])
-      [\"stroke-width\", strokeWidth] 
+      [\"stroke-width\", strokeWidth]
 
 setStyles newStyles [kind, attrs, children] =
   let attrs =
@@ -7406,10 +7408,10 @@ browser = {
 
   -- Returns the value of the global javascript variable or a placeholder else
   localvar: String -> String -> String
-  localvar name initContent = 
+  localvar name initContent =
     __jsEval__ \"\"\"typeof @name == 'undefined' ? @initContent : @name\"\"\"
-    
-    
+
+
 }
 
 media = \"@media\" -- For compatibility with <style>

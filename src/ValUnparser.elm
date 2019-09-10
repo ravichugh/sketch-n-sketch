@@ -75,7 +75,7 @@ strOp op = case op of
   Floor         -> "floor"
   Ceil          -> "ceiling"
   Round         -> "round"
-  ToStr         -> "toString"
+  ToStr         -> "__toString__"
   Explode       -> "explode"
   Sqrt          -> "sqrt"
   Mod           -> "mod"

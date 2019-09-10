@@ -326,7 +326,7 @@ unparseOp op =
     Round ->
       "round"
     ToStr ->
-      "toString"
+      "__toString__"
     Sqrt ->
       "sqrt"
     Explode ->
