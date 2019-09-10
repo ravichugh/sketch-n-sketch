@@ -83,3 +83,6 @@ let matches_dec annot bind_spec =
 
     | None ->
         true
+
+let ignore_binding (s : string) : bool =
+  String.length s > 0 && Char.equal (String.get s 0) '_'

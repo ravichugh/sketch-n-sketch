@@ -28,3 +28,5 @@ val structurally_decreasing :
 
 val matches_dec :
   string option -> bind_spec -> bool
+
+val ignore_binding : string -> bool

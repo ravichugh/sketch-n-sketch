@@ -11,3 +11,6 @@ val unsolved_singleton : hole_name -> worlds -> constraints
 val merge_solved : hole_filling list -> hole_filling option
 val merge_unsolved : unsolved_constraints list -> unsolved_constraints
 val merge : constraints list -> constraints option
+
+(* Only possible without higher-order examples *)
+val consistent : unsolved_constraints -> bool

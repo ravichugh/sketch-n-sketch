@@ -21,6 +21,8 @@ let step params sigma acc (hole_name, worlds) =
       ^ string_of_int params.max_scrutinee_size
       ^ ", "
       ^ string_of_int params.max_match_depth
+      ^ " - "
+      ^ string_of_int match_depth
       ^ ", "
       ^ string_of_int params.max_term_size
       ^ ")";
@@ -64,6 +66,9 @@ let step params sigma acc (hole_name, worlds) =
 let rec solve params delta sigma constraints =
   let* (f0, unsolved_constraints) =
     Uneval.simplify_constraints delta sigma constraints
+  in
+  let _ =
+    Nondet.guard (Constraints.consistent unsolved_constraints)
   in
     if Hole_map.is_empty unsolved_constraints then
       Nondet.pure (f0, delta)

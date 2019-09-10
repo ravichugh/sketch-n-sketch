@@ -75,9 +75,6 @@ let guess_and_check
   let* constraints =
     Uneval.check delta sigma extended_hf exp worlds
   in
-  Debug.println "\nThe expression";
-  Debug.print_exp exp;
-  Debug.println "has made it!";
     Nondet.lift_option @@
       Option2.sequence_fst
         ( Constraints.merge

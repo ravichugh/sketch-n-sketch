@@ -10,3 +10,7 @@ val value_to_res : value -> res
 val value_to_example : value -> example
 
 val consistent : res -> res -> resumption_assertions option
+
+(* Only possible without higher-order examples *)
+val values_equal : value -> value -> bool
+val examples_consistent : example -> example -> bool

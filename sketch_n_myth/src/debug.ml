@@ -36,6 +36,9 @@ let print_worlds worlds = debug @@ fun _ ->
    String.concat "\n, " @@
     List.map
       ( fun (_env, ex) ->
+          (* Yojson.Safe.to_string (env_to_yojson env)
+            ^ "\n    ~ "
+            ^ Yojson.Safe.to_string (example_to_yojson ex) *)
           Yojson.Safe.to_string (example_to_yojson ex)
       )
       worlds

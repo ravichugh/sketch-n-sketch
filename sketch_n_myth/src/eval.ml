@@ -6,9 +6,6 @@ type eval_result =
 type eval_env_result =
   (env * resumption_assertions, string) result
 
-let ignore_binding (s : string) : bool =
-  String.length s > 0 && Char.equal (String.get s 0) '_'
-
 (* Note: fuel gets applied at every application. *)
 module FuelLimited = struct
   let rec eval fuel env exp =
@@ -77,7 +74,7 @@ module FuelLimited = struct
                       end
                   in
                   let x_env_extension =
-                    if ignore_binding x then
+                    if Type.ignore_binding x then
                       []
                     else
                       [(x, r2)]
@@ -245,7 +242,7 @@ module FuelLimited = struct
                       end
                   in
                   let x_env_extension =
-                    if ignore_binding x then
+                    if Type.ignore_binding x then
                       []
                     else
                       [(x, r2')]

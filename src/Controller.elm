@@ -5023,7 +5023,10 @@ coreSynthesis model =
           Ok holeContext ->
             case Core.Compile.datatypeContext datatypeEnv of
               Ok datatypeContext ->
-                ( model
+                ( { model
+                      | codeAtPbeSynthesis =
+                          Just model.code
+                  }
                 , Core.Bridge.synthesize
                     (holeContext, datatypeContext, assertions)
                     msgReceiveCoreSynthesis

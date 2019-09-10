@@ -100,3 +100,37 @@ let rec consistent r1 r2 =
                       None
                 end
           end
+
+let rec values_equal v1 v2 =
+  match (v1, v2) with
+    | (VTuple vs1, VTuple vs2) ->
+        List.length vs1 = List.length vs2
+          && List.for_all2 values_equal vs1 vs2
+
+    | (VCtor (ctor_name1, arg1), VCtor (ctor_name2, arg2)) ->
+        String.equal ctor_name1 ctor_name2
+          && values_equal arg1 arg2
+
+    | _ ->
+        false
+
+let rec examples_consistent ex1 ex2 =
+  match (ex1, ex2) with
+    | (ExTop, _)
+    | (_, ExTop) ->
+        true
+
+    | (ExTuple exs1, ExTuple exs2) ->
+        List.length exs1 = List.length exs2
+          && List.for_all2 examples_consistent exs1 exs2
+
+    | (ExCtor (ctor_name1, arg1), ExCtor (ctor_name2, arg2)) ->
+        String.equal ctor_name1 ctor_name2
+          && examples_consistent arg1 arg2
+
+    | (ExInputOutput (in1, out1), ExInputOutput (in2, out2)) ->
+        not (values_equal in1 in2)
+          || examples_consistent out1 out2
+
+    | _ ->
+        false

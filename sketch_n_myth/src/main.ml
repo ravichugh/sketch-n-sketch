@@ -84,8 +84,21 @@ let server =
               let () =
                 Term_gen.clear_cache ()
               in
+              let clean_delta =
+                List.map
+                  ( Pair2.map_snd @@ fun (gamma, tau, dec, match_depth) ->
+                      ( List.filter
+                          (fst >> Type.ignore_binding >> not)
+                          gamma
+                      , tau
+                      , dec
+                      , match_depth
+                      )
+                  )
+                  delta
+              in
               let () =
-                delta
+                clean_delta
                   |> List.map fst
                   |> List2.maximum
                   |> Option2.with_default 0
@@ -96,8 +109,8 @@ let server =
               in
               let synthesis_result =
                 assertions
-                  |> Uneval.simplify delta sigma
-                  |> Nondet.and_then (Solve.staged_solve delta sigma)
+                  |> Uneval.simplify clean_delta sigma
+                  |> Nondet.and_then (Solve.staged_solve clean_delta sigma)
               in
               let final_time =
                 Sys.time ()
@@ -106,7 +119,7 @@ let server =
                     final_time -. initial_time
                 ; hole_fillings =
                     synthesis_result
-                      |> Nondet.map (fst >> Clean.clean delta)
+                      |> Nondet.map (fst >> Clean.clean clean_delta)
                       |> Nondet.collapse_option
                       |> Nondet.to_list
                 }

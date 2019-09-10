@@ -61,3 +61,23 @@ let merge ks =
       Some (f, u)
     else
       None
+
+let consistent us =
+  (* Warning: O(|world|^2 * |env|) *)
+  let rec worlds_consistent worlds =
+    match worlds with
+      | [] ->
+          true
+
+      | (env, ex) :: rest ->
+          ( List.for_all
+              ( fun (env', ex') ->
+                  if env = env' then
+                    Res.examples_consistent ex ex'
+                  else
+                    true
+              )
+              rest
+          ) && worlds_consistent rest
+  in
+    Hole_map.for_all (fun _ -> worlds_consistent) us
