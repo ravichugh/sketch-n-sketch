@@ -1,13 +1,45 @@
 open Lang
 open Nondet.Syntax
 
+let rec blocking_hole (r : res) : hole_name option =
+  match r with
+    (* Determinate results *)
+
+    | RFix (_, _, _, _)
+    | RTuple _
+    | RCtor (_, _) ->
+        None
+
+    (* Indeterminate results *)
+
+    | RHole (_, hole_name) ->
+        Some hole_name
+
+    | RApp (head, _) ->
+        blocking_hole head
+
+    | RProj (_, _, arg) ->
+        blocking_hole arg
+
+    | RCase (_, scrutinee, _) ->
+        blocking_hole scrutinee
+
 let guesses
-  (_delta : hole_ctx)
-  (_sigma : datatype_ctx)
-  (_r : res)
+  (delta : hole_ctx)
+  (sigma : datatype_ctx)
+  (res : res)
   : hole_filling Nondet.t =
-    (* TODO call termgen *)
-    Nondet.none
+    let* hole_name =
+      Nondet.lift_option @@
+        blocking_hole res
+    in
+    let* (gamma, tau, dec, _) =
+      Nondet.lift_option @@
+        List.assoc_opt hole_name delta
+    in
+      Nondet.map
+        (Hole_map.singleton hole_name)
+        (Term_gen.up_to_e sigma 1 (gamma, tau, dec))
 
 let rec simplify delta sigma rcs =
   let simplify_one (res, value) =
