@@ -26,8 +26,15 @@ exp cexp =
           Nothing ->
             lambdaTerm
 
-    C.EApp e1 e2 ->
-      L.eApp (exp e1) [exp e2]
+    C.EApp special e1 e2 ->
+      let
+        application =
+          if special then
+            L.eAppSpecial
+          else
+            L.eApp
+      in
+        application (exp e1) [exp e2]
 
     C.EVar x ->
       L.eVar x

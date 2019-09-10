@@ -223,7 +223,7 @@ exp lexp =
                     (exp eArg)
 
                 _ ->
-                  Result.map2 C.EApp (exp eHead) (exp eArg)
+                  Result.map2 (C.EApp False) (exp eHead) (exp eArg)
 
             argHead :: argTail ->
               case specifyFunction eHead eArgs of
@@ -318,7 +318,7 @@ exp lexp =
                   exp body
 
                 [(name, binding)] ->
-                  Result.map2 C.EApp
+                  Result.map2 (C.EApp False)
                     (Result.map (C.EFix Nothing name) (exp body))
                     (Result.map (annotateRecursiveName name) (exp binding))
 

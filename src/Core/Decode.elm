@@ -41,9 +41,10 @@ exp =
           (index 3 exp)
 
       "EApp" ->
-        map2 EApp
-          (index 1 exp)
+        map3 EApp
+          (index 1 bool)
           (index 2 exp)
+          (index 3 exp)
 
       "EVar" ->
         map EVar

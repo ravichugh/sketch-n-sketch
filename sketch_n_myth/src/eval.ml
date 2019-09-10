@@ -54,7 +54,7 @@ module FuelLimited = struct
             , ks
             )
 
-      | EApp (e1, e2) ->
+      | EApp (_, e1, e2) ->
           let* (r1, ks1) =
             eval fuel env e1
           in

@@ -27,8 +27,8 @@ exp e =
     EFix f x body ->
       ctor "EFix" [option string f, string x, exp body]
 
-    EApp e1 e2 ->
-      ctor "EApp" [exp e1, exp e2]
+    EApp special e1 e2 ->
+      ctor "EApp" [bool special, exp e1, exp e2]
 
     EVar x ->
       ctor "EVar" [string x]

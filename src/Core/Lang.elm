@@ -5,7 +5,7 @@ type alias HoleName =
 
 type Exp
   = EFix (Maybe String) String Exp
-  | EApp Exp Exp
+  | EApp Bool Exp Exp
   | EVar String
   | ETuple (List Exp)
   | EProj Int Int Exp -- (n, i, arg)

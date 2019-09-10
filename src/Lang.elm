@@ -4896,8 +4896,8 @@ fillHoles replacements exp =
 -- Recursive function usage check
 --------------------------------------------------------------------------------
 
-containsRecursiveCall : Exp -> Bool
-containsRecursiveCall =
+containsSpecialRecursiveCall : Exp -> Bool
+containsSpecialRecursiveCall =
   let
     predicate e =
       case unwrapExp e of

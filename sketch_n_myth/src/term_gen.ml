@@ -206,6 +206,14 @@ and rel_gen_e_app
       let* head =
         head_nd
       in
+      let special =
+        match Type.bind_spec combined_gamma head with
+          | Rec _ ->
+              true
+
+          | _ ->
+              false
+      in
       let* arg =
         arg_nd
       in
@@ -213,7 +221,7 @@ and rel_gen_e_app
         Nondet.guard @@
           Type.structurally_decreasing combined_gamma ~head ~arg
       in
-        EApp (head, arg)
+        EApp (special, head, arg)
     in
     let* arg_type =
       gamma

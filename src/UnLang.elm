@@ -1226,7 +1226,7 @@ window holeFillings =
         |> List.sortBy holeFillingSize
 
     recPred =
-      Dict.values >> List.any Lang.containsRecursiveCall
+      Dict.values >> List.any Lang.containsSpecialRecursiveCall
 
     (topRecursive, others_) =
       Utils.takeSatisfying

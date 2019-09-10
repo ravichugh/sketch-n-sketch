@@ -19,8 +19,8 @@ let propagate (hf : hole_filling) : hole_filling =
       | EFix (f, x, body) ->
           EFix (f, x, propagate_exp body)
 
-      | EApp (e1, e2) ->
-          EApp (propagate_exp e1, propagate_exp e2)
+      | EApp (special, e1, e2) ->
+          EApp (special, propagate_exp e1, propagate_exp e2)
 
       | EVar x ->
           EVar x

@@ -10,10 +10,12 @@ type 'a hole_map =
 
 type exp =
   | EFix of (string option) * string * exp
-  | EApp of exp * exp
+  (* bool: special recursive call (used only for "recursive window" UI) *)
+  | EApp of bool * exp * exp
   | EVar of string
   | ETuple of exp list
-  | EProj of int * int * exp (* (n, i, arg) *)
+  (* (n, i, arg) *)
+  | EProj of int * int * exp
   | ECtor of string * exp
   | ECase of exp * (string * (string * exp)) list
   | EHole of hole_name
