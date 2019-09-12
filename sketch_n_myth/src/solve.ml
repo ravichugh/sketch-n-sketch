@@ -26,13 +26,32 @@ let step params sigma acc (hole_name, worlds) =
       ^ ", "
       ^ string_of_int params.max_term_size
       ^ ")";
+  let additional_worlds =
+    Hole_map.find_opt hole_name us_previous
+      |> Option2.with_default []
+  in
+  let combined_worlds =
+    worlds @ additional_worlds
+  in
+  let* _ =
+    Nondet.guard @@
+      Constraints.consistent @@
+        Hole_map.singleton hole_name combined_worlds
+  in
   let fill_goal =
-    (hole_name, ((gamma, typ, dec), worlds))
+    ( hole_name,
+      ( (gamma, typ, dec)
+      , worlds @ additional_worlds
+      )
+    )
   in
   Debug.println "\ntype:";
   Debug.print_typ typ;
   Debug.println "\nprevious:";
   Debug.print_hf f_previous;
+  Debug.println "";
+  Debug.println "\nprevious us (all so far):";
+  Debug.print_unsolved_constraints us_previous;
   Debug.println "";
   let* ((f_new, us_new), delta_new) =
     Fill.fill
@@ -77,6 +96,9 @@ let rec solve params delta sigma constraints =
       let unsolved_bindings =
         Hole_map.bindings unsolved_constraints
       in
+      Debug.println "original us:";
+      Debug.print_unsolved_constraints unsolved_constraints;
+      Debug.println "";
       let* (k_final, delta_final) =
         List.fold_left
           (step params sigma)
