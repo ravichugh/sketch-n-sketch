@@ -27,7 +27,6 @@ let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
             hf
             (hole_name, ((gamma, typ, dec), worlds))
         in
-        let (new_f, _) = k_asserted' in
         let* k_asserted_merged =
           Nondet.lift_option @@
             Constraints.merge [(hf, us); k_asserted']
