@@ -105,7 +105,7 @@ let server =
                   |> Fresh.set_largest_hole
               in
               let initial_time =
-                Sys.time ()
+                Unix.gettimeofday ()
               in
               let synthesis_result =
                 assertions
@@ -113,7 +113,7 @@ let server =
                   |> Nondet.and_then (Solve.solve clean_delta sigma)
               in
               let final_time =
-                Sys.time ()
+                Unix.gettimeofday ()
               in
                 { time_taken =
                     final_time -. initial_time

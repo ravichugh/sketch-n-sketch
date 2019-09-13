@@ -78,19 +78,19 @@ let solve delta sigma constraints =
     let (max_scrutinee_size, max_match_depth, max_term_size) =
       match stage with
         | One ->
-            (1, 0, 13)
+            (1, 0, 10)
 
         | Two ->
-            (1, 1, 13)
+            (1, 1, 10)
 
         | Three ->
-            (1, 2, 13)
+            (1, 2, 10)
 
         | Four ->
-            (6, 2, 13)
+            (6, 2, 10)
 
         | Five ->
-            (6, 3, 13)
+            (6, 3, 10)
     in
     let params =
       { max_scrutinee_size; max_match_depth; max_term_size }
