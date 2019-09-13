@@ -21,9 +21,3 @@ val check :
     -> exp
     -> worlds
     -> constraints Nondet.t
-
-val simplify_constraints :
-  hole_ctx
-    -> datatype_ctx
-    -> constraints
-    -> constraints Nondet.t

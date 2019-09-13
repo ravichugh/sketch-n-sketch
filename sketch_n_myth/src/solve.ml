@@ -3,109 +3,47 @@ open Nondet.Syntax
 
 (* Core algorithm *)
 
-let step params sigma acc (hole_name, worlds) =
-  let _ = Debug.readln () in
-  let* ((f_previous, us_previous), delta_previous) =
-    acc
-  in
-  let* (gamma, typ, dec, match_depth) =
-    Nondet.lift_option @@
-      List.assoc_opt hole_name delta_previous
-  in
-  Debug.println
-    "--------------------------------------------------------------------------------";
-  Debug.println @@
-      "stepping on ??"
-      ^ string_of_int hole_name
-      ^ " ("
-      ^ string_of_int params.max_scrutinee_size
-      ^ ", "
-      ^ string_of_int params.max_match_depth
-      ^ " - "
-      ^ string_of_int match_depth
-      ^ ", "
-      ^ string_of_int params.max_term_size
-      ^ ")";
-  let additional_worlds =
-    Hole_map.find_opt hole_name us_previous
-      |> Option2.with_default []
-  in
-  let combined_worlds =
-    worlds @ additional_worlds
-  in
-  let* _ =
-    Nondet.guard @@
-      Constraints.consistent @@
-        Hole_map.singleton hole_name combined_worlds
-  in
-  let fill_goal =
-    ( hole_name,
-      ( (gamma, typ, dec)
-      , worlds @ additional_worlds
-      )
-    )
-  in
-  Debug.println "\ntype:";
-  Debug.print_typ typ;
-  Debug.println "\nprevious:";
-  Debug.print_hf f_previous;
-  Debug.println "";
-  Debug.println "\nprevious us (all so far):";
-  Debug.print_unsolved_constraints us_previous;
-  Debug.println "";
-  let* ((f_new, us_new), delta_new) =
-    Fill.fill
-      { params with max_match_depth = params.max_match_depth - match_depth }
-      delta_previous
-      sigma
-      f_previous
-      fill_goal
-  in
-  Debug.println "\nnew:";
-  Debug.print_hf f_new;
-  Debug.println "";
-  let+ f_merged =
-    Nondet.lift_option @@
-      Constraints.merge_solved [f_previous; f_new]
-  in
-  Debug.println "merged:";
-  Debug.print_hf f_merged;
-  Debug.println "";
-  Debug.println "new us:";
-  Debug.print_unsolved_constraints us_new;
-  Debug.println "";
-  let us_merged =
-    Constraints.merge_unsolved [us_previous; us_new]
-  in
-  let delta_merged =
-    delta_new @ delta_previous
-  in
-    ((f_merged, us_merged), delta_merged)
+let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
+  match Constraints.delete_min us_all with
+    | None ->
+        let+ _ =
+          Nondet.guard @@
+            Constraints.satisfies hf k_assumed
+        in
+          (Constraints.from_hole_filling hf, delta)
 
-let rec solve params delta sigma constraints =
-  let* (f0, unsolved_constraints) =
-    Uneval.simplify_constraints delta sigma constraints
-  in
-  let _ =
-    Nondet.guard (Constraints.consistent unsolved_constraints)
-  in
-    if Hole_map.is_empty unsolved_constraints then
-      Nondet.pure (f0, delta)
-    else
-      (* Here is where we choose an order arbitrarily *)
-      let unsolved_bindings =
-        Hole_map.bindings unsolved_constraints
-      in
-      Debug.println "original us:";
-      Debug.print_unsolved_constraints unsolved_constraints;
-      Debug.println "";
-      let* (k_final, delta_final) =
-        List.fold_left
-          (step params sigma)
-          (Nondet.pure (Constraints.from_hole_filling f0, delta))
-          unsolved_bindings
-      in
-        solve params delta_final sigma k_final
+    | Some ((hole_name, worlds), us) ->
+        let* (gamma, typ, dec, match_depth) =
+          Nondet.lift_option @@
+            List.assoc_opt hole_name delta
+        in
+        let* (k_asserted', k_assumed', delta') =
+          Fill.fill
+            { params with
+                max_match_depth = params.max_match_depth - match_depth
+            }
+            delta
+            sigma
+            hf
+            (hole_name, ((gamma, typ, dec), worlds))
+        in
+        let (new_f, _) = k_asserted' in
+        let* k_asserted_merged =
+          Nondet.lift_option @@
+            Constraints.merge [(hf, us); k_asserted']
+        in
+        let* k_assumed_merged =
+          Nondet.lift_option @@
+            Constraints.merge [k_assumed; k_assumed']
+        in
+        let delta_merged =
+          delta' @ delta
+        in
+          iter_solve
+            params
+            delta_merged
+            sigma
+            (k_asserted_merged, k_assumed_merged)
 
 (* Staging *)
 
@@ -133,7 +71,7 @@ let next_stage (stage : stage) : stage option =
     | Five ->
         None
 
-let staged_solve delta sigma constraints =
+let solve delta sigma constraints =
   let rec helper stage_opt =
     let* stage =
       Nondet.lift_option stage_opt
@@ -159,7 +97,8 @@ let staged_solve delta sigma constraints =
       { max_scrutinee_size; max_match_depth; max_term_size }
     in
     let solution_nd =
-      solve params delta sigma constraints
+      Nondet.map (Pair2.map_fst fst) @@
+        iter_solve params delta sigma (constraints, Constraints.empty)
     in
       if Nondet.is_empty solution_nd then
         helper (next_stage stage)

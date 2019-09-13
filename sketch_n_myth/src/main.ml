@@ -110,7 +110,7 @@ let server =
               let synthesis_result =
                 assertions
                   |> Uneval.simplify clean_delta sigma
-                  |> Nondet.and_then (Solve.staged_solve clean_delta sigma)
+                  |> Nondet.and_then (Solve.solve clean_delta sigma)
               in
               let final_time =
                 Sys.time ()

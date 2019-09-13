@@ -47,21 +47,17 @@ let refine_or_branch
            )
       |> Constraints.merge_unsolved
   in
-    ( Constraints.from_both
-        solved_constraints
-        unsolved_constraints
+    ( (solved_constraints, unsolved_constraints)
+    , Constraints.empty
     , delta'
     )
 
 let guess_and_check
- params delta sigma hf (hole_name, ((gamma, goal_type, _) as gen_goal, worlds)) =
+ params delta sigma hf (hole_name, ((_, goal_type, _) as gen_goal, worlds)) =
   (* Only guess at base types *)
   let* _ =
     Nondet.guard (Type.is_base goal_type)
   in
-  Debug.println "TERMGEN";
-  Debug.println "with gamma:";
-  Debug.print_type_ctx gamma;
   let* exp =
     Term_gen.up_to_e sigma params.max_term_size gen_goal
   in
@@ -72,17 +68,13 @@ let guess_and_check
     Nondet.lift_option @@
       Constraints.merge_solved [binding; hf]
   in
-  let* constraints =
+  let+ constraints =
     Uneval.check delta sigma extended_hf exp worlds
   in
-    Nondet.lift_option @@
-      Option2.sequence_fst
-        ( Constraints.merge
-            [ Constraints.from_hole_filling binding
-            ; constraints
-            ]
-        , []
-        )
+    ( Constraints.from_hole_filling binding
+    , constraints
+    , []
+    )
 
 let defer
  _params _delta _sigma _hf (hole_name, ((_, goal_type, _), worlds)) =
@@ -93,6 +85,7 @@ let defer
   then
     Nondet.pure
       ( Constraints.solved_singleton hole_name (EHole hole_name)
+      , Constraints.empty
       , []
       )
   else

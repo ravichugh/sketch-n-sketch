@@ -37,37 +37,29 @@ and indeterminate r =
     | _ ->
         false
 
-let rec res_to_value r =
+let rec to_value r =
   match r with
     | RTuple comps ->
         comps
-          |> List.map res_to_value
+          |> List.map to_value
           |> Option2.sequence
           |> Option2.map (fun vcomps -> VTuple vcomps)
 
     | RCtor (name, arg) ->
         Option2.map
           (fun v -> VCtor (name, v))
-          (res_to_value arg)
+          (to_value arg)
 
     | _ ->
       None
 
-let rec value_to_res v =
+let rec from_value v =
   match v with
     | VTuple comps ->
-        RTuple (List.map value_to_res comps)
+        RTuple (List.map from_value comps)
 
     | VCtor (name, v_arg) ->
-        RCtor (name, value_to_res v_arg)
-
-let rec value_to_example v =
-  match v with
-    | VTuple comps ->
-        ExTuple (List.map value_to_example comps)
-
-    | VCtor (name, v_arg) ->
-        ExCtor (name, value_to_example v_arg)
+        RCtor (name, from_value v_arg)
 
 let rec consistent r1 r2 =
   if r1 = r2 then
@@ -87,12 +79,12 @@ let rec consistent r1 r2 =
           consistent arg1 arg2
 
       | _ ->
-          begin match res_to_value r1 with
+          begin match to_value r1 with
             | Some v1 ->
                 Some [(r2, v1)]
 
             | None ->
-                begin match res_to_value r2 with
+                begin match to_value r2 with
                   | Some v2 ->
                       Some [(r1, v2)]
 
@@ -100,37 +92,3 @@ let rec consistent r1 r2 =
                       None
                 end
           end
-
-let rec values_equal v1 v2 =
-  match (v1, v2) with
-    | (VTuple vs1, VTuple vs2) ->
-        List.length vs1 = List.length vs2
-          && List.for_all2 values_equal vs1 vs2
-
-    | (VCtor (ctor_name1, arg1), VCtor (ctor_name2, arg2)) ->
-        String.equal ctor_name1 ctor_name2
-          && values_equal arg1 arg2
-
-    | _ ->
-        false
-
-let rec examples_consistent ex1 ex2 =
-  match (ex1, ex2) with
-    | (ExTop, _)
-    | (_, ExTop) ->
-        true
-
-    | (ExTuple exs1, ExTuple exs2) ->
-        List.length exs1 = List.length exs2
-          && List.for_all2 examples_consistent exs1 exs2
-
-    | (ExCtor (ctor_name1, arg1), ExCtor (ctor_name2, arg2)) ->
-        String.equal ctor_name1 ctor_name2
-          && examples_consistent arg1 arg2
-
-    | (ExInputOutput (in1, out1), ExInputOutput (in2, out2)) ->
-        not (values_equal in1 in2)
-          || examples_consistent out1 out2
-
-    | _ ->
-        false

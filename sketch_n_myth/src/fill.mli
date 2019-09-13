@@ -6,4 +6,5 @@ val fill :
     -> datatype_ctx
     -> hole_filling
     -> fill_goal
-    -> (constraints * hole_ctx) Nondet.t
+    (* (assertions, assumptions, context for new holes *)
+    -> (constraints * constraints * hole_ctx) Nondet.t

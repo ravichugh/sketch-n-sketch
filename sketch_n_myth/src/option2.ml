@@ -64,6 +64,17 @@ let sequence_snd (x, oy) =
     | None ->
         None
 
+let filter pred ox =
+  match ox with
+    | Some x ->
+        if pred x then
+          Some x
+        else
+          None
+
+    | None ->
+        None
+
 module Syntax = struct
   let ( let+ ) = pure_bind
   let ( let* ) = bind

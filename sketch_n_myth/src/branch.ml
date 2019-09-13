@@ -79,16 +79,14 @@ let branch
     filtered_worlds
       |> List.map (distribute arg_name scrutinee)
       |> Option2.sequence
-      (* Informativeness Restriction (A) *)
-      |> Option2.and_then
-           ( fun bs ->
-               Option2.map (fun _ -> bs) @@
-                 Option2.guard
-                   ( List.length data_ctors = 1
-                       || List.length bs >= 2
-                   )
-           )
       |> Option2.map Ctor_map.from_assoc_many
+      (* Informativeness Restriction (A) *)
+      |> Option2.filter
+           ( fun ctor_map ->
+               ( List.length data_ctors = 1
+                   || Ctor_map.cardinal ctor_map >= 2
+               )
+           )
       |> Option2.map
            ( Ctor_map.union
                (fun _ _ w -> Some w)

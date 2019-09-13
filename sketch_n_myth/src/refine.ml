@@ -36,7 +36,7 @@ let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
                        match io_ex with
                          | ExInputOutput (v, ex) ->
                              Some
-                               ( (x_name, Res.value_to_res v)
+                               ( (x_name, Res.from_value v)
                                    :: ( f_name
                                       , RFix
                                           ( env
