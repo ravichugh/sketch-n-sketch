@@ -1,8 +1,10 @@
 module Core.Bridge exposing
-  ( Failable(..)
+  ( Error(..)
   , eval
   , synthesize
   )
+
+import Task exposing (Task)
 
 import Http
 import Json.Encode as E
@@ -20,13 +22,12 @@ url : String
 url =
   "http://lvh.me:9090"
 
-type Failable a
+type Error
   = HttpError Http.Error
   | ServerError String
-  | Success a
 
-type alias Async a msg =
-  (Failable a -> msg) -> Cmd msg
+type alias Async a =
+  Task Error a
 
 resultDecoder : D.Decoder a -> D.Decoder e -> D.Decoder (Result e a)
 resultDecoder ok err =
@@ -41,41 +42,34 @@ resultDecoder ok err =
       _ ->
         D.fail "Ill-formed result (non-Ok, non-Error constructor)"
 
-send : Http.Request (Result String response) -> Async response msg
-send request handler =
-  let
-    httpHandler : Result Http.Error (Result String response) -> msg
-    httpHandler r =
-      case r of
-        Err e ->
-          handler (HttpError e)
-
-        Ok (Err e) ->
-          handler (ServerError e)
-
-        Ok (Ok x) ->
-          handler (Success x)
-  in
-    Http.send httpHandler request
-
 request :
   { action : String
   , encodedResponse : E.Value
   , responseDecoder : D.Decoder response
-  } -> Async response msg
+  } -> Async response
 request {action, encodedResponse, responseDecoder} =
-  send <|
-    Http.request
-      { method = "POST"
-      , headers = []
-      , url = url ++ "/" ++ action
-      , body = Http.jsonBody encodedResponse
-      , expect = Http.expectJson (resultDecoder responseDecoder D.string)
-      , timeout = Nothing
-      , withCredentials = False
-      }
+  { method = "POST"
+  , headers = []
+  , url = url ++ "/" ++ action
+  , body = Http.jsonBody encodedResponse
+  , expect = Http.expectJson (resultDecoder responseDecoder D.string)
+  , timeout = Nothing
+  , withCredentials = False
+  }
+    |> Http.request
+    |> Http.toTask
+    |> Task.mapError HttpError
+    |> Task.andThen
+         ( \result ->
+             case result of
+               Ok x ->
+                 Task.succeed x
 
-eval : C.Exp -> Async (Result String (C.Res, C.ResumptionAssertions)) msg
+               Err e ->
+                 Task.fail (ServerError e)
+         )
+
+eval : C.Exp -> Async (Result String (C.Res, C.ResumptionAssertions))
 eval coreExp =
   request
     { action =
@@ -95,7 +89,7 @@ eval coreExp =
 
 synthesize :
   (C.HoleContext, C.DatatypeContext, C.ResumptionAssertions)
-    -> Async (List C.HoleFilling, Float) msg
+    -> Async (List C.HoleFilling, Float)
 synthesize (delta, sigma, assertions) =
   request
     { action =

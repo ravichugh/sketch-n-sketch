@@ -93,6 +93,7 @@ port module Controller exposing
   , msgRequestCoreSynthesis
   )
 
+import Task exposing (Task)
 import Updatable exposing (Updatable)
 import Info
 import Lang exposing (..) --For access to what makes up the Vals
@@ -4961,7 +4962,8 @@ coreRun model =
       case Core.Compile.exp lexp of
         Ok cexp ->
           ( { model | inputExp = lexp }
-          , Core.Bridge.eval cexp msgReceiveCoreRun
+          , Task.attempt msgReceiveCoreRun <|
+              Core.Bridge.eval cexp
           )
 
         Err e ->
@@ -4985,19 +4987,20 @@ msgRequestCoreRun =
   NewModelAndCmd "Reqest Core Run" coreRun
 
 msgReceiveCoreRun :
-  Core.Bridge.Failable
+  Result
+    Core.Bridge.Error
     (Result String (Core.Lang.Res, Core.Lang.ResumptionAssertions))
   -> Msg
 msgReceiveCoreRun response =
   Msg "Receive Core Run" <| \model ->
     case response of
-      Core.Bridge.HttpError httpError ->
+      Err (Core.Bridge.HttpError httpError) ->
         { model | unExpOutput = Err ("Http error: " ++ toString httpError) }
 
-      Core.Bridge.ServerError serverError ->
+      Err (Core.Bridge.ServerError serverError) ->
         { model | unExpOutput = Err ("Server error: " ++ serverError) }
 
-      Core.Bridge.Success evalResponse ->
+      Ok evalResponse ->
         case evalResponse of
           Err evalError ->
             { model | unExpOutput = Err ("Evaluation error: " ++ evalError) }
@@ -5027,9 +5030,9 @@ coreSynthesis model =
                       | codeAtPbeSynthesis =
                           Just model.code
                   }
-                , Core.Bridge.synthesize
-                    (holeContext, datatypeContext, assertions)
-                    msgReceiveCoreSynthesis
+                , Task.attempt msgReceiveCoreSynthesis <|
+                    Core.Bridge.synthesize
+                      (holeContext, datatypeContext, assertions)
                 )
 
               Err e ->
@@ -5056,17 +5059,17 @@ msgRequestCoreSynthesis =
   NewModelAndCmd "Reqest Core Synthesis" coreSynthesis
 
 msgReceiveCoreSynthesis :
-  Core.Bridge.Failable (List Core.Lang.HoleFilling, Float) -> Msg
+  Result Core.Bridge.Error (List Core.Lang.HoleFilling, Float) -> Msg
 msgReceiveCoreSynthesis response =
   Msg "Receive Core Synthesis" <| \model ->
     case response of
-      Core.Bridge.HttpError httpError ->
+      Err (Core.Bridge.HttpError httpError) ->
         { model | unExpOutput = Err ("Http error: " ++ toString httpError) }
 
-      Core.Bridge.ServerError serverError ->
+      Err (Core.Bridge.ServerError serverError) ->
         { model | unExpOutput = Err ("Server error: " ++ serverError) }
 
-      Core.Bridge.Success (holeFillings, timeTaken) ->
+      Ok (holeFillings, timeTaken) ->
         { model | pbeSynthesisResult =
             Just
               { holeFillings =
