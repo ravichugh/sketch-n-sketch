@@ -131,9 +131,7 @@ let server =
                   let synthesis_result =
                     assertions
                       |> Uneval.simplify clean_delta sigma
-                      |> Nondet.and_then
-                           ( Solve.solve initial_time clean_delta sigma
-                           )
+                      |> Solve.solve_any initial_time clean_delta sigma
                   in
                   let final_time =
                     Timing.get ()
@@ -151,10 +149,10 @@ let server =
                   Timing.Time_exceeded ->
                     Log.info
                       ( "Timed out after "
-                          ^ string_of_float Timing_constants.max_solve
+                          ^ string_of_float Timing_constants.max_total
                           ^ "0 seconds.\n"
                       );
-                    (Nondet.none, Timing_constants.max_solve)
+                    (Nondet.none, Timing_constants.max_total)
               in
                 { time_taken
                 ; hole_fillings =

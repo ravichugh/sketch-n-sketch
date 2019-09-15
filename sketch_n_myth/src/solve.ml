@@ -5,7 +5,7 @@ open Nondet.Syntax
 
 let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
   Timing.check_cutoff
-    ~max_time:Timing_constants.max_solve
+    ~max_time:Timing_constants.max_total
     ~initial_time:params.initial_time;
   match Constraints.delete_min us_all with
     | None ->
@@ -56,55 +56,51 @@ type stage =
   | Four
   | Five
 
-let next_stage (stage : stage) : stage option =
-  match stage with
-    | One ->
-        Some Two
+let all_stages : stage list =
+  [ One; Two; Three; Four; Five ]
 
-    | Two ->
-        Some Three
+let expand_stages (xs : 'a list) : (stage * 'a) list =
+  List2.concat_map
+    (fun s -> List.map (fun x -> (s, x)) xs)
+    all_stages
 
-    | Three ->
-        Some Four
+let solve_any initial_time delta sigma constraints_nd =
+  let rec helper problems =
+    match problems with
+      | [] ->
+          Nondet.none
 
-    | Four ->
-        Some Five
+      | (stage, constraints) :: rest_problems ->
+          let (max_scrutinee_size, max_match_depth, max_term_size) =
+            match stage with
+              | One ->
+                  (1, 0, 10)
 
-    | Five ->
-        None
+              | Two ->
+                  (1, 1, 10)
 
-let solve initial_time delta sigma constraints =
-  let rec helper stage_opt =
-    let* stage =
-      Nondet.lift_option stage_opt
-    in
-    let (max_scrutinee_size, max_match_depth, max_term_size) =
-      match stage with
-        | One ->
-            (1, 0, 10)
+              | Three ->
+                  (1, 2, 10)
 
-        | Two ->
-            (1, 1, 10)
+              | Four ->
+                  (6, 2, 10)
 
-        | Three ->
-            (1, 2, 10)
-
-        | Four ->
-            (6, 2, 10)
-
-        | Five ->
-            (6, 3, 10)
-    in
-    let params =
-      { initial_time; max_scrutinee_size; max_match_depth; max_term_size }
-    in
-    let solution_nd =
-      Nondet.map (Pair2.map_fst fst) @@
-        iter_solve params delta sigma (constraints, Constraints.empty)
-    in
-      if Nondet.is_empty solution_nd then
-        helper (next_stage stage)
-      else
-        solution_nd
+              | Five ->
+                  (6, 3, 10)
+          in
+          let params =
+            { initial_time; max_scrutinee_size; max_match_depth; max_term_size }
+          in
+          let solution_nd =
+            Nondet.map (Pair2.map_fst fst) @@
+              iter_solve params delta sigma (constraints, Constraints.empty)
+          in
+            if Nondet.is_empty solution_nd then
+              helper rest_problems
+            else
+              solution_nd
   in
-    helper (Some One)
+    constraints_nd
+      |> Nondet.to_list
+      |> expand_stages
+      |> helper
