@@ -1,5 +1,5 @@
 let debug_mode =
-  true
+  false
 
 let max_total_time =
   10.0
