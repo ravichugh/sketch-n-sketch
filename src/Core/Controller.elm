@@ -2,7 +2,7 @@ module Core.Controller exposing
   ( msgRequestRun
   , msgRequestSynthesis
   , msgLoadExample
-  , msgBenchmark
+  , msgRequestBenchmark
   )
 
 import Dict
@@ -252,13 +252,103 @@ type alias Benchmark =
         }
   }
 
-benchmarkExample :
+average : List Benchmark -> Maybe Benchmark
+average benchmarks =
+  case benchmarks of
+    [] ->
+      Nothing
+
+    head :: tail ->
+      if not <| List.all (.name >> (==) head.name) tail then
+        Nothing
+      else
+        let
+          headFull =
+            head.full
+
+          extractFull full =
+            if
+              full.exampleCount == headFull.exampleCount
+                && full.window == headFull.window
+            then
+              Just full.timeTaken
+            else
+              Nothing
+
+          maybeFull =
+            benchmarks
+              |> List.map (.full >> extractFull)
+              |> Utils.projJusts
+              |> Maybe.map Utils.avg
+              |> Maybe.map
+                   ( \averageTime ->
+                       { headFull | timeTaken = averageTime }
+                   )
+        in
+          case maybeFull of
+            Nothing ->
+              Nothing
+
+            Just full ->
+              case head.restricted of
+                Nothing ->
+                  Just
+                    { name = head.name
+                    , full = full
+                    , restricted = Nothing
+                    }
+
+                Just headR ->
+                  let
+                    extractRestricted maybeR =
+                      case maybeR of
+                        Nothing ->
+                          Nothing
+
+                        Just r ->
+                          if
+                            r.exampleCount == headR.exampleCount
+                              && r.validTopRecursive
+                                   == headR.validTopRecursive
+                              && r.validTopNonRecursive
+                                   == headR.validTopNonRecursive
+                              && r.validOthers
+                                   == headR.validOthers
+                              && r.window
+                                   == headR.window
+                          then
+                            Just r.timeTaken
+                          else
+                            Nothing
+
+                    maybeRestricted =
+                      benchmarks
+                        |> List.map (.restricted >> extractRestricted)
+                        |> Utils.projJusts
+                        |> Maybe.map Utils.avg
+                        |> Maybe.map
+                             ( \averageTime ->
+                                 { headR | timeTaken = averageTime }
+                             )
+                  in
+                    case maybeRestricted of
+                      Nothing ->
+                        Nothing
+
+                      Just restricted ->
+                        Just
+                          { name = head.name
+                          , full = full
+                          , restricted = Just restricted
+                          }
+
+benchmark :
   { name : String
   , definitions : String
   , fullExamples : { code : String, count : Int }
   , restrictedExamples : Maybe { code : String, count : Int }
   } -> Task String Benchmark
-benchmarkExample { name, definitions, fullExamples, restrictedExamples } =
+benchmark { name, definitions, fullExamples, restrictedExamples } =
   flip Task.andThen
     ( runAndSynthesize (definitions ++ fullExamples.code)
     ) <| \(referenceExp, fullHoleFillings, fullTimeTaken) ->
@@ -318,8 +408,8 @@ benchmarkExample { name, definitions, fullExamples, restrictedExamples } =
   in
     Task.map makeBenchmark restrictedTask
 
-showBenchmarks : List Benchmark -> String
-showBenchmarks benchmarks =
+showBenchmarks : Int -> List Benchmark -> String
+showBenchmarks replications benchmarks =
   let
     showFull data =
       "\\benchmarkExperimentOne{"
@@ -370,12 +460,16 @@ showBenchmarks benchmarks =
         ++ showRestricted b.restricted
         ++ "<br />"
   in
-    benchmarks
-      |> List.map showBenchmark
-      |> String.join "\\\\<br />"
+    "Replications: n = "
+      ++ toString replications
+      ++ "<br /><br />"
+      ++ ( benchmarks
+             |> List.map showBenchmark
+             |> String.join "\\\\<br />"
+         )
 
-msgBenchmark : Msg
-msgBenchmark =
+msgRequestBenchmark : Int -> Msg
+msgRequestBenchmark replications =
   NewModelAndCmd "Request PBE Benchmark" <| \model ->
     ( model
     , PBESuite.suite
@@ -387,38 +481,54 @@ msgBenchmark =
                , restrictedExamplesCode
                , restrictedExamplesCount
                ) ->
-                 benchmarkExample
-                   { name =
-                       name
-                   , definitions =
-                       definitions
-                   , fullExamples =
-                       { code = fullExamplesCode
-                       , count = fullExamplesCount
-                       }
-                   , restrictedExamples =
-                       if restrictedExamplesCount == -1 then
-                         Nothing
-                       else
-                         Just
-                           { code = restrictedExamplesCode
-                           , count = restrictedExamplesCount
-                           }
-                   }
+                 let
+                   example =
+                     { name =
+                         name
+                     , definitions =
+                         definitions
+                     , fullExamples =
+                         { code = fullExamplesCode
+                         , count = fullExamplesCount
+                         }
+                     , restrictedExamples =
+                         if restrictedExamplesCount == -1 then
+                           Nothing
+                         else
+                           Just
+                             { code = restrictedExamplesCode
+                             , count = restrictedExamplesCount
+                             }
+                     }
+                 in
+                   example
+                     |> benchmark
+                     |> List.repeat replications
+                     |> Task.sequence
+                     |> Task.andThen
+                          ( average
+                              >> Maybe.map Task.succeed
+                              >> Maybe.withDefault
+                                   ( Task.fail <|
+                                       "Non-replicable benchmark: '"
+                                         ++ name
+                                         ++ "'"
+                                   )
+                          )
              )
         |> Dict.values
         |> Task.sequence
-        |> Task.attempt msgReceiveBenchmark
+        |> Task.attempt (msgReceiveBenchmark replications)
     )
 
-msgReceiveBenchmark : Result String (List Benchmark) -> Msg
-msgReceiveBenchmark response =
+msgReceiveBenchmark : Int -> Result String (List Benchmark) -> Msg
+msgReceiveBenchmark replications response =
   NewModelAndCmd "Receive PBE Benchmark" <| \model ->
     let
       output =
         case response of
           Ok benchmarks ->
-            showBenchmarks benchmarks
+            showBenchmarks replications benchmarks
 
           Err e ->
             "Could not generate benchmark table. " ++ e

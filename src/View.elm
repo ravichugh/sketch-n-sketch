@@ -797,7 +797,7 @@ menuBar model =
       menu "Sketch-n-Myth"
         [ [ simpleTextButton
               "Run PBE Benchmark Suite"
-              Core.Controller.msgBenchmark
+              (Core.Controller.msgRequestBenchmark 5)
           ]
         ]
         -- [ [ simpleHtmlTextButton
