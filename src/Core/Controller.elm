@@ -417,7 +417,7 @@ showBenchmarks replications benchmarks =
         ++ "}{"
         ++ toString (U.solutionCount data.window)
         ++ "}{"
-        ++ toString data.timeTaken
+        ++ Utils.formatFloat 4 data.timeTaken
         ++ "}"
 
     showRestricted maybeData =
@@ -436,7 +436,7 @@ showBenchmarks replications benchmarks =
               ++ "}{"
               ++ toString (U.solutionCount data.window)
               ++ "}{"
-              ++ toString data.timeTaken
+              ++ Utils.formatFloat 4 data.timeTaken
               ++ "}{"
               ++ toString data.validTopRecursive
               ++ "}{"
@@ -453,7 +453,7 @@ showBenchmarks replications benchmarks =
     showBenchmark : Benchmark -> String
     showBenchmark b =
       "\\benchmarkName{"
-        ++ b.name
+        ++ (Utils.escapeUnderscores b.name)
         ++ "}<br />"
         ++ showFull b.full
         ++ "<br />"

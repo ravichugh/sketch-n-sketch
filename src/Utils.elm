@@ -2005,3 +2005,32 @@ takeSatisfying : Int -> (a -> Bool) -> List a -> (List a, List a)
 takeSatisfying n predicate =
   partitionWithContext <| \(oks, _) x ->
     List.length oks < n && predicate x
+
+--------------------------------------------------------------------------------
+
+formatFloat : Int -> Float -> String
+formatFloat n x =
+  let
+    digitString =
+      toString (round (x * toFloat (10 ^ n)))
+
+    intPart =
+      let
+        s =
+          String.dropRight n digitString
+      in
+        if String.isEmpty s then
+          "0"
+        else
+          s
+
+    floatPart =
+      digitString
+        |> String.right n
+        |> String.padLeft n '0'
+  in
+    intPart ++ "." ++ floatPart
+
+escapeUnderscores : String -> String
+escapeUnderscores =
+  stringReplace "_" "\\_"

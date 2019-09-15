@@ -45,7 +45,8 @@ let propagate (hf : hole_filling) : hole_filling =
   in
     Hole_map.map propagate_exp hf
 
-let restrict (delta : hole_ctx) (hf : hole_filling) : (hole_name * exp) list option =
+let restrict
+ (delta : hole_ctx) (hf : hole_filling) : (hole_name * exp) list option =
   delta
     |> List.map
          ( fun (hole_name, _) ->
