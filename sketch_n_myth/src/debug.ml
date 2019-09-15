@@ -1,10 +1,7 @@
 open Lang
 
-let debug_mode =
-  false
-
 let debug func =
-  if debug_mode then
+  if Params.debug_mode then
     func ()
   else
     ()

@@ -5,7 +5,7 @@ open Nondet.Syntax
 
 let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
   Timing.check_cutoff
-    ~max_time:Timing_constants.max_total
+    ~max_time:Params.max_total_time
     ~initial_time:params.initial_time;
   match Constraints.delete_min us_all with
     | None ->

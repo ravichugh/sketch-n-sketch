@@ -11,7 +11,7 @@ module FuelLimited = struct
   let rec eval initial_time fuel env exp =
     let open Result2.Syntax in
     Timing.check_cutoff
-      ~max_time:Timing_constants.max_eval
+      ~max_time:Params.max_eval_time
       ~initial_time:initial_time;
     let* _ =
       Result2.guard "Ran out of fuel" (fuel > 0)
@@ -351,7 +351,7 @@ end
 
 let eval env exp =
   try
-    FuelLimited.eval (Timing.get ()) 25 env exp
+    FuelLimited.eval (Timing.get ()) Params.initial_fuel env exp
   with
     Timing.Time_exceeded ->
       Log.warn "Evaluation time exceeded";
@@ -359,7 +359,7 @@ let eval env exp =
 
 let resume hf res =
   try
-    FuelLimited.resume (Timing.get ()) 25 hf res
+    FuelLimited.resume (Timing.get ()) Params.initial_fuel hf res
   with
     Timing.Time_exceeded ->
       Log.warn "Resumption time exceeded";
