@@ -49,7 +49,7 @@ let merge_solved fs =
   let merge =
     Hole_map.union
       ( fun _ e1 e2 ->
-          if e1 = e2 then
+          if Exp.syntactically_equal e1 e2 then
             Some e1
           else
             raise_notrace Merge_failure
