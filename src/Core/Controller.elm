@@ -460,7 +460,7 @@ showBenchmarks replications benchmarks =
         ++ showRestricted b.restricted
         ++ "<br />"
   in
-    "Replications: n = "
+    "% Replications: n = "
       ++ toString replications
       ++ "<br /><br />"
       ++ ( benchmarks
