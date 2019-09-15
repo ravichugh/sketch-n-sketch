@@ -88,10 +88,24 @@ run code =
 msgRequestRun : Msg
 msgRequestRun =
   NewModelAndCmd "Request Core Run" <| \model ->
-    handleErrorPure model (run model.code) <| \(inputExp, task) ->
-      ( { model | inputExp = inputExp }
-      , Task.attempt msgReceiveRun task
-      )
+    handleErrorPure model (run model.code) <| \(untypedExp, task) ->
+      let
+        (typedExp, holeEnv) =
+          T.typecheck untypedExp
+
+        aceTypeInfo =
+          T.aceTypeInfo typedExp
+      in
+        ( { model
+              | inputExp =
+                  typedExp
+              , holeEnv =
+                  holeEnv
+              , codeBoxInfo =
+                  Model.updateCodeBoxInfo aceTypeInfo model
+          }
+        , Task.attempt msgReceiveRun task
+        )
 
 msgReceiveRun :
   Result B.Error (Result String (C.Res, C.ResumptionAssertions)) -> Msg

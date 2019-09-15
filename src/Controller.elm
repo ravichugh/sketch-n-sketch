@@ -356,16 +356,6 @@ handleError oldModel result =
     Ok newModel -> newModel
     Err s       -> { oldModel | errorBox = Just s }
 
-updateCodeBoxInfo : Types2.AceTypeInfo -> Model -> CodeBoxInfo
-updateCodeBoxInfo ati m =
-  let codeBoxInfo = m.codeBoxInfo in
-  { codeBoxInfo | annotations = ati.annotations
-                , highlights = ati.highlights
-                , tooltips = ati.tooltips }
-
-updateCodeBoxWithParseError annot codeBoxInfo =
-  { codeBoxInfo | annotations = [annot] , highlights = [] , tooltips = [] }
-
 switchToCursorTool old =
   { old | mouseMode = MouseNothing , tool = Cursor }
 

@@ -843,6 +843,18 @@ liveInfoToHighlights zoneKey model =
 
 --------------------------------------------------------------------------------
 
+updateCodeBoxInfo : Types2.AceTypeInfo -> Model -> CodeBoxInfo
+updateCodeBoxInfo ati m =
+  let codeBoxInfo = m.codeBoxInfo in
+  { codeBoxInfo | annotations = ati.annotations
+                , highlights = ati.highlights
+                , tooltips = ati.tooltips }
+
+updateCodeBoxWithParseError annot codeBoxInfo =
+  { codeBoxInfo | annotations = [annot] , highlights = [] , tooltips = [] }
+
+--------------------------------------------------------------------------------
+
 codeToShow model =
   case (model.unExpPreview, model.preview) of
     (Just (exp, _), _) ->

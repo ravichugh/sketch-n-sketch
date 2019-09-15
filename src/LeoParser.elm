@@ -3129,7 +3129,7 @@ setHoleIds exp =
 
     largestExistingHoleId : Int
     largestExistingHoleId =
-      foldExp maxHoleId 0 exp
+      foldExp maxHoleId dummyHoleId exp
   in
     exp
       |> mapFoldExpTopDown setHoleId (largestExistingHoleId + 1)
