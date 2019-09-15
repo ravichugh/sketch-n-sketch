@@ -1,5 +1,6 @@
 module Core.Bridge exposing
   ( Error(..)
+  , Async
   , eval
   , synthesize
   )

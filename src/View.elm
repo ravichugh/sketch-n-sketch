@@ -54,6 +54,7 @@ import PBESuite
 import NonDet exposing (NonDet)
 import Core.Lang as C
 import Core.Uncompile
+import Core.Controller
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -794,7 +795,9 @@ menuBar model =
 
     snsMenu =
       menu "Sketch-n-Myth"
-        [ [ simpleTextButton "Run PBE Benchmark Suite" Controller.msgBenchmarkPBE
+        [ [ simpleTextButton
+              "Run PBE Benchmark Suite"
+              Core.Controller.msgBenchmark
           ]
         ]
         -- [ [ simpleHtmlTextButton
@@ -1567,7 +1570,7 @@ codePanel model =
     runButton =
       Html.div
         [ Attr.class "run"
-        , E.onClick Controller.msgRequestCoreRun
+        , E.onClick Core.Controller.msgRequestRun
         ]
         [ Html.text "Run ▸"
         ]
@@ -2297,13 +2300,13 @@ filePBESuiteListDialogBox model =
       [ styledUiButton
           "wide"
           name
-          (Controller.msgLoadPBESuiteExample name (programText ++ ex1))
+          (Core.Controller.msgLoadExample name (programText ++ ex1))
       ] ++
         ( if ex2Count /= -1 then
             [ styledUiButton
                 "wide"
                 (name ++ " (fewer examples)")
-                (Controller.msgLoadPBESuiteExample name (programText ++ ex2))
+                (Core.Controller.msgLoadExample name (programText ++ ex2))
             ]
           else
             []
@@ -3392,17 +3395,17 @@ pbePopupPanel model =
                 [ Attr.class "pbe-synthesize"
                 ]
                 [ Html.button
-                    [ E.onClick Controller.msgRequestCoreSynthesis
+                    [ E.onClick (Core.Controller.msgRequestSynthesis 15)
                     ]
                     [ Html.text "Synthesize"
                     ]
                 ]
 
-            synthesisResults =
+            synthesisResults pbeSynthesisResult =
               Html.div
                 [ Attr.class "pbe-synthesis-results"
                 ] <|
-                  case model.pbeSynthesisResult of
+                  case pbeSynthesisResult of
                     Just { holeFillings, timeTaken } ->
                       ( if List.any (not << Dict.isEmpty) holeFillings then
                           let
@@ -3482,7 +3485,7 @@ pbePopupPanel model =
               , backpropView
               , selectedHolesView
               , synthesizeButton
-              , synthesisResults
+              , Html.Lazy.lazy synthesisResults model.pbeSynthesisResult
               ]
            , List.isEmpty assertions
            )

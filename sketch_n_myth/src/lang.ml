@@ -114,7 +114,8 @@ type fill_goal =
   hole_name * synthesis_goal
 
 type synthesis_params =
-  { max_scrutinee_size : int
+  { initial_time : float
+  ; max_scrutinee_size : int
   ; max_match_depth : int
   ; max_term_size : int
   }

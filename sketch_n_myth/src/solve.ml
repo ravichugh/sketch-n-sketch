@@ -4,6 +4,7 @@ open Nondet.Syntax
 (* Core algorithm *)
 
 let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
+  Timing.check_cutoff params.initial_time;
   match Constraints.delete_min us_all with
     | None ->
         let+ _ =
@@ -70,7 +71,7 @@ let next_stage (stage : stage) : stage option =
     | Five ->
         None
 
-let solve delta sigma constraints =
+let solve initial_time delta sigma constraints =
   let rec helper stage_opt =
     let* stage =
       Nondet.lift_option stage_opt
@@ -93,7 +94,7 @@ let solve delta sigma constraints =
             (6, 3, 10)
     in
     let params =
-      { max_scrutinee_size; max_match_depth; max_term_size }
+      { initial_time; max_scrutinee_size; max_match_depth; max_term_size }
     in
     let solution_nd =
       Nondet.map (Pair2.map_fst fst) @@

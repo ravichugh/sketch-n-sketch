@@ -1579,7 +1579,7 @@ initModel =
         , editCode = (400, 400)
         , deuceRightClickMenu = (400, 400)
         , autoOutputTools = (400, 100)
-        , pbe = (400, 400)
+        , pbe = (400, 100)
         }
     , mbDeuceKeyboardInfo = Nothing
     , deuceRightClickMenuMode = Nothing

@@ -1,7 +1,10 @@
 module Core.Uncompile exposing
   ( exp
   , res
+  , holeFilling
   )
+
+import Dict
 
 import Core.Lang as C
 import Lang as L
@@ -112,3 +115,7 @@ env =
       U.VarBinding x (res_ r, Nothing)
   in
     List.map binding
+
+holeFilling : C.HoleFilling -> U.HoleFilling
+holeFilling =
+  Dict.fromList >> Dict.map (\_ -> exp)

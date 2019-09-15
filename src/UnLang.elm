@@ -1241,6 +1241,12 @@ window holeFillings =
     , others = others
     }
 
+solutionCount : Window -> Int
+solutionCount { topRecursive, topNonRecursive, others } =
+  [ topRecursive, topNonRecursive, others ]
+    |> List.map List.length
+    |> List.sum
+
 --==============================================================================
 --= Miscellaneous
 --==============================================================================

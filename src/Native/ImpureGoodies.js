@@ -9,7 +9,9 @@ window.genCache = {};
 var _user$project$Native_ImpureGoodies = {
     newPage : function(content) {
       var w = window.open("", "_blank", "");
-      w.document.write(content);
+      if (w) {
+        w.document.write(content);
+      }
       return {ctor: '_Tuple0'};
     },
 

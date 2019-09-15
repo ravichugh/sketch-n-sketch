@@ -81,6 +81,7 @@ let server =
       | "/synthesize" ->
           handle synthesis_request_of_yojson synthesis_response_to_yojson @@
             fun {delta; sigma; assertions} ->
+              print_endline "Synthesizing...";
               let () =
                 Term_gen.clear_cache ()
               in
@@ -104,19 +105,40 @@ let server =
                   |> Option2.with_default 0
                   |> Fresh.set_largest_hole
               in
-              let initial_time =
-                Unix.gettimeofday ()
-              in
-              let synthesis_result =
-                assertions
-                  |> Uneval.simplify clean_delta sigma
-                  |> Nondet.and_then (Solve.solve clean_delta sigma)
-              in
-              let final_time =
-                Unix.gettimeofday ()
-              in
-                { time_taken =
+              let (synthesis_result, time_taken) =
+                try
+                  let initial_time =
+                    Timing.get ()
+                  in
+                  let synthesis_result =
+                    assertions
+                      |> Uneval.simplify clean_delta sigma
+                      |> Nondet.and_then
+                           ( Solve.solve initial_time clean_delta sigma
+                           )
+                  in
+                  let final_time =
+                    Timing.get ()
+                  in
+                  let time_taken =
                     final_time -. initial_time
+                  in
+                    print_endline
+                      ( "Completed in "
+                          ^ string_of_float time_taken
+                          ^ " seconds.\n"
+                      );
+                    (synthesis_result, time_taken)
+                with
+                  Timing.Time_exceeded ->
+                    print_endline
+                      ( "Timed out after "
+                          ^ string_of_float Timing.max_time
+                          ^ "0 seconds.\n"
+                      );
+                    (Nondet.none, Timing.max_time)
+              in
+                { time_taken
                 ; hole_fillings =
                     synthesis_result
                       |> Nondet.map (fst >> Clean.clean clean_delta)
