@@ -8,8 +8,11 @@ type eval_env_result =
 
 (* Note: fuel gets applied at every application. *)
 module FuelLimited = struct
-  let rec eval fuel env exp =
+  let rec eval initial_time fuel env exp =
     let open Result2.Syntax in
+    Timing.check_cutoff
+      ~max_time:Timing_constants.max_eval
+      ~initial_time:initial_time;
     let* _ =
       Result2.guard "Ran out of fuel" (fuel > 0)
     in
@@ -37,7 +40,7 @@ module FuelLimited = struct
 
       | ETuple comps ->
           comps
-            |> List.map (eval fuel env)
+            |> List.map (eval initial_time fuel env)
             |> Result2.sequence
             |> Result2.map
                  begin fun evals -> evals
@@ -48,7 +51,7 @@ module FuelLimited = struct
 
       | ECtor (name, arg) ->
           let+ (r, ks) =
-            eval fuel env arg
+            eval initial_time fuel env arg
           in
             ( RCtor (name, r)
             , ks
@@ -56,10 +59,10 @@ module FuelLimited = struct
 
       | EApp (_, e1, e2) ->
           let* (r1, ks1) =
-            eval fuel env e1
+            eval initial_time fuel env e1
           in
           let* (r2, ks2) =
-            eval fuel env e2
+            eval initial_time fuel env e2
           in
             begin match r1 with
               | RFix (f_env, f, x, body) ->
@@ -84,7 +87,7 @@ module FuelLimited = struct
                   in
                     Result2.map
                       (Pair2.map_snd @@ fun ks3 -> ks1 @ ks2 @ ks3)
-                      (eval (fuel - 1) new_env body)
+                      (eval initial_time (fuel - 1) new_env body)
 
               | _ ->
                   Ok
@@ -100,7 +103,7 @@ module FuelLimited = struct
             Error "Projection index greater than projection length"
           else
             let* (r_arg, ks_arg) =
-              eval fuel env arg
+              eval initial_time fuel env arg
             in
               begin match r_arg with
                 | RTuple comps ->
@@ -121,7 +124,7 @@ module FuelLimited = struct
 
       | ECase (scrutinee, branches) ->
           let* (r0, ks0) =
-            eval fuel env scrutinee
+            eval initial_time fuel env scrutinee
           in
             begin match r0 with
               | RCtor (ctor_name, r_arg) ->
@@ -131,7 +134,7 @@ module FuelLimited = struct
                           ( Pair2.map_snd @@
                               fun ks_body -> ks0 @ ks_body
                           )
-                          ( eval fuel
+                          ( eval initial_time fuel
                               ((arg_name, r_arg) :: env)
                               body
                           )
@@ -154,10 +157,10 @@ module FuelLimited = struct
 
       | EAssert (e1, e2) ->
           let* (r1, ks1) =
-            eval fuel env e1
+            eval initial_time fuel env e1
           in
           let* (r2, ks2) =
-            eval fuel env e2
+            eval initial_time fuel env e2
           in
             begin match Res.consistent r1 r2 with
               | Some ks3 ->
@@ -170,17 +173,17 @@ module FuelLimited = struct
                   Error "Result consistency failure"
             end
 
-  let rec resume fuel hf res =
+  let rec resume initial_time fuel hf res =
     let open Result2.Syntax in
     match res with
       | RHole (env, name) ->
           begin match Hole_map.find_opt name hf with
             | Some binding ->
                 let* (r, ks) =
-                  eval fuel env binding
+                  eval initial_time fuel env binding
                 in
                 let+ (r', ks') =
-                  resume fuel hf r
+                  resume initial_time fuel hf r
                 in
                   ( r'
                   , ks @ ks'
@@ -188,7 +191,7 @@ module FuelLimited = struct
 
             | None ->
                 let+ (env', ks) =
-                  resume_env fuel hf env
+                  resume_env initial_time fuel hf env
                 in
                   ( RHole (env', name)
                   , ks
@@ -197,7 +200,7 @@ module FuelLimited = struct
 
       | RFix (env, f, x, body) ->
           let+ (env', ks) =
-            resume_env fuel hf env
+            resume_env initial_time fuel hf env
           in
             ( RFix (env', f, x, body)
             , ks
@@ -205,7 +208,7 @@ module FuelLimited = struct
 
       | RTuple comps ->
           comps
-            |> List.map (resume fuel hf)
+            |> List.map (resume initial_time fuel hf)
             |> Result2.sequence
             |> Result2.map
                  begin fun rs -> rs
@@ -216,7 +219,7 @@ module FuelLimited = struct
 
       | RCtor (name, arg) ->
           let+ (arg', ks) =
-            resume fuel hf arg
+            resume initial_time fuel hf arg
           in
             ( RCtor (name, arg')
             , ks
@@ -224,10 +227,10 @@ module FuelLimited = struct
 
       | RApp (r1, r2) ->
           let* (r1', ks1) =
-            resume fuel hf r1
+            resume initial_time fuel hf r1
           in
           let* (r2', ks2) =
-            resume fuel hf r2
+            resume initial_time fuel hf r2
           in
             begin match r1' with
               | RFix (f_env, f, x, body) ->
@@ -251,10 +254,10 @@ module FuelLimited = struct
                     x_env_extension @ f_env_extension @ f_env
                   in
                   let* (r, ks) =
-                    eval (fuel - 1) new_env body
+                    eval initial_time (fuel - 1) new_env body
                   in
                   let+ (r', ks') =
-                    resume (fuel - 1) hf r
+                    resume initial_time (fuel - 1) hf r
                   in
                     ( r'
                     , ks1 @ ks2 @ ks @ ks'
@@ -274,7 +277,7 @@ module FuelLimited = struct
             Error "Projection index greater than projection length"
           else
             let* (arg', ks_arg) =
-              resume fuel hf arg
+              resume initial_time fuel hf arg
             in
               begin match arg' with
                 | RTuple comps ->
@@ -295,7 +298,7 @@ module FuelLimited = struct
 
       | RCase (env, scrutinee, branches) ->
           let* (r0, ks0) =
-            resume fuel hf scrutinee
+            resume initial_time fuel hf scrutinee
           in
             begin match r0 with
               | RCtor (ctor_name, r_arg) ->
@@ -305,7 +308,7 @@ module FuelLimited = struct
                           ( Pair2.map_snd @@
                               fun ks_body -> ks0 @ ks_body
                           )
-                          ( resume fuel hf @@
+                          ( resume initial_time fuel hf @@
                               RApp
                                 ( RFix (env, None, arg_name, body)
                                 , r_arg
@@ -323,18 +326,18 @@ module FuelLimited = struct
 
               | _ ->
                   let+ (env', ks_env) =
-                    resume_env fuel hf env
+                    resume_env initial_time fuel hf env
                   in
                     ( RCase (env', r0, branches)
                     , ks0 @ ks_env
                     )
             end
 
-  and resume_env fuel hf env : eval_env_result =
+  and resume_env initial_time fuel hf env : eval_env_result =
     env
       |> List.map
            begin fun binding -> binding
-             |> Pair2.map_snd (resume fuel hf)
+             |> Pair2.map_snd (resume initial_time fuel hf)
              |> Pair2.lift_snd_result
            end
       |> Result2.sequence
@@ -346,8 +349,18 @@ module FuelLimited = struct
            end
 end
 
-let eval =
-  FuelLimited.eval 25
+let eval env exp =
+  try
+    FuelLimited.eval (Timing.get ()) 25 env exp
+  with
+    Timing.Time_exceeded ->
+      Log.warn "Evaluation time exceeded";
+      Error "Evaluation time exceeded"
 
-let resume =
-  FuelLimited.resume 25
+let resume hf res =
+  try
+    FuelLimited.resume (Timing.get ()) 25 hf res
+  with
+    Timing.Time_exceeded ->
+      Log.warn "Resumption time exceeded";
+      Error "Resumption time exceeded"

@@ -151,10 +151,10 @@ let server =
                   Timing.Time_exceeded ->
                     Log.info
                       ( "Timed out after "
-                          ^ string_of_float Timing.max_time
+                          ^ string_of_float Timing_constants.max_solve
                           ^ "0 seconds.\n"
                       );
-                    (Nondet.none, Timing.max_time)
+                    (Nondet.none, Timing_constants.max_solve)
               in
                 { time_taken
                 ; hole_fillings =

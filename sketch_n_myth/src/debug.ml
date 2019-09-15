@@ -61,6 +61,9 @@ let print_unsolved_constraints us = debug @@ fun _ ->
 let print_exp exp = debug @@ fun _ ->
   print_endline @@ Yojson.Safe.to_string (exp_to_yojson exp)
 
+let print_res res = debug @@ fun _ ->
+  print_endline @@ Yojson.Safe.to_string (res_to_yojson res)
+
 let print_typ typ = debug @@ fun _ ->
   print_endline @@ Yojson.Safe.to_string (typ_to_yojson typ)
 

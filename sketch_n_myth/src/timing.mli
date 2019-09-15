@@ -2,7 +2,5 @@
 
 exception Time_exceeded
 
-val max_time : float
-
 val get : unit -> float
-val check_cutoff : float -> unit
+val check_cutoff : max_time:float -> initial_time:float -> unit

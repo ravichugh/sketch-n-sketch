@@ -4,7 +4,9 @@ open Nondet.Syntax
 (* Core algorithm *)
 
 let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
-  Timing.check_cutoff params.initial_time;
+  Timing.check_cutoff
+    ~max_time:Timing_constants.max_solve
+    ~initial_time:params.initial_time;
   match Constraints.delete_min us_all with
     | None ->
         let+ _ =
