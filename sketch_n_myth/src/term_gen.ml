@@ -295,7 +295,7 @@ and rel_gen_e_app
                 ]
 
         | _ ->
-            Warn.println
+            Log.warn
               ( "integer partition is incorrect size (is "
               ^ string_of_int (List.length partition)
               ^ ", should be 2, called with n = "

@@ -81,7 +81,7 @@ let server =
       | "/synthesize" ->
           handle synthesis_request_of_yojson synthesis_response_to_yojson @@
             fun {delta; sigma; assertions} ->
-              print_endline "Synthesizing...";
+              Log.info "Synthesizing...";
               let () =
                 Term_gen.clear_cache ()
               in
@@ -123,7 +123,7 @@ let server =
                   let time_taken =
                     final_time -. initial_time
                   in
-                    print_endline
+                    Log.info
                       ( "Completed in "
                           ^ string_of_float time_taken
                           ^ " seconds.\n"
@@ -131,7 +131,7 @@ let server =
                     (synthesis_result, time_taken)
                 with
                   Timing.Time_exceeded ->
-                    print_endline
+                    Log.info
                       ( "Timed out after "
                           ^ string_of_float Timing.max_time
                           ^ "0 seconds.\n"

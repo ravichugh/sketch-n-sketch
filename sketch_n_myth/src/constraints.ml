@@ -46,9 +46,14 @@ let satisfies hf (f0, us)  =
 
 let merge_solved fs =
   let exception Merge_failure in
-  (* The two maps should be disjoint *)
   let merge =
-    Hole_map.union (fun _ _ _ -> raise_notrace Merge_failure)
+    Hole_map.union
+      ( fun _ e1 e2 ->
+          if e1 = e2 then
+            Some e1
+          else
+            raise_notrace Merge_failure
+      )
   in
     try
       Some (List.fold_left merge Hole_map.empty fs)
