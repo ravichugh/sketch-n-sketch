@@ -3104,18 +3104,33 @@ substPlusOf_ substPlus exp =
 -- Set holeIds
 
 setHoleIds : Exp -> Exp
-setHoleIds =
+setHoleIds exp =
   let
-    setHoleId : Exp -> Int -> (Exp, Int)
-    setHoleId e holeId =
+    maxHoleId : Exp -> Int -> Int
+    maxHoleId e currentMaxId =
       case unwrapExp e of
-        EHole ws (EEmptyHole oldHoleId) ->
-          if oldHoleId == dummyHoleId then
-            (replaceE__ e <| EHole ws (EEmptyHole holeId), holeId + 1)
-          else
-            (e, holeId)
+        EHole _ (EEmptyHole holeId) ->
+          max holeId currentMaxId
 
         _ ->
-          (e, holeId)
+          currentMaxId
+
+    setHoleId : Exp -> Int -> (Exp, Int)
+    setHoleId e uniqueId =
+      case unwrapExp e of
+        EHole ws (EEmptyHole holeId) ->
+          if holeId == dummyHoleId then
+            (replaceE__ e <| EHole ws (EEmptyHole uniqueId), uniqueId + 1)
+          else
+            (e, uniqueId)
+
+        _ ->
+          (e, uniqueId)
+
+    largestExistingHoleId : Int
+    largestExistingHoleId =
+      foldExp maxHoleId 0 exp
   in
-    Tuple.first << mapFoldExpTopDown setHoleId 0
+    exp
+      |> mapFoldExpTopDown setHoleId (largestExistingHoleId + 1)
+      |> Tuple.first
