@@ -796,7 +796,10 @@ menuBar model =
     snsMenu =
       menu "Sketch-n-Myth"
         [ [ simpleTextButton
-              "Run PBE Benchmark Suite"
+              "Run PBE Benchmark Suite (n = 1)"
+              (Core.Controller.msgRequestBenchmark 1)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (n = 5)"
               (Core.Controller.msgRequestBenchmark 5)
           ]
         ]

@@ -347,7 +347,7 @@ module FuelLimited = struct
 end
 
 let eval =
-  FuelLimited.eval 10
+  FuelLimited.eval 15
 
 let resume =
-  FuelLimited.resume 10
+  FuelLimited.resume 15

@@ -75,8 +75,26 @@ let server =
       | "/eval" ->
           handle eval_request_of_yojson eval_response_to_yojson @@
             fun exp ->
-              Result2.map (fun (res, assertions) -> {res; assertions}) @@
-                Eval.eval [] exp
+              Log.info "Evaluating...";
+              let initial_time =
+                Timing.get ()
+              in
+              let response =
+                Result2.map (fun (res, assertions) -> {res; assertions}) @@
+                  Eval.eval [] exp
+              in
+              let final_time =
+                Timing.get ()
+              in
+              let time_taken =
+                final_time -. initial_time
+              in
+                Log.info
+                  ( "Completed in "
+                      ^ string_of_float time_taken
+                      ^ " seconds.\n"
+                  );
+                response
 
       | "/synthesize" ->
           handle synthesis_request_of_yojson synthesis_response_to_yojson @@
