@@ -574,19 +574,20 @@ and gen (gen_input : gen_input) : exp Nondet.t =
               gen_input
           in
             record gen_input @@
-              begin match (gen_input.term_kind, gen_input.rel_binding) with
-                | (E, None) ->
-                    gen_e sigma term_size goal
+              Nondet.dedup @@
+                begin match (gen_input.term_kind, gen_input.rel_binding) with
+                  | (E, None) ->
+                      gen_e sigma term_size goal
 
-                | (E, Some rb) ->
-                    rel_gen_e sigma term_size rb goal
+                  | (E, Some rb) ->
+                      rel_gen_e sigma term_size rb goal
 
-                | (I, None) ->
-                    gen_i sigma term_size goal
+                  | (I, None) ->
+                      gen_i sigma term_size goal
 
-                | (I, Some rb) ->
-                    rel_gen_i sigma term_size rb goal
-              end
+                  | (I, Some rb) ->
+                      rel_gen_i sigma term_size rb goal
+                end
 
 (*******************************************************************************
  * Term generation exports
