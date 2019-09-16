@@ -4,7 +4,7 @@ let debug_mode : bool =
   false
 
 let max_total_time : float =
-  10.0
+  30.0
 
 let max_eval_time : float =
   0.1

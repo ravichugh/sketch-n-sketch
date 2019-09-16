@@ -299,11 +299,7 @@ listDrop xs n = ??
   ]""" 5
 
 list_even_parity = (,,,,)
-  """type Nat
-  = Z ()
-  | S Nat
-
-type Boolean
+  """type Boolean
   = T ()
   | F ()
 
@@ -375,25 +371,25 @@ in
 
 """
   """specifyFunction2 listFilter
-  [ ([], isEven, [])
-  , ([0], isEven, [0])
-  , ([1], isEven, [])
-  , ([2], isEven, [2])
-  , ([0, 0], isEven, [0, 0])
-  , ([0, 1], isEven, [0])
-  , ([], isNonzero, [])
-  , ([0], isNonzero, [])
+  [ (isEven, [], [])
+  , (isEven, [0], [0])
+  , (isEven, [1], [])
+  , (isEven, [2], [2])
+  , (isEven, [0, 0], [0, 0])
+  , (isEven, [0, 1], [0])
+  , (isNonzero, [], [])
+  , (isNonzero, [0], [])
   ]""" 8
   """specifyFunction2 listFilter
-  [ ([], isEven, [])
-  , ([0], isEven, [0])
-  , ([1], isEven, [])
-  , ([2], isEven, [2])
-  , ([0, 0], isEven, [0, 0])
-  , ([0, 1], isEven, [0])
-  , ([], isNonzero, [])
-  , ([0], isNonzero, [])
-  ]""" (-1)
+  [ (isEven, [], [])
+  -- , (isEven, [0], [0])
+  -- , (isEven, [1], [])
+  , (isEven, [2], [2])
+  -- , (isEven, [0, 0], [0, 0])
+  , (isEven, [0, 1], [0])
+  -- , (isNonzero, [], [])
+  , (isNonzero, [0], [])
+  ]""" 4
 
 list_fold = (,,,,)
   """type Nat
@@ -735,11 +731,11 @@ in
   ]""" 5
   """specifyFunction listRevAppend
   [ ([], [])
-  , ([0], [0])
+  -- , ([0], [0])
   , ([1], [1])
-  , ([0, 1], [1, 0])
+  -- , ([0, 1], [1, 0])
   , ([0, 0, 1], [1, 0, 0])
-  ]""" (-1)
+  ]""" 3
 
 list_rev_fold = (,,,,)
   """type Nat
@@ -1402,12 +1398,12 @@ in
   ]""" 6
   """specifyFunction treeCollectLeaves
   [ (Leaf (), [])
-  , (Node (Leaf (), True, Leaf ()), [True])
+  -- , (Node (Leaf (), True, Leaf ()), [True])
   , (Node (Leaf (), False, Leaf ()), [False])
   , (Node (Node (Leaf (), True, Leaf ()), False, Leaf ()), [True, False])
-  , (Node (Node (Leaf (), False, Leaf ()), True, Leaf ()), [False, True])
-  , (Node (Leaf (), False, Node (Leaf (), True, Leaf ())), [False, True])
-  ]""" (-1)
+  -- , (Node (Node (Leaf (), False, Leaf ()), True, Leaf ()), [False, True])
+  -- , (Node (Leaf (), False, Node (Leaf (), True, Leaf ())), [False, True])
+  ]""" 3
 
 tree_count_leaves = (,,,,)
   """type Boolean
@@ -1530,11 +1526,11 @@ in
   ]""" 5
   """specifyFunction treeInOrder
   [ (Leaf (), [])
-  , (Node (Leaf (), 1, Leaf ()), [1])
+  -- , (Node (Leaf (), 1, Leaf ()), [1])
   , (Node (Leaf (), 2, Leaf ()), [2])
   , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
-  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
-  ]""" (-1)
+  -- , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
+  ]""" 3
 
 tree_map = (,,,,)
   """type Nat
@@ -1750,26 +1746,26 @@ suite =
     , ("bool_neg", bool_neg)
     , ("bool_xor", bool_xor)
     , ("list_append", list_append)
-    -- , ("list_compress", list_compress)
+       , ("list_compress", list_compress)
     , ("list_concat", list_concat)
     , ("list_drop", list_drop)
-    -- , ("list_even_parity", list_even_parity)
-    -- , ("list_filter", list_filter)
-    -- , ("list_fold", list_fold)
+       , ("list_even_parity", list_even_parity)
+    , ("list_filter", list_filter)
+       , ("list_fold", list_fold)
     , ("list_hd", list_hd)
     , ("list_inc", list_inc)
     , ("list_last", list_last)
     , ("list_length", list_length)
     , ("list_map", list_map)
     , ("list_nth", list_nth)
-    -- , ("list_pairwise_swap", list_pairwise_swap)
-    -- , ("list_rev_append", list_rev_append)
+       , ("list_pairwise_swap", list_pairwise_swap)
+    , ("list_rev_append", list_rev_append)
     , ("list_rev_fold", list_rev_fold)
     , ("list_rev_snoc", list_rev_snoc)
     , ("list_rev_tailcall", list_rev_tailcall)
     , ("list_snoc", list_snoc)
     , ("list_sort_sorted_insert", list_sort_sorted_insert)
-    -- , ("list_sorted_insert", list_sorted_insert)
+       , ("list_sorted_insert", list_sorted_insert)
     , ("list_stutter", list_stutter)
     , ("list_sum", list_sum)
     , ("list_take", list_take)
@@ -1778,13 +1774,13 @@ suite =
     , ("nat_max", nat_max)
     , ("nat_pred", nat_pred)
     , ("nat_add", nat_add)
-    -- , ("tree_binsert", tree_binsert)
-    -- , ("tree_collect_leaves", tree_collect_leaves)
+       , ("tree_binsert", tree_binsert)
+    , ("tree_collect_leaves", tree_collect_leaves)
     , ("tree_count_leaves", tree_count_leaves)
     , ("tree_count_nodes", tree_count_nodes)
-    -- , ("tree_inorder", tree_inorder)
+    , ("tree_inorder", tree_inorder)
     , ("tree_map", tree_map)
-    -- , ("tree_nodes_at_level", tree_nodes_at_level)
-    -- , ("tree_postorder", tree_postorder)
+       , ("tree_nodes_at_level", tree_nodes_at_level)
+       , ("tree_postorder", tree_postorder)
     , ("tree_preorder", tree_preorder)
     ]
