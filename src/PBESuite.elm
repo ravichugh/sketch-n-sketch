@@ -1564,29 +1564,35 @@ let
     S n
 in
 let
-  treeMap : NatTree -> (Nat -> Nat) -> NatTree
-  treeMap tree f = ??
+  treeMap : (Nat -> Nat) -> NatTree -> NatTree
+  treeMap tree f =
+    let
+      fixTreeMap : NatTree -> NatTree
+      fixTreeMap tree =
+        ??
+    in
+      fixTreeMap
 in
 
 """
   """specifyFunction2 treeMap
-  [ (Leaf (), div2, Leaf ())
-  , (Node (Leaf (), 0, Leaf ()), div2, Node (Leaf (), 0, Leaf ()))
-  , (Node (Leaf (), 2, Leaf ()), div2, Node (Leaf (), 1, Leaf ()))
-  , (Node (Node (Leaf (), 2, Leaf ()), 2, Leaf ()), div2, Node (Node (Leaf (), 1, Leaf ()), 1, Leaf ()))
-  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), div2, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
-  , (Leaf (), inc, Leaf ())
-  , (Node (Leaf (), 0, Leaf ()), inc, Node (Leaf (), 1, Leaf ()))
+  [ (div2, Leaf (), Leaf ())
+  , (div2, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 0, Leaf ()))
+  , (div2, Node (Leaf (), 2, Leaf ()), Node (Leaf (), 1, Leaf ()))
+  , (div2, Node (Node (Leaf (), 2, Leaf ()), 2, Leaf ()), Node (Node (Leaf (), 1, Leaf ()), 1, Leaf ()))
+  , (div2, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
+  , (inc, Leaf (), Leaf ())
+  , (inc, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 1, Leaf ()))
   ]""" 7
   """specifyFunction2 treeMap
-  [ (Leaf (), div2, Leaf ())
-  , (Node (Leaf (), 0, Leaf ()), div2, Node (Leaf (), 0, Leaf ()))
-  , (Node (Leaf (), 2, Leaf ()), div2, Node (Leaf (), 1, Leaf ()))
-  , (Node (Node (Leaf (), 2, Leaf ()), 2, Leaf ()), div2, Node (Node (Leaf (), 1, Leaf ()), 1, Leaf ()))
-  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), div2, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
-  , (Leaf (), inc, Leaf ())
-  , (Node (Leaf (), 0, Leaf ()), inc, Node (Leaf (), 1, Leaf ()))
-  ]""" (-1)
+  [ (div2, Leaf (), Leaf ())
+  -- , (div2, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 0, Leaf ()))
+  -- , (div2, Node (Leaf (), 2, Leaf ()), Node (Leaf (), 1, Leaf ()))
+  , (div2, Node (Node (Leaf (), 2, Leaf ()), 2, Leaf ()), Node (Node (Leaf (), 1, Leaf ()), 1, Leaf ()))
+  , (div2, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
+  -- , (inc, Leaf (), Leaf ())
+  -- , (inc, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 1, Leaf ()))
+  ]""" 3
 
 tree_nodes_at_level = (,,,,)
   """type Boolean
@@ -1777,7 +1783,7 @@ suite =
     , ("tree_count_leaves", tree_count_leaves)
     , ("tree_count_nodes", tree_count_nodes)
     -- , ("tree_inorder", tree_inorder)
-    -- , ("tree_map", tree_map)
+    , ("tree_map", tree_map)
     -- , ("tree_nodes_at_level", tree_nodes_at_level)
     -- , ("tree_postorder", tree_postorder)
     , ("tree_preorder", tree_preorder)
