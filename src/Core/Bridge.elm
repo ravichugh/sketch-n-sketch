@@ -90,7 +90,7 @@ eval coreExp =
 
 synthesize :
   (C.HoleContext, C.DatatypeContext, C.ResumptionAssertions)
-    -> Async (List C.HoleFilling, Float)
+    -> Async (List C.HoleFilling, Float, Bool)
 synthesize (delta, sigma, assertions) =
   request
     { action =
@@ -104,7 +104,7 @@ synthesize (delta, sigma, assertions) =
           ]
 
     , responseDecoder =
-        D.map2 (,)
+        D.map3 (,,)
           ( D.field "hole_fillings" <|
               D.list <|
                 D.list <|
@@ -113,6 +113,8 @@ synthesize (delta, sigma, assertions) =
                     (D.index 1 Core.Decode.exp)
           )
           ( D.field "time_taken" D.float
+          )
+          ( D.field "timed_out" D.bool
           )
     }
 

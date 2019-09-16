@@ -133,7 +133,7 @@ msgReceiveRun response =
 synthesize :
   L.Exp
     -> C.ResumptionAssertions
-    -> Result String (B.Async (List C.HoleFilling, Float))
+    -> Result String (B.Async (List C.HoleFilling, Float, Bool))
 synthesize exp assertions =
   let
     (datatypeEnv, holeEnv) =
@@ -169,11 +169,12 @@ msgRequestSynthesis cutoff =
       _ ->
         (model, Cmd.none)
 
-msgReceiveSynthesis : Int -> Result B.Error (List C.HoleFilling, Float) -> Msg
+msgReceiveSynthesis :
+  Int -> Result B.Error (List C.HoleFilling, Float, Bool) -> Msg
 msgReceiveSynthesis cutoff response =
   NewModelAndCmd "Receive Core Synthesis" <| \model ->
     handleErrorPure model (Result.mapError showAsyncError response) <|
-      \(holeFillings, timeTaken) ->
+      \(holeFillings, timeTaken, timedOut) ->
         ( { model | pbeSynthesisResult =
               Just
                 { holeFillings =
@@ -182,6 +183,8 @@ msgReceiveSynthesis cutoff response =
                       |> List.take cutoff
                 , timeTaken =
                     timeTaken
+                , timedOut =
+                    timedOut
                 }
           }
         , Cmd.none
@@ -206,7 +209,8 @@ msgLoadExample name programText =
 -- Benchmarking
 --------------------------------------------------------------------------------
 
-runAndSynthesize : String -> Task String (L.Exp, List C.HoleFilling, Float)
+runAndSynthesize :
+  String -> Task String (L.Exp, List C.HoleFilling, Float, Bool)
 runAndSynthesize code =
   case run code of
     Ok (lexp, runTask) ->
@@ -218,7 +222,7 @@ runAndSynthesize code =
                 Ok synthesisTask ->
                   synthesisTask
                     |> Task.mapError showAsyncError
-                    |> Task.map (\(hf, t) -> (lexp, hf, t))
+                    |> Task.map (\(hf, t, b) -> (lexp, hf, t, b))
 
                 Err e ->
                   Task.fail e
@@ -365,7 +369,7 @@ benchmark :
 benchmark { name, definitions, fullExamples, restrictedExamples } =
   flip Task.andThen
     ( runAndSynthesize (definitions ++ fullExamples.code)
-    ) <| \(referenceExp, fullHoleFillings, fullTimeTaken) ->
+    ) <| \(referenceExp, fullHoleFillings, fullTimeTaken, fullTimedOut) ->
   let
     () = Debug.log ("Benchmarking example '" ++ name ++ "'") ()
 
@@ -384,7 +388,11 @@ benchmark { name, definitions, fullExamples, restrictedExamples } =
         Just { code, count } ->
           flip Task.andThen
             ( runAndSynthesize (definitions ++ code)
-            ) <| \(_, restrictedHoleFillings, restrictedTimeTaken) ->
+            ) <| \( _
+                  , restrictedHoleFillings
+                  , restrictedTimeTaken
+                  , restrictedTimedOut
+                  ) ->
           let
             restrictedWindow =
               window restrictedHoleFillings

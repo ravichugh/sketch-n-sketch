@@ -51,6 +51,7 @@ type synthesis_request =
 type synthesis_response =
   { time_taken : float
   ; hole_fillings : (Lang.hole_name * Lang.exp) list list
+  ; timed_out : bool
   }
   [@@deriving yojson]
 
@@ -123,36 +124,35 @@ let server =
                   |> Option2.with_default 0
                   |> Fresh.set_largest_hole
               in
-              let (synthesis_result, time_taken) =
+              let () =
+                Timing.start_total ()
+              in
+              let (synthesis_result, timed_out) =
                 try
-                  let initial_time =
-                    Timing.get ()
-                  in
-                  let synthesis_result =
-                    assertions
-                      |> Uneval.simplify clean_delta sigma
-                      |> Solve.solve_any initial_time clean_delta sigma
-                  in
-                  let final_time =
-                    Timing.get ()
-                  in
-                  let time_taken =
-                    final_time -. initial_time
-                  in
-                    Log.info
-                      ( "Completed in "
-                          ^ string_of_float time_taken
-                          ^ " seconds.\n"
-                      );
-                    (synthesis_result, time_taken)
+                  assertions
+                    |> Uneval.simplify clean_delta sigma
+                    |> Solve.solve_any clean_delta sigma
+                    |> (fun r -> (r, false))
                 with
-                  Timing.Time_exceeded ->
-                    Log.info
-                      ( "Timed out after "
-                          ^ string_of_float Params.max_total_time
-                          ^ "0 seconds.\n"
-                      );
-                    (Nondet.none, Params.max_total_time)
+                  Timing.Total_time_exceeded ->
+                    (Nondet.none, true)
+              in
+              let time_taken =
+                Timing.total_elapsed ()
+              in
+              let () =
+                if not timed_out then
+                  Log.info
+                    ( "Completed in "
+                        ^ string_of_float time_taken
+                        ^ " seconds.\n"
+                    )
+                else
+                  Log.info
+                    ( "Timed out after "
+                        ^ string_of_float time_taken
+                        ^ " seconds.\n"
+                    )
               in
                 { time_taken
                 ; hole_fillings =
@@ -160,6 +160,7 @@ let server =
                       |> Nondet.map (fst >> Clean.clean clean_delta)
                       |> Nondet.collapse_option
                       |> Nondet.to_list
+                ; timed_out
                 }
 
       | _ ->

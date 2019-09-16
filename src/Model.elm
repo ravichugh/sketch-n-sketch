@@ -120,6 +120,7 @@ type CodeEditorMode
 type alias PBESynthesisResult =
   { holeFillings : List HoleFilling
   , timeTaken : Float
+  , timedOut : Bool
   }
 
 type alias Model =
