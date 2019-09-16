@@ -78,14 +78,14 @@ let server =
             fun exp ->
               Log.info "Evaluating...";
               let initial_time =
-                Timing.get ()
+                Timer.now ()
               in
               let response =
                 Result2.map (fun (res, assertions) -> {res; assertions}) @@
                   Eval.eval [] exp
               in
               let final_time =
-                Timing.get ()
+                Timer.now ()
               in
               let time_taken =
                 final_time -. initial_time
@@ -124,21 +124,16 @@ let server =
                   |> Option2.with_default 0
                   |> Fresh.set_largest_hole
               in
-              let () =
-                Timing.start_total ()
-              in
-              let (synthesis_result, timed_out) =
-                try
-                  assertions
-                    |> Uneval.simplify clean_delta sigma
-                    |> Solve.solve_any clean_delta sigma
-                    |> (fun r -> (r, false))
-                with
-                  Timing.Total_time_exceeded ->
+              let ((synthesis_result, timed_out), time_taken) =
+                Timer.handle Timer.Total
+                  begin fun () ->
+                    assertions
+                      |> Uneval.simplify clean_delta sigma
+                      |> Solve.solve_any clean_delta sigma
+                      |> (fun r -> (r, false))
+                  end begin fun () ->
                     (Nondet.none, true)
-              in
-              let time_taken =
-                Timing.total_elapsed ()
+                  end
               in
               let () =
                 if not timed_out then

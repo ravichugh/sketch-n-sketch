@@ -4,7 +4,7 @@ open Nondet.Syntax
 (* Core algorithm *)
 
 let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
-  Timing.check_total_cutoff ();
+  Timer.check_cutoff Timer.Total;
   match Constraints.delete_min us_all with
     | None ->
         let+ _ =
@@ -72,23 +72,24 @@ let solve_any delta sigma constraints_nd =
           let (max_scrutinee_size, max_match_depth, max_term_size) =
             match stage with
               | One ->
-                  (1, 0, 10)
+                  (1, 0, 13)
 
               | Two ->
-                  (1, 1, 10)
+                  (1, 1, 13)
 
               | Three ->
-                  (1, 2, 10)
+                  (1, 2, 13)
 
               | Four ->
-                  (6, 2, 10)
+                  (6, 2, 13)
 
               | Five ->
-                  (6, 3, 10)
+                  (6, 3, 13)
           in
           let params =
             { max_scrutinee_size; max_match_depth; max_term_size }
           in
+          Timer.reset_accumulator Timer.Guess;
           let solution_nd =
             Nondet.map (Pair2.map_fst fst) @@
               iter_solve params delta sigma (constraints, Constraints.empty)

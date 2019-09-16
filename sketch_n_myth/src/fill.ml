@@ -54,12 +54,17 @@ let refine_or_branch
 
 let guess_and_check
  params delta sigma hf (hole_name, ((_, goal_type, _) as gen_goal, worlds)) =
+  (* Only guess if we have not exhausted all time allotted for guessing *)
+  let* _ =
+    Nondet.guard (Timer.check_accumulator Timer.Guess);
+  in
   (* Only guess at base types *)
   let* _ =
     Nondet.guard (Type.is_base goal_type)
   in
   let* exp =
-    Term_gen.up_to_e sigma params.max_term_size gen_goal
+    Timer.accumulate Timer.Guess @@ fun () ->
+      Term_gen.up_to_e sigma params.max_term_size gen_goal
   in
   let binding =
     Hole_map.singleton hole_name exp

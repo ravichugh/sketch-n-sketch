@@ -60,7 +60,7 @@ let rec simplify delta sigma rcs =
       |> Nondet.collapse_option
 
 and uneval delta sigma hf res ex =
-  Timing.check_total_cutoff ();
+  Timer.check_cutoff Timer.Total;
   match (res, ex) with
     | (_, ExTop) ->
         Nondet.pure Constraints.empty
