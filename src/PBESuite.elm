@@ -414,7 +414,8 @@ let
     case n1 of
       Z _ -> n2
       S m -> S (sum m n2)
-
+in
+let
   isOdd : Nat -> Boolean
   isOdd n =
     case n of
@@ -423,7 +424,8 @@ let
         case m1 of
           Z _  -> T ()
           S m2 -> isOdd m2
-
+in
+let
   countOdd : Nat -> Nat -> Nat
   countOdd n1 n2 =
     case isOdd n2 of
@@ -441,28 +443,28 @@ let
 in
 
 """
-  """specifyFunction (\\p -> listFold (get_3_1 p) (get_3_2 p) (get_3_3 p))
-  [ ((sum, 0, []), 0)
-  , ((sum, 0, [1]), 1)
-  , ((sum, 0, [2, 1]), 3)
-  , ((sum, 0, [3, 2, 1]), 6)
-  , ((sum, 1, []), 1)
-  , ((countOdd, 0, []), 0)
-  , ((countOdd, 0, [1]), 1)
-  , ((countOdd, 0, [2, 1]), 1)
-  , ((countOdd, 0, [3, 2, 1]), 2)
+  """specifyFunction3 listFold
+  [ (sum, 0, [], 0)
+  , (sum, 0, [1], 1)
+  , (sum, 0, [2, 1], 3)
+  , (sum, 0, [3, 2, 1], 6)
+  , (sum, 1, [], 1)
+  , (countOdd, 0, [], 0)
+  , (countOdd, 0, [1], 1)
+  , (countOdd, 0, [2, 1], 1)
+  , (countOdd, 0, [3, 2, 1], 2)
   ]""" 9
-  """specifyFunction (\\p -> listFold (get_3_1 p) (get_3_2 p) (get_3_3 p))
-  [ ((sum, 0, []), 0)
-  , ((sum, 0, [1]), 1)
-  , ((sum, 0, [2, 1]), 3)
-  -- , ((sum, 0, [3, 2, 1]), 6)
-  -- , ((sum, 1, []), 1)
-  -- , ((countOdd, 0, []), 0)
-  -- , ((countOdd, 0, [1]), 1)
-  -- , ((countOdd, 0, [2, 1]), 1)
-  -- , ((countOdd, 0, [3, 2, 1]), 2)
-  ]""" 3
+  """
+  [ (sum, 0, [], 0)
+  , (sum, 0, [1], 1)
+  , (sum, 0, [2, 1], 3)
+  , (sum, 0, [3, 2, 1], 6)
+  , (sum, 1, [], 1)
+  , (countOdd, 0, [], 0)
+  , (countOdd, 0, [1], 1)
+  , (countOdd, 0, [2, 1], 1)
+  , (countOdd, 0, [3, 2, 1], 2)
+  ]""" (-1)
 
 list_hd = (,,,,)
   """type Nat
@@ -927,7 +929,7 @@ let
         case compare n (get_2_1 p) of
           LT _ -> Cons (n, Cons (get_2_1 p, get_2_2 p))
           EQ _ -> xs
-          GT -> Cons (get_2_1 p, insert (get_2_2 p) n)
+          GT _ -> Cons (get_2_1 p, insert (get_2_2 p) n)
 in
 let
   listSortSortedInsert : NatList -> NatList
@@ -946,13 +948,13 @@ in
   ]""" 7
   """specifyFunction listSortSortedInsert
   [ ([], [])
-  , ([0], [0])
-  , ([1], [1])
-  , ([0, 0], [0])
+  -- , ([0], [0])
+  -- , ([1], [1])
+  -- , ([0, 0], [0])
   , ([1, 0], [0, 1])
-  , ([1, 1], [1])
-  , ([0, 1, 1], [0, 1])
-  ]""" (-1)
+  -- , ([1, 1], [1])
+  -- , ([0, 1, 1], [0, 1])
+  ]""" 2
 
 list_sorted_insert = (,,,,)
   """type Nat
@@ -1444,13 +1446,13 @@ in
   ]""" 7
   """specifyFunction treeCountLeaves
   [ (Leaf (), 1)
-  , (Node (Leaf (), True, Leaf ()), 2)
+  -- , (Node (Leaf (), True, Leaf ()), 2)
   , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 3)
-  , (Node (Leaf (), True, Node (Leaf (), True, Leaf ())), 3)
-  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), True, Leaf ()), 4)
+  -- , (Node (Leaf (), True, Node (Leaf (), True, Leaf ())), 3)
+  -- , (Node (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), True, Leaf ()), 4)
   , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 4)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
-  ]""" (-1)
+  -- , (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
+  ]""" 3
 
 tree_count_nodes = (,,,,)
   """type Nat
@@ -1484,12 +1486,12 @@ in
   ]""" 6
   """specifyFunction treeCountNodes
   [ (Leaf (), 0)
-  , (Node (Leaf (), 0, Leaf ()), 1)
+  -- , (Node (Leaf (), 0, Leaf ()), 1)
   , (Node (Node (Leaf (), 0, Leaf ()), 0, Leaf ()), 2)
-  , (Node (Leaf (), 0, Node(Leaf (), 0, Leaf ())), 2)
+  -- , (Node (Leaf (), 0, Node(Leaf (), 0, Leaf ())), 2)
   , (Node (Node (Leaf (), 0, Node (Leaf (), 0, Leaf ())), 0, Leaf ()), 3)
-  , (Node (Leaf (), 0, Node (Leaf (), 0, Node (Leaf (), 0, Leaf ()))), 3)
-  ]""" (-1)
+  -- , (Node (Leaf (), 0, Node (Leaf (), 0, Node (Leaf (), 0, Leaf ()))), 3)
+  ]""" 3
 
 tree_inorder = (,,,,)
   """type Nat
@@ -1760,7 +1762,7 @@ suite =
     , ("list_rev_snoc", list_rev_snoc)
     , ("list_rev_tailcall", list_rev_tailcall)
     , ("list_snoc", list_snoc)
-    -- , ("list_sort_sorted_insert", list_sort_sorted_insert)
+    , ("list_sort_sorted_insert", list_sort_sorted_insert)
     -- , ("list_sorted_insert", list_sorted_insert)
     , ("list_stutter", list_stutter)
     , ("list_sum", list_sum)
@@ -1772,8 +1774,8 @@ suite =
     , ("nat_add", nat_add)
     -- , ("tree_binsert", tree_binsert)
     -- , ("tree_collect_leaves", tree_collect_leaves)
-    -- , ("tree_count_leaves", tree_count_leaves)
-    -- , ("tree_count_nodes", tree_count_nodes)
+    , ("tree_count_leaves", tree_count_leaves)
+    , ("tree_count_nodes", tree_count_nodes)
     -- , ("tree_inorder", tree_inorder)
     -- , ("tree_map", tree_map)
     -- , ("tree_nodes_at_level", tree_nodes_at_level)
