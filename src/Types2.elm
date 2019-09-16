@@ -1820,12 +1820,6 @@ inferType gamma stuff thisExp =
                     ("assert", [_]) ->
                       ignoreCollect (tTuple0 []) eArgs
 
-                    ("specifyFunction", [_, _]) ->
-                      ignoreCollect (tTuple0 []) eArgs
-
-                    ("specifyFunction2", [_, _]) ->
-                      ignoreCollect (tTuple0 []) eArgs
-
                     ("defineHole", [hole, exp]) ->
                       let
                         holeResult =
@@ -1845,7 +1839,10 @@ inferType gamma stuff thisExp =
                         }
 
                     _ ->
-                      default ()
+                      if String.startsWith "specifyFunction" action then
+                        ignoreCollect (tTuple0 []) eArgs
+                      else
+                        default ()
 
                 _ ->
                   default ()

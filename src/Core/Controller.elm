@@ -103,6 +103,8 @@ msgRequestRun =
                   holeEnv
               , codeBoxInfo =
                   Model.updateCodeBoxInfo aceTypeInfo model
+              , pbeSynthesisResult =
+                  Nothing
           }
         , Task.attempt msgReceiveRun task
         )
