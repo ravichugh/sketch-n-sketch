@@ -9,7 +9,10 @@ let debug func =
 let println s = debug @@ fun _ ->
   print_endline s
 
-let readln () = debug @@ fun _ ->
+let print_sep () = debug @@ fun _ ->
+  println "--------------------------------------------------------------------------------"
+
+let pause () = debug @@ fun _ ->
   let _ = read_line () in ()
 
 let print_json j = debug @@ fun _ ->

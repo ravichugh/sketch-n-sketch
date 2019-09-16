@@ -3,13 +3,13 @@ module PBESuite exposing (init, suite)
 import Dict exposing (Dict)
 
 init =
-  """type NatList
-  = Nil ()
-  | Cons (Nat, NatList)
-
-type Nat
+  """type Nat
   = Z ()
   | S Nat
+
+type NatList
+  = Nil ()
+  | Cons (Nat, NatList)
 
 ?? : Nat"""
 
