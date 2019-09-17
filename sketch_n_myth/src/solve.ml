@@ -1,29 +1,38 @@
 open Lang
 open Nondet.Syntax
 
-exception Solution of (constraints * hole_ctx) Nondet.t
+let current_solution_count =
+  ref 0
+
+let should_continue () =
+  let timer_check =
+    Timer.Single.check Timer.Single.Total
+  in
+  let count_check =
+    match Params.max_solution_count with
+      | Some n ->
+          !current_solution_count < n
+
+      | None ->
+          true
+  in
+    timer_check && count_check
 
 (* Core algorithm *)
 
 let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
   let* _ =
     Nondet.guard @@
-      Timer.Single.check Timer.Single.Total
+      should_continue ()
   in
   match Constraints.delete_min us_all with
     | None ->
-        let* _ =
+        let+ _ =
           Nondet.guard @@
             Constraints.satisfies hf k_assumed
         in
-        let solution_nd =
-          Nondet.pure
-            (Constraints.from_hole_filling hf, delta)
-        in
-          if Params.multi_solution then
-            solution_nd
-          else
-            raise_notrace (Solution solution_nd)
+          current_solution_count := !current_solution_count + 1;
+          (Constraints.from_hole_filling hf, delta)
 
     | Some ((hole_name, worlds), us) ->
         let* (gamma, typ, dec, match_depth) =
@@ -62,12 +71,15 @@ let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
 type stage =
   | One
   | Two
+  | PreThree
   | Three
+  | PreFour
   | Four
+  | PreFive
   | Five
 
 let all_stages : stage list =
-  [ One; Two; Three; Four; Five ]
+  [ One; Two; PreThree; Three; PreFour; Four; PreFive; Five ]
 
 let expand_stages (xs : 'a list) : (stage * 'a) list =
   List2.concat_map
@@ -89,11 +101,20 @@ let solve_any delta sigma constraints_nd =
               | Two ->
                   (1, 1, 13)
 
+              | PreThree ->
+                  (1, 2, 10)
+
               | Three ->
                   (1, 2, 13)
 
+              | PreFour ->
+                  (6, 2, 10)
+
               | Four ->
                   (6, 2, 13)
+
+              | PreFive ->
+                  (6, 3, 10)
 
               | Five ->
                   (6, 3, 13)
@@ -101,13 +122,11 @@ let solve_any delta sigma constraints_nd =
           let params =
             { max_scrutinee_size; max_match_depth; max_term_size }
           in
+          current_solution_count := 0;
           Timer.Multi.reset Timer.Multi.Guess;
           let solution_nd =
             Nondet.map (Pair2.map_fst fst) @@
-              try
-                iter_solve params delta sigma (constraints, Constraints.empty)
-              with
-                Solution s -> s
+              iter_solve params delta sigma (constraints, Constraints.empty)
           in
             if Nondet.is_empty solution_nd then
               helper rest_problems

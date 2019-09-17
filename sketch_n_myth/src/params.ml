@@ -3,8 +3,9 @@
 let debug_mode : bool =
   false
 
-let multi_solution : bool =
-  true
+(* None = infinity *)
+let max_solution_count : int option =
+  Some 30
 
 let max_total_time : float =
   5.0
