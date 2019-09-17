@@ -75,8 +75,11 @@ let rec consistent r1 r2 =
               |> Option2.sequence
               |> Option2.map List.concat
 
-      | (RCtor (_, arg1), RCtor (_, arg2)) ->
-          consistent arg1 arg2
+      | (RCtor (name1, arg1), RCtor (name2, arg2)) ->
+          if String.equal name1 name2 then
+            consistent arg1 arg2
+          else
+            None
 
       | _ ->
           begin match to_value r1 with
