@@ -3398,7 +3398,7 @@ pbePopupPanel model =
                 [ Attr.class "pbe-synthesize"
                 ]
                 [ Html.button
-                    [ E.onClick (Core.Controller.msgRequestSynthesis 15)
+                    [ E.onClick (Core.Controller.msgRequestSynthesis 10)
                     ]
                     [ Html.text "Synthesize"
                     ]
