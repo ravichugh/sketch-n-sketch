@@ -3,8 +3,11 @@
 let debug_mode : bool =
   false
 
+let multi_solution : bool =
+  true
+
 let max_total_time : float =
-  30.0
+  10.0
 
 let max_eval_time : float =
   0.1

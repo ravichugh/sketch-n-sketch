@@ -1,17 +1,26 @@
 open Lang
 open Nondet.Syntax
 
+exception Solution of (constraints * hole_ctx) Nondet.t
+
 (* Core algorithm *)
 
 let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
   Timer.check_cutoff Timer.Total;
   match Constraints.delete_min us_all with
     | None ->
-        let+ _ =
+        let* _ =
           Nondet.guard @@
             Constraints.satisfies hf k_assumed
         in
-          (Constraints.from_hole_filling hf, delta)
+        let solution_nd =
+          Nondet.pure
+            (Constraints.from_hole_filling hf, delta)
+        in
+          if Params.multi_solution then
+            solution_nd
+          else
+            raise_notrace (Solution solution_nd)
 
     | Some ((hole_name, worlds), us) ->
         let* (gamma, typ, dec, match_depth) =
@@ -92,7 +101,10 @@ let solve_any delta sigma constraints_nd =
           Timer.reset_accumulator Timer.Guess;
           let solution_nd =
             Nondet.map (Pair2.map_fst fst) @@
-              iter_solve params delta sigma (constraints, Constraints.empty)
+              try
+                iter_solve params delta sigma (constraints, Constraints.empty)
+              with
+                Solution s -> s
           in
             if Nondet.is_empty solution_nd then
               helper rest_problems
