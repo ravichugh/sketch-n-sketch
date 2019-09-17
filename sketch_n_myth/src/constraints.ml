@@ -36,14 +36,6 @@ let solved_singleton h e =
 let unsolved_singleton h w =
   (Hole_map.empty, Hole_map.singleton h w)
 
-let satisfies hf (f0, us)  =
-  Hole_set.subset (domain f0) (domain hf)
-    && Hole_map.for_all
-         ( fun hole_name worlds ->
-             Example.exp_satisfies hf (EHole hole_name) worlds
-         )
-         us
-
 let merge_solved fs =
   let exception Merge_failure in
   let merge =
@@ -72,13 +64,30 @@ let merge ks =
   let (fs, us) =
     List.split ks
   in
-  let* f =
+  let+ f =
     merge_solved fs
   in
   let u =
     merge_unsolved us
   in
     if hole_maps_disjoint f u then
-      Some (f, u)
+      (f, u)
     else
-      None
+      (Log.warn "Happen..."; (f, u))
+
+let satisfies hf (f0, us)  =
+  let open Option2.Syntax in
+  Option2.with_default false @@
+    let* _ =
+      Option2.guard @@
+        Hole_set.subset (domain f0) (domain hf)
+    in
+    (* When successful, hf_merged = hf because dom(f0) `subset` dom(hf) *)
+    let+ hf_merged =
+      merge_solved [ f0; hf ]
+    in
+      Hole_map.for_all
+        ( fun hole_name worlds ->
+            Example.exp_satisfies hf_merged (EHole hole_name) worlds
+        )
+        us
