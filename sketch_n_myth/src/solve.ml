@@ -100,25 +100,25 @@ let solve_any delta sigma constraints_nd =
                   (1, 0, 13)
 
               | PreTwo ->
-                  (1, 1, 10)
+                  (1, 1, 8)
 
               | Two ->
                   (1, 1, 13)
 
               | PreThree ->
-                  (1, 2, 10)
+                  (1, 2, 8)
 
               | Three ->
                   (1, 2, 13)
 
               | PreFour ->
-                  (6, 2, 10)
+                  (6, 2, 8)
 
               | Four ->
                   (6, 2, 13)
 
               | PreFive ->
-                  (6, 3, 10)
+                  (6, 3, 8)
 
               | Five ->
                   (6, 3, 13)
