@@ -596,30 +596,36 @@ let
   inc n = S n
 in
 let
-  listMap : NatList -> (Nat -> Nat) -> NatList
-  listMap xs f = ??
+  listMap : (Nat -> Nat) -> NatList -> NatList
+  listMap f =
+    let
+      listMapFix : NatList -> NatList
+      listMapFix xs =
+        ??
+    in
+      listMapFix
 in
 
 """
   """specifyFunction2 listMap
-  [ ([], inc, [])
-  , ([0], inc, [1])
-  , ([0, 0], inc, [1, 1])
-  , ([1], inc, [2])
-  , ([1, 1], inc, [2, 2])
-  , ([], zero, [])
-  , ([0], zero, [0])
-  , ([0, 0], zero, [0, 0])
+  [ (inc, [], [])
+  , (inc, [0], [1])
+  , (inc, [0, 0], [1, 1])
+  , (inc, [1], [2])
+  , (inc, [1, 1], [2, 2])
+  , (zero, [], [])
+  , (zero, [0], [0])
+  , (zero, [0, 0], [0, 0])
   ]""" 8
   """specifyFunction2 listMap
-  [ ([], inc, [])
-  , ([0], inc, [1])
-  -- , ([0, 0], inc, [1, 1])
-  , ([1], inc, [2])
-  -- , ([1, 1], inc, [2, 2])
-  -- , ([], zero, [])
-  , ([0], zero, [0])
-  -- , ([0, 0], zero, [0, 0])
+  [ (inc, [], [])
+  , (inc, [0], [1])
+  -- , (inc, [0, 0], [1, 1])
+  , (inc, [1], [2])
+  -- , (inc, [1, 1], [2, 2])
+  -- , (zero, [], [])
+  , (zero, [0], [0])
+  -- , (zero, [0, 0], [0, 0])
   ]""" 4
 
 list_nth = (,,,,)
@@ -1561,7 +1567,7 @@ let
 in
 let
   treeMap : (Nat -> Nat) -> NatTree -> NatTree
-  treeMap tree f =
+  treeMap f =
     let
       fixTreeMap : NatTree -> NatTree
       fixTreeMap tree =

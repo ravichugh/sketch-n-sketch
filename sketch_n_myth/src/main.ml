@@ -76,31 +76,34 @@ let server =
       | "/eval" ->
           handle eval_request_of_yojson eval_response_to_yojson @@
             fun exp ->
-              Log.info "Evaluating...";
-              let initial_time =
-                Timer.now ()
+              let () =
+                Log.info "Evaluating..."
+              in
+              let () =
+                Timer.Single.start Timer.Single.Total
               in
               let response =
                 Result2.map (fun (res, assertions) -> {res; assertions}) @@
                   Eval.eval [] exp
               in
-              let final_time =
-                Timer.now ()
-              in
               let time_taken =
-                final_time -. initial_time
+                Timer.Single.elapsed Timer.Single.Total;
               in
+              let () =
                 Log.info
                   ( "Completed in "
                       ^ string_of_float time_taken
                       ^ " seconds.\n"
-                  );
+                  )
+              in
                 response
 
       | "/synthesize" ->
           handle synthesis_request_of_yojson synthesis_response_to_yojson @@
             fun {delta; sigma; assertions} ->
-              Log.info "Synthesizing...";
+              let () =
+                Log.info "Synthesizing..."
+              in
               let () =
                 Term_gen.clear_cache ()
               in
@@ -124,16 +127,19 @@ let server =
                   |> Option2.with_default 0
                   |> Fresh.set_largest_hole
               in
-              let ((synthesis_result, timed_out), time_taken) =
-                Timer.handle Timer.Total
-                  begin fun () ->
-                    assertions
-                      |> Uneval.simplify clean_delta sigma
-                      |> Solve.solve_any clean_delta sigma
-                      |> (fun r -> (r, false))
-                  end begin fun () ->
-                    (Nondet.none, true)
-                  end
+              let () =
+                Timer.Single.start Timer.Single.Total;
+              in
+              let synthesis_result =
+                assertions
+                  |> Uneval.simplify clean_delta sigma
+                  |> Solve.solve_any clean_delta sigma
+              in
+              let time_taken =
+                Timer.Single.elapsed Timer.Single.Total;
+              in
+              let timed_out =
+                time_taken > Params.max_total_time
               in
               let () =
                 if not timed_out then

@@ -10,7 +10,10 @@ type eval_env_result =
 module FuelLimited = struct
   let rec eval fuel env exp =
     let open Result2.Syntax in
-    Timer.check_cutoff Timer.Eval;
+    let* _ =
+      Result2.guard "Evaluation time exceeded" @@
+        Timer.Single.check Timer.Single.Eval
+    in
     let* _ =
       Result2.guard "Ran out of fuel" (fuel > 0)
     in
@@ -348,19 +351,9 @@ module FuelLimited = struct
 end
 
 let eval env exp =
-  fst @@ Timer.handle Timer.Eval
-    begin fun () ->
-      FuelLimited.eval Params.initial_fuel env exp
-    end begin fun () ->
-      Log.warn "Evaluation time exceeded";
-      Error "Evaluation time exceeded"
-    end
+  Timer.Single.start Timer.Single.Eval;
+  FuelLimited.eval Params.initial_fuel env exp
 
 let resume hf res =
-  fst @@ Timer.handle Timer.Eval
-    begin fun () ->
-      FuelLimited.resume Params.initial_fuel hf res
-    end begin fun () ->
-      Log.warn "Resumption time exceeded";
-      Error "Resumption time exceeded"
-    end
+  Timer.Single.start Timer.Single.Eval;
+  FuelLimited.resume Params.initial_fuel hf res

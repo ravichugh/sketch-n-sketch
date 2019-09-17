@@ -7,13 +7,13 @@ let multi_solution : bool =
   true
 
 let max_total_time : float =
-  10.0
+  5.0
 
 let max_eval_time : float =
   0.1
 
 let max_guess_time : float =
-  0.1
+  0.25
 
 let initial_fuel : int =
   25

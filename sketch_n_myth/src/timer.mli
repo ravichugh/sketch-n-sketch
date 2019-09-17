@@ -1,23 +1,20 @@
-(* Information *)
-
 val now : unit -> float
 
-(* Control-Flow Timing *)
+module Single : sig
+  type t =
+    | Total
+    | Eval
 
-type kind =
-  | Total
-  | Eval
+  val start : t -> unit
+  val elapsed : t -> float
+  val check : t -> bool
+end
 
-exception Max_time_exceeded of kind
+module Multi : sig
+  type t =
+    | Guess
 
-val check_cutoff : kind -> unit
-val handle : kind -> (unit -> 'a) -> (unit -> 'a) -> 'a * float
-
-(* Accumulators *)
-
-type accumulator =
-  | Guess
-
-val reset_accumulator : accumulator -> unit
-val accumulate : accumulator -> (unit -> 'a) -> 'a
-val check_accumulator : accumulator -> bool
+  val reset : t -> unit
+  val accumulate : t -> (unit -> 'a) -> 'a
+  val check : t -> bool
+end

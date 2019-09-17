@@ -6,7 +6,10 @@ exception Solution of (constraints * hole_ctx) Nondet.t
 (* Core algorithm *)
 
 let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
-  Timer.check_cutoff Timer.Total;
+  let* _ =
+    Nondet.guard @@
+      Timer.Single.check Timer.Single.Total
+  in
   match Constraints.delete_min us_all with
     | None ->
         let* _ =
@@ -98,7 +101,7 @@ let solve_any delta sigma constraints_nd =
           let params =
             { max_scrutinee_size; max_match_depth; max_term_size }
           in
-          Timer.reset_accumulator Timer.Guess;
+          Timer.Multi.reset Timer.Multi.Guess;
           let solution_nd =
             Nondet.map (Pair2.map_fst fst) @@
               try
