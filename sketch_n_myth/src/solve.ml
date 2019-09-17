@@ -70,6 +70,7 @@ let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
 
 type stage =
   | One
+  | PreTwo
   | Two
   | PreThree
   | Three
@@ -79,7 +80,7 @@ type stage =
   | Five
 
 let all_stages : stage list =
-  [ One; Two; PreThree; Three; PreFour; Four; PreFive; Five ]
+  [ One; PreTwo; Two; PreThree; Three; PreFour; Four; PreFive; Five ]
 
 let expand_stages (xs : 'a list) : (stage * 'a) list =
   List2.concat_map
@@ -97,6 +98,9 @@ let solve_any delta sigma constraints_nd =
             match stage with
               | One ->
                   (1, 0, 13)
+
+              | PreTwo ->
+                  (1, 1, 10)
 
               | Two ->
                   (1, 1, 13)
