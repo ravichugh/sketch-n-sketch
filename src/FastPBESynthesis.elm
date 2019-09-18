@@ -39,7 +39,7 @@ maxSolveDepth =
 -- Type Helpers
 --------------------------------------------------------------------------------
 
-isBaseType : DatatypeEnv -> Type -> Bool
+isBaseType : DataTypeEnv -> Type -> Bool
 isBaseType sigma tau =
   case unwrapType tau of
     TVar _ datatypeName ->
@@ -55,7 +55,7 @@ isBaseType sigma tau =
 --------------------------------------------------------------------------------
 
 type alias SynthesisProblem =
-  { sigma : T.DatatypeEnv
+  { sigma : T.DataTypeEnv
   , gamma : T.TypeEnv
   , worlds : Worlds
   , goalType : Type
@@ -970,7 +970,7 @@ type alias SolveProblem =
   }
 
 solve_ :
-  T.DatatypeEnv
+  T.DataTypeEnv
     -> T.HoleEnv
     -> List SolveProblem
     -> GenCached (List HoleFilling)
@@ -1070,7 +1070,7 @@ solve_ sigma delta problems =
                     State.pure trueSolutions
 
 solve :
-  T.DatatypeEnv
+  T.DataTypeEnv
     -> T.HoleEnv
     -> NonDet Constraints
     -> (List HoleFilling, Float)

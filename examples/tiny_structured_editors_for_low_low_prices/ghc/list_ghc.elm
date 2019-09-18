@@ -110,15 +110,23 @@ showsPrec showsElem _ = showList showsElem
 -- shows =  showsPrec 0
 shows showsElem = showsPrec showsElem 0
 
+toString : String -> String
+toString str =
+  '"' + str + '"'
+
+toString : Num -> String
+toString num =
+  numToStringBuiltin n
+
 -- show x = shows x ""
-intervalToString : List Num -> String
-intervalToString list =
+toString : List a -> String
+toString list =
   -- showsPrec _ x s = show x ++ s
   -- shows :: (Show a) => a -> ShowS
   -- shows =  showsPrec 0
-  let showsElem n s = toString n + s in -- Number version
+  -- let showsElem n s = toString n + s in -- Number version
   -- let showsElem elem s = '"' + elem + '"' + s in -- String version
-  shows showsElem list ""
+  shows toString list ""
 
 -- The desugaring step turns this into Cons's and Nil's
 ([1, 2, 3] : List Num)

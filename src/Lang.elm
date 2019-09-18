@@ -440,6 +440,15 @@ type ExpBuilder__ t1 t2
 
 type alias Exp__ = ExpBuilder__ Exp Exp
 
+-- Functions with these names must:
+-- (a) be defined at the top level. (Undefined behavior otherwise.)
+-- (b) have a type annotation.
+-- Calls to the function will be dispatched based on the type of the function argument.
+--
+-- Names are hard-coded for now. Leo evaluator does not handle these as intended yet. TSEFLLP desugarer/evaluator will, however.
+dynamicDispatchIdentifiers : List String
+dynamicDispatchIdentifiers = ["toString"]
+
 expEId : Exp -> EId
 expEId (Expr e) = e.val.eid
 

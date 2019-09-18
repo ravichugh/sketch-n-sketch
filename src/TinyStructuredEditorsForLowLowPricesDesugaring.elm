@@ -1,12 +1,12 @@
 -- Convert from ordinary Sketch-n-Sketch language to our core language for tiny structured editors.
-module TinyStructuredEditorsForLowLowPricesDesugaring exposing (makeDesugaredToStringProgram, desugarVal)
+module TinyStructuredEditorsForLowLowPricesDesugaring exposing (makeDesugaredToStringProgram, desugarVal, replaceTBoolTListWithTVarTApp, dataTypeDefsWithoutTBoolsTLists)
 
 import Set exposing (Set)
 
-import Javascript
+import ImpureGoodies
 import Lang
 import LangTools
--- import Types2
+import Types2
 import Utils
 import ValUnparser
 
@@ -24,6 +24,22 @@ consTaggedVal head tail = noTag <| VCtor "Cons" [head, tail]
 trueTaggedVal           = noTag <| VCtor "True" []
 falseTaggedVal          = noTag <| VCtor "False" []
 
+type alias Ref a = { ref : a }
+type alias CounterRef = Ref Int
+
+newRef : a -> Ref a
+newRef value =
+  { ref = value }
+
+getRef : Ref a -> a
+getRef ref =
+  ref.ref
+
+setRef : Ref a -> a -> ()
+setRef ref value =
+  let _ = ImpureGoodies.mutateRecordField ref "ref" value in
+  ()
+
 
 -- Create a desugared program with a main expression that calls
 -- the toString function on a variable named "valueOfInterestTagged".
@@ -34,11 +50,19 @@ falseTaggedVal          = noTag <| VCtor "False" []
 -- def2 = ...
 -- def3 = ...
 -- renderingFunctionName valueOfInterestTagged
-makeDesugaredToStringProgram : Lang.Exp -> Ident -> Exp
+makeDesugaredToStringProgram : Lang.Exp -> Ident -> (MultipleDispatchFunctions, Exp)
 makeDesugaredToStringProgram program renderingFunctionName =
-  program
-  |> LangTools.mapLastTopLevelExp (\_ -> Lang.eCall renderingFunctionName [Lang.eVar "valueOfInterestTagged"])
-  |> desugarExp
+  let
+    freshVariableCounterRef      = newRef 1
+    multipleDispatchFunctionsRef = newRef []
+  in
+  let desugaredExp =
+    program
+    |> LangTools.mapLastTopLevelExp (\_ -> Lang.eCall renderingFunctionName [Lang.eVar "valueOfInterestTagged"])
+    |> desugarExp freshVariableCounterRef multipleDispatchFunctionsRef
+  in
+  Debug.log "(MultipleDispatchFunctions, Exp)" <|
+  (getRef multipleDispatchFunctionsRef, desugaredExp)
 
 
 -- Conversions:
@@ -53,8 +77,16 @@ makeDesugaredToStringProgram program renderingFunctionName =
 -- - numeric binops
 -- - records
 -- - non-var argument patterns
-desugarExp : Lang.Exp -> Exp
-desugarExp langExp =
+--
+-- MultipleDispatchFunctions is List (name, type annotation, desugared unique name)
+-- See note in TinyStructuredEditorsForLowLowPricesTypes
+desugarExp : CounterRef -> Ref MultipleDispatchFunctions -> Lang.Exp -> Exp
+desugarExp freshVariableCounterRef multipleDispatchFunctionsRef langExp =
+  -- Pass around a partially applied desugar func to helpers. Results in
+  -- less noisy code than explicitly passing freshVariableCounterRef
+  -- and multipleDispatchFunctionsRef down the stack.
+  let partiallyAppliedDesugarExp = desugarExp freshVariableCounterRef multipleDispatchFunctionsRef in
+  let recurse = partiallyAppliedDesugarExp in
   case Lang.unwrapExp langExp of
     Lang.EConst _ num loc wd             -> ENum num
     Lang.EBase _ (Lang.EBool True)       -> trueExp
@@ -65,40 +97,44 @@ desugarExp langExp =
     Lang.EFun _ pats bodyExp _           ->
       -- Binarize all functions.
       case pats |> List.map LangTools.patToMaybePVarIdent |> Utils.projJusts of
-        Just argNames -> makeMultiArgFunction argNames (desugarExp bodyExp)
+        Just argNames -> makeMultiArgFunction argNames (recurse bodyExp)
         Nothing       -> EString "TinyStructuredEditorsForLowLowPrices core language does not support functions with non-var argument patterns"
 
     Lang.EOp _ _ op argExps _ ->
       case (op.val, argExps) of
-        (Lang.Plus, [e1, e2]) -> EAppend (desugarExp e1) (desugarExp e2)
+        (Lang.Plus, [e1, e2]) -> EAppend (recurse e1) (recurse e2)
         (Lang.Plus, _)        -> EString <| "TinyStructuredEditorsForLowLowPrices core language does not support any non-binary Plus operation"
-        (Lang.ToStr, [e1])    -> ENumToString (desugarExp e1)
+        (Lang.ToStr, [e1])    -> ENumToString (recurse e1)
         _                     -> EString <| "TinyStructuredEditorsForLowLowPrices core language does not support the " ++ toString op.val ++ " operation"
 
     Lang.EList _ wsHeads _ maybeTail _  ->
-      let desugaredTailExp = maybeTail |> Maybe.map desugarExp |> Maybe.withDefault nilExp in
-      wsHeads |> Utils.foldr desugaredTailExp (\(_, head) desugaredTailExp -> consExp (desugarExp head) desugaredTailExp)
+      let desugaredTailExp = maybeTail |> Maybe.map recurse |> Maybe.withDefault nilExp in
+      wsHeads |> Utils.foldr desugaredTailExp (\(_, head) desugaredTailExp -> consExp (recurse head) desugaredTailExp)
 
     Lang.ERecord _ _ decls _ ->
       case Lang.recordEntriesFromDeclarations decls of
         Just entries ->
           case Lang.entriesToMaybeCtorNameAndArgExps entries of
-            Just (ctorName, argExps) -> ECtor ctorName (List.map desugarExp argExps)
+            Just (ctorName, argExps) -> ECtor ctorName (List.map recurse argExps)
             Nothing                  -> EString "TinyStructuredEditorsForLowLowPrices could not decipher record"
 
         Nothing ->
           EString "TinyStructuredEditorsForLowLowPrices core language does not yet support records"
 
     Lang.ESelect _ e1 _ _ name            -> EString "TinyStructuredEditorsForLowLowPrices core language does not yet support record field selection"
-    Lang.EApp _ funcExp argExps appType _ -> makeMultiApp (desugarExp funcExp) (List.map desugarExp argExps) -- Binarize all applications.
+    Lang.EApp _ funcExp argExps appType _ -> makeMultiApp (recurse funcExp) (List.map recurse argExps) -- Binarize all applications.
 
-    Lang.ELet _ _ (Lang.Declarations _ _ _ letExpGroups) _ bodyExp ->
-      desugarLetExpGroups letExpGroups bodyExp
+    Lang.ELet _ _ declarations _ bodyExp ->
+      let
+        (Lang.Declarations _ _ _ letExpGroups) =
+          gatherAndRenameDynamicFunctions freshVariableCounterRef multipleDispatchFunctionsRef declarations
+      in
+      desugarLetExpGroups partiallyAppliedDesugarExp letExpGroups bodyExp
 
     Lang.EIf _ conditionExp _ thenExp _ elseExp _ ->
-      ECase (desugarExp conditionExp)
-          [ ("True",  [], desugarExp thenExp) -- Ctor name, ctor argument binding names, branch exp
-          , ("False", [], desugarExp elseExp) -- Ctor name, ctor argument binding names, branch exp
+      ECase (recurse conditionExp)
+          [ ("True",  [], recurse thenExp) -- Ctor name, ctor argument binding names, branch exp
+          , ("False", [], recurse elseExp) -- Ctor name, ctor argument binding names, branch exp
           ]
 
     Lang.ECase _ scrutineeExp branches _ ->
@@ -112,7 +148,7 @@ desugarExp langExp =
                     argPats
                     |> List.map LangTools.patToMaybePVarIdent
                     |> Utils.projJusts
-                    |> Maybe.map (\argNames -> (ctorName, argNames, desugarExp branchExp))
+                    |> Maybe.map (\argNames -> (ctorName, argNames, recurse branchExp))
 
                   Nothing ->
                     Nothing
@@ -120,26 +156,107 @@ desugarExp langExp =
           |> Utils.projJusts
       in
       case maybeDesugaredBranches of
-        Just desugaredBranches -> ECase (desugarExp scrutineeExp) desugaredBranches
+        Just desugaredBranches -> ECase (recurse scrutineeExp) desugaredBranches
         Nothing                -> EString "TinyStructuredEditorsForLowLowPrices core language does not support case patterns other than Ctor x1 x2 x3"
 
-    Lang.EColonType _ innerExp _ _ _ -> desugarExp innerExp
-    Lang.EParens _ innerExp _ _      -> desugarExp innerExp
+    Lang.EColonType _ innerExp _ _ _ -> recurse innerExp
+    Lang.EParens _ innerExp _ _      -> recurse innerExp
     Lang.EHole _ _                   -> EString "??"
 
 
-desugarLetExpGroups : List (Bool, List Lang.LetExp) -> Lang.Exp -> Exp
-desugarLetExpGroups letExpGroups letBody =
+getFreshVariable : CounterRef -> String -> String
+getFreshVariable freshVariableCounterRef baseName =
+  let i = getRef freshVariableCounterRef in
+  let _ = setRef freshVariableCounterRef (i + 1) in
+  baseName ++ toString i
+
+addMultipleDispatchFunction : Ref MultipleDispatchFunctions -> Ident -> Lang.Type -> Ident -> ()
+addMultipleDispatchFunction multipleDispatchFunctionsRef originalName tipe uniqueName =
+  getRef multipleDispatchFunctionsRef
+  |> (::) (originalName, replaceTBoolTListWithTVarTApp tipe, uniqueName)
+  |> setRef multipleDispatchFunctionsRef
+
+
+-- See TinyStructuredEditorsForLowLowPricesTypes for explanation of how we handle dynamic functions
+--
+-- Goal here is to:
+-- 1. Assign unique names to each dynamic function implementation
+-- 2. Catalog the type annotations of each dynamic function so we can dispatch
+--    an implementation based on the argument type.
+--
+-- Mutates CounterRef to generate fresh variable names.
+-- Mutates multipleDispatchFunctionsRef.
+gatherAndRenameDynamicFunctions : CounterRef -> Ref MultipleDispatchFunctions -> Lang.Declarations -> Lang.Declarations
+gatherAndRenameDynamicFunctions freshVariableCounterRef multipleDispatchFunctionsRef declarations =
+  let
+    (declarationList, rebuildDeclarations) =
+      Lang.getDeclarationsExtractors declarations
+
+    (Lang.Declarations printOrder _ _ _) = declarations
+
+    (newDeclarationListInPrintOrder, _) =
+      declarationList
+      |> Utils.reorder printOrder
+      |> Utils.foldl ([], Nothing) processDeclaration
+
+    newDeclarationListInInternalOrder =
+      newDeclarationListInPrintOrder
+      |> Utils.zip printOrder
+      |> List.sortBy Tuple.first
+      |> List.map Tuple.second
+
+    newDeclarations =
+      rebuildDeclarations newDeclarationListInInternalOrder
+
+    processDeclaration declaration (newDeclarationListInPrintOrder, maybePriorTypeAnnotation) =
+      let noChange = (newDeclarationListInPrintOrder ++ [declaration], Nothing) in
+      case declaration of
+        Lang.DeclExp (Lang.LetExp maybeCommaSpace ws1 pat funArgStyle ws2 boundExp) ->
+          case Lang.identifierFromPat pat of
+            Just name ->
+              if List.member name Lang.dynamicDispatchIdentifiers then
+                let
+                  uniqueName     = getFreshVariable freshVariableCounterRef (name ++ " dynamic")
+                  newPat         = Lang.pVar uniqueName
+                  newDeclaration = Lang.DeclExp (Lang.LetExp maybeCommaSpace ws1 newPat funArgStyle ws2 boundExp)
+                  _ =
+                    case maybePriorTypeAnnotation of
+                      Just (Lang.LetAnnotation _ _ typePat _ _ tipe) ->
+                        if Lang.identifierFromPat typePat == Just name
+                        then addMultipleDispatchFunction multipleDispatchFunctionsRef name tipe uniqueName
+                        else ()
+                      Nothing -> ()
+                in
+                (newDeclarationListInPrintOrder ++ [newDeclaration], Nothing)
+              else
+                noChange
+
+            Nothing ->
+              noChange
+
+        Lang.DeclType _ ->
+          noChange
+
+        Lang.DeclAnnotation letAnnotation ->
+          (newDeclarationListInPrintOrder ++ [declaration], Just letAnnotation)
+
+  in
+  newDeclarations
+
+
+-- Pass desugarExp down the stack; cleaner than explicitly passing the references around.
+desugarLetExpGroups : (Lang.Exp -> Exp) -> List (Bool, List Lang.LetExp) -> Lang.Exp -> Exp
+desugarLetExpGroups desugarExp letExpGroups letBody =
   letExpGroups
-  |> Utils.foldr (desugarExp letBody) desugarLetExpGroup
+  |> Utils.foldr (desugarExp letBody) (desugarLetExpGroup desugarExp)
 
 
-desugarLetExpGroup : (Bool, List Lang.LetExp) -> Exp -> Exp
-desugarLetExpGroup ((isRec, letExps) as letExpGroup) desugaredLetBody =
+desugarLetExpGroup : (Lang.Exp -> Exp) -> (Bool, List Lang.LetExp) -> Exp -> Exp
+desugarLetExpGroup desugarExp ((isRec, letExps) as letExpGroup) desugaredLetBody =
   if isRec then
-    desugarRecursiveLetExps letExps desugaredLetBody
+    desugarRecursiveLetExps desugarExp letExps desugaredLetBody
   else
-    letExps |> Utils.foldr desugaredLetBody desugarLetExp
+    letExps |> Utils.foldr desugaredLetBody (desugarLetExp desugarExp)
 
 
 makeMultiArgFunction : List Ident -> Exp -> Exp
@@ -162,8 +279,8 @@ makeMultiApp desugaredFuncExp desugaredArgExps =
 
 
 -- Let desugared to function application.
-desugarLetExp : Lang.LetExp -> Exp -> Exp
-desugarLetExp (Lang.LetExp _ _ pat _ _ boundExp) desugaredLetBody =
+desugarLetExp : (Lang.Exp -> Exp) -> Lang.LetExp -> Exp -> Exp
+desugarLetExp desugarExp (Lang.LetExp _ _ pat _ _ boundExp) desugaredLetBody =
   case LangTools.patToMaybePVarIdent (Lang.patEffectivePat pat) of
     Just ident  -> makeLetViaApp ident (desugarExp boundExp) desugaredLetBody
     _           -> EString "TinyStructuredEditorsForLowLowPrices core language does not support multi var let patterns"
@@ -197,8 +314,8 @@ desugarLetExp (Lang.LetExp _ _ pat _ _ boundExp) desugaredLetBody =
 -- let f2 = f2' f3    in
 -- let f1 = f1' f2 f3 in
 -- a
-desugarRecursiveLetExps : List Lang.LetExp -> Exp -> Exp
-desugarRecursiveLetExps letExps desugaredLetBody =
+desugarRecursiveLetExps : (Lang.Exp -> Exp) -> List Lang.LetExp -> Exp -> Exp
+desugarRecursiveLetExps desugarExp letExps desugaredLetBody =
   let
     -- Helpers; could be at the top level but used only in this function.
 
@@ -226,7 +343,8 @@ desugarRecursiveLetExps letExps desugaredLetBody =
   case maybeRecNames of
     Just recNames ->
       let
-        recIsNeeded = List.range 1 (List.length recNames) -- Indicies.
+        -- Recusive indicies needed.
+        recIsNeeded = List.range 1 (List.length recNames)
 
         -- Names for f1' f2' f3' above.
         intermediateName name = name ++ "SinglyRecursive"
@@ -319,3 +437,50 @@ desugarVal langVal =
     Lang.VBase Lang.VNull                       -> vString "TinyStructuredEditorsForLowLowPrices core language does not support null"
     Lang.VClosure recNames pats bodyExp funcEnv -> vString "TinyStructuredEditorsForLowLowPrices cannot desugar closure values"
     Lang.VFun _ _ _ _                           -> vString "TinyStructuredEditorsForLowLowPrices core language does not support VFun"
+
+
+
+
+------------- Types -------------
+
+-- We use (a small subset of) Lang.Type instead of defining our own Type grammar.
+-- Make sure types coming from Leo are run through replaceTBoolTListWithTVarTApp.
+
+tAppList : Lang.Type -> Lang.Type
+tAppList elemType = Lang.tApp0 (Lang.tVar0 "List") [elemType] Lang.SpaceApp
+
+builtinDataTypes : List Types2.DataTypeDef
+builtinDataTypes =
+  let a = Lang.tVar0 "a" in
+  [ ("Bool", ([],    [("True", []), ("False", [])]))
+  , ("List", (["a"], [("Nil", []),  ("Cons", [a, tAppList a])])) -- TList is separate in Leo, so the Leo parser does not allow `type List a = ...`; otherwise we would just put this in our examples.
+  ]
+
+replaceTBoolTListWithTVarTApp : Lang.Type -> Lang.Type
+replaceTBoolTListWithTVarTApp tipe =
+  tipe |> Lang.mapType (\t ->
+    case Lang.unwrapType t of
+      Lang.TBool _            -> Lang.tVar0 "Bool"
+      Lang.TList _ elemType _ -> tAppList elemType
+      _                       -> t
+  )
+
+-- Copied from Types2, for reference:
+--
+-- type alias DataConDef = (Ident, List Type)
+-- type alias DataTypeDef = (Ident, (List Ident, List DataConDef)) -- (Type name, (type arg names, constructors))
+-- type alias DataTypeEnv = List DataTypeDef
+
+-- Use a data type for booleans instead of primitive Lang.TBool.
+-- Also, convert TList's to TApp's of the List type constructor.
+dataTypeDefsWithoutTBoolsTLists : Lang.Exp -> List Types2.DataTypeDef
+dataTypeDefsWithoutTBoolsTLists langExp =
+  let
+    replaceTBoolTListWithTVarTAppInDataConDef (ctorName, argTypes) =
+      ( ctorName
+      , argTypes |> List.map replaceTBoolTListWithTVarTApp
+      )
+  in
+  Types2.getDataTypeDefs langExp
+  |> List.map (\(dataTypeName, (typeArgNames, dataConDefs)) -> (dataTypeName, (typeArgNames, List.map replaceTBoolTListWithTVarTAppInDataConDef dataConDefs)))
+  |> (++) builtinDataTypes

@@ -13,7 +13,7 @@ module Types2 exposing
   , renameDataConstructorTool
   , duplicateDataConstructorTool
 
-  , DatatypeEnv
+  , DataTypeEnv
   , DataTypeDef
   , DataConDef
 
@@ -38,6 +38,7 @@ module Types2 exposing
   , matchArrow
   , matchArrowRecurse
   , varOrAppToMaybeIdentAndArgTypes
+  , ctorNameToMaybeDataTypeDef
 
   , HoleEnv
   , HoleEnvElement
@@ -213,7 +214,7 @@ type TypeEnvElement
 
 type alias DataConDef = (Ident, List Type)
 type alias DataTypeDef = (Ident, (List Ident, List DataConDef)) -- (Type name, (type arg names, constructors))
-type alias DatatypeEnv = List DataTypeDef
+type alias DataTypeEnv = List DataTypeDef
 
 type alias HoleEnv =
   List HoleEnvElement
@@ -394,6 +395,16 @@ lookupDataCon gamma dataConName =
   in
     Utils.maybeFind dataConName (dataConDefsOfGamma gamma)
 
+
+-- Lookup in DataTypeEnv rather than in TypeEnv
+ctorNameToMaybeDataTypeDef : Ident -> List DataTypeDef -> Maybe DataTypeDef
+ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefs =
+  dataTypeDefs
+  |> Utils.findFirst
+      (\(typeName, (typeArgNames, dataConDefs)) ->
+        dataConDefs
+        |> List.any (\(ctorName, ctorArgTypes) -> ctorName == targetCtorName)
+      )
 
 
 lookupVar : TypeEnv -> Ident -> Maybe (Maybe Type)
@@ -3070,7 +3081,7 @@ patternToTypeNameAndArgNames pat =
 
 
 
-getDataTypeDefs : Exp -> DatatypeEnv
+getDataTypeDefs : Exp -> DataTypeEnv
 getDataTypeDefs = flip foldExpViaE__ [] (\e__ acc ->
   case e__ of
     ELet ws1 letKind (Declarations po letTypes letAnnots letExps) ws2 body ->

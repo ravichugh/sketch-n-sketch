@@ -1,9 +1,12 @@
 module TinyStructuredEditorsForLowLowPricesEval exposing (evalToStringTaggedWithProjectionPaths, tagVal)
 
+import Char
 import Set exposing (Set)
+import String
 
 import Lang
--- import Types2
+import LeoUnparser exposing (unparseType)
+import Types2
 import Utils
 
 import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
@@ -25,8 +28,9 @@ dependencyAnnotators =
 
 
 -- Dependency tagging evaluation on the core langauage.
-eval : Env -> Exp -> Result String TaggedValue
-eval env exp =
+eval : List Types2.DataTypeDef -> MultipleDispatchFunctions -> Env -> Exp -> Result String TaggedValue
+eval dataTypeDefs multipleDispatchFunctions env exp =
+  let recurse = eval dataTypeDefs multipleDispatchFunctions in
   let noTag v = TaggedValue v Set.empty in -- ⊥ in Acar et al. Fig. 12
   case exp of
     EFun funcName argName funcBody ->
@@ -34,32 +38,53 @@ eval env exp =
 
     EVar varName ->
       case Utils.maybeFind varName env of
-        Just boundValue -> Ok boundValue -- No extra annotation in Acar et al. Fig. 12
-        Nothing         -> Err <| "Variable " ++ varName ++ " not found!"
+        Just boundValue ->
+          Ok boundValue -- No extra annotation in Acar et al. Fig. 12
+        Nothing ->
+          case Utils.maybeFind3 varName multipleDispatchFunctions of
+            Just _  -> Ok <| TaggedValue (VClosureDynamic varName) dependencyAnnotators.function
+            Nothing -> Err <| "Variable " ++ varName ++ " not found!"
 
     EApp funcExp argExp ->
-      eval env funcExp |> Result.andThen (\funcTaggedVal ->
-      eval env argExp  |> Result.andThen (\argTaggedVal ->
+      recurse env funcExp |> Result.andThen (\funcTaggedVal ->
+      recurse env argExp  |> Result.andThen (\argTaggedVal ->
         case funcTaggedVal.v of
-          VClosure env funcName argName funcBody ->
-            eval ((funcName, funcTaggedVal)::(argName, argTaggedVal)::env) funcBody
+          VClosure funcEnv funcName argName funcBody ->
+            let
+              multipleDispatchImplementationNames = multipleDispatchFunctions |> List.map (\(_, _, uniqueName) -> uniqueName)
+              implementationNamesNotInFuncEnv =
+                multipleDispatchImplementationNames
+                |> List.filter (\implementationName -> Utils.maybeFind implementationName funcEnv == Nothing)
+              envToPropagateToCall =
+                env
+                |> List.filter (\(name, _) -> List.member name implementationNamesNotInFuncEnv)
+            in
+            recurse ([(funcName, funcTaggedVal), (argName, argTaggedVal)] ++ envToPropagateToCall ++ funcEnv) funcBody
             |> Result.map (\resultTaggedVal ->
               resultTaggedVal |> setTag (dependencyAnnotators.application funcTaggedVal.paths resultTaggedVal.paths)
             )
 
+          VClosureDynamic funcName ->
+            case findMultipleDispatchImplementationNameBasedOnArgType dataTypeDefs multipleDispatchFunctions funcName argTaggedVal of
+              Just implementationUniqueName ->
+                EApp (EVar implementationUniqueName) (EVar "evaled arg")
+                |> recurse (("evaled arg", argTaggedVal)::env)
+              Nothing ->
+                Err <| "Could not find matching " ++ funcName ++ " implementation for argument " ++ unparseToUntaggedString argTaggedVal ++ "!"
+
           _ ->
-            Err <| "Left side of application should be a function but got " ++ unparseToUntaggedString funcTaggedVal ++ "!"
+            Err <| "Left side of application should be a function but got " ++ unparseToUntaggedString funcTaggedVal ++ " in " ++ toString exp ++ "!"
       ))
 
     ECtor ctorName argExps ->
       argExps
-      |> List.map (eval env)
+      |> List.map (recurse env)
       |> Utils.projOk
       |> Result.map (\argTaggedVals -> VCtor ctorName argTaggedVals)
       |> Result.map noTag -- No annotation in Acar et al. Fig. 12
 
     ECase scrutinee branches ->
-      eval env scrutinee |> Result.andThen (\scrutineTaggedVal ->
+      recurse env scrutinee |> Result.andThen (\scrutineTaggedVal ->
         case scrutineTaggedVal.v of
           VCtor ctorName argTaggedVals ->
             let maybeMatchingBranch =
@@ -70,7 +95,7 @@ eval env exp =
               Just (_, argNames, branchExp) ->
                 case Utils.maybeZip argNames argTaggedVals of
                   Just bindings ->
-                    eval (bindings ++ env) branchExp
+                    recurse (bindings ++ env) branchExp
                     |> Result.map (\branchResultTaggedVal ->
                       branchResultTaggedVal |> setTag (dependencyAnnotators.caseAndBranch scrutineTaggedVal.paths branchResultTaggedVal.paths)
                     )
@@ -90,14 +115,14 @@ eval env exp =
 
     EAppend e1 e2 ->
       -- Analogous to tupling or applying a constructor, both of which are unannotated in Acar et al. Fig. 12
-      Result.map2 VAppend (eval env e1) (eval env e2)
+      Result.map2 VAppend (recurse env e1) (recurse env e2)
       |> Result.map noTag
 
     ENum num ->
       Ok <| TaggedValue (VNum num) dependencyAnnotators.constant
 
     ENumToString argExp ->
-      eval env argExp
+      recurse env argExp
       |> Result.andThen (\argTaggedVal ->
         case argTaggedVal.v of
           VNum num -> Ok <| TaggedValue (VString (toString num)) (dependencyAnnotators.operation [argTaggedVal.paths])
@@ -105,7 +130,7 @@ eval env exp =
       )
 
 
--- Set up the value of interest with path tags, which are propogated during evaluation.
+-- Set up the value of interest with path tags, which are propagated during evaluation.
 --
 -- Fig. 11 "Path annotation operation" in Acar et al.
 -- AddTag/AddTagDeep in our appendix. We handle closures differently than Acar et al., but we also don't expect closures in the initial value of interest so it doesn't matter.
@@ -114,6 +139,9 @@ tagVal path w =
   let deeperTagged =
     case w.v of
       VClosure funcEnv funcName varName body ->
+        w
+
+      VClosureDynamic ident ->
         w
 
       VCtor ctorName ws ->
@@ -134,6 +162,89 @@ tagVal path w =
         w
   in
   setTag (Set.insert path w.paths) deeperTagged
+
+
+findMultipleDispatchImplementationNameBasedOnArgType : List Types2.DataTypeDef -> MultipleDispatchFunctions -> Ident -> TaggedValue -> Maybe Ident
+findMultipleDispatchImplementationNameBasedOnArgType dataTypeDefs multipleDispatchFunctions funcName argTaggedVal =
+  let
+    candidateImplementations =
+      multipleDispatchFunctions
+      |> List.filter (\(name, _, _) -> name == funcName)
+
+    maybeFirstArgType tipe =
+      case Types2.matchArrowRecurse tipe of
+        Just (typeVarNames, firstArgType::_, retType) -> Just firstArgType
+        _                                             -> Nothing
+
+    maybeTargetTypeName =
+      case argTaggedVal.v of
+        VClosure _ _ _ _  -> Nothing -- No higher-order dispatch.
+        VClosureDynamic _ -> Nothing -- No higher-order dispatch.
+        VCtor ctorName _  -> Types2.ctorNameToMaybeDataTypeDef ctorName dataTypeDefs |> Maybe.map (\(typeName, _) -> typeName)
+        VString _         -> Just "String"
+        VAppend _ _       -> Just "String"
+        VNum _            -> Just "Num"
+
+    typeToName tipe =
+      let
+        recurse = typeToName
+
+        unsupported () =
+          let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesEval.findMultipleDispatchImplementationNameBasedOnArgType does not yet support " ++ unparseType tipe in
+          " Not Found "
+
+        handleVarOrApp () =
+          case Types2.varOrAppToMaybeIdentAndArgTypes tipe of
+            Just (typeName, argTypes) -> typeName
+            Nothing                   -> unsupported ()
+      in
+      case Lang.unwrapType tipe of
+        Lang.TNum _                                   -> "Num"
+        Lang.TBool _                                  -> Debug.crash <| "TinyStructuredEditorsForLowLowPricesEval.findMultipleDispatchImplementationNameBasedOnArgType: TBools should not occur here: should already be converted to TVar instead!"
+        Lang.TString _                                -> "String"
+        Lang.TNull _                                  -> unsupported ()
+        Lang.TList _ elemType _                       -> unsupported ()
+        Lang.TDict _ keyType valueType _              -> unsupported ()
+        Lang.TRecord _ maybeExtendVarNameWs entries _ -> unsupported () -- Should just see TApp's...
+        Lang.TTuple _ headTypes _ maybeRestType _     -> unsupported ()
+        Lang.TArrow _ typeList _                      -> unsupported ()
+        Lang.TUnion _ typeList _                      -> unsupported ()
+        Lang.TApp _ fType argTypes _                  -> handleVarOrApp ()
+        Lang.TVar _ name                              -> handleVarOrApp ()
+        Lang.TForall _ tPats innerType _              -> unsupported ()
+        Lang.TParens _ innerType _                    -> recurse innerType
+        Lang.TWildcard _                              -> unsupported ()
+
+    maybeSpecificCandidate =
+      case maybeTargetTypeName of
+        Just targetTypeName ->
+          candidateImplementations
+          |> Utils.findFirst (\(_, funcType, _) ->
+            case maybeFirstArgType funcType of
+              Just firstArg -> typeToName firstArg == targetTypeName
+              Nothing       -> False
+          )
+        Nothing ->
+          Nothing
+
+    isTypeVar tipe =
+      case Lang.unwrapType tipe of
+        Lang.TVar _ name -> String.toList name |> List.map (Char.isLower) |> List.head |> (==) (Just True)
+        _                -> False
+
+    maybeNonSpecificCandidate =
+      candidateImplementations
+      |> Utils.findFirst (\(_, funcType, _) ->
+        maybeFirstArgType funcType
+        |> Maybe.map isTypeVar
+        |> Maybe.withDefault False
+      )
+  in
+  [ maybeSpecificCandidate
+  , maybeNonSpecificCandidate
+  ]
+  |> Utils.firstMaybe
+  |> Maybe.map (\(_, _, uniqueImplementationName) -> uniqueImplementationName)
 
 
 -- Simple flattening and verification that we evaluated only to string literals and append operations.
@@ -197,10 +308,10 @@ tidyUpProjectionPaths stringTaggedWithProjectionPaths =
 
 
 -- No Prelude for now.
-evalToStringTaggedWithProjectionPaths : Exp -> TaggedValue -> Result String StringTaggedWithProjectionPaths
-evalToStringTaggedWithProjectionPaths program valueOfInterestTagged =
+evalToStringTaggedWithProjectionPaths : List Types2.DataTypeDef -> MultipleDispatchFunctions -> Exp -> TaggedValue -> Result String StringTaggedWithProjectionPaths
+evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions program valueOfInterestTagged =
   let initialEnv = [("valueOfInterestTagged", valueOfInterestTagged)] in
-  eval initialEnv program |> Result.andThen (\w ->
+  eval dataTypeDefs multipleDispatchFunctions initialEnv program |> Result.andThen (\w ->
     case taggedValueToMaybeStringTaggedWithProjectionPaths w of
       Just stringTagged -> Ok stringTagged
       Nothing           -> Err <| "Result was not just strings and appends! " ++ unparseToUntaggedString w

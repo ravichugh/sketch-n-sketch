@@ -4997,14 +4997,14 @@ coreSynthesis model =
   case model.unExpOutput of
     Ok (_, assertions) ->
       let
-        (datatypeEnv, holeEnv) =
+        (dataTypeEnv, holeEnv) =
           model.inputExp
             |> Types2.typecheck
             |> Tuple.mapFirst Types2.getDataTypeDefs
       in
         case Core.Compile.holeContext holeEnv of
           Ok holeContext ->
-            case Core.Compile.datatypeContext datatypeEnv of
+            case Core.Compile.datatypeContext dataTypeEnv of
               Ok datatypeContext ->
                 ( model
                 , Core.Bridge.synthesize

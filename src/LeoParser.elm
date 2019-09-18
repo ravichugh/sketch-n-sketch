@@ -2093,7 +2093,7 @@ reorderDeclarations letExps =
     List.reverse revExpWithIndex) in
   let canBeRecursive = eFunUnapply >> Utils.maybeIsEmpty >> not in
   let expDefsWithDependencies = List.map (\(LetExp _ _ pats _ _ e as def, index) ->
-        ((def, index), (identifiersSetInPat pats, freeIdentifiers e, canBeRecursive e))
+        ((def, index), (identifiersSetInPat pats, freeIdentifiers e |> Utils.removeAllFromSet dynamicDispatchIdentifiers, canBeRecursive e))
        ) expWithIndex
   in
   let typeDefsWithDependencies = List.map(\(LetType _ _ _ pats _ _ t as def, index) ->

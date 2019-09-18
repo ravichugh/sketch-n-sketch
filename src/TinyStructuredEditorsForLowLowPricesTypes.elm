@@ -6,6 +6,7 @@ import String
 
 import Lang
 import Sync
+import Types2
 
 
 ----------- State and Caching on the Model -----------
@@ -14,7 +15,8 @@ import Sync
 -- demand in the view then the GUI slows to a crawl.
 type alias ModelState =
   { renderingFunctionNames                : List Ident
-  , maybeRenderingFunctionNameAndProgram  : Maybe { renderingFunctionName: Ident, desugaredToStringProgram: Exp }
+  , dataTypeDefs                          : List Types2.DataTypeDef
+  , maybeRenderingFunctionNameAndProgram  : Maybe { renderingFunctionName: Ident, multipleDispatchFunctions : MultipleDispatchFunctions, desugaredToStringProgram: Exp }
   , valueOfInterestTagged                 : TaggedValue
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
   , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
@@ -26,6 +28,7 @@ type alias ModelState =
 
 initialModelState =
   { renderingFunctionNames                = []
+  , dataTypeDefs                          = []
   , maybeRenderingFunctionNameAndProgram  = Nothing
   , valueOfInterestTagged                 = noTag (VCtor "Nothing" [])
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
@@ -45,9 +48,53 @@ type alias Ident = String
 
 ----------- Core Language -----------
 
-
 -- Mutual recursion is handled during desugaring.
 -- (Desugared into single recursions following https://caml.inria.fr/pub/docs/u3-ocaml/ocaml-ml.html#toc5).
+
+-- Ad-hoc polymophism is handled by type-based multiple dispatch.
+-- Certain function names are designated "dynamic" and may have multiple
+-- implementations with different type signatures. At runtime, the argument
+-- value is inspected and the implementation with the most specific matching
+-- type signature is dispatched.
+--
+-- Implementation:
+--
+-- At desguaring time, functions with a dynamic name are identified and each
+-- implementation binding is renamed to a fresh unique name. The sugaring
+-- returns a list of (original name, type annotation, unique name) to facilitate
+-- dynamic dispatch in the evaluator.
+--
+-- In the evaluator, variable uses matching a dynamic name (e.g. "toString")
+-- evaluate to a special VClosureDynamic that simply records the name. When a
+-- VClosureDynamic value is applied to an argument, the runtime inspects the
+-- recored dynamic name, the type of the argument based on its runtime value,
+-- and the list of (original name, type annotation, unique name) mappings to
+-- choose a an implementation of the function to use; the implementation is
+-- dispatched by looking up the unique name in the execution environment.
+--
+-- Additionally, on all function applications (regular or dynamic), any dynamic
+-- implementations visible at the callsite are added to the execution
+-- environment for the function body. Provided all dynamic implementations are
+-- defined at the top level, and no top-level computation before the main
+-- expression calls a dynamic name, then we can ensure that all dynamic
+-- implementations are available at all dynamic calls.
+--
+-- Limitations:
+--
+-- 1. Because the runtime type is determined via inspecting the value rather
+-- than via instantiating type dictionaries, polymorphic ADTs with constructors
+-- that do not use all the type variables cannot be inferred specifically. For
+-- example, the value "Nil" can only be interpreted as "List a", even if it might
+-- be used in a context where the static type is "List Num". Consequently, the
+-- dynamic dispatch does not attempt to instantiate type variables. That is,
+-- dispatching on the argument "[1,2,3]" will look for a toString function of
+-- type "List a -> String" rather than "List Num -> String".
+--
+-- 2. Only single argument functions are supported for now.
+--
+-- 3. Currently, the only dynamic name is "toString", although syntax
+-- could be added to make the set of dynamic names user-defined.
+
 
 type Exp -- Expressions e :=
   = EVar Ident -- x
@@ -60,6 +107,8 @@ type Exp -- Expressions e :=
   | ENum Float -- n
   | ENumToString Exp -- numToStr e
 
+type alias MultipleDispatchFunctions = List (Ident, Lang.Type, Ident) -- Name, Type annotation, Desugared unique name
+
 type alias TuplePattern = List Ident -- Tuple Patterns p := (x1,...,xn)
 
 type alias ProjectionPath = List Nat -- Projection Paths π := • | π.i
@@ -70,6 +119,7 @@ type alias TaggedValue = { v : UntaggedPreValue, paths : Set ProjectionPath } --
 
 type UntaggedPreValue -- (Untagged) Pre-Values v :=
   = VClosure Env Ident Ident Exp -- [E]f(x).e
+  | VClosureDynamic Ident -- Ad-hoc polymorphism via type-based dispatch of named function.
   | VCtor Ident (List TaggedValue) -- C (w1,...,wn)
   | VString String -- s
   | VAppend TaggedValue TaggedValue -- w1 ++ w2
@@ -84,6 +134,7 @@ mapTaggedValue f w =
   let recurse = mapTaggedValue f in
   case w.v of
     VClosure funcEnv fName varName body -> f w
+    VClosureDynamic ident               -> f w
     VCtor ctorName ws                   -> f { w | v = VCtor ctorName (List.map recurse ws) }
     VString string                      -> f w
     VAppend w1 w2                       -> f { w | v = VAppend (recurse w1) (recurse w2) }
@@ -95,6 +146,7 @@ unparseToUntaggedString taggedValue =
   let recurse = unparseToUntaggedString in
   case taggedValue.v of
     VClosure env fName varName fBody -> "[E]" ++ fName ++ "(" ++ varName ++ ").e"
+    VClosureDynamic ident            -> "«" ++ ident ++ "»"
     VCtor ctorName argVals           -> ctorName ++ "(" ++ String.join ", " (List.map recurse argVals) ++ ")"
     VString string                   -> toString string
     VAppend left right               -> recurse left ++ " ++ " ++ recurse right
@@ -182,3 +234,4 @@ mapStringTags f taggedString =
   case taggedString of
     TaggedString string tagSet           -> TaggedString string (f tagSet)
     TaggedStringAppend left right tagSet -> TaggedStringAppend (recurse left) (recurse right) (f tagSet)
+

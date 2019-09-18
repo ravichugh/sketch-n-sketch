@@ -22,10 +22,13 @@ import TinyStructuredEditorsForLowLowPricesScrub
 -- I hate caching but if we instead perform the work on
 -- demand in the view then the GUI slows to a crawl.
 prepare : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Sync.Options -> Lang.Env -> Lang.Exp -> Maybe Lang.Type -> Lang.Val -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
-prepare oldModelState syncOptions env program maybeValueOfInterestType valueOfInterest =
+prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo valueOfInterest =
   let
     renderingFunctionNames =
       expToRenderingFunctionNames program
+
+    dataTypeDefs =
+      TinyStructuredEditorsForLowLowPricesDesugaring.dataTypeDefsWithoutTBoolsTLists program
 
     maybeRenderingFunctionNameAndProgram =
       -- Use the previously selected function, if it's still available.
@@ -35,8 +38,12 @@ prepare oldModelState syncOptions env program maybeValueOfInterestType valueOfIn
       |> Utils.plusMaybe (List.head renderingFunctionNames)
       |> Maybe.map
           (\renderingFunctionName ->
-            { renderingFunctionName    = renderingFunctionName
-            , desugaredToStringProgram = TinyStructuredEditorsForLowLowPricesDesugaring.makeDesugaredToStringProgram program renderingFunctionName
+            let (multipleDispatchFunctions, desugaredToStringProgram) =
+              TinyStructuredEditorsForLowLowPricesDesugaring.makeDesugaredToStringProgram program renderingFunctionName
+            in
+            { renderingFunctionName     = renderingFunctionName
+            , multipleDispatchFunctions = multipleDispatchFunctions
+            , desugaredToStringProgram  = desugaredToStringProgram
             }
           )
 
@@ -47,23 +54,30 @@ prepare oldModelState syncOptions env program maybeValueOfInterestType valueOfIn
 
     stringTaggedWithProjectionPathsResult =
       case maybeRenderingFunctionNameAndProgram of
-        Just { renderingFunctionName, desugaredToStringProgram } ->
+        Just { renderingFunctionName, multipleDispatchFunctions, desugaredToStringProgram } ->
           TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
+              dataTypeDefs
+              multipleDispatchFunctions
               desugaredToStringProgram
               valueOfInterestTagged
 
         Nothing ->
           Err "No rendering function chosen."
 
+    maybeValueOfInterestType =
+      maybeValueOfInterestTypeFromLeo
+      |> Maybe.map TinyStructuredEditorsForLowLowPricesDesugaring.replaceTBoolTListWithTVarTApp
+
     stringProjectionPathToSpecificActions =
       stringTaggedWithProjectionPathsResult
       |> Result.toMaybe
-      |> Maybe.map (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations program maybeValueOfInterestType valueOfInterestTagged)
+      |> Maybe.map (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOfInterestType valueOfInterestTagged)
       |> Maybe.withDefault Dict.empty
 
   in
   { oldModelState
   | renderingFunctionNames                = renderingFunctionNames
+  , dataTypeDefs                          = dataTypeDefs
   , maybeRenderingFunctionNameAndProgram  = maybeRenderingFunctionNameAndProgram
   , valueOfInterestTagged                 = valueOfInterestTagged
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
@@ -127,4 +141,4 @@ cancelTextEditing oldModelState =
 
 expToRenderingFunctionNames : Lang.Exp -> List Ident
 expToRenderingFunctionNames exp =
-  ["intervalToString"]
+  ["toString"]

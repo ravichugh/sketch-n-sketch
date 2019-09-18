@@ -387,7 +387,7 @@ holeContext =
   in
     List.map holeEnvElement >> Utils.projOk
 
-datatypeContext : T.DatatypeEnv -> Result CompileError C.DatatypeContext
+datatypeContext : T.DataTypeEnv -> Result CompileError C.DatatypeContext
 datatypeContext =
   let
     datatypeConstructor :

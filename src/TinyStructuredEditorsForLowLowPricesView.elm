@@ -225,7 +225,7 @@ assignActionsToLeaves stringProjectionPathToSpecificActions stringTaggedWithSele
 
 structuredEditor : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Html Msg
 structuredEditor modelState =
-  let { valueOfInterestTagged, maybeRenderingFunctionNameAndProgram, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult, maybeNewValueOptions } = modelState in
+  let { valueOfInterestTagged, dataTypeDefs, maybeRenderingFunctionNameAndProgram, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult, maybeNewValueOptions } = modelState in
   let
     render
       :  Set ProjectionPath
@@ -378,9 +378,11 @@ structuredEditor modelState =
             renderNewValueOption newValue =
               let displayStr =
                 case maybeRenderingFunctionNameAndProgram of
-                  Just { renderingFunctionName, desugaredToStringProgram } ->
+                  Just { renderingFunctionName, multipleDispatchFunctions, desugaredToStringProgram } ->
                     let newStringTaggedWithProjectionPathsResult =
                       TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
+                          dataTypeDefs
+                          multipleDispatchFunctions
                           desugaredToStringProgram
                           newValue
                     in

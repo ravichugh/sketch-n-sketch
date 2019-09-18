@@ -30,13 +30,21 @@ maybeFind k l = case l of
                      then Just v0
                      else maybeFind k l_
 
+maybeFind3 : a -> List (a,b,c) -> Maybe (b,c)
+maybeFind3 targetKey list =
+  case list of
+  []                    -> Nothing
+  (key, v1, v2) :: rest ->
+    if key == targetKey
+    then Just (v1, v2)
+    else maybeFind3 targetKey rest
+
 maybeFindTail : a -> List (a,b) -> Maybe (b, List (a, b))
 maybeFindTail k l = case l of
   []            -> Nothing
   (k0,v0) :: l_ -> if k == k0
                      then Just (v0, l_)
                      else maybeFindTail k l_
-
 
 find err d k =
   case maybeFind k d of
@@ -1034,6 +1042,21 @@ dictGetSet k d =
 dictUnionSet : k -> (Set v) -> Dict k (Set v) -> Dict k (Set v)
 dictUnionSet k more dict =
   Dict.insert k (Set.union more (dictGetSet k dict)) dict
+
+insertAll : List (k, v) -> Dict k v -> Dict k v
+insertAll pairs dict =
+  pairs
+  |> List.foldl
+      (\(k, v) dict -> Dict.insert k v dict)
+      dict
+
+insertAllIntoSet : List a -> Set a -> Set a
+insertAllIntoSet items set =
+  items |> List.foldl Set.insert set
+
+removeAllFromSet : List a -> Set a -> Set a
+removeAllFromSet items set =
+  items |> List.foldl Set.remove set
 
 maybeLast list =
   case list of

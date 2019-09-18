@@ -1566,7 +1566,7 @@ codePanel model =
     runButton =
       Html.div
         [ Attr.class "run"
-        , E.onClick Controller.msgRequestCoreRun
+        , E.onClick (if model.outputMode == PBE then Controller.msgRequestCoreRun else Controller.msgRun)
         ]
         [ Html.text "Run ▸"
         ]

@@ -18,7 +18,8 @@ taggedValToLangValResult : TaggedValue -> Result String Lang.Val
 taggedValToLangValResult taggedValue =
   let recurseAllResult = List.map taggedValToLangValResult >> Utils.projOk in
   case taggedValue.v of
-    VClosure _ _ _ _       -> Err "Can't desugar closures."
+    VClosure _ fName _ _   -> Err <| "Can't resugar closures (" ++ fName ++ ")."
+    VClosureDynamic ident  -> Err <| "Can't resugar dynamic closures (" ++ ident ++ ")."
     VCtor "True" []        -> Ok <| ValBuilder.bool Lang.valNoProvenance True
     VCtor "False" []       -> Ok <| ValBuilder.bool Lang.valNoProvenance True
     VCtor "Nil" []         -> Ok <| Update.vList []

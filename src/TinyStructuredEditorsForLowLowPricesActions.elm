@@ -62,12 +62,12 @@ defaultArgumentMappingForCtorChange oldCtorArgTypes newCtorArgTypes =
 
 
 -- No type alias support yet.
--- Run dataTypeDefsWithoutTBoolsTLists and dataConDef through expandType if you need to handle type aliases.
+-- Run dataTypeDefs and dataConDef through expandType if you need to handle type aliases.
 --
 -- Not particularly precise in the presence of type variables.
 -- This function is unsatisfying but may be sufficient for our examples.
 isTerminalDataConDef : List Types2.DataTypeDef -> List Ident -> Types2.DataConDef -> Bool
-isTerminalDataConDef dataTypeDefsWithoutTBoolsTLists dataTypeNamesSeen (ctorName, argTypes) =
+isTerminalDataConDef dataTypeDefs dataTypeNamesSeen (ctorName, argTypes) =
   argTypes
   |> List.all
       (\argType ->
@@ -76,8 +76,8 @@ isTerminalDataConDef dataTypeDefsWithoutTBoolsTLists dataTypeNamesSeen (ctorName
             if List.member typeName dataTypeNamesSeen then
               False
             else
-              case Utils.maybeFind typeName dataTypeDefsWithoutTBoolsTLists of
-                Just (typeArgNames, dataConDefs) -> dataConDefs |> List.any (isTerminalDataConDef dataTypeDefsWithoutTBoolsTLists (typeName::dataTypeNamesSeen))
+              case Utils.maybeFind typeName dataTypeDefs of
+                Just (typeArgNames, dataConDefs) -> dataConDefs |> List.any (isTerminalDataConDef dataTypeDefs (typeName::dataTypeNamesSeen))
                 Nothing                          -> True
           Nothing ->
             True
@@ -88,10 +88,10 @@ isTerminalDataConDef dataTypeDefsWithoutTBoolsTLists dataTypeNamesSeen (ctorName
 --
 -- Doesn't handle type vars correctly yet.
 maybeDefaultValueForType : List Types2.DataTypeDef -> Lang.Type -> Maybe TaggedValue
-maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists tipe =
+maybeDefaultValueForType dataTypeDefs tipe =
   -- No type aliases for now.
   let
-    recurse = maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists
+    recurse = maybeDefaultValueForType dataTypeDefs
 
     _ =
       if Lang.isDeprecatedType tipe
@@ -107,12 +107,12 @@ maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists tipe =
     handleVarOrApp () =
       case Types2.varOrAppToMaybeIdentAndArgTypes tipe of
         Just (typeName, argTypes) ->
-          case Utils.maybeFind typeName dataTypeDefsWithoutTBoolsTLists of
+          case Utils.maybeFind typeName dataTypeDefs of
             Just (typeArgNames, dataConDefs) ->
               let
                 maybeDataConDefToUse =
                   dataConDefs
-                  |> Utils.findFirst (isTerminalDataConDef dataTypeDefsWithoutTBoolsTLists [typeName])
+                  |> Utils.findFirst (isTerminalDataConDef dataTypeDefs [typeName])
               in
               case maybeDataConDefToUse of
                 Just (ctorName, argTypes) ->
@@ -149,16 +149,6 @@ maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists tipe =
     Lang.TWildcard _                              -> unsupported ()
 
 
-ctorNameToMaybeDataTypeDef : Ident -> List Types2.DataTypeDef -> Maybe Types2.DataTypeDef
-ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefsWithoutTBoolsTLists =
-  dataTypeDefsWithoutTBoolsTLists
-  |> Utils.findFirst
-      (\(typeName, (typeArgNames, dataConDefs)) ->
-        dataConDefs
-        |> List.any (\(ctorName, ctorArgTypes) -> ctorName == targetCtorName)
-      )
-
-
 -- Given a value, generates SpecificActions for that value and then
 -- associates those actions with projection paths that appears in the string.
 -- Since not all projection paths for which we generate actions are guarenteed to
@@ -166,49 +156,23 @@ ctorNameToMaybeDataTypeDef targetCtorName dataTypeDefsWithoutTBoolsTLists =
 --
 -- The returned dict is a 1-to-1 mapping (actions are not duplicated).
 generateActionsForValueAndAssociateWithStringLocations
-  :  Lang.Exp
+  :  List Types2.DataTypeDef
   -> Maybe Lang.Type
   -> TaggedValue
   -> StringTaggedWithProjectionPaths
   -> Dict ProjectionPath (List SpecificAction)
-generateActionsForValueAndAssociateWithStringLocations program maybeValueOfInterestTypeWithTBoolTList valueOfInterestTagged stringTaggedWithProjectionPaths =
+generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOfInterestType valueOfInterestTagged stringTaggedWithProjectionPaths =
   let
     specificActions : Set SpecificAction
     specificActions =
       let
-        a                 = Lang.tVar0 "a"
-        tAppList elemType = Lang.tApp0 (Lang.tVar0 "List") [elemType] Lang.SpaceApp
-
-        -- Use a data type for booleans instead of primitive Lang.TBool.
-        -- Also, convert TList's to TApp's of the List type constructor.
-        replaceTBoolTListWithTVarTApp tipe =
-          case Lang.unwrapType tipe of
-            Lang.TBool _            -> Lang.tVar0 "Bool"
-            Lang.TList _ elemType _ -> tAppList elemType
-            _                       -> tipe
-
-        dataTypeDefsWithoutTBoolsTLists =
-          let replaceTBoolTListWithTVarTAppInDataConDef (ctorName, argTypes) =
-            ( ctorName
-            , argTypes |> List.map (Lang.mapType replaceTBoolTListWithTVarTApp)
-            )
-          in
-          Types2.getDataTypeDefs program
-          |> List.map (\(dataTypeName, (typeArgNames, dataConDefs)) -> (dataTypeName, (typeArgNames, List.map replaceTBoolTListWithTVarTAppInDataConDef dataConDefs)))
-          |> (::) ("Bool", ([],    [("True", []), ("False", [])]))
-          |> (::) ("List", (["a"], [("Nil", []),  ("Cons", [a, tAppList a])])) -- TList is separate in Leo, so the Leo parser does not allow `type List a = ...`, otherwise we would just put this in our examples.
-
-        maybeValueOfInterestType =
-          maybeValueOfInterestTypeWithTBoolTList
-          |> Maybe.map (Lang.mapType replaceTBoolTListWithTVarTApp)
-
         _ =
           if maybeValueOfInterestType == Nothing
           then Utils.log "No type provided/inferred for TinyStructuredEditorsForLowLowPrices value of interest. Polymorphic type variable will not be instantiated causing some actions to be unavailable."
           else ()
       in
       valToSpecificActions
-          dataTypeDefsWithoutTBoolsTLists
+          dataTypeDefs
           valueOfInterestTagged
           maybeValueOfInterestType
           valueOfInterestTagged
@@ -275,9 +239,9 @@ replaceAtPath pathToReplace replacement rootValueOfInterestTagged =
 -- Type, if given, should be concrete: no free variables.
 -- (That's the point of providing a type: so we can know when `List a` is actually `List Num` and provide more actions.)
 valToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Maybe Lang.Type -> TaggedValue -> Set SpecificAction
-valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged maybeType valueOfInterestTagged =
+valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInterestTagged =
   let
-    recurse = valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged
+    recurse = valToSpecificActions dataTypeDefs rootValueOfInterestTagged
 
     -- In practice, should always result in one action.
     replacementActionSet : ChangeType -> TaggedValue -> Set SpecificAction
@@ -289,8 +253,11 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
     VClosure _ _ _ _ ->
       Set.empty
 
+    VClosureDynamic _ ->
+      Set.empty
+
     VCtor ctorName argVals ->
-      case ctorNameToMaybeDataTypeDef ctorName dataTypeDefsWithoutTBoolsTLists of
+      case Types2.ctorNameToMaybeDataTypeDef ctorName dataTypeDefs of
         Just (thisTypeName, (thisTypeArgNames, thisTypeDataConDefs)) ->
           let
             -- If no type variables, we don't necessarily need the explicit type annotation.
@@ -364,7 +331,7 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
                   (\(ctorName, ctorArgTypes) ->
                     let
                       recursiveArgIs            = ctorArgTypes |> Utils.findAllIndices (Types2.typeEquiv typeEnv thisType)
-                      ctorDefaultArgumentMaybes = ctorArgTypes |> List.map (maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists)
+                      ctorDefaultArgumentMaybes = ctorArgTypes |> List.map (maybeDefaultValueForType dataTypeDefs)
                     in
                     case Utils.projJusts ctorDefaultArgumentMaybes of
                       Just ctorDefaultArguments ->
@@ -399,7 +366,7 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
                             (\(otherCtorArgType, maybeCopyI) ->
                               case maybeCopyI of
                                 Just copyI -> Just <| Utils.geti copyI argVals
-                                Nothing    -> maybeDefaultValueForType dataTypeDefsWithoutTBoolsTLists otherCtorArgType |> Debug.log "maybeDefaultValueForType"
+                                Nothing    -> maybeDefaultValueForType dataTypeDefs otherCtorArgType |> Debug.log "maybeDefaultValueForType"
                             )
                         |> Utils.projJusts
                     in
@@ -412,7 +379,7 @@ valToSpecificActions dataTypeDefsWithoutTBoolsTLists rootValueOfInterestTagged m
           Utils.unionAll [removeActions, insertActions, changeCtorActions, deeperActions]
 
         Nothing ->
-          let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions warning: not find ctor " ++ ctorName ++ " in dataTypeDefs: " ++ toString dataTypeDefsWithoutTBoolsTLists in
+          let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions warning: not find ctor " ++ ctorName ++ " in dataTypeDefs: " ++ toString dataTypeDefs in
           Set.empty
 
     VString _ ->

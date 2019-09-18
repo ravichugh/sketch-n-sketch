@@ -97,7 +97,7 @@ type TermKind
 
 type alias GenProblem =
   { termSize : Int
-  , sigma : T.DatatypeEnv
+  , sigma : T.DataTypeEnv
   , gamma : T.TypeEnv
   , goalType : Type
   }
