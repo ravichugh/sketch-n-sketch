@@ -3679,7 +3679,7 @@ nodejs = {
   type FileOperation = Write {-old-} String {-new-} String Diffs |
                        Rename {-newName-} String |
                        Create {-content-} String |
-                       Delete |
+                       Delete {-old-} String |
                        CreateFolder (List String {- file names in this folder -})
   type alias ListFileOperations = List ({-filename-}String, FileOperation)
 
@@ -3710,7 +3710,7 @@ nodejs = {
       let _ = case action of
         Write oldContent newContent diffs -> write name (Just oldcontent) newContent
         Create content -> write name Nothing content
-        Delete -> fsjs "0" """
+        Delete oldContent -> fsjs "0" """
             fs.unlinkSync(@(jsCode.stringOf name));
             return 1;"""
         Rename newName -> fsjs "0" """
@@ -3748,8 +3748,8 @@ nodejs = {
           case (prev, action) of
              (Just (Folder _), Write oldContent newContent diffs) -> Err <| "Can't write a folder as if it was a file"
              (_,               Write oldContent newContent diffs) -> Ok <| listDict.insert name (File newContent) inlineFS
-             (Nothing, Delete) -> Err <| "Can't delete " + name + " from file system because it did not exist"
-             (_, Delete) -> listDict.delete name inlineFS |>
+             (Nothing, Delete _) -> Err <| "Can't delete " + name + " from file system because it did not exist"
+             (_, Delete _) -> listDict.delete name inlineFS |>
                 List.map (\(oname, ocontent) ->
                   case ocontent of
                   Folder subfiles ->
@@ -3789,6 +3789,7 @@ nodejs = {
   type alias FileSystemUtils =  {
     read: String -> Maybe String,
     listdir: String -> List String,
+    listdircontentfilter: String -> (String -> Boolean)  -> List (String, String),
     listdircontent: String -> List (String, String),
     isdir: String -> Bool,
     isfile: String -> Bool
@@ -3827,7 +3828,7 @@ nodejs = {
           [] -> Ok <| Inputs [List.reverse revAcc]
           (name, action) :: tail ->
             case action of
-              Delete -> process (remove name tail) ((name, action) :: remove name revAcc)
+              Delete _ -> process (remove name tail) ((name, action) :: remove name revAcc)
               Create content -> process (remove name tail) ((name, action) :: remove name revAcc)
               Write oldContent newContent diffs ->
                 let (sameName, otherNames) = List.partition (\(otherName, _) -> name == otherName) tail in
@@ -3862,13 +3863,13 @@ nodejs = {
         case listDict.get filename fileOperations of
           Just (Write oldContent newContent diffs) -> Just newContent
           Just (Create content) -> Just content
-          Just (Delete) -> Nothing
+          Just (Delete _) -> Nothing
           Just (Rename _) -> Nothing
           Just (CreateFolder _) -> Nothing
           _ -> basicFS.read filename
       update  = case of
         {input=fileOperations, outputOld = Just x , outputNew = Nothing} ->
-          Ok <| InputsWithDiffs [((filename, Delete) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
+          Ok <| InputsWithDiffs [((filename, Delete x) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
         {input=fileOperations, outputOld = Just oldContent, outputNew = Just newContent, diffs} ->
           let contentDiffs = case diffs of
             VRecordDiffs { args = VRecordDiffs { _1 = d } } -> d
@@ -3888,7 +3889,7 @@ nodejs = {
         _ -> basicFS.listdir foldername |>
           (if fileOperations == [] then identity else
           List.filterMap (\name -> case listDict.get (foldername + "/" + name) fileOperations of
-            Just Delete -> Nothing
+            Just (Delete _) -> Nothing
             Just (Rename newName) ->
               let fn = foldername + "/" in
               let fnLenth = String.length fn in
@@ -3912,7 +3913,8 @@ nodejs = {
 
               ListElemDelete count ->
                 let (deleted, remaining) = List.split count outputOld in
-                fo ++ (List.map (\nameDeleted -> (foldername + "/" + nameDeleted, Delete)) deleted) |>
+                fo ++ (List.map (\nameDeleted -> let fullName = foldername + "/" + nameDeleted in
+                  (fullName, Delete (basicFS.read fullName |> Maybe.withDefault ""))) deleted) |>
                 aux (i + count) remaining outputNew diffTail
 
               ListElemUpdate nameChange ->
@@ -3926,10 +3928,10 @@ nodejs = {
           _ -> Err <| """Don't know how to handle these list differences for listdircontent : @diffs"""
     } fileOperations
 
-    listdircontent: String -> List (String, String)
-    listdircontent foldername = Update.lens {
+    listdircontentfilter: String -> (String -> Boolean) -> List (String, String)
+    listdircontentfilter foldername filter = Update.lens {
       apply fileOperations = listdir foldername |>
-          List.filter (\name -> isfile """@foldername/@name""") |>
+          List.filter (\name -> isfile """@foldername/@name""" && filter name) |>
           List.map (\name ->
           let fullname = """@foldername/@name""" in
           (name, read fullname |> Maybe.withDefault (freeze """Unknown file @fullname""")))
@@ -3949,7 +3951,7 @@ nodejs = {
 
               ListElemDelete count ->
                 let (deleted, remaining) = List.split count outputOld in
-                fo ++ (List.map (\(nameDeleted, contentInserted) -> (foldername + "/" + nameDeleted, Delete)) deleted) |>
+                fo ++ (List.map (\(nameDeleted, contentDeleted) -> (foldername + "/" + nameDeleted, Delete contentDeleted)) deleted) |>
                 aux (i + count) remaining outputNew diffTail
 
               ListElemUpdate (VRecordDiffs subd) ->
@@ -3970,6 +3972,8 @@ nodejs = {
            _ -> Err <| """Don't know how to handle these list differences for listdircontent : @diffs"""
     } fileOperations
 
+    listdircontent foldername = listdircontentfilter folderName (always True)
+
     isdir: String -> Bool
     isdir name =  case listDict.get name fileOperations of
        Just (CreateFolder content) -> True
@@ -3982,7 +3986,7 @@ nodejs = {
         case listDict.get name fileOperations of
           Just Create -> True
           Just (Write _ _ _) -> True
-          Just Delete -> True
+          Just (Delete _) -> True
           _ -> basicFS.isfile name
 
     isFile = isfile

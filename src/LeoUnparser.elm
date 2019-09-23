@@ -854,6 +854,21 @@ noInterpolationConflict varString rightString =
 ------------------------
 dummyExp = withDummyExpInfo <| EApp space0 (eVar "x") [] SpaceApp space0
 
+elmToHTMLEscapeRegex = Regex.regex "\\\\\"|\\\\\'|\\\\t|(\\\\r)?\\\\n|\\\\\\\\"
+
+elmToHTMLEscape text =
+  Regex.replace Regex.All elmToHTMLEscapeRegex (\m ->
+    case m.match of
+      "\\\"" -> "&quot;"
+      "\\\'" -> "&#x27;"
+      "\\t" -> "&#x9;"
+      "\\r\\n" -> "&#10;"
+      "\\n" -> "&#10;"
+      "\\r" -> "&#10;"
+      "\\\\" -> "\\"
+      x -> x
+  ) text
+
 unparseHtmlAttributes: HtmlInterpolationStyle -> Exp -> String
 unparseHtmlAttributes interpolationStyle attrExp =
   case eListUnapply attrExp of
@@ -881,7 +896,12 @@ unparseHtmlAttributes interpolationStyle attrExp =
                 _ -> attrValue
               in
               let default () =
-                let defaultValue () = unparse attrValueToConsider in
+                let defaultValue () =
+                     let d = unparse attrValueToConsider in
+                     case unwrapExp attrValueToConsider of
+                       EBase _ _ -> elmToHTMLEscape d
+                       _ -> d
+                in
                 let value = if interpolationStyle == Raw && attrNameStr == "style" then -- Get rid of lists if the name is style
                      case unwrapExp  attrValueToConsider of
                        EList _ elems _ _ _ ->
@@ -911,8 +931,9 @@ unparseHtmlAttributes interpolationStyle attrExp =
                     beforeSpace ++ attrNameStr
                   else
                     beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++
+                       elmToHTMLEscape (
                        wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
-                         OpRight dummyExp attrValueToConsider (unparse attrValueToConsider)
+                         OpRight dummyExp attrValueToConsider (unparse attrValueToConsider))    
                 EApp precedingWs maybeHtmlAttributeWrap [elem] _ _ ->
                   case unwrapExp maybeHtmlAttributeWrap of
                     EVar _ "__htmlRawAttribute__" ->
@@ -935,14 +956,15 @@ unparseHtmlAttributes interpolationStyle attrExp =
                       case unparseHtmlStringContent elem  of
                         Err _ -> default ()
                         Ok unparsedContent ->
-                          if quoteChar /= "" || Regex.contains (Regex.regex ">|\\s") unparsedContent then
-                              let rawcontent = unparsedContent |>
+                          let unparsedContentFixed = elmToHTMLEscape unparsedContent in
+                          if quoteChar /= "" || Regex.contains (Regex.regex ">|\\s") unparsedContentFixed then
+                              let rawcontent = unparsedContentFixed |>
                                     Regex.replace (Regex.All) (Regex.regex quoteChar) (\m ->
                                       if m.match == "\"" then "&quot;" else "&#39;")
                               in
                               beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ quoteChar ++ rawcontent ++ quoteChar
                           else
-                              beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ unparsedContent
+                              beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ unparsedContentFixed
                     _ -> default ()
                 _ -> default ()
             Nothing -> " @[" ++ unparse attr ++"]"
