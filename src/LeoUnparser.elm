@@ -898,7 +898,7 @@ unparseHtmlAttributes interpolationStyle attrExp =
               let attrValueToConsider = case unwrapExp attrValueToConsider1 of
                 EParens _ mbSingleString LongStringSyntax _ ->
                    case unwrapExp mbSingleString of
-                     EBase _ _ -> mbSingleString
+                     EBase wsBefore x -> replaceE__ mbSingleString <| EBase space0 x
                      _ -> attrValueToConsider1
                 _ -> attrValueToConsider1
               in
@@ -937,10 +937,11 @@ unparseHtmlAttributes interpolationStyle attrExp =
                   if attrValueStr == "" && spIfNoValue.val == "    " then
                     beforeSpace ++ attrNameStr
                   else
+                    let unparsedAttr = unparse attrValueToConsider in
                     beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++
                        elmToHTMLEscape (
                        wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
-                         OpRight dummyExp attrValueToConsider (unparse attrValueToConsider))
+                         OpRight dummyExp attrValueToConsider unparsedAttr)
                 EApp precedingWs maybeHtmlAttributeWrap [elem] _ _ ->
                   case unwrapExp maybeHtmlAttributeWrap of
                     EVar _ "__htmlRawAttribute__" ->
