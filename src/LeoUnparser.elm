@@ -891,9 +891,16 @@ unparseHtmlAttributes interpolationStyle attrExp =
           in
           case mbAttrName of
             Just attrNameStr ->
-              let attrValueToConsider = case attrNameStr of -- Removes __mbstylesplit__
+              let attrValueToConsider1 = case attrNameStr of -- Removes __mbstylesplit__
                 "style" -> eAppUnapply1 attrValue |> Maybe.map Tuple.second |> Maybe.withDefault attrValue
                 _ -> attrValue
+              in
+              let attrValueToConsider = case unwrapExp attrValueToConsider1 of
+                EParens _ mbSingleString LongStringSyntax _ ->
+                   case unwrapExp mbSingleString of
+                     EBase _ _ -> mbSingleString
+                     _ -> attrValueToConsider1
+                _ -> attrValueToConsider1
               in
               let default () =
                 let defaultValue () =
@@ -933,7 +940,7 @@ unparseHtmlAttributes interpolationStyle attrExp =
                     beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++
                        elmToHTMLEscape (
                        wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
-                         OpRight dummyExp attrValueToConsider (unparse attrValueToConsider))    
+                         OpRight dummyExp attrValueToConsider (unparse attrValueToConsider))
                 EApp precedingWs maybeHtmlAttributeWrap [elem] _ _ ->
                   case unwrapExp maybeHtmlAttributeWrap of
                     EVar _ "__htmlRawAttribute__" ->
