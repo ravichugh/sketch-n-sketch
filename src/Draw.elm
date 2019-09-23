@@ -69,9 +69,9 @@ svgPolygon   = flip Svg.polygon []
 svgPath      = flip Svg.path []
 
 pointZoneStyles =
-  { radius = 6
+  { radius = 9
   , stroke = "black"
-  , strokeWidth = 2
+  , strokeWidth = 3
   , fill =
       { shown = "white" -- "silver" -- "rgba(255,0,0,0.5)"
       , selectedShape = "yellow"

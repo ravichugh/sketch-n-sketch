@@ -277,11 +277,22 @@ svgOffsetWidget1DArrowParts program modelRenamingInOutput idAsShape (baseX, base
       , attr "stroke-dasharray" "1,1"
       ]
   in
+  let clickRegionLineStyle =
+    [ attr "stroke" "transparent"
+    , attr "stroke-width" "5px"
+    ]
+  in
   let line =
     flip Svg.line [] <|
       [ attrNum "x1" baseX, attrNum "y1" baseY
       , attrNum "x2" endX,  attrNum "y2" endY
       ] ++ lineStyle ++ extraStyles
+  in
+  let clickRegionLine =
+    flip Svg.line [] <|
+      [ attrNum "x1" baseX, attrNum "y1" baseY
+      , attrNum "x2" endX,  attrNum "y2" endY
+      ] ++ clickRegionLineStyle ++ extraStyles
   in
   let endArrow =
     let arrowOffset = 12 in
@@ -323,7 +334,7 @@ svgOffsetWidget1DArrowParts program modelRenamingInOutput idAsShape (baseX, base
           , attr "y" (toString y)
           ] ++ maybeBold ++ extraStyles
   in
-  [line, caption, endArrow]
+  [clickRegionLine, line, caption, endArrow]
 
 
 -- Extra invisible padding around pattern.
@@ -968,14 +979,25 @@ buildSvgWidgets wCanvas hCanvas widgets widgetBounds model =
       WList listVal ->
         drawListWidget i_ maybeBounds listVal model
   in
+  let zOrder widget =
+    -- Higher is on top
+    case widget of
+      WNumSlider _ _ _ _ _ _ _  -> 5
+      WIntSlider _ _ _ _ _ _ _  -> 5
+      WPoint _ _ _ _ _          -> 4
+      WOffset1D _ _ _ _ _ _ _ _ -> 3
+      WCall _ _ _ _ _           -> 2
+      WList _                   -> 1
+  in
   -- Draw small widgets last to usually get the overlap correct
   Utils.zip widgets widgetBounds
   |> Utils.zipi1
   |> List.sortBy
-      (\(i, (_, maybeBounds)) ->
-        case maybeBounds of
-          Just bounds -> (-(ShapeWidgets.boundsArea bounds), i)
-          Nothing     -> (0, i)
+      (\(i, (widget, maybeBounds)) ->
+        ( zOrder widget
+        , -(maybeBounds |> Maybe.map ShapeWidgets.boundsArea |> Maybe.withDefault 0)
+        , i
+        )
       )
   |> List.concatMap draw
 
