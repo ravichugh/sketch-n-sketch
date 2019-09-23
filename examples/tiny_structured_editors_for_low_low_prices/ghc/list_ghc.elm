@@ -1,5 +1,5 @@
 -- List definition, for reference. The Sketch-n-Sketch
--- surface language treats lists as a separate type
+-- surface language Leo treats lists as a separate type
 -- (not a datatype), so the following is actually ignored
 -- and we have to bake the List datatype definition into
 -- the core language.
@@ -65,8 +65,33 @@ type List a = Nil
 --   {-# SPECIALISE instance Show [Char] #-}
 --   {-# SPECIALISE instance Show [Int] #-}
 --   showsPrec _         = showList
-
 --
+--
+--
+-- -- | @since 2.01
+-- instance Show Int where
+--     showsPrec = showSignedInt
+--
+
+
+
+-- Evaluation order:
+--
+-- show [1, 2, 3] hits Show class default show implementation =>
+-- shows [1, 2, 3] "" hits top level shows implementation =>
+-- showsPrec 0 [1, 2, 3] "" hits Show a => Show [a] instance showsPrec implementation =>
+-- showList [1, 2, 3] "" hits Show class default ShowList implementation =>
+-- showList__ shows [1, 2, 3] "" hits top level showList__ implementation; shows is top level =>
+-- '[' : shows 1 (showl [2, 3]) hits top level shows implmentation =>
+-- '[' : showsPrec 0 1 (showl [2, 3]) hits Int instance showSignedInt, which for our purpose might as well be built-in toString =>
+-- '[' : '1' : (showl [2, 3]) hits showList__ showl, wherein showx is still top level shows =>
+-- '[' : '1' : ',' : showx 2 (showl [3]) =>
+-- '[' : '1' : ',' : shows 2 (showl [3]) =>
+-- '[' : '1' : ',' : showsPrec 0 2 (showl [3]) hits Int instance showSignedInt, which for our purpose might as well be built-in toString =>
+-- '[' : '1' : ',' : '2' : (showl [3]) etc...
+
+
+
 -- Okay, and now the translation to our language.
 --
 -- We don't have typeclasses so, in this case,
@@ -97,13 +122,15 @@ showList__ showx list s =
 
 
 -- showList ls   s = showList__ shows ls s
-showList showsElem ls s = showList__ showsElem ls s
+showList showsElem ls s = showList__ (shows showsElem) ls s
 
 -- instance Show a => Show [a]  where
 --   {-# SPECIALISE instance Show [String] #-}
 --   {-# SPECIALISE instance Show [Char] #-}
 --   {-# SPECIALISE instance Show [Int] #-}
 --   showsPrec _         = showList
+
+-- ahh dangit; need to call this at polymorphic type :(
 showsPrec showsElem _ = showList showsElem
 
 -- shows :: (Show a) => a -> ShowS
@@ -124,9 +151,8 @@ toString list =
   -- showsPrec _ x s = show x ++ s
   -- shows :: (Show a) => a -> ShowS
   -- shows =  showsPrec 0
-  -- let showsElem n s = toString n + s in -- Number version
-  -- let showsElem elem s = '"' + elem + '"' + s in -- String version
-  shows toString list ""
+  let showsElem a s = toString a + s in
+  shows showsElem list ""
 
 -- The desugaring step turns this into Cons's and Nil's
 ([1, 2, 3] : List Num)

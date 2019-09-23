@@ -17,6 +17,7 @@ type alias ModelState =
   { renderingFunctionNames                : List Ident
   , dataTypeDefs                          : List Types2.DataTypeDef
   , maybeRenderingFunctionNameAndProgram  : Maybe { renderingFunctionName: Ident, multipleDispatchFunctions : MultipleDispatchFunctions, desugaredToStringProgram: Exp }
+  , showWidgets                           : Bool
   , valueOfInterestTagged                 : TaggedValue
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
   , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
@@ -30,6 +31,7 @@ initialModelState =
   { renderingFunctionNames                = []
   , dataTypeDefs                          = []
   , maybeRenderingFunctionNameAndProgram  = Nothing
+  , showWidgets                           = False -- For creating new toString examples without seeing the generated TSEFLLP editor.
   , valueOfInterestTagged                 = noTag (VCtor "Nothing" [])
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
   , stringProjectionPathToSpecificActions = Dict.empty

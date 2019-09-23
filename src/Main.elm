@@ -44,6 +44,7 @@ view = View.view
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
+  -- let _ = Debug.log "msg" msg in
   case msg of
     ResponseFromSolver str ->
       SolverServer.handleReduceResponse str model

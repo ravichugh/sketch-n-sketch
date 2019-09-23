@@ -28,14 +28,22 @@ functionPickerAndEditor modelState =
       Html.select [] (optionNames |> List.map (\optionName -> Html.option [Attr.name optionName] [text optionName]))
 
   in
-  [ Html.div [] [renderingFunctionPicker]
-  , stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
-  , Html.div [] [text "Selected paths: ", text (pathSetToString modelState.selectedPaths)]
-  , Html.div
-      [ Attr.style [("padding", "1em")] ]
-      [ structuredEditor modelState ]
-  -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions
-  ]
+  if modelState.showWidgets then
+    [ Html.div [] [renderingFunctionPicker]
+    , stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
+    , Html.div [] [text "Selected paths: ", text (pathSetToString modelState.selectedPaths)]
+    , Html.div
+        [ Attr.style [("padding", "1em")] ]
+        [ structuredEditor modelState ]
+    -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions
+    ]
+  else
+    [ Html.div [] [renderingFunctionPicker]
+    , Html.div
+        [ Attr.style [("padding", "1em")] ]
+        [ plainStringView modelState.stringTaggedWithProjectionPathsResult ]
+    -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions
+    ]
 
 
 pathToString : ProjectionPath -> String
@@ -223,6 +231,15 @@ assignActionsToLeaves stringProjectionPathToSpecificActions stringTaggedWithSele
   |> assignActionsPass2 Set.empty
 
 
+plainStringView : Result String (AppendedTaggedStrings t) -> Html Msg
+plainStringView stringTaggedWithProjectionPathsResult =
+  case stringTaggedWithProjectionPathsResult of
+    Ok taggedString ->
+      Html.div [Attr.style [("font-size", "18px")]] [text (taggedStringToNormalString taggedString)]
+    Err err ->
+      Html.div [Attr.style [("font-size", "18px"), ("color", "#e00")]] [text err]
+
+
 structuredEditor : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Html Msg
 structuredEditor modelState =
   let { valueOfInterestTagged, dataTypeDefs, maybeRenderingFunctionNameAndProgram, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult, maybeNewValueOptions } = modelState in
@@ -403,8 +420,8 @@ structuredEditor modelState =
               [ Attr.style [("font-size", "18px")] ]
               (newValueOptions |> List.map renderNewValueOption)
 
-    Err errorMsg ->
-      text errorMsg
+    Err _ ->
+      plainStringView stringTaggedWithProjectionPathsResult
 
 
 stringTaggedWithProjectionPathsDebug : Result String StringTaggedWithProjectionPaths -> Html Msg

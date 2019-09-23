@@ -1487,7 +1487,7 @@ initModel =
     , slateCount    = 1
     , addDummyDivAroundCanvas = Nothing
     , widgets       = ws
-    , outputMode    = PBE
+    , outputMode    = StructuredEditor
     , syncMode      = if Config.elmConfDemo
                         then TracesAndTriggers True
                         else ValueBackprop False
@@ -1606,7 +1606,7 @@ initModel =
     , syntax = Syntax.Leo
     , codeEditorMode = CEText
     , deuceOverlayCache = Nothing
-    , doTypeChecking = True
+    , doTypeChecking = False
     , isDeuceTextBoxFocused = False
     , needsToFocusOn = Nothing
     , holeEnv = initHoleEnv
