@@ -279,7 +279,7 @@ svgOffsetWidget1DArrowParts program modelRenamingInOutput idAsShape (baseX, base
   in
   let clickRegionLineStyle =
     [ attr "stroke" "transparent"
-    , attr "stroke-width" "5px"
+    , attr "stroke-width" "9px"
     ]
   in
   let line =
@@ -295,7 +295,7 @@ svgOffsetWidget1DArrowParts program modelRenamingInOutput idAsShape (baseX, base
       ] ++ clickRegionLineStyle ++ extraStyles
   in
   let endArrow =
-    let arrowOffset = 12 in
+    let arrowOffset = 16 in
     let (opX1, opY1, opX2, opY2) =
       case (axis, Utils.sgn effectiveAmount) of
         (X, 1)  -> ((-), (-), (-), (+))
@@ -1722,7 +1722,7 @@ zoneDelete_ id shape x y transform =
 --------------------------------------------------------------------------------
 -- Selection Zones
 
-hairStrokeWidth         = "9"
+hairStrokeWidth         = "11"
 
 type alias NodeIdAndAttrName     = (LangSvg.NodeId, String)
 type alias NodeIdAndTwoAttrNames = (LangSvg.NodeId, String, String)
@@ -1757,7 +1757,7 @@ zoneSelectCrossDot model alwaysShowDot (id, shapeKind, pointFeature) xVal yVal p
   let x = round (valToNum xVal) in
   let y = round (valToNum yVal) in
   let thisCrosshair = (id, pointFeature) in
-  let len = 20 in
+  let len = 24 in
   let color selectableFeatures =
     if List.all (flip List.member model.selectedFeatures) selectableFeatures
     then colorPointSelected
