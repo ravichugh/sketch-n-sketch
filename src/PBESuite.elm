@@ -482,9 +482,9 @@ listHead xs = ??
   ]""" 3
   """specifyFunction listHead
   [ ([], 0)
-  , ([0], 0)
+  -- , ([0], 0)
   , ([1], 1)
-  ]""" (-1)
+  ]""" 2
 
 list_inc = (,,,,)
   """type Nat
