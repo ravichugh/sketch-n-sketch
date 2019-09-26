@@ -310,7 +310,11 @@ tidyUpProjectionPaths stringTaggedWithProjectionPaths =
 -- No Prelude for now.
 evalToStringTaggedWithProjectionPaths : List Types2.DataTypeDef -> MultipleDispatchFunctions -> Exp -> TaggedValue -> Result String StringTaggedWithProjectionPaths
 evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions program valueOfInterestTagged =
-  let initialEnv = [("valueOfInterestTagged", valueOfInterestTagged)] in
+  let initialEnv =
+    [ ("valueOfInterestTagged", valueOfInterestTagged)
+    , ("numToStringBuiltin", noTag <| VClosure [] "numToStringBuiltin" "x" (ENumToString (EVar "x")))
+    ]
+  in
   eval dataTypeDefs multipleDispatchFunctions initialEnv program |> Result.andThen (\w ->
     case taggedValueToMaybeStringTaggedWithProjectionPaths w of
       Just stringTagged -> Ok stringTagged
