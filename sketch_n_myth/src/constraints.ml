@@ -38,7 +38,7 @@ let unsolved_singleton h w =
 
 let merge_solved fs =
   let exception Merge_failure in
-  let merge =
+  let merge_map =
     Hole_map.union
       ( fun _ e1 e2 ->
           if Exp.syntactically_equal e1 e2 then
@@ -48,16 +48,16 @@ let merge_solved fs =
       )
   in
     try
-      Some (List.fold_left merge Hole_map.empty fs)
+      Some (List.fold_left merge_map Hole_map.empty fs)
     with
       Merge_failure ->
         None
 
 let merge_unsolved us =
-  let merge =
+  let merge_map =
     Hole_map.union (fun _ v1 v2 -> Some (v1 @ v2))
   in
-    List.fold_left merge Hole_map.empty us
+    List.fold_left merge_map Hole_map.empty us
 
 let merge ks =
   let open Option2.Syntax in
@@ -70,10 +70,7 @@ let merge ks =
   let u =
     merge_unsolved us
   in
-    if hole_maps_disjoint f u then
-      (f, u)
-    else
-      (Log.warn "Happen..."; (f, u))
+    (f, u)
 
 let satisfies hf (f0, us)  =
   let open Option2.Syntax in
