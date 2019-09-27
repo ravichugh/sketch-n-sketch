@@ -1042,8 +1042,9 @@ modeActive : Model -> CodeEditorMode -> Bool
 modeActive model mode =
   if deuceShortcutActive model then
     mode == CEDeuceClick
-  else if pbeShortcutActive model then
-    mode == CEProgrammingByExample
+  -- Remove PBE mode, for now
+  -- else if pbeShortcutActive model then
+  --   mode == CEProgrammingByExample
   else
     mode == model.codeEditorMode
 

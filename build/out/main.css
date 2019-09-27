@@ -576,7 +576,7 @@ code {
   /* bottom =
    *   mode bar height + mode bar border-top height
    */
-  bottom: 45px;
+  bottom: 0; /* Mode bar disabled for now */
   left: 0;
 }
 

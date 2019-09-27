@@ -1696,7 +1696,8 @@ codePanel model =
       [ statusBar
       -- , actionBar
       , editor
-      , modeBar
+      -- Mode bar disabled for now
+      -- , modeBar
       , codePanelWarning
       ]
 
