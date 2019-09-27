@@ -179,4 +179,3 @@ and simplify_assertions delta sigma rcs =
       |> Nondet.one_of_each
       |> Nondet.map Constraints.merge
       |> Nondet.collapse_option
-
