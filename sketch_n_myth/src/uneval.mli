@@ -1,9 +1,11 @@
 open Lang
 
-val simplify :
+val check :
   hole_ctx
     -> datatype_ctx
-    -> resumption_assertions
+    -> hole_filling
+    -> exp
+    -> worlds
     -> constraints Nondet.t
 
 val uneval :
@@ -14,10 +16,8 @@ val uneval :
     -> example
     -> constraints Nondet.t
 
-val check :
+val simplify_assertions :
   hole_ctx
     -> datatype_ctx
-    -> hole_filling
-    -> exp
-    -> worlds
+    -> resumption_assertions
     -> constraints Nondet.t

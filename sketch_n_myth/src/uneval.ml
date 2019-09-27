@@ -1,65 +1,69 @@
 open Lang
 open Nondet.Syntax
 
-let rec blocking_hole (r : res) : hole_name option =
-  match r with
-    (* Determinate results *)
+let rec check delta sigma hf exp worlds =
+  let
+    check_one (env, ex) =
+      match Eval.eval env exp with
+        | Ok (r, []) ->
+            begin match Eval.resume hf r with
+              | Ok (r', []) ->
+                  uneval delta sigma hf r' ex
 
-    | RFix (_, _, _, _)
-    | RTuple _
-    | RCtor (_, _) ->
-        None
+              | _ ->
+                  Nondet.none
+            end
 
-    (* Indeterminate results *)
-
-    | RHole (_, hole_name) ->
-        Some hole_name
-
-    | RApp (head, _) ->
-        blocking_hole head
-
-    | RProj (_, _, arg) ->
-        blocking_hole arg
-
-    | RCase (_, scrutinee, _) ->
-        blocking_hole scrutinee
-
-let guesses
-  (delta : hole_ctx)
-  (sigma : datatype_ctx)
-  (res : res)
-  : hole_filling Nondet.t =
-    let* hole_name =
-      Nondet.lift_option @@
-        blocking_hole res
-    in
-    let* (gamma, tau, dec, _) =
-      Nondet.lift_option @@
-        List.assoc_opt hole_name delta
-    in
-      Nondet.map
-        (Hole_map.singleton hole_name)
-        (Term_gen.up_to_e sigma 1 (gamma, tau, dec))
-
-let rec simplify delta sigma rcs =
-  let simplify_one (res, value) =
-    if Res.final res then
-      uneval
-        delta
-        sigma
-        Hole_map.empty
-        res
-        (Example.from_value value)
-    else
-      Nondet.none
+        | _ ->
+            Nondet.none
   in
-    rcs
-      |> List.map simplify_one
+    worlds
+      |> List.map check_one
       |> Nondet.one_of_each
       |> Nondet.map Constraints.merge
       |> Nondet.collapse_option
 
 and uneval delta sigma hf res ex =
+  let rec blocking_hole (r : res) : hole_name option =
+    match r with
+      (* Determinate results *)
+
+      | RFix (_, _, _, _)
+      | RTuple _
+      | RCtor (_, _) ->
+          None
+
+      (* Indeterminate results *)
+
+      | RHole (_, hole_name) ->
+          Some hole_name
+
+      | RApp (head, _) ->
+          blocking_hole head
+
+      | RProj (_, _, arg) ->
+          blocking_hole arg
+
+      | RCase (_, scrutinee, _) ->
+          blocking_hole scrutinee
+  in
+  let guesses
+    (delta : hole_ctx)
+    (sigma : datatype_ctx)
+    (res : res)
+    : hole_filling Nondet.t =
+      let* hole_name =
+        Nondet.lift_option @@
+          blocking_hole res
+      in
+      let* (gamma, tau, dec, _) =
+        Nondet.lift_option @@
+          List.assoc_opt hole_name delta
+      in
+        Nondet.map
+          (Hole_map.singleton hole_name)
+          (Term_gen.up_to_e sigma 1 (gamma, tau, dec))
+  in
   let* _ =
     Nondet.guard @@
       Timer.Single.check Timer.Single.Total
@@ -134,7 +138,7 @@ and uneval delta sigma hf res ex =
           Nondet.lift_result @@ Eval.resume hf' scrutinee
         in
         let* ks_scrutinee =
-          simplify delta sigma rcs_scrutinee
+          simplify_assertions delta sigma rcs_scrutinee
         in
         let* ks_branch =
           begin match r_scrutinee with
@@ -158,24 +162,21 @@ and uneval delta sigma hf res ex =
     | _ ->
         Nondet.none
 
-and check delta sigma hf exp worlds =
-  let
-    check_one (env, ex) =
-      match Eval.eval env exp with
-        | Ok (r, []) ->
-            begin match Eval.resume hf r with
-              | Ok (r', []) ->
-                  uneval delta sigma hf r' ex
-
-              | _ ->
-                  Nondet.none
-            end
-
-        | _ ->
-            Nondet.none
+and simplify_assertions delta sigma rcs =
+  let simplify_one (res, value) =
+    if Res.final res then
+      uneval
+        delta
+        sigma
+        Hole_map.empty
+        res
+        (Example.from_value value)
+    else
+      Nondet.none
   in
-    worlds
-      |> List.map check_one
+    rcs
+      |> List.map simplify_one
       |> Nondet.one_of_each
       |> Nondet.map Constraints.merge
       |> Nondet.collapse_option
+

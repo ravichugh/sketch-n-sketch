@@ -8,10 +8,6 @@ module Hole_set =
 let domain (m : 'a hole_map) : Hole_set.t =
   Hole_set.of_list (List.map fst @@ Hole_map.bindings m)
 
-let hole_maps_disjoint (m1 : 'a hole_map) (m2 : 'b hole_map) =
-  Hole_set.is_empty @@
-    Hole_set.inter (domain m1) (domain m2)
-
 (* Hole map functions *)
 
 let delete_min map =

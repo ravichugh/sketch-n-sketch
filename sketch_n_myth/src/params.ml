@@ -8,7 +8,7 @@ let max_solution_count : int option =
   Some 30
 
 let max_total_time : float =
-  5.0
+  10.0
 
 let max_eval_time : float =
   0.1

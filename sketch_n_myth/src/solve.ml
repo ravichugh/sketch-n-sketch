@@ -1,6 +1,49 @@
 open Lang
 open Nondet.Syntax
 
+(* Constraint simplification *)
+
+let rec simplify_constraints
+  (delta : hole_ctx)
+  (sigma : datatype_ctx)
+  ((f_prev, u_prev) as k_prev : constraints)
+  : constraints Nondet.t =
+    let* k_new =
+      u_prev
+        |> Hole_map.bindings
+        |> List.map
+             ( fun (hole_name, worlds) ->
+                 match Hole_map.find_opt hole_name f_prev with
+                   | Some exp ->
+                       Uneval.check delta sigma f_prev exp worlds
+
+                   | None ->
+                       Nondet.pure @@
+                         Constraints.unsolved_singleton hole_name worlds
+             )
+        |> Nondet.one_of_each
+        |> Nondet.map Constraints.merge
+        |> Nondet.collapse_option
+        |> Nondet.map
+             ( Pair2.map_snd @@
+                 Hole_map.map @@
+                   List.sort_uniq compare
+             )
+    in
+    let* k_merged =
+      Nondet.lift_option @@
+        Constraints.merge
+          [ Constraints.from_hole_filling f_prev
+          ; k_new
+          ]
+    in
+      if k_merged = k_prev then
+        Nondet.pure k_merged
+      else
+        simplify_constraints delta sigma k_merged
+
+(* Core algorithm *)
+
 let current_solution_count =
   ref 0
 
@@ -18,28 +61,22 @@ let should_continue () =
   in
     timer_check && count_check
 
-(* Core algorithm *)
-
-let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
+let rec iter_solve params delta sigma (hf, us_all) =
   let* _ =
     Nondet.guard @@
       should_continue ()
   in
   match Constraints.delete_min us_all with
     | None ->
-        let+ _ =
-          Nondet.guard @@
-            Constraints.satisfies hf k_assumed
-        in
-          current_solution_count := !current_solution_count + 1;
-          (Constraints.from_hole_filling hf, delta)
+        current_solution_count := !current_solution_count + 1;
+        Nondet.pure (hf, delta)
 
     | Some ((hole_name, worlds), us) ->
         let* (gamma, typ, dec, match_depth) =
           Nondet.lift_option @@
             List.assoc_opt hole_name delta
         in
-        let* (k_asserted', k_assumed', delta') =
+        let* (k_new, delta_new) =
           Fill.fill
             { params with
                 max_match_depth = params.max_match_depth - match_depth
@@ -49,22 +86,19 @@ let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
             hf
             (hole_name, ((gamma, typ, dec), worlds))
         in
-        let* k_asserted_merged =
-          Nondet.lift_option @@
-            Constraints.merge [(hf, us); k_asserted']
-        in
-        let* k_assumed_merged =
-          Nondet.lift_option @@
-            Constraints.merge [k_assumed; k_assumed']
-        in
         let delta_merged =
-          delta' @ delta
+          delta_new @ delta
+        in
+        let* k_merged =
+          Constraints.merge [(hf, us); k_new]
+            |> Nondet.lift_option
+            |> Nondet.and_then (simplify_constraints delta_merged sigma)
         in
           iter_solve
             params
             delta_merged
             sigma
-            (k_asserted_merged, k_assumed_merged)
+            k_merged
 
 (* Staging *)
 
@@ -129,8 +163,7 @@ let solve_any delta sigma constraints_nd =
           current_solution_count := 0;
           Timer.Multi.reset Timer.Multi.Guess;
           let solution_nd =
-            Nondet.map (Pair2.map_fst fst) @@
-              iter_solve params delta sigma (constraints, Constraints.empty)
+            iter_solve params delta sigma constraints
           in
             if Nondet.is_empty solution_nd then
               helper rest_problems

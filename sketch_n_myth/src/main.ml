@@ -132,7 +132,7 @@ let server =
               in
               let synthesis_result =
                 assertions
-                  |> Uneval.simplify clean_delta sigma
+                  |> Uneval.simplify_assertions clean_delta sigma
                   |> Solve.solve_any clean_delta sigma
               in
               let time_taken =
