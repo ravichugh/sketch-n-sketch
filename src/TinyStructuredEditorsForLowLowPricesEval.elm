@@ -129,6 +129,14 @@ eval dataTypeDefs multipleDispatchFunctions env exp =
           _        -> Err <| "Built-in toString only supports numbers but was given " ++ unparseToUntaggedString argTaggedVal ++ "!"
       )
 
+    ENumLTE e1 e2 ->
+      recurse env e1 |> Result.andThen (\taggedVal1 ->
+      recurse env e2 |> Result.andThen (\taggedVal2 ->
+        case (taggedVal1.v, taggedVal2.v) of
+          (VNum num1, VNum num2) -> Ok <| TaggedValue (VCtor (if num1 <= num2 then "True" else "False") []) (dependencyAnnotators.operation [taggedVal1.paths, taggedVal2.paths])
+          _                      -> Err <| "Built-in <= only supports numbers but was given " ++ unparseToUntaggedString taggedVal1 ++ " and " ++ unparseToUntaggedString taggedVal2 ++ "!"
+      ))
+
 
 -- Set up the value of interest with path tags, which are propagated during evaluation.
 --
@@ -307,12 +315,36 @@ tidyUpProjectionPaths stringTaggedWithProjectionPaths =
   |> keepOutermostOnly Set.empty
 
 
--- No Prelude for now.
+-- No full Prelude for now.
 evalToStringTaggedWithProjectionPaths : List Types2.DataTypeDef -> MultipleDispatchFunctions -> Exp -> TaggedValue -> Result String StringTaggedWithProjectionPaths
 evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions program valueOfInterestTagged =
   let initialEnv =
+    let
+      compose =
+        -- (<<) f g = \x -> f (g x)
+        VClosure [] "<<" "f" (EFun "" "g" (EFun "" "x"
+            (EApp (EVar "f")
+                (EApp (EVar "g") (EVar "x"))
+            )
+        ))
+
+      lte =
+        -- (<=) l r = builtInLTE l r
+        VClosure [] "<=" "l" (EFun "" "r"
+          (ENumLTE (EVar "l") (EVar "r"))
+        )
+
+      gte =
+        -- (>=) l r = builtInLTE r l
+        VClosure [] "<=" "l" (EFun "" "r"
+          (ENumLTE (EVar "r") (EVar "l"))
+        )
+    in
     [ ("valueOfInterestTagged", valueOfInterestTagged)
     , ("numToStringBuiltin", noTag <| VClosure [] "numToStringBuiltin" "x" (ENumToString (EVar "x")))
+    , ("<<", noTag <| compose)
+    , ("<=", noTag <| lte)
+    , (">=", noTag <| gte)
     ]
   in
   eval dataTypeDefs multipleDispatchFunctions initialEnv program |> Result.andThen (\w ->

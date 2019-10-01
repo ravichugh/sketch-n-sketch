@@ -151,13 +151,16 @@ desugarExp freshVariableCounterRef multipleDispatchFunctionsRef langExp =
                     |> Maybe.map (\argNames -> (ctorName, argNames, recurse branchExp))
 
                   Nothing ->
-                    Nothing
+                    case Lang.unwrapPat pat of
+                      Lang.PBase _ (Lang.EBool True)  -> Just ("True",  [], recurse branchExp)
+                      Lang.PBase _ (Lang.EBool False) -> Just ("False", [], recurse branchExp)
+                      _                               -> Nothing
               )
           |> Utils.projJusts
       in
       case maybeDesugaredBranches of
         Just desugaredBranches -> ECase (recurse scrutineeExp) desugaredBranches
-        Nothing                -> EString "TinyStructuredEditorsForLowLowPrices core language does not support case patterns other than Ctor x1 x2 x3"
+        Nothing                -> EString "TinyStructuredEditorsForLowLowPrices core language does not support case patterns other than Ctor x1 x2 x3 or True or False"
 
     Lang.EColonType _ innerExp _ _ _ -> recurse innerExp
     Lang.EParens _ innerExp _ _      -> recurse innerExp

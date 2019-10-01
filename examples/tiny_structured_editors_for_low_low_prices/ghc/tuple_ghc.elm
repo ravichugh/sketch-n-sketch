@@ -1,12 +1,26 @@
 -- Dynamic dispatch names: toString, showsPrecFlip
 
--- List definition, for reference. The Sketch-n-Sketch
--- surface language Leo treats lists as a separate type
--- (not a datatype), so the following is actually ignored
--- and we have to bake the List datatype definition into
--- the core language.
-type List a = Nil
-            | Cons a (List a)
+-- Any functions with defined non-default instances
+-- need to be dynamic.
+--
+-- In this case: "showsPrec"
+-- But we can only be dynamic in the first argument,
+-- so we'll flip the argument order "showsPrecFlip"
+
+type Tuple2 a b       = Tuple2 a b
+type Tuple3 a b c     = Tuple3 a b c
+
+
+-- From GHC repo at 8.6.5 release. ghc/libraries/base/GHC/List.hs
+--
+-- -- | 'foldr1' is a variant of 'foldr' that has no starting value argument,
+-- -- and thus must be applied to non-empty lists.
+--
+-- foldr1                  :: (a -> a -> a) -> [a] -> a
+-- foldr1 f = go
+--   where go [x]            =  x
+--         go (x:xs)         =  f x (go xs)
+--         go []             =  errorEmptyList "foldr1"
 
 
 -- From GHC repo at 8.6.5 release. ghc/libraries/base/GHC/Show.hs
@@ -51,18 +65,12 @@ type List a = Nil
 --     show x          = shows x ""
 --     showList ls   s = showList__ shows ls s
 --
--- showList__ :: (a -> ShowS) ->  [a] -> ShowS
--- showList__ _     []     s = "[]" ++ s
--- showList__ showx (x:xs) s = '[' : showx x (showl xs)
---   where
---     showl []     = ']' : s
---     showl (y:ys) = ',' : showx y (showl ys)
 --
 -- -- | equivalent to 'showsPrec' with a precedence of 0.
 -- shows           :: (Show a) => a -> ShowS
 -- shows           =  showsPrec 0
 --
--- -- | @since 2.01
+--
 -- instance Show a => Show [a]  where
 --   {-# SPECIALISE instance Show [String] #-}
 --   {-# SPECIALISE instance Show [Char] #-}
@@ -70,40 +78,59 @@ type List a = Nil
 --   showsPrec _         = showList
 --
 --
--- -- | @since 2.01
+-- instance  (Show a, Show b) => Show (a,b)  where
+--   showsPrec _ (a,b) s = show_tuple [shows a, shows b] s
+--
+--
+-- instance (Show a, Show b, Show c) => Show (a, b, c) where
+--   showsPrec _ (a,b,c) s = show_tuple [shows a, shows b, shows c] s
+--
+--
+-- show_tuple :: [ShowS] -> ShowS
+-- show_tuple ss = showChar '('
+--               . foldr1 (\s r -> s . showChar ',' . r) ss
+--               . showChar ')'
+--
+--
+-- showChar        :: Char -> ShowS
+-- showChar        =  (:)
+--
+--
+-- instance  Show Char  where
+--     showsPrec _ '\'' = showString "'\\''"
+--     showsPrec _ c    = showChar '\'' . showLitChar c . showChar '\''
+--
+--     showList cs = showChar '"' . showLitString cs . showChar '"'
+--
+--
 -- instance Show Int where
 --     showsPrec = showSignedInt
---
 
 
 
--- Evaluation order:
---
--- show [1, 2, 3] hits Show class default show implementation =>
--- shows [1, 2, 3] "" hits top level shows implementation =>
--- showsPrec 0 [1, 2, 3] "" hits Show a => Show [a] instance showsPrec implementation =>
--- showList [1, 2, 3] "" hits Show class default ShowList implementation =>
--- showList__ shows [1, 2, 3] "" hits top level showList__ implementation; shows is top level =>
--- '[' : shows 1 (showl [2, 3]) hits top level shows implmentation =>
--- '[' : showsPrec 0 1 (showl [2, 3]) hits Int instance showSignedInt, which for our purpose might as well be built-in toString =>
--- '[' : '1' : (showl [2, 3]) hits showList__ showl, wherein showx is still top level shows =>
--- '[' : '1' : ',' : showx 2 (showl [3]) =>
--- '[' : '1' : ',' : shows 2 (showl [3]) =>
--- '[' : '1' : ',' : showsPrec 0 2 (showl [3]) hits Int instance showSignedInt, which for our purpose might as well be built-in toString =>
--- '[' : '1' : ',' : '2' : (showl [3]) etc...
+-- Translation to our language:
 
 
 
--- Okay, and now the translation to our language.
+-- foldr1                  :: (a -> a -> a) -> [a] -> a
+-- foldr1 f = go
+--   where go [x]            =  x
+--         go (x:xs)         =  f x (go xs)
+--         go []             =  errorEmptyList "foldr1"
 --
--- Any functions with defined non-default instances
--- need to be dynamic.
---
--- In this case: "showsPrec"
--- But we can only be dynamic in the first argument,
--- so we'll flip the argument order "showsPrecFlip"
---
---
+-- Nested patterns not supported by core language, so have to de-nest manually.
+foldr1 : (a -> a -> a) -> List a -> a
+foldr1 f =
+  let go list = case list of
+    Cons x xs -> case xs of
+      Nil      -> x
+      Cons _ _ -> f x (go xs)
+    -- Missing Nil branch will throw error if list non-empty
+  in
+  go
+
+
+-- From GHC repo at 8.6.5 release. ghc/libraries/base/GHC/Show.hs
 --
 -- type ShowS = String -> String
 --
@@ -145,22 +172,7 @@ type List a = Nil
 --     show x          = shows x ""
 show x = shows x ""
 --     showList ls   s = showList__ shows ls s
-showList ls s = showList__ shows ls s
 --
--- showList__ :: (a -> ShowS) ->  [a] -> ShowS
--- showList__ _     []     s = "[]" ++ s
--- showList__ showx (x:xs) s = '[' : showx x (showl xs)
---   where
---     showl []     = ']' : s
---     showl (y:ys) = ',' : showx y (showl ys)
-showList__ showx list s = case list of
-  Nil       -> "[]" + s
-  Cons x xs ->
-    let showl list = case list of
-      Nil       -> "]" + s
-      Cons y ys -> "," + showx y (showl ys)
-    in
-    "[" + showx x (showl xs)
 --
 -- -- | equivalent to 'showsPrec' with a precedence of 0.
 -- shows           :: (Show a) => a -> ShowS
@@ -169,14 +181,58 @@ shows =  showsPrec 0
 
 showsPrec precN a = showsPrecFlip a precN
 --
--- -- | @since 2.01
+--
 -- instance Show a => Show [a]  where
 --   {-# SPECIALISE instance Show [String] #-}
 --   {-# SPECIALISE instance Show [Char] #-}
 --   {-# SPECIALISE instance Show [Int] #-}
 --   showsPrec _         = showList
-showsPrecFlip : List a -> Num -> String -> String
-showsPrecFlip list _ = showList list
+--
+--
+-- instance  (Show a, Show b) => Show (a,b)  where
+--   showsPrec _ (a,b) s = show_tuple [shows a, shows b] s
+showsPrecFlip : Tuple2 a b -> Num -> String -> String
+showsPrecFlip tuple2 _ s = case tuple2 of
+  Tuple2 a b -> show_tuple [shows a, shows b] s
+--
+--
+-- instance (Show a, Show b, Show c) => Show (a, b, c) where
+--   showsPrec _ (a,b,c) s = show_tuple [shows a, shows b, shows c] s
+showsPrecFlip : Tuple3 a b -> Num -> String -> String
+showsPrecFlip tuple3 _ s = case tuple3 of
+  Tuple3 a b c -> show_tuple [shows a, shows b, shows c] s
+--
+--
+-- show_tuple :: [ShowS] -> ShowS
+-- show_tuple ss = showChar '('
+--               . foldr1 (\s r -> s . showChar ',' . r) ss
+--               . showChar ')'
+-- We don't have primitive chars, only single element strings.
+-- (<<) f g = \x -> f (g x) -- Part of core language Prelude
+show_tuple ss = showChar "("
+             << foldr1 (\s r -> s << showChar "," << r) ss
+             << showChar ")"
+--
+--
+-- showChar        :: Char -> ShowS
+-- showChar        =  (:)
+-- (+) is a primitive operator in a our language and cannot be partially applied, so don't curry
+showChar l r = l + r
+--
+--
+-- -- | @since 2.01
+-- instance  Show Char  where
+--     showsPrec _ '\'' = showString "'\\''"
+--     showsPrec _ c    = showChar '\'' . showLitChar c . showChar '\''
+--
+--     showList cs = showChar '"' . showLitString cs . showChar '"'
+--
+-- The core language (and the string provenance) doesn't have a concept of "character"
+-- so we can't translate the Haskell precisely without losing string provenance.
+--
+-- Also, no escaping in displayed string.
+showsPrecFlip : String -> Num -> String -> String
+showsPrecFlip str _ s = '"' + str + '"' + s
 --
 --
 -- -- | @since 2.01
@@ -191,5 +247,5 @@ showsPrecFlip num _ s = numToStringBuiltin num + s
 toString : a -> String
 toString = show
 
--- The desugaring step turns this into Cons's and Nil's
-([1, 2, 3] : List Num)
+-- (Tuple3 "a" 1 (Tuple2 10 "ten") : Tuple3 String Num (Tuple2 Num String))
+(Tuple2 10 "ten" : Tuple2 Num String)
