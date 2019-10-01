@@ -16,6 +16,11 @@ data Bool
   deriving (Show)
 
 
+data Record a b c
+  = Record { field1 :: a, field2 :: b, field3 :: c, int :: Int }
+  deriving (Show)
+
+
 -- $ ghc ADTShowTest.hs
 --
 -- After a bit of cleanup:
@@ -41,16 +46,42 @@ data Bool
 --           ((showString "Ctor4 ") . (showsPrec 11 adt))
 --
 --
--- Derived type family instances:
+--   instance Show Bool where
+--     showsPrec _ False
+--       = showString "False"
+--     showsPrec _ True = showString "True"
 --
 --
+-- instance (Show a, Show b, Show c) =>
+--          Show (Record a b c) where
+--   showsPrec
+--     precN
+--     (Record a b c int)
+--     = showParen
+--         (precN >= 11)
+--         ((.)
+--            (showString "Record {")
+--            ((.)
+--               (showString "field1 = ")
+--               ((.)
+--                  (showsPrec 0 a)
+--                  ((.)
+--                     showCommaSpace
+--                     ((.)
+--                        (showString "field2 = ")
+--                        ((.)
+--                           (showsPrec 0 b)
+--                           ((.)
+--                              showCommaSpace
+--                              ((.)
+--                                 (showString "field3 = ")
+--                                 ((.)
+--                                    (showsPrec 0 c)
+--                                    ((.)
+--                                       showCommaSpace
+--                                       ((.)
+--                                          (showString "int = ")
+--                                          ((.)
+--                                             (showsPrec 0 int)
+--                                             (showString "}")))))))))))))
 --
--- ==================== Filling in method body ====================
--- Show [ADT a_a2ID[ssk:1]]
---   show = $dmshow @(ADT a_a2ID[ssk:1])
---
---
---
--- ==================== Filling in method body ====================
--- Show [ADT a_a2ID[ssk:1]]
---   showList = $dmshowList @(ADT a_a2ID[ssk:1])

@@ -45,6 +45,7 @@ type ADT a
 --           (precN >= 11)
 --           ((showString "Ctor4 ") . (showsPrec 11 adt))
 --
+--
 --   instance Show Bool where
 --     showsPrec _ False
 --       = showString "False"
@@ -53,18 +54,6 @@ type ADT a
 
 
 
-
-
--- From GHC repo at 8.6.5 release. ghc/libraries/base/GHC/List.hs
---
--- -- | 'foldr1' is a variant of 'foldr' that has no starting value argument,
--- -- and thus must be applied to non-empty lists.
---
--- foldr1                  :: (a -> a -> a) -> [a] -> a
--- foldr1 f = go
---   where go [x]            =  x
---         go (x:xs)         =  f x (go xs)
---         go []             =  errorEmptyList "foldr1"
 
 
 -- From GHC repo at 8.6.5 release. ghc/libraries/base/GHC/Show.hs
