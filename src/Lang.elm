@@ -447,7 +447,7 @@ type alias Exp__ = ExpBuilder__ Exp Exp
 --
 -- Names are hard-coded for now. Leo evaluator does not handle these as intended yet. TSEFLLP desugarer/evaluator will, however.
 dynamicDispatchIdentifiers : List String
-dynamicDispatchIdentifiers = ["toString", "showsPrecFlip", "dynamic1", "dynamic2", "dynamic3", "dynamic4"]
+dynamicDispatchIdentifiers = ["toString", "showsPrecFlip"]
 
 expEId : Exp -> EId
 expEId (Expr e) = e.val.eid

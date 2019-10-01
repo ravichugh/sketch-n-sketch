@@ -177,7 +177,7 @@ show x = shows x ""
 -- -- | equivalent to 'showsPrec' with a precedence of 0.
 -- shows           :: (Show a) => a -> ShowS
 -- shows           =  showsPrec 0
-shows =  showsPrec 0
+shows = showsPrec 0
 
 showsPrec precN a = showsPrecFlip a precN
 --

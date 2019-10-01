@@ -1,5 +1,13 @@
 -- Dynamic dispatch names: toString, showsPrecFlip
 
+-- Any functions with defined non-default instances
+-- need to be dynamic.
+--
+-- In this case: "showsPrec"
+-- But we can only be dynamic in the first argument,
+-- so we'll flip the argument order "showsPrecFlip"
+
+
 -- List definition, for reference. The Sketch-n-Sketch
 -- surface language Leo treats lists as a separate type
 -- (not a datatype), so the following is actually ignored
@@ -165,7 +173,7 @@ showList__ showx list s = case list of
 -- -- | equivalent to 'showsPrec' with a precedence of 0.
 -- shows           :: (Show a) => a -> ShowS
 -- shows           =  showsPrec 0
-shows =  showsPrec 0
+shows = showsPrec 0
 
 showsPrec precN a = showsPrecFlip a precN
 --

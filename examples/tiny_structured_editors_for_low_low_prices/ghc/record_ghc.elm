@@ -133,7 +133,7 @@ type Record a b c
 
 show x = shows x ""
 
-shows =  showsPrec 0
+shows = showsPrec 0
 
 showsPrec precN a = showsPrecFlip a precN
 

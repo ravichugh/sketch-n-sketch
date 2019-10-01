@@ -13,7 +13,7 @@ type ADT a
   | Ctor3 a String
   | Ctor4 (ADT a)
 
--- This is already in the "prelude" for the core language and
+-- Bool is already in the "prelude" for the core language and
 -- the surface language parser doesn't like us repeating it (Bools
 -- are built in to the surface language) but here it is for reference.
 -- type Bool
@@ -23,7 +23,7 @@ type ADT a
 
 -- We can see the derived show instances using the GHC option -ddump-deriv
 --
--- After a bit of cleanup, the ADTs above has these Show instances:
+-- After a bit of cleanup, the ADTs above have these Show instances:
 --
 -- ==================== Derived instances ====================
 -- Derived class instances:
@@ -123,7 +123,7 @@ type ADT a
 
 show x = shows x ""
 
-shows =  showsPrec 0
+shows = showsPrec 0
 
 showsPrec precN a = showsPrecFlip a precN
 
