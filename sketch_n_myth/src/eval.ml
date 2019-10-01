@@ -334,6 +334,14 @@ module FuelLimited = struct
                     )
             end
 
+      | RCtorInverse (name, arg) ->
+          let+ (arg', ks) =
+            resume fuel hf arg
+          in
+            ( RCtorInverse (name, arg')
+            , ks
+            )
+
   and resume_env fuel hf env : eval_env_result =
     env
       |> List.map

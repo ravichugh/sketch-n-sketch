@@ -85,3 +85,10 @@ let print_type_ctx gamma = debug @@ fun _ ->
 
 let print_int n = debug @@ fun _ ->
   print_endline (string_of_int n)
+
+let print_nondet_len nd = debug @@ fun _ ->
+  nd
+    |> Nondet.to_list
+    |> List.length
+    |> string_of_int
+    |> print_endline

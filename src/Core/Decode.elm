@@ -154,6 +154,11 @@ res =
             (index 2 res)
             (index 3 (list branch))
 
+      "RCtorInverse" ->
+        map2 RCtorInverse
+          (index 1 string)
+          (index 2 res)
+
       _ ->
         fail "Ill-formed result"
 

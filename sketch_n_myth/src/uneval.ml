@@ -46,6 +46,9 @@ and uneval delta sigma hf res ex =
 
       | RCase (_, scrutinee, _) ->
           blocking_hole scrutinee
+
+      | RCtorInverse (_, arg) ->
+          blocking_hole arg
   in
   let guesses
     (delta : hole_ctx)
@@ -123,41 +126,63 @@ and uneval delta sigma hf res ex =
             )
 
     | (RCase (env, scrutinee, branches), _) ->
-        let* hf_guesses =
-          guesses delta sigma scrutinee
-        in
-        let* hf' =
-          Nondet.lift_option @@
-            Constraints.merge_solved [hf; hf_guesses]
-        in
-        let
-          ks_guesses =
-            (hf_guesses, Hole_map.empty)
-        in
-        let* (r_scrutinee, rcs_scrutinee) =
-          Nondet.lift_result @@ Eval.resume hf' scrutinee
-        in
-        let* ks_scrutinee =
-          simplify_assertions delta sigma rcs_scrutinee
-        in
-        let* ks_branch =
-          begin match r_scrutinee with
-            | RCtor (ctor_name, r_arg) ->
-                begin match List.assoc_opt ctor_name branches with
-                  | Some (arg_name, body) ->
-                      check delta sigma hf' body @@
-                        [((arg_name, r_arg) :: env, ex)]
+        let minimal_nd =
+          let* hf_guesses =
+            guesses delta sigma scrutinee
+          in
+          let* hf' =
+            Nondet.lift_option @@
+              Constraints.merge_solved [hf; hf_guesses]
+          in
+          let
+            ks_guesses =
+              (hf_guesses, Hole_map.empty)
+          in
+          let* (r_scrutinee, rcs_scrutinee) =
+            Nondet.lift_result @@ Eval.resume hf' scrutinee
+          in
+          let* ks_scrutinee =
+            simplify_assertions delta sigma rcs_scrutinee
+          in
+          let* ks_branch =
+            begin match r_scrutinee with
+              | RCtor (ctor_name, r_arg) ->
+                  begin match List.assoc_opt ctor_name branches with
+                    | Some (arg_name, body) ->
+                        check delta sigma hf' body @@
+                          [((arg_name, r_arg) :: env, ex)]
 
-                  | None ->
-                      Nondet.none
-                end
+                    | None ->
+                        Nondet.none
+                  end
 
-            | _ ->
-                Nondet.none
-          end
+              | _ ->
+                  Nondet.none
+            end
+          in
+            Nondet.lift_option @@
+              Constraints.merge [ks_guesses; ks_scrutinee; ks_branch]
         in
-          Nondet.lift_option @@
-            Constraints.merge [ks_guesses; ks_scrutinee; ks_branch]
+        let maximal_nd =
+          let try_branch (ctor_name, (arg_name, body)) =
+            let* k1 =
+              uneval delta sigma hf scrutinee (ExCtor (ctor_name, ExTop))
+            in
+            let* k2 =
+              check delta sigma hf body @@
+                [((arg_name, RCtorInverse (ctor_name, scrutinee)) :: env, ex)]
+            in
+              Nondet.lift_option @@
+                Constraints.merge [k1; k2]
+          in
+            branches
+              |> Nondet.from_list
+              |> Nondet.and_then try_branch
+        in
+          Nondet.union [minimal_nd; maximal_nd]
+
+    | (RCtorInverse (name, arg), _) ->
+        uneval delta sigma hf arg (ExCtor (name, ex))
 
     | _ ->
         Nondet.none

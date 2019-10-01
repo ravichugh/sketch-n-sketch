@@ -38,6 +38,7 @@ type res =
   | RApp of res * res
   | RProj of int * int * res
   | RCase of env * res * (string * (string * exp)) list
+  | RCtorInverse of string * res
   [@@deriving yojson]
 
 and env =

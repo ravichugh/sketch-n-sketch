@@ -27,6 +27,7 @@ type Res
   | RApp Res Res
   | RProj Int Int Res
   | RCase Env Res (List (String, (String, Exp)))
+  | RCtorInverse String Res
 
 type alias Env =
   List (String, Res)

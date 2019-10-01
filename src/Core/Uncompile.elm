@@ -103,6 +103,9 @@ res_ r =
       in
         U.UCase () (env en) (res_ scrutinee) (List.map branch branches)
 
+    C.RCtorInverse ctorName arg ->
+      U.UConstructorInverse () ctorName (res_ arg)
+
 res : C.Res -> U.UnExp ()
 res =
   res_ >> TriEval.setHoleIndexes

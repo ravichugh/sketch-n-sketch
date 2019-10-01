@@ -104,6 +104,9 @@ res r =
           , list (List.map branch branches)
           ]
 
+    RCtorInverse ctorName arg ->
+      ctor "RCtorInverse" [string ctorName, res arg]
+
 env : Env -> E.Value
 env =
   let
