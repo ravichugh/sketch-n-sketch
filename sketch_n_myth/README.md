@@ -12,7 +12,8 @@ For best performance, please use an installation of OCaml that supports
 (e.g. `4.08.1+flambda` obtained via `opam switch create 4.08.1+flambda`).
 
 ***To build and run the server:***
-From the root directory (where this `README` is), run `make serve`.
+From the root directory (where this `README` is), run `make serve`. The server
+will be hosted on port 9090.
 
 ***To build without running:***
 From the root directory (where this `README` is), run `make build`.
