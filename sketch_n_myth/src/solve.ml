@@ -3,6 +3,7 @@ open Nondet.Syntax
 
 (* Constraint simplification *)
 
+(*
 let rec simplify_constraints
   (delta : hole_ctx)
   (sigma : datatype_ctx)
@@ -41,6 +42,7 @@ let rec simplify_constraints
         Nondet.pure k_merged
       else
         simplify_constraints delta sigma k_merged
+*)
 
 (* Core algorithm *)
 
@@ -61,22 +63,26 @@ let should_continue () =
   in
     timer_check && count_check
 
-let rec iter_solve params delta sigma (hf, us_all) =
+let rec iter_solve params delta sigma ((hf, us_all), k_assumed) =
   let* _ =
     Nondet.guard @@
       should_continue ()
   in
   match Constraints.delete_min us_all with
     | None ->
-        current_solution_count := !current_solution_count + 1;
-        Nondet.pure (hf, delta)
+        let+ _ =
+          Nondet.guard @@
+            Constraints.satisfies hf k_assumed
+        in
+          current_solution_count := !current_solution_count + 1;
+          (hf, delta)
 
     | Some ((hole_name, worlds), us) ->
         let* (gamma, typ, dec, match_depth) =
           Nondet.lift_option @@
             List.assoc_opt hole_name delta
         in
-        let* (k_new, delta_new) =
+        let* (k_asserted', k_assumed', delta_new) =
           Fill.fill
             { params with
                 max_match_depth = params.max_match_depth - match_depth
@@ -86,19 +92,21 @@ let rec iter_solve params delta sigma (hf, us_all) =
             hf
             (hole_name, ((gamma, typ, dec), worlds))
         in
+        let* k_asserted_merged =
+          Nondet.lift_option @@ Constraints.merge [(hf, us); k_asserted']
+        in
+        let* k_assumed_merged =
+          Nondet.lift_option @@
+            Constraints.merge [k_assumed; k_assumed']
+        in
         let delta_merged =
           delta_new @ delta
-        in
-        let* k_merged =
-          Constraints.merge [(hf, us); k_new]
-            |> Nondet.lift_option
-            |> Nondet.and_then (simplify_constraints delta_merged sigma)
         in
           iter_solve
             params
             delta_merged
             sigma
-            k_merged
+            (k_asserted_merged, k_assumed_merged)
 
 (* Staging *)
 
@@ -163,7 +171,7 @@ let solve_any delta sigma constraints_nd =
           current_solution_count := 0;
           Timer.Multi.reset Timer.Multi.Guess;
           let solution_nd =
-            iter_solve params delta sigma constraints
+            iter_solve params delta sigma (constraints, Constraints.empty)
           in
             if Nondet.is_empty solution_nd then
               helper rest_problems

@@ -48,6 +48,7 @@ let refine_or_branch
       |> Constraints.merge_unsolved
   in
     ( (solved_constraints, unsolved_constraints)
+    , Constraints.empty
     , delta'
     )
 
@@ -72,17 +73,11 @@ let guess_and_check
     Nondet.lift_option @@
       Constraints.merge_solved [binding; hf]
   in
-  let* uneval_constraints =
+  let+ uneval_constraints =
     Uneval.check delta sigma extended_hf exp worlds
   in
-  let+ merged_constraints =
-    Nondet.lift_option @@
-      Constraints.merge
-        [ Constraints.from_hole_filling binding
-        ; uneval_constraints
-        ]
-  in
-    ( merged_constraints
+    ( Constraints.from_hole_filling binding
+    , uneval_constraints
     , []
     )
 
@@ -95,6 +90,7 @@ let defer
   then
     Nondet.pure
       ( Constraints.solved_singleton hole_name (EHole hole_name)
+      , Constraints.empty
       , []
       )
   else
