@@ -1,5 +1,7 @@
 open Lang
 
+val minimal_uneval : bool ref
+
 val check :
   hole_ctx
     -> datatype_ctx

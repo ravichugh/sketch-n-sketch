@@ -57,6 +57,11 @@ type synthesis_response =
 
 (* Server code *)
 
+let synthesis_pipeline delta sigma assertions =
+  assertions
+    |> Uneval.simplify_assertions delta sigma
+    |> Solve.solve_any delta sigma
+
 let server =
   let callback _ request body =
     Lwt.bind
@@ -128,12 +133,22 @@ let server =
                   |> Fresh.set_largest_hole
               in
               let () =
+                Uneval.minimal_uneval := true
+              in
+              let () =
                 Timer.Single.start Timer.Single.Total;
               in
+              let minimal_synthesis_result =
+                synthesis_pipeline clean_delta sigma assertions
+              in
               let synthesis_result =
-                assertions
-                  |> Uneval.simplify_assertions clean_delta sigma
-                  |> Solve.solve_any clean_delta sigma
+                if Nondet.is_empty minimal_synthesis_result then
+                  let () =
+                    Uneval.minimal_uneval := false
+                  in
+                    synthesis_pipeline clean_delta sigma assertions
+                else
+                  minimal_synthesis_result
               in
               let time_taken =
                 Timer.Single.elapsed Timer.Single.Total;

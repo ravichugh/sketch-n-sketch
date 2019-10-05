@@ -1,6 +1,9 @@
 open Lang
 open Nondet.Syntax
 
+let minimal_uneval =
+  ref true
+
 let rec check delta sigma hf exp worlds =
   let
     check_one (env, ex) =
@@ -126,7 +129,7 @@ and uneval delta sigma hf res ex =
             )
 
     | (RCase (env, scrutinee, branches), _) ->
-        let minimal_nd =
+        if !minimal_uneval then
           let* hf_guesses =
             guesses delta sigma scrutinee
           in
@@ -162,8 +165,7 @@ and uneval delta sigma hf res ex =
           in
             Nondet.lift_option @@
               Constraints.merge [ks_guesses; ks_scrutinee; ks_branch]
-        in
-        let maximal_nd =
+        else
           let try_branch (ctor_name, (arg_name, body)) =
             let* k1 =
               uneval delta sigma hf scrutinee (ExCtor (ctor_name, ExTop))
@@ -178,8 +180,6 @@ and uneval delta sigma hf res ex =
             branches
               |> Nondet.from_list
               |> Nondet.and_then try_branch
-        in
-          Nondet.union [minimal_nd; maximal_nd]
 
     | (RCtorInverse (name, arg), _) ->
         uneval delta sigma hf arg (ExCtor (name, ex))
