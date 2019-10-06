@@ -2130,11 +2130,11 @@ msgKeyDown keyCode =
           else
             handleDeuceHotKey old keyCodes <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
 
-        else if
-          not currentKeyDown &&
-          (keyCode == Keys.keyShift || keyCode == Keys.keyAlt)
-        then
-          refreshInputExp old
+        -- else if
+        --   not currentKeyDown &&
+        --   (keyCode == Keys.keyShift || keyCode == Keys.keyAlt)
+        -- then
+        --   refreshInputExp old
         else
           old
   in
