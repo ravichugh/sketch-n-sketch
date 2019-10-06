@@ -1,17 +1,6 @@
-module PBESuite exposing (init, suite)
+module OuterMatchPBESuite exposing (suite)
 
 import Dict exposing (Dict)
-
-init =
-  """type Nat
-  = Z ()
-  | S Nat
-
-type NatList
-  = Nil ()
-  | Cons (Nat, NatList)
-
-?? : Nat"""
 
 bool_band = (,,,,)
   """type Boolean
@@ -19,7 +8,10 @@ bool_band = (,,,,)
   | T ()
 
 and : Boolean -> Boolean -> Boolean
-and p q = ??
+and p q =
+  case p of
+    F _ -> ?? : Boolean
+    T _ -> ?? : Boolean
 
 """
   """specifyFunction2 and
@@ -29,11 +21,11 @@ and p q = ??
   , (F (), F (), F ())
   ]""" 4
   """specifyFunction2 and
-  [ (T (), T (), T ())
-  , (T (), F (), F ())
+  [ -- (T (), T (), T ())
+    (T (), F (), F ())
   , (F (), T (), F ())
   -- , (F (), F (), F ())
-  ]""" 3
+  ]""" 2
 
 bool_bor = (,,,,)
   """type Boolean
@@ -41,7 +33,10 @@ bool_bor = (,,,,)
   | T ()
 
 or : Boolean -> Boolean -> Boolean
-or p q = ??
+or p q =
+  case p of
+    F _ -> ?? : Boolean
+    T _ -> ?? : Boolean
 
 """
   """specifyFunction2 or
@@ -54,8 +49,8 @@ or p q = ??
   [ -- (T (), T (), T ())
     (T (), F (), T ())
   , (F (), T (), T ())
-  , (F (), F (), F ())
-  ]""" 3
+  -- , (F (), F (), F ())
+  ]""" 2
 
 bool_impl = (,,,,)
   """type Boolean
@@ -63,7 +58,10 @@ bool_impl = (,,,,)
   | T ()
 
 impl : Boolean -> Boolean -> Boolean
-impl p q = ??
+impl p q =
+  case p of
+    F _ -> ?? : Boolean
+    T _ -> ?? : Boolean
 
 """
   """specifyFunction2 impl
@@ -73,11 +71,11 @@ impl p q = ??
   , (F (), F (), T ())
   ]""" 4
   """specifyFunction2 impl
-  [ (T (), T (), T ())
+  [ -- (T (), T (), T ())
   , (T (), F (), F ())
   -- , (F (), T (), T ())
   , (F (), F (), T ())
-  ]""" 3
+  ]""" 2
 
 bool_neg = (,,,,)
   """type Boolean
@@ -85,8 +83,10 @@ bool_neg = (,,,,)
   | T ()
 
 neg : Boolean -> Boolean
-neg p = ??
-
+neg p =
+  case p of
+    F _ -> ?? : Boolean
+    T _ -> ?? : Boolean
 """
   """specifyFunction neg
   [ (T (), F ())
@@ -104,6 +104,9 @@ bool_xor = (,,,,)
 
 xor : Boolean -> Boolean -> Boolean
 xor p q = ??
+  case p of
+    F _ -> ?? : Boolean
+    T _ -> ?? : Boolean
 
 """
   """specifyFunction2 xor
@@ -129,7 +132,10 @@ type NatList
   | Cons (Nat, NatList)
 
 append : NatList -> NatList -> NatList
-append xs ys = ??
+append xs ys =
+  case xs of
+    Nil _ -> ?? : NatList
+    Cons p -> ?? : NatList
 
 """
   """specifyFunction2 append
@@ -148,70 +154,6 @@ append xs ys = ??
   , ([1, 0], [], [1, 0])
   -- , ([1, 0], [0], [1, 0, 0])
   ]""" 3
-
-list_compress = (,,,,)
-  """type Nat
-  = Z ()
-  | S Nat
-
-type NatList
-  = Nil ()
-  | Cons (Nat, NatList)
-
-type Cmp
-  = LT ()
-  | EQ ()
-  | GT ()
-
-let
-  compare : Nat -> Nat -> Cmp
-  compare n1 n2 =
-    case n1 of
-      Z _ ->
-        case n2 of
-          Z _ -> EQ ()
-          S _ -> LT ()
-      S m1 ->
-        case n2 of
-          Z _  -> GT ()
-          S m2 -> compare m1 m2
-in
-let
-  compress : NatList -> NatList
-  compress xs = ??
-in
-
-"""
-  """specifyFunction compress
-  [ ([], [])
-  , ([0], [0])
-  , ([1], [1])
-  , ([0,0], [0])
-  , ([1,1], [1])
-  , ([2,0], [2,0])
-  , ([1,0,0], [1,0])
-  , ([0,1,1], [0,1])
-  , ([2,1,0,0], [2,1,0])
-  , ([2,2,1,0,0], [2,1,0])
-  , ([2,2,0], [2,0])
-  , ([2,2,2,0], [2,0])
-  , ([1,2,2,2,0], [1,2,0])
-  ]""" 13
-  """specifyFunction2 compress
-  [ ([], [])
-  , ([0], [0])
-  , ([1], [1])
-  , ([0,0], [0])
-  , ([1,1], [1])
-  , ([2,0], [2,0])
-  , ([1,0,0], [1,0])
-  , ([0,1,1], [0,1])
-  , ([2,1,0,0], [2,1,0])
-  , ([2,2,1,0,0], [2,1,0])
-  , ([2,2,0], [2,0])
-  , ([2,2,2,0], [2,0])
-  , ([1,2,2,2,0], [1,2,0])
-  ]""" (-1)
 
 list_concat = (,,,,)
   """type Nat
@@ -237,7 +179,10 @@ let
 in
 let
   concat : NatListList -> NatList
-  concat xss = ??
+  concat xss =
+    case xss of
+      LNil _ -> ?? : NatList
+      LCons p -> ?? : NatList
 in
 
 """
@@ -245,9 +190,9 @@ in
   [ (LNil (), [])
   , (LCons ([], LNil ()), [])
   , (LCons ([0], LNil ()), [0])
-  , (LCons ([0], LCons([0], LNil ())), [0, 0])
+  , (LCons ([0], LCons([0], LNil ())), [0,0])
   , (LCons ([1], LNil ()), [1])
-  , (LCons ([1], LCons([1], LNil ())), [1, 1])
+  , (LCons ([1], LCons([1], LNil ())), [1,1])
   ]""" 6
   """specifyFunction concat
   [ (LNil (), [])
@@ -268,7 +213,10 @@ type NatList
   | Cons (Nat, NatList)
 
 listDrop : NatList -> Nat -> NatList
-listDrop xs n = ??
+listDrop xs n =
+  case xs of
+    Nil _ -> ?? : NatList
+    Cons p -> ?? : NatList
 
 """
   """specifyFunction2 listDrop
@@ -308,7 +256,10 @@ type BooleanList
   | Cons (Boolean, BooleanList)
 
 evenParity : BooleanList -> Boolean
-evenParity xs = ??
+evenParity xs =
+  case xs of
+    Nil _ -> ?? : Boolean
+    Cons p -> ?? : Boolean
 
 """
   """specifyFunction evenParity
@@ -364,7 +315,10 @@ let
   listFilter predicate =
     let
       fixListFilter : NatList -> NatList
-      fixListFilter xs = ??
+      fixListFilter xs =
+        case xs of
+          Nil _ -> ?? : NatList
+          Cons p -> ?? : NatList
     in
       fixListFilter
 in
@@ -472,7 +426,10 @@ type NatList
   | Cons (Nat, NatList)
 
 listHead : NatList -> Nat
-listHead xs = ??
+listHead xs =
+  case xs of
+    Nil _ -> ?? : Nat
+    Cons p -> ?? : Nat
 
 """
   """specifyFunction listHead
@@ -484,41 +441,6 @@ listHead xs = ??
   [ ([], 0)
   -- , ([0], 0)
   , ([1], 1)
-  ]""" 2
-
-list_inc = (,,,,)
-  """type Nat
-  = Z ()
-  | S Nat
-
-type NatList
-  = Nil ()
-  | Cons (Nat, NatList)
-
-let
-  map : NatList -> (Nat -> Nat) -> NatList
-  map xs f =
-    case xs of
-      Nil _ -> Nil ()
-      Cons p -> Cons (f (get_2_1 p), map (get_2_2 p) f)
-in
-let
-  listInc : NatList -> NatList
-  listInc xs = ??
-in
-
-"""
-  """specifyFunction listInc
-  [ ([], [])
-  , ([1, 2], [2, 3])
-  , ([0, 0], [1, 1])
-  , ([3, 4, 5], [4, 5, 6])
-  ]""" 4
-  """specifyFunction listInc
-  [ ([], [])
-  , ([1, 2], [2, 3])
-  -- , ([0, 0], [1, 1])
-  -- , ([3, 4, 5], [4, 5, 6])
   ]""" 2
 
 list_last = (,,,,)
@@ -535,7 +457,10 @@ type NatOpt
   | Some Nat
 
 listLast : NatList -> NatOpt
-listLast xs = ??
+listLast xs =
+  case xs of
+    Nil _ -> ?? : NatOpt
+    Cons p -> ?? : NatOpt
 
 """
   """specifyFunction listLast
@@ -565,7 +490,10 @@ type NatList
   | Cons (Nat, NatList)
 
 listLength : NatList -> Nat
-listLength xs = ??
+listLength xs =
+  case xs of
+    Nil _ -> ?? : Nat
+    Cons p -> ?? : Nat
 
 """
   """specifyFunction listLength
@@ -601,7 +529,9 @@ let
     let
       listMapFix : NatList -> NatList
       listMapFix xs =
-        ??
+        case xs of
+          Nil _ -> ?? : NatList
+          Cons p -> ?? : NatList
     in
       listMapFix
 in
@@ -638,7 +568,10 @@ type NatList
   | Cons (Nat, NatList)
 
 listNth : NatList -> Nat -> Nat
-listNth xs n = ??
+listNth xs n =
+  case n of
+    Z _ -> ?? : Nat
+    S m -> ?? : Nat
 
 """
   """specifyFunction2 listNth
@@ -663,14 +596,14 @@ listNth xs n = ??
   , ([2], 1, 0)
   , ([1, 2], 0, 1)
   , ([1, 2], 1, 2)
-  -- , ([1], 0, 1)
+  , ([1], 0, 1)
   -- , ([1], 1, 0)
   -- , ([2, 1], 0, 2)
   -- , ([2, 1], 1, 1)
   -- , ([3, 2, 1], 0, 3)
   -- , ([3, 2, 1], 1, 2)
   -- , ([3, 2, 1], 2, 1)
-  ]""" 6
+  ]""" 7
 
 list_pairwise_swap = (,,,,)
   """type Nat
@@ -724,7 +657,10 @@ let
 in
 let
   listRevAppend : NatList -> NatList
-  listRevAppend xs = ??
+  listRevAppend xs =
+    case xs of
+      Nil _ -> ?? : NatList
+      Cons p -> ?? : NatList
 in
 
 """
@@ -742,54 +678,6 @@ in
   -- , ([0, 1], [1, 0])
   , ([0, 0, 1], [1, 0, 0])
   ]""" 3
-
-list_rev_fold = (,,,,)
-  """type Nat
-  = Z ()
-  | S Nat
-
-type NatList
-  = Nil ()
-  | Cons (Nat, NatList)
-
-let
-  fold : (NatList -> Nat -> NatList) -> NatList -> NatList -> NatList
-  fold f acc =
-    let
-      fixFold : NatList -> NatList
-      fixFold xs =
-        case xs of
-          Nil _ -> acc
-          Cons p -> f (fixFold (get_2_2 p)) (get_2_1 p)
-    in
-      fixFold
-
-  snoc : NatList -> Nat -> NatList
-  snoc xs n =
-    case xs of
-      Nil _ -> Cons (n, Nil ())
-      Cons p -> Cons (get_2_1 p, snoc (get_2_2 p) n)
-in
-let
-  listRevFold : NatList -> NatList
-  listRevFold xs = ??
-in
-
-"""
-  """specifyFunction listRevFold
-  [ ([], [])
-  , ([0], [0])
-  , ([1], [1])
-  , ([0, 1], [1, 0])
-  , ([0, 0, 1], [1, 0, 0])
-  ]""" 5
-  """specifyFunction listRevFold
-  [ ([], [])
-  -- , ([0], [0])
-  -- , ([1], [1])
-  , ([0, 1], [1, 0])
-  -- , ([0, 0, 1], [1, 0, 0])
-  ]""" 2
 
 list_rev_snoc = (,,,,)
   """type Nat
@@ -809,7 +697,10 @@ let
 in
 let
   listRevSnoc : NatList -> NatList
-  listRevSnoc xs = ??
+  listRevSnoc xs =
+    case xs of
+      Nil _ -> ?? : NatList
+      Cons p -> ?? : NatList
 in
 
 """
@@ -838,7 +729,10 @@ type NatList
   | Cons (Nat, NatList)
 
 listRevTailcall : NatList -> NatList -> NatList
-listRevTailcall xs acc = ??
+listRevTailcall xs acc =
+  case xs of
+    Nil _ -> ?? : NatList
+    Cons p -> ?? : NatList
 
 """
   """specifyFunction2 listRevTailcall
@@ -872,7 +766,10 @@ type NatList
   | Cons (Nat, NatList)
 
 listSnoc : NatList -> Nat -> NatList
-listSnoc xs n = ??
+listSnoc xs n =
+  case xs of
+    Nil _ -> ?? : NatList
+    Cons p -> ?? : NatList
 
 """
   """specifyFunction2 listSnoc
@@ -935,7 +832,10 @@ let
 in
 let
   listSortSortedInsert : NatList -> NatList
-  listSortSortedInsert xs = ??
+  listSortSortedInsert xs =
+    case xs of
+      Nil _ -> ?? : NatList
+      Cons p -> ?? : NatList
 in
 
 """
@@ -1031,6 +931,9 @@ type NatList
 
 listStutter : NatList -> NatList
 listStutter xs = ??
+  case xs of
+    Nil _ -> ?? : NatList
+    Cons p -> ?? : NatList
 
 """
   """specifyFunction listStutter
@@ -1044,50 +947,6 @@ listStutter xs = ??
   , ([1, 0], [1, 1, 0, 0])
   ]""" 2
 
-list_sum = (,,,,)
-  """type Nat
-  = Z ()
-  | S Nat
-
-type NatList
-  = Nil ()
-  | Cons (Nat, NatList)
-
-let
-  fold : (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
-  fold f acc =
-    let
-      fixFold : NatList -> Nat
-      fixFold xs =
-        case xs of
-          Nil _ -> acc
-          Cons p -> f (fixFold (get_2_2 p)) (get_2_1 p)
-    in
-      fixFold
-
-  add : Nat -> Nat -> Nat
-  add n1 n2 =
-    case n1 of
-      Z _ -> n2
-      S m -> S (add m n2)
-in
-let
-  listSum : NatList -> Nat
-  listSum xs = ??
-in
-
-"""
-  """specifyFunction listSum
-  [ ([], 0)
-  , ([1], 1)
-  , ([2, 1], 3)
-  ]""" 3
-  """specifyFunction listSum
-  [ ([], 0)
-  -- , ([1], 1)
-  , ([2, 1], 3)
-  ]""" 2
-
 list_take = (,,,,)
   """type Nat
   = Z ()
@@ -1098,7 +957,10 @@ type NatList
   | Cons (Nat, NatList)
 
 listTake : Nat -> NatList -> NatList
-listTake n xs = ??
+listTake n xs =
+  case xs of
+    Nil _ -> ?? : NatList
+    Cons p -> ?? : NatList
 
 """
   """specifyFunction2 listTake
@@ -1140,7 +1002,10 @@ type NatList
   | Cons (Nat, NatList)
 
 listTail : NatList -> NatList
-listTail xs = ??
+listTail xs =
+  case xs of
+    Nil _ -> ?? : NatList
+    Cons p -> ?? : NatList
 
 """
   """specifyFunction listTail
@@ -1164,7 +1029,11 @@ type Boolean
   | T ()
 
 isEven : Nat -> Boolean
-isEven n = ??
+isEven n =
+  case n of
+    Z _ -> ?? : Boolean
+    S m -> ?? : Boolean
+
 
 """
   """specifyFunction isEven
@@ -1209,7 +1078,10 @@ let
 in
 let
   natMax : Nat -> Nat -> Nat
-  natMax m n = ??
+  natMax m n =
+    case m of
+      Z _ -> ?? : Nat
+      S m_ -> ?? : Nat
 in
 
 """
@@ -1242,7 +1114,10 @@ nat_pred = (,,,,)
   | S Nat
 
 natPred : Nat -> Nat
-natPred n = ??
+natPred n =
+  case n of
+    Z _ -> ?? : Nat
+    S m -> ?? : Nat
 
 """
   """specifyFunction natPred
@@ -1262,7 +1137,10 @@ nat_add = (,,,,)
   | S Nat
 
 natAdd : Nat -> Nat -> Nat
-natAdd m n = ??
+natAdd m n =
+  case m of
+    Z _ -> ?? : Nat
+    S m_ -> ?? : Nat
 
 """
   """specifyFunction2 natAdd
@@ -1390,7 +1268,10 @@ let
 in
 let
   treeCollectLeaves : BooleanTree -> BooleanList
-  treeCollectLeaves tree = ??
+  treeCollectLeaves tree =
+    case tree of
+      Leaf _ -> ?? : BooleanList
+      Node node -> ?? : BooleanList
 in
 
 """
@@ -1433,7 +1314,10 @@ let
 in
 let
   treeCountLeaves : BooleanTree -> Nat
-  treeCountLeaves tree = ??
+  treeCountLeaves tree =
+    case tree of
+      Leaf _ -> ?? : Nat
+      Node node -> ?? : Nat
 in
 
 """
@@ -1450,11 +1334,11 @@ in
   [ (Leaf (), 1)
   -- , (Node (Leaf (), True, Leaf ()), 2)
   , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 3)
-  -- , (Node (Leaf (), True, Node (Leaf (), True, Leaf ())), 3)
+  , (Node (Leaf (), True, Node (Leaf (), True, Leaf ())), 3)
   -- , (Node (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), True, Leaf ()), 4)
   , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 4)
   -- , (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
-  ]""" 3
+  ]""" 4
 
 tree_count_nodes = (,,,,)
   """type Nat
@@ -1474,7 +1358,10 @@ let
 in
 let
   treeCountNodes : NatTree -> Nat
-  treeCountNodes tree = ??
+  treeCountNodes tree =
+    case tree of
+      Leaf _ -> ?? : Nat
+      Node node -> ?? : Nat
 in
 
 """
@@ -1519,7 +1406,10 @@ let
 in
 let
   treeInOrder : NatTree -> NatList
-  treeInOrder xss = ??
+  treeInOrder xss =
+    case xss of
+      Leaf _ -> ?? : NatList
+      Node node -> ?? : NatList
 in
 
 """
@@ -1571,7 +1461,9 @@ let
     let
       fixTreeMap : NatTree -> NatTree
       fixTreeMap tree =
-        ??
+        case tree of
+          Leaf _ -> ?? : NatTree
+          Node node -> ?? : NatTree
     in
       fixTreeMap
 in
@@ -1756,24 +1648,21 @@ suite =
     , ("list_concat", list_concat)
     , ("list_drop", list_drop)
     -- , ("list_even_parity", list_even_parity)
-    , ("list_filter", list_filter)
-    , ("list_fold", list_fold)
+    -- , ("list_filter", list_filter)
+    -- , ("list_fold", list_fold)
     , ("list_hd", list_hd)
-    , ("list_inc", list_inc)
     , ("list_last", list_last)
     , ("list_length", list_length)
     , ("list_map", list_map)
     , ("list_nth", list_nth)
     -- , ("list_pairwise_swap", list_pairwise_swap)
     , ("list_rev_append", list_rev_append)
-    , ("list_rev_fold", list_rev_fold)
     , ("list_rev_snoc", list_rev_snoc)
     , ("list_rev_tailcall", list_rev_tailcall)
     , ("list_snoc", list_snoc)
     , ("list_sort_sorted_insert", list_sort_sorted_insert)
-    , ("list_sorted_insert", list_sorted_insert)
+    -- , ("list_sorted_insert", list_sorted_insert)
     , ("list_stutter", list_stutter)
-    , ("list_sum", list_sum)
     , ("list_take", list_take)
     , ("list_tl", list_tl)
     , ("nat_iseven", nat_iseven)

@@ -51,6 +51,9 @@ import LeoUnparser
 import Types2
 import TinyStructuredEditorsForLowLowPricesView
 import PBESuite
+import OuterMatchPBESuite
+import TailRecursivePBESuite
+import BaseCasePBESuite
 import NonDet exposing (NonDet)
 import Core.Lang as C
 import Core.Uncompile
@@ -797,10 +800,28 @@ menuBar model =
       menu "Sketch-n-Myth"
         [ [ simpleTextButton
               "Run PBE Benchmark Suite (n = 1)"
-              (Core.Controller.msgRequestBenchmark 1)
+              (Core.Controller.msgRequestBenchmark 1 PBESuite.suite)
           , simpleTextButton
               "Run PBE Benchmark Suite (n = 5)"
-              (Core.Controller.msgRequestBenchmark 5)
+              (Core.Controller.msgRequestBenchmark 5 PBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Outer Match Sketch; n = 1)"
+              (Core.Controller.msgRequestBenchmark 1 OuterMatchPBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Outer Match Sketch; n = 5)"
+              (Core.Controller.msgRequestBenchmark 5 OuterMatchPBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 1)"
+              (Core.Controller.msgRequestBenchmark 1 TailRecursivePBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 5)"
+              (Core.Controller.msgRequestBenchmark 5 TailRecursivePBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Base Case Sketch; n = 1)"
+              (Core.Controller.msgRequestBenchmark 1 BaseCasePBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Base Case Sketch; n = 5)"
+              (Core.Controller.msgRequestBenchmark 5 BaseCasePBESuite.suite)
           ]
         ]
         -- [ [ simpleHtmlTextButton

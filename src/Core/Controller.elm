@@ -5,7 +5,7 @@ module Core.Controller exposing
   , msgRequestBenchmark
   )
 
-import Dict
+import Dict exposing (Dict)
 import Task exposing (Task)
 
 import Core.Lang as C
@@ -492,11 +492,12 @@ showBenchmarks replications benchmarks =
              |> String.join "\\\\<br />"
          )
 
-msgRequestBenchmark : Int -> Msg
-msgRequestBenchmark replications =
+msgRequestBenchmark
+  : Int -> (Dict String (String, String, Int, String, Int)) -> Msg
+msgRequestBenchmark replications suite =
   NewModelAndCmd "Request PBE Benchmark" <| \model ->
     ( model
-    , PBESuite.suite
+    , suite
         |> Dict.map
              ( \name
                ( definitions
