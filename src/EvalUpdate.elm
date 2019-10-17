@@ -602,7 +602,8 @@ builtinEnv =
       Ok (Vb.list (Vb.viewtuple2 Vb.string Vb.identity) (Vb.fromVal entityRendered) [("TEXT", entityRendered)], [])
     ) <| Just <| twoArgsUpdate "__htmlEntity__" <| \entityRendered entity oldVal newVal diffs ->
       case (entityRendered.v_, entity.v_, Vu.list (Vu.viewtuple2 Vu.string Vu.string) newVal) of
-        (VBase (VString entityRenderedS), VBase (VString entityS), Ok [("TEXT",newValS)]) ->
+        (VBase (VString entityRenderedS), VBase (VString entityS), Ok newValsList) ->
+          let newValS = List.map (\(x, n) -> n) newValsList |> String.join "" in
           let escapedNewValS= ImpureGoodies.htmlescape newValS in
           let newEntity = replaceV_ newVal <| VBase (VString escapedNewValS) in
           let newEntityRenderedS = newValS in
@@ -610,7 +611,8 @@ builtinEnv =
           ok1 ([newEntityRendered, newEntity],
             [(0, VStringDiffs [StringUpdate 0 (String.length entityRenderedS) (String.length newEntityRenderedS)]),
              (1, VStringDiffs [StringUpdate 0 (String.length entityS) (String.length escapedNewValS)])])
-        _ -> Err <| "Expected strings as arguments and [[\"TEXT\", _]] as return of __htmlEntity__, got __htmlEntity__ " ++ valToString entityRendered ++ ", " ++ valToString entity ++ " updated by " ++ valToString newVal
+        _ ->
+          Err <| "Expected strings as arguments and [[\"TEXT\", _]] as return of __htmlEntity__, got __htmlEntity__ " ++ valToString entityRendered ++ " " ++ valToString entity ++ " updated by " ++ valToString newVal
     )
   , ("__htmlStrEntity__", builtinVal "EvalUpdate.__htmlStrEntity__" <|
     VFun "__htmlStrEntity__" ["entityRendered", "entity"] (twoArgs "__htmlStrEntity__" <| \entityRendered entity ->
