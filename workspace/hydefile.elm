@@ -62,4 +62,4 @@ gsoc () = [
     "../releases/gsoc/gsoc2019-ideas.html"]
 
 
-all () = blogposts () ++ tutorials () ++ indexes () ++ gsoc ()
+all () = blogposts () ++ tutorials () ++ indexes () -- ++ gsoc ()
