@@ -6,11 +6,11 @@
 type List a = Nil
             | Cons a (List a)
 
-intervalToString : List Num -> String
-intervalToString list =
+toString : List a -> String
+toString list =
   "[" + elemsToString list + "]"
 
-elemsToString : List Num -> String
+elemsToString : List a -> String
 elemsToString list =
   case list of
     Nil            -> ""

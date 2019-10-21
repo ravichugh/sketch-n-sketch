@@ -13,8 +13,8 @@ isOdd x =
     Z    -> F
     S sx -> isEven sx
 
-intervalToString : Nat -> String
-intervalToString nat =
+toString : Nat -> String
+toString nat =
   case isEven nat of
     T -> "true"
     F -> "false"

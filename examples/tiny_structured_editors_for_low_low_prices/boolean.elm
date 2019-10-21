@@ -1,7 +1,7 @@
 type MyBool = T | F
 
-intervalToString : MyBool -> String
-intervalToString bool =
+toString : MyBool -> String
+toString bool =
   case bool of
     T -> "true"
     F -> "false"
