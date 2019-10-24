@@ -6,6 +6,10 @@
 type List a = Nil
             | Cons a (List a)
 
+
+toString : Num -> String
+toString n = numToStringBuiltin n
+
 toString : List a -> String
 toString list =
   "[" + elemsToString list + "]"
@@ -16,7 +20,7 @@ elemsToString list =
     Nil            -> ""
     Cons head tail ->
       case tail of
-        Nil  -> toString head
-        _    -> toString head + "," + elemsToString tail
+        Nil      -> toString head
+        Cons _ _ -> toString head + "," + elemsToString tail
 
 ([1, 2, 3] : List Num)
