@@ -286,7 +286,7 @@ desugarLetExp : (Lang.Exp -> Exp) -> Lang.LetExp -> Exp -> Exp
 desugarLetExp desugarExp (Lang.LetExp _ _ pat _ _ boundExp) desugaredLetBody =
   case LangTools.patToMaybePVarIdent (Lang.patEffectivePat pat) of
     Just ident  -> makeLetViaApp ident (desugarExp boundExp) desugaredLetBody
-    _           -> EString "TinyStructuredEditorsForLowLowPrices core language does not support multi var let patterns"
+    _           -> EString <| "TinyStructuredEditorsForLowLowPrices core language does not support multi var let patterns" ++ toString (Lang.patEffectivePat pat)
 
 
 -- Following Exercise 9 of https://caml.inria.fr/pub/docs/u3-ocaml/ocaml-ml.html#toc5

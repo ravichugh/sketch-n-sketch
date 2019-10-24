@@ -349,7 +349,7 @@ evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions pro
   in
   eval dataTypeDefs multipleDispatchFunctions initialEnv program |> Result.andThen (\w ->
     case taggedValueToMaybeStringTaggedWithProjectionPaths w of
-      Just stringTagged -> Ok stringTagged
+      Just stringTagged -> Ok  <| mapStringTag (Set.insert []) stringTagged -- Tag whole string with root path.
       Nothing           -> Err <| "Result was not just strings and appends! " ++ unparseToUntaggedString w
   )
   |> Result.map tidyUpProjectionPaths

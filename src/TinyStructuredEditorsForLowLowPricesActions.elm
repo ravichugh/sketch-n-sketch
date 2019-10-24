@@ -154,7 +154,7 @@ maybeDefaultValueForType dataTypeDefs tipe =
 -- Since not all projection paths for which we generate actions are guarenteed to
 -- appear in the toString representation, such actions are assigned to a node closer to the root.
 --
--- The returned dict is a 1-to-1 mapping (actions are not duplicated).
+-- The returned dict can be thought of as a many-to-1 mapping, actions are not duplicated.
 generateActionsForValueAndAssociateWithStringLocations
   :  List Types2.DataTypeDef
   -> Maybe Lang.Type
@@ -246,7 +246,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
     -- In practice, should always result in one action.
     replacementActionSet : ChangeType -> TaggedValue -> Set SpecificAction
     replacementActionSet changeType taggedValue =
-      valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should only be at most 1 tag
+      valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should always be exactly 1 tag
       |> Set.map (\path -> NewValue changeType path (replaceAtPath path taggedValue rootValueOfInterestTagged))
   in
   case valueOfInterestTagged.v of
@@ -306,10 +306,10 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
 
                 -- The root value with this node replaced with each of its recursive children.
                 --
-                -- Returns List (childenIndexReplaced, wholeReplacementVal)
+                -- Returns List (childIndexReplaced, wholeReplacementVal)
                 newValuesWithArgI : List (Int, TaggedValue)
                 newValuesWithArgI =
-                  Set.toList valueOfInterestTagged.paths -- valueOfInterestTagged.paths should always be a singleton here.
+                  Set.toList valueOfInterestTagged.paths -- should always be a singleton here.
                   |> Utils.cartProd recursiveArgIs
                   |> List.map (\(recursiveArgI, pathToReplace) -> (recursiveArgI, replaceAtPath pathToReplace (Utils.geti recursiveArgI argVals) rootValueOfInterestTagged))
               in

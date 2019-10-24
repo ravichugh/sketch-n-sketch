@@ -35,7 +35,7 @@ functionPickerAndEditor modelState =
     , Html.div
         [ Attr.style [("padding", "1em")] ]
         [ structuredEditor modelState ]
-    -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions
+    , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions modelState.stringTaggedWithProjectionPathsResult
     ]
   else
     [ Html.div [] [renderingFunctionPicker]
@@ -66,71 +66,83 @@ taggedStringToNormalString taggedString =
     TaggedString string _           -> string
     TaggedStringAppend left right _ -> taggedStringToNormalString left ++ taggedStringToNormalString right
 
--- actionAssociationsDebug : Dict ProjectionPath (List SpecificAction) -> Html Msg
--- actionAssociationsDebug stringProjectionPathToSpecificActions =
---   let
---     -- pathToString : ProjectionPath -> String
---     -- pathToString path =
---     --   case path of
---     --     []            -> "•"
---     --     n::deeperPath -> toString n ++ "." ++ pathToString deeperPath
---     --
---     -- pathSetToString : Set ProjectionPath -> String
---     -- pathSetToString pathSet =
---     --   case Set.toList pathSet of
---     --     []    -> "∅"
---     --     paths -> "{" ++ String.join "," (List.map pathToString paths) ++ "}"
---
---     renderStringTaggedWithActions : StringTaggedWithSpecificActions -> Html Msg
---     renderStringTaggedWithActions stringTaggedWithSpecificActions =
---       let
---         box children =
---           Html.span [Attr.style [("display", "inline-block"), ("border", "solid 2px black"), ("padding", "2px")]] children
---
---         specificActionToString specificAction =
---           case specificAction of
---             NewValue projectionPath taggedValue -> "New Value " ++ unparseToUntaggedString taggedValue ++ " associated at " ++ pathToString projectionPath
---             Scrub projectionPath                -> "Scrub "   ++ pathToString projectionPath
---
---         renderAction specificAction =
---           [ Html.span
---               [Attr.style [("border", "solid 1px #ddd")]]
---               [text <| specificActionToString specificAction]
---           , Html.br [] []
---           ]
---
---         renderActionSet : Set SpecificAction -> Html Msg
---         renderActionSet actionSet =
---           Html.span []
---               ( actionSet
---                 |> Set.toList
---                 |> List.concatMap renderAction
---               )
---       in
---       case stringTaggedWithSpecificActions of
---         TaggedString string actionSet ->
---           box
---             [ Html.span [Attr.style [("font-weight", "bold"), ("color", "#0c0")]] [text <| "\"" ++ string ++ "\""]
---             , Html.br [] []
---             , renderActionSet actionSet
---             ]
---
---         TaggedStringAppend stringTaggedWithActions1 stringTaggedWithActions2 actionSet ->
---           box <|
---             [ renderStringTaggedWithActions stringTaggedWithActions1
---             , renderStringTaggedWithActions stringTaggedWithActions2
---             , Html.br [] []
---             , renderActionSet actionSet
---             ]
---   in
---   case stringProjectionPathToSpecificActions of
---     Ok stringTaggedWithSpecificActions -> Html.div [Attr.style [("font-size", "18px")]] [renderStringTaggedWithActions stringTaggedWithSpecificActions]
---     Err errorMsg                       -> text errorMsg
+actionAssociationsDebug : Dict ProjectionPath (List SpecificAction) -> Result String StringTaggedWithProjectionPaths -> Html Msg
+actionAssociationsDebug stringProjectionPathToSpecificActions stringTaggedWithProjectionPathsResult =
+  let
+    -- pathToString : ProjectionPath -> String
+    -- pathToString path =
+    --   case path of
+    --     []            -> "•"
+    --     n::deeperPath -> toString n ++ "." ++ pathToString deeperPath
+    --
+    -- pathSetToString : Set ProjectionPath -> String
+    -- pathSetToString pathSet =
+    --   case Set.toList pathSet of
+    --     []    -> "∅"
+    --     paths -> "{" ++ String.join "," (List.map pathToString paths) ++ "}"
+
+    renderStringTaggedWithActions : AppendedTaggedStrings (Maybe ProjectionPath, Set ProjectionPath, Set SpecificAction) -> Html Msg
+    renderStringTaggedWithActions stringTaggedWithSelectionPathAndProjectionPathsAndActions =
+      let
+        box children =
+          Html.span [Attr.style [("display", "inline-block"), ("border", "solid 2px black"), ("padding", "2px")]] children
+
+        specificActionToString specificAction =
+          case specificAction of
+            NewValue changeType projectionPath taggedValue -> "New Value (" ++ toString changeType ++ ") " ++ unparseToUntaggedString taggedValue ++ " at " ++ pathToString projectionPath
+            Scrub projectionPath                           -> "Scrub "   ++ pathToString projectionPath
+            EditText projectionPath                        -> "Edit Text "   ++ pathToString projectionPath
+
+        renderAction specificAction =
+          [ Html.span
+              [Attr.style [("border", "solid 1px #ddd")]]
+              [text <| specificActionToString specificAction]
+          , Html.br [] []
+          ]
+
+        renderActionSet : Set SpecificAction -> Html Msg
+        renderActionSet actionSet =
+          Html.span []
+              ( actionSet
+                |> Set.toList
+                |> List.concatMap renderAction
+              )
+      in
+      case stringTaggedWithSelectionPathAndProjectionPathsAndActions of
+        TaggedString string (_, _, actionSet) ->
+          box
+            [ Html.span [Attr.style [("font-weight", "bold"), ("color", "#0c0")]] [text <| "\"" ++ string ++ "\""]
+            , Html.br [] []
+            , renderActionSet actionSet
+            ]
+
+        TaggedStringAppend stringTaggedWithActions1 stringTaggedWithActions2 (_, _, actionSet) ->
+          box <|
+            [ renderStringTaggedWithActions stringTaggedWithActions1
+            , renderStringTaggedWithActions stringTaggedWithActions2
+            , Html.br [] []
+            , renderActionSet actionSet
+            ]
+  in
+  case stringTaggedWithProjectionPathsResult of
+    Ok stringTaggedWithProjectionPaths ->
+      let
+        stringTaggedWithSelectionPathAndProjectionPathsAndActions =
+          stringTaggedWithProjectionPaths
+          |> assignSelectionClickAreas
+          |> assignActionsToLeaves stringProjectionPathToSpecificActions
+      in
+      Html.div [Attr.style [("font-size", "18px")]] [renderStringTaggedWithActions stringTaggedWithSelectionPathAndProjectionPathsAndActions]
+    Err errorMsg ->
+      text errorMsg
+
+  -- case stringProjectionPathToSpecificActions of
+  --   Ok stringTaggedWithSpecificActions -> Html.div [Attr.style [("font-size", "18px")]] [renderStringTaggedWithActions stringTaggedWithSpecificActions]
 
 
 -- Current heuristic: Click to select deepest, leftmost path.
 --
--- Adds the click-to-selct assignment as a Maybe next to the ordinary projection paths.
+-- Adds the click-to-select assignment as a Maybe next to the ordinary projection paths.
 -- Only non-empty leaf strings (not appends) get a click assignment.
 assignSelectionClickAreas : StringTaggedWithProjectionPaths -> AppendedTaggedStrings (Maybe ProjectionPath, Set ProjectionPath)
 assignSelectionClickAreas stringTaggedWithProjectionPaths =
@@ -164,7 +176,8 @@ assignSelectionClickAreas_ pathsInAncestors stringTaggedWithProjectionPaths =
 -- After determining the selection click regions, assign actions to leaves (not appends).
 --
 -- Pass 1: If an action and selection click region match exactly, assign the action to it.
--- Pass 2: Any unassigned actions are assigned to all descendant leaves of their associated append.
+-- Pass 2 (disabled): Any unassigned actions are assigned to all descendant leaves of their associated append.
+-- Cleanup: Deduplicate actions that have the same effect (even if labeled with different projection paths)
 --
 -- This scheme is an attempt to reduce the number of actions at each location.
 assignActionsToLeaves
@@ -225,10 +238,35 @@ assignActionsToLeaves stringProjectionPathToSpecificActions stringTaggedWithSele
               (assignActionsPass2 pathSetWithAncestors left)
               (assignActionsPass2 pathSetWithAncestors right)
               tag
+
+    -- Deduplicate actions that have the same effect (even if labeled with different projection paths).
+    deduplicateEffectivelyEquivalentActions
+      :  AppendedTaggedStrings (Maybe ProjectionPath, Set ProjectionPath, Set SpecificAction)
+      -> AppendedTaggedStrings (Maybe ProjectionPath, Set ProjectionPath, Set SpecificAction)
+    deduplicateEffectivelyEquivalentActions stringTaggedWithSelectionPathAndProjectionPathsAndActions =
+      let deduplicateEffectivelyEquivalentActions (maybeSelectionClickPath, pathSet, specificActionsSet) =
+        ( maybeSelectionClickPath
+        , pathSet
+        , specificActionsSet
+          |> Set.toList
+          |> Utils.dedupBy
+              (\specficAction ->
+                case specficAction of
+                  NewValue changeType _ taggedValue -> toString changeType ++ " " ++ unparseToUntaggedString taggedValue
+                  Scrub projectionPath              -> "Scrub "     ++ pathToString projectionPath
+                  EditText projectionPath           -> "Edit Text " ++ pathToString projectionPath
+              )
+          |> Set.fromList
+        )
+      in
+      stringTaggedWithSelectionPathAndProjectionPathsAndActions
+      |> mapStringTags deduplicateEffectivelyEquivalentActions
+
   in
   stringTaggedWithSelectionPathAndProjectionPaths
   |> assignActionsPass1
-  |> assignActionsPass2 Set.empty
+  -- |> assignActionsPass2 Set.empty
+  |> deduplicateEffectivelyEquivalentActions
 
 
 plainStringView : Result String (AppendedTaggedStrings t) -> Html Msg
