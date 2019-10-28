@@ -166,6 +166,7 @@ getViewDatatypeName v = case vListUnapply v of
     if isAttrCorrect && isChildrenCorrect then
       vStringUnapply head
     else Nothing
+  Just [name, value] -> vStrUnapply name
   _ -> Nothing
 
 --------------------------------------------------------------------------------
