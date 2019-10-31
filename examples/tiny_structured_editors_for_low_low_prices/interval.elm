@@ -30,8 +30,11 @@ type Interval = Interval Begin End
 --     Inf                 -> "∞)"
 
 
+toString : Num -> String
+toString n = numToStringBuiltin n
+
 toString : Begin -> String
-beginToString begin =
+toString begin =
   case begin of
     NegInf             -> "(-∞"
     After num isClosed -> (if isClosed then "[" else "(") + toString num
