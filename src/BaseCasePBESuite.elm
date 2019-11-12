@@ -34,7 +34,7 @@ append xs ys =
   -- , ([], [0], [0])
   -- , ([0], [], [0])
   -- , ([0], [0], [0, 0])
-  , ([1, 0], [], [1, 0])
+    ([1, 0], [], [1, 0])
   -- , ([1, 0], [0], [1, 0, 0])
   ]""" 1
 
@@ -146,7 +146,7 @@ in
   ]""" 6
   """specifyFunction concat
   [ -- (LNil (), [])
-  , (LCons ([], LNil ()), [])
+    (LCons ([], LNil ()), [])
   , (LCons ([0], LNil ()), [0])
   -- , (LCons ([0], LCons([0], LNil ())), [0,0])
   -- , (LCons ([1], LNil ()), [1])
@@ -457,7 +457,7 @@ listNth xs n =
   ]""" 13
   """specifyFunction2 listNth
   [ -- ([], 0, 0)
-  , ([], 1, 0)
+    ([], 1, 0)
   -- , ([2], 0, 2)
   -- , ([2], 1, 0)
   -- , ([1, 2], 0, 1)
@@ -572,7 +572,7 @@ let
         Nil ()
 
       Cons p ->
-        ?? : natList
+        ?? : NatList
 in
 
 """
@@ -623,7 +623,7 @@ listSnoc xs n =
   """specifyFunction2 listSnoc
   [ -- ([], 0, [0])
   -- , ([], 1, [1])
-  , ([0], 0, [0, 0])
+    ([0], 0, [0, 0])
   , ([0], 1, [0, 1])
   -- , ([1, 0], 0, [1, 0, 0])
   -- , ([1, 0], 1, [1, 0, 1])
@@ -925,7 +925,7 @@ in
   [ -- (0, 0, 0)
   -- , (0, 1, 1)
   -- , (0, 2, 2)
-  , (1, 0, 1)
+    (1, 0, 1)
   , (1, 1, 1)
   , (1, 2, 2)
   -- , (2, 0, 2)
@@ -1148,7 +1148,7 @@ in
   -- , (Node (Leaf (), True, Node (Leaf (), True, Leaf ())), 3)
   -- , (Node (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), True, Leaf ()), 4)
   -- , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 4)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
+    (Node (Node (Leaf (), True, Leaf ()), True, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ()))), 6)
   ]""" 1
 
 tree_count_nodes = (,,,,)

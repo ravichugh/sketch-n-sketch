@@ -72,7 +72,7 @@ impl p q =
   ]""" 4
   """specifyFunction2 impl
   [ -- (T (), T (), T ())
-  , (T (), F (), F ())
+    (T (), F (), F ())
   -- , (F (), T (), T ())
   , (F (), F (), T ())
   ]""" 2
@@ -103,7 +103,7 @@ bool_xor = (,,,,)
   | T ()
 
 xor : Boolean -> Boolean -> Boolean
-xor p q = ??
+xor p q =
   case p of
     F _ -> ?? : Boolean
     T _ -> ?? : Boolean
@@ -930,7 +930,7 @@ type NatList
   | Cons (Nat, NatList)
 
 listStutter : NatList -> NatList
-listStutter xs = ??
+listStutter xs =
   case xs of
     Nil _ -> ?? : NatList
     Cons p -> ?? : NatList
