@@ -811,17 +811,17 @@ menuBar model =
               "Run PBE Benchmark Suite (Outer Match Sketch; n = 5)"
               (Core.Controller.msgRequestBenchmark 5 OuterMatchPBESuite.suite)
           , simpleTextButton
-              "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 1)"
-              (Core.Controller.msgRequestBenchmark 1 TailRecursivePBESuite.suite)
-          , simpleTextButton
-              "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 5)"
-              (Core.Controller.msgRequestBenchmark 5 TailRecursivePBESuite.suite)
-          , simpleTextButton
               "Run PBE Benchmark Suite (Base Case Sketch; n = 1)"
               (Core.Controller.msgRequestBenchmark 1 BaseCasePBESuite.suite)
           , simpleTextButton
               "Run PBE Benchmark Suite (Base Case Sketch; n = 5)"
               (Core.Controller.msgRequestBenchmark 5 BaseCasePBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 1)"
+              (Core.Controller.msgRequestBenchmark 1 TailRecursivePBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 5)"
+              (Core.Controller.msgRequestBenchmark 5 TailRecursivePBESuite.suite)
           ]
         ]
         -- [ [ simpleHtmlTextButton

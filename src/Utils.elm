@@ -1788,8 +1788,7 @@ maybeFindBy f list =
 --------------------------------------------------------------------------------
 
 curry : ((a, b) -> c) -> a -> b -> c
-curry f x y =
-  f (x, y)
+curry f x y = f (x, y)
 
 uncurry : (a -> b -> c) -> (a, b) -> c
 uncurry f (x, y) =
@@ -2034,3 +2033,19 @@ formatFloat n x =
 escapeUnderscores : String -> String
 escapeUnderscores =
   stringReplace "_" "\\_"
+
+--------------------------------------------------------------------------------
+
+stringMultiReplace : List (String, String) -> String -> String
+stringMultiReplace replacements string =
+  List.foldl (uncurry stringReplace) string replacements
+
+--------------------------------------------------------------------------------
+
+average : List Float -> Maybe Float
+average xs =
+  if List.isEmpty xs then
+    Nothing
+  else
+    Just <|
+      List.sum xs / toFloat (List.length xs)

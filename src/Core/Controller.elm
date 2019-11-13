@@ -25,6 +25,14 @@ import Model exposing (Model, Msg(..))
 import ImpureGoodies
 
 --------------------------------------------------------------------------------
+-- Parameters
+--------------------------------------------------------------------------------
+
+timeDecimals : Int
+timeDecimals =
+  3
+
+--------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
 
@@ -441,10 +449,10 @@ showBenchmarks replications benchmarks =
         ++ "}{"
         ++ toString (U.solutionCount data.window)
         ++ "}{"
-        ++ Utils.formatFloat 4 data.timeTaken
+        ++ Utils.formatFloat timeDecimals data.timeTaken
         ++ "}"
 
-    showRestricted maybeData =
+    showRestricted maybeData fullExampleCount =
       case maybeData of
         Just data ->
           let
@@ -455,12 +463,17 @@ showBenchmarks replications benchmarks =
           in
             "\\benchmarkExperimentTwo{"
               ++ toString data.exampleCount
-              ++ "}{"
+              ++ " ("
+              ++ toString
+                   ( round <| 100 *
+                       toFloat data.exampleCount / toFloat fullExampleCount
+                   )
+              ++ "\\%)}{"
               ++ toString totalValid
               ++ "}{"
               ++ toString (U.solutionCount data.window)
               ++ "}{"
-              ++ Utils.formatFloat 4 data.timeTaken
+              ++ Utils.formatFloat timeDecimals data.timeTaken
               ++ "}{"
               ++ toString data.validTopRecursive
               ++ "}{"
@@ -469,10 +482,16 @@ showBenchmarks replications benchmarks =
               ++ toString data.validTopNonRecursive
               ++ "}{"
               ++ toString (List.length data.window.topNonRecursive)
+              ++ "}{"
+              ++ ( if data.validTopRecursive > 0 then
+                     "\\benchmarkRec{}"
+                   else
+                     "\\benchmarkNonRec{}"
+                 )
               ++ "}"
 
         Nothing ->
-          "\\benchmarkExperimentTwo{---}{---}{---}{---}{---}{---}{---}{---}"
+          "\\benchmarkExperimentTwo{---}{---}{---}{---}{---}{---}{---}{---}{---}{---}"
 
     showBenchmark : Benchmark -> String
     showBenchmark b =
@@ -481,15 +500,40 @@ showBenchmarks replications benchmarks =
         ++ "}<br />"
         ++ showFull b.full
         ++ "<br />"
-        ++ showRestricted b.restricted
+        ++ showRestricted b.restricted b.full.exampleCount
         ++ "<br />"
+
+    averageSizePercent : Float
+    averageSizePercent =
+      let
+        sizePercent b =
+          case b.restricted of
+            Nothing ->
+              1
+
+            Just data ->
+              toFloat data.exampleCount / toFloat b.full.exampleCount
+      in
+        benchmarks
+          |> List.map sizePercent
+          |> Utils.average
+          |> Maybe.withDefault 1
   in
     "% Replications: n = "
       ++ toString replications
       ++ "<br /><br />"
+      ++ "% Average size percent: "
+      ++ toString (round <| 100 * averageSizePercent)
+      ++ "%<br /><br />"
       ++ ( benchmarks
              |> List.map showBenchmark
              |> String.join "\\\\<br />"
+             |> Utils.stringMultiReplace
+                  [ ("\\benchmarkName{bool\\_", "\\benchmarkNameBool{")
+                  , ("\\benchmarkName{list\\_", "\\benchmarkNameList{")
+                  , ("\\benchmarkName{nat\\_" , "\\benchmarkNameNat{")
+                  , ("\\benchmarkName{tree\\_", "\\benchmarkNameTree{")
+                  ]
          )
 
 msgRequestBenchmark
