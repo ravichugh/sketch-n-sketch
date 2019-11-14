@@ -379,17 +379,19 @@ priorityListInsert element priority priorityList = case priorityList of
     else
       head :: priorityListInsert element priority tail
 
-priorityListMerge priorityList1 priorityList2 = case priorityList1 of
-  [] -> priorityList2
-  ((x, priority1) as head) :: tail ->
-    case priorityList2 of
-      [] -> priorityList1
-      ((x2, priority2) as head2) :: tail2 ->
-        if priority1 >= priority2 then
-          head :: priorityListMerge tail priorityList2
-        else
-          head2 :: priorityListMerge priorityList1 tail2
-
+priorityListMerge priorityList1 priorityList2 =
+  let aux acc l1 l2 =
+        case l1  of
+          [] -> List.reverse (Utils.reverseInsert l2 acc)
+          ((x, priority1) as head) :: tail ->
+            case l2 of
+              [] -> List.reverse (Utils.reverseInsert l1 acc)
+              ((x2, priority2) as head2) :: tail2 ->
+                if priority1 >= priority2 then
+                  aux (head :: acc) tail l2
+                else
+                  aux (head2 :: acc) l1 tail2
+  in aux [] priorityList1 priorityList2
 priorityListMap: (a -> b) -> PriorityList a -> PriorityList b
 priorityListMap f = List.map (\(x, priority) -> (f x, priority))
 priorityListMapDelta: Int -> (a -> b) -> PriorityList a -> PriorityList b

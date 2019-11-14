@@ -1916,7 +1916,7 @@ htmlViaEval string =
 
 -- building block for updating
 freeze x = x
-expressionFreeze x = Debug.log \"expressionFreeze is deprecated. Please use Update.freezeExcept instead\" x
+expressionFreeze x = Debug.log \"expressionFreeze is deprecated. Please use (Update.freezeExcept (diff -> string) unfrozenParam (unfrozenParam -> expr)) instead\" x
 -----------------------------------------
 -- Building blocks functions
 
@@ -4162,7 +4162,8 @@ String = {
 
   -- In the forward direction, it joins the string.
   -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
-  joinAndSplitBack regexSplit delimiter x = if delimiter == \"\" then join_ x else {
+  joinAndSplitBack regexSplit delimiter x =
+    if delimiter == \"\" && regexSplit == \"\" then join_ x else {
         apply x = join__ delimiter x
         update {output, oldOutput, diffs} =
           Ok (Inputs [Regex.split regexSplit output])

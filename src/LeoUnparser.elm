@@ -1033,7 +1033,12 @@ unparseHtmlTextContent: HtmlInterpolationStyle -> String -> String
 unparseHtmlTextContent style content =
   content |>
   (if style == Raw then identity else Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@")) |>
-  (if style == Raw then identity
+  (if style == Raw then Regex.replace Regex.All regexExcape (\m -> case m.match of
+        "&" -> "&amp;"
+        "<" -> "&lt;"
+        ">" -> "&gt;"
+        _ -> m.match
+      )
    else if style == ScriptInterpolated then
      Regex.replace Regex.All regexEscapeScript (\m -> case m.match of
          "&" -> "&amp;"
