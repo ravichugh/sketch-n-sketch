@@ -277,6 +277,7 @@ type alias Benchmark =
         , validTopRecursive : Int
         , validTopNonRecursive : Int
         , validOthers : Int
+        , topIsValid : Bool
         }
   }
 
@@ -407,7 +408,8 @@ benchmark { name, definitions, fullExamples, restrictedExamples } =
             restrictedWindow =
               window restrictedHoleFillings
 
-            makeRestricted validTopRecursive validTopNonRecursive validOthers =
+            makeRestricted
+             validTopRecursive validTopNonRecursive validOthers topValid =
               Just
                 { window = restrictedWindow
                 , timeTaken = restrictedTimeTaken
@@ -415,13 +417,17 @@ benchmark { name, definitions, fullExamples, restrictedExamples } =
                 , validTopRecursive = validTopRecursive
                 , validTopNonRecursive = validTopNonRecursive
                 , validOthers = validOthers
+                , topIsValid = topValid == 1
                 }
           in
-            Task.map3 makeRestricted
+            Task.map4 makeRestricted
               (validCount restrictedWindow.topRecursive)
               (validCount restrictedWindow.topNonRecursive)
               (validCount restrictedWindow.others)
-
+              ( validCount <|
+                  Utils.maybeToList <|
+                    U.topSolution restrictedWindow
+              )
 
         Nothing ->
           Task.succeed Nothing
@@ -460,6 +466,9 @@ showBenchmarks replications benchmarks =
               [ .validTopRecursive, .validTopNonRecursive, .validOthers ]
                 |> List.map ((|>) data)
                 |> List.sum
+
+            smallestSolutionSuccess =
+              U.topSolution data.window
           in
             "\\benchmarkExperimentTwo{"
               ++ toString data.exampleCount
@@ -484,11 +493,13 @@ showBenchmarks replications benchmarks =
               ++ toString (List.length data.window.topNonRecursive)
               ++ "}{"
               ++ ( if data.validTopRecursive > 0 then
-                     "\\benchmarkRec{}"
+                     "R"
                    else
-                     "\\benchmarkNonRec{}"
+                     "N"
                  )
               ++ "}"
+              ++ " % Top solution successful: "
+              ++ toString data.topIsValid
 
         Nothing ->
           "\\benchmarkExperimentTwo{---}{---}{---}{---}{---}{---}{---}{---}{---}{---}"

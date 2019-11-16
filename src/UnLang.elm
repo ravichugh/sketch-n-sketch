@@ -1247,6 +1247,13 @@ solutionCount { topRecursive, topNonRecursive, others } =
     |> List.map List.length
     |> List.sum
 
+topSolution : Window -> Maybe HoleFilling
+topSolution { topRecursive, topNonRecursive } =
+  topRecursive ++ topNonRecursive
+    |> List.sortBy holeFillingSize
+    |> List.head
+
+
 --==============================================================================
 --= Miscellaneous
 --==============================================================================
