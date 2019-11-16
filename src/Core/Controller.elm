@@ -498,7 +498,7 @@ showBenchmarks replications benchmarks =
                      "N"
                  )
               ++ "}"
-              ++ " % Top solution successful: "
+              ++ " % Top 1: "
               ++ toString data.topIsValid
 
         Nothing ->
