@@ -50,10 +50,13 @@ import UnLang as U exposing (UnExp)
 import LeoUnparser
 import Types2
 import TinyStructuredEditorsForLowLowPricesView
+
 import PBESuite
 import OuterMatchPBESuite
 import TailRecursivePBESuite
 import BaseCasePBESuite
+import TopOnePBESuite
+
 import NonDet exposing (NonDet)
 import Core.Lang as C
 import Core.Uncompile
@@ -822,6 +825,12 @@ menuBar model =
           , simpleTextButton
               "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 5)"
               (Core.Controller.msgRequestBenchmark 5 TailRecursivePBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Top-1 Experiment; n = 1)"
+              (Core.Controller.msgRequestBenchmark 1 TopOnePBESuite.suite)
+          , simpleTextButton
+              "Run PBE Benchmark Suite (Top-1 Experiment; n = 5)"
+              (Core.Controller.msgRequestBenchmark 5 TopOnePBESuite.suite)
           ]
         ]
         -- [ [ simpleHtmlTextButton
