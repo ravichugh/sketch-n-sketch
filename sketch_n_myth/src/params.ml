@@ -7,6 +7,9 @@ let debug_mode : bool =
 let max_solution_count : int option =
   Some 30
 
+let uneval_case_budget : int =
+  10
+
 let max_total_time : float =
   10.0
 
