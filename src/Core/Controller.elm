@@ -449,8 +449,16 @@ benchmark { name, definitions, fullExamples, restrictedExamples } =
 showBenchmarks : Int -> List Benchmark -> String
 showBenchmarks replications benchmarks =
   let
+    (leftExperimentName, rightExperimentName) =
+      if List.length benchmarks == Dict.size PBESuite.suite then
+        ("One", "Two")
+      else
+        ("ThreeFull", "ThreeFewer")
+
     showFull data =
-      "\\benchmarkExperimentOne{"
+      "\\benchmarkExperiment"
+        ++ leftExperimentName
+        ++ "{"
         ++ toString data.exampleCount
         ++ "}{"
         ++ toString (U.solutionCount data.window)
@@ -470,7 +478,9 @@ showBenchmarks replications benchmarks =
             smallestSolutionSuccess =
               U.topSolution data.window
           in
-            "\\benchmarkExperimentTwo{"
+            "\\benchmarkExperiment"
+              ++ rightExperimentName
+              ++ "{"
               ++ toString data.exampleCount
               ++ " ("
               ++ toString

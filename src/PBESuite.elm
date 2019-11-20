@@ -95,7 +95,7 @@ neg p = ??
   """specifyFunction neg
   [ (T (), F ())
   , (F (), T ())
-  ]""" (-1)
+  ]""" 2
 
 bool_xor = (,,,,)
   """type Boolean
