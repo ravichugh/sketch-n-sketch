@@ -197,7 +197,7 @@ in
   , ([2,2,2,0], [2,0])
   , ([1,2,2,2,0], [1,2,0])
   ]""" 13
-  """specifyFunction2 compress
+  """specifyFunction compress
   [ ([], [])
   , ([0], [0])
   , ([1], [1])
