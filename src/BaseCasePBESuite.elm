@@ -947,13 +947,13 @@ listTake n xs =
   -- , (0, [0, 1], [])
   -- , (0, [1, 0, 1], [])
     (1, [], [])
-  , (1, [1], [1])
-  , (1, [0, 1], [0])
+  -- , (1, [1], [1])
+  -- , (1, [0, 1], [0])
   -- , (1, [1, 0, 1], [1])
   -- , (2, [], [])
   -- , (2, [1], [1])
-  -- , (2, [0, 1], [0, 1])
-  -- , (2, [1, 0, 1], [1, 0])
+  , (2, [0, 1], [0, 1])
+  , (2, [1, 0, 1], [1, 0])
   ]""" 3
 
 nat_iseven = (,,,,)
@@ -1046,9 +1046,9 @@ in
   , (1, 1, 1)
   , (1, 2, 2)
   -- , (2, 0, 2)
-  -- , (2, 1, 2)
+  , (2, 1, 2)
   -- , (2, 2, 2)
-  ]""" 3
+  ]""" 4
 
 nat_add = (,,,,)
   """type Nat
@@ -1080,12 +1080,12 @@ natAdd m n =
   [ -- (0, 0, 0)
   -- , (0, 1, 1)
   -- , (0, 2, 2)
-    (1, 0, 1)
+  -- , (1, 0, 1)
   -- , (1, 1, 2)
   -- , (1, 2, 3)
   -- , (2, 0, 2)
   -- , (2, 1, 3)
-  -- , (2, 2, 4)
+    (2, 2, 4)
   ]""" 1
 
 tree_binsert = (,,,,)
@@ -1211,10 +1211,10 @@ in
   """specifyFunction treeCollectLeaves
   [ -- (Leaf (), [])
   -- , (Node (Leaf (), True, Leaf ()), [True])
-    (Node (Leaf (), False, Leaf ()), [False])
-  , (Node (Node (Leaf (), True, Leaf ()), False, Leaf ()), [True, False])
-  -- , (Node (Node (Leaf (), False, Leaf ()), True, Leaf ()), [False, True])
-  -- , (Node (Leaf (), False, Node (Leaf (), True, Leaf ())), [False, True])
+  -- , (Node (Leaf (), False, Leaf ()), [False])
+  -- , (Node (Node (Leaf (), True, Leaf ()), False, Leaf ()), [True, False])
+    (Node (Node (Leaf (), False, Leaf ()), True, Leaf ()), [False, True])
+  , (Node (Leaf (), False, Node (Leaf (), True, Leaf ())), [False, True])
   ]""" 2
 
 tree_count_leaves = (,,,,)
@@ -1357,9 +1357,9 @@ in
   """specifyFunction treeInOrder
   [ -- (Leaf (), [])
   -- , (Node (Leaf (), 1, Leaf ()), [1])
-    (Node (Leaf (), 2, Leaf ()), [2])
-  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
-  -- , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
+  -- , (Node (Leaf (), 2, Leaf ()), [2])
+    (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), [1, 2])
+  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), [1, 2])
   ]""" 2
 
 tree_map = (,,,,)
@@ -1422,8 +1422,8 @@ in
     (div2, Node (Node (Leaf (), 2, Leaf ()), 2, Leaf ()), Node (Node (Leaf (), 1, Leaf ()), 1, Leaf ()))
   , (div2, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
   -- , (inc, Leaf (), Leaf ())
-  -- , (inc, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 1, Leaf ()))
-  ]""" 2
+  , (inc, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 1, Leaf ()))
+  ]""" 3
 
 tree_nodes_at_level = (,,,,)
   """type Boolean

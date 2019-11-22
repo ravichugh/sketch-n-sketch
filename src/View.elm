@@ -3489,10 +3489,14 @@ pbePopupPanel model =
                             ( if not <| List.isEmpty topRecursive then
                                 [ Html.h2
                                     []
-                                    [ Html.text "Top Recursive Results"
+                                    [ Html.text "Top Recursive Result"
                                     ]
                                 , Html.ol
-                                    []
+                                    [ Attr.style
+                                        [ ("padding", "0")
+                                        , ("list-style-type", "none")
+                                        ]
+                                    ]
                                     ( List.map
                                         (viewHoleFilling model)
                                         topRecursive
@@ -3504,10 +3508,14 @@ pbePopupPanel model =
                             ( if not <| List.isEmpty topNonRecursive then
                                 [ Html.h2
                                     []
-                                    [ Html.text "Top Non-Recursive Results"
+                                    [ Html.text "Top Non-Recursive Result"
                                     ]
                                 , Html.ol
-                                    []
+                                    [ Attr.style
+                                        [ ("padding", "0")
+                                        , ("list-style-type", "none")
+                                        ]
+                                    ]
                                     ( List.map
                                         (viewHoleFilling model)
                                         topNonRecursive

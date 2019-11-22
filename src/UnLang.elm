@@ -1215,7 +1215,7 @@ type alias Window =
 
 windowSize : Int
 windowSize =
-  3
+  1
 
 window : List HoleFilling -> Window
 window holeFillings =
