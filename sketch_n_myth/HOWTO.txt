@@ -1,0 +1,68 @@
+# How to Run Sketch-n-Myth
+
+
+
+1. Install opam, the OCaml package manager, from
+
+     https://opam.ocaml.org/doc/Install.html
+
+
+
+2. Using opam, install OCaml v4.08.1. For more detailed instructions, see:
+
+     https://ocaml.org/docs/install.html
+
+   For best performance, use an installation of OCaml that supports flambda
+   (e.g. `4.08.1+flambda` obtained via `opam switch create 4.08.1+flambda`).
+
+   For more information, see:
+
+     https://caml.inria.fr/pub/docs/manual-ocaml/flambda.html
+
+
+
+3. Navigate to the `sketch-n-myth` directory and run `make deps` to download all
+   the necessary opam dependencies.
+
+
+
+4. In the `sketch-n-myth` directory, run the Sketch-n-Myth server with the
+   command `make serve`. The server will be hosted on port 9090.
+
+
+
+5. In a new terminal, navigate to the `build/out` directory from the root of
+   the project.
+
+
+
+6. Run a web server in the `build/out/` directory on any port other than 9090.
+   For example, the following command would work:
+
+     php -S localhost:7532
+
+
+
+7. Open a browser with cross-origin resource sharing temporarily allowed. For
+   example, the following command will open Google Chrome on a Mac with
+   cross-origin resource sharing allowed:
+
+     open -a Google\ Chrome --args --disable-web-security --user-data-dir=\"\"
+
+   For more information, see:
+
+     https://stackoverflow.com/a/3177718
+
+   This step is necessary because we are running local servers on two different
+   ports (which counts as being a separate domain).
+
+
+
+8. In the newly-opened browser window, navigate to `localhost:7532`, where 7532
+   should be substituted for the port number used in Step 6.
+
+
+
+9. Click on the "Sketch-n-Myth" menu at the top to run the benchmarking suite in
+   its entirety, or view individual programs by clicking on the "File" menu then
+   selecting "Open from PBE Suite".
