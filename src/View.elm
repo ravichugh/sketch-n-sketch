@@ -57,6 +57,8 @@ import TailRecursivePBESuite
 import BaseCasePBESuite
 import TopOnePBESuite
 
+import PBEIntroOverview
+
 import NonDet exposing (NonDet)
 import Core.Lang as C
 import Core.Uncompile
@@ -869,7 +871,7 @@ menuBar model =
           --     Controller.msgAskNew Examples.blankHtmlTemplate model.needsSave
           -- , simpleTextButton "New From Template..." <|
           --     Controller.msgOpenDialogBox New
-          [ simpleTextButton "Open PBE Suite Example" <|
+          [ simpleTextButton "Open from PBE Suite" <|
               Controller.msgOpenDialogBox PBESuiteList
           ]
         , [ simpleTextButton "Save As..." <|
@@ -2330,6 +2332,13 @@ fileNewDialogBox model =
 
 filePBESuiteListDialogBox model =
   let
+    viewProgram (name, programText) =
+      [ styledUiButton
+          "wide"
+          name
+          (Core.Controller.msgLoadExample name programText)
+      ]
+
     viewExample name (programText, ex1, _, ex2, ex2Count) =
       [ styledUiButton
           "wide"
@@ -2353,10 +2362,32 @@ filePBESuiteListDialogBox model =
       []
       [Html.text "Programming by Example Suite"]
       []
-      ( PBESuite.suite
-          |> Dict.map viewExample
-          |> Dict.values
-          |> List.concat
+      ( List.concat
+          [ [ Html.h2
+                []
+                [ Html.text "Introduction and Overview Programs"
+                ]
+            ]
+          , PBEIntroOverview.programs
+              |> List.map viewProgram
+              |> List.concat
+          , [ Html.h2
+                []
+                [ Html.span
+                    [ Attr.style
+                        [ ("font-variant", "small-caps")
+                        ]
+                    ]
+                    [ Html.text "Myth"
+                    ]
+                , Html.text " Benchmark Suite"
+                ]
+            ]
+          , PBESuite.suite
+              |> Dict.map viewExample
+              |> Dict.values
+              |> List.concat
+          ]
       )
 
 fileSaveAsDialogBox model =
