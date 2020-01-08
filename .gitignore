@@ -37,6 +37,8 @@ tests/build
 user_study_logs/
 user_study_surveys/
 *.pyc
+*.hi
+*.o
 solver_server/reduce-algebra
 solver_server/log.txt
 /tests/pathtobenchmark.txt
