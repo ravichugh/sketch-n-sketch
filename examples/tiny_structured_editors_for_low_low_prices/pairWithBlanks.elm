@@ -1,8 +1,11 @@
-type Pair a b = Pair a b
+type Pair a b = Pair a b | Left a | Right b | Nothing
 
 pairToString aToStr bToStr pair =
   case pair of
     Pair a b -> "(" + aToStr a + "," + bToStr b + ")"
+    Left a   -> "(" + aToStr a + ", - )"
+    Right b  -> "( - ," + bToStr b + ")"
+    Nothing  -> "( - , - )"
 
 toString : Num -> String
 toString n = numToStringBuiltin n
