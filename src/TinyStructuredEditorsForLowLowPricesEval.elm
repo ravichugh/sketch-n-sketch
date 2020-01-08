@@ -23,7 +23,7 @@ dependencyAnnotators =
   , function      = Set.empty -- D_𝜅
   , application   = \closureTags   resultTags       -> Set.union closureTags resultTags -- D_𝚊𝚙𝚙
   , caseAndBranch = \scrutineeTags branchResultTags -> Set.union scrutineeTags branchResultTags -- D_𝐿 and D_𝑅
-  , operation     = \operandsTags                   -> Utils.unionAll operandsTags
+  , operation     = \operandsTags                   -> Utils.unionAll operandsTags -- We do not apply this rule to string appends because it would be messy. Arguably, string append in our system is analogous to tupling or applying a constructor, both of which are unannotated in Acar et al. Fig. 12
   }
 
 
@@ -349,7 +349,7 @@ evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions pro
   in
   eval dataTypeDefs multipleDispatchFunctions initialEnv program |> Result.andThen (\w ->
     case taggedValueToMaybeStringTaggedWithProjectionPaths w of
-      Just stringTagged -> Ok  <| mapStringTag (Set.insert []) stringTagged -- Tag whole string with root path.
+      Just stringTagged -> Ok  <| mapStringTag (Set.insert []) stringTagged -- Tag whole string with root path. TODO: do this at every invocation of toString
       Nothing           -> Err <| "Result was not just strings and appends! " ++ unparseToUntaggedString w
   )
   |> Result.map tidyUpProjectionPaths

@@ -32,6 +32,7 @@ functionPickerAndEditor modelState =
     [ Html.div [] [renderingFunctionPicker]
     , stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
     , Html.div [] [text "Selected paths: ", text (pathSetToString modelState.selectedPaths)]
+    , Html.div [] [text "Selected values: ", text (modelState.selectedPaths |> Set.toList |> List.map (pathToValue modelState.valueOfInterestTagged >> unparseToUntaggedString) |> String.join ", ")]
     , Html.div
         [ Attr.style [("padding", "1em")] ]
         [ structuredEditor modelState ]
@@ -44,6 +45,23 @@ functionPickerAndEditor modelState =
         [ plainStringView modelState.stringTaggedWithProjectionPathsResult ]
     -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions
     ]
+
+
+pathToValue : TaggedValue -> ProjectionPath -> TaggedValue
+pathToValue rootValueOfInterestTagged path =
+  pathToMaybeValue rootValueOfInterestTagged path
+  |> Maybe.withDefault rootValueOfInterestTagged
+
+pathToMaybeValue : TaggedValue -> ProjectionPath -> Maybe TaggedValue
+pathToMaybeValue rootValueOfInterestTagged path =
+  let targetPathSet = Set.singleton path in
+  rootValueOfInterestTagged
+  |> foldTaggedValue Nothing
+      (\subvalueOfInterestTagged maybeFound ->
+        if subvalueOfInterestTagged.paths == targetPathSet
+        then Just subvalueOfInterestTagged
+        else maybeFound
+      )
 
 
 pathToString : ProjectionPath -> String
@@ -156,7 +174,7 @@ assignSelectionClickAreas_
 assignSelectionClickAreas_ pathsInAncestors stringTaggedWithProjectionPaths =
   let pathSetWithAncestors = Set.union pathsInAncestors (stringTag stringTaggedWithProjectionPaths) in
   case stringTaggedWithProjectionPaths of
-    TaggedString ""     pathSet -> TaggedString "" (Nothing, pathSet)
+    TaggedString ""     pathSet -> TaggedString "" (Nothing, pathSet) -- No assignment for empty strings.
     TaggedString string pathSet ->
       let
         maybeDeepestLeftmostPath =

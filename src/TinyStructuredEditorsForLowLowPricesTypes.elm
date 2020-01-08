@@ -143,6 +143,18 @@ mapTaggedValue f w =
     VAppend w1 w2                       -> f { w | v = VAppend (recurse w1) (recurse w2) }
     VNum num                            -> f w
 
+-- Fold children right to left, then self (bottom-up).
+foldTaggedValue : acc -> (TaggedValue -> acc -> acc) -> TaggedValue -> acc
+foldTaggedValue acc f w =
+  let recurse w acc = foldTaggedValue acc f w in
+  case w.v of
+    VClosure funcEnv fName varName body -> f w acc
+    VClosureDynamic ident               -> f w acc
+    VCtor ctorName ws                   -> f w <| List.foldr recurse acc ws
+    VString string                      -> f w acc
+    VAppend w1 w2                       -> f w <| recurse w1 <| recurse w2 acc
+    VNum num                            -> f w acc
+
 -- For debugging.
 unparseToUntaggedString : TaggedValue -> String
 unparseToUntaggedString taggedValue =
