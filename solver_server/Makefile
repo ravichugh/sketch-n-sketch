@@ -31,12 +31,26 @@ examples: ensure_reduce
 ### Debian Only ###
 
 setup:
+	sudo apt-get install ncurses-dev
+	svn --version || sudo apt-get install subversion
+	libtoolize --version || sudo apt-get install libtool-bin
 	(echo "" | reduce-algebra/bin/redcsl) || make test_reduce
 	ruby --version || sudo apt-get install ruby
 	which websocketd || (wget https://github.com/joewalnes/websocketd/releases/download/v0.2.12/websocketd-0.2.12-linux_amd64.zip && unzip websocketd-0.2.12-linux_amd64.zip && sudo mv websocketd /usr/local/bin/)
 	make daemonize status
 
-daemonize:
+# https://certbot.eff.org/lets-encrypt/ubuntubionic-other
+/etc/letsencrypt/live/tormenta.cs.uchicago.edu/fullchain.pem:
+	sudo apt-get update
+	sudo apt-get install software-properties-common
+	sudo add-apt-repository universe
+	sudo add-apt-repository ppa:certbot/certbot
+	sudo apt-get update
+	sudo apt-get install certbot
+	sudo certbot certonly --standalone
+	sudo certbot renew --dry-run
+
+daemonize: /etc/letsencrypt/live/tormenta.cs.uchicago.edu/fullchain.pem
 	sudo systemctl stop sketch-n-sketch_solver_server; sudo systemctl disable sketch-n-sketch_solver_server; sudo rm /etc/systemd/system/sketch-n-sketch_solver_server.service; sudo cp sketch-n-sketch_solver_server.service /etc/systemd/system/
 	sudo systemctl enable sketch-n-sketch_solver_server
 	sudo systemctl start sketch-n-sketch_solver_server
