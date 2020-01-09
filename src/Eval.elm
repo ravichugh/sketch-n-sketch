@@ -760,7 +760,7 @@ apply options syntax env bt bt_ (Expr exp_ as e) psLeft esLeft funcBody closureE
         case fRetVal1.v_ of
           VClosure recNames ps newFuncBody closureEnv -> let
               recEnv = recNames |> List.map (\fName ->
-                (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust_ "[Internal error] Did not find recursive closure in its environment"))
+                (fName, Utils.maybeFind fName closureEnv |> Utils.fromJust "[Internal error] Did not find recursive closure in its environment"))
             in aux ps esLeft newFuncBody (recEnv ++ closureEnv) revArgVals (Utils.reverseInsert fRetWs1 revArgWidgets)
           _ ->
             errorWithBacktrace syntax (e::bt) <| strPos exp_.start ++ " too many arguments given to function"

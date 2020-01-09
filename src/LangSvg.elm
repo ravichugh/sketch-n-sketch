@@ -959,7 +959,7 @@ maybeGetSvgNode nodeId (_, indexedTree) =
 justGetSvgNode : String -> NodeId -> RootedIndexedTree -> (ShapeKind, List Attr, List NodeId)
 justGetSvgNode cap nodeId slate =
   maybeGetSvgNode nodeId slate
-  |> Utils.fromJust_ ("justGetSvgNode: " ++ cap)
+  |> Utils.fromJust ("justGetSvgNode: " ++ cap)
 
 
 childNodeIds : IndexedTreeNode -> List NodeId

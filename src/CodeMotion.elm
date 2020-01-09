@@ -321,8 +321,8 @@ pluck__ p e1 path =
             )
       else if List.length ps == List.length es && i == 1 + List.length ps && Utils.maybeToBool maybePTail && Utils.maybeToBool maybeETail then
         -- Recursing into the tail binding
-        let pi = Utils.fromJust_ "CodeMotion1" maybePTail in
-        let ei = Utils.fromJust_ "CodeMotion2" maybeETail in
+        let pi = Utils.fromJust "CodeMotion1" maybePTail in
+        let ei = Utils.fromJust "CodeMotion2" maybeETail in
         pluck__ pi ei is
         |> Maybe.map
             (\(plucked, newTailPat, newTailBoundExp) ->
@@ -412,7 +412,7 @@ pluckPatFromPats path pats =
 justRemovePatFromPats : String -> List Int -> List Pat -> List Pat
 justRemovePatFromPats failureMessage path pats =
   pluckPatFromPats path pats
-  |> Utils.fromJust_ failureMessage
+  |> Utils.fromJust failureMessage
   |> Tuple.second
 
 
@@ -839,7 +839,7 @@ maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic programUniqueNames =
             case expToMaybeMathExp boundExpWhereUsedInvalidly of
               Nothing  -> noChange
               Just rhs ->
-                let lhs = expToMaybeMathExp (eVar identOfDefWhereUsedInvalidly) |> Utils.fromJust_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic expToMaybeMathExp (eVar identOfDefWhereUsedInvalidly)" in
+                let lhs = expToMaybeMathExp (eVar identOfDefWhereUsedInvalidly) |> Utils.fromJust "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic expToMaybeMathExp (eVar identOfDefWhereUsedInvalidly)" in
                 let locIdInvalidlyFree = Utils.justGet_ "maybeSatisfyUniqueNamesDependenciesByTwiddlingArithmetic Utils.justGet_ identInvalidlyFree identToVarId" identInvalidlyFree identToVarId in
                 -- TODO: Explore all options non-deterministically.
                 case LocEqn.solveForLocUnchecked locIdInvalidlyFree Dict.empty lhs rhs |> Maybe.map mathExpToExp of
@@ -1489,8 +1489,8 @@ insertPat__ (patToInsert, boundExp) p e1 path =
               )
         else if List.length ps == List.length es && i == 1 + List.length ps && Utils.maybeToBool maybePTail && Utils.maybeToBool maybeETail then
           -- Recursing into the tail binding
-          let pi = Utils.fromJust_ "CodeMotion3" maybePTail in
-          let ei = Utils.fromJust_ "CodeMotion4" maybeETail in
+          let pi = Utils.fromJust "CodeMotion3" maybePTail in
+          let ei = Utils.fromJust "CodeMotion4" maybeETail in
           insertPat__ (patToInsert, boundExp) pi ei is
           |> Result.map
               (\(newPat, newBoundExp) ->
@@ -2319,7 +2319,7 @@ addArg_ syntax      pathedPatId {-target-} funcToIsSafePatToInsertArgValExpAndNe
                       let caption =
                         let baseCaption =
                           "Insert Argument " ++
-                          (patToInsert |> identifiersListInPat |> List.head |> Utils.fromJust_ "Impsbl")
+                          (patToInsert |> identifiersListInPat |> List.head |> Utils.fromJust "Impsbl")
                         in
                         let intoFuncString =
                           originalProgram
@@ -2707,7 +2707,7 @@ reorderFunctionArgs funcEId paths targetPath originalProgram =
                  if ident == funcName then Just boundExp else Nothing
                  )
             )
-            |> Utils.fromJust_ "TODO gross"
+            |> Utils.fromJust "TODO gross"
           in
           -- TODO copy-pasted
           let funcVarUsageEIdsInsideSiblingBindingsAndSelf =
@@ -3673,7 +3673,7 @@ makeEIdVisibleToEIds originalProgram mobileEId viewerEIds =
              |> Maybe.map (\(SynthesisResult {exp}) -> exp)
           else
              -- Case 2.2: Move just the definition needed.
-             let pathedPatId = bindingPathedPatternIdForUniqueName mobileUniqueName bindingLet |> Utils.fromJust_ "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames" in
+             let pathedPatId = bindingPathedPatternIdForUniqueName mobileUniqueName bindingLet |> Utils.fromJust "makeEIdVisibleToEIds: bindingPathedPatternIdForUniqueName mobileUniqueName originalProgramUniqueNames" in
              moveDefinitionsBeforeEId Syntax.Leo [pathedPatId] (expEId expToWrap) originalProgram -- Syntax only used for generating description, which we throw away
              |> synthesisResults
              |> Utils.findFirst isResultSafe -- Use a result that preserves the program binding structure.
@@ -3910,8 +3910,8 @@ swapDefinitionsTransformation syntax originalProgram pid1 pid2 =
             let (originalProgramUniqueNames, uniqueNameToOldName) = assignUniqueNames originalProgram in
             let maxId = Parser.maxId originalProgramUniqueNames in
             let (tempPId, tempEId) = (maxId + 1, maxId + 2) in
-            let (pat1UniqueNames, boundExp1UniqueNames) = findPatAndBoundExpByPId pid1 originalProgramUniqueNames |> Utils.fromJust_ "CodeMotion.swapDefinitionsTransformation" in
-            let (pat2UniqueNames, boundExp2UniqueNames) = findPatAndBoundExpByPId pid2 originalProgramUniqueNames |> Utils.fromJust_ "CodeMotion.swapDefinitionsTransformation" in
+            let (pat1UniqueNames, boundExp1UniqueNames) = findPatAndBoundExpByPId pid1 originalProgramUniqueNames |> Utils.fromJust "CodeMotion.swapDefinitionsTransformation" in
+            let (pat2UniqueNames, boundExp2UniqueNames) = findPatAndBoundExpByPId pid2 originalProgramUniqueNames |> Utils.fromJust "CodeMotion.swapDefinitionsTransformation" in
             let newProgramUniqueNames =
               originalProgramUniqueNames
               |> replaceExpNodePreservingPrecedingWhitespace (expEId boundExp1UniqueNames) (boundExp1UniqueNames |> setEId tempEId)

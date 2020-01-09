@@ -471,7 +471,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                       [] -> List.reverse revAcc
                       hd :: tailIdentifiers ->
                         if List.member hd tailIdentifiers then List.reverse revAcc
-                        else aux tailIdentifiers ((hd, Dict.get hd dOld |> Utils.fromJust_ "Update.ERecord.prevLetsDecls")::revAcc)
+                        else aux tailIdentifiers ((hd, Dict.get hd dOld |> Utils.fromJust "Update.ERecord.prevLetsDecls")::revAcc)
                    in aux declsIdentifiersList  []
                  in
                  case diffs of
@@ -490,7 +490,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                         Err msg -> UpdateCriticalError msg
                         Ok mbMiRecord  ->
                       let (mbMiAcc, updatedEnvRecord) = Dict.foldl (\key diff (mbMiAcc, updatedEnvRecord) ->
-                           let newValue = Dict.get key dOut |> Utils.fromJust_ "ERecord.newValue" in
+                           let newValue = Dict.get key dOut |> Utils.fromJust "ERecord.newValue" in
                            if isDeclarationIdentifier key then
                              (mbMiAcc, UpdatedEnv.set key newValue diff updatedEnvRecord)
                            else

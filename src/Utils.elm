@@ -680,7 +680,7 @@ findAllIndices p = zipi1 >> List.filter (\(i, x) -> p x) >> List.map Tuple.first
 
 -- 1-based
 geti : Int -> List a -> a
-geti i = fromJust_ "Utils.geti" << List.head << List.drop (i-1)
+geti i = fromJust "Utils.geti" << List.head << List.drop (i-1)
 
 -- 0-based
 replacei0 : Int -> a -> List a -> List a
@@ -773,6 +773,22 @@ maximumBy f list =
             )
       in
       Just maxElem
+
+minimumBy : (a -> comparable) -> List a -> Maybe a
+minimumBy f list =
+  case list of
+    []         -> Nothing
+    head::rest ->
+      let (minElem, min) =
+        rest
+        |> foldl
+            (head, f head)
+            (\elem ((minElem, min) as acc) ->
+              let value = f elem in
+              if value < min then (elem, value) else acc
+            )
+      in
+      Just minElem
 
 listValue: (ws, value) -> value
 listValue = Tuple.second
@@ -953,16 +969,12 @@ resultToBool r = case r of
   Ok _  -> True
   Err _ -> False
 
---fromJust m = case m of
---  Just x -> x
---  Nothing -> Debug.crash <| "Utils.fromJust: Nothing"
-
-fromJust_ s mx = case mx of
+fromJust s mx = case mx of
   Just x  -> x
-  Nothing -> Debug.crash <| "Utils.fromJust_: " ++ s
+  Nothing -> Debug.crash <| "Utils.fromJust: " ++ s
 
 -- Construct error lazily by calling f ()
-fromJust__ f mx = case mx of
+fromJustLazy f mx = case mx of
   Just x  -> x
   Nothing -> Debug.crash <| f ()
 
@@ -992,9 +1004,9 @@ unwrapNestedResult nestedResult =
 justGetError s k d () =
   "Utils.justGet " ++ s ++ ": key " ++ toString k ++ " not found in dictionary " ++ toString d
 
-justGet k d = fromJust__ (justGetError "" k d) <| Dict.get k d
+justGet k d = fromJustLazy (justGetError "" k d) <| Dict.get k d
 
-justGet_ s k d = fromJust__ (justGetError s k d) <| Dict.get k d
+justGet_ s k d = fromJustLazy (justGetError s k d) <| Dict.get k d
 
 getWithDefault key default dict =
   case Dict.get key dict of
@@ -1076,12 +1088,12 @@ maybeInitLast list =
     [x] -> Just ([], x)
     head::xs -> Maybe.map (\(init, last) -> (head::init, last)) <| maybeInitLast xs
 
-head msg = fromJust_ msg << List.head
-tail msg = fromJust_ msg << List.tail
-last msg = fromJust_ msg << maybeLast
-init msg = fromJust_ msg << maybeInit
+head msg = fromJust msg << List.head
+tail msg = fromJust msg << List.tail
+last msg = fromJust msg << maybeLast
+init msg = fromJust msg << maybeInit
 head_ = head "Utils.head_"
-tail_ = fromJust_ "Utils.tail_" << List.tail
+tail_ = fromJust "Utils.tail_" << List.tail
 last_ = last "Utils.last_"
 init_ = init "Utils.init_"
 

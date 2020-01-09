@@ -1,4 +1,4 @@
-module TSEFLLP exposing (prepare, newLangValResult, showNewValueOptions, selectPath, deselectPath, deselectAll, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
+module TSEFLLP exposing (prepare, newLangValResult, mousePosition, mouseOut, selectPath, deselectPath, deselectAll, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
 
 import Dict
 import Set
@@ -68,11 +68,11 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
       maybeValueOfInterestTypeFromLeo
       |> Maybe.map TSEFLLPDesugaring.replaceTBoolTListWithTVarTApp
 
-    stringProjectionPathToSpecificActions =
-      stringTaggedWithProjectionPathsResult
-      |> Result.toMaybe
-      |> Maybe.map (TSEFLLPActions.generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOfInterestType valueOfInterestTagged)
-      |> Maybe.withDefault Dict.empty
+    -- stringProjectionPathToSpecificActions =
+    --   stringTaggedWithProjectionPathsResult
+    --   |> Result.toMaybe
+    --   |> Maybe.map (TSEFLLPActions.generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOfInterestType valueOfInterestTagged)
+    --   |> Maybe.withDefault Dict.empty
 
   in
   { oldModelState
@@ -81,19 +81,29 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
   , maybeRenderingFunctionNameAndProgram  = maybeRenderingFunctionNameAndProgram
   , valueOfInterestTagged                 = valueOfInterestTagged
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
-  , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
-  , maybeNewValueOptions                  = Nothing
+  -- , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
+  -- , maybeNewValueOptions                  = Nothing
   , liveSyncInfo                          = TSEFLLPScrub.prepareLiveUpdates syncOptions program valueOfInterest
   }
 
 
-showNewValueOptions : TSEFLLPTypes.ModelState -> List TaggedValue -> TSEFLLPTypes.ModelState
-showNewValueOptions oldModelState newValueOptions =
-  { oldModelState | maybeNewValueOptions = Just newValueOptions }
+-- showNewValueOptions : TSEFLLPTypes.ModelState -> List TaggedValue -> TSEFLLPTypes.ModelState
+-- showNewValueOptions oldModelState newValueOptions =
+--   { oldModelState | maybeNewValueOptions = Just newValueOptions }
 
 
 newLangValResult : TaggedValue -> Result String Lang.Val
 newLangValResult = TSEFLLPResugaring.taggedValToLangValResult
+
+
+mousePosition : TSEFLLPTypes.ModelState -> (Int, Int) -> TSEFLLPTypes.ModelState
+mousePosition oldModelState (xPx, yPx) =
+  { oldModelState | mousePosition = (xPx, yPx) }
+
+
+mouseOut : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
+mouseOut oldModelState =
+  { oldModelState | mousePosition = mouseGone }
 
 
 selectPath : TSEFLLPTypes.ModelState -> ProjectionPath -> TSEFLLPTypes.ModelState
@@ -108,7 +118,8 @@ deselectPath oldModelState projectionPath =
 
 deselectAll : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
 deselectAll oldModelState =
-  { oldModelState | selectedPaths = Set.empty, maybeNewValueOptions = Nothing }
+  { oldModelState | selectedPaths = Set.empty }
+  -- { oldModelState | selectedPaths = Set.empty, maybeNewValueOptions = Nothing }
 
 
 startTextEditing : TSEFLLPTypes.ModelState -> (ProjectionPath, String) -> TSEFLLPTypes.ModelState

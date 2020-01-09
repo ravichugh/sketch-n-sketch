@@ -7,6 +7,7 @@ import Utils
 import Either exposing (Either(..))
 import HtmlUtils exposing (..)
 
+import BoundsUtils
 import Lang exposing (..)
 import ValUnparser exposing (..)
 import LangTools
@@ -521,7 +522,7 @@ buildSvgWidgets wCanvas hCanvas widgets model =
       |> List.map ShapeWidgets.valToMaybeBounds
       |> (++) (retWs |> List.map ShapeWidgets.maybeWidgetBounds)
       |> Utils.filterJusts
-      |> ShapeWidgets.maybeEnclosureOfAllBounds
+      |> BoundsUtils.maybeEnclosureOfAllBounds
     in
     case maybeBounds of
       Nothing -> []
@@ -1706,7 +1707,7 @@ makeZonesPath model shape id nodeAttrs =
   let zFillAndStroke = zonesFillAndStroke model id shape x0 y0 nodeAttrs in
   let zSelect =
     let ptCrossDot (maybeIndex, (xNumTr, yNumTr)) =
-      let i = Utils.fromJust_ "makeZonesPath" maybeIndex in
+      let i = Utils.fromJust "makeZonesPath" maybeIndex in
       zoneSelectCrossDot model False (id, shape, Point i) xNumTr dummyVal yNumTr dummyVal
     in
     let crossDots = List.concatMap ptCrossDot listOfMaybeIndexWithPt in

@@ -1246,7 +1246,7 @@ getDrawableFunctions_ : Exp -> EId -> List (Ident, Type)
 getDrawableFunctions_ program viewerEId =
   let boundExpsInScope =
     LangTools.expEnvAt_ program viewerEId
-    |> Utils.fromJust_ "getDrawableFunctions_ expEnvAt_"
+    |> Utils.fromJust "getDrawableFunctions_ expEnvAt_"
     |> Dict.toList
     |> List.filterMap
         (\(ident, boundExp) ->
@@ -1256,7 +1256,7 @@ getDrawableFunctions_ program viewerEId =
         )
   in
   findWithAncestorsByEId program viewerEId
-  |> Utils.fromJust_ "getDrawableFunctions_ findWithAncestorsByEId"
+  |> Utils.fromJust "getDrawableFunctions_ findWithAncestorsByEId"
   |> List.filterMap
       (\exp ->
         --let _ = Debug.log "TODO: Draw.getDrawableFunctions_ is expected ETyp but they are now moved as ELet's Declarationss' ELetAnnotation" () in

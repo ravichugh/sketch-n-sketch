@@ -113,7 +113,7 @@ digHole originalExp selectedFeatures ((_, tree) as slate) widgets syncOptions =
   let valueExps =
     List.reverse locsetList
     |> List.map
-        (\(locId, _, _) -> findExpByLocId commonScope locId |> Utils.fromJust_ "ValueBasedTransform.digHole valueExps")
+        (\(locId, _, _) -> findExpByLocId commonScope locId |> Utils.fromJust "ValueBasedTransform.digHole valueExps")
   in
   let featureNamesWithEquationWithScopes =
     featuresWithEquation
@@ -267,7 +267,7 @@ indexedRelate syntax originalExp selectedFeatures selectedShapes slideNumber mov
       let (_, locIds, targets) = Utils.unzip3 indexedLocIdsWithTarget in
       let locEIds =
         locIds
-        |> List.map (\locId -> locIdToEId originalExp locId |> Utils.fromJust_ "ValueBasedTransform.indexedRelate locEIds")
+        |> List.map (\locId -> locIdToEId originalExp locId |> Utils.fromJust "ValueBasedTransform.indexedRelate locEIds")
       in
       possibleMathExps
       |> List.map
@@ -374,7 +374,7 @@ rankComparedTo originalExp synthesisResults =
           if List.length locLineNums <= 1 || List.any isInfinite locLineNums then
             Utils.infinity
           else
-            (List.maximum locLineNums |> Utils.fromJust_ "rankComparedTo1") - (List.minimum locLineNums |> Utils.fromJust_ "rankComparedTo2")
+            (List.maximum locLineNums |> Utils.fromJust "rankComparedTo1") - (List.minimum locLineNums |> Utils.fromJust "rankComparedTo2")
         in
         SynthesisResult <|
           { description = description
@@ -524,7 +524,7 @@ synthesizeRelationCoordinateWiseAndSortResults doSynthesis originalExp featuresA
 --   if List.all ((/=) Nothing) evaluatedFeatures then
 --     let sortedFeatures =
 --       features
---       |> List.sortBy (\feature -> Utils.fromJust_ "makeEquidistant" <| evaluateFeature feature slate locIdToNumberAndLoc)
+--       |> List.sortBy (\feature -> Utils.fromJust "makeEquidistant" <| evaluateFeature feature slate locIdToNumberAndLoc)
 --     in
 --     makeEquidistantOverlappingTriples originalExp sortedFeatures slideNumber movieNumber movieTime slate syncOptions locIdToNumberAndLoc
 --   else
@@ -763,7 +763,7 @@ relate__ syntax solutionsCache relationToSynthesize featureEqns originalExp mayb
           |> List.foldl
               (\(resultMathExp, dependentLocId) (programSoFar, dependentLocExpsSoFar) ->
                 let independentLocIdSet = Set.intersect (mathExpLocIdSet resultMathExp) unfrozenLocIdSet in
-                let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust_ "relate__: dependendLocId locIdToEId" in
+                let dependentEId = locIdToEId originalExp dependentLocId |> Utils.fromJust "relate__: dependendLocId locIdToEId" in
                 let (programWithLocsLifted, locIdToNewName, _) = CodeMotion.liftLocsSoVisibleTo programSoFar independentLocIdSet (Set.singleton dependentEId) in
                 let dependentLocExp =
                   mathExpToExp (if relationToSynthesize == Equalize then frozen else unann) frozenLocIdToNum locIdToNewName resultMathExp
@@ -848,7 +848,7 @@ buildAbstraction syntax program selectedFeatures selectedShapes selectedBlobs sl
                     |> Utils.dedup
                     |> List.map pVar
                   )
-                call = eCall funcName (List.map (patToExp >> Utils.fromJust_ "ValueBasedTransform patToExp" >> replacePrecedingWhitespace " ") argPats)
+                call = eCall funcName (List.map (patToExp >> Utils.fromJust "ValueBasedTransform patToExp" >> replacePrecedingWhitespace " ") argPats)
                 programWithCall =
                   program
                   |> replaceExpNodePreservingPrecedingWhitespace

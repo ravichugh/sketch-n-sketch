@@ -92,7 +92,7 @@ solve solutionsCache eqns targetVarIds =
             _                                        -> Debug.crash "Shouldn't happen: Bug in Solver.solve/normalizedVarIdMapping"
         )
     |> Utils.projJusts
-    |> Utils.fromJust_ "Also shouldn't happen: Bug in Solver.solve"
+    |> Utils.fromJust "Also shouldn't happen: Bug in Solver.solve"
   in
   case targetVarIds |> List.map (\targetVarId -> Dict.get targetVarId oldToNormalizedVarIds) |> Utils.projJusts of
     Just normalizedTargetVarIds ->

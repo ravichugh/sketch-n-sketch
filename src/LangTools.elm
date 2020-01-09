@@ -314,12 +314,12 @@ allLocIds exp =
 justFindExpByEId : Exp -> EId -> Exp
 justFindExpByEId exp eid =
   findExpByEId exp eid
-  |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
+  |> Utils.fromJustLazy (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
 
 justFindExpWithAncestorsByEId : Exp -> EId -> List Exp
 justFindExpWithAncestorsByEId root eid =
   findWithAncestorsByEId root eid
-  |> Utils.fromJust__ (\() -> "justFindExpWithAncestorsByEId: Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds root)
+  |> Utils.fromJustLazy (\() -> "justFindExpWithAncestorsByEId: Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds root)
 
 
 locationInProgram : Exp -> EId -> (Int, Int)
@@ -1503,7 +1503,7 @@ setPatName ((scopeEId, branchI), path) newName exp =
   let _ = Debug.log "setPatName" () in
   let maybeScopeExp = findExpByEId exp scopeEId in
   let maybeNewScopeExp =
-    let makeNewScope e__ = replaceE__ (Utils.fromJust_ "setPatName" maybeScopeExp) e__ in
+    let makeNewScope e__ = replaceE__ (Utils.fromJust "setPatName" maybeScopeExp) e__ in
     case Maybe.map unwrapExp maybeScopeExp of
        Just (ELet ws1 letKind decls ws3 body)->
           let newDecls = decls |>
@@ -1829,7 +1829,7 @@ findScopeExpAndPatByPathedPatternId ((scopeEId, branchI), path) exp =
          Nothing
   in
   maybePat
-  |> Maybe.map (\pat -> ((Utils.fromJust_ "findScopeExpAndPatByPathedPatternId" maybeScopeExp, branchI - 1), pat))
+  |> Maybe.map (\pat -> ((Utils.fromJust "findScopeExpAndPatByPathedPatternId" maybeScopeExp, branchI - 1), pat))
 
 findPatByPathedPatternId : PathedPatternId -> Exp -> Maybe Pat
 findPatByPathedPatternId pathedPatId exp =
@@ -2735,7 +2735,7 @@ type ExpressionBinding
 
 -- Too much recursion here, for some reason.
 preludeExpEnv: Dict Ident ExpressionBinding
-preludeExpEnv = expEnvAt_ LeoParser.prelude (expEId <| lastTopLevelExp LeoParser.prelude) |> Utils.fromJust_ "LangTools.preludeExpEnv"
+preludeExpEnv = expEnvAt_ LeoParser.prelude (expEId <| lastTopLevelExp LeoParser.prelude) |> Utils.fromJust "LangTools.preludeExpEnv"
 
 -- Return bindings to expressions (as best as possible) at EId
 expEnvAt : Exp -> EId -> Maybe (Dict Ident ExpressionBinding)

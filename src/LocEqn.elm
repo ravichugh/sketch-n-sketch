@@ -1065,7 +1065,7 @@ maybeExtractUnsharedExpression lhs rhs =
             -- All but one child is identical between the lhs and rhs
             let justUnsharedSubexpressionPair =
               Utils.findFirst ((/=) Nothing) unsharedSubexpressions
-              |> Utils.fromJust_ "extractUnsharedExpression this is logically impossible"
+              |> Utils.fromJust "extractUnsharedExpression this is logically impossible"
             in
             justUnsharedSubexpressionPair
 
@@ -1251,7 +1251,7 @@ mathExpEval locIdToNum mathExp =
   mathExp
   |> Solver.applySubst locIdToNum
   |> Solver.evalToMaybeNum
-  |> Utils.fromJust__ (\_ -> "LocEqn.mathExpEval incomplete subst " ++ toString (locIdToNum, mathExp))
+  |> Utils.fromJustLazy (\_ -> "LocEqn.mathExpEval incomplete subst " ++ toString (locIdToNum, mathExp))
 
 
 traceToMathExp : Trace -> MathExp

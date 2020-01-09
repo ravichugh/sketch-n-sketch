@@ -172,6 +172,7 @@ tagVal path w =
   setTag (Set.insert path w.paths) deeperTagged
 
 
+-- Limitation: only looks at outermost constructor for now.
 findMultipleDispatchImplementationNameBasedOnArgType : List Types2.DataTypeDef -> MultipleDispatchFunctions -> Ident -> TaggedValue -> Maybe Ident
 findMultipleDispatchImplementationNameBasedOnArgType dataTypeDefs multipleDispatchFunctions funcName argTaggedVal =
   let

@@ -218,7 +218,7 @@ doesChildNeedParens e =
 shouldHaveParensOnAccountOfParent : Exp -> EId -> Bool
 shouldHaveParensOnAccountOfParent root expEId =
   parentByEId root expEId |>
-    Utils.fromJust_ "Couldn't find hole EId" |>
+    Utils.fromJust "Couldn't find hole EId" |>
       Maybe.map doesChildNeedParens |>
         Maybe.withDefault False
 
@@ -405,8 +405,8 @@ makeSimpleReplaceWildcardTool   toolID    replDesc  p__      model    selections
           (InactiveDeuceTransform, Possible)
         (_, _, [], [wildcardPPID], [], [], [], [], []) ->
           let
-            pat = LangTools.findPatByPathedPatternId wildcardPPID root |> Utils.fromJust_ "No pat"
-            pid = LangTools.pathedPatternIdToPId wildcardPPID root |> Utils.fromJust_ "No pat"
+            pat = LangTools.findPatByPathedPatternId wildcardPPID root |> Utils.fromJust "No pat"
+            pid = LangTools.pathedPatternIdToPId wildcardPPID root |> Utils.fromJust "No pat"
             newPat = replaceP__ pat p__
             newProgram = replacePatNodePreservingPrecedingWhitespace pid newPat root
             result =
@@ -1028,8 +1028,8 @@ swapDefinitionsTool model selections =
           (InactiveDeuceTransform, Possible)
         (_, _, [], [ppid1, ppid2], [], [], [], [], []) ->
           ( CodeMotion.swapDefinitionsTransformation model.syntax model.inputExp
-              (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool")
-              (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust_ "CodeMotion.swapDefinitionsTool")
+              (LangTools.pathedPatternIdToPId ppid1 model.inputExp |> Utils.fromJust "CodeMotion.swapDefinitionsTool")
+              (LangTools.pathedPatternIdToPId ppid2 model.inputExp |> Utils.fromJust "CodeMotion.swapDefinitionsTool")
               |> mbThunkToTransform
           , Satisfied
           )
@@ -2763,7 +2763,7 @@ alignExpressionsTool model selections =
                       exps
                         |> List.map (\(Expr e) -> e.start.col)
                         |> List.maximum
-                        |> Utils.fromJust_
+                        |> Utils.fromJust
                              "DeuceTools.alignExpressionsTool maxCol"
                   in
                     model.inputExp
@@ -2994,7 +2994,7 @@ formatTool model selections =
                     let
                       maxEqualsSignCol =
                         List.maximum listEqualsSignCol
-                          |> Utils.fromJust_ "maxEqualsSignCol"
+                          |> Utils.fromJust "maxEqualsSignCol"
                     in
                       basicTransformationResult "Remove Line Breaks and Align Equals Signs"
                         (rebuild (Regex.replace Regex.All (Regex.regex "(\\n)*\\n") (always "\n"))
@@ -3172,13 +3172,13 @@ formatTool model selections =
                 let
                   expLet =
                     findExpByEId model.inputExp eId
-                      |> Utils.fromJust_ "DeuceTools Format findExpByEId"
+                      |> Utils.fromJust "DeuceTools Format findExpByEId"
 
                   listLetExp : List LetExp
                   listLetExp =
                     bindingNums
                       |> List.map (findLetexpByBindingNumber expLet)
-                      |> List.map (Utils.fromJust_ "DeuceTools Format findLetexpByBindingNumber")
+                      |> List.map (Utils.fromJust "DeuceTools Format findLetexpByBindingNumber")
 
                   -- Too much work for now to support individual BindingNums
                   -- of an ELet. Just use the version that formats every LetExp

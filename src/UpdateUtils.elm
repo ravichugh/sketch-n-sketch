@@ -2199,9 +2199,9 @@ mergeList submerger =
 
 mergeDict: (v -> v -> VDiffs -> v -> VDiffs -> (v, VDiffs)) -> Dict k v -> Dict k v -> Dict k VDictElemDiff -> Dict k v -> Dict k VDictElemDiff -> (Dict k v, Dict k VDictElemDiff)
 mergeDict submerger originalDict modified1Dict modifs1 modified2Dict modifs2 =
-  let get0 name = Dict.get name originalDict  |> Utils.fromJust_ "mergeDict0" in
-  let get1 name = Dict.get name modified1Dict |> Utils.fromJust_ "mergeDict1" in
-  let get2 name = Dict.get name modified2Dict |> Utils.fromJust_ "mergeDict2" in
+  let get0 name = Dict.get name originalDict  |> Utils.fromJust "mergeDict0" in
+  let get1 name = Dict.get name modified1Dict |> Utils.fromJust "mergeDict1" in
+  let get2 name = Dict.get name modified2Dict |> Utils.fromJust "mergeDict2" in
   Dict.merge
        (\kIn1 vIn1 (accDict, accDiffs) ->
           case vIn1 of
@@ -2235,9 +2235,9 @@ mergeDict submerger originalDict modified1Dict modifs1 modified2Dict modifs2 =
 
 mergeRecord: (v -> v -> VDiffs -> v -> VDiffs -> (v, VDiffs)) -> Dict k v -> Dict k v -> Dict k VDiffs -> Dict k v -> Dict k VDiffs -> (Dict k v, Dict k VDiffs)
 mergeRecord submerger originalDict modified1Dict modifs1 modified2Dict modifs2 =
-  let get0 name = Dict.get name originalDict  |> Utils.fromJust_ "mergeDict0" in
-  let get1 name = Dict.get name modified1Dict |> Utils.fromJust_ "mergeDict1" in
-  let get2 name = Dict.get name modified2Dict |> Utils.fromJust_ "mergeDict2" in
+  let get0 name = Dict.get name originalDict  |> Utils.fromJust "mergeDict0" in
+  let get1 name = Dict.get name modified1Dict |> Utils.fromJust "mergeDict1" in
+  let get2 name = Dict.get name modified2Dict |> Utils.fromJust "mergeDict2" in
   Dict.merge
        (\kIn1 vIn1 (accDict, accDiffs) ->
           (Dict.insert kIn1 (get1 kIn1) accDict, Dict.insert kIn1 vIn1 accDiffs)

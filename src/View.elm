@@ -2820,7 +2820,7 @@ deuceKeyboardPopupPanel model =
             case mbSelectedResult of
               Just selectedResult ->
                 Lang.transformationToSynthesisResult selectedResult
-                |> Utils.fromJust_ "Smart complete results must always have synthesis results"
+                |> Utils.fromJust "Smart complete results must always have synthesis results"
               Nothing ->
                 Utils.head_ synthesisResults
           (SynthesisResult sResult) = sResultWrapped

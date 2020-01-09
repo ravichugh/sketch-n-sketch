@@ -78,7 +78,7 @@ rangeSynthesisResults originalExp =
               case maybeNums of
                 Just (n1::n2::n3::nRest) -> -- At least three nums
                   let nums = n1::n2::n3::nRest in
-                  let (min, max) = (List.minimum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults min" |> round, List.maximum nums |> Utils.fromJust_ "ExpressionBasedTransform.rangeSynthesisResults max" |> round) in
+                  let (min, max) = (List.minimum nums |> Utils.fromJust "ExpressionBasedTransform.rangeSynthesisResults min" |> round, List.maximum nums |> Utils.fromJust "ExpressionBasedTransform.rangeSynthesisResults max" |> round) in
                   let (characterization, ascending) =
                     if nums == (List.range min max |> List.map toFloat) then
                       ("ascending", nums)
@@ -507,7 +507,7 @@ detectClones originalExp candidateExpFilter minCloneCount minCloneSize argCount 
         -- Finally, name and replace arguments
         let (argRenamingsList, _) =
           Utils.maybeZipN parameterExpLists -- Go from lists of parameters per call to lists of parameters per arg
-          |> Utils.fromJust_ "ExpressionBasedTransform.detectClones maybeZipN"
+          |> Utils.fromJust "ExpressionBasedTransform.detectClones maybeZipN"
           |> Utils.foldli1
               (\(argN, parametersForArg) (renamings, usedNames) ->
                 let argBaseName =
@@ -1079,7 +1079,7 @@ rewritePrimitivePointsOfSelectedBlobs model (nxBase, xBaseLoc)
   let eSubst =
     let locIdToEId =
       Lang.locIdToEId model.inputExp
-        >> Utils.fromJust_ "rewritePrimitivePointsOfSelectedBlobs"
+        >> Utils.fromJust "rewritePrimitivePointsOfSelectedBlobs"
     in
     pointsOfSelectedBlobs |> List.foldl (\(xOther, yOther) acc ->
       -- TODO when anchor is derived point, rewrite anchor shape appropriately

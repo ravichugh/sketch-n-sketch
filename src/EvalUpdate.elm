@@ -1238,7 +1238,7 @@ lang = {
   eApp = wsMetadata <| \wsb e1 e2s ->
     withDummyExpInfo <| EApp wsb e1 (fromArray e2s) SpaceApp space0,
   eOp = wsMetadata <| \wsb opStr e2s ->
-    let op = withDummyRange <| Utils.fromJust_ ("The operator " ++ opStr ++ " is not supported") <| Parser.opFromIdentifier opStr in
+    let op = withDummyRange <| Utils.fromJust ("The operator " ++ opStr ++ " is not supported") <| Parser.opFromIdentifier opStr in
     withDummyExpInfo <| EOp wsb space1 op (fromArray e2s) space0,
   eList = wsMetadata <| \wsb wsExps ->
     withDummyExpInfo <| EList wsb (wsExps |> fromArray |> List.map ((,) space0)) space0 Nothing space0,

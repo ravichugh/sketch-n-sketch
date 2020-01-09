@@ -548,7 +548,7 @@ stripPolymorphicArrow t =
   case t.val.t__ of
     -- requiring all type variables in one TForall
     TForall _ typeVars t0 _ ->
-      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (List.map (tpVarUnapply >> Utils.fromJust_ "Types") typeVars, arrow))
+      stripArrow t0 |> Utils.bindMaybe (\arrow -> Just (List.map (tpVarUnapply >> Utils.fromJust "Types") typeVars, arrow))
     _ ->
       stripArrow t |> Utils.bindMaybe (\arrow -> Just ([], arrow))
 
@@ -600,7 +600,7 @@ isWellFormed typeEnv tipe =
   {- TODO: Fix this
   let (prenexVars, tipe_) =
     case tipe.val.t__ of
-       TForall _ vars t _ -> (List.map (tpVarUnapply >> Utils.fromJust_ "Types") vars, t)
+       TForall _ vars t _ -> (List.map (tpVarUnapply >> Utils.fromJust "Types") vars, t)
        _                             -> ([], tipe)
   in
   let typeEnv_ = List.map TypeVar (List.reverse prenexVars) ++ typeEnv in

@@ -1,5 +1,6 @@
 module ShapeWidgets exposing (..)
 
+import BoundsUtils
 import Lang exposing (..)
 import LeoParser as Parser
 import LangUnparser
@@ -584,11 +585,11 @@ shapeFeatureEquationOf getAttrNum getPathPoint getPolyPoint toOpacity toTransfor
       DFeat distanceFeature ->
         let cap = Utils.spaces ["shapeFeatureEquationOf:", kind, toString shapeFeature] in
         case distanceFeature of
-          Width     -> Utils.fromJust_ cap equations.mWidth
-          Height    -> Utils.fromJust_ cap equations.mHeight
-          Radius    -> Utils.fromJust_ cap equations.mRadius
-          RadiusX   -> Utils.fromJust_ cap equations.mRadiusX
-          RadiusY   -> Utils.fromJust_ cap equations.mRadiusY
+          Width     -> Utils.fromJust cap equations.mWidth
+          Height    -> Utils.fromJust cap equations.mHeight
+          Radius    -> Utils.fromJust cap equations.mRadius
+          RadiusX   -> Utils.fromJust cap equations.mRadiusX
+          RadiusY   -> Utils.fromJust cap equations.mRadiusY
           _         -> crash ()
 
       _ -> crash () in
@@ -748,7 +749,7 @@ evaluateFeatureEquation eqn =
 
 
 evaluateFeatureEquation_ =
-  Utils.fromJust_ "evaluateFeatureEquation_" << evaluateFeatureEquation
+  Utils.fromJust "evaluateFeatureEquation_" << evaluateFeatureEquation
 
 
 evaluateLineFeatures attrs =
@@ -818,22 +819,6 @@ getPrimitivePointEquations (_, tree) nodeId =
 ------------------------------------------------------------------------------
 -- Shape Bounds
 
--- Enclosing bounding box
-enclosureOfBoundsPair : (Num, Num, Num, Num) -> (Num, Num, Num, Num) -> (Num, Num, Num, Num)
-enclosureOfBoundsPair (left1, top1, right1, bot1) (left2, top2, right2, bot2) =
-  ( min  left1  left2
-  , min   top1   top2
-  , max right1 right2
-  , max   bot1   bot2
-  )
-
-maybeEnclosureOfAllBounds : List (Num, Num, Num, Num) -> Maybe (Num, Num, Num, Num)
-maybeEnclosureOfAllBounds bounds =
-  case bounds of
-    []          -> Nothing
-    first::rest -> Just (rest |> List.foldl enclosureOfBoundsPair first)
-
-
 valToMaybeBounds : Val -> Maybe (Num, Num, Num, Num)
 valToMaybeBounds val =
   case valToMaybeAnnotatedPoint val of
@@ -846,13 +831,13 @@ valToMaybeBounds val =
               let shapeNodes = Dict.values shapeDict in
               shapeNodes
               |> List.filterMap maybeShapeBounds
-              |> maybeEnclosureOfAllBounds
+              |> BoundsUtils.maybeEnclosureOfAllBounds
 
             Err _ ->
               -- Maybe this is a list of shapes or points?
               vals
               |> List.filterMap valToMaybeBounds
-              |> maybeEnclosureOfAllBounds -- Returns nothing if input list empty (no shapes found)
+              |> BoundsUtils.maybeEnclosureOfAllBounds -- Returns nothing if input list empty (no shapes found)
         _ -> Nothing
 
 
@@ -877,7 +862,7 @@ maybeShapeBounds svgNode =
     LangSvg.SvgNode shapeKind shapeAttrs childIds ->
       pointFeaturesOfShape shapeKind shapeAttrs
       |> List.filterMap (maybeEvaluateShapePointFeature shapeKind shapeAttrs)
-      |> pointsToMaybeBounds
+      |> BoundsUtils.pointsToMaybeBounds
 
 
 -- Returns Maybe (left, top, right, bot)
@@ -885,17 +870,7 @@ maybeWidgetBounds : Widget -> Maybe (Num, Num, Num, Num)
 maybeWidgetBounds widget =
   pointFeaturesOfWidget widget
   |> List.filterMap (maybeEvaluateWidgetPointFeature widget)
-  |> pointsToMaybeBounds
-
-
--- Returns Nothing if list is empty; otherwise returns Just (left, top, right, bot)
--- Yet unused, but will be needed for code dedduplication between selectablePointToMaybeXY and maybeShapeBounds and maybeWidgetBounds.
-pointsToMaybeBounds : List (Num, Num) -> Maybe (Num, Num, Num, Num)
-pointsToMaybeBounds points =
-  let (xs, ys) = List.unzip points in
-  case Utils.projJusts [ List.minimum xs, List.minimum ys, List.maximum xs, List.maximum ys ] of
-    Just [ left, top, right, bot ] -> Just (left, top, right, bot)
-    _                              -> Nothing
+  |> BoundsUtils.pointsToMaybeBounds
 
 
 ------------------------------------------------------------------------------
@@ -1179,7 +1154,7 @@ selectedFeaturesToProximalDistalEIdInterpretations program ((rootI, shapeTree) a
     |> List.map
         (\feature ->
           featureToValEquation feature shapeTree widgets Dict.empty
-          |> Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation"
+          |> Utils.fromJust "selectedFeaturesToEIdLists: can't make feature into val equation"
           |> featureValEquationToProximalDistalEIdSets expFilter
         )
     |> List.unzip
@@ -1202,7 +1177,7 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
       let returnNotPartOfAPoint () =
         let (thisProximalInterp, thisDistalInterp) =
           featureToValEquation selectableFeature shapeTree widgets Dict.empty
-          |> Utils.fromJust_ "selectedFeaturesToProximalDistalPointEIdInterpretations0: can't make feature into val equation"
+          |> Utils.fromJust "selectedFeaturesToProximalDistalPointEIdInterpretations0: can't make feature into val equation"
           |> featureValEquationToProximalDistalEIdSets expFilter
         in
         let (remainingProximalInterps, remainingDistalInterps) = recurse rest in
@@ -1218,8 +1193,8 @@ selectedFeaturesToProximalDistalPointEIdInterpretations program ((rootI, shapeTr
             then (selectableFeature, otherSelectableFeature)
             else (otherSelectableFeature, selectableFeature)
           in
-          let xValEqn = featureToValEquation xSelectableFeature shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists1: can't make feature into val equation" in
-          let yValEqn = featureToValEquation ySelectableFeature shapeTree widgets Dict.empty |> Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" in
+          let xValEqn = featureToValEquation xSelectableFeature shapeTree widgets Dict.empty |> Utils.fromJust "selectedFeaturesToEIdLists1: can't make feature into val equation" in
+          let yValEqn = featureToValEquation ySelectableFeature shapeTree widgets Dict.empty |> Utils.fromJust "selectedFeaturesToEIdLists2: can't make feature into val equation" in
           let xValTree = featureValEquationToValTree xValEqn in
           let yValTree = featureValEquationToValTree yValEqn in
           let (proximalInterp1, proximalInterp2, distalInterp1, distalInterp2) =
@@ -1249,7 +1224,7 @@ selectedFeaturesValTrees ((rootI, shapeTree) as slate) widgets selectedFeatures 
   |> List.map
       (\feature ->
         featureToValEquation feature shapeTree widgets Dict.empty
-        |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+        |> Utils.fromJust "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
         |> featureValEquationToValTree
       )
 
@@ -1264,11 +1239,11 @@ selectedFeaturesToEIdInterpretationLists program ((rootI, shapeTree) as slate) w
   case selectedFeatures of
     [] -> []
     selectableFeature::rest ->
-      let eidSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists: can't make feature into val equation" <| featureToValEquation selectableFeature shapeTree widgets Dict.empty in
+      let eidSets = featureValEquationToEIdSets expFilter <| Utils.fromJust "selectedFeaturesToEIdLists: can't make feature into val equation" <| featureToValEquation selectableFeature shapeTree widgets Dict.empty in
       -- Try to interpret as point?
       case rest |> Utils.findFirst (\otherSelectableFeature -> featuresAreXYPairs selectableFeature otherSelectableFeature) of
         Just otherSelectableFeature ->
-          let otherEIdSets = featureValEquationToEIdSets expFilter <| Utils.fromJust_ "selectedFeaturesToEIdLists2: can't make feature into val equation" <| featureToValEquation otherSelectableFeature shapeTree widgets Dict.empty in
+          let otherEIdSets = featureValEquationToEIdSets expFilter <| Utils.fromJust "selectedFeaturesToEIdLists2: can't make feature into val equation" <| featureToValEquation otherSelectableFeature shapeTree widgets Dict.empty in
           let singletonEIdSets      = eidSets      |> List.filter (Set.size >> (==) 1) in
           let singletonOtherEIdSets = otherEIdSets |> List.filter (Set.size >> (==) 1) in
           let pointTuples =
@@ -1300,7 +1275,7 @@ selectedShapesToProximalDistalEIdInterpretations program ((rootI, shapeTree) as 
     |> List.map
         (\nodeId ->
           selectedShapeToValEquation nodeId shapeTree
-          |> Utils.fromJust_ "selectedShapesToProximalDistalEIdInterpretations: can't make shape into val equation"
+          |> Utils.fromJust "selectedShapesToProximalDistalEIdInterpretations: can't make shape into val equation"
           |> featureValEquationToProximalDistalEIdSets expFilter
         )
     |> List.unzip
@@ -1316,7 +1291,7 @@ selectedShapesValTrees ((rootI, shapeTree) as slate) selectedShapes =
   |> List.map
       (\nodeId ->
         selectedShapeToValEquation nodeId shapeTree
-        |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+        |> Utils.fromJust "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
         |> featureValEquationToValTree
       )
 
@@ -1328,7 +1303,7 @@ selectedShapesValTrees ((rootI, shapeTree) as slate) selectedShapes =
 --   |> List.map
 --       (\nodeId ->
 --         selectedShapeToValEquation nodeId shapeTree
---         |> Utils.fromJust_ "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
+--         |> Utils.fromJust "selectedShapesToEIdInterpretationLists: can't make shape into val equation"
 --         |> featureValEquationToEIdSets expFilter
 --       )
 

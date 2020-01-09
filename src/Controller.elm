@@ -86,7 +86,7 @@ port module Controller exposing
   , msgUpdateBackpropExampleInput
   , msgShowUnExpPreview
   , msgClearUnExpPreview
-  , msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPShowNewValueOptions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
+  , msgTSEFLLPMousePosition, msgTSEFLLPMouseOut, msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
   , msgLoadPBESuiteExample
   , msgBenchmarkPBE
   , msgRequestCoreRun
@@ -2147,7 +2147,7 @@ msgKeyDown keyCode =
             else
               old
           else
-            handleDeuceHotKey old keyCodes <| Utils.fromJust_ "Impossible" mbKeyboardFocusedWidget
+            handleDeuceHotKey old keyCodes <| Utils.fromJust "Impossible" mbKeyboardFocusedWidget
 
         else if
           not currentKeyDown &&
@@ -3750,7 +3750,7 @@ deuceChooserUI old initText titleAndTextToTransformationResults =
 moveSmartCompleteSelection old isDown =
   let
     oldDeuceKeyboardInfo =
-      Utils.fromJust_ "No keyboard info" old.mbDeuceKeyboardInfo
+      Utils.fromJust "No keyboard info" old.mbDeuceKeyboardInfo
     {text, textToTransformationResults, smartCompleteSelection} =
       oldDeuceKeyboardInfo
     textResults =
@@ -3843,7 +3843,7 @@ handleDeuceHotKey oldModel keysDown selected =
     DeuceTools.smartCompleteHoleViaHotkey old selected |> deuceChooserUI old ""
   else if mbPrefixOfNumberOrOp keysDown /= Nothing then
     DeuceTools.smartCompleteHoleViaHotkey old selected
-    |> deuceChooserUI old (mbPrefixOfNumberOrOp keysDown |> Utils.fromJust_ "bad num/op")
+    |> deuceChooserUI old (mbPrefixOfNumberOrOp keysDown |> Utils.fromJust "bad num/op")
 
   else if keysDown == [Keys.keyS] then
     DeuceTools.renameVariableViaHotkey old selected |> deuceChooserUI old ""
@@ -4655,6 +4655,20 @@ refreshTSEFLLP old =
               old.tsefllpState
   }
 
+msgTSEFLLPMousePosition point =
+  Msg ("TSEFLLP Mouse Position " ++ toString point) <| \model ->
+    let _ = Utils.log <| "TSEFLLP Mouse Position " ++ toString point in
+    { model | tsefllpState =
+                  TSEFLLP.mousePosition model.tsefllpState point
+    }
+
+msgTSEFLLPMouseOut =
+  Msg ("TSEFLLP Mouse Out") <| \model ->
+    let _ = Utils.log <| "TSEFLLP Mouse Out" in
+    { model | tsefllpState =
+                  TSEFLLP.mouseOut model.tsefllpState
+    }
+
 msgSelectTSEFLLPPath path =
   Msg ("Select TSEFLLP path " ++ toString path) <| \model ->
     { model | tsefllpState =
@@ -4667,11 +4681,11 @@ msgDeselectTSEFLLPPath path =
                   TSEFLLP.deselectPath model.tsefllpState path
     }
 
-msgTSEFLLPShowNewValueOptions newValueOptions =
-  Msg "Show new TSEFLLP value options" <| \model ->
-    { model | tsefllpState =
-                  TSEFLLP.showNewValueOptions model.tsefllpState newValueOptions
-    }
+-- msgTSEFLLPShowNewValueOptions newValueOptions =
+--   Msg "Show new TSEFLLP value options" <| \model ->
+--     { model | tsefllpState =
+--                   TSEFLLP.showNewValueOptions model.tsefllpState newValueOptions
+--     }
 
 msgTSEFLLPSelectNewValue tsefllpVal =
   Msg "Select new TSEFLLP value" <| \model ->

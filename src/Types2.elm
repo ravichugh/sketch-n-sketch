@@ -825,7 +825,7 @@ inferTypeDataExp gamma stuff thisExp listLetExp =
                            []
                    )
               |> List.head
-              |> Utils.fromJust_
+              |> Utils.fromJust
                    "Typechecking data constructor: 'args' should always exist"
               |> ( \argsRecord ->
                      case unwrapExp argsRecord of
@@ -835,7 +835,7 @@ inferTypeDataExp gamma stuff thisExp listLetExp =
                        _ ->
                          Nothing
                  )
-              |> Utils.fromJust_
+              |> Utils.fromJust
                    ( "Typechecking data constructor: "
                        ++ "'args' should always be record"
                    )
@@ -3333,8 +3333,8 @@ introduceTypeAliasTool inputExp selections =
 
             maybeArgIndexRange =
               let
-                min = Utils.fromJust_ "introduceTypeAliasTool" <| List.minimum indices
-                max = Utils.fromJust_ "introduceTypeAliasTool" <| List.maximum indices
+                min = Utils.fromJust "introduceTypeAliasTool" <| List.minimum indices
+                max = Utils.fromJust "introduceTypeAliasTool" <| List.maximum indices
               in
                 if List.range min max == List.sort indices then
                   Just (min, max)

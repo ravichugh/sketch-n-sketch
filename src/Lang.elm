@@ -1024,7 +1024,7 @@ patTargetPositionToTargetPathedPatId (beforeAfter, referencePathedPatId, _) =
           Before -> referencePathAsPList
           After  ->
             pathRightSibling referencePathAsPList
-            |> Utils.fromJust_ ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePathedPatId))
+            |> Utils.fromJust ("invalid target pattern id path of [] in target path position: " ++ toString (beforeAfter, referencePathedPatId))
   in
     (referenceScopeId, targetPath)
 
@@ -1809,7 +1809,7 @@ findLetexpByBindingNumber program targetBinding =
 -- LangTools.justFindExpByEId : EId -> Exp -> Exp
 -- LangTools.justFindExpByEId eid exp =
 --   findExpByEId exp eid
---   |> Utils.fromJust__ (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
+--   |> Utils.fromJustLazy (\() -> "Couldn't find eid " ++ toString eid ++ " in " ++ unparseWithIds exp)
 
 
 findPatByPId : Exp -> PId -> Maybe Pat
@@ -4589,7 +4589,7 @@ freeVars : Exp -> List Exp
 freeVars exp =
   let removeIntroducedBy pats vars =
     let introduced = identifiersListInPats pats in
-    vars |> List.filter (\var -> not <| List.member (Utils.fromJust_ "freeVars" <| expToMaybeIdent var) introduced)
+    vars |> List.filter (\var -> not <| List.member (Utils.fromJust "freeVars" <| expToMaybeIdent var) introduced)
   in
   case (unwrapExp exp) of
     EVar _ x                           -> [exp]
@@ -4697,7 +4697,7 @@ freeIdentifiersList exp =
   freeVars exp
   |> List.map expToMaybeIdent
   |> Utils.projJusts
-  |> Utils.fromJust_ "Lang.freeIdentifiersList"
+  |> Utils.fromJust "Lang.freeIdentifiersList"
 
 getTopLevelOptions: Exp -> List (String, String)
 getTopLevelOptions e = getOptions e

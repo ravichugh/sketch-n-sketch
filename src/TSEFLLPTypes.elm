@@ -20,12 +20,15 @@ type alias ModelState =
   , showWidgets                           : Bool
   , valueOfInterestTagged                 : TaggedValue
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
-  , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
+  -- , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
+  , mousePosition                         : (Int, Int)
   , selectedPaths                         : Set ProjectionPath
   , maybeTextEditingPathAndText           : Maybe (ProjectionPath, String)
-  , maybeNewValueOptions                  : Maybe (List TaggedValue)
+  -- , maybeNewValueOptions                  : Maybe (List TaggedValue)
   , liveSyncInfo                          : Sync.LiveInfo
   }
+
+mouseGone = (-1000, -1000)
 
 initialModelState =
   { renderingFunctionNames                = []
@@ -34,10 +37,11 @@ initialModelState =
   , showWidgets                           = True -- For creating new toString examples without seeing the generated TSEFLLP editor.
   , valueOfInterestTagged                 = noTag (VCtor "Nothing" [])
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
-  , stringProjectionPathToSpecificActions = Dict.empty
+  -- , stringProjectionPathToSpecificActions = Dict.empty
+  , mousePosition                         = mouseGone
   , selectedPaths                         = Set.empty
   , maybeTextEditingPathAndText           = Nothing
-  , maybeNewValueOptions                  = Nothing
+  -- , maybeNewValueOptions                  = Nothing
   , liveSyncInfo                          = { triggers = Dict.empty, initSubstPlus = Dict.empty }
   }
 
@@ -222,11 +226,23 @@ type AppendedTaggedStrings t
 type alias StringTaggedWithProjectionPaths = AppendedTaggedStrings (Set ProjectionPath)
 -- type alias StringTaggedWithSpecificActions = AppendedTaggedStrings (Set SpecificAction)
 
+stringLength : AppendedTaggedStrings t -> Int
+stringLength appendedTaggedStrings =
+  case appendedTaggedStrings of
+    TaggedString string _           -> String.length string
+    TaggedStringAppend left right _ -> stringLength left + stringLength right
+
 stringTag : AppendedTaggedStrings t -> t
 stringTag appendedTaggedStrings =
   case appendedTaggedStrings of
     TaggedString _ tag         -> tag
     TaggedStringAppend _ _ tag -> tag
+
+taggedStringToNormalString : AppendedTaggedStrings t -> String
+taggedStringToNormalString taggedString =
+  case taggedString of
+    TaggedString string _           -> string
+    TaggedStringAppend left right _ -> taggedStringToNormalString left ++ taggedStringToNormalString right
 
 gatherStringTags : AppendedTaggedStrings t -> List t
 gatherStringTags taggedString =
