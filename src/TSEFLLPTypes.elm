@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPricesTypes exposing (..)
+module TSEFLLPTypes exposing (..)
 
 import Dict exposing (Dict)
 import Set exposing (Set)

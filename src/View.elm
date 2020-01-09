@@ -49,7 +49,7 @@ import Eval
 import UnLang as U exposing (UnExp)
 import LeoUnparser
 import Types2
-import TinyStructuredEditorsForLowLowPricesView
+import TSEFLLPView
 import PBESuite
 import NonDet exposing (NonDet)
 import Core.Lang as C
@@ -1815,7 +1815,7 @@ outputPanel model =
               [ Html.text model.valueEditorString ]
           ]
         (Nothing, StructuredEditor, _) ->
-          TinyStructuredEditorsForLowLowPricesView.functionPickerAndEditor model.tinyStructuredEditorsForLowLowPricesState
+          TSEFLLPView.functionPickerAndEditor model.tsefllpState
         (Nothing, _, _) ->
           Canvas.build canvasDim model
 

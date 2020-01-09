@@ -1,5 +1,5 @@
 -- Convert from ordinary Sketch-n-Sketch language to our core language for tiny structured editors.
-module TinyStructuredEditorsForLowLowPricesDesugaring exposing (makeDesugaredToStringProgram, desugarVal, replaceTBoolTListWithTVarTApp, dataTypeDefsWithoutTBoolsTLists)
+module TSEFLLPDesugaring exposing (makeDesugaredToStringProgram, desugarVal, replaceTBoolTListWithTVarTApp, dataTypeDefsWithoutTBoolsTLists)
 
 import Set exposing (Set)
 
@@ -10,7 +10,7 @@ import Types2
 import Utils
 import ValUnparser
 
-import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
+import TSEFLLPTypes exposing (..)
 
 
 nilExp            = ECtor "Nil" []
@@ -79,7 +79,7 @@ makeDesugaredToStringProgram program renderingFunctionName =
 -- - non-var argument patterns
 --
 -- MultipleDispatchFunctions is List (name, type annotation, desugared unique name)
--- See note in TinyStructuredEditorsForLowLowPricesTypes
+-- See note in TSEFLLPTypes
 desugarExp : CounterRef -> Ref MultipleDispatchFunctions -> Lang.Exp -> Exp
 desugarExp freshVariableCounterRef multipleDispatchFunctionsRef langExp =
   -- Pass around a partially applied desugar func to helpers. Results in
@@ -92,20 +92,20 @@ desugarExp freshVariableCounterRef multipleDispatchFunctionsRef langExp =
     Lang.EBase _ (Lang.EBool True)       -> trueExp
     Lang.EBase _ (Lang.EBool False)      -> falseExp
     Lang.EBase _ (Lang.EString _ string) -> EString string
-    Lang.EBase _ Lang.ENull              -> EString "TinyStructuredEditorsForLowLowPrices core language does not support null"
+    Lang.EBase _ Lang.ENull              -> EString "TSEFLLP core language does not support null"
     Lang.EVar _ name                     -> EVar name
     Lang.EFun _ pats bodyExp _           ->
       -- Binarize all functions.
       case pats |> List.map LangTools.patToMaybePVarIdent |> Utils.projJusts of
         Just argNames -> makeMultiArgFunction argNames (recurse bodyExp)
-        Nothing       -> EString "TinyStructuredEditorsForLowLowPrices core language does not support functions with non-var argument patterns"
+        Nothing       -> EString "TSEFLLP core language does not support functions with non-var argument patterns"
 
     Lang.EOp _ _ op argExps _ ->
       case (op.val, argExps) of
         (Lang.Plus, [e1, e2]) -> EAppend (recurse e1) (recurse e2)
-        (Lang.Plus, _)        -> EString <| "TinyStructuredEditorsForLowLowPrices core language does not support any non-binary Plus operation"
+        (Lang.Plus, _)        -> EString <| "TSEFLLP core language does not support any non-binary Plus operation"
         (Lang.ToStr, [e1])    -> ENumToString (recurse e1)
-        _                     -> EString <| "TinyStructuredEditorsForLowLowPrices core language does not support the " ++ toString op.val ++ " operation"
+        _                     -> EString <| "TSEFLLP core language does not support the " ++ toString op.val ++ " operation"
 
     Lang.EList _ wsHeads _ maybeTail _  ->
       let desugaredTailExp = maybeTail |> Maybe.map recurse |> Maybe.withDefault nilExp in
@@ -116,12 +116,12 @@ desugarExp freshVariableCounterRef multipleDispatchFunctionsRef langExp =
         Just entries ->
           case Lang.entriesToMaybeCtorNameAndArgExps entries of
             Just (ctorName, argExps) -> ECtor ctorName (List.map recurse argExps)
-            Nothing                  -> EString "TinyStructuredEditorsForLowLowPrices could not decipher record"
+            Nothing                  -> EString "TSEFLLP could not decipher record"
 
         Nothing ->
-          EString "TinyStructuredEditorsForLowLowPrices core language does not yet support records"
+          EString "TSEFLLP core language does not yet support records"
 
-    Lang.ESelect _ e1 _ _ name            -> EString "TinyStructuredEditorsForLowLowPrices core language does not yet support record field selection"
+    Lang.ESelect _ e1 _ _ name            -> EString "TSEFLLP core language does not yet support record field selection"
     Lang.EApp _ funcExp argExps appType _ -> makeMultiApp (recurse funcExp) (List.map recurse argExps) -- Binarize all applications.
 
     Lang.ELet _ _ declarations _ bodyExp ->
@@ -160,7 +160,7 @@ desugarExp freshVariableCounterRef multipleDispatchFunctionsRef langExp =
       in
       case maybeDesugaredBranches of
         Just desugaredBranches -> ECase (recurse scrutineeExp) desugaredBranches
-        Nothing                -> EString "TinyStructuredEditorsForLowLowPrices core language does not support case patterns other than Ctor x1 x2 x3 or True or False"
+        Nothing                -> EString "TSEFLLP core language does not support case patterns other than Ctor x1 x2 x3 or True or False"
 
     Lang.EColonType _ innerExp _ _ _ -> recurse innerExp
     Lang.EParens _ innerExp _ _      -> recurse innerExp
@@ -180,7 +180,7 @@ addMultipleDispatchFunction multipleDispatchFunctionsRef originalName tipe uniqu
   |> setRef multipleDispatchFunctionsRef
 
 
--- See TinyStructuredEditorsForLowLowPricesTypes for explanation of how we handle dynamic functions
+-- See TSEFLLPTypes for explanation of how we handle dynamic functions
 --
 -- Goal here is to:
 -- 1. Assign unique names to each dynamic function implementation
@@ -286,7 +286,7 @@ desugarLetExp : (Lang.Exp -> Exp) -> Lang.LetExp -> Exp -> Exp
 desugarLetExp desugarExp (Lang.LetExp _ _ pat _ _ boundExp) desugaredLetBody =
   case LangTools.patToMaybePVarIdent (Lang.patEffectivePat pat) of
     Just ident  -> makeLetViaApp ident (desugarExp boundExp) desugaredLetBody
-    _           -> EString <| "TinyStructuredEditorsForLowLowPrices core language does not support multi var let patterns" ++ toString (Lang.patEffectivePat pat)
+    _           -> EString <| "TSEFLLP core language does not support multi var let patterns" ++ toString (Lang.patEffectivePat pat)
 
 
 -- Following Exercise 9 of https://caml.inria.fr/pub/docs/u3-ocaml/ocaml-ml.html#toc5
@@ -325,8 +325,8 @@ desugarRecursiveLetExps desugarExp letExps desugaredLetBody =
     makeLetRecViaApp recName desugaredBoundExp desugaredLetBody =
       case desugaredBoundExp of
         EFun "" fVarName fBody -> makeLetViaApp recName (EFun recName fVarName fBody) desugaredLetBody
-        EFun _  fVarName fBody -> EString "TinyStructuredEditorsForLowLowPrices whyyyyyy is an EFun getting recursivized twicee....."
-        _                      -> EString "TinyStructuredEditorsForLowLowPrices recursive bindings only supported for functions"
+        EFun _  fVarName fBody -> EString "TSEFLLP whyyyyyy is an EFun getting recursivized twicee....."
+        _                      -> EString "TSEFLLP recursive bindings only supported for functions"
 
     -- Given:   λx. λy. λz. e
     -- Returns: λx. λy. λz. e'
@@ -415,7 +415,7 @@ desugarRecursiveLetExps desugarExp letExps desugaredLetBody =
       |> wrapWithLetRecs recIsNeeded
 
     Nothing ->
-      EString "TinyStructuredEditorsForLowLowPrices desugaring: Each recursive functions must be bound to a single variable pattern!"
+      EString "TSEFLLP desugaring: Each recursive functions must be bound to a single variable pattern!"
 
 
 desugarVal : Lang.Val -> TaggedValue
@@ -427,19 +427,19 @@ desugarVal langVal =
   case langVal.v_ of
     Lang.VList []       -> nilTaggedVal
     Lang.VList langVals -> Utils.foldr nilTaggedVal consTaggedVal (List.map recurse langVals)
-    Lang.VDict d        -> vString "TinyStructuredEditorsForLowLowPrices core language does not support dictionaries"
+    Lang.VDict d        -> vString "TSEFLLP core language does not support dictionaries"
     Lang.VRecord d      ->
       case Lang.valToMaybeCtorNameAndArgVals langVal of
         Just (ctorName, argLangVals) -> noTag <| VCtor ctorName (List.map recurse argLangVals)
-        Nothing                      -> vString <| "TinyStructuredEditorsForLowLowPrices core language does not yet support records " ++ ValUnparser.strVal langVal
+        Nothing                      -> vString <| "TSEFLLP core language does not yet support records " ++ ValUnparser.strVal langVal
 
     Lang.VConst offsetProvenance (num, tr)      -> noTag <| VNum num
     Lang.VBase (Lang.VBool True)                -> trueTaggedVal
     Lang.VBase (Lang.VBool False)               -> falseTaggedVal
     Lang.VBase (Lang.VString string)            -> vString string
-    Lang.VBase Lang.VNull                       -> vString "TinyStructuredEditorsForLowLowPrices core language does not support null"
-    Lang.VClosure recNames pats bodyExp funcEnv -> vString "TinyStructuredEditorsForLowLowPrices cannot desugar closure values"
-    Lang.VFun _ _ _ _                           -> vString "TinyStructuredEditorsForLowLowPrices core language does not support VFun"
+    Lang.VBase Lang.VNull                       -> vString "TSEFLLP core language does not support null"
+    Lang.VClosure recNames pats bodyExp funcEnv -> vString "TSEFLLP cannot desugar closure values"
+    Lang.VFun _ _ _ _                           -> vString "TSEFLLP core language does not support VFun"
 
 
 

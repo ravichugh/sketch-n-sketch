@@ -1,5 +1,5 @@
 -- Hook numbers up to SnS's live synchronization.
-module TinyStructuredEditorsForLowLowPricesScrub exposing (prepareLiveUpdates)
+module TSEFLLPScrub exposing (prepareLiveUpdates)
 
 import Dict exposing (Dict)
 import Either exposing (Either(..))
@@ -11,7 +11,7 @@ import ShapeWidgets -- for RealZone
 import Sync
 import Utils
 
-import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
+import TSEFLLPTypes exposing (..)
 
 
 -- Based on Sync.prepareLiveUpdates_
@@ -50,7 +50,7 @@ getLocationCounts syncOptions langValOfInterest =
 
 -- Find the projection paths with numbers+traces in the ADT.
 --
--- Based on TinyStructuredEditorsForLowLowPricesDesugaring.desugarVal and TinyStructuredEditorsForLowLowPricesEval.tagVal
+-- Based on TSEFLLPDesugaring.desugarVal and TSEFLLPEval.tagVal
 langValToProjectionPathNumTrs : ProjectionPath -> Lang.Val -> List (ProjectionPath, Lang.NumTr)
 langValToProjectionPathNumTrs path langVal =
   let

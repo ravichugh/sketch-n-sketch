@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPricesView exposing (functionPickerAndEditor)
+module TSEFLLPView exposing (functionPickerAndEditor)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -13,14 +13,14 @@ import HtmlUtils
 import Model exposing (Msg)
 import Utils
 
-import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
-import TinyStructuredEditorsForLowLowPricesActions
-import TinyStructuredEditorsForLowLowPricesEval
+import TSEFLLPTypes exposing (..)
+import TSEFLLPActions
+import TSEFLLPEval
 
 
 -------------- View -------------
 
-functionPickerAndEditor : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> List (Html Msg)
+functionPickerAndEditor : TSEFLLPTypes.ModelState -> List (Html Msg)
 functionPickerAndEditor modelState =
   let
     renderingFunctionPicker =
@@ -296,7 +296,7 @@ plainStringView stringTaggedWithProjectionPathsResult =
       Html.div [Attr.style [("font-size", "18px"), ("color", "#e00")]] [text err]
 
 
-structuredEditor : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Html Msg
+structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
 structuredEditor modelState =
   let { valueOfInterestTagged, dataTypeDefs, maybeRenderingFunctionNameAndProgram, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult, maybeNewValueOptions } = modelState in
   let
@@ -453,7 +453,7 @@ structuredEditor modelState =
                 case maybeRenderingFunctionNameAndProgram of
                   Just { renderingFunctionName, multipleDispatchFunctions, desugaredToStringProgram } ->
                     let newStringTaggedWithProjectionPathsResult =
-                      TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
+                      TSEFLLPEval.evalToStringTaggedWithProjectionPaths
                           dataTypeDefs
                           multipleDispatchFunctions
                           desugaredToStringProgram

@@ -155,7 +155,7 @@ import Syntax exposing (Syntax)
 import LangUnparser -- for comparing expressions for equivalence
 import History exposing (History)
 import NonDet exposing (NonDet)
-import TinyStructuredEditorsForLowLowPrices
+import TSEFLLP
 import PBESuite
 import Core.Lang
 import Core.Compile
@@ -4636,7 +4636,7 @@ msgClearUnExpPreview =
 --------------------------------------------------------------------------------
 
 refreshTSEFLLP old =
-  { old | tinyStructuredEditorsForLowLowPricesState =
+  { old | tsefllpState =
             if old.outputMode == StructuredEditor then
               let maybeValType =
                 -- The correct incantation would be (unExpr e).val.typ but the type checker can't type the empty list.
@@ -4644,39 +4644,39 @@ refreshTSEFLLP old =
                 expEffectiveExps old.inputExp
                 |> Utils.mapFirstSuccess (LangTools.expToMaybeEColonType)
               in
-              TinyStructuredEditorsForLowLowPrices.prepare
-                  old.tinyStructuredEditorsForLowLowPricesState
+              TSEFLLP.prepare
+                  old.tsefllpState
                   old.syncOptions
                   old.inputEnv
                   old.inputExp
                   maybeValType
                   old.inputVal
             else
-              old.tinyStructuredEditorsForLowLowPricesState
+              old.tsefllpState
   }
 
 msgSelectTSEFLLPPath path =
   Msg ("Select TSEFLLP path " ++ toString path) <| \model ->
-    { model | tinyStructuredEditorsForLowLowPricesState =
-                  TinyStructuredEditorsForLowLowPrices.selectPath model.tinyStructuredEditorsForLowLowPricesState path
+    { model | tsefllpState =
+                  TSEFLLP.selectPath model.tsefllpState path
     }
 
 msgDeselectTSEFLLPPath path =
   Msg ("Deselect TSEFLLP path " ++ toString path) <| \model ->
-    { model | tinyStructuredEditorsForLowLowPricesState =
-                  TinyStructuredEditorsForLowLowPrices.deselectPath model.tinyStructuredEditorsForLowLowPricesState path
+    { model | tsefllpState =
+                  TSEFLLP.deselectPath model.tsefllpState path
     }
 
 msgTSEFLLPShowNewValueOptions newValueOptions =
   Msg "Show new TSEFLLP value options" <| \model ->
-    { model | tinyStructuredEditorsForLowLowPricesState =
-                  TinyStructuredEditorsForLowLowPrices.showNewValueOptions model.tinyStructuredEditorsForLowLowPricesState newValueOptions
+    { model | tsefllpState =
+                  TSEFLLP.showNewValueOptions model.tsefllpState newValueOptions
     }
 
 msgTSEFLLPSelectNewValue tsefllpVal =
   Msg "Select new TSEFLLP value" <| \model ->
     let
-      updatedValResult = TinyStructuredEditorsForLowLowPrices.newLangValResult tsefllpVal
+      updatedValResult = TSEFLLP.newLangValResult tsefllpVal
 
       _ =
         case updatedValResult of
@@ -4691,8 +4691,8 @@ msgTSEFLLPSelectNewValue tsefllpVal =
     in
     case maybeBackpropResult of
       Just synthesisResult ->
-        { model | tinyStructuredEditorsForLowLowPricesState =
-                      TinyStructuredEditorsForLowLowPrices.deselectAll model.tinyStructuredEditorsForLowLowPricesState
+        { model | tsefllpState =
+                      TSEFLLP.deselectAll model.tsefllpState
                 , code = Syntax.unparser model.syntax (resultExp synthesisResult)
         } |> upstateRun
 
@@ -4710,7 +4710,7 @@ msgTSEFLLPStartLiveSync path =
 
       trigger =
         Sync.prepareLiveTrigger
-            model.tinyStructuredEditorsForLowLowPricesState.liveSyncInfo
+            model.tsefllpState.liveSyncInfo
             model.inputExp
             zoneKey
     in
@@ -4719,22 +4719,22 @@ msgTSEFLLPStartLiveSync path =
 
 msgTSEFLLPStartTextEditing path =
   Msg ("Start Text Editing for TSEFLLP path " ++ toString path) <| \model ->
-    { model | tinyStructuredEditorsForLowLowPricesState =
-                  TinyStructuredEditorsForLowLowPrices.startTextEditing model.tinyStructuredEditorsForLowLowPricesState path
+    { model | tsefllpState =
+                  TSEFLLP.startTextEditing model.tsefllpState path
             , needsToFocusOn = Just "tsefllpTextBox"
     }
 
 
 msgTSEFLLPUpdateTextBox newText =
   Msg ("Update TSEFLLP Text Box: " ++ toString newText) <| \model ->
-    { model | tinyStructuredEditorsForLowLowPricesState =
-                  TinyStructuredEditorsForLowLowPrices.updateTextBox model.tinyStructuredEditorsForLowLowPricesState newText
+    { model | tsefllpState =
+                  TSEFLLP.updateTextBox model.tsefllpState newText
     }
 
 msgTSEFLLPApplyTextEdit =
   Msg "Apply TSEFLLP Text Edit" <| \model ->
     let
-      updatedValResult = TinyStructuredEditorsForLowLowPrices.newLangValResultForTextEdit model.tinyStructuredEditorsForLowLowPricesState
+      updatedValResult = TSEFLLP.newLangValResultForTextEdit model.tsefllpState
 
       _ =
         case updatedValResult of
@@ -4749,10 +4749,10 @@ msgTSEFLLPApplyTextEdit =
     in
     case maybeBackpropResult of
       Just synthesisResult ->
-        { model | tinyStructuredEditorsForLowLowPricesState =
-                      model.tinyStructuredEditorsForLowLowPricesState
-                      |> TinyStructuredEditorsForLowLowPrices.deselectAll
-                      |> TinyStructuredEditorsForLowLowPrices.cancelTextEditing
+        { model | tsefllpState =
+                      model.tsefllpState
+                      |> TSEFLLP.deselectAll
+                      |> TSEFLLP.cancelTextEditing
                 , code = Syntax.unparser model.syntax (resultExp synthesisResult)
         } |> upstateRun
 

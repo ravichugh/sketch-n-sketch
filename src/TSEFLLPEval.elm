@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPricesEval exposing (evalToStringTaggedWithProjectionPaths, tagVal)
+module TSEFLLPEval exposing (evalToStringTaggedWithProjectionPaths, tagVal)
 
 import Char
 import Set exposing (Set)
@@ -9,7 +9,7 @@ import LeoUnparser exposing (unparseType)
 import Types2
 import Utils
 
-import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
+import TSEFLLPTypes exposing (..)
 
 
 setTag : Set ProjectionPath -> TaggedValue -> TaggedValue
@@ -198,7 +198,7 @@ findMultipleDispatchImplementationNameBasedOnArgType dataTypeDefs multipleDispat
         recurse = typeToName
 
         unsupported () =
-          let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesEval.findMultipleDispatchImplementationNameBasedOnArgType does not yet support " ++ unparseType tipe in
+          let _ = Utils.log <| "TSEFLLPEval.findMultipleDispatchImplementationNameBasedOnArgType does not yet support " ++ unparseType tipe in
           " Not Found "
 
         handleVarOrApp () =
@@ -208,7 +208,7 @@ findMultipleDispatchImplementationNameBasedOnArgType dataTypeDefs multipleDispat
       in
       case Lang.unwrapType tipe of
         Lang.TNum _                                   -> "Num"
-        Lang.TBool _                                  -> Debug.crash <| "TinyStructuredEditorsForLowLowPricesEval.findMultipleDispatchImplementationNameBasedOnArgType: TBools should not occur here: should already be converted to TVar instead!"
+        Lang.TBool _                                  -> Debug.crash <| "TSEFLLPEval.findMultipleDispatchImplementationNameBasedOnArgType: TBools should not occur here: should already be converted to TVar instead!"
         Lang.TString _                                -> "String"
         Lang.TNull _                                  -> unsupported ()
         Lang.TList _ elemType _                       -> unsupported ()

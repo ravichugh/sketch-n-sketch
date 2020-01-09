@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPricesActions exposing (generateActionsForValueAndAssociateWithStringLocations, replaceAtPath)
+module TSEFLLPActions exposing (generateActionsForValueAndAssociateWithStringLocations, replaceAtPath)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -8,8 +8,8 @@ import LeoUnparser exposing (unparseType)
 import Types2
 import Utils
 
-import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
-import TinyStructuredEditorsForLowLowPricesEval exposing (tagVal)
+import TSEFLLPTypes exposing (..)
+import TSEFLLPEval exposing (tagVal)
 
 
 -- By default we attempt to copy ctor arguments from the current value.
@@ -95,13 +95,13 @@ maybeDefaultValueForType dataTypeDefs tipe =
 
     _ =
       if Lang.isDeprecatedType tipe
-      then Utils.log <| unparseType tipe ++ " is deprecated! (seen in TinyStructuredEditorsForLowLowPricesActions.defaultValueForType)"
+      then Utils.log <| unparseType tipe ++ " is deprecated! (seen in TSEFLLPActions.defaultValueForType)"
       else ()
 
     return untaggedPrevalue = Just (noTag untaggedPrevalue)
 
     unsupported () =
-      let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesActions.defaultValueForType does not yet support " ++ unparseType tipe in
+      let _ = Utils.log <| "TSEFLLPActions.defaultValueForType does not yet support " ++ unparseType tipe in
       Nothing
 
     handleVarOrApp () =
@@ -121,11 +121,11 @@ maybeDefaultValueForType dataTypeDefs tipe =
                   |> Maybe.map (noTag << VCtor ctorName)
 
                 Nothing ->
-                  let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesActions.defaultValueForType cannot find non-recursive constructor for " ++ typeName in
+                  let _ = Utils.log <| "TSEFLLPActions.defaultValueForType cannot find non-recursive constructor for " ++ typeName in
                   Nothing
 
             Nothing ->
-              let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesActions.defaultValueForType cannot find data type definition for " ++ typeName in
+              let _ = Utils.log <| "TSEFLLPActions.defaultValueForType cannot find data type definition for " ++ typeName in
               Nothing
 
         Nothing ->
@@ -133,7 +133,7 @@ maybeDefaultValueForType dataTypeDefs tipe =
   in
   case Lang.unwrapType tipe of
     Lang.TNum _                                   -> return <| VNum 0.0
-    Lang.TBool _                                  -> Debug.crash <| "TinyStructuredEditorsForLowLowPricesActions.defaultValueForType: TBools should not occur here: should already be converted to TVar instead!"
+    Lang.TBool _                                  -> Debug.crash <| "TSEFLLPActions.defaultValueForType: TBools should not occur here: should already be converted to TVar instead!"
     Lang.TString _                                -> return <| VString ""
     Lang.TNull _                                  -> unsupported ()
     Lang.TList _ elemType _                       -> unsupported ()
@@ -168,7 +168,7 @@ generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOf
       let
         _ =
           if maybeValueOfInterestType == Nothing
-          then Utils.log "No type provided/inferred for TinyStructuredEditorsForLowLowPrices value of interest. Polymorphic type variable will not be instantiated causing some actions to be unavailable."
+          then Utils.log "No type provided/inferred for TSEFLLP value of interest. Polymorphic type variable will not be instantiated causing some actions to be unavailable."
           else ()
       in
       valToSpecificActions
@@ -196,7 +196,7 @@ generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOf
         let stringProjectionPath =
           Utils.prefixes actionProjectionPath -- Longest prefix (the original path) appears first.
           |> Utils.findFirst (flip Set.member projectionPathsInString)
-          |> Utils.maybeWithDefaultLazy (\_ -> Debug.crash <| "TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations expected projectionPathsInString to have a root element []! " ++ toString projectionPathsInString)
+          |> Utils.maybeWithDefaultLazy (\_ -> Debug.crash <| "TSEFLLPActions.generateActionsForValueAndAssociateWithStringLocations expected projectionPathsInString to have a root element []! " ++ toString projectionPathsInString)
         in
         (actionProjectionPath, stringProjectionPath)
       in
@@ -209,7 +209,7 @@ generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOf
     stringProjectionPathToSpecificActions =
       let makeStringProjectionPathToActionEntry specificAction =
         let stringProjectionPath =
-          let errStr = "TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations expected to find action projection path in actionProjectionPathToStringProjectionPath!" in
+          let errStr = "TSEFLLPActions.generateActionsForValueAndAssociateWithStringLocations expected to find action projection path in actionProjectionPathToStringProjectionPath!" in
           actionProjectionPathToStringProjectionPath
           |> Utils.justGet_ errStr (specificActionProjectionPath specificAction)
         in
@@ -282,7 +282,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
 
             thisCtorArgTypes =
               ctorName
-              |> Utils.find "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions changeCtorActions" thisTypeDataConDefsReified
+              |> Utils.find "TSEFLLPActions.valToSpecificActions changeCtorActions" thisTypeDataConDefsReified
 
             otherConDefs =
               thisTypeDataConDefsReified
@@ -379,7 +379,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
           Utils.unionAll [removeActions, insertActions, changeCtorActions, deeperActions]
 
         Nothing ->
-          let _ = Utils.log <| "TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions warning: not find ctor " ++ ctorName ++ " in dataTypeDefs: " ++ toString dataTypeDefs in
+          let _ = Utils.log <| "TSEFLLPActions.valToSpecificActions warning: not find ctor " ++ ctorName ++ " in dataTypeDefs: " ++ toString dataTypeDefs in
           Set.empty
 
     VString _ ->
@@ -387,7 +387,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
       Set.map EditText valueOfInterestTagged.paths
 
     VAppend w1 w2 ->
-      let _ = Utils.log "Did not expect a VAppend in TinyStructuredEditorsForLowLowPricesActions.valToSpecificActions" in
+      let _ = Utils.log "Did not expect a VAppend in TSEFLLPActions.valToSpecificActions" in
       Set.union (recurse maybeType w1) (recurse maybeType w2)
 
     VNum _ ->

@@ -1,4 +1,4 @@
-module TinyStructuredEditorsForLowLowPrices exposing (prepare, newLangValResult, showNewValueOptions, selectPath, deselectPath, deselectAll, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
+module TSEFLLP exposing (prepare, newLangValResult, showNewValueOptions, selectPath, deselectPath, deselectAll, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
 
 import Dict
 import Set
@@ -7,12 +7,12 @@ import Lang
 import Sync
 import Utils
 
-import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
-import TinyStructuredEditorsForLowLowPricesDesugaring
-import TinyStructuredEditorsForLowLowPricesResugaring
-import TinyStructuredEditorsForLowLowPricesEval
-import TinyStructuredEditorsForLowLowPricesActions
-import TinyStructuredEditorsForLowLowPricesScrub
+import TSEFLLPTypes exposing (..)
+import TSEFLLPDesugaring
+import TSEFLLPResugaring
+import TSEFLLPEval
+import TSEFLLPActions
+import TSEFLLPScrub
 
 
 ----------- Controller -----------
@@ -21,14 +21,14 @@ import TinyStructuredEditorsForLowLowPricesScrub
 --
 -- I hate caching but if we instead perform the work on
 -- demand in the view then the GUI slows to a crawl.
-prepare : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Sync.Options -> Lang.Env -> Lang.Exp -> Maybe Lang.Type -> Lang.Val -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+prepare : TSEFLLPTypes.ModelState -> Sync.Options -> Lang.Env -> Lang.Exp -> Maybe Lang.Type -> Lang.Val -> TSEFLLPTypes.ModelState
 prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo valueOfInterest =
   let
     renderingFunctionNames =
       expToRenderingFunctionNames program
 
     dataTypeDefs =
-      TinyStructuredEditorsForLowLowPricesDesugaring.dataTypeDefsWithoutTBoolsTLists program
+      TSEFLLPDesugaring.dataTypeDefsWithoutTBoolsTLists program
 
     maybeRenderingFunctionNameAndProgram =
       -- Use the previously selected function, if it's still available.
@@ -39,7 +39,7 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
       |> Maybe.map
           (\renderingFunctionName ->
             let (multipleDispatchFunctions, desugaredToStringProgram) =
-              TinyStructuredEditorsForLowLowPricesDesugaring.makeDesugaredToStringProgram program renderingFunctionName
+              TSEFLLPDesugaring.makeDesugaredToStringProgram program renderingFunctionName
             in
             { renderingFunctionName     = renderingFunctionName
             , multipleDispatchFunctions = multipleDispatchFunctions
@@ -49,13 +49,13 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
 
     valueOfInterestTagged =
       valueOfInterest
-      |> TinyStructuredEditorsForLowLowPricesDesugaring.desugarVal
-      |> TinyStructuredEditorsForLowLowPricesEval.tagVal []
+      |> TSEFLLPDesugaring.desugarVal
+      |> TSEFLLPEval.tagVal []
 
     stringTaggedWithProjectionPathsResult =
       case maybeRenderingFunctionNameAndProgram of
         Just { renderingFunctionName, multipleDispatchFunctions, desugaredToStringProgram } ->
-          TinyStructuredEditorsForLowLowPricesEval.evalToStringTaggedWithProjectionPaths
+          TSEFLLPEval.evalToStringTaggedWithProjectionPaths
               dataTypeDefs
               multipleDispatchFunctions
               desugaredToStringProgram
@@ -66,12 +66,12 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
 
     maybeValueOfInterestType =
       maybeValueOfInterestTypeFromLeo
-      |> Maybe.map TinyStructuredEditorsForLowLowPricesDesugaring.replaceTBoolTListWithTVarTApp
+      |> Maybe.map TSEFLLPDesugaring.replaceTBoolTListWithTVarTApp
 
     stringProjectionPathToSpecificActions =
       stringTaggedWithProjectionPathsResult
       |> Result.toMaybe
-      |> Maybe.map (TinyStructuredEditorsForLowLowPricesActions.generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOfInterestType valueOfInterestTagged)
+      |> Maybe.map (TSEFLLPActions.generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOfInterestType valueOfInterestTagged)
       |> Maybe.withDefault Dict.empty
 
   in
@@ -83,58 +83,58 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
   , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
   , maybeNewValueOptions                  = Nothing
-  , liveSyncInfo                          = TinyStructuredEditorsForLowLowPricesScrub.prepareLiveUpdates syncOptions program valueOfInterest
+  , liveSyncInfo                          = TSEFLLPScrub.prepareLiveUpdates syncOptions program valueOfInterest
   }
 
 
-showNewValueOptions : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> List TaggedValue -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+showNewValueOptions : TSEFLLPTypes.ModelState -> List TaggedValue -> TSEFLLPTypes.ModelState
 showNewValueOptions oldModelState newValueOptions =
   { oldModelState | maybeNewValueOptions = Just newValueOptions }
 
 
 newLangValResult : TaggedValue -> Result String Lang.Val
-newLangValResult = TinyStructuredEditorsForLowLowPricesResugaring.taggedValToLangValResult
+newLangValResult = TSEFLLPResugaring.taggedValToLangValResult
 
 
-selectPath : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> ProjectionPath -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+selectPath : TSEFLLPTypes.ModelState -> ProjectionPath -> TSEFLLPTypes.ModelState
 selectPath oldModelState projectionPath =
   { oldModelState | selectedPaths = Set.insert projectionPath oldModelState.selectedPaths }
 
 
-deselectPath : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> ProjectionPath -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+deselectPath : TSEFLLPTypes.ModelState -> ProjectionPath -> TSEFLLPTypes.ModelState
 deselectPath oldModelState projectionPath =
   { oldModelState | selectedPaths = Set.remove projectionPath oldModelState.selectedPaths }
 
 
-deselectAll : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+deselectAll : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
 deselectAll oldModelState =
   { oldModelState | selectedPaths = Set.empty, maybeNewValueOptions = Nothing }
 
 
-startTextEditing : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> (ProjectionPath, String) -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+startTextEditing : TSEFLLPTypes.ModelState -> (ProjectionPath, String) -> TSEFLLPTypes.ModelState
 startTextEditing oldModelState (projectionPath, text) =
   -- Only set if not already text editing
   { oldModelState | maybeTextEditingPathAndText = oldModelState.maybeTextEditingPathAndText |> Maybe.withDefault (projectionPath, text) |> Just }
 
 
-updateTextBox : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> String -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+updateTextBox : TSEFLLPTypes.ModelState -> String -> TSEFLLPTypes.ModelState
 updateTextBox oldModelState newText =
   { oldModelState | maybeTextEditingPathAndText = oldModelState.maybeTextEditingPathAndText |> Maybe.map (\(path, _) -> (path, newText)) }
 
 
-newLangValResultForTextEdit : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> Result String Lang.Val
+newLangValResultForTextEdit : TSEFLLPTypes.ModelState -> Result String Lang.Val
 newLangValResultForTextEdit modelState =
   case modelState.maybeTextEditingPathAndText of
     Just (path, newText) ->
       modelState.valueOfInterestTagged
-      |> TinyStructuredEditorsForLowLowPricesActions.replaceAtPath path (noTag <| VString newText)
-      |> TinyStructuredEditorsForLowLowPricesResugaring.taggedValToLangValResult
+      |> TSEFLLPActions.replaceAtPath path (noTag <| VString newText)
+      |> TSEFLLPResugaring.taggedValToLangValResult
 
     Nothing ->
       Err "Not text editing right now!"
 
 
-cancelTextEditing : TinyStructuredEditorsForLowLowPricesTypes.ModelState -> TinyStructuredEditorsForLowLowPricesTypes.ModelState
+cancelTextEditing : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
 cancelTextEditing oldModelState =
   { oldModelState | maybeTextEditingPathAndText = Nothing }
 

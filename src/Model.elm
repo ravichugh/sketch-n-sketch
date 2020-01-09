@@ -30,7 +30,7 @@ import Solver
 -- import ValUnparser
 import History exposing (History)
 import Config
-import TinyStructuredEditorsForLowLowPricesTypes
+import TSEFLLPTypes
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -254,7 +254,7 @@ type alias Model =
   , backpropExampleInput : String
   , unExpPreview : Maybe (Exp, Result String (UnExp ()))
   , codeAtPbeSynthesis : Maybe Code
-  , tinyStructuredEditorsForLowLowPricesState : TinyStructuredEditorsForLowLowPricesTypes.ModelState
+  , tsefllpState : TSEFLLPTypes.ModelState
   }
 
 type OutputMode
@@ -1618,5 +1618,5 @@ initModel =
     , backpropExampleInput = ""
     , unExpPreview = Nothing
     , codeAtPbeSynthesis = Nothing
-    , tinyStructuredEditorsForLowLowPricesState = TinyStructuredEditorsForLowLowPricesTypes.initialModelState
+    , tsefllpState = TSEFLLPTypes.initialModelState
     }

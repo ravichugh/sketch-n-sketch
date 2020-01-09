@@ -1,5 +1,5 @@
 -- Convert from our core language for tiny structured editors back to Sketch-n-Sketch values.
-module TinyStructuredEditorsForLowLowPricesResugaring exposing (..)
+module TSEFLLPResugaring exposing (..)
 
 -- import Set exposing (Set)
 
@@ -11,7 +11,7 @@ import Update
 import Utils
 import ValBuilder
 
-import TinyStructuredEditorsForLowLowPricesTypes exposing (..)
+import TSEFLLPTypes exposing (..)
 
 
 taggedValToLangValResult : TaggedValue -> Result String Lang.Val
@@ -26,7 +26,7 @@ taggedValToLangValResult taggedValue =
     VCtor "Cons" [x, tail] ->
       case recurseAllResult [x, tail] of
         Ok [xResugared, tailResugared] ->
-          let tailVals = tailResugared |> Lang.vListToVals "TinyStructuredEditorsForLowLowPricesResugaring.taggedValToLangValResult" in
+          let tailVals = tailResugared |> Lang.vListToVals "TSEFLLPResugaring.taggedValToLangValResult" in
           Ok <| Update.vList (xResugared :: tailVals)
 
         Ok _  -> Err "taggedValToLangValResult: this should not happen!"
