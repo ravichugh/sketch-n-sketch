@@ -99,7 +99,7 @@ containsPoint : (Int, Int) -> Poly -> Bool
 containsPoint point poly =
   BoundsUtils.containsPoint (polyBounds poly) point &&
   not (BoundsUtils.containsPoint (startCutoutBounds poly) point) &&
-  not (BoundsUtils.containsPoint (startCutoutBounds poly) point)
+  not (BoundsUtils.containsPoint (endCutoutBounds poly) point)
 
 -- firstLineLeftTop : Poly -> (Int, Int)
 -- firstLineLeftTop = startCutoutBounds >> (\(left, top, startX, firstLineBot) -> (startX, top))
