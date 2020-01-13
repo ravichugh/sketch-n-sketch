@@ -60,5 +60,12 @@ jsonToString indent json =
   JSONDict [
     Pair "num" (JSONNumber 10),
     Pair "str" (JSONString "bye")
+  ],
+  JSONList [
+    JSONList [
+      JSONString "one",
+      JSONString "two",
+      JSONString "three"
+    ]
   ]
 ] : JSON)
