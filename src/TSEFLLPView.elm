@@ -307,19 +307,28 @@ structuredEditor modelState =
 
         pixelPoly = TSEFLLPPolys.taggedStringToPixelPoly charWidthPx charHeightPx taggedString
 
-        hoveredPathSet =
-          pixelPoly
-          |> TSEFLLPPolys.flatten
-          |> List.filter (TSEFLLPPolys.containsPoint mousePosition)
-          |> List.map TSEFLLPPolys.polyPathSet
-          |> Utils.unionAll
+        -- hoveredPathSetAllLevels =
+        --   pixelPoly
+        --   |> TSEFLLPPolys.flatten
+        --   |> List.filter (TSEFLLPPolys.containsPoint mousePosition)
+        --   |> List.map TSEFLLPPolys.polyPathSet
+        --   |> Utils.unionAll
 
-        maybeDeepestHoveredMeaningfulPoly : TSEFLLPPolys.Poly -> Maybe (TSEFLLPPolys.Poly)
-        maybeDeepestHoveredMeaningfulPoly ((TSEFLLPPolys.Poly { pathSet, children }) as poly) =
-          case children |> List.map maybeDeepestHoveredMeaningfulPoly |> Utils.filterJusts of
+        findDeepestHoveredMeaningfulPoly : TSEFLLPPolys.Poly -> Maybe (TSEFLLPPolys.Poly)
+        findDeepestHoveredMeaningfulPoly ((TSEFLLPPolys.Poly { pathSet, children }) as poly) =
+          case children |> List.map findDeepestHoveredMeaningfulPoly |> Utils.filterJusts of
             []        -> if Set.size pathSet >= 1 && TSEFLLPPolys.containsPoint mousePosition poly then Just poly else Nothing
             [hovered] -> Just hovered
             _         -> Debug.crash "TSEFLLPView.structuredEditor maybeDeepestHoveredPoly: Poly children should be mutually exclusive in space (no spacial overlap)!"
+
+        maybeDeepestHoveredMeaningfulPoly : Maybe (TSEFLLPPolys.Poly)
+        maybeDeepestHoveredMeaningfulPoly = findDeepestHoveredMeaningfulPoly pixelPoly
+
+        deepestHoveredPathSet : Set ProjectionPath
+        deepestHoveredPathSet =
+          maybeDeepestHoveredMeaningfulPoly
+          |> Maybe.map TSEFLLPPolys.polyPathSet
+          |> Maybe.withDefault Set.empty
 
         -- Make sure children come after, for z ordering purposes.
         pixelPolyToDivs : List (Html.Attribute Msg) -> TSEFLLPPolys.Poly -> List (Html Msg)
@@ -399,10 +408,10 @@ structuredEditor modelState =
           -- , Html.Events.onMouseOut Controller.msgTSEFLLPMouseOut
           ] <|
           pixelPolyToDivs [Attr.style [("border", "solid black 1px"), ("margin", "-1px")]] pixelPoly ++
-          (pixelPoly |> maybeDeepestHoveredMeaningfulPoly |> Utils.maybeToList |> List.concatMap (pixelPolyToDivs [Attr.style [("background-color", "#B7D7FD")]])) ++
+          (maybeDeepestHoveredMeaningfulPoly |> Utils.maybeToList |> List.concatMap (pixelPolyToDivs [Attr.style [("background-color", "#B7D7FD")]])) ++
           [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx)]] [text (taggedStringToNormalString taggedString)]
-          , Html.div [] [text "Hovered paths: ", text (pathSetToString hoveredPathSet)]
-          , Html.pre [] [text "Hovered values:\n  ", text (hoveredPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
+          , Html.div [] [text "Hovered paths: ", text (pathSetToString deepestHoveredPathSet)]
+          , Html.pre [] [text "Hovered values:\n  ", text (deepestHoveredPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
           , Html.div [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))] []
           ]
 

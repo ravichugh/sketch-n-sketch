@@ -48,7 +48,7 @@ type alias Properties = { bounds                        : (Int, Int, Int, Int)
                         , rightBotCornerOfLeftTopCutout : (Int, Int)
                         , leftTopCornerOfRightBotCutout : (Int, Int)
                         , pathSet                       : Set ProjectionPath
-                        , children                      : List Poly
+                        , children                      : List Poly -- In current formulation, exactly 2 or 0 children as in tagged strings.
                         }
 
 type Poly = Poly Properties
@@ -108,6 +108,19 @@ containsPoint point poly =
 -- lastLineRightBot = endCutoutBounds >> (\(endX, lastLineTop, right, bot) -> (endX, bot))
 
 
+-- In current forumlation, the tree structure of the polys matches the tree structure
+-- of the tagged string. We don't do any culling--that's up to the view.
+--
+-- We do shrink the spacial region of each poly node to skip whitespace. This process
+-- maintains the invariant that the spacial region of a poly encloses all the
+-- spacial regions of its non-whitespace descendants.
+--
+-- But the spacial location of all-whitespace and empty string regions might be outside
+-- of their parents' shrunk spacial region. We're leaving whitespace and empty polys in
+-- the tree because their pathSet may provide clues of where to place actions etc.
+--
+-- It's also simpler to understand that the tree structure and pathSets of the polys
+-- are 1-to-1 with the tagged string.
 taggedStringToPixelPoly : Int -> Int -> StringTaggedWithProjectionPaths -> PixelPoly
 taggedStringToPixelPoly charWidthPx charHeightPx taggedString =
   taggedString
