@@ -33,8 +33,7 @@ functionPickerAndEditor modelState =
   if modelState.showWidgets then
     [ Html.div [] [renderingFunctionPicker]
     , stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
-    , Html.div [] [text "Selected paths: ", text (pathSetToString modelState.selectedPaths)]
-    , Html.div [] [text "Selected values: ", text (modelState.selectedPaths |> Set.toList |> List.map (pathToValue modelState.valueOfInterestTagged >> unparseToUntaggedString) |> String.join ", ")]
+    , Html.div [] [text "Selected poly paths: ", text (polyPathsToString modelState.selectedPolyPaths)]
     , Html.div
         [ Attr.style [("padding", "1em")] ]
         [ structuredEditor modelState ]
@@ -78,6 +77,11 @@ pathSetToString pathSet =
   case Set.toList pathSet of
     []    -> "∅"
     paths -> "{" ++ String.join "," (List.map pathToString paths) ++ "}"
+
+
+polyPathsToString : List PolyPath -> String
+polyPathsToString paths =
+  "[" ++ String.join "," (List.map pathToString paths) ++ "]"
 
 
 -- actionAssociationsDebug : Dict ProjectionPath (List SpecificAction) -> Result String StringTaggedWithProjectionPaths -> Html Msg
@@ -305,6 +309,9 @@ structuredEditor modelState =
         charWidthPx  = 11
         charHeightPx = 18
 
+        selectedColor = "#B7D7FD"
+        hoverColor    = "#d9e9fb"
+
         pixelPoly = TSEFLLPPolys.taggedStringToPixelPoly charWidthPx charHeightPx taggedString
 
         -- hoveredPathSetAllLevels =
@@ -314,21 +321,37 @@ structuredEditor modelState =
         --   |> List.map TSEFLLPPolys.polyPathSet
         --   |> Utils.unionAll
 
-        findDeepestHoveredMeaningfulPoly : TSEFLLPPolys.Poly -> Maybe (TSEFLLPPolys.Poly)
-        findDeepestHoveredMeaningfulPoly ((TSEFLLPPolys.Poly { pathSet, children }) as poly) =
-          case children |> List.map findDeepestHoveredMeaningfulPoly |> Utils.filterJusts of
-            []        -> if Set.size pathSet >= 1 && TSEFLLPPolys.containsPoint mousePosition poly then Just poly else Nothing
+        findDeepestHoveredMeaningfulPoly : PolyPath -> TSEFLLPPolys.Poly -> Maybe (TSEFLLPPolys.Poly, PolyPath)
+        findDeepestHoveredMeaningfulPoly polyPath ((TSEFLLPPolys.Poly { pathSet, children }) as poly) =
+          let maybeHoveredChildren =
+            children
+            |> List.mapi1 (\(i, child) -> findDeepestHoveredMeaningfulPoly (polyPath ++ [i]) child)
+          in
+          case Utils.filterJusts maybeHoveredChildren of
+            []        -> if Set.size pathSet >= 1 && TSEFLLPPolys.containsPoint mousePosition poly then Just (polyPath, poly) else Nothing
             [hovered] -> Just hovered
             _         -> Debug.crash "TSEFLLPView.structuredEditor maybeDeepestHoveredPoly: Poly children should be mutually exclusive in space (no spacial overlap)!"
 
-        maybeDeepestHoveredMeaningfulPoly : Maybe (TSEFLLPPolys.Poly)
-        maybeDeepestHoveredMeaningfulPoly = findDeepestHoveredMeaningfulPoly pixelPoly
+        (maybeDeepestHoveredMeaningfulPath, maybeDeepestHoveredMeaningfulPoly) : (Maybe PolyPath, Maybe (SEFLLPPolys.Poly)
+        (maybeDeepestHoveredMeaningfulPath, maybeDeepestHoveredMeaningfulPoly) =
+          case findDeepestHoveredMeaningfulPoly [] pixelPoly of
+            Just (polyPath, poly) -> (Just PolyPath, Just Poly)
+            Nothing               -> (Nothing, Nothing)
 
         deepestHoveredPathSet : Set ProjectionPath
         deepestHoveredPathSet =
           maybeDeepestHoveredMeaningfulPoly
           |> Maybe.map TSEFLLPPolys.polyPathSet
           |> Maybe.withDefault Set.empty
+
+        onClickMsg =
+          case maybeDeepestHoveredMeaningfulPath of
+            Just hoveredPolyPath ->
+              if List.member hoveredPolyPath selectedPolyPaths
+              then Controller.msgTSEFLLPDeselectPolyPath hoveredPolyPath
+              else Controller.msgTSEFLLPSelectPolyPath   hoveredPolyPath
+            Nothing ->
+              Controller.msgTSEFLLPDeselectAllPolyPaths
 
         -- Make sure children come after, for z ordering purposes.
         pixelPolyToDivs : List (Html.Attribute Msg) -> TSEFLLPPolys.Poly -> List (Html Msg)
@@ -407,12 +430,13 @@ structuredEditor modelState =
           -- , Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))
           -- , Html.Events.onMouseOut Controller.msgTSEFLLPMouseOut
           ] <|
-          pixelPolyToDivs [Attr.style [("border", "solid black 1px"), ("margin", "-1px")]] pixelPoly ++
-          (maybeDeepestHoveredMeaningfulPoly |> Utils.maybeToList |> List.concatMap (pixelPolyToDivs [Attr.style [("background-color", "#B7D7FD")]])) ++
-          [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx)]] [text (taggedStringToNormalString taggedString)]
+          -- pixelPolyToDivs [Attr.style [("border", "solid black 1px"), ("margin", "-1px")]] pixelPoly ++
+          (maybeDeepestHoveredMeaningfulPoly |> Utils.maybeToList |> List.concatMap (pixelPolyToDivs [Attr.style [("background-color", hoverColor)]])) ++
+          [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx), ("position", "absolute"), ("top", "0px"), ("left", "0px")]] [text (taggedStringToNormalString taggedString)]
+          , Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx)]]                                                            [text (taggedStringToNormalString taggedString)] -- For spacing reasons.
           , Html.div [] [text "Hovered paths: ", text (pathSetToString deepestHoveredPathSet)]
           , Html.pre [] [text "Hovered values:\n  ", text (deepestHoveredPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
-          , Html.div [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))] []
+          , Html.div [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))] []
           ]
 
     Err err ->
@@ -424,7 +448,7 @@ structuredEditor modelState =
 
 -- structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
 -- structuredEditor modelState =
---   let { valueOfInterestTagged, dataTypeDefs, maybeRenderingFunctionNameAndProgram, selectedPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult, maybeNewValueOptions } = modelState in
+--   let { valueOfInterestTagged, dataTypeDefs, maybeRenderingFunctionNameAndProgram, selectedPolyPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult, maybeNewValueOptions } = modelState in
 --   let
 --     render
 --       :  Set ProjectionPath
@@ -439,7 +463,7 @@ structuredEditor modelState =
 --         -- we display the selection over the entire area(s) of the string
 --         -- associated with the selected path.
 --         perhapsSelectedDisplayAttrs =
---           if Utils.anyOverlap [immediatePathSet, selectedPaths]
+--           if Utils.anyOverlap [immediatePathSet, selectedPolyPaths]
 --           then [Attr.style [("border", "3px solid blue"), ("margin", "-3px")]]
 --           else []
 --       in
@@ -452,9 +476,9 @@ structuredEditor modelState =
 --                 Just selectionClickPath ->
 --                   let
 --                     onClickMsg =
---                       if Set.member selectionClickPath selectedPaths
---                       then Controller.msgDeselectTSEFLLPPath selectionClickPath
---                       else Controller.msgSelectTSEFLLPPath   selectionClickPath
+--                       if Set.member selectionClickPath selectedPolyPaths
+--                       then Controller.msgTSEFLLPDeselectPolyPath selectionClickPath
+--                       else Controller.msgTSEFLLPSelectPolyPath   selectionClickPath
 --
 --                     scrubSpecificActions    = actions |> Set.toList |> List.filter isScrubSpecificAction
 --                     editTextSpecificActions = actions |> Set.toList |> List.filter isEditTextSpecificAction

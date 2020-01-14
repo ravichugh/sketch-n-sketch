@@ -22,7 +22,7 @@ type alias ModelState =
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
   -- , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
   , mousePosition                         : (Int, Int)
-  , selectedPaths                         : Set ProjectionPath
+  , selectedPolyPaths                     : List PolyPath -- Path in the poly overlay, not path into the value of interest. An ordered set.
   , maybeTextEditingPathAndText           : Maybe (ProjectionPath, String)
   -- , maybeNewValueOptions                  : Maybe (List TaggedValue)
   , liveSyncInfo                          : Sync.LiveInfo
@@ -39,7 +39,7 @@ initialModelState =
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
   -- , stringProjectionPathToSpecificActions = Dict.empty
   , mousePosition                         = mouseGone
-  , selectedPaths                         = Set.empty
+  , selectedPolyPaths                     = []
   , maybeTextEditingPathAndText           = Nothing
   -- , maybeNewValueOptions                  = Nothing
   , liveSyncInfo                          = { triggers = Dict.empty, initSubstPlus = Dict.empty }
@@ -119,6 +119,7 @@ type alias MultipleDispatchFunctions = List (Ident, Lang.Type, Ident) -- Name, T
 type alias TuplePattern = List Ident -- Tuple Patterns p := (x1,...,xn)
 
 type alias ProjectionPath = List Nat -- Projection Paths π := • | π.i
+type alias PolyPath       = List Nat -- Poly Paths reference nodes in the overlayed UI hover regions; 1-to-1 with the result AppendedTaggedStrings; not ProjectionPaths
 
 type alias Env = List (Ident, TaggedValue) -- Tagged Environments E := — | E,x↦w
 

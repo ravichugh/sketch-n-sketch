@@ -106,20 +106,20 @@ mouseOut oldModelState =
   { oldModelState | mousePosition = mouseGone }
 
 
-selectPath : TSEFLLPTypes.ModelState -> ProjectionPath -> TSEFLLPTypes.ModelState
-selectPath oldModelState projectionPath =
-  { oldModelState | selectedPaths = Set.insert projectionPath oldModelState.selectedPaths }
+selectPath : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
+selectPath oldModelState polyPath =
+  { oldModelState | selectedPolyPaths = Set.insert polyPath oldModelState.selectedPolyPaths }
 
 
-deselectPath : TSEFLLPTypes.ModelState -> ProjectionPath -> TSEFLLPTypes.ModelState
-deselectPath oldModelState projectionPath =
-  { oldModelState | selectedPaths = Set.remove projectionPath oldModelState.selectedPaths }
+deselectPath : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
+deselectPath oldModelState polyPath =
+  { oldModelState | selectedPolyPaths = Set.remove polyPath oldModelState.selectedPolyPaths }
 
 
 deselectAll : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
 deselectAll oldModelState =
-  { oldModelState | selectedPaths = Set.empty }
-  -- { oldModelState | selectedPaths = Set.empty, maybeNewValueOptions = Nothing }
+  { oldModelState | selectedPolyPaths = Set.empty }
+  -- { oldModelState | selectedPolyPaths = Set.empty, maybeNewValueOptions = Nothing }
 
 
 startTextEditing : TSEFLLPTypes.ModelState -> (ProjectionPath, String) -> TSEFLLPTypes.ModelState

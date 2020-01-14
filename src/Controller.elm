@@ -86,7 +86,7 @@ port module Controller exposing
   , msgUpdateBackpropExampleInput
   , msgShowUnExpPreview
   , msgClearUnExpPreview
-  , msgTSEFLLPMousePosition, msgTSEFLLPMouseOut, msgSelectTSEFLLPPath, msgDeselectTSEFLLPPath, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
+  , msgTSEFLLPMousePosition, msgTSEFLLPMouseOut, msgTSEFLLPSelectPolyPath, msgTSEFLLPDeselectPolyPath, msgTSEFLLPDeselectAllPolyPaths, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
   , msgLoadPBESuiteExample
   , msgBenchmarkPBE
   , msgRequestCoreRun
@@ -4669,16 +4669,22 @@ msgTSEFLLPMouseOut =
                   TSEFLLP.mouseOut model.tsefllpState
     }
 
-msgSelectTSEFLLPPath path =
+msgTSEFLLPSelectPolyPath path =
   Msg ("Select TSEFLLP path " ++ toString path) <| \model ->
     { model | tsefllpState =
                   TSEFLLP.selectPath model.tsefllpState path
     }
 
-msgDeselectTSEFLLPPath path =
+msgTSEFLLPDeselectPolyPath path =
   Msg ("Deselect TSEFLLP path " ++ toString path) <| \model ->
     { model | tsefllpState =
                   TSEFLLP.deselectPath model.tsefllpState path
+    }
+
+msgTSEFLLPDeselectAllPolyPaths path =
+  Msg ("Deselect All TSEFLLP paths") <| \model ->
+    { model | tsefllpState =
+                  TSEFLLP.deselectAll model.tsefllpState
     }
 
 -- msgTSEFLLPShowNewValueOptions newValueOptions =
