@@ -4671,9 +4671,14 @@ msgTSEFLLPMouseOut =
 
 msgTSEFLLPSelectPolyPath path =
   Msg ("Select TSEFLLP path " ++ toString path) <| \model ->
-    { model | tsefllpState =
-                  TSEFLLP.selectPath model.tsefllpState path
-    }
+    if model.keysDown == [Keys.keyShift] || List.map Keys.isCommandKey model.keysDown == [True] then
+      { model | tsefllpState =
+                    TSEFLLP.togglePathSelection model.tsefllpState path
+      }
+    else
+      { model | tsefllpState =
+                    TSEFLLP.selectOnePath model.tsefllpState path
+      }
 
 msgTSEFLLPDeselectPolyPath path =
   Msg ("Deselect TSEFLLP path " ++ toString path) <| \model ->
@@ -4681,7 +4686,7 @@ msgTSEFLLPDeselectPolyPath path =
                   TSEFLLP.deselectPath model.tsefllpState path
     }
 
-msgTSEFLLPDeselectAllPolyPaths path =
+msgTSEFLLPDeselectAllPolyPaths =
   Msg ("Deselect All TSEFLLP paths") <| \model ->
     { model | tsefllpState =
                   TSEFLLP.deselectAll model.tsefllpState

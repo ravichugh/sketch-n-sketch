@@ -19,6 +19,8 @@ import TSEFLLPTypes exposing (..)
 import TSEFLLPActions
 import TSEFLLPEval
 import TSEFLLPPolys
+import TSEFLLPSelection
+
 
 -------------- View -------------
 
@@ -299,7 +301,7 @@ plainStringView stringTaggedWithProjectionPathsResult =
 structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
 structuredEditor modelState =
   let
-    { valueOfInterestTagged, stringTaggedWithProjectionPathsResult, mousePosition } = modelState
+    { valueOfInterestTagged, stringTaggedWithProjectionPathsResult, selectedPolyPaths, mousePosition } = modelState
 
     px int = toString int ++ "px"
   in
@@ -314,110 +316,128 @@ structuredEditor modelState =
 
         pixelPoly = TSEFLLPPolys.taggedStringToPixelPoly charWidthPx charHeightPx taggedString
 
-        -- hoveredPathSetAllLevels =
-        --   pixelPoly
-        --   |> TSEFLLPPolys.flatten
-        --   |> List.filter (TSEFLLPPolys.containsPoint mousePosition)
-        --   |> List.map TSEFLLPPolys.polyPathSet
-        --   |> Utils.unionAll
+        selectedShapes =
+          selectedPolyPaths
+          |> List.map (\polyPath -> TSEFLLPSelection.maybeShapeByPolyPath polyPath pixelPoly)
+          |> Utils.filterJusts
+          |> Utils.dedup
 
-        findDeepestHoveredMeaningfulPoly : PolyPath -> TSEFLLPPolys.Poly -> Maybe (TSEFLLPPolys.Poly, PolyPath)
-        findDeepestHoveredMeaningfulPoly polyPath ((TSEFLLPPolys.Poly { pathSet, children }) as poly) =
-          let maybeHoveredChildren =
-            children
-            |> List.mapi1 (\(i, child) -> findDeepestHoveredMeaningfulPoly (polyPath ++ [i]) child)
-          in
-          case Utils.filterJusts maybeHoveredChildren of
-            []        -> if Set.size pathSet >= 1 && TSEFLLPPolys.containsPoint mousePosition poly then Just (polyPath, poly) else Nothing
-            [hovered] -> Just hovered
-            _         -> Debug.crash "TSEFLLPView.structuredEditor maybeDeepestHoveredPoly: Poly children should be mutually exclusive in space (no spacial overlap)!"
+        selectionAssignments = TSEFLLPSelection.associateProjectionPathsWithShapes valueOfInterestTagged pixelPoly
 
-        (maybeDeepestHoveredMeaningfulPath, maybeDeepestHoveredMeaningfulPoly) : (Maybe PolyPath, Maybe (SEFLLPPolys.Poly)
-        (maybeDeepestHoveredMeaningfulPath, maybeDeepestHoveredMeaningfulPoly) =
-          case findDeepestHoveredMeaningfulPoly [] pixelPoly of
-            Just (polyPath, poly) -> (Just PolyPath, Just Poly)
-            Nothing               -> (Nothing, Nothing)
+        maybeHoveredShape = TSEFLLPSelection.mostRelevantShapeAtPoint mousePosition selectionAssignments
+        hoveredShapes     = Utils.maybeToList maybeHoveredShape
 
-        deepestHoveredPathSet : Set ProjectionPath
-        deepestHoveredPathSet =
-          maybeDeepestHoveredMeaningfulPoly
-          |> Maybe.map TSEFLLPPolys.polyPathSet
-          |> Maybe.withDefault Set.empty
+        -- Debug.
+        selectedPathSet = selectedShapes |> List.map (flip TSEFLLPSelection.shapeToPathSet selectionAssignments) |> Utils.unionAll
+        hoveredPathSet  = hoveredShapes  |> List.map (flip TSEFLLPSelection.shapeToPathSet selectionAssignments) |> Utils.unionAll
+
+        shapeToMaybeLabel : TSEFLLPPolys.PixelShape -> Maybe String
+        shapeToMaybeLabel shape =
+          let pathSet = TSEFLLPSelection.shapeToPathSet shape selectionAssignments in
+          if Set.size pathSet >= 1 then
+            pathSet
+            |> Set.toList
+            |> sortByDeepestLeftmostLast
+            |> List.reverse
+            |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString)
+            |> List.map (\unparsed -> unparsed |> String.split "(" |> List.head |> Maybe.withDefault unparsed)
+            |> String.join ", "
+            |> Just
+          else
+            Nothing
 
         onClickMsg =
-          case maybeDeepestHoveredMeaningfulPath of
-            Just hoveredPolyPath ->
-              if List.member hoveredPolyPath selectedPolyPaths
-              then Controller.msgTSEFLLPDeselectPolyPath hoveredPolyPath
-              else Controller.msgTSEFLLPSelectPolyPath   hoveredPolyPath
+          case maybeHoveredShape of
+            Just hoveredShape ->
+              case TSEFLLPSelection.shapeToMaybePolyPath hoveredShape pixelPoly of
+                Just hoveredPolyPath ->
+                  if List.member hoveredPolyPath selectedPolyPaths
+                  then Controller.msgTSEFLLPDeselectPolyPath hoveredPolyPath
+                  else Controller.msgTSEFLLPSelectPolyPath   hoveredPolyPath
+                Nothing ->
+                  Controller.msgTSEFLLPDeselectAllPolyPaths
             Nothing ->
               Controller.msgTSEFLLPDeselectAllPolyPaths
 
-        -- Make sure children come after, for z ordering purposes.
-        pixelPolyToDivs : List (Html.Attribute Msg) -> TSEFLLPPolys.Poly -> List (Html Msg)
-        pixelPolyToDivs extraAttrs ((TSEFLLPPolys.Poly { bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout, pathSet, children }) as poly) =
+
+        pixelShapeToDivs : List (Html.Attribute Msg) -> TSEFLLPPolys.PixelShape -> List (Html Msg)
+        pixelShapeToDivs extraAttrs ({ bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout } as pixelShape) =
           let
-            recurse                 = pixelPolyToDivs extraAttrs
             (left, top, right, bot) = bounds
             (startX, firstLineBot)  = rightBotCornerOfLeftTopCutout
             (endX, lastLineTop)     = leftTopCornerOfRightBotCutout
 
-            divs =
-              if Set.size pathSet >= 1 then
-                if lastLineTop < firstLineBot then
-                  let _ = if (startX, firstLineBot) /= (left, bot)  then Debug.crash ("TSEFLLPView.structuredEditor pixelPolyToDivs unorthodox poly construction: bounding box " ++ toString bounds ++ " rightBotCornerOfLeftTopCutout " ++ toString rightBotCornerOfLeftTopCutout ++ " leftTopCornerOfRightBotCutout " ++ toString leftTopCornerOfRightBotCutout) else () in
-                  let _ = if (endX, lastLineTop)    /= (right, top) then Debug.crash ("TSEFLLPView.structuredEditor pixelPolyToDivs unorthodox poly construction: bounding box " ++ toString bounds ++ " rightBotCornerOfLeftTopCutout " ++ toString rightBotCornerOfLeftTopCutout ++ " leftTopCornerOfRightBotCutout " ++ toString leftTopCornerOfRightBotCutout) else () in
+            perhapsLabel =
+              case shapeToMaybeLabel pixelShape of
+                Just label ->
                   [ Html.div
-                        ([ Attr.style [ ("position", "absolute")
-                                      , ("left", px (left + 1)), ("top", px (top + 1))
-                                      , ("width", px (right - left)), ("height", px (bot - top))
-                                      ]
-                        ] ++ extraAttrs)
-                        []
+                      [ Attr.style [ ("margin-top", px (-charHeightPx))
+                                   , ("width", "1000px")
+                                   ]
+                      ]
+                      [ Html.span
+                          [ Attr.style [ ("line-height", px charHeightPx)
+                                       , ("font-size", px charHeightPx)
+                                       , ("color", "blue")
+                                       , ("background-color", "#eee")
+                                       ]
+                          ]
+                          [text label]
+                      ]
                   ]
-                else if lastLineTop == firstLineBot then
-                  [ Html.div
-                        ([ Attr.style [ ("position", "absolute")
-                                      , ("left", px (startX + 1)), ("top", px (top + 1))
-                                      , ("width", px (right - startX)), ("height", px (firstLineBot - top))
-                                      ]
-                        ] ++ extraAttrs)
-                        []
-                  , Html.div
-                        ([ Attr.style [ ("position", "absolute")
-                                      , ("left", px (left + 1)), ("top", px (lastLineTop + 1))
-                                      , ("width", px (endX - left)), ("height", px (bot - lastLineTop))
-                                      ]
-                        ] ++ extraAttrs)
-                        []
-                  ]
-                else
-                  [ Html.div
-                        ([ Attr.style [ ("position", "absolute")
-                                      , ("left", px (startX + 1)), ("top", px (top + 1))
-                                      , ("width", px (right - startX)), ("height", px (firstLineBot - top))
-                                      ]
-                        ] ++ extraAttrs)
-                        []
-                  , Html.div
-                        ([ Attr.style [ ("position", "absolute")
-                                      , ("left", px (left + 1)), ("top", px (firstLineBot + 1))
-                                      , ("width", px (right - left)), ("height", px (lastLineTop - firstLineBot))
-                                      ]
-                        ] ++ extraAttrs)
-                        []
-                  , Html.div
-                        ([ Attr.style [ ("position", "absolute")
-                                      , ("left", px (left + 1)), ("top", px (lastLineTop + 1))
-                                      , ("width", px (endX - left)), ("height", px (bot - lastLineTop))
-                                      ]
-                        ] ++ extraAttrs)
-                        []
-                  ]
-              else
-                []
+                Nothing ->
+                  []
           in
-          divs ++ List.concatMap recurse children
+          if lastLineTop < firstLineBot then
+            let _ = if (startX, firstLineBot) /= (left, bot)  then Debug.crash ("TSEFLLPView.structuredEditor pixelPolyToDivs unorthodox poly construction: bounding box " ++ toString bounds ++ " rightBotCornerOfLeftTopCutout " ++ toString rightBotCornerOfLeftTopCutout ++ " leftTopCornerOfRightBotCutout " ++ toString leftTopCornerOfRightBotCutout) else () in
+            let _ = if (endX, lastLineTop)    /= (right, top) then Debug.crash ("TSEFLLPView.structuredEditor pixelPolyToDivs unorthodox poly construction: bounding box " ++ toString bounds ++ " rightBotCornerOfLeftTopCutout " ++ toString rightBotCornerOfLeftTopCutout ++ " leftTopCornerOfRightBotCutout " ++ toString leftTopCornerOfRightBotCutout) else () in
+            [ Html.div
+                  ([ Attr.style [ ("position", "absolute")
+                                , ("left", px (left + 1)), ("top", px (top + 1))
+                                , ("width", px (right - left)), ("height", px (bot - top))
+                                ]
+                  ] ++ extraAttrs)
+                  perhapsLabel
+            ]
+          else if lastLineTop == firstLineBot then
+            [ Html.div
+                  ([ Attr.style [ ("position", "absolute")
+                                , ("left", px (startX + 1)), ("top", px (top + 1))
+                                , ("width", px (right - startX)), ("height", px (firstLineBot - top))
+                                ]
+                  ] ++ extraAttrs)
+                  perhapsLabel
+            , Html.div
+                  ([ Attr.style [ ("position", "absolute")
+                                , ("left", px (left + 1)), ("top", px (lastLineTop + 1))
+                                , ("width", px (endX - left)), ("height", px (bot - lastLineTop))
+                                ]
+                  ] ++ extraAttrs)
+                  []
+            ]
+          else
+            [ Html.div
+                  ([ Attr.style [ ("position", "absolute")
+                                , ("left", px (startX + 1)), ("top", px (top + 1))
+                                , ("width", px (right - startX)), ("height", px (firstLineBot - top))
+                                ]
+                  ] ++ extraAttrs)
+                  perhapsLabel
+            , Html.div
+                  ([ Attr.style [ ("position", "absolute")
+                                , ("left", px (left + 1)), ("top", px (firstLineBot + 1))
+                                , ("width", px (right - left)), ("height", px (lastLineTop - firstLineBot))
+                                ]
+                  ] ++ extraAttrs)
+                  []
+            , Html.div
+                  ([ Attr.style [ ("position", "absolute")
+                                , ("left", px (left + 1)), ("top", px (lastLineTop + 1))
+                                , ("width", px (endX - left)), ("height", px (bot - lastLineTop))
+                                ]
+                  ] ++ extraAttrs)
+                  []
+            ]
 
         -- Relative to top-left corner of structured editor.
         logMousePosition xPx yPx = Controller.msgTSEFLLPMousePosition (xPx, yPx)
@@ -431,19 +451,21 @@ structuredEditor modelState =
           -- , Html.Events.onMouseOut Controller.msgTSEFLLPMouseOut
           ] <|
           -- pixelPolyToDivs [Attr.style [("border", "solid black 1px"), ("margin", "-1px")]] pixelPoly ++
-          (maybeDeepestHoveredMeaningfulPoly |> Utils.maybeToList |> List.concatMap (pixelPolyToDivs [Attr.style [("background-color", hoverColor)]])) ++
-          [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx), ("position", "absolute"), ("top", "0px"), ("left", "0px")]] [text (taggedStringToNormalString taggedString)]
-          , Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx)]]                                                            [text (taggedStringToNormalString taggedString)] -- For spacing reasons.
-          , Html.div [] [text "Hovered paths: ", text (pathSetToString deepestHoveredPathSet)]
-          , Html.pre [] [text "Hovered values:\n  ", text (deepestHoveredPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
+          (hoveredShapes  |> List.concatMap (pixelShapeToDivs [Attr.style [("background-color", hoverColor)]])) ++ -- draw highlights under
+          (selectedShapes |> List.concatMap (pixelShapeToDivs [Attr.style [("background-color", selectedColor)]])) ++ -- draw highlights under
+          [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx), ("position", "absolute"), ("top", "0px"), ("left", "0px")]] [text (taggedStringToNormalString taggedString)] ] ++
+          (hoveredShapes  |> List.concatMap (pixelShapeToDivs [])) ++ -- draw labels on top
+          (selectedShapes |> List.concatMap (pixelShapeToDivs [])) ++ -- draw labels on top
+          [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx)]]                                                            [text (taggedStringToNormalString taggedString)] -- For spacing reasons.
+          , Html.div [] [text "Hovered value paths: ", text (pathSetToString hoveredPathSet)]
+          , Html.pre [] [text "Hovered values:\n  ", text (hoveredPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
+          , Html.div [] [text "Selected value paths: ", text (pathSetToString selectedPathSet)]
+          , Html.pre [] [text "Selected values:\n  ", text (selectedPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
           , Html.div [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))] []
           ]
 
     Err err ->
       Html.div [Attr.style [("font-size", "18px"), ("color", "#e00")]] [text err]
-  --
-  --  exposing (Poly(..), PixelPoly, polyBounds, taggedStringToPixelPolyes)
-  -- plainStringView stringTaggedWithProjectionPathsResult
 
 
 -- structuredEditor : TSEFLLPTypes.ModelState -> Html Msg

@@ -1,4 +1,4 @@
-module TSEFLLPPolys exposing (Poly(..), PixelPoly, polyBounds, polyPathSet, containsPoint, flatten, taggedStringToPixelPoly)
+module TSEFLLPPolys exposing (Poly(..), PixelPoly, PixelShape, polyShape, polyPathSet, containsPoint, area, flatten, taggedStringToPixelPoly)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -44,6 +44,11 @@ import TSEFLLPTypes exposing (..)
 --
 --
 
+type alias Shape = { bounds                        : (Int, Int, Int, Int)
+                   , rightBotCornerOfLeftTopCutout : (Int, Int)
+                   , leftTopCornerOfRightBotCutout : (Int, Int)
+                   }
+
 type alias Properties = { bounds                        : (Int, Int, Int, Int)
                         , rightBotCornerOfLeftTopCutout : (Int, Int)
                         , leftTopCornerOfRightBotCutout : (Int, Int)
@@ -55,6 +60,8 @@ type Poly = Poly Properties
 
 type alias PixelPoly    = Poly -- with units in pixels;     upper left is 0,0
 type alias CharGridPoly = Poly -- with units in characters; upper left is 0,0
+
+type alias PixelShape   = Shape -- with units in pixels;     upper left is 0,0
 
 
 tabSize = 2
@@ -73,16 +80,23 @@ polyRightBotCornerOfLeftTopCutout = properties >> (.rightBotCornerOfLeftTopCutou
 polyLeftTopCornerOfRightBotCutout : Poly -> (Int, Int)
 polyLeftTopCornerOfRightBotCutout = properties >> (.leftTopCornerOfRightBotCutout)
 
-startCutoutBounds : Poly -> (Int, Int, Int, Int)
-startCutoutBounds (Poly {bounds, rightBotCornerOfLeftTopCutout}) =
+polyShape : Poly -> Shape
+polyShape (Poly properties) =
+   { bounds                        = properties.bounds
+   , rightBotCornerOfLeftTopCutout = properties.rightBotCornerOfLeftTopCutout
+   , leftTopCornerOfRightBotCutout = properties.leftTopCornerOfRightBotCutout
+   }
+
+startCutoutBounds : Shape -> (Int, Int, Int, Int)
+startCutoutBounds { bounds, rightBotCornerOfLeftTopCutout } =
   let
     (left, top, _, _)      = bounds
     (startX, firstLineBot) = rightBotCornerOfLeftTopCutout
   in
   (left, top, startX, firstLineBot)
 
-endCutoutBounds : Poly -> (Int, Int, Int, Int)
-endCutoutBounds (Poly {bounds, leftTopCornerOfRightBotCutout}) =
+endCutoutBounds : Shape -> (Int, Int, Int, Int)
+endCutoutBounds { bounds, leftTopCornerOfRightBotCutout } =
   let
     (_, _, right, bot)  = bounds
     (endX, lastLineTop) = leftTopCornerOfRightBotCutout
@@ -95,17 +109,15 @@ polyPathSet (Poly {pathSet}) = pathSet
 flatten : Poly -> List Poly
 flatten ((Poly {children}) as box) = box :: List.concatMap flatten children
 
-containsPoint : (Int, Int) -> Poly -> Bool
-containsPoint point poly =
-  BoundsUtils.containsPoint (polyBounds poly) point &&
-  not (BoundsUtils.containsPoint (startCutoutBounds poly) point) &&
-  not (BoundsUtils.containsPoint (endCutoutBounds poly) point)
+containsPoint : (Int, Int) -> Shape -> Bool
+containsPoint point shape =
+  BoundsUtils.containsPoint shape.bounds point &&
+  not (BoundsUtils.containsPoint (startCutoutBounds shape) point) &&
+  not (BoundsUtils.containsPoint (endCutoutBounds shape) point)
 
--- firstLineLeftTop : Poly -> (Int, Int)
--- firstLineLeftTop = startCutoutBounds >> (\(left, top, startX, firstLineBot) -> (startX, top))
---
--- lastLineRightBot : Poly -> (Int, Int)
--- lastLineRightBot = endCutoutBounds >> (\(endX, lastLineTop, right, bot) -> (endX, bot))
+area : Shape -> Int
+area shape =
+  BoundsUtils.area shape.bounds - BoundsUtils.area (startCutoutBounds shape) - BoundsUtils.area (endCutoutBounds shape)
 
 
 -- In current forumlation, the tree structure of the polys matches the tree structure
@@ -238,4 +250,3 @@ charGridPolyToPixelPoly charWidthPx charHeightPx (Poly { bounds, rightBotCornerO
        , pathSet                       = pathSet
        , children                      = (List.map (charGridPolyToPixelPoly charWidthPx charHeightPx) children)
        }
-

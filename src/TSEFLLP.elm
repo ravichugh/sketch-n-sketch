@@ -1,4 +1,4 @@
-module TSEFLLP exposing (prepare, newLangValResult, mousePosition, mouseOut, selectPath, deselectPath, deselectAll, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
+module TSEFLLP exposing (prepare, newLangValResult, mousePosition, mouseOut, selectOnePath, togglePathSelection, deselectPath, deselectAll, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
 
 import Dict
 import Set
@@ -106,19 +106,24 @@ mouseOut oldModelState =
   { oldModelState | mousePosition = mouseGone }
 
 
-selectPath : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
-selectPath oldModelState polyPath =
-  { oldModelState | selectedPolyPaths = Set.insert polyPath oldModelState.selectedPolyPaths }
+selectOnePath : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
+selectOnePath oldModelState polyPath =
+  { oldModelState | selectedPolyPaths = [polyPath] }
+
+
+togglePathSelection : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
+togglePathSelection oldModelState polyPath =
+  { oldModelState | selectedPolyPaths = Utils.toggleAsSet polyPath oldModelState.selectedPolyPaths }
 
 
 deselectPath : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
 deselectPath oldModelState polyPath =
-  { oldModelState | selectedPolyPaths = Set.remove polyPath oldModelState.selectedPolyPaths }
+  { oldModelState | selectedPolyPaths = Utils.removeAsSet polyPath oldModelState.selectedPolyPaths }
 
 
 deselectAll : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
 deselectAll oldModelState =
-  { oldModelState | selectedPolyPaths = Set.empty }
+  { oldModelState | selectedPolyPaths = [] }
   -- { oldModelState | selectedPolyPaths = Set.empty, maybeNewValueOptions = Nothing }
 
 

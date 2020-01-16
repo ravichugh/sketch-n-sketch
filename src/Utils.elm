@@ -320,6 +320,12 @@ removeAsSet : a -> List a -> List a
 removeAsSet x xs =
   List.filter ((/=) x) xs
 
+toggleAsSet : a -> List a -> List a
+toggleAsSet x xs =
+  if List.member x xs
+  then removeAsSet x xs
+  else x::xs
+
 -- O(nm)
 diffAsSet : List a -> List a -> List a
 diffAsSet xs ys =
@@ -1054,6 +1060,11 @@ dictGetSet k d =
 dictUnionSet : k -> (Set v) -> Dict k (Set v) -> Dict k (Set v)
 dictUnionSet k more dict =
   Dict.insert k (Set.union more (dictGetSet k dict)) dict
+
+-- More efficient if dict2 is larger.
+unionDictSets : Dict k (Set v) -> Dict k (Set v) -> Dict k (Set v)
+unionDictSets dict1 dict2 =
+  Dict.foldl dictUnionSet dict2 dict1
 
 insertAll : List (k, v) -> Dict k v -> Dict k v
 insertAll pairs dict =
