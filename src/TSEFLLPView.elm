@@ -34,8 +34,8 @@ functionPickerAndEditor modelState =
   in
   if modelState.showWidgets then
     [ Html.div [] [renderingFunctionPicker]
-    , stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
-    , Html.div [] [text "Selected poly paths: ", text (polyPathsToString modelState.selectedPolyPaths)]
+    -- , stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
+    -- , Html.div [] [text "Selected poly paths: ", text (polyPathsToString modelState.selectedPolyPaths)]
     , Html.div
         [ Attr.style [("padding", "1em")] ]
         [ structuredEditor modelState ]
@@ -84,6 +84,17 @@ pathSetToString pathSet =
 polyPathsToString : List PolyPath -> String
 polyPathsToString paths =
   "[" ++ String.join "," (List.map pathToString paths) ++ "]"
+
+
+actionDescription : SpecificAction -> TaggedValue -> String
+actionDescription specificAction valueOfInterestTagged =
+  case specificAction of
+    NewValue Remove path _ ->
+      case pathToMaybeValue valueOfInterestTagged path of
+        Just subvalue -> "Remove " ++ unparseToUntaggedString subvalue
+        Nothing       -> "Path " ++ pathToString path ++ " not found in " ++ unparseToUntaggedString valueOfInterestTagged
+    _ ->
+      toString specificAction
 
 
 -- actionAssociationsDebug : Dict ProjectionPath (List SpecificAction) -> Result String StringTaggedWithProjectionPaths -> Html Msg
@@ -301,7 +312,7 @@ plainStringView stringTaggedWithProjectionPathsResult =
 structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
 structuredEditor modelState =
   let
-    { valueOfInterestTagged, stringTaggedWithProjectionPathsResult, selectedPolyPaths, mousePosition } = modelState
+    { valueOfInterestTagged, stringTaggedWithProjectionPathsResult, selectedPolyPaths, mousePosition, projectionPathToSpecificActions, shownActions } = modelState
 
     px int = toString int ++ "px"
   in
@@ -439,6 +450,91 @@ structuredEditor modelState =
                   []
             ]
 
+
+        buttonsAndMenus =
+          let
+            shownShapes = Utils.dedup (selectedShapes ++ hoveredShapes)
+
+            shapeToButtons ({ bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout } as pixelShape) =
+              let
+                (left, top, right, bot) = bounds
+                (startX, firstLineBot)  = rightBotCornerOfLeftTopCutout
+                (endX, lastLineTop)     = leftTopCornerOfRightBotCutout
+
+                actions =
+                  TSEFLLPSelection.shapeToPathSet pixelShape selectionAssignments
+                  |> Set.toList
+                  |> List.map (\path -> Utils.getWithDefault path Set.empty projectionPathToSpecificActions)
+                  |> Utils.unionAll
+
+                deleteActions =
+                  actions
+                  |> Set.filter (specificActionMaybeChangeType >> (==) (Just Remove))
+
+                -- Deepest, leftmost first
+                shownDeleteActions =
+                  Set.intersect shownActions deleteActions
+                  |> Set.toList
+                  |> List.sortBy (\action -> (negate <| List.length (specificActionProjectionPath action), specificActionProjectionPath action))
+
+                maybeShapePolyPath = TSEFLLPSelection.shapeToMaybePolyPath pixelShape pixelPoly
+
+                actionDiv action =
+                  case specificActionMaybeNewValue action of
+                    Just newVal ->
+                      Html.div
+                          [ Attr.style [ ("cursor", "pointer") ]
+                          , Html.Events.onClick (Controller.msgTSEFLLPSelectNewValue newVal)
+                          ]
+                          [ text (actionDescription action valueOfInterestTagged) ]
+                    Nothing ->
+                      Html.div
+                          []
+                          [ text <| "who are you and why is this action here " ++ actionDescription action valueOfInterestTagged ]
+
+                perhapsDeleteButton =
+                  if List.length shownDeleteActions >= 1 then
+                    [ Html.div
+                          [ Attr.style [ ("position", "absolute")
+                                        , ("left", px right), ("top", px top)
+                                        -- , ("width", px 500) --, ("height", px (charHeightPx)
+                                        , ("border", "1px solid gray")
+                                        , ("background-color", "#eee")
+                                        -- , ("overflow-x", "scroll")
+                                        ]
+                          ]
+                          (shownDeleteActions |> List.map actionDiv)
+                    ]
+                    -- E.onWithOptions
+                    --     "click"
+                    --     { stopPropagation = realStopPropagation
+                    --     , preventDefault = False
+                    --     }
+                  else if Set.size deleteActions >= 1 then
+                    let onClick =
+                      -- If only one possible delete action, apply immediately.
+                      case Set.toList deleteActions |> List.map specificActionMaybeNewValue of
+                        [Just newVal] -> Controller.msgTSEFLLPSelectNewValue newVal
+                        _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath deleteActions
+                    in
+                    [ Html.div
+                          [ Attr.style [ ("position", "absolute")
+                                        , ("left", px (right - charWidthPx//2)), ("top", px (top - charWidthPx//2))
+                                        , ("width", px (charWidthPx//2)), ("height", px (charHeightPx//2))
+                                        , ("font-size", px (charHeightPx//2))
+                                        , ("cursor", "pointer")
+                                        ]
+                          , Html.Events.onClick onClick
+                          ]
+                          [text "❌"] -- ❌✘✕✖︎✗
+                    ]
+                  else
+                    []
+              in
+              perhapsDeleteButton
+          in
+          List.concatMap shapeToButtons shownShapes
+
         -- Relative to top-left corner of structured editor.
         logMousePosition xPx yPx = Controller.msgTSEFLLPMousePosition (xPx, yPx)
 
@@ -462,7 +558,7 @@ structuredEditor modelState =
           , Html.div [] [text "Selected value paths: ", text (pathSetToString selectedPathSet)]
           , Html.pre [] [text "Selected values:\n  ", text (selectedPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
           , Html.div [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))] []
-          ]
+          ] ++ buttonsAndMenus -- Have to draw these on top of the click catcher above.
 
     Err err ->
       Html.div [Attr.style [("font-size", "18px"), ("color", "#e00")]] [text err]

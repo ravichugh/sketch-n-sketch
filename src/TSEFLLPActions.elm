@@ -1,4 +1,4 @@
-module TSEFLLPActions exposing (replaceAtPath)
+module TSEFLLPActions exposing (makeProjectionPathToSpecificActions, replaceAtPath)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -234,6 +234,15 @@ replaceAtPath pathToReplace replacement rootValueOfInterestTagged =
         else subvalueOfInterestTagged
       )
   |> clearTags
+
+
+makeProjectionPathToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Maybe Lang.Type -> Dict ProjectionPath (Set SpecificAction)
+makeProjectionPathToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType =
+  valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType rootValueOfInterestTagged
+  |> Set.toList
+  |> List.map (\action -> (specificActionProjectionPath action, action))
+  |> Utils.pairsToDictOfLists
+  |> Dict.map (\projectionPath actions -> Set.fromList actions)
 
 
 -- Type, if given, should be concrete: no free variables.

@@ -86,7 +86,7 @@ port module Controller exposing
   , msgUpdateBackpropExampleInput
   , msgShowUnExpPreview
   , msgClearUnExpPreview
-  , msgTSEFLLPMousePosition, msgTSEFLLPMouseOut, msgTSEFLLPSelectPolyPath, msgTSEFLLPDeselectPolyPath, msgTSEFLLPDeselectAllPolyPaths, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
+  , msgTSEFLLPMousePosition, msgTSEFLLPMouseOut, msgTSEFLLPSelectPolyPath, msgTSEFLLPDeselectPolyPath, msgTSEFLLPDeselectAllPolyPaths, msgTSEFLLPShowActions, msgTSEFLLPSelectNewValue, msgTSEFLLPStartLiveSync, msgTSEFLLPStartTextEditing, msgTSEFLLPUpdateTextBox, msgTSEFLLPApplyTextEdit
   , msgLoadPBESuiteExample
   , msgBenchmarkPBE
   , msgRequestCoreRun
@@ -2148,7 +2148,8 @@ msgKeyDown keyCode =
               old
           else
             handleDeuceHotKey old keyCodes <| Utils.fromJust "Impossible" mbKeyboardFocusedWidget
-
+        else if old.outputMode == StructuredEditor && keyCode == Keys.keyBackspace then
+          tsefllpDeleteSelection old
         else if
           not currentKeyDown &&
           (keyCode == Keys.keyShift || keyCode == Keys.keyAlt)
@@ -4692,6 +4693,14 @@ msgTSEFLLPDeselectAllPolyPaths =
                   TSEFLLP.deselectAll model.tsefllpState
     }
 
+msgTSEFLLPShowActions maybePolyPath specificActions =
+  Msg "Show TSEFLLP remove value options" (tsefllpShowActions maybePolyPath specificActions)
+
+tsefllpShowActions maybePolyPath specificActions model =
+  { model | tsefllpState =
+                TSEFLLP.showActions model.tsefllpState maybePolyPath specificActions
+  }
+
 -- msgTSEFLLPShowNewValueOptions newValueOptions =
 --   Msg "Show new TSEFLLP value options" <| \model ->
 --     { model | tsefllpState =
@@ -4699,7 +4708,9 @@ msgTSEFLLPDeselectAllPolyPaths =
 --     }
 
 msgTSEFLLPSelectNewValue tsefllpVal =
-  Msg "Select new TSEFLLP value" <| \model ->
+  Msg "Select new TSEFLLP value" (tsefllpSelectNewValue tsefllpVal)
+
+tsefllpSelectNewValue tsefllpVal model =
     let
       updatedValResult = TSEFLLP.newLangValResult tsefllpVal
 
@@ -4725,6 +4736,13 @@ msgTSEFLLPSelectNewValue tsefllpVal =
         let _ = Utils.log "No bidirectional backprop results!" in
         model
 
+-- Delete key pressed.
+tsefllpDeleteSelection model =
+  let (deleteActions, deleteNewValues) = TSEFLLP.deleteActionsAndNewValuesForSelection model.tsefllpState in
+  case deleteNewValues of
+    []           -> let _ = Utils.log "No TSEFLLP delete actions for selection" in model
+    [tsefllpVal] -> tsefllpSelectNewValue tsefllpVal model
+    _            -> tsefllpShowActions Nothing deleteActions model
 
 msgTSEFLLPStartLiveSync path =
   Msg ("Start Live Sync for TSEFLLP path " ++ toString path) <| \model ->

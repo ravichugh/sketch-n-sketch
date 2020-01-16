@@ -20,10 +20,11 @@ type alias ModelState =
   , showWidgets                           : Bool
   , valueOfInterestTagged                 : TaggedValue
   , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
-  -- , stringProjectionPathToSpecificActions : Dict ProjectionPath (List SpecificAction)
+  , projectionPathToSpecificActions       : Dict ProjectionPath (Set SpecificAction)
   , mousePosition                         : (Int, Int)
   , selectedPolyPaths                     : List PolyPath -- Path in the poly overlay, not path into the value of interest. An ordered set.
   , maybeTextEditingPathAndText           : Maybe (ProjectionPath, String)
+  , shownActions                          : Set SpecificAction
   -- , maybeNewValueOptions                  : Maybe (List TaggedValue)
   , liveSyncInfo                          : Sync.LiveInfo
   }
@@ -37,10 +38,11 @@ initialModelState =
   , showWidgets                           = True -- For creating new toString examples without seeing the generated TSEFLLP editor.
   , valueOfInterestTagged                 = noTag (VCtor "Nothing" [])
   , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
-  -- , stringProjectionPathToSpecificActions = Dict.empty
+  , projectionPathToSpecificActions       = Dict.empty
   , mousePosition                         = mouseGone
   , selectedPolyPaths                     = []
   , maybeTextEditingPathAndText           = Nothing
+  , shownActions                          = Set.empty
   -- , maybeNewValueOptions                  = Nothing
   , liveSyncInfo                          = { triggers = Dict.empty, initSubstPlus = Dict.empty }
   }
@@ -193,13 +195,11 @@ specificActionProjectionPath specificAction =
     Scrub projectionPath        -> projectionPath
     EditText projectionPath     -> projectionPath
 
-
 specificActionMaybeChangeType : SpecificAction -> Maybe ChangeType
 specificActionMaybeChangeType specificAction =
   case specificAction of
     NewValue changeType _ _ -> Just changeType
     _                       -> Nothing
-
 
 specificActionMaybeNewValue : SpecificAction -> Maybe TaggedValue
 specificActionMaybeNewValue specificAction =

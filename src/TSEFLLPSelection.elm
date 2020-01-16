@@ -1,4 +1,4 @@
-module TSEFLLPSelection exposing (associateProjectionPathsWithShapes, maybeShapeByPolyPath, shapeToMaybePolyPath, mostRelevantShapeAtPoint, shapeToPathSet)
+module TSEFLLPSelection exposing (selectedPolyPathsToProjectionPathSet, associateProjectionPathsWithShapes, maybeShapeByPolyPath, shapeToMaybePolyPath, mostRelevantShapeAtPoint, shapeToPathSet)
 
 -- Module for associating overlay shapes with parts of the value of interest (projection paths).
 --
@@ -15,6 +15,24 @@ import Utils
 
 -- Current task: only need polyPaths between runs (to not lose selection for small changes like number scrubbing), otherwise polyPaths should immediately be turned into shapes
 type alias SelectionAssignments = Dict PixelShape (Set ProjectionPath)
+
+
+selectedPolyPathsToProjectionPathSet : List PolyPath -> TaggedValue -> StringTaggedWithProjectionPaths -> Set ProjectionPath
+selectedPolyPathsToProjectionPathSet selectedPolyPaths valueOfInterestTagged taggedString =
+  let
+    pixelPoly = TSEFLLPPolys.taggedStringToPixelPoly 1 1 taggedString
+
+    selectedShapes =
+      selectedPolyPaths
+      |> List.map (\polyPath -> maybeShapeByPolyPath polyPath pixelPoly)
+      |> Utils.filterJusts
+      |> Utils.dedup
+
+    selectionAssignments = associateProjectionPathsWithShapes valueOfInterestTagged pixelPoly
+  in
+  selectedShapes
+  |> List.map (flip shapeToPathSet selectionAssignments)
+  |> Utils.unionAll
 
 
 -- Version 1, by shape precisely.

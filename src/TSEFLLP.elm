@@ -1,7 +1,6 @@
-module TSEFLLP exposing (prepare, newLangValResult, mousePosition, mouseOut, selectOnePath, togglePathSelection, deselectPath, deselectAll, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
+module TSEFLLP exposing (prepare, newLangValResult, mousePosition, mouseOut, selectOnePath, togglePathSelection, deselectPath, deselectAll, showActions, deleteActionsAndNewValuesForSelection, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
 
-import Dict
-import Set
+import Set exposing (Set)
 
 import Lang
 import Sync
@@ -13,6 +12,7 @@ import TSEFLLPResugaring
 import TSEFLLPEval
 import TSEFLLPActions
 import TSEFLLPScrub
+import TSEFLLPSelection
 
 
 ----------- Controller -----------
@@ -68,7 +68,12 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
       maybeValueOfInterestTypeFromLeo
       |> Maybe.map TSEFLLPDesugaring.replaceTBoolTListWithTVarTApp
 
-    -- stringProjectionPathToSpecificActions =
+    projectionPathToSpecificActions =
+      TSEFLLPActions.makeProjectionPathToSpecificActions
+          dataTypeDefs
+          valueOfInterestTagged
+          maybeValueOfInterestType
+
     --   stringTaggedWithProjectionPathsResult
     --   |> Result.toMaybe
     --   |> Maybe.map (TSEFLLPActions.generateActionsForValueAndAssociateWithStringLocations dataTypeDefs maybeValueOfInterestType valueOfInterestTagged)
@@ -81,7 +86,7 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
   , maybeRenderingFunctionNameAndProgram  = maybeRenderingFunctionNameAndProgram
   , valueOfInterestTagged                 = valueOfInterestTagged
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
-  -- , stringProjectionPathToSpecificActions = stringProjectionPathToSpecificActions
+  , projectionPathToSpecificActions       = projectionPathToSpecificActions
   -- , maybeNewValueOptions                  = Nothing
   , liveSyncInfo                          = TSEFLLPScrub.prepareLiveUpdates syncOptions program valueOfInterest
   }
@@ -108,23 +113,64 @@ mouseOut oldModelState =
 
 selectOnePath : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
 selectOnePath oldModelState polyPath =
-  { oldModelState | selectedPolyPaths = [polyPath] }
+  { oldModelState | selectedPolyPaths = [polyPath], shownActions = Set.empty }
 
 
 togglePathSelection : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
 togglePathSelection oldModelState polyPath =
-  { oldModelState | selectedPolyPaths = Utils.toggleAsSet polyPath oldModelState.selectedPolyPaths }
+  { oldModelState | selectedPolyPaths = Utils.toggleAsSet polyPath oldModelState.selectedPolyPaths, shownActions = Set.empty }
 
 
 deselectPath : TSEFLLPTypes.ModelState -> PolyPath -> TSEFLLPTypes.ModelState
 deselectPath oldModelState polyPath =
-  { oldModelState | selectedPolyPaths = Utils.removeAsSet polyPath oldModelState.selectedPolyPaths }
+  { oldModelState | selectedPolyPaths = Utils.removeAsSet polyPath oldModelState.selectedPolyPaths, shownActions = Set.empty }
 
 
 deselectAll : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
 deselectAll oldModelState =
-  { oldModelState | selectedPolyPaths = [] }
+  { oldModelState | selectedPolyPaths = [], shownActions = Set.empty }
   -- { oldModelState | selectedPolyPaths = Set.empty, maybeNewValueOptions = Nothing }
+
+
+showActions : TSEFLLPTypes.ModelState -> Maybe PolyPath -> Set SpecificAction -> TSEFLLPTypes.ModelState
+showActions oldModelState maybePolyPath specficActions =
+  -- Ensure relevant poly selected when actions appear.
+  let selectedPolyPaths =
+    case maybePolyPath of
+      Just polyPath -> if List.member polyPath oldModelState.selectedPolyPaths then oldModelState.selectedPolyPaths else [polyPath] -- Deselect others if this shape wasn't already selected.
+      Nothing       -> oldModelState.selectedPolyPaths
+  in
+  { oldModelState | shownActions = specficActions, selectedPolyPaths = selectedPolyPaths }
+
+
+-- Delete key pressed.
+deleteActionsAndNewValuesForSelection : TSEFLLPTypes.ModelState -> (Set SpecificAction, List TaggedValue)
+deleteActionsAndNewValuesForSelection { valueOfInterestTagged, stringTaggedWithProjectionPathsResult, selectedPolyPaths, projectionPathToSpecificActions } =
+  case stringTaggedWithProjectionPathsResult of
+    Ok taggedString ->
+      let
+        selectedPathSet = TSEFLLPSelection.selectedPolyPathsToProjectionPathSet selectedPolyPaths valueOfInterestTagged taggedString
+
+        actions =
+          selectedPathSet
+          |> Set.toList
+          |> List.map (\path -> Utils.getWithDefault path Set.empty projectionPathToSpecificActions)
+          |> Utils.unionAll
+
+        deleteActions =
+          actions
+          |> Set.filter (specificActionMaybeChangeType >> (==) (Just Remove))
+
+        newValuesAfterDelete =
+          deleteActions
+          |> Set.toList
+          |> Utils.filterMap specificActionMaybeNewValue
+      in
+      (deleteActions, newValuesAfterDelete)
+
+    Err err ->
+      let _ = Utils.log err in
+      (Set.empty, [])
 
 
 startTextEditing : TSEFLLPTypes.ModelState -> (ProjectionPath, String) -> TSEFLLPTypes.ModelState
@@ -152,7 +198,7 @@ newLangValResultForTextEdit modelState =
 
 cancelTextEditing : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
 cancelTextEditing oldModelState =
-  { oldModelState | maybeTextEditingPathAndText = Nothing }
+  { oldModelState | maybeTextEditingPathAndText = Nothing, shownActions = Set.empty }
 
 
 expToRenderingFunctionNames : Lang.Exp -> List Ident
