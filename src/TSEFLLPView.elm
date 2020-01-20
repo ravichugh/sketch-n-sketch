@@ -52,14 +52,15 @@ functionPickerAndEditor modelState =
 
 
 pathToValue : TaggedValue -> ProjectionPath -> TaggedValue
-pathToValue rootValueOfInterestTagged path =
-  pathToMaybeValue rootValueOfInterestTagged path
-  |> Maybe.withDefault rootValueOfInterestTagged
+pathToValue rootVal path =
+  pathToMaybeValue rootVal path
+  |> Maybe.withDefault rootVal
 
 pathToMaybeValue : TaggedValue -> ProjectionPath -> Maybe TaggedValue
-pathToMaybeValue rootValueOfInterestTagged path =
+pathToMaybeValue rootVal path =
   let targetPathSet = Set.singleton path in
-  rootValueOfInterestTagged
+  rootVal
+  |> TSEFLLPEval.tagVal [] -- Ensure tagged if, e.g., we are exploring a new value from an action.
   |> foldTaggedValue Nothing
       (\subvalueOfInterestTagged maybeFound ->
         if subvalueOfInterestTagged.paths == targetPathSet
@@ -94,6 +95,10 @@ actionDescription specificAction valueOfInterestTagged =
       case pathToMaybeValue valueOfInterestTagged path of
         Just subvalue -> "Remove " ++ unparseToUntaggedString subvalue
         Nothing       -> "Path " ++ pathToString path ++ " not found in " ++ unparseToUntaggedString valueOfInterestTagged
+    NewValue ChangeCtor path newValue ->
+      case pathToMaybeValue newValue path of
+        Just newSubvalue -> unparseToUntaggedString newSubvalue
+        Nothing          -> "Path " ++ pathToString path ++ " not found in new value " ++ unparseToUntaggedString newValue
     _ ->
       toString specificAction
 
@@ -475,11 +480,9 @@ structuredEditor modelState =
                   actions
                   |> Set.filter (specificActionMaybeChangeType >> (==) (Just Remove))
 
-                -- Deepest, leftmost first
-                shownDeleteActions =
-                  Set.intersect shownActions deleteActions
-                  |> Set.toList
-                  |> List.sortBy (\action -> (negate <| List.length (specificActionProjectionPath action), specificActionProjectionPath action))
+                changeCtorActions =
+                  actions
+                  |> Set.filter (specificActionMaybeChangeType >> (==) (Just ChangeCtor))
 
                 maybeShapePolyPath = TSEFLLPSelection.shapeToMaybePolyPath pixelShape pixelPoly
 
@@ -496,8 +499,13 @@ structuredEditor modelState =
                           []
                           [ text <| "who are you and why is this action here " ++ actionDescription action valueOfInterestTagged ]
 
-                perhapsDeleteButton =
-                  if List.length shownDeleteActions >= 1 then
+                perhapsButton buttonHtmls actions right top =
+                  let shownButtonActions =                    -- Deepest, leftmost first
+                      Set.intersect shownActions actions
+                      |> Set.toList
+                      |> List.sortBy (\action -> (negate <| List.length (specificActionProjectionPath action), specificActionProjectionPath action))
+                  in
+                  if List.length shownButtonActions >= 1 then
                     [ Html.div
                           [ Attr.style [ ("position", "absolute")
                                         , ("left", px right), ("top", px top)
@@ -507,19 +515,14 @@ structuredEditor modelState =
                                         -- , ("overflow-x", "scroll")
                                         ]
                           ]
-                          (shownDeleteActions |> List.map actionDiv)
+                          (shownButtonActions |> List.map actionDiv)
                     ]
-                    -- E.onWithOptions
-                    --     "click"
-                    --     { stopPropagation = realStopPropagation
-                    --     , preventDefault = False
-                    --     }
-                  else if Set.size deleteActions >= 1 then
+                  else if Set.size actions >= 1 then
                     let onClick =
                       -- If only one possible delete action, apply immediately.
-                      case Set.toList deleteActions |> List.map specificActionMaybeNewValue of
+                      case Set.toList actions |> List.map specificActionMaybeNewValue of
                         [Just newVal] -> Controller.msgTSEFLLPSelectNewValue newVal
-                        _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath deleteActions
+                        _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath actions
                     in
                     [ Html.div
                           [ Attr.style [ ("position", "absolute")
@@ -530,12 +533,15 @@ structuredEditor modelState =
                                         ]
                           , Html.Events.onClick onClick
                           ]
-                          [text "❌"] -- ❌✘✕✖︎✗
+                          buttonHtmls
                     ]
                   else
                     []
+
+                perhapsDeleteButton     = perhapsButton [text "❌"] deleteActions     right top -- ❌✘✕✖︎✗
+                perhapsChangeCtorButton = perhapsButton [text "🔽"] changeCtorActions left  ((bot + top) // 2) -- 🔽▾▼⎊
               in
-              perhapsDeleteButton
+              perhapsDeleteButton ++ perhapsChangeCtorButton
           in
           List.concatMap shapeToButtons shownShapes
 
