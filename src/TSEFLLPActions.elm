@@ -1,4 +1,4 @@
-module TSEFLLPActions exposing (makeProjectionPathToSpecificActions, replaceAtPath)
+module TSEFLLPActions exposing (makeProjectionPathToSpecificActions, makeProjectionPathToType, replaceAtPath)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -245,6 +245,87 @@ makeProjectionPathToSpecificActions dataTypeDefs rootValueOfInterestTagged maybe
   |> Dict.map (\projectionPath actions -> Set.fromList actions)
 
 
+-- Apply type substitutions based on reified maybeType.
+--
+-- Does nothing interesting if maybeType is Nothing.
+reifyDataConDefs : Maybe Lang.Type -> (List String, List (String, List Lang.Type)) -> List (String, List Lang.Type)
+reifyDataConDefs maybeType (typeArgNames, typeDataConDefs) =
+  let
+    typeVarNameToType : List (Ident, Lang.Type)
+    typeVarNameToType =
+      maybeType
+      -- |> Debug.log "maybeType"
+      |> Maybe.andThen Types2.varOrAppToMaybeIdentAndArgTypes
+      |> Maybe.map (\(_, argTypes) -> argTypes)
+      |> Maybe.withDefault []
+      |> Utils.zip typeArgNames
+      -- |> Debug.log "typeVarNameToType"
+  in
+  typeDataConDefs
+  |> List.map (\(ctorName, ctorArgTypes) -> (ctorName, ctorArgTypes |> List.map (Lang.applyTypeSubst typeVarNameToType)))
+
+
+-- No handling of closures.
+makeProjectionPathToType : List Types2.DataTypeDef -> Maybe Lang.Type -> TaggedValue -> Dict ProjectionPath Lang.Type
+makeProjectionPathToType dataTypeDefs maybeType valueOfInterestTagged =
+  let
+    recurse = makeProjectionPathToType dataTypeDefs
+
+    -- In practice, should always result in one action.
+    logType : Dict ProjectionPath Lang.Type -> Lang.Type -> Dict ProjectionPath Lang.Type
+    logType dict tipe =
+      valueOfInterestTagged.paths -- valueOfInterest should be freshly tagged so there should always be exactly 1 tag
+      |> Set.foldl (\path dict -> Dict.insert path tipe dict) dict
+  in
+  case valueOfInterestTagged.v of
+    VClosure _ _ _ _ ->
+      Dict.empty
+
+    VClosureDynamic _ ->
+      Dict.empty
+
+    VCtor ctorName argVals ->
+      case Types2.ctorNameToMaybeDataTypeDef ctorName dataTypeDefs of
+        Just (thisTypeName, (thisTypeArgNames, thisTypeDataConDefs)) ->
+          let
+            -- If no type variables, we don't necessarily need the explicit type annotation.
+            maybeThisType =
+              case (thisTypeArgNames, maybeType) of
+                ([], Nothing) -> Just (Lang.tVar0 thisTypeName)
+                _             -> maybeType
+
+            thisTypeDataConDefsReified = reifyDataConDefs maybeType (thisTypeArgNames, thisTypeDataConDefs)
+
+            thisCtorArgTypes =
+              ctorName
+              |> Utils.find "TSEFLLPActions.makeProjectionPathToType thisCtorArgTypes" thisTypeDataConDefsReified
+
+            dictDeeper =
+              List.map2 recurse (List.map Just thisCtorArgTypes) argVals
+              |> Utils.unionAllDicts
+          in
+          case maybeThisType of
+            Nothing       -> dictDeeper
+            Just thisType -> logType dictDeeper thisType
+
+        Nothing ->
+          let _ = Utils.log <| "TSEFLLPActions.makeProjectionPathToType warning: not find ctor " ++ ctorName ++ " in dataTypeDefs: " ++ toString dataTypeDefs in
+          case maybeType of
+            Nothing       -> Dict.empty
+            Just thisType -> logType Dict.empty thisType
+
+    VString _ ->
+      logType Dict.empty <| Lang.withDummyTypeInfo (Lang.TString Lang.space0)
+
+    VAppend w1 w2 ->
+      let _ = Utils.log "Did not expect a VAppend in TSEFLLPActions.makeProjectionPathToType" in
+      let dictDeeper = Dict.union (recurse maybeType w1) (recurse maybeType w2) in
+      logType dictDeeper <| Lang.withDummyTypeInfo (Lang.TString Lang.space0)
+
+    VNum _ ->
+      logType Dict.empty <| Lang.withDummyTypeInfo (Lang.TNum Lang.space0)
+
+
 -- Type, if given, should be concrete: no free variables.
 -- (That's the point of providing a type: so we can know when `List a` is actually `List Num` and provide more actions.)
 valToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Maybe Lang.Type -> TaggedValue -> Set SpecificAction
@@ -275,19 +356,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
               then maybeType |> Maybe.withDefault (Lang.tVar0 thisTypeName)
               else maybeType |> Maybe.withDefault (Lang.tVar0 "*** no type ***")
 
-            typeVarNameToType : List (Ident, Lang.Type)
-            typeVarNameToType =
-              maybeType
-              -- |> Debug.log "maybeType"
-              |> Maybe.andThen Types2.varOrAppToMaybeIdentAndArgTypes
-              |> Maybe.map (\(_, argTypes) -> argTypes)
-              |> Maybe.withDefault []
-              |> Utils.zip thisTypeArgNames
-              -- |> Debug.log "typeVarNameToType"
-
-            thisTypeDataConDefsReified =
-              thisTypeDataConDefs
-              |> List.map (\(ctorName, ctorArgTypes) -> (ctorName, ctorArgTypes |> List.map (Lang.applyTypeSubst typeVarNameToType)))
+            thisTypeDataConDefsReified = reifyDataConDefs maybeType (thisTypeArgNames, thisTypeDataConDefs)
 
             thisCtorArgTypes =
               ctorName

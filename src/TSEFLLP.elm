@@ -85,6 +85,7 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
   , dataTypeDefs                          = dataTypeDefs
   , maybeRenderingFunctionNameAndProgram  = maybeRenderingFunctionNameAndProgram
   , valueOfInterestTagged                 = valueOfInterestTagged
+  , maybeValueOfInterestType              = maybeValueOfInterestType
   , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
   , projectionPathToSpecificActions       = projectionPathToSpecificActions
   -- , maybeNewValueOptions                  = Nothing

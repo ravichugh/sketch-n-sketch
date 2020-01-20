@@ -11,6 +11,7 @@ import VirtualDom exposing (text)
 
 import Controller
 import HtmlUtils
+import LeoUnparser exposing (unparseType)
 import Model exposing (Msg)
 import BoundsUtils
 import Utils
@@ -312,7 +313,7 @@ plainStringView stringTaggedWithProjectionPathsResult =
 structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
 structuredEditor modelState =
   let
-    { valueOfInterestTagged, stringTaggedWithProjectionPathsResult, selectedPolyPaths, mousePosition, projectionPathToSpecificActions, shownActions } = modelState
+    { valueOfInterestTagged, dataTypeDefs, maybeValueOfInterestType, stringTaggedWithProjectionPathsResult, selectedPolyPaths, mousePosition, projectionPathToSpecificActions, shownActions } = modelState
 
     px int = toString int ++ "px"
   in
@@ -342,6 +343,9 @@ structuredEditor modelState =
         selectedPathSet = selectedShapes |> List.map (flip TSEFLLPSelection.shapeToPathSet selectionAssignments) |> Utils.unionAll
         hoveredPathSet  = hoveredShapes  |> List.map (flip TSEFLLPSelection.shapeToPathSet selectionAssignments) |> Utils.unionAll
 
+        pathToType = TSEFLLPActions.makeProjectionPathToType dataTypeDefs maybeValueOfInterestType valueOfInterestTagged
+
+        -- Label with type, or, if that fails, with value.
         shapeToMaybeLabel : TSEFLLPPolys.PixelShape -> Maybe String
         shapeToMaybeLabel shape =
           let pathSet = TSEFLLPSelection.shapeToPathSet shape selectionAssignments in
@@ -350,8 +354,8 @@ structuredEditor modelState =
             |> Set.toList
             |> sortByDeepestLeftmostLast
             |> List.reverse
-            |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString)
-            |> List.map (\unparsed -> unparsed |> String.split "(" |> List.head |> Maybe.withDefault unparsed)
+            |> List.map (\path -> Dict.get path pathToType |> Maybe.map unparseType |> Utils.maybeWithDefaultLazy (\() -> path |> pathToValue valueOfInterestTagged |> unparseToUntaggedString))
+            |> List.map Utils.squish
             |> String.join ", "
             |> Just
           else

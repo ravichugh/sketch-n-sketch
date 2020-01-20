@@ -5,7 +5,6 @@ import Set exposing (Set)
 
 import BoundsUtils
 import Lang
-import LeoUnparser exposing (unparseType)
 import Types2
 import Utils
 

@@ -536,6 +536,10 @@ unionAll : List (Set a) -> Set a
 unionAll sets =
   List.foldl Set.union Set.empty sets
 
+unionAllDicts : List (Dict k v) -> Dict k v
+unionAllDicts dicts =
+  List.foldl Dict.union Dict.empty dicts
+
 -- Returns true if any two sets share an element.
 -- Can help answer, "Is this a valid partition?"
 -- Or if sets are disjoint
