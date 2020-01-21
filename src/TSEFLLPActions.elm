@@ -378,7 +378,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
               -- Replace with any child of the same type.
               --
               -- Place each remove action on:
-              -- 1. The node being removed, and
+              -- 1. NOT on the node being removed
               -- 2. The immediate children of the node being removed, but not the child retained instead. These are
               --    the contained values that will be removed by the removal of their container.
               let
@@ -396,7 +396,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
               in
               argVals
               |> Utils.mapi1 (\(argI, argVal) -> (argI, argVal.paths)) -- Note: argVal.paths should always be a singleton set.
-              |> (::) ((-1, valueOfInterestTagged.paths))              -- Also add actions to this node itself; it has no argI.
+              -- |> (::) ((-1, valueOfInterestTagged.paths))              -- Also add actions to this node itself; it has no argI.
               |> Utils.cartProd newValuesWithArgI
               |> List.filter (\((replacedArgI, _       ), (pathsArgI, _    )) -> replacedArgI /= pathsArgI)
               |> List.map    (\((_,            newValue), (_,         paths)) -> paths |> Set.map (\path -> NewValue Remove path newValue))
