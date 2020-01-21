@@ -967,6 +967,20 @@ sum = List.foldl (+) 0
 avg : List Float -> Float
 avg ns = List.sum ns / toFloat (List.length ns)
 
+median : List Float -> Maybe Float
+median ns =
+  let count = List.length ns in
+  case count % 2 of
+    1 -> -- odd
+      let middleI = ceiling (toFloat count / 2) in
+      Just <| geti middleI ns
+    _ -> -- even
+      if count == 0 then Nothing
+      else
+        let lowerMiddleI = round (toFloat count / 2) in
+        Just <| (geti lowerMiddleI ns + geti (lowerMiddleI + 1) ns) / 2
+
+
 lift_2_2 f (a,b) (c,d) = (f a c, f b d)
 
 assert s b = if b then () else Debug.crash ("assert error: " ++ s)

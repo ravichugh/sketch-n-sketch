@@ -1,4 +1,4 @@
-module TSEFLLPActions exposing (makeProjectionPathToSpecificActions, makeProjectionPathToType, replaceAtPath)
+module TSEFLLPActions exposing (makeProjectionPathToSpecificActions, makeProjectionPathToType, replaceAtPath, arrangeInsertActions)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -10,6 +10,7 @@ import Utils
 
 import TSEFLLPTypes exposing (..)
 import TSEFLLPEval exposing (tagVal)
+import TSEFLLPSelection
 
 
 -- By default we attempt to copy ctor arguments from the current value.
@@ -265,7 +266,9 @@ reifyDataConDefs maybeType (typeArgNames, typeDataConDefs) =
   |> List.map (\(ctorName, ctorArgTypes) -> (ctorName, ctorArgTypes |> List.map (Lang.applyTypeSubst typeVarNameToType)))
 
 
--- No handling of closures.
+-- For displaying subvalue labels in the view.
+--
+-- Type, if given, should be concrete: no free variables. No handling of closures.
 makeProjectionPathToType : List Types2.DataTypeDef -> Maybe Lang.Type -> TaggedValue -> Dict ProjectionPath Lang.Type
 makeProjectionPathToType dataTypeDefs maybeType valueOfInterestTagged =
   let
@@ -471,3 +474,101 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
     VNum _ ->
       -- In practice, should always result in one action.
       Set.map Scrub valueOfInterestTagged.paths
+
+
+-- 1. Find closest shape before (max path < targetPath), at (path == targtPath), and after (min path > targetPath);
+-- 2. Produce a candidate point for each shape (bot right for before, top left for at and after).
+-- 3. Use lowest, rightmost point.
+arrangeInsertActions : TSEFLLPSelection.SelectionAssignments -> Dict ProjectionPath (Set SpecificAction) -> Dict (Int, Int) (Set SpecificAction)
+arrangeInsertActions selectionAssignments projectionPathToSpecificActions =
+  let
+    insertActions =
+      projectionPathToSpecificActions
+      |> Dict.values
+      |> Utils.unionAll
+      |> Set.toList
+      |> List.filter (specificActionMaybeChangeType >> (==) (Just Insert))
+
+    projectionPathToShapeSet = TSEFLLPSelection.makeProjectionPathToShapeSet selectionAssignments
+
+    -- Sorted by path: shallow to deep, left to right.
+    projectionPathShapeSetPairs = Dict.toList projectionPathToShapeSet
+
+    shapeToBotRightCorner shape =
+      let
+        (left, top, right, bot) = shape.bounds
+        (endX, lastLineTop)     = shape.leftTopCornerOfRightBotCutout
+      in
+      (endX, bot)
+
+    shapeToTopLeftCorner shape =
+      let
+        (left, top, right, bot) = shape.bounds
+        (startX, firstLineBot)  = shape.rightBotCornerOfLeftTopCutout
+      in
+      (startX, top)
+
+    -- South-east most corner on lowest edge.
+    shapeSetToMaybeBotRightCorner shapeSet =
+      shapeSet
+      |> Set.toList
+      |> List.map shapeToBotRightCorner
+      |> Utils.maximumBy (\(x, y) -> (y, x))
+
+    shapeSetToMaybeTopLeftCorner shapeSet =
+      shapeSet
+      |> Set.toList
+      |> List.map shapeToTopLeftCorner
+      |> Utils.minimumBy (\(x, y) -> (y, x))
+
+    locationActionPairs =
+      insertActions
+      |> List.map (\action ->
+        let
+          actionPath = specificActionProjectionPath action
+
+          shapeSetJustBeforeInsert =
+            projectionPathShapeSetPairs
+            |> Utils.findLast (\(path, _) -> path < actionPath)
+            |> Maybe.map Tuple.second
+            |> Maybe.withDefault Set.empty
+
+          shapeSetAtInsert =
+            projectionPathShapeSetPairs
+            |> Utils.findFirst (\(path, _) -> path == actionPath)
+            |> Maybe.map Tuple.second
+            |> Maybe.withDefault Set.empty
+
+          shapeSetAfterInsert =
+            projectionPathShapeSetPairs
+            |> Utils.findFirst (\(path, _) -> path > actionPath)
+            |> Maybe.map Tuple.second
+            |> Maybe.withDefault Set.empty
+
+          (xVotes, yVotes) =
+            [ shapeSetToMaybeBotRightCorner shapeSetJustBeforeInsert
+            , shapeSetToMaybeTopLeftCorner  shapeSetAtInsert
+            , shapeSetToMaybeTopLeftCorner  shapeSetAfterInsert
+            ]
+            |> Utils.filterJusts
+            |> List.unzip
+
+          -- meanX = List.sum xVotes // (max 1 (List.length xVotes))
+          -- meanY = List.sum yVotes // (max 1 (List.length yVotes))
+
+          -- medianX = List.map toFloat xVotes |> Utils.median |> Maybe.map round |> Maybe.withDefault 0
+          -- medianY = List.map toFloat yVotes |> Utils.median |> Maybe.map round |> Maybe.withDefault 0
+
+          lowestRight =
+            Utils.zip xVotes yVotes
+            |> Utils.maximumBy (\(x, y) -> (y, x))
+            |> Maybe.withDefault (0,0)
+        in
+        -- ((meanX, meanY), action)
+        -- ((medianX, medianY), action)
+        (lowestRight, action)
+      )
+  in
+  locationActionPairs
+  |> Utils.pairsToDictOfLists
+  |> Dict.map (\point actions -> Set.fromList actions)

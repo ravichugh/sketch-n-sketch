@@ -99,6 +99,10 @@ actionDescription specificAction valueOfInterestTagged =
       case pathToMaybeValue newValue path of
         Just newSubvalue -> unparseToUntaggedString newSubvalue
         Nothing          -> "Path " ++ pathToString path ++ " not found in new value " ++ unparseToUntaggedString newValue
+    NewValue Insert path newValue ->
+      case pathToMaybeValue newValue path of
+        Just newSubvalue -> "Insert " ++ unparseToUntaggedString newSubvalue
+        Nothing          -> "Path " ++ pathToString path ++ " not found in new value " ++ unparseToUntaggedString newValue
     _ ->
       toString specificAction
 
@@ -350,6 +354,10 @@ structuredEditor modelState =
 
         pathToType = TSEFLLPActions.makeProjectionPathToType dataTypeDefs maybeValueOfInterestType valueOfInterestTagged
 
+        insertActionLocations : Dict (Int, Int) (Set SpecificAction)
+        insertActionLocations =
+          TSEFLLPActions.arrangeInsertActions selectionAssignments projectionPathToSpecificActions
+
         -- Label with type, or, if that fails, with value.
         shapeToMaybeLabel : TSEFLLPPolys.PixelShape -> Maybe String
         shapeToMaybeLabel shape =
@@ -464,6 +472,65 @@ structuredEditor modelState =
           let
             shownShapes = Utils.dedup (selectedShapes ++ hoveredShapes)
 
+            actionDiv action =
+              case specificActionMaybeNewValue action of
+                Just newVal ->
+                  Html.div
+                      [ Attr.style [ ("cursor", "pointer") ]
+                      , Html.Events.onClick (Controller.msgTSEFLLPSelectNewValue newVal)
+                      ]
+                      [ text (actionDescription action valueOfInterestTagged) ]
+                Nothing ->
+                  Html.div
+                      []
+                      [ text <| "who are you and why is this action here " ++ actionDescription action valueOfInterestTagged ]
+
+            perhapsButton buttonHtmls maybeShapePolyPath actions right top =
+              let shownButtonActions =                    -- Deepest, leftmost first
+                  Set.intersect shownActions actions
+                  |> Set.toList
+                  |> List.sortBy (\action -> (negate <| List.length (specificActionProjectionPath action), specificActionProjectionPath action))
+              in
+              if List.length shownButtonActions >= 1 then
+                [ Html.div
+                      [ Attr.style [ ("position", "absolute")
+                                    , ("left", px right), ("top", px top)
+                                    -- , ("width", px 500) --, ("height", px (charHeightPx)
+                                    , ("border", "1px solid gray")
+                                    , ("background-color", "#eee")
+                                    -- , ("overflow-x", "scroll")
+                                    ]
+                      ]
+                      (shownButtonActions |> List.map actionDiv)
+                ]
+              else if Set.size actions >= 1 then
+                let onClick =
+                  -- If only one possible delete action, apply immediately.
+                  case Set.toList actions |> List.map specificActionMaybeNewValue of
+                    [Just newVal] -> Controller.msgTSEFLLPSelectNewValue newVal
+                    _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath actions
+                in
+                [ Html.div
+                      [ Attr.style [ ("position", "absolute")
+                                    , ("left", px (right - charWidthPx//2)), ("top", px (top - charWidthPx//2))
+                                    , ("width", px (charWidthPx//2)), ("height", px (charHeightPx//2))
+                                    , ("font-size", px (charHeightPx//2))
+                                    , ("cursor", "pointer")
+                                    ]
+                      , Html.Events.onClick onClick
+                      ]
+                      buttonHtmls
+                ]
+              else
+                []
+
+            insertButtons =
+              insertActionLocations
+              |> Dict.toList
+              |> List.concatMap (\((x, y), insertActions) ->
+                perhapsButton [text "⊕"] Nothing insertActions x y -- ⊕➕
+              )
+
             shapeToButtons ({ bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout } as pixelShape) =
               let
                 (left, top, right, bot) = bounds
@@ -486,64 +553,12 @@ structuredEditor modelState =
 
                 maybeShapePolyPath = TSEFLLPSelection.shapeToMaybePolyPath pixelShape pixelPoly
 
-                actionDiv action =
-                  case specificActionMaybeNewValue action of
-                    Just newVal ->
-                      Html.div
-                          [ Attr.style [ ("cursor", "pointer") ]
-                          , Html.Events.onClick (Controller.msgTSEFLLPSelectNewValue newVal)
-                          ]
-                          [ text (actionDescription action valueOfInterestTagged) ]
-                    Nothing ->
-                      Html.div
-                          []
-                          [ text <| "who are you and why is this action here " ++ actionDescription action valueOfInterestTagged ]
-
-                perhapsButton buttonHtmls actions right top =
-                  let shownButtonActions =                    -- Deepest, leftmost first
-                      Set.intersect shownActions actions
-                      |> Set.toList
-                      |> List.sortBy (\action -> (negate <| List.length (specificActionProjectionPath action), specificActionProjectionPath action))
-                  in
-                  if List.length shownButtonActions >= 1 then
-                    [ Html.div
-                          [ Attr.style [ ("position", "absolute")
-                                        , ("left", px right), ("top", px top)
-                                        -- , ("width", px 500) --, ("height", px (charHeightPx)
-                                        , ("border", "1px solid gray")
-                                        , ("background-color", "#eee")
-                                        -- , ("overflow-x", "scroll")
-                                        ]
-                          ]
-                          (shownButtonActions |> List.map actionDiv)
-                    ]
-                  else if Set.size actions >= 1 then
-                    let onClick =
-                      -- If only one possible delete action, apply immediately.
-                      case Set.toList actions |> List.map specificActionMaybeNewValue of
-                        [Just newVal] -> Controller.msgTSEFLLPSelectNewValue newVal
-                        _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath actions
-                    in
-                    [ Html.div
-                          [ Attr.style [ ("position", "absolute")
-                                        , ("left", px (right - charWidthPx//2)), ("top", px (top - charWidthPx//2))
-                                        , ("width", px (charWidthPx//2)), ("height", px (charHeightPx//2))
-                                        , ("font-size", px (charHeightPx//2))
-                                        , ("cursor", "pointer")
-                                        ]
-                          , Html.Events.onClick onClick
-                          ]
-                          buttonHtmls
-                    ]
-                  else
-                    []
-
-                perhapsDeleteButton     = perhapsButton [text "❌"] deleteActions     right top -- ❌✘✕✖︎✗
-                perhapsChangeCtorButton = perhapsButton [text "🔽"] changeCtorActions left  ((bot + top) // 2) -- 🔽▾▼⎊
+                perhapsDeleteButton     = perhapsButton [text "❌"] maybeShapePolyPath deleteActions     right top -- ❌✘✕✖︎✗
+                perhapsChangeCtorButton = perhapsButton [text "🔽"] maybeShapePolyPath changeCtorActions left  ((bot + top) // 2) -- 🔽▾▼⎊
               in
               perhapsDeleteButton ++ perhapsChangeCtorButton
           in
-          List.concatMap shapeToButtons shownShapes
+          List.concatMap shapeToButtons shownShapes ++ insertButtons
 
         -- Relative to top-left corner of structured editor.
         logMousePosition xPx yPx = Controller.msgTSEFLLPMousePosition (xPx, yPx)
