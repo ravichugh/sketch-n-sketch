@@ -21,7 +21,7 @@ taggedValToLangValResult taggedValue =
     VClosure _ fName _ _   -> Err <| "Can't resugar closures (" ++ fName ++ ")."
     VClosureDynamic ident  -> Err <| "Can't resugar dynamic closures (" ++ ident ++ ")."
     VCtor "True" []        -> Ok <| ValBuilder.bool Lang.valNoProvenance True
-    VCtor "False" []       -> Ok <| ValBuilder.bool Lang.valNoProvenance True
+    VCtor "False" []       -> Ok <| ValBuilder.bool Lang.valNoProvenance False
     VCtor "Nil" []         -> Ok <| Update.vList []
     VCtor "Cons" [x, tail] ->
       case recurseAllResult [x, tail] of
