@@ -374,6 +374,76 @@ structuredEditor modelState =
           else
             Nothing
 
+        perhapsClickAttrs =
+          let
+            actionsForHover =
+              hoveredPathSet
+              |> Set.toList
+              |> Utils.filterMap (flip Dict.get projectionPathToSpecificActions)
+              |> Utils.unionAll
+              |> Set.toList
+
+            scrubSpecificActions    = actionsForHover |> List.filter isScrubSpecificAction
+            editTextSpecificActions = actionsForHover |> List.filter isEditTextSpecificAction
+
+            -- isTextEditing =
+            --   modelState.maybeTextEditingPathAndText
+            --   |> Maybe.map (\(textEditingPath, _) -> [textEditingPath] == List.map specificActionProjectionPath editTextSpecificActions)
+            --   |> Maybe.withDefault False
+
+            perhapsStartLiveSync =
+              case scrubSpecificActions of
+                [Scrub projectionPath] -> [ Html.Events.onMouseDown <| Controller.msgTSEFLLPStartLiveSync projectionPath ]
+                _                      -> []
+
+            cursor =
+              if List.length editTextSpecificActions == 1 then
+                "text"
+              else if List.length scrubSpecificActions == 1 then
+                "ns-resize"
+              else
+                "auto"
+          in
+          [ Attr.style [("cursor", cursor)]
+          ] ++ perhapsStartLiveSync
+
+
+
+        -- (perhapsClickAttrs, isTextEditing) =
+        --   case maybeSelectionClickPath of
+        --     Nothing                 -> ([], False)
+        --     Just selectionClickPath ->
+        --       let
+        --         perhapsStartLiveSync =
+        --           case scrubSpecificActions of
+        --             [Scrub projectionPath] -> [ Html.Events.onMouseDown <| Controller.msgTSEFLLPStartLiveSync projectionPath ]
+        --             _                      -> []
+        --
+        --         perhapsStartTextEdit =
+        --           case (modelState.maybeTextEditingPathAndText, editTextSpecificActions) of
+        --             (Nothing, [EditText projectionPath]) -> [ Html.Events.onDoubleClick <| Controller.msgTSEFLLPStartTextEditing (projectionPath, string) ]
+        --             _                                    -> []
+        --
+        --         isTextEditing =
+        --           modelState.maybeTextEditingPathAndText
+        --           |> Maybe.map (\(textEditingPath, _) -> [textEditingPath] == List.map specificActionProjectionPath editTextSpecificActions)
+        --           |> Maybe.withDefault False
+        --
+        --         cursor =
+        --           if List.length editTextSpecificActions == 1 then
+        --             "text"
+        --           else if List.length scrubSpecificActions == 1 then
+        --             "ns-resize"
+        --           else
+        --             "pointer"
+        --       in
+        --       ( [ Attr.style [("cursor", cursor)]
+        --         , Html.Events.onClick onClickMsg
+        --         ] ++ perhapsStartLiveSync ++ perhapsStartTextEdit
+        --       , isTextEditing
+        --       )
+
+
         onClickMsg =
           case maybeHoveredShape of
             Just hoveredShape ->
@@ -582,7 +652,7 @@ structuredEditor modelState =
           , Html.pre [] [text "Hovered values:\n  ", text (hoveredPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
           , Html.div [] [text "Selected value paths: ", text (pathSetToString selectedPathSet)]
           , Html.pre [] [text "Selected values:\n  ", text (selectedPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
-          , Html.div [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))] []
+          , Html.div (perhapsClickAttrs ++ [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))]) []
           ] ++ buttonsAndMenus -- Have to draw these on top of the click catcher above.
 
     Err err ->
