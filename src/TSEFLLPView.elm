@@ -485,7 +485,7 @@ structuredEditor modelState =
                       []
                       [ text <| "who are you and why is this action here " ++ actionDescription action valueOfInterestTagged ]
 
-            perhapsButton buttonHtmls maybeShapePolyPath actions right top =
+            perhapsButton extraButtonStyles buttonHtmls maybeShapePolyPath actions right top =
               let shownButtonActions =                    -- Deepest, leftmost first
                   Set.intersect shownActions actions
                   |> Set.toList
@@ -494,12 +494,12 @@ structuredEditor modelState =
               if List.length shownButtonActions >= 1 then
                 [ Html.div
                       [ Attr.style [ ("position", "absolute")
-                                    , ("left", px right), ("top", px top)
-                                    -- , ("width", px 500) --, ("height", px (charHeightPx)
-                                    , ("border", "1px solid gray")
-                                    , ("background-color", "#eee")
-                                    -- , ("overflow-x", "scroll")
-                                    ]
+                                   , ("left", px right), ("top", px top)
+                                   -- , ("width", px 500) --, ("height", px (charHeightPx)
+                                   , ("border", "1px solid gray")
+                                   , ("background-color", "#eee")
+                                   -- , ("overflow-x", "scroll")
+                                   ]
                       ]
                       (shownButtonActions |> List.map actionDiv)
                 ]
@@ -511,12 +511,12 @@ structuredEditor modelState =
                     _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath actions
                 in
                 [ Html.div
-                      [ Attr.style [ ("position", "absolute")
-                                    , ("left", px (right - charWidthPx//2)), ("top", px (top - charWidthPx//2))
-                                    , ("width", px (charWidthPx//2)), ("height", px (charHeightPx//2))
-                                    , ("font-size", px (charHeightPx//2))
-                                    , ("cursor", "pointer")
-                                    ]
+                      [ Attr.style <| [ ("position", "absolute")
+                                      , ("left", px (right - charWidthPx//2)), ("top", px (top - charWidthPx//2))
+                                      , ("width", px (charWidthPx//2)), ("height", px (charHeightPx//2))
+                                      , ("font-size", px (charHeightPx//2))
+                                      , ("cursor", "pointer")
+                                      ] ++ extraButtonStyles
                       , Html.Events.onClick onClick
                       ]
                       buttonHtmls
@@ -528,7 +528,7 @@ structuredEditor modelState =
               insertActionLocations
               |> Dict.toList
               |> List.concatMap (\((x, y), insertActions) ->
-                perhapsButton [text "⊕"] Nothing insertActions x y -- ⊕➕
+                perhapsButton [("color", "#0e0")] [text "⊕"] Nothing insertActions x y -- ⊕➕
               )
 
             shapeToButtons ({ bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout } as pixelShape) =
@@ -553,8 +553,8 @@ structuredEditor modelState =
 
                 maybeShapePolyPath = TSEFLLPSelection.shapeToMaybePolyPath pixelShape pixelPoly
 
-                perhapsDeleteButton     = perhapsButton [text "❌"] maybeShapePolyPath deleteActions     right top -- ❌✘✕✖︎✗
-                perhapsChangeCtorButton = perhapsButton [text "🔽"] maybeShapePolyPath changeCtorActions left  ((bot + top) // 2) -- 🔽▾▼⎊
+                perhapsDeleteButton     = perhapsButton [] [text "❌"] maybeShapePolyPath deleteActions     right top -- ❌✘✕✖︎✗
+                perhapsChangeCtorButton = perhapsButton [] [text "🔽"] maybeShapePolyPath changeCtorActions left  ((bot + top) // 2) -- 🔽▾▼⎊
               in
               perhapsDeleteButton ++ perhapsChangeCtorButton
           in
