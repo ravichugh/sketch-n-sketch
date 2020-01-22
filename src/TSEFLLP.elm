@@ -1,4 +1,4 @@
-module TSEFLLP exposing (prepare, newLangValResult, mousePosition, mouseOut, selectOnePath, togglePathSelection, deselectPath, deselectAll, showActions, deleteActionsAndNewValuesForSelection, startTextEditing, updateTextBox, newLangValResultForTextEdit, cancelTextEditing)
+module TSEFLLP exposing (prepare, newLangValResult, mousePosition, mouseOut, selectOnePath, togglePathSelection, deselectPath, deselectAll, showActions, deleteActionsAndNewValuesForSelection, startTextEditing, updateTextBox, newLangValResultForTextEdit, handleEscapeKey, cancelTextEditing)
 
 import Set exposing (Set)
 
@@ -189,12 +189,42 @@ newLangValResultForTextEdit : TSEFLLPTypes.ModelState -> Result String Lang.Val
 newLangValResultForTextEdit modelState =
   case modelState.maybeTextEditingPathAndText of
     Just (path, newText) ->
-      modelState.valueOfInterestTagged
-      |> TSEFLLPActions.replaceAtPath path (noTag <| VString newText)
-      |> TSEFLLPResugaring.taggedValToLangValResult
+      -- Humorously, this works for numbers even if we make a VString b/c of Mikäel's fancypants backprop.
+      --
+      -- But below is the "right" way anyway:
+      let newSubvalueResult =
+        case TSEFLLPTypes.pathToMaybeValue modelState.valueOfInterestTagged path of
+          Just taggedVal ->
+            case taggedVal.v of
+              VString _ -> Ok <| VString newText
+              VNum _    ->
+                case String.toFloat newText of
+                  Ok newFloat -> Ok <| VNum newFloat
+                  Err msg     -> Err msg
+              _ -> Err "Expected VString or VNum at the replacement path!"
+          Nothing ->
+            Err "Text editing path not found in value of interest!"
+      in
+      case newSubvalueResult of
+        Ok newSubvalueUntagged ->
+          modelState.valueOfInterestTagged
+          |> TSEFLLPActions.replaceAtPath path (noTag <| newSubvalueUntagged)
+          |> TSEFLLPResugaring.taggedValToLangValResult
+        Err msg ->
+          Err msg
 
     Nothing ->
       Err "Not text editing right now!"
+
+
+handleEscapeKey : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
+handleEscapeKey oldModelState =
+  case oldModelState.maybeTextEditingPathAndText of
+    Just _  -> cancelTextEditing oldModelState
+    Nothing ->
+      if Set.size oldModelState.shownActions >= 1
+      then { oldModelState | shownActions = Set.empty }
+      else deselectAll oldModelState
 
 
 cancelTextEditing : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState

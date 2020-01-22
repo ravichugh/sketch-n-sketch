@@ -58,15 +58,9 @@ pathToValue rootVal path =
 
 pathToMaybeValue : TaggedValue -> ProjectionPath -> Maybe TaggedValue
 pathToMaybeValue rootVal path =
-  let targetPathSet = Set.singleton path in
-  rootVal
-  |> TSEFLLPEval.tagVal [] -- Ensure tagged if, e.g., we are exploring a new value from an action.
-  |> foldTaggedValue Nothing
-      (\subvalueOfInterestTagged maybeFound ->
-        if subvalueOfInterestTagged.paths == targetPathSet
-        then Just subvalueOfInterestTagged
-        else maybeFound
-      )
+  TSEFLLPTypes.pathToMaybeValue
+      (TSEFLLPEval.tagVal [] rootVal)-- Ensure tagged if, e.g., we are exploring a new value from an action.
+      path
 
 
 pathToString : ProjectionPath -> String
@@ -322,7 +316,7 @@ plainStringView stringTaggedWithProjectionPathsResult =
 structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
 structuredEditor modelState =
   let
-    { valueOfInterestTagged, dataTypeDefs, maybeValueOfInterestType, stringTaggedWithProjectionPathsResult, selectedPolyPaths, mousePosition, projectionPathToSpecificActions, shownActions } = modelState
+    { valueOfInterestTagged, dataTypeDefs, maybeValueOfInterestType, stringTaggedWithProjectionPathsResult, selectedPolyPaths, mousePosition, projectionPathToSpecificActions, maybeTextEditingPathAndText, shownActions } = modelState
 
     px int = toString int ++ "px"
   in
@@ -333,7 +327,7 @@ structuredEditor modelState =
         charHeightPx = 18
 
         selectedColor = "#B7D7FD"
-        hoverColor    = "#d9e9fb"
+        hoverColor    = "#e1eefc"
 
         pixelPoly = TSEFLLPPolys.taggedStringToPixelPoly charWidthPx charHeightPx taggedString
 
@@ -343,7 +337,8 @@ structuredEditor modelState =
           |> Utils.filterJusts
           |> Utils.dedup
 
-        selectionAssignments = TSEFLLPSelection.associateProjectionPathsWithShapes valueOfInterestTagged pixelPoly
+        selectionAssignments     = TSEFLLPSelection.associateProjectionPathsWithShapes valueOfInterestTagged pixelPoly
+        projectionPathToShapeSet = TSEFLLPSelection.makeProjectionPathToShapeSet selectionAssignments
 
         maybeHoveredShape = TSEFLLPSelection.mostRelevantShapeAtPoint mousePosition selectionAssignments
         hoveredShapes     = Utils.maybeToList maybeHoveredShape
@@ -356,7 +351,7 @@ structuredEditor modelState =
 
         insertActionLocations : Dict (Int, Int) (Set SpecificAction)
         insertActionLocations =
-          TSEFLLPActions.arrangeInsertActions selectionAssignments projectionPathToSpecificActions
+          TSEFLLPActions.arrangeInsertActions projectionPathToShapeSet projectionPathToSpecificActions
 
         -- Label with type, or, if that fails, with value.
         shapeToMaybeLabel : TSEFLLPPolys.PixelShape -> Maybe String
@@ -396,6 +391,21 @@ structuredEditor modelState =
                 [Scrub projectionPath] -> [ Html.Events.onMouseDown <| Controller.msgTSEFLLPStartLiveSync projectionPath ]
                 _                      -> []
 
+            perhapsStartTextEdit =
+              let pathToString path =
+                 case (pathToValue valueOfInterestTagged path).v of
+                   VClosure _ _ _ _  -> "textEditString - shouldn't have VClosure here"
+                   VClosureDynamic _ -> "textEditString - shouldn't have VClosureDynamic here"
+                   VCtor _ _         -> "textEditString - shouldn't have VCtor here"
+                   VString string    -> string
+                   VAppend _ _       -> "textEditString - shouldn't have VAppend here"
+                   VNum float        -> toString float
+              in
+              case (maybeTextEditingPathAndText, editTextSpecificActions ++ scrubSpecificActions) of
+                (Nothing, [EditText projectionPath]) -> [ Html.Events.onDoubleClick <| Controller.msgTSEFLLPStartTextEditing (projectionPath, pathToString projectionPath) ]
+                (Nothing, [Scrub projectionPath])    -> [ Html.Events.onDoubleClick <| Controller.msgTSEFLLPStartTextEditing (projectionPath, pathToString projectionPath) ]
+                _                                    -> []
+
             cursor =
               if List.length editTextSpecificActions == 1 then
                 "text"
@@ -405,44 +415,7 @@ structuredEditor modelState =
                 "auto"
           in
           [ Attr.style [("cursor", cursor)]
-          ] ++ perhapsStartLiveSync
-
-
-
-        -- (perhapsClickAttrs, isTextEditing) =
-        --   case maybeSelectionClickPath of
-        --     Nothing                 -> ([], False)
-        --     Just selectionClickPath ->
-        --       let
-        --         perhapsStartLiveSync =
-        --           case scrubSpecificActions of
-        --             [Scrub projectionPath] -> [ Html.Events.onMouseDown <| Controller.msgTSEFLLPStartLiveSync projectionPath ]
-        --             _                      -> []
-        --
-        --         perhapsStartTextEdit =
-        --           case (modelState.maybeTextEditingPathAndText, editTextSpecificActions) of
-        --             (Nothing, [EditText projectionPath]) -> [ Html.Events.onDoubleClick <| Controller.msgTSEFLLPStartTextEditing (projectionPath, string) ]
-        --             _                                    -> []
-        --
-        --         isTextEditing =
-        --           modelState.maybeTextEditingPathAndText
-        --           |> Maybe.map (\(textEditingPath, _) -> [textEditingPath] == List.map specificActionProjectionPath editTextSpecificActions)
-        --           |> Maybe.withDefault False
-        --
-        --         cursor =
-        --           if List.length editTextSpecificActions == 1 then
-        --             "text"
-        --           else if List.length scrubSpecificActions == 1 then
-        --             "ns-resize"
-        --           else
-        --             "pointer"
-        --       in
-        --       ( [ Attr.style [("cursor", cursor)]
-        --         , Html.Events.onClick onClickMsg
-        --         ] ++ perhapsStartLiveSync ++ perhapsStartTextEdit
-        --       , isTextEditing
-        --       )
-
+          ] ++ perhapsStartLiveSync ++ perhapsStartTextEdit
 
         onClickMsg =
           case maybeHoveredShape of
@@ -630,6 +603,42 @@ structuredEditor modelState =
           in
           List.concatMap shapeToButtons shownShapes ++ insertButtons
 
+        perhapsTextEditBox =
+          case maybeTextEditingPathAndText of
+            Just (textEditingPath, string) ->
+              let maybeLocation =
+                Dict.get textEditingPath projectionPathToShapeSet
+                |> Maybe.withDefault Set.empty
+                |> Set.toList
+                |> List.map TSEFLLPPolys.shapeToTopLeftCorner
+                |> Utils.maximumBy (\(x,y) -> (y,x))
+              in
+              case maybeLocation of
+                Just (left, top) ->
+                  let inputAttrs =
+                    [ Attr.type_ "text"
+                    , Attr.id "tsefllpTextBox"
+                    , Attr.defaultValue string
+                    , Attr.style [ ("font-size", "18px")
+                                 , ("display", "block")
+                                 , ("position", "absolute")
+                                 , ("left", px left), ("top", px top)
+                                 ]
+                    , Html.Events.onInput Controller.msgTSEFLLPUpdateTextBox
+                    , HtmlUtils.onClickWithoutPropagation Controller.msgNoop
+                    , HtmlUtils.onKeyDown <|
+                        \keyCode ->
+                          if keyCode == HtmlUtils.enterKeyCode -- Enter button
+                          then Controller.msgTSEFLLPApplyTextEdit
+                          else Controller.msgNoop
+                    ]
+                  in
+                  [ Html.input inputAttrs [] ]
+                Nothing ->
+                  []
+            Nothing ->
+              []
+
         -- Relative to top-left corner of structured editor.
         logMousePosition xPx yPx = Controller.msgTSEFLLPMousePosition (xPx, yPx)
 
@@ -653,194 +662,10 @@ structuredEditor modelState =
           , Html.div [] [text "Selected value paths: ", text (pathSetToString selectedPathSet)]
           , Html.pre [] [text "Selected values:\n  ", text (selectedPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
           , Html.div (perhapsClickAttrs ++ [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))]) []
-          ] ++ buttonsAndMenus -- Have to draw these on top of the click catcher above.
+          ] ++ buttonsAndMenus ++ perhapsTextEditBox -- Have to draw these on top of the click catcher above.
 
     Err err ->
       Html.div [Attr.style [("font-size", "18px"), ("color", "#e00")]] [text err]
-
-
--- structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
--- structuredEditor modelState =
---   let { valueOfInterestTagged, dataTypeDefs, maybeRenderingFunctionNameAndProgram, selectedPolyPaths, stringProjectionPathToSpecificActions, stringTaggedWithProjectionPathsResult, maybeNewValueOptions } = modelState in
---   let
---     render
---       :  Set ProjectionPath
---       -> AppendedTaggedStrings (Maybe ProjectionPath, Set ProjectionPath, Set SpecificAction)
---       -> Html Msg
---     render pathsInAncestors stringTaggedWithSelectionPathAndProjectionPathsAndActions =
---       let
---         (maybeSelectionClickPath, immediatePathSet, actions) = stringTag stringTaggedWithSelectionPathAndProjectionPathsAndActions
---         pathSetWithAncestors                                 = Set.union pathsInAncestors immediatePathSet
---
---         -- Although the mouse region for triggering a selection is small,
---         -- we display the selection over the entire area(s) of the string
---         -- associated with the selected path.
---         perhapsSelectedDisplayAttrs =
---           if Utils.anyOverlap [immediatePathSet, selectedPolyPaths]
---           then [Attr.style [("border", "3px solid blue"), ("margin", "-3px")]]
---           else []
---       in
---       case stringTaggedWithSelectionPathAndProjectionPathsAndActions of
---         TaggedString string _ ->
---           let
---             (perhapsClickAttrs, isTextEditing) =
---               case maybeSelectionClickPath of
---                 Nothing                 -> ([], False)
---                 Just selectionClickPath ->
---                   let
---                     onClickMsg =
---                       if Set.member selectionClickPath selectedPolyPaths
---                       then Controller.msgTSEFLLPDeselectPolyPath selectionClickPath
---                       else Controller.msgTSEFLLPSelectPolyPath   selectionClickPath
---
---                     scrubSpecificActions    = actions |> Set.toList |> List.filter isScrubSpecificAction
---                     editTextSpecificActions = actions |> Set.toList |> List.filter isEditTextSpecificAction
---
---                     perhapsStartLiveSync =
---                       case scrubSpecificActions of
---                         [Scrub projectionPath] -> [ Html.Events.onMouseDown <| Controller.msgTSEFLLPStartLiveSync projectionPath ]
---                         _                      -> []
---
---                     perhapsStartTextEdit =
---                       case (modelState.maybeTextEditingPathAndText, editTextSpecificActions) of
---                         (Nothing, [EditText projectionPath]) -> [ Html.Events.onDoubleClick <| Controller.msgTSEFLLPStartTextEditing (projectionPath, string) ]
---                         _                                    -> []
---
---                     isTextEditing =
---                       modelState.maybeTextEditingPathAndText
---                       |> Maybe.map (\(textEditingPath, _) -> [textEditingPath] == List.map specificActionProjectionPath editTextSpecificActions)
---                       |> Maybe.withDefault False
---
---                     cursor =
---                       if List.length editTextSpecificActions == 1 then
---                         "text"
---                       else if List.length scrubSpecificActions == 1 then
---                         "ns-resize"
---                       else
---                         "pointer"
---                   in
---                   ( [ Attr.style [("cursor", cursor)]
---                     , Html.Events.onClick onClickMsg
---                     ] ++ perhapsStartLiveSync ++ perhapsStartTextEdit
---                   , isTextEditing
---                   )
---
---             perhapsActions =
---               let
---                 actionList = Set.toList actions
---
---                 insertActionNewValues     = actionList |> List.filter (specificActionMaybeChangeType >> (==) (Just Insert))     |> List.filterMap specificActionMaybeNewValue
---                 removeActionNewValues     = actionList |> List.filter (specificActionMaybeChangeType >> (==) (Just Remove))     |> List.filterMap specificActionMaybeNewValue
---                 changeCtorActionNewValues = actionList |> List.filter (specificActionMaybeChangeType >> (==) (Just ChangeCtor)) |> List.filterMap specificActionMaybeNewValue
---
---                 xOffset = 4 * String.length string - 5
---
---                 button yOffset color onClickMsg str =
---                   Html.span
---                       [ Attr.style [ ("display", "inline-block")
---                                    , ("width",  "0")
---                                    , ("vertical-align", toString yOffset ++ "em"),  ("margin-top", toString (-yOffset) ++ "em")
---                                    , ("margin-left", toString xOffset ++ "px")
---                                    , ("margin-right", toString (-xOffset) ++ "px")
---                                    , ("color", color)
---                                    , ("cursor", "pointer")
---                                    , ("font-size", "75%")
---                                    ]
---                       , Html.Events.onClick onClickMsg
---                       ]
---                       [ text str ]
---
---                 perhapsInsertButton =
---                   case insertActionNewValues of
---                     []                    -> []
---                     [newValueAfterInsert] -> [ button 1.05 "green" (Controller.msgTSEFLLPSelectNewValue newValueAfterInsert)       "⊕" ]
---                     newValuesAfterInsert  -> [ button 1.05 "green" (Controller.msgTSEFLLPShowNewValueOptions newValuesAfterInsert) "⊕" ]
---
---                 perhapsRemoveButton =
---                   case removeActionNewValues of
---                     []                    -> []
---                     [newValueAfterRemove] -> [ button -0.9 "red" (Controller.msgTSEFLLPSelectNewValue newValueAfterRemove)       "⊖" ]
---                     newValuesAfterRemove  -> [ button -0.9 "red" (Controller.msgTSEFLLPShowNewValueOptions newValuesAfterRemove) "⊖" ]
---
---                 perhapsChangeCtorButton =
---                   case changeCtorActionNewValues of
---                     []                        -> []
---                     [newValueAfterChangeCtor] -> [ button -1.8 "gold" (Controller.msgTSEFLLPSelectNewValue newValueAfterChangeCtor)       "∼" ]
---                     newValuesAfterChangeCtor  -> [ button -1.8 "gold" (Controller.msgTSEFLLPShowNewValueOptions newValuesAfterChangeCtor) "∼" ]
---               in
---               perhapsInsertButton ++ perhapsRemoveButton ++ perhapsChangeCtorButton
---           in
---           Html.span perhapsSelectedDisplayAttrs <|
---             if isTextEditing then
---               let inputAttrs =
---                 [ Attr.type_ "text"
---                 , Attr.id "tsefllpTextPoly"
---                 , Attr.defaultValue string
---                 , Attr.style [("font-size", "18px")]
---                 , Html.Events.onInput Controller.msgTSEFLLPUpdateTextPoly
---                 , HtmlUtils.onClickWithoutPropagation Controller.msgNoop
---                 , HtmlUtils.onKeyDown <|
---                     \keyCode ->
---                       if keyCode == HtmlUtils.enterKeyCode -- Enter button
---                       then Controller.msgTSEFLLPApplyTextEdit
---                       else Controller.msgNoop
---                 ]
---               in
---               perhapsActions ++ [ Html.input inputAttrs [] ]
---             else
---               perhapsActions ++ [ Html.span perhapsClickAttrs [text string] ]
---
---         TaggedStringAppend left right _ ->
---           Html.span
---               perhapsSelectedDisplayAttrs
---               [ render pathSetWithAncestors left
---               , render pathSetWithAncestors right
---               ]
---   in
---   case stringTaggedWithProjectionPathsResult of
---     Ok stringTaggedWithProjectionPaths ->
---       case maybeNewValueOptions of
---         Nothing ->
---           let
---             stringTaggedWithSelectionPathAndProjectionPathsAndActions =
---               stringTaggedWithProjectionPaths
---               |> assignSelectionClickAreas
---               |> assignActionsToLeaves stringProjectionPathToSpecificActions
---           in
---           Html.div [Attr.style [("font-size", "18px")]] [render Set.empty stringTaggedWithSelectionPathAndProjectionPathsAndActions]
---
---         Just newValueOptions ->
---           let
---             renderNewValueOption newValue =
---               let displayStr =
---                 case maybeRenderingFunctionNameAndProgram of
---                   Just { renderingFunctionName, multipleDispatchFunctions, desugaredToStringProgram } ->
---                     let newStringTaggedWithProjectionPathsResult =
---                       TSEFLLPEval.evalToStringTaggedWithProjectionPaths
---                           dataTypeDefs
---                           multipleDispatchFunctions
---                           desugaredToStringProgram
---                           newValue
---                     in
---                     newStringTaggedWithProjectionPathsResult
---                     |> Result.map taggedStringToNormalString
---                     |> Utils.fromResult -- Err and Ok both wrap strings, so unwrap.
---
---                   Nothing ->
---                     "New Value " ++ unparseToUntaggedString newValue
---               in
---               Html.div
---                   [ Attr.class "text-button"
---                   , Html.Events.onClick <| Controller.msgTSEFLLPSelectNewValue newValue
---                   ]
---                   [ text displayStr ]
---           in
---           Html.div
---               [ Attr.style [("font-size", "18px")] ]
---               (newValueOptions |> List.map renderNewValueOption)
---
---     Err _ ->
---       plainStringView stringTaggedWithProjectionPathsResult
 
 
 stringTaggedWithProjectionPathsDebug : Result String StringTaggedWithProjectionPaths -> Html Msg

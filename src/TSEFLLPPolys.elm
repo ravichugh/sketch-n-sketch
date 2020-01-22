@@ -1,4 +1,4 @@
-module TSEFLLPPolys exposing (Poly(..), PixelPoly, PixelShape, polyShape, polyPathSet, containsPoint, area, flatten, taggedStringToPixelPoly)
+module TSEFLLPPolys exposing (Poly(..), PixelPoly, PixelShape, polyShape, polyPathSet, shapeToBotRightCorner, shapeToTopLeftCorner, containsPoint, area, flatten, taggedStringToPixelPoly)
 
 import Dict exposing (Dict)
 import Set exposing (Set)
@@ -101,6 +101,22 @@ endCutoutBounds { bounds, leftTopCornerOfRightBotCutout } =
     (endX, lastLineTop) = leftTopCornerOfRightBotCutout
   in
   (endX, lastLineTop, right, bot)
+
+-- Corner on last line.
+shapeToBotRightCorner shape =
+  let
+    (left, top, right, bot) = shape.bounds
+    (endX, lastLineTop)     = shape.leftTopCornerOfRightBotCutout
+  in
+  (endX, bot)
+
+-- Corner on first line.
+shapeToTopLeftCorner shape =
+  let
+    (left, top, right, bot) = shape.bounds
+    (startX, firstLineBot)  = shape.rightBotCornerOfLeftTopCutout
+  in
+  (startX, top)
 
 polyPathSet : Poly -> Set ProjectionPath
 polyPathSet (Poly {pathSet}) = pathSet

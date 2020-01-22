@@ -2065,6 +2065,7 @@ msgKeyDown keyCode =
                   |> resetDeuceState
                   |> resetDeuceKeyboardInfo
                   |> \m -> { m | deucePopupPanelAbove = True }
+                  |> \m -> { m | tsefllpState = TSEFLLP.handleEscapeKey m.tsefllpState }
             in
               case (old.tool, old.mouseMode) of
                 (Cursor, _)         -> clearSelections new

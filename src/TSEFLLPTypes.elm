@@ -164,6 +164,18 @@ foldTaggedValue acc f w =
     VAppend w1 w2                       -> f w <| recurse w1 <| recurse w2 acc
     VNum num                            -> f w acc
 
+-- Assumes value is already tagged.
+pathToMaybeValue : TaggedValue -> ProjectionPath -> Maybe TaggedValue
+pathToMaybeValue rootVal path =
+  let targetPathSet = Set.singleton path in
+  rootVal
+  |> foldTaggedValue Nothing
+      (\subvalueOfInterestTagged maybeFound ->
+        if subvalueOfInterestTagged.paths == targetPathSet
+        then Just subvalueOfInterestTagged
+        else maybeFound
+      )
+
 -- For debugging.
 unparseToUntaggedString : TaggedValue -> String
 unparseToUntaggedString taggedValue =

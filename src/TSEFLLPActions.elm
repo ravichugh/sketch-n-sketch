@@ -10,7 +10,7 @@ import Utils
 
 import TSEFLLPTypes exposing (..)
 import TSEFLLPEval exposing (tagVal)
-import TSEFLLPSelection
+import TSEFLLPPolys
 
 
 -- By default we attempt to copy ctor arguments from the current value.
@@ -479,8 +479,8 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
 -- 1. Find closest shape before (max path < targetPath), at (path == targtPath), and after (min path > targetPath);
 -- 2. Produce a candidate point for each shape (bot right for before, top left for at and after).
 -- 3. Use lowest, rightmost point.
-arrangeInsertActions : TSEFLLPSelection.SelectionAssignments -> Dict ProjectionPath (Set SpecificAction) -> Dict (Int, Int) (Set SpecificAction)
-arrangeInsertActions selectionAssignments projectionPathToSpecificActions =
+arrangeInsertActions : Dict ProjectionPath (Set TSEFLLPPolys.PixelShape) -> Dict ProjectionPath (Set SpecificAction) -> Dict (Int, Int) (Set SpecificAction)
+arrangeInsertActions projectionPathToShapeSet projectionPathToSpecificActions =
   let
     insertActions =
       projectionPathToSpecificActions
@@ -489,36 +489,20 @@ arrangeInsertActions selectionAssignments projectionPathToSpecificActions =
       |> Set.toList
       |> List.filter (specificActionMaybeChangeType >> (==) (Just Insert))
 
-    projectionPathToShapeSet = TSEFLLPSelection.makeProjectionPathToShapeSet selectionAssignments
-
     -- Sorted by path: shallow to deep, left to right.
     projectionPathShapeSetPairs = Dict.toList projectionPathToShapeSet
-
-    shapeToBotRightCorner shape =
-      let
-        (left, top, right, bot) = shape.bounds
-        (endX, lastLineTop)     = shape.leftTopCornerOfRightBotCutout
-      in
-      (endX, bot)
-
-    shapeToTopLeftCorner shape =
-      let
-        (left, top, right, bot) = shape.bounds
-        (startX, firstLineBot)  = shape.rightBotCornerOfLeftTopCutout
-      in
-      (startX, top)
 
     -- South-east most corner on lowest edge.
     shapeSetToMaybeBotRightCorner shapeSet =
       shapeSet
       |> Set.toList
-      |> List.map shapeToBotRightCorner
+      |> List.map TSEFLLPPolys.shapeToBotRightCorner
       |> Utils.maximumBy (\(x, y) -> (y, x))
 
     shapeSetToMaybeTopLeftCorner shapeSet =
       shapeSet
       |> Set.toList
-      |> List.map shapeToTopLeftCorner
+      |> List.map TSEFLLPPolys.shapeToTopLeftCorner
       |> Utils.minimumBy (\(x, y) -> (y, x))
 
     locationActionPairs =
