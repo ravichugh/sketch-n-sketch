@@ -129,6 +129,18 @@ eval dataTypeDefs multipleDispatchFunctions env exp =
           _        -> Err <| "Built-in toString only supports numbers but was given " ++ unparseToUntaggedString argTaggedVal ++ "!"
       )
 
+    ENumOp op e1 e2 ->
+      let applyOp op = case op of
+        Plus  -> (+)
+        Minus -> (-)
+      in
+      recurse env e1 |> Result.andThen (\taggedVal1 ->
+      recurse env e2 |> Result.andThen (\taggedVal2 ->
+        case (taggedVal1.v, taggedVal2.v) of
+          (VNum num1, VNum num2) -> Ok <| TaggedValue (VNum <| applyOp op num1 num2) (dependencyAnnotators.operation [taggedVal1.paths, taggedVal2.paths])
+          _                      -> Err <| "Built-in <= only supports numbers but was given " ++ unparseToUntaggedString taggedVal1 ++ " and " ++ unparseToUntaggedString taggedVal2 ++ "!"
+      ))
+
     ENumLTE e1 e2 ->
       recurse env e1 |> Result.andThen (\taggedVal1 ->
       recurse env e2 |> Result.andThen (\taggedVal2 ->
@@ -340,9 +352,16 @@ evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions pro
         VClosure [] "<=" "l" (EFun "" "r"
           (ENumLTE (EVar "r") (EVar "l"))
         )
+
+      -- Bare + is assumed to be string append, use "numPlus" instead.
+      numPlus =
+        VClosure [] "numPlus" "l" (EFun "" "r"
+          (ENumOp Plus (EVar "r") (EVar "l"))
+        )
     in
     [ ("valueOfInterestTagged", valueOfInterestTagged)
     , ("numToStringBuiltin", noTag <| VClosure [] "numToStringBuiltin" "x" (ENumToString (EVar "x")))
+    , ("numPlus", noTag <| numPlus)
     , ("<<", noTag <| compose)
     , ("<=", noTag <| lte)
     , (">=", noTag <| gte)

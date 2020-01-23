@@ -102,10 +102,12 @@ desugarExp freshVariableCounterRef multipleDispatchFunctionsRef langExp =
 
     Lang.EOp _ _ op argExps _ ->
       case (op.val, argExps) of
-        (Lang.Plus, [e1, e2]) -> EAppend (recurse e1) (recurse e2)
-        (Lang.Plus, _)        -> EString <| "TSEFLLP core language does not support any non-binary Plus operation"
-        (Lang.ToStr, [e1])    -> ENumToString (recurse e1)
-        _                     -> EString <| "TSEFLLP core language does not support the " ++ toString op.val ++ " operation"
+        (Lang.Plus, [e1, e2])  -> EAppend (recurse e1) (recurse e2) -- Plus is always string append. Use the numPlus function for numeric addition.
+        (Lang.Plus, _)         -> EString <| "TSEFLLP core language does not support any non-binary Plus operation"
+        (Lang.Minus, [e1, e2]) -> ENumOp Minus (recurse e1) (recurse e2)
+        (Lang.Minus, _)        -> EString <| "TSEFLLP core language does not support any non-binary Minus operation"
+        (Lang.ToStr, [e1])     -> ENumToString (recurse e1)
+        _                      -> EString <| "TSEFLLP core language does not support the " ++ toString op.val ++ " operation"
 
     Lang.EList _ wsHeads _ maybeTail _  ->
       let desugaredTailExp = maybeTail |> Maybe.map recurse |> Maybe.withDefault nilExp in

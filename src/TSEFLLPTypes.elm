@@ -116,7 +116,12 @@ type Exp -- Expressions e :=
   | EAppend Exp Exp -- e1 ++ e2
   | ENum Float -- n
   | ENumToString Exp -- numToStr e
-  | ENumLTE Exp Exp -- e1 <= e2
+  | ENumOp Op Exp Exp -- e1 ⊕ e2 returning Num
+  | ENumLTE Exp Exp -- e1 <= e2 returning Bool
+
+type Op
+  = Plus
+  | Minus
 
 type alias MultipleDispatchFunctions = List (Ident, Lang.Type, Ident) -- Name, Type annotation, Desugared unique name
 
