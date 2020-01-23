@@ -533,6 +533,7 @@ structuredEditor modelState =
                   Set.intersect shownActions actions
                   |> Set.toList
                   |> List.sortBy (\action -> (negate <| List.length (specificActionProjectionPath action), specificActionProjectionPath action))
+                  |> Utils.dedupBy specificActionMaybeNewValue
               in
               if List.length shownButtonActions >= 1 then
                 [ Html.div
@@ -548,8 +549,8 @@ structuredEditor modelState =
                 ]
               else if Set.size actions >= 1 then
                 let onClick =
-                  -- If only one possible delete action, apply immediately.
-                  case Set.toList actions |> List.map specificActionMaybeNewValue of
+                  -- If only one possible remove action, apply immediately.
+                  case Set.toList actions |> List.map specificActionMaybeNewValue |> Utils.dedup of
                     [Just newVal] -> Controller.msgTSEFLLPSelectNewValue newVal
                     _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath actions
                 in
