@@ -671,6 +671,15 @@ overlappingAdjacentPairs_ includeLast list =
   in
   zip list shiftList
 
+replaceAll : a -> a -> List a -> List a
+replaceAll target replacement list =
+  list
+  |> List.map (\a ->
+    if a == target
+    then replacement
+    else a
+  )
+
 -- 1-based
 findi : (a -> Bool) -> List a -> Maybe Int
 findi p xs = findi_ 1 p xs

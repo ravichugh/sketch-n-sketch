@@ -340,10 +340,15 @@ structuredEditor modelState =
         selectionAssignments     = TSEFLLPSelection.associateProjectionPathsWithShapes valueOfInterestTagged pixelPoly
         projectionPathToShapeSet = TSEFLLPSelection.makeProjectionPathToShapeSet selectionAssignments
 
+        -- Projection paths and shapes in output string but with no hover region b/c precisely
+        -- covered by smaller (deeper) shapes.
+        (occludedPathSet, occludedShapes) = TSEFLLPSelection.findOccludedPathSetAndShapes selectionAssignments pixelPoly
+
         maybeHoveredShape = TSEFLLPSelection.mostRelevantShapeAtPoint mousePosition selectionAssignments
         hoveredShapes     = Utils.maybeToList maybeHoveredShape
 
-        -- Debug.
+        hoveredOccludedShapes = TSEFLLPSelection.occludedShapesAtPoint mousePosition occludedShapes
+
         selectedPathSet = selectedShapes |> List.map (flip TSEFLLPSelection.shapeToPathSet selectionAssignments) |> Utils.unionAll
         hoveredPathSet  = hoveredShapes  |> List.map (flip TSEFLLPSelection.shapeToPathSet selectionAssignments) |> Utils.unionAll
 
@@ -371,20 +376,15 @@ structuredEditor modelState =
 
         perhapsClickAttrs =
           let
-            actionsForHover =
+            actionsForHovered =
               hoveredPathSet
               |> Set.toList
               |> Utils.filterMap (flip Dict.get projectionPathToSpecificActions)
               |> Utils.unionAll
               |> Set.toList
 
-            scrubSpecificActions    = actionsForHover |> List.filter isScrubSpecificAction
-            editTextSpecificActions = actionsForHover |> List.filter isEditTextSpecificAction
-
-            -- isTextEditing =
-            --   modelState.maybeTextEditingPathAndText
-            --   |> Maybe.map (\(textEditingPath, _) -> [textEditingPath] == List.map specificActionProjectionPath editTextSpecificActions)
-            --   |> Maybe.withDefault False
+            scrubSpecificActions    = actionsForHovered |> List.filter isScrubSpecificAction
+            editTextSpecificActions = actionsForHovered |> List.filter isEditTextSpecificAction
 
             perhapsStartLiveSync =
               case scrubSpecificActions of
@@ -528,7 +528,7 @@ structuredEditor modelState =
                       []
                       [ text <| "who are you and why is this action here " ++ actionDescription action valueOfInterestTagged ]
 
-            perhapsButton extraButtonStyles buttonHtmls maybeShapePolyPath actions right top =
+            perhapsButton extraButtonStyles buttonHtmls ((right, top), actions, maybeShapePolyPath)  =
               let shownButtonActions =                    -- Deepest, leftmost first
                   Set.intersect shownActions actions
                   |> Set.toList
@@ -567,41 +567,96 @@ structuredEditor modelState =
               else
                 []
 
-            insertButtons =
+
+            -- Place the visible actions in 2D where we think they should go and then
+            -- consolidate the actions at overlapping locations.
+
+            -- Prefer locations later in list (buttons associated with deeper shapes).
+            consolidateActionsAtOverlappingLocations : List ((Int, Int), Set SpecificAction, Maybe PolyPath) -> List ((Int, Int), Set SpecificAction, Maybe PolyPath)
+            consolidateActionsAtOverlappingLocations actionLocationsAndMaybePolyPath =
+              let tolerancePx = 10 in
+              actionLocationsAndMaybePolyPath
+              |> Utils.foldr
+                  []
+                  (\(point, locationActions, maybePolyPath) deeperActionLocationsAndMaybePolyPath ->
+                    let maybeClosest =
+                      deeperActionLocationsAndMaybePolyPath
+                      |> List.filter     (\(existingPoint, _, _) -> Utils.distanceInt point existingPoint <= tolerancePx)
+                      |> Utils.minimumBy (\(existingPoint, _, _) -> Utils.distanceInt point existingPoint)
+                    in
+                    case maybeClosest of
+                      Just ((existingPoint, existingLocationActions, existingMaybePolyPath) as existing) ->
+                        let
+                          consolidated =
+                            ( existingPoint
+                            , Set.union locationActions existingLocationActions
+                            , if maybePolyPath == existingMaybePolyPath then existingMaybePolyPath else Nothing
+                            )
+                        in
+                        deeperActionLocationsAndMaybePolyPath
+                        |> Utils.replaceAll existing consolidated
+
+                      Nothing ->
+                        (point, locationActions, maybePolyPath)::deeperActionLocationsAndMaybePolyPath
+                  )
+
+            insertActionLocationsAndMaybePolyPath : List ((Int, Int), Set SpecificAction, Maybe PolyPath)
+            insertActionLocationsAndMaybePolyPath =
               insertActionLocations
               |> Dict.toList
-              |> List.concatMap (\((x, y), insertActions) ->
-                perhapsButton [("color", "#0e0")] [text "⊕"] Nothing insertActions x y -- ⊕➕
+              |> List.map (\(point, insertActions) ->
+                (point, insertActions, Nothing)
               )
+              |> consolidateActionsAtOverlappingLocations
 
-            shapeToButtons ({ bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout } as pixelShape) =
+            (removeActionLocationsAndMaybePolyPath, changeCtorActionLocationsAndMaybePolyPath) =
               let
-                (left, top, right, bot) = bounds
-                (startX, firstLineBot)  = rightBotCornerOfLeftTopCutout
-                (endX, lastLineTop)     = leftTopCornerOfRightBotCutout
+                shapeToMaybeRemoveInsertActionLocationsAndMaybePolyPath : TSEFLLPPolys.PixelShape -> (Maybe ((Int, Int), Set SpecificAction, Maybe PolyPath), Maybe ((Int, Int), Set SpecificAction, Maybe PolyPath))
+                shapeToMaybeRemoveInsertActionLocationsAndMaybePolyPath ({ bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout } as pixelShape) =
+                  let
+                    (left, top, right, bot) = bounds
+                    (startX, firstLineBot)  = rightBotCornerOfLeftTopCutout
+                    (endX, lastLineTop)     = leftTopCornerOfRightBotCutout
 
-                actions =
-                  TSEFLLPSelection.shapeToPathSet pixelShape selectionAssignments
-                  |> Set.toList
-                  |> List.map (\path -> Utils.getWithDefault path Set.empty projectionPathToSpecificActions)
-                  |> Utils.unionAll
+                    actions =
+                      TSEFLLPSelection.shapeToPathSet pixelShape selectionAssignments
+                      |> Set.toList
+                      |> List.map (\path -> Utils.getWithDefault path Set.empty projectionPathToSpecificActions)
+                      |> Utils.unionAll
 
-                deleteActions =
-                  actions
-                  |> Set.filter (specificActionMaybeChangeType >> (==) (Just Remove))
+                    removeActions =
+                      actions
+                      |> Set.filter (specificActionMaybeChangeType >> (==) (Just Remove))
 
-                changeCtorActions =
-                  actions
-                  |> Set.filter (specificActionMaybeChangeType >> (==) (Just ChangeCtor))
+                    changeCtorActions =
+                      actions
+                      |> Set.filter (specificActionMaybeChangeType >> (==) (Just ChangeCtor))
 
-                maybeShapePolyPath = TSEFLLPSelection.shapeToMaybePolyPath pixelShape pixelPoly
-
-                perhapsDeleteButton     = perhapsButton [] [text "❌"] maybeShapePolyPath deleteActions     right top -- ❌✘✕✖︎✗
-                perhapsChangeCtorButton = perhapsButton [] [text "🔽"] maybeShapePolyPath changeCtorActions left  ((bot + top) // 2) -- 🔽▾▼⎊
+                    maybeShapePolyPath = TSEFLLPSelection.shapeToMaybePolyPath pixelShape pixelPoly
+                  in
+                  ( if Set.size removeActions     >= 1 then Just ((right + 1, top)             , removeActions    , maybeShapePolyPath) else Nothing
+                  , if Set.size changeCtorActions >= 1 then Just ((left - 5,  (bot + top) // 2), changeCtorActions, maybeShapePolyPath) else Nothing
+                  )
               in
-              perhapsDeleteButton ++ perhapsChangeCtorButton
+              hoveredOccludedShapes ++ shownShapes
+              |> List.map shapeToMaybeRemoveInsertActionLocationsAndMaybePolyPath
+              |> List.unzip
+              |> Utils.mapBoth Utils.filterJusts
+              |> Utils.mapBoth consolidateActionsAtOverlappingLocations
+
+            insertButtons =
+              insertActionLocationsAndMaybePolyPath
+              |> List.concatMap (perhapsButton [("color", "#0e0")] [text "⊕"]) -- ⊕➕
+
+            removeButtons =
+              removeActionLocationsAndMaybePolyPath
+              |> List.concatMap (perhapsButton [] [text "❌"])  -- ❌✘✕✖︎✗
+
+            changeCtorButtons =
+              changeCtorActionLocationsAndMaybePolyPath
+              |> List.concatMap (perhapsButton [] [text "🔽"]) -- 🔽▾▼⎊
           in
-          List.concatMap shapeToButtons shownShapes ++ insertButtons
+          changeCtorButtons ++ removeButtons ++ insertButtons
 
         perhapsTextEditBox =
           case maybeTextEditingPathAndText of

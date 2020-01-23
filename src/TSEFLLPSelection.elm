@@ -1,4 +1,4 @@
-module TSEFLLPSelection exposing (SelectionAssignments, selectedPolyPathsToProjectionPathSet, associateProjectionPathsWithShapes, maybeShapeByPolyPath, shapeToMaybePolyPath, mostRelevantShapeAtPoint, shapeToPathSet, makeProjectionPathToShapeSet)
+module TSEFLLPSelection exposing (SelectionAssignments, selectedPolyPathsToProjectionPathSet, associateProjectionPathsWithShapes, findOccludedPathSetAndShapes, maybeShapeByPolyPath, shapeToMaybePolyPath, mostRelevantShapeAtPoint, occludedShapesAtPoint, shapeToPathSet, shapeToOccludedPathSet, makeProjectionPathToShapeSet)
 
 -- Module for associating overlay shapes with parts of the value of interest (projection paths).
 --
@@ -37,7 +37,7 @@ selectedPolyPathsToProjectionPathSet selectedPolyPaths valueOfInterestTagged tag
 
 -- Version 1, by shape precisely.
 --
--- Only shapes with non-empty pathsets are included.
+-- Only shapes with non-empty pathsets are included. (And findNonOccludedPathSet below assumes this.)
 --
 -- Some subvalue paths may be occluded if their poly is entirely covered or has zero area.
 associateProjectionPathsWithShapes : TaggedValue -> PixelPoly -> SelectionAssignments
@@ -54,6 +54,69 @@ associateProjectionPathsWithShapes valueOfInterestTagged ((Poly { pathSet, child
   children
   |> List.map recurse
   |> Utils.foldl associationDictHere Utils.unionDictSets
+
+
+-- Projection paths and shapes in output string but with no hover region b/c precisely
+-- covered by smaller (deeper) shapes.
+--
+-- May include 0-area shapes since those are not filtered out by associateProjectionPathsWithShapes.
+findOccludedPathSetAndShapes : SelectionAssignments -> PixelPoly -> (Set ProjectionPath, List PixelShape)
+findOccludedPathSetAndShapes selectionAssignments pixelPoly =
+  let
+    allPathsSet  = Utils.unionAll <| Dict.values selectionAssignments
+    allShapesSet = Set.fromList   <| Dict.keys   selectionAssignments
+
+    (nonOccludedShapeSet, _) = findNonOccludedShapeSet selectionAssignments pixelPoly
+    nonOccludedPathSet =
+      nonOccludedShapeSet
+      |> Set.toList
+      |> List.map (flip Utils.dictGetSet selectionAssignments)
+      |> Utils.unionAll
+
+  in
+  ( Set.diff allPathsSet  nonOccludedPathSet
+  , Set.diff allShapesSet nonOccludedShapeSet |> Set.toList
+  )
+
+
+-- Returns (non-occluded shape list, occluded area)
+--
+-- Since parents shapes always contain child shapes and child shapes are disjoint, we just have to sum areas
+-- to determine if part of the shape is peaking out.
+findNonOccludedShapeSet : SelectionAssignments -> PixelPoly -> (Set PixelShape, Int)
+findNonOccludedShapeSet selectionAssignments ((Poly { children }) as pixelPoly) =
+  let
+    recurse = findNonOccludedShapeSet selectionAssignments
+
+    (childrenNonOccludedShapeSet, childrenOccludedArea) =
+      children
+      |> List.map recurse
+      |> List.unzip
+      |> Utils.mapFirstSecond Utils.unionAll List.sum
+
+    shape     = polyShape pixelPoly
+    shapeArea = area shape
+  in
+  case Dict.member shape selectionAssignments of
+    True ->
+      if shapeArea > childrenOccludedArea then -- This shape has clickable area.
+        ( Set.insert shape childrenNonOccludedShapeSet
+        , shapeArea
+        )
+      else if shapeArea == childrenOccludedArea then -- Since selection assignments are by shape, it's okay if a child shape and parent shape match perfectly--the pathSet will have been caught by the child.
+        ( childrenNonOccludedShapeSet
+        , childrenOccludedArea
+        )
+      else
+        let _ = Utils.log "TSEFLLPSelection.findNonOccludedPathSet invariant broken: expected parent polys to never be smaller than all their child polys" in
+        ( childrenNonOccludedShapeSet
+        , shapeArea
+        )
+
+    False ->
+      ( childrenNonOccludedShapeSet
+      , childrenOccludedArea
+      )
 
 
 maybeShapeByPolyPath : PolyPath -> PixelPoly -> Maybe PixelShape
@@ -98,9 +161,22 @@ mostRelevantShapeAtPoint point selectionAssignments =
   |> Utils.findFirst (containsPoint point)
 
 
+occludedShapesAtPoint : (Int, Int) -> List PixelShape -> List PixelShape
+occludedShapesAtPoint point occludedShapes =
+  occludedShapes
+  |> List.filter (containsPoint point)
+
+
 shapeToPathSet : PixelShape -> SelectionAssignments -> Set ProjectionPath
 shapeToPathSet shape selectionAssignments =
   Utils.dictGetSet shape selectionAssignments
+
+
+shapeToOccludedPathSet : PixelShape -> Set ProjectionPath -> SelectionAssignments -> Set ProjectionPath
+shapeToOccludedPathSet shape occludedPathSet selectionAssignments =
+  Set.intersect
+    occludedPathSet
+    (Utils.dictGetSet shape selectionAssignments)
 
 
 makeProjectionPathToShapeSet : SelectionAssignments -> Dict ProjectionPath (Set PixelShape)
