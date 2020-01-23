@@ -547,7 +547,7 @@ structuredEditor modelState =
                       ]
                       (shownButtonActions |> List.map actionDiv)
                 ]
-              else if Set.size actions >= 1 then
+              else if Set.size actions >= 1 && Set.isEmpty shownActions && maybeTextEditingPathAndText == Nothing then
                 let onClick =
                   -- If only one possible remove action, apply immediately.
                   case Set.toList actions |> List.map specificActionMaybeNewValue |> Utils.dedup of
