@@ -5,4 +5,4 @@ val branch :
     -> hole_ctx
     -> datatype_ctx
     -> synthesis_goal
-    -> (exp * fill_goal list) Nondet.t
+    -> ((exp * fill_goal list) * constraints) Nondet.t

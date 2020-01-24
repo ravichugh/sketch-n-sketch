@@ -803,36 +803,50 @@ menuBar model =
 
     snsMenu =
       menu "Sketch-n-Myth"
+        -- [ [ simpleTextButton
+        --       "Run PBE Benchmark Suite (n = 1)"
+        --       (Core.Controller.msgRequestBenchmark 1 PBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (n = 5)"
+        --       (Core.Controller.msgRequestBenchmark 5 PBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (Outer Match Sketch; n = 1)"
+        --       (Core.Controller.msgRequestBenchmark 1 OuterMatchPBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (Outer Match Sketch; n = 5)"
+        --       (Core.Controller.msgRequestBenchmark 5 OuterMatchPBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (Base Case Sketch; n = 1)"
+        --       (Core.Controller.msgRequestBenchmark 1 BaseCasePBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (Base Case Sketch; n = 5)"
+        --       (Core.Controller.msgRequestBenchmark 5 BaseCasePBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 1)"
+        --       (Core.Controller.msgRequestBenchmark 1 TailRecursivePBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 5)"
+        --       (Core.Controller.msgRequestBenchmark 5 TailRecursivePBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (Top-1 Experiment; n = 1)"
+        --       (Core.Controller.msgRequestBenchmark 1 TopOnePBESuite.suite)
+        --   , simpleTextButton
+        --       "Run PBE Benchmark Suite (Top-1 Experiment; n = 5)"
+        --       (Core.Controller.msgRequestBenchmark 5 TopOnePBESuite.suite)
+        --   ]
+        -- ]
         [ [ simpleTextButton
               "Run PBE Benchmark Suite (n = 1)"
-              (Core.Controller.msgRequestBenchmark 1 PBESuite.suite)
+              (Core.Controller.msgRequestBenchmark 1 TopOnePBESuite.suite)
           , simpleTextButton
               "Run PBE Benchmark Suite (n = 5)"
-              (Core.Controller.msgRequestBenchmark 5 PBESuite.suite)
-          , simpleTextButton
-              "Run PBE Benchmark Suite (Outer Match Sketch; n = 1)"
-              (Core.Controller.msgRequestBenchmark 1 OuterMatchPBESuite.suite)
-          , simpleTextButton
-              "Run PBE Benchmark Suite (Outer Match Sketch; n = 5)"
-              (Core.Controller.msgRequestBenchmark 5 OuterMatchPBESuite.suite)
+              (Core.Controller.msgRequestBenchmark 5 TopOnePBESuite.suite)
           , simpleTextButton
               "Run PBE Benchmark Suite (Base Case Sketch; n = 1)"
               (Core.Controller.msgRequestBenchmark 1 BaseCasePBESuite.suite)
           , simpleTextButton
               "Run PBE Benchmark Suite (Base Case Sketch; n = 5)"
               (Core.Controller.msgRequestBenchmark 5 BaseCasePBESuite.suite)
-          , simpleTextButton
-              "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 1)"
-              (Core.Controller.msgRequestBenchmark 1 TailRecursivePBESuite.suite)
-          , simpleTextButton
-              "Run PBE Benchmark Suite (Tail-Recursive Sketch; n = 5)"
-              (Core.Controller.msgRequestBenchmark 5 TailRecursivePBESuite.suite)
-          , simpleTextButton
-              "Run PBE Benchmark Suite (Top-1 Experiment; n = 1)"
-              (Core.Controller.msgRequestBenchmark 1 TopOnePBESuite.suite)
-          , simpleTextButton
-              "Run PBE Benchmark Suite (Top-1 Experiment; n = 5)"
-              (Core.Controller.msgRequestBenchmark 5 TopOnePBESuite.suite)
           ]
         ]
         -- [ [ simpleHtmlTextButton

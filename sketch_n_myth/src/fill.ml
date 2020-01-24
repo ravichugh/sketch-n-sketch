@@ -3,9 +3,9 @@ open Nondet.Syntax
 
 let refine_or_branch
  params delta sigma _hf (hole_name, synthesis_goal) =
-  let* (additional_depth, (exp, subgoals)) =
+  let* (additional_depth, ((exp, subgoals), choice_constraints)) =
     Nondet.union
-      [ Nondet.map (Pair2.pair 0) @@
+      [ Nondet.map (fun x -> (0, (x, Constraints.empty))) @@
           Nondet.lift_option @@
             Refine.refine
               delta
@@ -22,7 +22,7 @@ let refine_or_branch
           Nondet.none
       ]
   in
-  let+ (_, _, _, parent_depth) =
+  let* (_, _, _, parent_depth) =
     Nondet.lift_option @@
       List.assoc_opt hole_name delta
   in
@@ -47,7 +47,14 @@ let refine_or_branch
            )
       |> Constraints.merge_unsolved
   in
-    ( (solved_constraints, unsolved_constraints)
+  let+ final_constraints =
+    Nondet.lift_option @@
+      Constraints.merge
+        [ (solved_constraints, unsolved_constraints)
+        ; choice_constraints
+        ]
+  in
+    ( final_constraints
     , delta'
     )
 

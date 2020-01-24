@@ -31,19 +31,49 @@ let filter (ws : worlds) : worlds =
   List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
 let distribute
+  (delta : hole_ctx)
+  (sigma : datatype_ctx)
+  (ctor_names : string list)
   (arg_name : string)
   (scrutinee : exp)
   ((env, ex) : world)
-  : (string * world) option =
+  : ((string * world) * constraints) Nondet.t =
+    let open Nondet.Syntax in
+    (* Type soundness ensures that scrutinee evaluates either to a constructor
+     * or to an indeterminate result.
+     *)
     match Eval.eval env scrutinee with
       | Ok (RCtor (ctor_name, arg), []) ->
-          Some (ctor_name, ((arg_name, arg) :: env, ex))
+          Nondet.pure
+            ( ( ctor_name
+              , ((arg_name, arg) :: env, ex)
+              )
+            , Constraints.empty
+            )
+
+      | Ok (r, []) ->
+          let* ctor_name =
+            Nondet.from_list ctor_names
+          in
+          let+ ks =
+            Uneval.uneval
+              delta
+              sigma
+              Hole_map.empty
+              r
+              (ExCtor (ctor_name, ExTop))
+          in
+            ( ( ctor_name
+              , ((arg_name, RCtorInverse (ctor_name, r)) :: env, ex)
+              )
+            , ks
+            )
 
       | _ ->
-          None
+          Nondet.none
 
 let branch
- max_scrutinee_size _delta sigma ((gamma, goal_type, goal_dec), worlds) =
+ max_scrutinee_size delta sigma ((gamma, goal_type, goal_dec), worlds) =
   let open Nondet.Syntax in
   let* _ =
     Nondet.guard (Option.is_none goal_dec)
@@ -57,6 +87,9 @@ let branch
   in
   let* (data_name, data_ctors) =
     Nondet.from_list sigma
+  in
+  let ctor_names =
+    List.map fst data_ctors
   in
   let ctor_info : (string * typ) Ctor_map.t =
     data_ctors
@@ -75,24 +108,32 @@ let branch
       |> List.map (Pair2.map_snd @@ fun _ -> ([], ExTop))
       |> Ctor_map.from_assoc_many
   in
-  let* distributed_worldss =
+  let* (distributed_worldss, ks) =
     filtered_worlds
-      |> List.map (distribute arg_name scrutinee)
-      |> Option2.sequence
-      |> Option2.map Ctor_map.from_assoc_many
+      |> List.map (distribute delta sigma ctor_names arg_name scrutinee)
+      |> Nondet.one_of_each
+      |> Nondet.map List.split
+      |> Nondet.map (Pair2.map_fst Ctor_map.from_assoc_many)
       (* Informativeness Restriction (A) *)
-      |> Option2.filter
-           ( fun ctor_map ->
+      |> Nondet.filter
+           ( fun (ctor_map, _) ->
                ( List.length data_ctors = 1
                    || Ctor_map.cardinal ctor_map >= 2
                )
            )
-      |> Option2.map
-           ( Ctor_map.union
-               (fun _ _ w -> Some w)
-               top_worlds
+      |> Nondet.map
+           ( Pair2.map_fst @@
+               Ctor_map.union
+                 (fun _ _ w -> Some w)
+                 top_worlds
            )
-      |> Nondet.lift_option
+      |> Nondet.and_then
+           ( fun (dw, kss) ->
+               kss
+                 |> Constraints.merge
+                 |> Option2.map (fun ks -> (dw, ks))
+                 |> Nondet.lift_option
+           )
   in
   let+ branches_goals =
     Nondet.lift_option @@
@@ -131,6 +172,8 @@ let branch
         distributed_worldss
         (Some [])
   in
-    branches_goals
-      |> List.split
-      |> Pair2.map_fst (fun branches -> ECase (scrutinee, branches))
+    ( branches_goals
+        |> List.split
+        |> Pair2.map_fst (fun branches -> ECase (scrutinee, branches))
+    , ks
+    )
