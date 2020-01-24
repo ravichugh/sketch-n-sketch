@@ -407,7 +407,12 @@ unparseArg e =
      EApp _ _ _ _ _       -> wrapWithTightParens (unparse e)
      EOp _ _ _ _ _        -> wrapWithTightParens (unparse e)
      EColonType _ _ _ _ _ -> wrapWithTightParens (unparse e)
-     _                    -> unparse e
+     ERecord _ _ decls _ ->
+       case decls |> recordEntriesFromDeclarations |> Maybe.andThen Lang.entriesToMaybeCtorNameAndArgExps of
+         Just (ctorName, [])   -> unparse e
+         Just (ctorName, _::_) -> wrapWithTightParens (unparse e)
+         Nothing               -> unparse e
+     _ -> unparse e
 
 unparseArgWithRendering arg currentRendering =
   let
@@ -592,7 +597,7 @@ unparse e =
         Nothing -> default ()
         Just fields ->
           tryUnparseRecordSugars
-            (\arg rendering -> wrapWithParensIfLessPrecedence OpRight e arg (unparseArgWithRendering arg rendering))
+              unparseArgWithRendering
               Lang.getExpString Lang.getExpEntries
               wsBefore fields wsAfter default
 

@@ -50,4 +50,4 @@ toString interval =
   case interval of
     Interval begin end -> toString begin + "," + toString end
 
-(Interval (NegInf) (Before 10 True) : Interval)
+(Interval NegInf (Before 10 True) : Interval)
