@@ -40,15 +40,15 @@ jsonToString indent json =
   let nextIndent     = "  " + indent in
   let joinWithCommaNewline strs = join (",\n" + nextIndent) strs in
   case json of
-    JSONList jsons ->
+    JSONList jsons -> basedOn jsons <|
       "[\n" + nextIndent + joinWithCommaNewline (map (jsonToString nextIndent) jsons) + "\n" + indent + "]"
-    JSONDict keyVals ->
+    JSONDict keyVals -> basedOn keyVals <|
       let keyValToString keyVal =
         case keyVal of
           Pair key val -> key + ": " + jsonToString nextIndent val
       in
       "{\n" + nextIndent + joinWithCommaNewline (map keyValToString keyVals) + "\n" + indent + "}"
-    JSONString string -> '"' + string + '"'
+    JSONString string -> basedOn string <| '"' + string + '"'
     JSONNumber num    -> toString num
 
 

@@ -149,6 +149,12 @@ eval dataTypeDefs multipleDispatchFunctions env exp =
           _                      -> Err <| "Built-in <= only supports numbers but was given " ++ unparseToUntaggedString taggedVal1 ++ " and " ++ unparseToUntaggedString taggedVal2 ++ "!"
       ))
 
+    EAddDependency e1 e2 ->
+      recurse env e1 |> Result.andThen (\taggedVal1 ->
+      recurse env e2 |> Result.andThen (\taggedVal2 ->
+        Ok <| setTag (Set.union taggedVal1.paths taggedVal2.paths) taggedVal2
+      ))
+
 
 -- Set up the value of interest with path tags, which are propagated during evaluation.
 --
@@ -358,8 +364,15 @@ evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions pro
         VClosure [] "numPlus" "l" (EFun "" "r"
           (ENumOp Plus (EVar "r") (EVar "l"))
         )
+
+      -- basedOn dependency x = x
+      basedOn =
+        VClosure [] "basedOn" "dependency" (EFun "" "x"
+          (EAddDependency (EVar "dependency") (EVar "x"))
+        )
     in
     [ ("valueOfInterestTagged", valueOfInterestTagged)
+    , ("basedOn", noTag <| basedOn)
     , ("numToStringBuiltin", noTag <| VClosure [] "numToStringBuiltin" "x" (ENumToString (EVar "x")))
     , ("numPlus", noTag <| numPlus)
     , ("<<", noTag <| compose)

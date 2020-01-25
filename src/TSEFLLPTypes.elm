@@ -118,6 +118,7 @@ type Exp -- Expressions e :=
   | ENumToString Exp -- numToStr e
   | ENumOp Op Exp Exp -- e1 ⊕ e2 returning Num
   | ENumLTE Exp Exp -- e1 <= e2 returning Bool
+  | EAddDependency Exp Exp -- For implementing (basedOn e1 e2) which returns e2 augmented with e1's dependencies
 
 type Op
   = Plus
