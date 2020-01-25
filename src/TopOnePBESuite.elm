@@ -322,11 +322,11 @@ evenParity xs = ??
   ]""" 7
   """specifyFunction evenParity
   [ ([], T ())
-  , ([F ()], T ())
-  , ([T ()], F ())
+  -- , ([F ()], T ())
+  -- , ([T ()], F ())
   , ([F (), F ()], T ())
-  -- , ([F (), T ()], F ())
-  -- , ([T (), F ()], F ())
+  , ([F (), T ()], F ())
+  , ([T (), F ()], F ())
   , ([T (), T ()], T ())
   ]""" 5
 
@@ -696,13 +696,13 @@ listPairwiseSwap xs = ??
   ]""" 7
   """specifyFunction listPairwiseSwap
   [ ([], [])
-  , ([0], [])
+  -- , ([0], [])
   , ([1], [])
-  , ([0, 1], [1, 0])
+  -- , ([0, 1], [1, 0])
   , ([1, 0], [0, 1])
   , ([1, 0, 1], [])
   , ([0, 1, 0, 1], [1, 0, 1, 0])
-  ]""" (-1)
+  ]""" 5
 
 list_rev_append = (,,,,)
   """type Nat
@@ -1755,7 +1755,7 @@ suite =
     -- , ("list_compress", list_compress)
     , ("list_concat", list_concat)
     , ("list_drop", list_drop)
-    -- , ("list_even_parity", list_even_parity)
+    , ("list_even_parity", list_even_parity)
     , ("list_filter", list_filter)
     , ("list_fold", list_fold)
     , ("list_hd", list_hd)
@@ -1764,7 +1764,7 @@ suite =
     , ("list_length", list_length)
     , ("list_map", list_map)
     , ("list_nth", list_nth)
-    -- , ("list_pairwise_swap", list_pairwise_swap)
+    , ("list_pairwise_swap", list_pairwise_swap)
     , ("list_rev_append", list_rev_append)
     , ("list_rev_fold", list_rev_fold)
     , ("list_rev_snoc", list_rev_snoc)
