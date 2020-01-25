@@ -476,12 +476,34 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
       Set.map Scrub valueOfInterestTagged.paths
 
 
--- 1. Find closest shape before (max path < targetPath), at (path == targtPath), and after (min path > targetPath);
+-- 1. Find shapes presumably corresponding to prior element, insert location, and following element:
+--      a. max path < targetPath and presumably in same container
+--      b. path == targtPath
+--      c. min path > targetPath and presumably in same container
 -- 2. Produce a candidate point for each shape (bot right for before, top left for at and after).
 -- 3. Use lowest, rightmost point.
-arrangeInsertActions : Dict ProjectionPath (Set TSEFLLPPolys.PixelShape) -> Dict ProjectionPath (Set SpecificAction) -> Dict (Int, Int) (Set SpecificAction)
-arrangeInsertActions projectionPathToShapeSet projectionPathToSpecificActions =
+arrangeInsertActions : Dict ProjectionPath Lang.Type -> Dict ProjectionPath (Set TSEFLLPPolys.PixelShape) -> Dict ProjectionPath (Set SpecificAction) -> Dict (Int, Int) (Set SpecificAction)
+arrangeInsertActions pathToType projectionPathToShapeSet projectionPathToSpecificActions =
   let
+    -- Which paths are not the same type as their parent?
+    -- An estimate of where container roots are.
+    newTypeRoots =
+      pathToType
+      |> Dict.keys
+      |> List.filter (\path ->
+        case List.reverse path of
+          [] ->
+            True
+          _::parentPathReversed ->
+            case (Dict.get path pathToType, Dict.get (List.reverse parentPathReversed) pathToType) of
+              (Just thisType, Just parentType) ->
+                let typeEnv = [] in
+                not (Types2.typeEquiv typeEnv thisType parentType)
+              _ ->
+                False
+      )
+
+
     insertActions =
       projectionPathToSpecificActions
       |> Dict.values
@@ -511,9 +533,14 @@ arrangeInsertActions projectionPathToShapeSet projectionPathToSpecificActions =
         let
           actionPath = specificActionProjectionPath action
 
+          containerRoot =
+            newTypeRoots
+            |> Utils.findLast (Utils.isPrefixOf actionPath)
+            |> Maybe.withDefault []
+
           shapeSetJustBeforeInsert =
             projectionPathShapeSetPairs
-            |> Utils.findLast (\(path, _) -> path < actionPath)
+            |> Utils.findLast (\(path, _) -> path < actionPath && Utils.isPrefix containerRoot path)
             |> Maybe.map Tuple.second
             |> Maybe.withDefault Set.empty
 
@@ -525,7 +552,7 @@ arrangeInsertActions projectionPathToShapeSet projectionPathToSpecificActions =
 
           shapeSetAfterInsert =
             projectionPathShapeSetPairs
-            |> Utils.findFirst (\(path, _) -> path > actionPath)
+            |> Utils.findFirst (\(path, _) -> path > actionPath && Utils.isPrefix containerRoot path)
             |> Maybe.map Tuple.second
             |> Maybe.withDefault Set.empty
 
@@ -536,6 +563,13 @@ arrangeInsertActions projectionPathToShapeSet projectionPathToSpecificActions =
             ]
             |> Utils.filterJusts
             |> List.unzip
+
+          -- -- Prefer the insert location directly.
+          -- bestPoint =
+          --   shapeSetToMaybeTopLeftCorner shapeSetAtInsert
+          --   |> Utils.maybeOrElseLazy (\() -> shapeSetToMaybeBotRightCorner shapeSetJustBeforeInsert)
+          --   |> Utils.maybeOrElseLazy (\() -> shapeSetToMaybeTopLeftCorner  shapeSetAfterInsert)
+          --   |> Maybe.withDefault (0,0)
 
           -- meanX = List.sum xVotes // (max 1 (List.length xVotes))
           -- meanY = List.sum yVotes // (max 1 (List.length yVotes))
@@ -551,6 +585,7 @@ arrangeInsertActions projectionPathToShapeSet projectionPathToSpecificActions =
         -- ((meanX, meanY), action)
         -- ((medianX, medianY), action)
         (lowestRight, action)
+        -- (bestPoint, action)
       )
   in
   locationActionPairs

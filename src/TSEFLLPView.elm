@@ -356,7 +356,7 @@ structuredEditor modelState =
 
         insertActionLocations : Dict (Int, Int) (Set SpecificAction)
         insertActionLocations =
-          TSEFLLPActions.arrangeInsertActions projectionPathToShapeSet projectionPathToSpecificActions
+          TSEFLLPActions.arrangeInsertActions pathToType projectionPathToShapeSet projectionPathToSpecificActions
 
         -- Label with type, or, if that fails, with value.
         shapeToMaybeLabel : TSEFLLPPolys.PixelShape -> Maybe String
