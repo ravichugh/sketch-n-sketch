@@ -26,6 +26,15 @@ dependencyAnnotators =
   , operation     = \operandsTags                   -> Utils.unionAll operandsTags -- We do not apply this rule to string appends because it would be messy. Arguably, string append in our system is analogous to tupling or applying a constructor, both of which are unannotated in Acar et al. Fig. 12
   }
 
+-- The normal application tagging rule above does not make the return value
+-- dependent on the function arguments (they may be unused).  That's a bit
+-- conservative for our purposes. For toString functions, at least, we know
+-- the entire string result is associated with the input value.
+--
+-- The following multi-dispatch function names will make their result dependent
+-- on their input.
+dynamicIdentifiersWhoseResultShouldDependOnArgument : List String
+dynamicIdentifiersWhoseResultShouldDependOnArgument = ["toString"] -- ["toString", "showsPrecFlip"]
 
 -- Dependency tagging evaluation on the core langauage.
 eval : List Types2.DataTypeDef -> MultipleDispatchFunctions -> Env -> Exp -> Result String TaggedValue
@@ -68,7 +77,12 @@ eval dataTypeDefs multipleDispatchFunctions env exp =
             case findMultipleDispatchImplementationNameBasedOnArgType dataTypeDefs multipleDispatchFunctions funcName argTaggedVal of
               Just implementationUniqueName ->
                 EApp (EVar implementationUniqueName) (EVar "evaled arg")
-                |> recurse (("evaled arg", argTaggedVal)::env)
+                |> recurse (("evaled arg", argTaggedVal)::env) -- Recursion will use the tagging rule for applications. Not that we ever have closures that have a non-empty tagset.
+                |> Result.map (\resultTaggedVal ->
+                  if List.member funcName dynamicIdentifiersWhoseResultShouldDependOnArgument
+                  then resultTaggedVal |> setTag (Set.union argTaggedVal.paths resultTaggedVal.paths)
+                  else resultTaggedVal
+                )
               Nothing ->
                 Err <| "Could not find matching " ++ funcName ++ " implementation for argument " ++ unparseToUntaggedString argTaggedVal ++ "!"
 
@@ -375,7 +389,7 @@ evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions pro
   in
   eval dataTypeDefs multipleDispatchFunctions initialEnv program |> Result.andThen (\w ->
     case taggedValueToMaybeStringTaggedWithProjectionPaths w of
-      Just stringTagged -> Ok  <| mapStringTag (Set.insert []) stringTagged -- Tag whole string with root path. TODO: do this at every invocation of toString
+      Just stringTagged -> Ok  <| stringTagged
       Nothing           -> Err <| "Result was not just strings and appends! " ++ unparseToUntaggedString w
   )
   |> Result.map tidyUpProjectionPaths
