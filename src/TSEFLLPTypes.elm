@@ -116,13 +116,13 @@ type Exp -- Expressions e :=
   | EAppend Exp Exp -- e1 ++ e2
   | ENum Float -- n
   | ENumToString Exp -- numToStr e
-  | ENumOp Op Exp Exp -- e1 ⊕ e2 returning Num
-  | ENumLTE Exp Exp -- e1 <= e2 returning Bool
+  | ENumOp Op Exp Exp -- e1 ⊕ e2 returning Num or Bool
   | EAddDependency Exp Exp -- For implementing (basedOn e1 e2) which returns e2 augmented with e1's dependencies
 
 type Op
   = Plus
   | Minus
+  | LTE -- Less than or equal to
 
 type alias MultipleDispatchFunctions = List (Ident, Lang.Type, Ident) -- Name, Type annotation, Desugared unique name
 
