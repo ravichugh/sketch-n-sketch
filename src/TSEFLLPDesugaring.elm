@@ -60,6 +60,7 @@ makeDesugaredToStringProgram program =
     program
     |> LangTools.mapLastTopLevelExp (\_ -> Lang.eCall "toString" [Lang.eVar "valueOfInterestTagged"])
     |> desugarExp freshVariableCounterRef multipleDispatchFunctionsRef
+    |> moveCommonPrefixesAndSuffixesOutsideCaseBranches
   in
   -- Debug.log "(MultipleDispatchFunctions, Exp)" <|
   (getRef multipleDispatchFunctionsRef, desugaredExp)
@@ -442,6 +443,163 @@ desugarVal langVal =
     Lang.VBase Lang.VNull                       -> vString "TSEFLLP core language does not support null"
     Lang.VClosure recNames pats bodyExp funcEnv -> vString "TSEFLLP cannot desugar closure values"
     Lang.VFun _ _ _ _                           -> vString "TSEFLLP core language does not support VFun"
+
+
+
+--------- Normalization ---------
+
+-- Change:
+--
+-- case tail of
+--   Nil      -> toString head
+--   Cons _ _ -> toString head + "," + elemsToString tail
+--
+-- To:
+--
+-- toString head + case tail of
+--   Nil      -> ""
+--   Cons _ _ -> "," + elemsToString tail
+--
+-- Inuitively, parts that are shared among all branches
+-- should not be dependent on the scrutinee. I don't
+-- believe it is in general possible to precisely
+-- identify all such sharing, but syntactically extracting
+-- common prefixes/suffixes will catch the above example
+-- and a few others.
+
+
+-- Var names only; not Ctor names.
+freeNameSet : Exp -> Set Ident
+freeNameSet exp =
+  let recurse = freeNameSet in
+  case exp of
+    EFun funcName argName funcBody -> recurse funcBody |> Utils.removeAllFromSet [funcName, argName]
+    EVar varName                   -> Set.singleton varName
+    EApp funcExp argExp            -> Set.union (recurse funcExp) (recurse argExp)
+    ECtor ctorName argExps         -> argExps |> List.map recurse |> Utils.unionAll
+    EString string                 -> Set.empty
+    EAppend e1 e2                  -> Set.union (recurse e1) (recurse e2)
+    ENum num                       -> Set.empty
+    ENumToString argExp            -> Set.empty
+    ENumOp op e1 e2                -> Set.union (recurse e1) (recurse e2)
+    EAddDependency e1 e2           -> Set.union (recurse e1) (recurse e2)
+    ECase scrutinee branches       ->
+      let branchNameSets =
+        branches
+        |> List.map (\(branchCtorName, argNames, branchExp) ->
+          recurse branchExp |> Utils.removeAllFromSet argNames
+        )
+      in
+      Utils.unionAll <| recurse scrutinee :: branchNameSets
+
+
+-- Turns:
+--
+-- "{\n" + nextIndent + join "," strs + "\n}"
+--
+-- Into:
+--
+-- ["{", "\n", nextIndent, join "," strs, "\n", "}"]
+flattenAppends : Exp -> List Exp
+flattenAppends exp =
+  let recurse = flattenAppends in
+  case exp of
+    EFun funcName argName funcBody -> [exp]
+    EVar varName                   -> [exp]
+    EApp funcExp argExp            -> [exp]
+    ECtor ctorName argExps         -> [exp]
+    ECase scrutinee branches       -> [exp]
+    EString string                 -> string |> String.split "" |> List.map EString
+    EAppend e1 e2                  -> recurse e1 ++ recurse e2
+    ENum num                       -> [exp]
+    ENumToString argExp            -> [exp]
+    ENumOp op e1 e2                -> [exp]
+    EAddDependency e1 e2           -> [exp]
+
+
+-- Undo flattenAppends
+rebuildAppends : List Exp -> Exp
+rebuildAppends exps =
+  let recurse = rebuildAppends in
+  case exps of
+    EString ""                   :: rest -> recurse rest -- Remove "" if possible.
+    [exp]                                -> exp -- Don't add empty string at end if exps is non-empty.
+    EString str1 :: EString str2 :: rest -> recurse (EString (str1 ++ str2) :: rest)
+    exp                          :: rest -> EAppend exp (recurse rest)
+    []                                   -> EString ""
+
+-- Rudimentary for now. Let-exps in a case branch will confound the algoritm.
+--
+-- Possible improvements:
+--   - Move let-exps that don't need to be inside a case branch outside the case.
+--   - Move free prefixes / suffixes in a let-body outside the let-exp.
+moveCommonPrefixesAndSuffixesOutsideCaseBranches : Exp -> Exp
+moveCommonPrefixesAndSuffixesOutsideCaseBranches exp =
+  let recurse = moveCommonPrefixesAndSuffixesOutsideCaseBranches in
+  case exp of
+    EFun funcName argName funcBody -> EFun funcName argName (recurse funcBody)
+    EVar varName                   -> exp
+    EApp funcExp argExp            -> EApp (recurse funcExp) (recurse argExp)
+    ECtor ctorName argExps         -> ECtor ctorName (List.map recurse argExps)
+    EString string                 -> exp
+    EAppend e1 e2                  -> EAppend (recurse e1) (recurse e2)
+    ENum num                       -> exp
+    ENumToString argExp            -> ENumToString (recurse argExp)
+    ENumOp op e1 e2                -> ENumOp op (recurse e1) (recurse e2)
+    EAddDependency e1 e2           -> EAddDependency (recurse e1) (recurse e2)
+    ECase scrutinee branches       ->
+      let
+        (branchCtorNames, argNameLists, branchExps) = Utils.unzip3 branches
+
+        branchExpsNormalizedSeparately = List.map recurse branchExps
+
+        branchExpsFlattened = List.map flattenAppends branchExpsNormalizedSeparately
+
+        caseHasStringAppends =
+          branchExpsFlattened
+          |> List.any (\appendedExps -> List.length appendedExps >= 2)
+
+        -- Slightly conservative by smashing these together instead of inspecting by branch.
+        branchBoundNameSet =
+          argNameLists
+          |> List.map Set.fromList
+          |> Utils.unionAll
+
+        commonPrefixParts =
+          branchExpsFlattened
+          |> Utils.commonPrefix
+          -- Make sure prefix doesn't include any part dependent on branch-bound name.
+          |> Utils.takeWhile (freeNameSet >> Set.intersect branchBoundNameSet >> Set.size >> (==) 0)
+
+        branchExpsFlattenedNoPrefix =
+          branchExpsFlattened
+          |> List.map (List.drop (List.length commonPrefixParts))
+
+        commonSuffixParts =
+          branchExpsFlattenedNoPrefix
+          |> List.map List.reverse
+          |> Utils.commonPrefix
+          -- Make sure suffix doesn't include any part dependent on branch-bound name.
+          |> Utils.takeWhile (freeNameSet >> Set.intersect branchBoundNameSet >> Set.size >> (==) 0)
+          |> List.reverse
+
+        branchExpsFlattenedNoPrefixNoSuffix =
+          branchExpsFlattenedNoPrefix
+          |> List.map (Utils.dropLast (List.length commonSuffixParts))
+
+        branchExpsRebuild =
+          branchExpsFlattenedNoPrefixNoSuffix
+          |> List.map rebuildAppends
+
+        prefixSuffixPulledOutsideCase =
+          rebuildAppends <|
+            commonPrefixParts ++
+            [ECase scrutinee (List.map3 (,,) branchCtorNames argNameLists branchExpsRebuild)] ++
+            commonSuffixParts
+      in
+      if caseHasStringAppends
+      then prefixSuffixPulledOutsideCase
+      else ECase scrutinee (List.map3 (,,) branchCtorNames argNameLists branchExpsNormalizedSeparately)
 
 
 

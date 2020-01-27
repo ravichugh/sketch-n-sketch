@@ -31,9 +31,9 @@ join sep strs =
   case strs of
     Nil           -> ""
     Cons str rest ->
-      str + case rest of -- Don't have the normalization step yet so let's move str outside
-        Nil      -> ""
-        Cons _ _ -> sep + join sep rest
+      case rest of
+        Nil      -> str
+        Cons _ _ -> str + sep + join sep rest
 
 jsonToString : String -> JSON -> String
 jsonToString indent json =
