@@ -19,6 +19,8 @@ import Types2 as T
 import Utils
 import Syntax
 import PBESuite
+import TopOnePBESuite
+import BaseCasePBESuite
 
 import Model exposing (Model, Msg(..))
 
@@ -450,10 +452,13 @@ showBenchmarks : Int -> List Benchmark -> String
 showBenchmarks replications benchmarks =
   let
     (leftExperimentName, rightExperimentName) =
-      if List.length benchmarks == Dict.size PBESuite.suite then
+      if List.length benchmarks == Dict.size TopOnePBESuite.suite then
         ("One", "Two")
+      else if List.length benchmarks == Dict.size BaseCasePBESuite.suite then
+        -- This used to be ("ThreeFull", "ThreeFewer")
+        ("", "Three")
       else
-        ("ThreeFull", "ThreeFewer")
+        ("Unknown", "Unknown")
 
     showFull data =
       "\\benchmarkExperiment"
@@ -519,8 +524,12 @@ showBenchmarks replications benchmarks =
       "\\benchmarkName{"
         ++ (Utils.escapeUnderscores b.name)
         ++ "}<br />"
-        ++ showFull b.full
-        ++ "<br />"
+        ++ ( if leftExperimentName /= "" then
+               showFull b.full
+                 ++ "<br />"
+             else
+               ""
+           )
         ++ showRestricted b.restricted b.full.exampleCount
         ++ "<br />"
 
