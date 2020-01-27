@@ -27,24 +27,16 @@ import TSEFLLPSelection
 
 functionPickerAndEditor : TSEFLLPTypes.ModelState -> List (Html Msg)
 functionPickerAndEditor modelState =
-  let
-    renderingFunctionPicker =
-      let optionNames = modelState.renderingFunctionNames in
-      Html.select [] (optionNames |> List.map (\optionName -> Html.option [Attr.name optionName] [text optionName]))
-
-  in
   if modelState.showWidgets then
-    [ Html.div [] [renderingFunctionPicker]
-    -- , stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
+    -- [ stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
     -- , Html.div [] [text "Selected poly paths: ", text (polyPathsToString modelState.selectedPolyPaths)]
-    , Html.div
+    [ Html.div
         [ Attr.style [("padding", "1em")] ]
         [ structuredEditor modelState ]
     -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions modelState.stringTaggedWithProjectionPathsResult
     ]
   else
-    [ Html.div [] [renderingFunctionPicker]
-    , Html.div
+    [ Html.div
         [ Attr.style [("padding", "1em")] ]
         [ plainStringView modelState.stringTaggedWithProjectionPathsResult ]
     -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions

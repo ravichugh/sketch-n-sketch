@@ -42,26 +42,26 @@ setRef ref value =
 
 
 -- Create a desugared program with a main expression that calls
--- the toString function on a variable named "valueOfInterestTagged".
+-- "toString" on a variable named "valueOfInterestTagged".
 -- The evaluator will insert the valueOfInterestTagged binding into
 -- the execution environment.
 --
 -- def1 = ...
 -- def2 = ...
 -- def3 = ...
--- renderingFunctionName valueOfInterestTagged
-makeDesugaredToStringProgram : Lang.Exp -> Ident -> (MultipleDispatchFunctions, Exp)
-makeDesugaredToStringProgram program renderingFunctionName =
+-- toString valueOfInterestTagged
+makeDesugaredToStringProgram : Lang.Exp -> (MultipleDispatchFunctions, Exp)
+makeDesugaredToStringProgram program =
   let
     freshVariableCounterRef      = newRef 1
     multipleDispatchFunctionsRef = newRef []
   in
   let desugaredExp =
     program
-    |> LangTools.mapLastTopLevelExp (\_ -> Lang.eCall renderingFunctionName [Lang.eVar "valueOfInterestTagged"])
+    |> LangTools.mapLastTopLevelExp (\_ -> Lang.eCall "toString" [Lang.eVar "valueOfInterestTagged"])
     |> desugarExp freshVariableCounterRef multipleDispatchFunctionsRef
   in
-  Debug.log "(MultipleDispatchFunctions, Exp)" <|
+  -- Debug.log "(MultipleDispatchFunctions, Exp)" <|
   (getRef multipleDispatchFunctionsRef, desugaredExp)
 
 

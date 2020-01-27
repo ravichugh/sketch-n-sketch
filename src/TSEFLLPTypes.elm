@@ -14,39 +14,37 @@ import Types2
 -- I hate caching but if we instead perform the work on
 -- demand in the view then the GUI slows to a crawl.
 type alias ModelState =
-  { renderingFunctionNames                : List Ident
-  , dataTypeDefs                          : List Types2.DataTypeDef
-  , maybeRenderingFunctionNameAndProgram  : Maybe { renderingFunctionName: Ident, multipleDispatchFunctions : MultipleDispatchFunctions, desugaredToStringProgram: Exp }
-  , showWidgets                           : Bool
-  , valueOfInterestTagged                 : TaggedValue
-  , maybeValueOfInterestType              : Maybe Lang.Type
-  , stringTaggedWithProjectionPathsResult : Result String StringTaggedWithProjectionPaths
-  , projectionPathToSpecificActions       : Dict ProjectionPath (Set SpecificAction)
-  , mousePosition                         : (Int, Int)
-  , selectedPolyPaths                     : List PolyPath -- Path in the poly overlay, not path into the value of interest. An ordered set.
-  , maybeTextEditingPathAndText           : Maybe (ProjectionPath, String)
-  , shownActions                          : Set SpecificAction
-  -- , maybeNewValueOptions                  : Maybe (List TaggedValue)
-  , liveSyncInfo                          : Sync.LiveInfo
+  { dataTypeDefs                             : List Types2.DataTypeDef
+  , maybeMultipleDispatchFunctionsAndProgram : Maybe { multipleDispatchFunctions : MultipleDispatchFunctions, desugaredToStringProgram: Exp }
+  , showWidgets                              : Bool
+  , valueOfInterestTagged                    : TaggedValue
+  , maybeValueOfInterestType                 : Maybe Lang.Type
+  , stringTaggedWithProjectionPathsResult    : Result String StringTaggedWithProjectionPaths
+  , projectionPathToSpecificActions          : Dict ProjectionPath (Set SpecificAction)
+  , mousePosition                            : (Int, Int)
+  , selectedPolyPaths                        : List PolyPath -- Path in the poly overlay, not path into the value of interest. An ordered set.
+  , maybeTextEditingPathAndText              : Maybe (ProjectionPath, String)
+  , shownActions                             : Set SpecificAction
+  -- , maybeNewValueOptions                     : Maybe (List TaggedValue)
+  , liveSyncInfo                             : Sync.LiveInfo
   }
 
 mouseGone = (-1000, -1000)
 
 initialModelState =
-  { renderingFunctionNames                = []
-  , dataTypeDefs                          = []
-  , maybeRenderingFunctionNameAndProgram  = Nothing
-  , showWidgets                           = True -- For creating new toString examples without seeing the generated TSEFLLP editor.
-  , valueOfInterestTagged                 = noTag (VCtor "Nothing" [])
-  , maybeValueOfInterestType              = Nothing
-  , stringTaggedWithProjectionPathsResult = Err "No trace for toString call yet—need to run the code."
-  , projectionPathToSpecificActions       = Dict.empty
-  , mousePosition                         = mouseGone
-  , selectedPolyPaths                     = []
-  , maybeTextEditingPathAndText           = Nothing
-  , shownActions                          = Set.empty
-  -- , maybeNewValueOptions                  = Nothing
-  , liveSyncInfo                          = { triggers = Dict.empty, initSubstPlus = Dict.empty }
+  { dataTypeDefs                             = []
+  , maybeMultipleDispatchFunctionsAndProgram = Nothing
+  , showWidgets                              = True -- For creating new toString examples without seeing the generated TSEFLLP editor.
+  , valueOfInterestTagged                    = noTag (VCtor "Nothing" [])
+  , maybeValueOfInterestType                 = Nothing
+  , stringTaggedWithProjectionPathsResult    = Err "No trace for toString call yet—need to run the code."
+  , projectionPathToSpecificActions          = Dict.empty
+  , mousePosition                            = mouseGone
+  , selectedPolyPaths                        = []
+  , maybeTextEditingPathAndText              = Nothing
+  , shownActions                             = Set.empty
+  -- , maybeNewValueOptions                     = Nothing
+  , liveSyncInfo                             = { triggers = Dict.empty, initSubstPlus = Dict.empty }
   }
 
 

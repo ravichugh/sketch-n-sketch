@@ -24,28 +24,17 @@ import TSEFLLPSelection
 prepare : TSEFLLPTypes.ModelState -> Sync.Options -> Lang.Env -> Lang.Exp -> Maybe Lang.Type -> Lang.Val -> TSEFLLPTypes.ModelState
 prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo valueOfInterest =
   let
-    renderingFunctionNames =
-      expToRenderingFunctionNames program
-
     dataTypeDefs =
       TSEFLLPDesugaring.dataTypeDefsWithoutTBoolsTLists program
 
-    maybeRenderingFunctionNameAndProgram =
-      -- Use the previously selected function, if it's still available.
-      oldModelState.maybeRenderingFunctionNameAndProgram
-      |> Maybe.map (\{ renderingFunctionName } -> renderingFunctionName)
-      |> Utils.filterMaybe (flip List.member renderingFunctionNames)
-      |> Utils.plusMaybe (List.head renderingFunctionNames)
-      |> Maybe.map
-          (\renderingFunctionName ->
-            let (multipleDispatchFunctions, desugaredToStringProgram) =
-              TSEFLLPDesugaring.makeDesugaredToStringProgram program renderingFunctionName
-            in
-            { renderingFunctionName     = renderingFunctionName
-            , multipleDispatchFunctions = multipleDispatchFunctions
-            , desugaredToStringProgram  = desugaredToStringProgram
-            }
-          )
+    maybeMultipleDispatchFunctionsAndProgram =
+      let (multipleDispatchFunctions, desugaredToStringProgram) =
+        TSEFLLPDesugaring.makeDesugaredToStringProgram program
+      in
+      Just <|
+        { multipleDispatchFunctions = multipleDispatchFunctions
+        , desugaredToStringProgram  = desugaredToStringProgram
+        }
 
     valueOfInterestTagged =
       valueOfInterest
@@ -53,8 +42,8 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
       |> TSEFLLPEval.tagVal []
 
     stringTaggedWithProjectionPathsResult =
-      case maybeRenderingFunctionNameAndProgram of
-        Just { renderingFunctionName, multipleDispatchFunctions, desugaredToStringProgram } ->
+      case maybeMultipleDispatchFunctionsAndProgram of
+        Just { multipleDispatchFunctions, desugaredToStringProgram } ->
           TSEFLLPEval.evalToStringTaggedWithProjectionPaths
               dataTypeDefs
               multipleDispatchFunctions
@@ -81,15 +70,14 @@ prepare oldModelState syncOptions env program maybeValueOfInterestTypeFromLeo va
 
   in
   { oldModelState
-  | renderingFunctionNames                = renderingFunctionNames
-  , dataTypeDefs                          = dataTypeDefs
-  , maybeRenderingFunctionNameAndProgram  = maybeRenderingFunctionNameAndProgram
-  , valueOfInterestTagged                 = valueOfInterestTagged
-  , maybeValueOfInterestType              = maybeValueOfInterestType
-  , stringTaggedWithProjectionPathsResult = stringTaggedWithProjectionPathsResult
-  , projectionPathToSpecificActions       = projectionPathToSpecificActions
-  -- , maybeNewValueOptions                  = Nothing
-  , liveSyncInfo                          = TSEFLLPScrub.prepareLiveUpdates syncOptions program valueOfInterest
+  | dataTypeDefs                             = dataTypeDefs
+  , maybeMultipleDispatchFunctionsAndProgram = maybeMultipleDispatchFunctionsAndProgram
+  , valueOfInterestTagged                    = valueOfInterestTagged
+  , maybeValueOfInterestType                 = maybeValueOfInterestType
+  , stringTaggedWithProjectionPathsResult    = stringTaggedWithProjectionPathsResult
+  , projectionPathToSpecificActions          = projectionPathToSpecificActions
+  -- , maybeNewValueOptions                     = Nothing
+  , liveSyncInfo                             = TSEFLLPScrub.prepareLiveUpdates syncOptions program valueOfInterest
   }
 
 
@@ -230,8 +218,3 @@ handleEscapeKey oldModelState =
 cancelTextEditing : TSEFLLPTypes.ModelState -> TSEFLLPTypes.ModelState
 cancelTextEditing oldModelState =
   { oldModelState | maybeTextEditingPathAndText = Nothing, shownActions = Set.empty }
-
-
-expToRenderingFunctionNames : Lang.Exp -> List Ident
-expToRenderingFunctionNames exp =
-  ["toString"]
