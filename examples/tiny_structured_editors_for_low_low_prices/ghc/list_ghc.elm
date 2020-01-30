@@ -8,11 +8,11 @@
 -- so we'll flip the argument order "showsPrecFlip"
 
 
--- List definition, for reference. The Sketch-n-Sketch
--- surface language Leo treats lists as a separate type
--- (not a datatype), so the following is actually ignored
--- and we have to bake the List datatype definition into
--- the core language.
+-- List definition, for reference.
+--
+-- List, Maybe, and Bool are actually baked in to our
+-- core language because the Sketch-n-Sketch
+-- surface language doesn't treat them correctly.
 type List a = Nil
             | Cons a (List a)
 

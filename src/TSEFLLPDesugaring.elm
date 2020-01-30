@@ -615,8 +615,9 @@ tAppList elemType = Lang.tApp0 (Lang.tVar0 "List") [elemType] Lang.SpaceApp
 builtinDataTypes : List Types2.DataTypeDef
 builtinDataTypes =
   let a = Lang.tVar0 "a" in
-  [ ("Bool", ([],    [("True", []), ("False", [])]))
-  , ("List", (["a"], [("Nil", []),  ("Cons", [a, tAppList a])])) -- TList is separate in Leo, so the Leo parser does not allow `type List a = ...`; otherwise we would just put this in our examples.
+  [ ("Bool",  ([],    [("True", []),    ("False", [])]))
+  , ("Maybe", (["a"], [("Nothing", []), ("Just", [a])]))             -- The Leo parser does not allow `type Maybe a = ...`; otherwise we would just put this in our examples.
+  , ("List",  (["a"], [("Nil", []),     ("Cons", [a, tAppList a])])) -- The Leo parser does not allow `type List a = ...`; otherwise we would just put this in our examples.
   ]
 
 replaceTBoolTListWithTVarTApp : Lang.Type -> Lang.Type

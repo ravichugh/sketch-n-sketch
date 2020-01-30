@@ -1,8 +1,8 @@
--- List definition, for reference. The Sketch-n-Sketch
--- surface language treats lists as a separate type
--- (not a datatype), so the following is actually ignored
--- and we have to bake the List datatype definition into
--- the core language.
+-- List definition, for reference.
+--
+-- List, Maybe, and Bool are actually baked in to our
+-- core language because the Sketch-n-Sketch
+-- surface language doesn't treat them correctly.
 type List a = Nil
             | Cons a (List a)
 
@@ -70,7 +70,7 @@ jsonToString indent json =
     JSONNumber num    -> toString num
 
 
-type DataRange = DataRange Number Number -- lower bound, upper bound
+type DataRange = DataRange Num Num -- lower bound, upper bound
 type DataType  = ORDINAL | NOMINAL | INTERVAL | RATIO
 type Variable  = Variable String DataType (List String) (Maybe DataRange)  -- name, data type, ordinal/nominal categories, optional range
 
@@ -139,7 +139,7 @@ assumptionToKeyVal aSumption =
     GroupsNormal groups -> Pair "groups normally distributed" (JSONList (map wrapJSONList (map (map wrapJSONString) groups)))
 
 
--- type DataRange = DataRange Number Number -- lower bound, upper bound
+-- type DataRange = DataRange Num Num -- lower bound, upper bound
 -- type DataType  = ORDINAL | NOMINAL | INTERVAL | RATIO
 -- type Variable  = Variable String DataType (List String) (Maybe DataRange)  -- name, data type, ordinal/nominal categories, optional range
 --

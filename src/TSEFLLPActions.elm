@@ -96,13 +96,13 @@ maybeDefaultValueForType dataTypeDefs tipe =
 
     _ =
       if Lang.isDeprecatedType tipe
-      then Utils.log <| unparseType tipe ++ " is deprecated! (seen in TSEFLLPActions.defaultValueForType)"
+      then Utils.log <| unparseType tipe ++ " is deprecated! (seen in TSEFLLPActions.maybeDefaultValueForType)"
       else ()
 
     return untaggedPrevalue = Just (noTag untaggedPrevalue)
 
     unsupported () =
-      let _ = Utils.log <| "TSEFLLPActions.defaultValueForType does not yet support " ++ unparseType tipe in
+      let _ = Utils.log <| "TSEFLLPActions.maybeDefaultValueForType does not yet support " ++ unparseType tipe in
       Nothing
 
     handleVarOrApp () =
@@ -122,11 +122,14 @@ maybeDefaultValueForType dataTypeDefs tipe =
                   |> Maybe.map (noTag << VCtor ctorName)
 
                 Nothing ->
-                  let _ = Utils.log <| "TSEFLLPActions.defaultValueForType cannot find non-recursive constructor for " ++ typeName in
+                  let _ = Utils.log <| "TSEFLLPActions.maybeDefaultValueForType cannot find non-recursive constructor for " ++ typeName in
                   Nothing
 
             Nothing ->
-              let _ = Utils.log <| "TSEFLLPActions.defaultValueForType cannot find data type definition for " ++ typeName in
+              let
+                _ = Utils.log <| "TSEFLLPActions.maybeDefaultValueForType cannot find data type definition for " ++ typeName
+                _ = Debug.log "dataTypeDefs" dataTypeDefs
+              in
               Nothing
 
         Nothing ->
@@ -363,7 +366,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
 
             thisCtorArgTypes =
               ctorName
-              |> Utils.find "TSEFLLPActions.valToSpecificActions changeCtorActions" thisTypeDataConDefsReified
+              |> Utils.find "TSEFLLPActions.valToSpecificActions thisCtorArgTypes" thisTypeDataConDefsReified
 
             otherConDefs =
               thisTypeDataConDefsReified
@@ -434,8 +437,6 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
               |> List.map
                   (\(otherCtorName, otherCtorArgTypes) ->
                     let
-                      _ = Debug.log "(ctorName, otherCtorName)" (ctorName, otherCtorName)
-
                       copyMapping : List (Maybe Int) -- Indices into thisCtor's args
                       copyMapping =
                         defaultArgumentMappingForCtorChange thisCtorArgTypes otherCtorArgTypes
@@ -447,11 +448,11 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
                             (\(otherCtorArgType, maybeCopyI) ->
                               case maybeCopyI of
                                 Just copyI -> Just <| Utils.geti copyI argVals
-                                Nothing    -> maybeDefaultValueForType dataTypeDefs otherCtorArgType |> Debug.log "maybeDefaultValueForType"
+                                Nothing    -> maybeDefaultValueForType dataTypeDefs otherCtorArgType
                             )
                         |> Utils.projJusts
                     in
-                    case Debug.log "maybeNewArgVals" maybeNewArgVals of
+                    case maybeNewArgVals of
                       Just newArgVals -> replacementActionSet ChangeCtor (noTag <| VCtor otherCtorName newArgVals)
                       Nothing         -> Set.empty
                   )
@@ -482,6 +483,9 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
 --      c. min path > targetPath and presumably in same container
 -- 2. Produce a candidate point for each shape (bot right for before, top left for at and after).
 -- 3. Use lowest, rightmost point.
+--
+-- All insert actions in projectionPathToSpecificActions will be assigned a location.
+-- It might be (0,0) though.
 arrangeInsertActions : Dict ProjectionPath Lang.Type -> Dict ProjectionPath (Set TSEFLLPPolys.PixelShape) -> Dict ProjectionPath (Set SpecificAction) -> Dict (Int, Int) (Set SpecificAction)
 arrangeInsertActions pathToType projectionPathToShapeSet projectionPathToSpecificActions =
   let
