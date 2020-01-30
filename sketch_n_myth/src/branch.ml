@@ -33,6 +33,7 @@ let filter (ws : worlds) : worlds =
 let distribute
   (delta : hole_ctx)
   (sigma : datatype_ctx)
+  (hf : hole_filling)
   (ctor_names : string list)
   (arg_name : string)
   (scrutinee : exp)
@@ -59,7 +60,7 @@ let distribute
             Uneval.uneval
               delta
               sigma
-              Hole_map.empty
+              hf
               r
               (ExCtor (ctor_name, ExTop))
           in
@@ -73,7 +74,7 @@ let distribute
           Nondet.none
 
 let branch
- max_scrutinee_size delta sigma ((gamma, goal_type, goal_dec), worlds) =
+ max_scrutinee_size delta sigma hf ((gamma, goal_type, goal_dec), worlds) =
   let open Nondet.Syntax in
   let* _ =
     Nondet.guard (Option.is_none goal_dec)
@@ -110,7 +111,7 @@ let branch
   in
   let* (distributed_worldss, ks) =
     filtered_worlds
-      |> List.map (distribute delta sigma ctor_names arg_name scrutinee)
+      |> List.map (distribute delta sigma hf ctor_names arg_name scrutinee)
       |> Nondet.one_of_each
       |> Nondet.map List.split
       |> Nondet.map (Pair2.map_fst Ctor_map.from_assoc_many)

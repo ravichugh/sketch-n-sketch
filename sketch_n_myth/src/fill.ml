@@ -2,7 +2,7 @@ open Lang
 open Nondet.Syntax
 
 let refine_or_branch
- params delta sigma _hf (hole_name, synthesis_goal) =
+ params delta sigma hf (hole_name, synthesis_goal) =
   let* (additional_depth, ((exp, subgoals), choice_constraints)) =
     Nondet.union
       [ Nondet.map (fun x -> (0, (x, Constraints.empty))) @@
@@ -17,6 +17,7 @@ let refine_or_branch
               params.max_scrutinee_size
               delta
               sigma
+              hf
               synthesis_goal
         else
           Nondet.none
