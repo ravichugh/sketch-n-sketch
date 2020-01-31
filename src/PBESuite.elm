@@ -1316,32 +1316,38 @@ let
           S m2 -> compare m1 m2
 in
 let
-  treeBInsert : NatTree -> Nat -> NatTree
-  treeBInsert t n = ??
+  treeBInsert : Nat -> NatTree -> NatTree
+  treeBInsert n =
+    let
+      fixTreeBInsert : NatTree -> NatTree
+      fixTreeBInsert tree =
+        ??
+    in
+      fixTreeBInsert
 in
 
 """
   """specifyFunction2 treeBInsert
-  [ (Leaf (), 0, Node (Leaf (), 0, Leaf ()))
-  , (Leaf (), 1, Node (Leaf (), 1, Leaf ()))
-  , (Leaf (), 2, Node (Leaf (), 2, Leaf ()))
-  , (Node (Leaf (), 1, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
-  , (Node (Leaf (), 1, Leaf ()), 1, Node (Leaf (), 1, Leaf ()))
-  , (Node (Leaf (), 1, Leaf ()), 2, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
-  , (Node (Leaf (), 0, Leaf ()), 0, Node (Leaf (), 0, Leaf ()))
-  , (Node (Leaf (), 0, Leaf ()), 1, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
-  , (Node (Leaf (), 0, Leaf ()), 2, Node (Leaf (), 0, Node (Leaf (), 2, Leaf ())))
-  , (Node (Leaf (), 2, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 2, Leaf ()))
-  , (Node (Leaf (), 2, Leaf ()), 1, Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()))
-  , (Node (Leaf (), 2, Leaf ()), 2, Node (Leaf (), 2, Leaf ()))
-  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
-  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 1, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
-  , (Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Node (Node (Leaf (), 0, Leaf ()), 1, Node(Leaf (), 2, Leaf ())))
-  , (Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())), 2, Node (Leaf (), 0, Node (Leaf (), 1, Node(Leaf (), 2, Leaf ()))))
-  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), 0, Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
-  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 0, Node (Node (Leaf (), 0, Leaf ()), 1, Node (Leaf (), 2, Leaf ())))
-  , (Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), 1, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
-  , (Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), 0, Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
+  [ (0, Leaf (), Node (Leaf (), 0, Leaf ()))
+  , (1, Leaf (), Node (Leaf (), 1, Leaf ()))
+  , (2, Leaf (), Node (Leaf (), 2, Leaf ()))
+  , (0, Node (Leaf (), 1, Leaf ()), Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (1, Node (Leaf (), 1, Leaf ()), Node (Leaf (), 1, Leaf ()))
+  , (2, Node (Leaf (), 1, Leaf ()), Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
+  , (0, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 0, Leaf ()))
+  , (1, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())))
+  , (2, Node (Leaf (), 0, Leaf ()), Node (Leaf (), 0, Node (Leaf (), 2, Leaf ())))
+  , (0, Node (Leaf (), 2, Leaf ()), Node (Node (Leaf (), 0, Leaf ()), 2, Leaf ()))
+  , (1, Node (Leaf (), 2, Leaf ()), Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()))
+  , (2, Node (Leaf (), 2, Leaf ()), Node (Leaf (), 2, Leaf ()))
+  , (0, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (1, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()))
+  , (2, Node (Node (Leaf (), 0, Leaf ()), 1, Leaf ()), Node (Node (Leaf (), 0, Leaf ()), 1, Node(Leaf (), 2, Leaf ())))
+  , (2, Node (Leaf (), 0, Node (Leaf (), 1, Leaf ())), Node (Leaf (), 0, Node (Leaf (), 1, Node(Leaf (), 2, Leaf ()))))
+  , (0, Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
+  , (0, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), Node (Node (Leaf (), 0, Leaf ()), 1, Node (Leaf (), 2, Leaf ())))
+  , (1, Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())), Node (Leaf (), 1, Node (Leaf (), 2, Leaf ())))
+  , (0, Node (Node (Leaf (), 1, Leaf ()), 2, Leaf ()), Node (Node (Node(Leaf (), 0, Leaf ()), 1, Leaf ()), 2, Leaf ()))
   ]""" 20
   """specifyFunction2 treeBInsert
   [ (Leaf (), 0, Node (Leaf (), 0, Leaf ()))
@@ -1617,36 +1623,42 @@ let
       S m -> S (sum m n2)
 in
 let
-  treeNodesAtLevel : BooleanTree -> Nat -> Nat
-  treeNodesAtLevel tree n = ??
+  treeNodesAtLevel : Nat -> BooleanTree -> Nat
+  treeNodesAtLevel n =
+    let
+      fixTreeNodesAtLevel : BooleanTree -> Nat
+      fixTreeNodesAtLevel tree =
+        ??
+    in
+      fixTreeNodesAtLevel
 in
 
 """
   """specifyFunction2 treeNodesAtLevel
-  [ (Leaf (), 0, 0)
-  , (Leaf (), 1, 0)
-  , (Node (Leaf (), True, Leaf ()), 0, 1)
-  , (Node (Leaf (), True, Leaf ()), 1, 0)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 0, 1)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 1, 1)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 0, 1)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 1, 2)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 2, 0)
-  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 0, 1)
-  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1, 1)
+  [ (0, Leaf (), 0)
+  , (1, Leaf (), 0)
+  , (0, Node (Leaf (), True, Leaf ()), 1)
+  , (1, Node (Leaf (), True, Leaf ()), 0)
+  , (0, Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 1)
+  , (1, Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 1)
+  , (0, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 1)
+  , (1, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 2)
+  , (2, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 0)
+  , (0, Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1)
+  , (1, Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1)
   ]""" 11
   """specifyFunction2 treeNodesAtLevel
-  [ (Leaf (), 0, 0)
-  , (Leaf (), 1, 0)
-  , (Node (Leaf (), True, Leaf ()), 0, 1)
-  , (Node (Leaf (), True, Leaf ()), 1, 0)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 0, 1)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 1, 1)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 0, 1)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 1, 2)
-  , (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 2, 0)
-  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 0, 1)
-  , (Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1, 1)
+  [ (0, Leaf (), 0)
+  , (1, Leaf (), 0)
+  , (0, Node (Leaf (), True, Leaf ()), 1)
+  , (1, Node (Leaf (), True, Leaf ()), 0)
+  , (0, Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 1)
+  , (1, Node (Node (Leaf (), True, Leaf ()), True, Leaf ()), 1)
+  , (0, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 1)
+  , (1, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 2)
+  , (2, Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), 0)
+  , (0, Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1)
+  , (1, Node (Node (Node (Leaf (), True, Leaf ()), True, Node (Leaf (), True, Leaf ())), True, Leaf ()), 1)
   ]""" (-1)
 
 tree_postorder = (,,,,)
