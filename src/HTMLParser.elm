@@ -413,9 +413,9 @@ parseHTMLInner parsingMode untilEndTagNames =
   let regexToParseUntil =
         Regex.regex <|
         if List.head untilEndTagNames == Just "script" then
-        "</script>|&" ++ maybeBreakOnAt
+        "</script>" ++ maybeBreakOnAt
         else if List.head untilEndTagNames == Just "style" then
-        "</style>|&" ++ maybeBreakOnAt
+        "</style>" ++ maybeBreakOnAt
         else   "<" ++ tagNameStarts++"|&|<\\?|<!|</|$" ++ maybeBreakOnAt ++
             (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "")
    in
