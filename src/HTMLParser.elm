@@ -80,7 +80,7 @@ type HTMLNode_ = HTMLInner String
                | HTMLDoctype {-DOCTYPE itself-} String
                    WS {-Name-} (WithInfo String) WS
                    {-public-} (Maybe (String, WS, HTMLDoctypeValue, WS))
-                   {-system-} (Maybe (HTMLDoctypeValue, WS))
+                   {-system-} (Maybe (Maybe (String, WS), HTMLDoctypeValue, WS))
 
 type alias HTMLDoctypeValue = ({-quote char-}String, {-content-}String)
 
@@ -520,7 +520,18 @@ parseDoctype =
            |= parseDoctypeValue
            |= spaces
            )
-      |= optional (succeed (,) |= parseDoctypeValue |= spaces)
+      |= optional (succeed (\mbSystemSpace value sp1 -> (mbSystemSpace, value, sp1))
+            |= optional (succeed (\s y s2 t e m sp0 -> (s ++ y ++ s2 ++ t ++ e ++ m, sp0))
+               |= source (oneOf [symbol "s", symbol "S"])
+               |= source (oneOf [symbol "y", symbol "Y"])
+               |= source (oneOf [symbol "s", symbol "S"])
+               |= source (oneOf [symbol "t", symbol "T"])
+               |= source (oneOf [symbol "e", symbol "E"])
+               |= source (oneOf [symbol "m", symbol "M"])
+               |= spaces)
+            |= parseDoctypeValue
+            |= spaces
+            )
       |. symbol ">"
       ))
 
@@ -735,8 +746,11 @@ unparseNode node = case node.val of
         public ++ sp1.val ++ quote ++ content ++ quote ++ sp2.val
     ) ++ (case mbSys of
       Nothing -> ""
-      Just ((quote, content), sp2) -> quote ++ content ++ quote ++ sp2.val
-    ) ++ ">"
+      Just (mbSystem, (quote, content), sp2) ->
+        (case mbSystem of
+          Just (system, sp) -> system ++ sp.val
+          Nothing -> "") ++ quote ++ content ++ quote ++ sp2.val
+     ) ++ ">"
 
 unparseHtmlNodes: List HTMLNode -> String
 unparseHtmlNodes nodes =

@@ -950,17 +950,21 @@ htmlToExp parentTag node =
         ] InfixApp space0 ) node.start e.end
 
     HTMLParser.HTMLDoctype docType wsName name wsEnd mbPub mbSys ->
+      let lowerName = String.toLower name.val in
+      let wsNameExtended = if lowerName == name.val then wsName else ws <| "{-"++name.val++"-}" ++ wsName.val in
       let elems = [
         (space0, Expr <| withDummyRange <| exp_ <| EBase (withDummyRange ("{-"++ docType ++"-}")) (EString "\"" "!DOCTYPE")),
-        (space0, Expr <| withDummyRange <| exp_ <| EBase wsName (EString "\"" name.val)),
+        (space0, Expr <| withDummyRange <| exp_ <| EBase wsNameExtended (EString "\"" lowerName)),
            case mbPub of
              Nothing -> (space0, Expr <| withDummyRange <| exp_ <| EBase space0 (EString "\"" ""))
              Just (public, sp1, (quote, str), sp2) ->
                (sp1, Expr <| withDummyRange <| exp_ <| EBase (withDummyRange ("{-"++ public ++"-}" ++ sp2.val)) (EString quote str)),
            case mbSys of
              Nothing -> (space0, Expr <| withDummyRange <| exp_ <| EBase space0 (EString "\"" ""))
-             Just ((quote, sysId), sp1) ->
-               (space1, Expr <| withDummyRange <| exp_<| EBase sp1 (EString quote sysId))
+             Just (Just (system, sp1), (quote, sysId), sp2) ->
+               (sp1, Expr <| withDummyRange <| exp_<| EBase (withDummyRange ("{-"++ system ++"-}" ++ sp2.val)) (EString quote sysId))
+             Just (Nothing, (quote, sysId), sp2) ->
+               (space0, Expr <| withDummyRange <| exp_<| EBase sp2 (EString quote sysId))
       ] in
       succeed <| withInfo (exp_ <| EList space0 elems space0 Nothing wsEnd) node.start node.end
 

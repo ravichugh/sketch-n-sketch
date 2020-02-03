@@ -28,6 +28,17 @@ tuple2 sub1 sub2 v = record Ok v |> Result.andThen (\d ->
          Just t2 -> Result.map2 (,) (sub1 t1) (sub2 t2)
   )
 
+tuple3: (Val -> Result String a) -> (Val -> Result String b) -> (Val -> Result String c)-> Val -> Result String (a, b, c)
+tuple3 sub1 sub2 sub3 v = record Ok v |> Result.andThen (\d ->
+    case Dict.get "_1" d of
+      Nothing -> Err <| "Expected tuple, got " ++ valToString v
+      Just t1 -> case Dict.get "_2" d of
+         Nothing -> Err <| "Expected tuple, got " ++ valToString v
+         Just t2 -> case Dict.get "_3" d of
+           Nothing -> Err <| "Expected tuple, got " ++ valToString v
+           Just t3 -> Result.map3 (,,) (sub1 t1) (sub2 t2) (sub3 t3)
+  )
+
 tuple4: (Val -> Result String a) -> (Val -> Result String b) -> (Val -> Result String c) -> (Val -> Result String d)-> Val -> Result String (a, b, c, d)
 tuple4 sub1 sub2 sub3 sub4 v = record Ok v |> Result.andThen (\d ->
     case Dict.get "_1" d of

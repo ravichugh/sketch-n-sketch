@@ -1061,6 +1061,8 @@ unparseHtmlTextContent style content =
 
 type HtmlInterpolationStyle = Interpolated | Raw | ScriptInterpolated | StyleInterpolated
 
+regexComment = Regex.regex "^\\{-(.*)-\\}(.*)$"
+
 unparseHtmlNode: HtmlInterpolationStyle -> Exp -> String
 unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
   EList unparseData [(_, typ), (_, content)] _ Nothing _ ->
@@ -1125,23 +1127,32 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
         else
           ">" ++ unparseHtmlChildList newIsRaw childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
     )
-  EList _ [(_, doctypeExp), (_, nameExp), (wsPublic, publicExp), (isSys, sysExp)]
+  EList _ [(_, doctypeExp), (_, nameExp), (wsPublic, publicExp), (wsAfterSystem, sysExp)]
     _ Nothing wsEnd ->
       case (unwrapExp doctypeExp, unwrapExp nameExp) of
         (EBase realDoctype (EString _ _), EBase wsName (EString _ name)) ->
           let doctypeName =
-                let wsNameStr = if wsName.val == "" then " " else wsName.val in
-                case Regex.find (Regex.AtMost 1) (Regex.regex "^\\{-(.*)-\\}$") realDoctype.val of
+                let wsAndName = if wsName.val == "" then " " ++ name else
+                       case Regex.find (Regex.AtMost 1) regexComment wsName.val of
+                         [m] -> case m.submatches of
+                           [Just realNameStr, Just spBeforeName] ->
+                             spBeforeName ++ (if String.toLower realNameStr == name then realNameStr else name)
+                           _ ->
+                             wsName.val ++ name
+                         _ ->
+                           wsName.val ++ name
+                in
+                case Regex.find (Regex.AtMost 1) regexComment realDoctype.val of
                   [m] -> case m.submatches of
-                    [Just doctype] -> "<!" ++ doctype ++ wsNameStr ++ name ++ wsEnd.val
-                    _ -> "<!DOCTYPE" ++ wsNameStr ++ name ++ wsEnd.val
-                  _ -> "<!DOCTYPE" ++ wsNameStr ++ name ++ wsEnd.val
+                    [Just doctype, _] -> "<!" ++ doctype ++ wsAndName ++ wsEnd.val
+                    _ -> "<!DOCTYPE" ++ wsAndName++ wsEnd.val
+                  _ -> "<!DOCTYPE" ++ wsAndName++ wsEnd.val
           in
           let public =
                 case unwrapExp publicExp of
                   EBase sp2 (EString quotePublic publicName) ->
                     let publicNameStr = wsPublic.val ++ quotePublic ++ publicName ++ quotePublic in
-                    case Regex.find (Regex.AtMost 1) (Regex.regex "^\\{-(.*)-\\}(.*)$") sp2.val of
+                    case Regex.find (Regex.AtMost 1) regexComment sp2.val of
                       [m] -> case m.submatches of
                         [Just realPublic, Just spAfterPublicName] ->
                           realPublic ++ publicNameStr ++ spAfterPublicName
@@ -1150,11 +1161,16 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
                   _ -> ""
           in
           let sys =
-                    case unwrapExp sysExp of
-                      EBase spAfterSys (EString quoteSys sysName) ->
-                        if isSys.val == "" && sysName == "" then "" else
-                        quoteSys ++ sysName ++ quoteSys ++ spAfterSys.val
-                      _ -> ""
+                case unwrapExp sysExp of
+                  EBase spAfterSysName (EString quoteSys sysName) ->
+                    let systemNameStr = wsAfterSystem.val ++ quoteSys ++ sysName ++ quoteSys in
+                    case Regex.find (Regex.AtMost 1) regexComment spAfterSysName.val of
+                      [m] -> case m.submatches of
+                        [Just realSystem, Just spAfterSystemName] ->
+                          realSystem ++ systemNameStr ++ spAfterSystemName
+                        _ -> if sysName == "" && spAfterSysName.val == "" && wsAfterSystem.val == "" then "" else systemNameStr ++ spAfterSysName.val
+                      _ -> if sysName == "" && spAfterSysName.val == "" && wsAfterSystem.val == "" then "" else systemNameStr ++ spAfterSysName.val
+                  _ -> ""
           in
           let mbSpacePublicSys = if public /= "" && sys /= "" && not (Regex.contains (Regex.regex "\\s$") public) then
                " " else "" in
