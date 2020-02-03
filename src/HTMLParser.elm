@@ -77,6 +77,12 @@ type HTMLNode_ = HTMLInner String
                | HTMLElement HTMLTag (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
                | HTMLComment HTMLCommentStyle
                | HTMLListNodeExp (WithInfo Exp_)
+               | HTMLDoctype {-DOCTYPE itself-} String
+                   WS {-Name-} (WithInfo String) WS
+                   {-public-} (Maybe (String, WS, HTMLDoctypeValue, WS))
+                   {-system-} (Maybe (HTMLDoctypeValue, WS))
+
+type alias HTMLDoctypeValue = ({-quote char-}String, {-content-}String)
 
 type HTMLTag = HTMLTagString (WithInfo String) | HTMLTagExp (WithInfo Exp_)
 
@@ -475,12 +481,67 @@ wrapImplicitElems tagName children =
                 HTMLComment _ -> firstChildTag tail
                 HTMLEntity _ _ -> firstChildTag tail
                 HTMLListNodeExp _ -> Nothing -- We don't know what's generated
+                HTMLDoctype _ _ _ _ _ _ -> Nothing
       in
       case firstChildTag children of
         Just "tr" ->
           [withDummyInfo <| HTMLElement (HTMLTagString (withDummyInfo "tbody")) [] space0 RegularEndOpening children ImplicitElem]
         _ -> children
     _ -> children
+
+
+parseDoctype: Parser HTMLNode
+parseDoctype =
+  inContext "HTML Doctype" <| trackInfo <| (
+    delayedCommitMap (\doctype withDoctype -> withDoctype doctype) (
+      succeed (\d o c t y p e -> d ++ o ++ c ++ t ++ y ++ p ++ e)
+      |. symbol "<!"
+      |= source (oneOf [symbol "d", symbol "D"])
+      |= source (oneOf [symbol "o", symbol "O"])
+      |= source (oneOf [symbol "c", symbol "C"])
+      |= source (oneOf [symbol "t", symbol "T"])
+      |= source (oneOf [symbol "y", symbol "Y"])
+      |= source (oneOf [symbol "p", symbol "P"])
+      |= source (oneOf [symbol "e", symbol "E"])
+    ) (
+      succeed (\spName name sp0 mbPub mbSys doctypeName -> HTMLDoctype doctypeName spName name sp0 mbPub mbSys)
+      |= spaces
+      |= trackInfo (keep (AtLeast 0) (\c -> not (isSpace c) && c /= '>'))
+      |= spaces
+      |= optional (
+           succeed (\p u b l i c sp0 value sp1 -> (p ++ u ++ b ++ l ++ i ++ c, sp0, value, sp1))
+           |= source (oneOf [symbol "p", symbol "P"])
+           |= source (oneOf [symbol "u", symbol "U"])
+           |= source (oneOf [symbol "b", symbol "B"])
+           |= source (oneOf [symbol "l", symbol "L"])
+           |= source (oneOf [symbol "i", symbol "I"])
+           |= source (oneOf [symbol "c", symbol "C"])
+           |= spaces
+           |= parseDoctypeValue
+           |= spaces
+           )
+      |= optional (succeed (,) |= parseDoctypeValue |= spaces)
+      |. symbol ">"
+      ))
+
+parseDoctypeValue: Parser HTMLDoctypeValue
+parseDoctypeValue =
+  inContext "HTML Doctype value" <| (oneOf [
+      source (symbol "\"")
+    , source (symbol "\'")
+  ] |> andThen (\quoteCharStr ->
+    let quoteChar = ImpureGoodies.stringCharAt 0 quoteCharStr |> Maybe.withDefault '\"' in
+    parseDoctypeValueContent (\c -> c == quoteChar || c == '>')
+    |> andThen (\l ->
+      succeed identity
+      |. oneOf [source (symbol quoteCharStr), succeed ""] -- Error recovery
+      |= succeed (quoteCharStr, l)
+    )))
+
+parseDoctypeValueContent: (Char -> Bool) -> Parser String
+parseDoctypeValueContent isEndChar =
+  keep (AtLeast 0) (\c -> not (isEndChar c))
+
 
 -- Always succeed if the string starts with <(letter)
 parseHTMLElement: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
@@ -550,12 +611,13 @@ parseNode parsingMode surroundingTagNames namespace =
   oneOf <|
     let defaultParsers =
       (if List.head surroundingTagNames == Just "script" || List.head surroundingTagNames == Just "style"  then
-         [] else [ parseHTMLElement parsingMode surroundingTagNames namespace,
-           parseHTMLComment
+         [] else (if List.isEmpty surroundingTagNames || surroundingTagNames == ["raw"] then [parseDoctype] else []) ++
+           [ parseHTMLElement parsingMode surroundingTagNames namespace,
+           parseHTMLComment,
+           parseHTMLEntity False surroundingTagNames |> map (\entity -> case entity.val of
+             Err x -> replaceInfo entity <| HTMLInner x
+             Ok (rendered, raw) -> replaceInfo entity <| HTMLEntity rendered raw)
          ]) ++ [
-      parseHTMLEntity False surroundingTagNames |> map (\entity -> case entity.val of
-         Err x -> replaceInfo entity <| HTMLInner x
-         Ok (rendered, raw) -> replaceInfo entity <| HTMLEntity rendered raw),
       parseHTMLInner parsingMode surroundingTagNames
     ] in
     case parsingMode of
@@ -666,6 +728,15 @@ unparseNode node = case node.val of
       String.join "" (List.map unparseNode children) ++ unparseClosing tagName closing
   HTMLComment style -> unparseCommentStyle style
   HTMLListNodeExp _ -> "[Internal error] Don't know how to unparse an HTMLListNodeExp here"
+  HTMLDoctype doctype sp0 name sp1 mbPub mbSys ->
+    "<!" ++ doctype ++ sp0.val ++ name.val ++ sp1.val ++ (case mbPub of
+      Nothing -> ""
+      Just (public, sp1, (quote, content), sp2) ->
+        public ++ sp1.val ++ quote ++ content ++ quote ++ sp2.val
+    ) ++ (case mbSys of
+      Nothing -> ""
+      Just ((quote, content), sp2) -> quote ++ content ++ quote ++ sp2.val
+    ) ++ ">"
 
 unparseHtmlNodes: List HTMLNode -> String
 unparseHtmlNodes nodes =

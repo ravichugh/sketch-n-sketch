@@ -6,6 +6,9 @@ import Utils
 
 type alias Vb = Val_ -> Val
 
+map: (a -> b) -> (Vb -> b -> Val) -> Vb -> a -> Val
+map f sub vb a = sub vb (f a)
+
 fromVal: Val -> Vb
 fromVal v = replaceV_ v
 
@@ -25,6 +28,9 @@ tuple2 sub1 sub2 vb (a, b) =
 viewtuple3:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> (Vb -> c -> Val) -> Vb -> (a, b, c) -> Val
 viewtuple3 sub1 sub2 sub3 vb (a, b, c) = vb <| VList <| [sub1 vb a, sub2 vb b, sub3 vb c]
 
+viewtuple4:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> (Vb -> c -> Val)-> (Vb -> d -> Val) -> Vb -> (a, b, c, d) -> Val
+viewtuple4 sub1 sub2 sub3 sub4 vb (a, b, c, d) = vb <| VList <| [sub1 vb a, sub2 vb b, sub3 vb c, sub4 vb d]
+
 htmlText: Vb -> String -> Val
 htmlText vb text= viewtuple2 string string vb ("TEXT", text)
 
@@ -35,6 +41,15 @@ tuple3 sub1 sub2 sub3 vb (a, b, c) =
      ("_1", sub1 vb a),
      ("_2", sub2 vb b),
      ("_3", sub3 vb c)]
+
+tuple4:  (Vb -> a -> Val) -> (Vb -> b -> Val) -> (Vb -> c -> Val) -> (Vb -> d -> Val) -> Vb -> (a, b, c, d) -> Val
+tuple4 sub1 sub2 sub3 sub4 vb (a, b, c, d) =
+  vb <| VRecord <| Dict.fromList [
+     Lang.ctorVal (vb << VBase << VString) Lang.TupleCtor (Lang.ctorTupleName 4),
+     ("_1", sub1 vb a),
+     ("_2", sub2 vb b),
+     ("_3", sub3 vb c),
+     ("_4", sub4 vb d)]
 
 string: Vb -> String -> Val
 string vb= vb << VBase << VString

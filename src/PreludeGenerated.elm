@@ -5035,7 +5035,7 @@ Html = {
         }) }
       var textAreasObserver = new MutationObserver(handleMutation);
       var textAreas = document.querySelectorAll(@query);
-      for (i = 0; i &lt; textAreas.length; i++)
+      for (i = 0; i < textAreas.length; i++)
         textAreasObserver.observe(textAreas[i], {attributes: true});
     </script>
 

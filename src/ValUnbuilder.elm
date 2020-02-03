@@ -5,6 +5,9 @@ import LangUtils exposing (valToString)
 import Dict exposing (Dict)
 import Utils
 
+map: (a -> b) -> (Val -> Result String a) -> Val -> Result String b
+map  f sub v = Result.map f (sub v)
+
 list: (Val -> Result String b) -> Val -> Result String (List b)
 list sub v = case v.v_ of
   VList vs -> List.map sub vs |> Utils.projOk
@@ -24,6 +27,20 @@ tuple2 sub1 sub2 v = record Ok v |> Result.andThen (\d ->
          Nothing -> Err <| "Expected tuple, got " ++ valToString v
          Just t2 -> Result.map2 (,) (sub1 t1) (sub2 t2)
   )
+
+tuple4: (Val -> Result String a) -> (Val -> Result String b) -> (Val -> Result String c) -> (Val -> Result String d)-> Val -> Result String (a, b, c, d)
+tuple4 sub1 sub2 sub3 sub4 v = record Ok v |> Result.andThen (\d ->
+    case Dict.get "_1" d of
+      Nothing -> Err <| "Expected tuple, got " ++ valToString v
+      Just t1 -> case Dict.get "_2" d of
+         Nothing -> Err <| "Expected tuple, got " ++ valToString v
+         Just t2 -> case Dict.get "_3" d of
+           Nothing -> Err <| "Expected tuple, got " ++ valToString v
+           Just t3 -> case Dict.get "_4" d of
+             Nothing -> Err <| "Expected tuple, got " ++ valToString v
+             Just t4 -> Result.map4 (,,,) (sub1 t1) (sub2 t2) (sub3 t3) (sub4 t4)
+  )
+
 
 innerTuple: Int -> Dict String Val -> List Val
 innerTuple n dv =

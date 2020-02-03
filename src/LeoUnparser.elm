@@ -1125,6 +1125,44 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
         else
           ">" ++ unparseHtmlChildList newIsRaw childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
     )
+  EList _ [(_, doctypeExp), (_, nameExp), (wsPublic, publicExp), (isSys, sysExp)]
+    _ Nothing wsEnd ->
+      case (unwrapExp doctypeExp, unwrapExp nameExp) of
+        (EBase realDoctype (EString _ _), EBase wsName (EString _ name)) ->
+          let doctypeName =
+                let wsNameStr = if wsName.val == "" then " " else wsName.val in
+                case Regex.find (Regex.AtMost 1) (Regex.regex "^\\{-(.*)-\\}$") realDoctype.val of
+                  [m] -> case m.submatches of
+                    [Just doctype] -> "<!" ++ doctype ++ wsNameStr ++ name ++ wsEnd.val
+                    _ -> "<!DOCTYPE" ++ wsNameStr ++ name ++ wsEnd.val
+                  _ -> "<!DOCTYPE" ++ wsNameStr ++ name ++ wsEnd.val
+          in
+          let public =
+                case unwrapExp publicExp of
+                  EBase sp2 (EString quotePublic publicName) ->
+                    let publicNameStr = wsPublic.val ++ quotePublic ++ publicName ++ quotePublic in
+                    case Regex.find (Regex.AtMost 1) (Regex.regex "^\\{-(.*)-\\}(.*)$") sp2.val of
+                      [m] -> case m.submatches of
+                        [Just realPublic, Just spAfterPublicName] ->
+                          realPublic ++ publicNameStr ++ spAfterPublicName
+                        _ -> if publicName == "" then "" else "PUBLIC" ++ (if wsPublic.val == "" then " " else "") ++ publicNameStr
+                      _ -> if publicName == "" then "" else "PUBLIC" ++ (if wsPublic.val == "" then " " else "") ++ publicNameStr
+                  _ -> ""
+          in
+          let sys =
+                    case unwrapExp sysExp of
+                      EBase spAfterSys (EString quoteSys sysName) ->
+                        if isSys.val == "" && sysName == "" then "" else
+                        quoteSys ++ sysName ++ quoteSys ++ spAfterSys.val
+                      _ -> ""
+          in
+          let mbSpacePublicSys = if public /= "" && sys /= "" && not (Regex.contains (Regex.regex "\\s$") public) then
+               " " else "" in
+          let ending = public ++ mbSpacePublicSys ++ sys ++ ">" in
+          let mbSpaceNamePublic = if ending /= ">" && not (Regex.contains (Regex.regex "\\s$") doctypeName) then
+                                                 " " else "" in
+          doctypeName ++ mbSpaceNamePublic ++ ending
+        _ -> "@[" ++ unparse e ++ "]"
   _ -> "@[" ++ unparse e ++ "]"
 
 -- Detects if there are nodes, text, attributes and call the correct unparser. Use it for displaying local difference only.

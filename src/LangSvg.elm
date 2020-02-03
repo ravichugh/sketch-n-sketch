@@ -692,6 +692,18 @@ htmlSourceToVal namespace source =
 valToHTMLSource: HTMLParser.NameSpace -> Val -> Result String String
 valToHTMLSource namespace v =
   case v.v_ of
+    VList [doctypeTag, name, publicId, sysId] ->
+      case (doctypeTag.v_, name.v_) of
+        (VBase (VString "!DOCTYPE"), VBase (VString nameStr)) ->
+           let publicIdStr = case publicId.v_ of
+                 VBase (VString p) -> " PUBLIC \"" ++ p ++ "\""
+                 _ -> ""
+               sysIdStr = case sysId.v_ of
+                 VBase (VString p) -> " \""++p++"\""
+                 _ -> ""
+           in
+           Ok <| "<!DOCTYPE " ++ nameStr ++ publicIdStr ++ sysIdStr ++ ">"
+        _ -> Err ("Expected doctype [!DOCTYPE,name,publicId,sysId], got " ++ valToString v)
     VList [textTag, textContent] -> case (textTag.v_, textContent.v_) of
       (VBase (VString "TEXT"), VBase (VString s)) ->
         let content = ImpureGoodies.htmlescape s in
