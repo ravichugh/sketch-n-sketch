@@ -467,26 +467,66 @@ mergeInners children = case children of
       _ -> h1 :: h2 :: mergeInners tail
   _ -> children
 
+firstChildTag: List HTMLNode -> Maybe String
+firstChildTag childList = case childList of
+    [] -> Nothing
+    head :: tail ->
+      case head.val of
+        HTMLInner s1 -> firstChildTag tail
+        HTMLElement (HTMLTagString t) _ _ _ _ _ -> Just t.val
+        HTMLElement _ _ _ _ _ _ -> Nothing
+        HTMLComment _ -> firstChildTag tail
+        HTMLEntity _ _ -> firstChildTag tail
+        HTMLListNodeExp _ -> Nothing -- We don't know what's generated
+        HTMLDoctype _ _ _ _ _ _ -> Nothing
+
 wrapImplicitElems: String -> List HTMLNode -> List HTMLNode
 wrapImplicitElems tagName children =
   case tagName of
     "table" -> -- There could be an implicit <tbody> as first child
-      let firstChildTag childList = case childList of
-            [] -> Nothing
-            head :: tail ->
-              case head.val of
-                HTMLInner s1 -> firstChildTag tail
-                HTMLElement (HTMLTagString t) _ _ _ _ _ -> Just t.val
-                HTMLElement _ _ _ _ _ _ -> Nothing
-                HTMLComment _ -> firstChildTag tail
-                HTMLEntity _ _ -> firstChildTag tail
-                HTMLListNodeExp _ -> Nothing -- We don't know what's generated
-                HTMLDoctype _ _ _ _ _ _ -> Nothing
-      in
-      case firstChildTag children of
-        Just "tr" ->
-          [withDummyInfo <| HTMLElement (HTMLTagString (withDummyInfo "tbody")) [] space0 RegularEndOpening children ImplicitElem]
-        _ -> children
+      -- We collect <tr> into <tbody> and <col> into <colgroup>
+      let aux: List HTMLNode -> Maybe HTMLNode_ -> List HTMLNode -> List HTMLNode
+          aux children mbImplicitWrapper revAcc =
+            case children of
+               [] ->  List.reverse ((Maybe.withDefault [] <| Maybe.map (List.singleton << withDummyRange) mbImplicitWrapper) ++ revAcc)
+               head :: tail ->
+                 case head.val of
+                   HTMLElement (HTMLTagString t) _ _ _ _ _ ->
+                     let wrapIntoImplicit name =
+                          let defaulltWrapper x =
+                                 Just <| HTMLElement (HTMLTagString (withDummyInfo name)) [] space0 RegularEndOpening [x] ImplicitElem
+                          in
+                          case mbImplicitWrapper of
+                                  Just ((HTMLElement ((HTMLTagString v) as a0) a b c d e) as f) ->
+                                     if v.val == name then
+                                       (revAcc, \x -> Just <| HTMLElement a0 a b c (d ++ [head]) e)
+                                     else
+                                        (withDummyInfo f :: revAcc,
+                                         defaulltWrapper)
+                                  Just other ->
+                                     (withDummyInfo other :: revAcc,
+                                     defaulltWrapper)
+                                  Nothing ->
+                                     (revAcc, defaulltWrapper)
+                     in
+                     if t.val == "col" then -- No top-level col or tr, they should be wrapped in colgroup or tbody respectively
+                       let (newRevAcc, addToWrapper) = wrapIntoImplicit "colgroup" in
+                       aux tail (addToWrapper head) newRevAcc
+                     else if t.val == "tr" then
+                       let (newRevAcc, addToWrapper) = wrapIntoImplicit "tbody" in
+                       aux tail (addToWrapper head) newRevAcc
+                     else
+                       aux tail Nothing (head :: (Maybe.withDefault [] <| Maybe.map (List.singleton << withDummyRange) mbImplicitWrapper) ++ revAcc)
+                   HTMLElement _ _ _ _ _ _ ->
+                      aux tail Nothing (head :: (Maybe.withDefault [] <| Maybe.map (List.singleton << withDummyRange) mbImplicitWrapper) ++ revAcc)
+                   _ ->
+                      case mbImplicitWrapper of
+                        Nothing -> aux tail mbImplicitWrapper (head :: revAcc)
+                        Just ((HTMLElement a0 a b c d e) as f) ->
+                           aux tail (Just (HTMLElement a0 a b c (d++[head]) e)) revAcc
+                        Just x ->
+                           aux tail Nothing (head :: withDummyRange x :: revAcc)
+      in aux children Nothing []
     _ -> children
 
 
@@ -605,16 +645,36 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
      )
     )
 
-incompatible_p_children =
-  oneOf <| List.map symbol ["address", "article", "aside", "blockquote", "details", "div", "dl", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "menu", "nav", "ol", "p", "pre", "section", "table", "ul"]
+-- https://html.spec.whatwg.org/multipage/grouping-content.html#the-p-element
 
+tagsClosingImplicitlyParagraph =
+  ["address", "article", "aside", "blockquote", "details", "div", "dl", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "menu", "nav", "ol", "p", "pre", "section", "table", "ul"]
+
+implicitlyClosingTags x =
+  succeed ()
+  |. symbol "<"
+  |. oneOf (List.map symbol x)
+  |. oneOf [ignore (AtLeast 1) isSpace, symbol ">"]
+
+-- https://html.spec.whatwg.org/multipage/grouping-content.html
 childrenIncompatibleWith: String -> Parser ()
 childrenIncompatibleWith tagName =
   case tagName of
-    "p" -> succeed ()
-           |. symbol "<"
-           |. incompatible_p_children
-           |. spaces
+    "p" -> implicitlyClosingTags tagsClosingImplicitlyParagraph
+    "li" -> implicitlyClosingTags ["li"]
+    "dt" -> implicitlyClosingTags ["dt", "dd"]
+    "dd" -> implicitlyClosingTags ["dt", "dd"]
+    "rt" -> implicitlyClosingTags ["rt", "rp"]
+    "rp" -> implicitlyClosingTags ["rt", "rp"]
+    "caption" -> implicitlyClosingTags ["colgroup", "col", "thead", "tbody", "tr", "tfoot"]
+    "colgroup" -> implicitlyClosingTags ["thead", "tbody", "tr", "tfoot"]
+    "thead" -> implicitlyClosingTags ["tbody", "tfoot"]
+    "tbody" -> implicitlyClosingTags ["tfoot"]
+    "tr" -> implicitlyClosingTags ["tr"]
+    "td" -> implicitlyClosingTags ["td", "th"]
+    "th" -> implicitlyClosingTags ["td", "th"]
+    "optgroup" -> implicitlyClosingTags ["optgroup"]
+    "option" -> implicitlyClosingTags ["optgroup", "option"]
     _ -> fail "No child incompatible with this"
 
 parseNode: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
