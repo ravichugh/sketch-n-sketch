@@ -74,6 +74,7 @@ htmlNodeToVal vb n =
         AutoClosing -> Vb.constructor vb "AutoClosing" []
         ForgotClosing ->Vb.constructor vb "ForgotClosing" []
         ImplicitElem -> Vb.constructor vb "ImplicitElem" []
+        OnlyClosing wsc -> Vb.constructor vb "OnlyClosing" [Vb.string vb wsc.val]
     ]
   HTMLComment style -> Vb.constructor vb "HTMLComment" [case style of
       Less_Greater content -> Vb.constructor vb "Less_Greater" [Vb.string vb content]
@@ -153,6 +154,7 @@ valToHtmlNode v =
          (Vu.list valToHtmlNode childrenV)
          (case Vu.constructor Ok closingV of
            Ok ("RegularClosing", [wsc])  -> Vu.string wsc |> Result.map (RegularClosing << ws)
+           Ok ("OnlyClosing", [wsc])  -> Vu.string wsc |> Result.map (OnlyClosing<< ws)
            Ok ("VoidClosing", [])        -> Ok VoidClosing
            Ok ("AutoClosing", [])        -> Ok AutoClosing
            Ok ("ForgotClosing", [])      -> Ok ForgotClosing

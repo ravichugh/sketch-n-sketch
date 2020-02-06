@@ -2702,6 +2702,7 @@ encoding_autoclosing   = " "     -- <link ... />  (not necessary in HTML but tol
 encoding_voidclosing   = "  "    -- <br> or <img>
 encoding_forgotclosing = "   "   -- <span>Hello <i>world</span>
 encoding_implicitelem  = "    "  -- implicit <tbody> inside <table>
+encoding_onlyClosing   = "     "  -- For alone </p> tags
 
 vHtmlTextDiffs d =
   VListDiffs [(1, ListElemUpdate d)]

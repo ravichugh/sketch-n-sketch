@@ -66,7 +66,7 @@ type HTMLCommentStyle = Less_Greater String {- The string should start with a ? 
                       | LessBang_Greater String
                       | LessBangDashDash_DashDashGreater String
 
-type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotClosing | ImplicitElem
+type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotClosing | ImplicitElem | OnlyClosing WS
 type HTMLEndOpeningStyle = RegularEndOpening {- usually > -} | SlashEndOpening {- add a slash before the '>' of the opening, does not mark the element as ended in non-void HTML elements -}
 -- HTMLInner may have unmatched closing tags inside it. You have to remove them to create a real innerHTML
 -- HTMLInner may have unescaped chars (e.g. <, >, & etc.)
@@ -349,7 +349,7 @@ parseHTMLEntity insideAttribute untilEndTagNames =
         |. optional (symbol ">")))
       (\endTagName ->
         let tagNamesRegex= untilEndTagNames |> List.map (\et -> "</" ++ Regex.escape et ++ "\\s*>") |> String.join "|" in
-        if Regex.contains (Regex.regex tagNamesRegex) endTagName then
+        if Regex.contains (Regex.regex ("</p\\s*>|" ++ tagNamesRegex)) endTagName then
           fail "it's a true closing tag"
         else
           succeed endTagName
@@ -593,6 +593,16 @@ parseDoctypeValueContent: (Char -> Bool) -> Parser String
 parseDoctypeValueContent isEndChar =
   keep (AtLeast 0) (\c -> not (isEndChar c))
 
+parseSingleClosedParagraphTagAsNode: Parser HTMLNode
+parseSingleClosedParagraphTagAsNode =
+  inContext " < / p >" <| trackInfo <|
+    delayedCommitMap (\_ endSpaces ->
+      HTMLElement (HTMLTagString (withDummyRange "p"))
+         [] space0 RegularEndOpening [] (OnlyClosing endSpaces))
+      (symbol "</p")
+      (succeed identity
+       |= spaces
+       |. symbol ">")
 
 -- Always succeed if the string starts with <(letter)
 parseHTMLElement: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
@@ -685,10 +695,12 @@ parseNode parsingMode surroundingTagNames namespace =
          [] else (if List.isEmpty surroundingTagNames || surroundingTagNames == ["raw"] then [parseDoctype] else []) ++
            [ parseHTMLElement parsingMode surroundingTagNames namespace,
            parseHTMLComment,
+           -- Entities and end tags not matched
            parseHTMLEntity False surroundingTagNames |> map (\entity -> case entity.val of
              Err x -> replaceInfo entity <| HTMLInner x
              Ok (rendered, raw) -> replaceInfo entity <| HTMLEntity rendered raw)
-         ]) ++ [
+         ]) ++ (if List.all (\x -> x /= "p") surroundingTagNames
+                then [parseSingleClosedParagraphTagAsNode] else []) ++ [
       parseHTMLInner parsingMode surroundingTagNames
     ] in
     case parsingMode of
@@ -763,6 +775,7 @@ unparseClosing htmlTag closing =
         AutoClosing -> ""
         ForgotClosing -> ""
         ImplicitElem -> ""
+        OnlyClosing sp -> "</" ++ tagName.val ++ sp.val ++ ">"
     _ -> "Don't know how to unparse tag " ++ toString htmlTag
 
 unparseCommentStyle: HTMLCommentStyle -> String

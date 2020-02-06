@@ -1113,6 +1113,8 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
     in
     if closingType.val == encoding_implicitelem && eListUnapply attrExp == Just [] then
       unparseHtmlChildList newIsRaw childExp
+    else if closingType.val == encoding_onlyClosing && eListUnapply attrExp == Just [] && eListUnapply childExp == Just [] then
+      "</"++tagEnd++spaceAfterTagClosing.val ++ ">"
     else
     "<" ++ tagStart ++ unparseHtmlAttributes interpolationStyle attrExp ++spaceBeforeEndOpeningTag.val ++ (
       if closingType.val == encoding_autoclosing then
