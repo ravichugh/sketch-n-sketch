@@ -198,9 +198,9 @@ eval_ env exp =
                 if n >= 0 then
                   Evaluator.succeed <|
                     Utils.iterate
-                      n
                       (UConstructor nd "S")
                       (UConstructor nd "Z" (UTuple nd []))
+                      n
                 else
                   Evaluator.fail "Negative integers not supported"
 

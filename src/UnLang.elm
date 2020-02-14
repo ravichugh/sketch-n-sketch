@@ -1075,9 +1075,9 @@ uvNum =
       buildNum : Int -> UnVal
       buildNum n =
         Utils.iterate
-          n
           (UVConstructor "S")
           (UVConstructor "Z" (UVTuple []))
+          n
     in
       P.map buildNum nonNegativeInt
 

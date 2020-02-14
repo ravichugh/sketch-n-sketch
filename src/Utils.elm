@@ -1923,12 +1923,12 @@ intFromFloat x =
     else
       Nothing
 
-iterate : Int -> (a -> a) -> a -> a
-iterate n f x =
+iterate : (a -> a) -> a -> Int -> a
+iterate f x n =
   if n <= 0 then
     x
   else
-    iterate (n - 1) f (f x)
+    iterate f (f x) (n - 1)
 
 filterMap : (a -> Maybe b) -> List a -> List b
 filterMap f =
