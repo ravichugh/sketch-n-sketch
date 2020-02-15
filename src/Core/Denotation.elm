@@ -1,13 +1,15 @@
-module Denotation exposing
+module Core.Denotation exposing
   ( ..
   )
+
+import Utils
 
 type alias Denotation a =
   (a -> String)
 
 int : Denotation Int
 int =
-  Util.iterate
+  Utils.iterate
     (\acc -> "S (" ++ acc ++ ")")
     "Z ()"
 
@@ -20,3 +22,7 @@ list cons nil da =
 simpleList : Denotation a -> Denotation (List a)
 simpleList =
   list "Cons" "Nil"
+
+args2 : Denotation a1 -> Denotation a2 -> Denotation (a1, a2)
+args2 da1 da2 (x1, x2) =
+  da1 x1 ++ ", " ++ da2 x2

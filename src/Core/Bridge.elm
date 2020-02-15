@@ -21,7 +21,7 @@ import Syntax
 
 url : String
 url =
-  "http://lvh.me:9090"
+  "http://localhost:9090"
 
 type Error
   = HttpError Http.Error

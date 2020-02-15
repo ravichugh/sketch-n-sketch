@@ -3,8 +3,10 @@ module Core.Controller exposing
   , msgRequestSynthesis
   , msgLoadExample
   , msgRequestBenchmark
+  , msgRequestRandomSample
   )
 
+import Random
 import Dict exposing (Dict)
 import Task exposing (Task)
 
@@ -12,6 +14,7 @@ import Core.Lang as C
 import Core.Bridge as B
 import Core.Compile
 import Core.Uncompile
+import Core.Reference as Reference
 
 import Lang as L
 import UnLang as U
@@ -631,6 +634,127 @@ msgReceiveBenchmark replications response =
 
           Err e ->
             "Could not generate benchmark table. " ++ e
+    in
+    let _ =
+      ImpureGoodies.newPage output
+    in
+      (model, Cmd.none)
+
+--------------------------------------------------------------------------------
+-- Random Sampling and Trials
+--------------------------------------------------------------------------------
+
+showSamplingExperiments : List (List Benchmark) -> String
+showSamplingExperiments =
+  let
+    extract :
+      Benchmark
+        -> Maybe
+             { name : String
+             , success : Bool
+             , fullExampleCount : Int
+             , randomExampleCount : Int
+             }
+    extract { name, full, restricted } =
+      Maybe.map
+        ( \r ->
+             { name = name
+             , success = r.topIsValid
+             , fullExampleCount = full.exampleCount
+             , randomExampleCount = r.exampleCount
+             }
+        )
+        restricted
+
+    results : List Benchmark -> Result String (String, Int, Float)
+    results bs =
+      case Utils.projJusts (List.map extract bs) of
+        Nothing ->
+          Err "Random sampling not found."
+
+        Just foundResults ->
+          case foundResults of
+            [] ->
+              Err "k = 0"
+
+            head :: tail ->
+              if
+                not <|
+                  List.all
+                    ( \{name, fullExampleCount, randomExampleCount} ->
+                        name == head.name
+                          && fullExampleCount == head.fullExampleCount
+                          && randomExampleCount == head.randomExampleCount
+                    )
+                    tail
+              then
+                Err "Non-replicable random sampling."
+              else
+                let
+                  name =
+                    head.name
+
+                  randomExampleCount =
+                    head.randomExampleCount
+
+                  numerator =
+                    toFloat <|
+                      Utils.count .success foundResults
+
+                  denominator =
+                    toFloat <|
+                      List.length foundResults
+                in
+                  Ok (name, randomExampleCount, numerator / denominator)
+
+    showExperiment : List Benchmark -> String
+    showExperiment experiment =
+      let
+        numTrials =
+          List.length experiment
+      in
+        case results experiment of
+          Err e ->
+            e
+
+          Ok (name, randomExampleCount, successPercent) ->
+            "<b>Number of Trials:</b> "
+              ++ toString numTrials ++ "<br>"
+              ++ "<b>Size of example set:</b> "
+              ++ toString randomExampleCount ++ "<br>"
+              ++ "<b>Success percent:</b> "
+              ++ Utils.formatFloat 2 (successPercent * 100) ++ "%<br>"
+  in
+    List.map showExperiment >> String.join "<hr>"
+
+msgRequestRandomSample : Int -> Int -> Msg
+msgRequestRandomSample n k =
+  NewModelAndCmd "Request Random Sample" <| \model ->
+    ( model
+    , Random.generate msgReceiveRandomSample (Reference.benchmarkInputs n k)
+    )
+
+msgReceiveRandomSample : List (List Reference.BenchmarkInput) -> Msg
+msgReceiveRandomSample bis =
+  NewModelAndCmd "Receive Random Sample" <| \model ->
+    ( model
+    , bis
+        |> List.map (List.map benchmark >> Task.sequence)
+        |> Task.sequence
+        |> Task.attempt msgReceiveRandomSampleResults
+    )
+
+msgReceiveRandomSampleResults : Result String (List (List Benchmark)) -> Msg
+msgReceiveRandomSampleResults response =
+  NewModelAndCmd "Receive Random Sample Results" <| \model ->
+    let
+      output =
+        case response of
+          Ok experiments ->
+            showSamplingExperiments experiments
+
+          Err e ->
+            "Could not generate trial table. " ++ e
     in
     let _ =
       ImpureGoodies.newPage output

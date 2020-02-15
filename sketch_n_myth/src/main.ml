@@ -1,4 +1,9 @@
-(* Generic server code *)
+(* Server Parameters *)
+
+let port =
+  9090
+
+(* Server Functions *)
 
 let cors_headers =
   Cohttp.Header.add_list (Cohttp.Header.init ())
@@ -7,12 +12,29 @@ let cors_headers =
     ; ("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
     ]
 
+let is_preflight request =
+  let meth =
+    Cohttp.Request.meth request
+  in
+  let headers =
+    Cohttp.Request.headers request
+  in
+    meth = `OPTIONS
+      && Cohttp.Header.mem headers "Origin"
+      && Cohttp.Header.mem headers "Access-Control-Request-Method"
+
 let respond_ok body =
   Cohttp_lwt_unix.Server.respond_string
     ~status:`OK
     ~headers:cors_headers
     ~body
     ()
+
+let handle_preflight request callback =
+  if is_preflight request then
+    respond_ok ""
+  else
+    callback ()
 
 (* Make ('a, 'e) result yojson-compatible *)
 
@@ -64,6 +86,7 @@ let synthesis_pipeline delta sigma assertions =
 
 let server =
   let callback _ request body =
+    handle_preflight request @@ fun () ->
     Lwt.bind
       ( body
           |> Cohttp_lwt.Body.to_string
@@ -183,7 +206,7 @@ let server =
           Cohttp_lwt_unix.Server.respond_not_found ()
   in
     Cohttp_lwt_unix.Server.create
-      ~mode:(`TCP (`Port 9090))
+      ~mode:(`TCP (`Port port))
       (Cohttp_lwt_unix.Server.make ~callback ())
 
 let () =
