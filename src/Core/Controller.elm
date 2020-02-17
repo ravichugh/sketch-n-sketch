@@ -666,7 +666,7 @@ showAllSamplingExperiments =
         )
         restricted
 
-    results : List Benchmark -> Result String (String, Int, Float)
+    results : List Benchmark -> Result String ((String, Int), (Int, Float))
     results bs =
       case Utils.projJusts (List.map extract bs) of
         Nothing ->
@@ -694,6 +694,9 @@ showAllSamplingExperiments =
                   name =
                     head.name
 
+                  n =
+                    List.length foundResults
+
                   randomExampleCount =
                     head.randomExampleCount
 
@@ -702,31 +705,39 @@ showAllSamplingExperiments =
                       Utils.count .success foundResults
 
                   denominator =
-                    toFloat <|
-                      List.length foundResults
+                    toFloat n
                 in
-                  Ok (name, randomExampleCount, numerator / denominator)
+                  Ok
+                    ( (name, n)
+                    , (randomExampleCount, numerator / denominator)
+                    )
 
-    showExperiment : List Benchmark -> String
+    showExperiment : List (List Benchmark) -> String
     showExperiment experiment =
-      let
-        numTrials =
-          List.length experiment
-      in
-        case results experiment of
-          Err e ->
-            e
+      case Utils.projOk (List.map results experiment) of
+        Err e ->
+          e
 
-          Ok (name, randomExampleCount, successPercent) ->
-            "<b>Number of Trials:</b> "
-              ++ toString numTrials ++ "<br>"
-              ++ "<b>Size of example set:</b> "
-              ++ toString randomExampleCount ++ "<br>"
-              ++ "<b>Success percent:</b> "
-              ++ Utils.formatFloat 2 (successPercent * 100) ++ "%<br>"
+        Ok experimentResults ->
+          case Utils.collapseEqual (List.map Tuple.first experimentResults) of
+            Nothing ->
+              "Inconsistent name and/or N"
+
+            Just (name, n) ->
+              experimentResults
+                |> List.map Tuple.second
+                |> List.map
+                     ( \(k, p) ->
+                         toString k
+                           ++ ", "
+                           ++ Utils.formatFloat 2 p
+                     )
+                |> String.join "<br>"
+                |> (++) "<b>k, p</b><br>"
+                |> (++) ("N = " ++ toString n ++ "<br>")
+                |> (++) (name ++ "<br>")
   in
-    List.map (List.map showExperiment >> String.join "<br>")
-      >> String.join "<hr>"
+    List.map showExperiment >> String.join "<hr>"
 
 msgRequestRandomSample : Int -> Msg
 msgRequestRandomSample n =

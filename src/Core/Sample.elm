@@ -11,7 +11,7 @@ import Set exposing (Set)
 
 trialCount : Int
 trialCount =
-  1
+  10
 
 maxNat : Int
 maxNat =
