@@ -644,8 +644,8 @@ msgReceiveBenchmark replications response =
 -- Random Sampling and Trials
 --------------------------------------------------------------------------------
 
-showSamplingExperiments : List (List Benchmark) -> String
-showSamplingExperiments =
+showAllSamplingExperiments : List (List (List Benchmark)) -> String
+showAllSamplingExperiments =
   let
     extract :
       Benchmark
@@ -725,33 +725,37 @@ showSamplingExperiments =
               ++ "<b>Success percent:</b> "
               ++ Utils.formatFloat 2 (successPercent * 100) ++ "%<br>"
   in
-    List.map showExperiment >> String.join "<hr>"
+    List.map (List.map showExperiment >> String.join "<br>")
+      >> String.join "<hr>"
 
-msgRequestRandomSample : Int -> Int -> Msg
-msgRequestRandomSample n k =
+msgRequestRandomSample : Int -> Msg
+msgRequestRandomSample n =
   NewModelAndCmd "Request Random Sample" <| \model ->
     ( model
-    , Random.generate msgReceiveRandomSample (Reference.benchmarkInputs n k)
+    , Random.generate msgReceiveRandomSample (Reference.benchmarkInputs n)
     )
 
-msgReceiveRandomSample : List (List Reference.BenchmarkInput) -> Msg
+msgReceiveRandomSample :
+  List (List (List Reference.BenchmarkInput)) -> Msg
 msgReceiveRandomSample bis =
   NewModelAndCmd "Receive Random Sample" <| \model ->
     ( model
     , bis
-        |> List.map (List.map benchmark >> Task.sequence)
+        |> List.map
+             (List.map (List.map benchmark >> Task.sequence) >> Task.sequence)
         |> Task.sequence
         |> Task.attempt msgReceiveRandomSampleResults
     )
 
-msgReceiveRandomSampleResults : Result String (List (List Benchmark)) -> Msg
+msgReceiveRandomSampleResults :
+  Result String (List (List (List Benchmark))) -> Msg
 msgReceiveRandomSampleResults response =
   NewModelAndCmd "Receive Random Sample Results" <| \model ->
     let
       output =
         case response of
-          Ok experiments ->
-            showSamplingExperiments experiments
+          Ok allExperiments ->
+            showAllSamplingExperiments allExperiments
 
           Err e ->
             "Could not generate trial table. " ++ e

@@ -849,26 +849,12 @@ menuBar model =
               "Run PBE Benchmark Suite (Base Case Sketch; n = 5)"
               (Core.Controller.msgRequestBenchmark 5 BaseCasePBESuite.suite)
           , simpleTextButton
-              "Run Random Sampling Experiment (k = 1)"
-              (Core.Controller.msgRequestRandomSample Core.Sample.trialCount 1)
-          , simpleTextButton
-              "Run Random Sampling Experiment (k = 2)"
-              (Core.Controller.msgRequestRandomSample Core.Sample.trialCount 2)
-          , simpleTextButton
-              "Run Random Sampling Experiment (k = 3)"
-              (Core.Controller.msgRequestRandomSample Core.Sample.trialCount 3)
-          , simpleTextButton
-              "Run Random Sampling Experiment (k = 4)"
-              (Core.Controller.msgRequestRandomSample Core.Sample.trialCount 4)
-          , simpleTextButton
-              "Run Random Sampling Experiment (k = 5)"
-              (Core.Controller.msgRequestRandomSample Core.Sample.trialCount 5)
-          , simpleTextButton
-              "Run Random Sampling Experiment (k = 7)"
-              (Core.Controller.msgRequestRandomSample Core.Sample.trialCount 7)
-          , simpleTextButton
-              "Run Random Sampling Experiment (k = 10)"
-              (Core.Controller.msgRequestRandomSample Core.Sample.trialCount 10)
+              ( "Run Random Sampling Experiment (N = "
+                  ++ toString Core.Sample.trialCount
+                  ++ ")"
+              )
+              ( Core.Controller.msgRequestRandomSample Core.Sample.trialCount
+              )
           ]
         ]
         -- [ [ simpleHtmlTextButton

@@ -11,7 +11,7 @@ import Set exposing (Set)
 
 trialCount : Int
 trialCount =
-  50
+  1
 
 maxNat : Int
 maxNat =
@@ -40,28 +40,40 @@ sequence gens =
         (\x -> Random.map ((::) x) (sequence rest))
         gen
 
+fold : (a -> b -> Generator b) -> b -> List a -> Generator b
+fold f baseAcc =
+  List.foldl
+    (\x -> Random.andThen (f x))
+    (constant baseAcc)
+
 --------------------------------------------------------------------------------
 -- Generic Sampling
 --------------------------------------------------------------------------------
 
-sampleUnique : Int -> Random.Generator a -> Random.Generator (Set a)
-sampleUnique k gen =
+sampleUnique : List (Int, Generator a) -> Generator (Set a)
+sampleUnique =
   let
-    helper acc =
-      if Set.size acc == k then
+    helper (total, gen) acc =
+      if Set.size acc >= total then
         constant acc
       else
         Random.andThen
-          (\x -> helper (Set.insert x acc))
+          (\x -> helper (total, gen) (Set.insert x acc))
           gen
   in
-    helper Set.empty
+    fold helper Set.empty
 
-trial : Int -> Int -> (a -> b) -> Generator a -> Generator (Set (Set (a, b)))
-trial n k ref =
-  Random.map (\x -> (x, ref x))
-    >> sampleUnique k
-    >> sampleUnique n
+io : (a -> b) -> Generator a -> Generator (a, b)
+io f =
+  Random.map (\x -> (x, f x))
+
+trial :
+  Int -> Int -> (a -> b) -> Generator a -> Generator a
+    -> Generator (Set (Set (a, b)))
+trial n k ref input baseCase =
+  sampleUnique
+    [ (n, sampleUnique [(1, io ref baseCase), (k, io ref input)])
+    ]
 
 --------------------------------------------------------------------------------
 -- Particular Sampling

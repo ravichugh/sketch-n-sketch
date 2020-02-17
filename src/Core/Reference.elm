@@ -33,10 +33,12 @@ type alias Reference a b =
   { name : String
   , functionName : String
   , args : Int
+  , kMax : Int
   , suiteInfo : SuiteInfo
   , da : Denotation a
   , db : Denotation b
   , input : Generator a
+  , baseCase : Generator a
   , func : a -> b
   }
 
@@ -44,10 +46,12 @@ list_stutter =
   { name = "list_stutter"
   , functionName = "listStutter"
   , args = 1
+  , kMax = 5
   , suiteInfo = si PBESuite.list_stutter
   , da = Denotation.simpleList Denotation.int
   , db = Denotation.simpleList Denotation.int
   , input = Sample.natList
+  , baseCase = Sample.constant []
   , func =
       let
         f : List Int -> List Int
@@ -66,10 +70,12 @@ list_take =
   { name = "list_take"
   , functionName = "listTake"
   , args = 2
+  , kMax = 20
   , suiteInfo = si PBESuite.list_take
   , da = Denotation.args2 Denotation.int (Denotation.simpleList Denotation.int)
   , db = Denotation.simpleList Denotation.int
   , input = Random.pair Sample.nat Sample.natList
+  , baseCase = Sample.constant (0, [])
   , func =
       let
         f : (Int, List Int) -> List Int
@@ -105,30 +111,41 @@ examples functionName args da db =
           ++ String.join
                "\n, "
                (List.map (\(x, y) -> "(" ++ da x ++ ", " ++ db y ++ ")") ios)
-          ++ "\n, (0, [1,2], []), (2, [], [])]"
+          ++ "\n]"
       )
   in
     Random.map (Set.toList >> List.map (Set.toList >> extract))
 
 createBenchmarkInput :
-  Int -> Int -> Reference a b -> Generator (List BenchmarkInput)
-createBenchmarkInput
- n k { name, functionName, args, suiteInfo, da, db, input, func } =
-  Random.map
-    ( List.map <|
-        \(exampleCount, exampleString) ->
-          { name = name
-          , definitions = suiteInfo.definitions
-          , fullExamples = suiteInfo.fullExamples
-          , restrictedExamples =
-              Just { code = exampleString, count = exampleCount }
-          }
-    )
-    ( examples functionName args da db (Sample.trial n k func input)
-    )
+  Int -> Reference a b -> Generator (List (List BenchmarkInput))
+createBenchmarkInput n
+ { name, functionName, args, kMax, suiteInfo, da, db, input, baseCase, func } =
+  List.range 1 kMax
+    |> List.map
+         ( \k ->
+             Random.map
+               ( List.map <|
+                   \(exampleCount, exampleString) ->
+                     { name = name
+                     , definitions = suiteInfo.definitions
+                     , fullExamples = suiteInfo.fullExamples
+                     , restrictedExamples =
+                         Just { code = exampleString, count = exampleCount }
+                     }
+               )
+               ( examples
+                   functionName
+                   args
+                   da
+                   db
+                   (Sample.trial n k func input baseCase)
+               )
+         )
+  |> Sample.sequence
 
-benchmarkInputs : Int -> Int -> Generator (List (List BenchmarkInput))
-benchmarkInputs n k =
+benchmarkInputs : Int -> Generator (List (List (List BenchmarkInput)))
+benchmarkInputs n =
   Sample.sequence
-    [ createBenchmarkInput n k list_take
+    [ createBenchmarkInput n list_stutter
+    , createBenchmarkInput n list_take
     ]

@@ -30,6 +30,12 @@ let respond_ok body =
     ~body
     ()
 
+let respond_not_found =
+  Cohttp_lwt_unix.Server.respond_string
+    ~status:`Not_found
+    ~headers:cors_headers
+    ()
+
 let handle_preflight request callback =
   if is_preflight request then
     respond_ok ""
