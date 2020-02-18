@@ -138,7 +138,7 @@ deleteActionsAndNewValuesForSelection { valueOfInterestTagged, stringTaggedWithP
   case stringTaggedWithProjectionPathsResult of
     Ok taggedString ->
       let
-        selectedPathSet = TSEFLLPSelection.selectedPolyPathsToProjectionPathSet selectedPolyPaths valueOfInterestTagged taggedString
+        selectedPathSet = TSEFLLPSelection.selectedPolyPathsToProjectionPathSet selectedPolyPaths taggedString
 
         actions =
           selectedPathSet

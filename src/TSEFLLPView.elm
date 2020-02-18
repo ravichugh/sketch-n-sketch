@@ -28,9 +28,10 @@ import TSEFLLPSelection
 functionPickerAndEditor : TSEFLLPTypes.ModelState -> List (Html Msg)
 functionPickerAndEditor modelState =
   if modelState.showWidgets then
-    -- [ stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
+    [ stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
+    , Html.pre [] [text "\n"] -- spacing
     -- , Html.div [] [text "Selected poly paths: ", text (polyPathsToString modelState.selectedPolyPaths)]
-    [ Html.div
+    , Html.div
         [ Attr.style [("padding", "1em")] ]
         [ structuredEditor modelState ]
     -- , actionAssociationsDebug modelState.stringProjectionPathToSpecificActions modelState.stringTaggedWithProjectionPathsResult
@@ -305,6 +306,76 @@ plainStringView stringTaggedWithProjectionPathsResult =
       Html.div [Attr.style [("font-size", "18px"), ("color", "#e00")]] [text err]
 
 
+selectionAssignmentStats selectionAssignments pixelPoly valueOfInterestTagged =
+  let
+    (_, nonOccludedShapeSet) = TSEFLLPSelection.findNonOccludedPathSetAndShapeSet selectionAssignments pixelPoly
+
+    easilySelectablePathSet =
+      nonOccludedShapeSet
+      |> Set.toList
+      |> Utils.filterMap (\shape ->
+        case TSEFLLPSelection.shapeToPathSet shape selectionAssignments |> Set.toList of
+          [path] -> Just path
+          _      -> Nothing
+      )
+      |> Set.fromList
+
+    onClickableShapesWithMultiplePathsPathSet =
+      nonOccludedShapeSet
+      |> Set.toList
+      |> List.concatMap (\shape ->
+        case TSEFLLPSelection.shapeToPathSet shape selectionAssignments |> Set.toList of
+          []    -> []
+          [_]   -> []
+          paths -> paths
+      )
+      |> Set.fromList
+
+    onlyOnClickableShapesWithMultiplePathsPathSet =
+      Set.diff onClickableShapesWithMultiplePathsPathSet easilySelectablePathSet
+
+    allPathsSet =
+      valueOfInterestTagged
+      |> foldTaggedValue Set.empty (\taggedValue pathSet ->
+        Set.union taggedValue.paths pathSet
+      )
+
+    unselectablePathSet =
+      Set.diff allPathsSet (Set.union easilySelectablePathSet onlyOnClickableShapesWithMultiplePathsPathSet)
+  in
+  [ Html.div [] [text "Value's path count: ",                         text (toString <| Set.size allPathsSet)]
+  , Html.div [] [text "Occluded or missing paths: ",                  text (pathSetToString unselectablePathSet)]
+  , Html.div [] [text "Paths without unique shape: ",                 text (pathSetToString onlyOnClickableShapesWithMultiplePathsPathSet)]
+  , Html.div [] [text "Percentage uniquely selectable shape paths: ", text (toString <| 100.0 * toFloat (Set.size easilySelectablePathSet) / toFloat (Set.size allPathsSet)), text "%"]
+  ]
+
+insertActionStats projectionPathToSpecificActions insertActionLocationsAndMaybePolyPath =
+  let
+    insertActions =
+      projectionPathToSpecificActions
+      |> Dict.values
+      |> Utils.unionAll
+      |> Set.toList
+      |> List.filter (specificActionMaybeChangeType >> (==) (Just Insert))
+
+    insertValueSet =
+      insertActions
+      |> Utils.filterMap specificActionMaybeNewValue
+      |> Set.fromList
+
+      -- case Set.toList actions |> List.map specificActionMaybeNewValue |> Utils.dedup of
+      --   [Just newVal] -> Controller.msgTSEFLLPSelectNewValue newVal
+      --   _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath actions
+
+  in
+  [ Html.div [] [text "Counting \"reasonable\" inserts: START HERE AND DEFINE IT"]
+  , Html.div [] [text "Possible insert value count: ",                         text (toString <| Set.size allPathsSet)]
+  , Html.div [] [text "Occluded or missing paths: ",                  text (pathSetToString unselectablePathSet)]
+  , Html.div [] [text "Paths without unique shape: ",                 text (pathSetToString onlyOnClickableShapesWithMultiplePathsPathSet)]
+  , Html.div [] [text "Percentage uniquely selectable shape paths: ", text (toString <| 100.0 * toFloat (Set.size easilySelectablePathSet) / toFloat (Set.size allPathsSet)), text "%"]
+  ]
+
+
 structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
 structuredEditor modelState =
   let
@@ -329,7 +400,7 @@ structuredEditor modelState =
           |> Utils.filterJusts
           |> Utils.dedup
 
-        selectionAssignments     = TSEFLLPSelection.associateProjectionPathsWithShapes valueOfInterestTagged pixelPoly
+        selectionAssignments     = TSEFLLPSelection.associateProjectionPathsWithShapes pixelPoly
         projectionPathToShapeSet = TSEFLLPSelection.makeProjectionPathToShapeSet selectionAssignments
 
         -- Projection paths and shapes in output string but with no hover region b/c precisely
@@ -423,8 +494,8 @@ structuredEditor modelState =
               Controller.msgTSEFLLPDeselectAllPolyPaths
 
 
-        pixelShapeToDivs : List (Html.Attribute Msg) -> TSEFLLPPolys.PixelShape -> List (Html Msg)
-        pixelShapeToDivs extraAttrs ({ bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout } as pixelShape) =
+        pixelShapeToDivs : (TSEFLLPPolys.PixelShape -> Maybe String) -> List (Html.Attribute Msg) -> TSEFLLPPolys.PixelShape -> List (Html Msg)
+        pixelShapeToDivs shapeToMaybeLabel extraAttrs ({ bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout } as pixelShape) =
           let
             (left, top, right, bot) = bounds
             (startX, firstLineBot)  = rightBotCornerOfLeftTopCutout
@@ -698,18 +769,22 @@ structuredEditor modelState =
           -- , Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))
           -- , Html.Events.onMouseOut Controller.msgTSEFLLPMouseOut
           ] <|
-          -- pixelPolyToDivs [Attr.style [("border", "solid black 1px"), ("margin", "-1px")]] pixelPoly ++
-          (hoveredShapes  |> List.concatMap (pixelShapeToDivs [Attr.style [("background-color", hoverColor)]])) ++ -- draw highlights under
-          (selectedShapes |> List.concatMap (pixelShapeToDivs [Attr.style [("background-color", selectedColor)]])) ++ -- draw highlights under
+          -- (pixelPoly |> TSEFLLPPolys.flatten |> List.map TSEFLLPPolys.polyShape |> List.concatMap (pixelShapeToDivs (always Nothing) [Attr.style [("border", "solid black 1px")]])) ++
+          (hoveredShapes  |> List.concatMap (pixelShapeToDivs (always Nothing) [Attr.style [("background-color", hoverColor)]])) ++ -- draw highlights under
+          (selectedShapes |> List.concatMap (pixelShapeToDivs (always Nothing) [Attr.style [("background-color", selectedColor)]])) ++ -- draw highlights under
+          -- [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx), ("position", "absolute"), ("top", "0px"), ("left", "0px"), ("color", "grey")]] [text (taggedStringToNormalString taggedString)] ] ++
           [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx), ("position", "absolute"), ("top", "0px"), ("left", "0px")]] [text (taggedStringToNormalString taggedString)] ] ++
-          (hoveredShapes  |> List.concatMap (pixelShapeToDivs [])) ++ -- draw labels on top
-          (selectedShapes |> List.concatMap (pixelShapeToDivs [])) ++ -- draw labels on top
+          (hoveredShapes  |> List.concatMap (pixelShapeToDivs shapeToMaybeLabel [])) ++ -- draw labels on top
+          (selectedShapes |> List.concatMap (pixelShapeToDivs shapeToMaybeLabel [])) ++ -- draw labels on top
           [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx)]]                                                            [text (taggedStringToNormalString taggedString)] -- For spacing reasons.
+          , Html.pre [] [text "\n"] -- spacing
           , Html.div [] [text "Hovered value paths: ", text (pathSetToString hoveredPathSet)]
           , Html.pre [] [text "Hovered values:\n  ", text (hoveredPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
           , Html.div [] [text "Selected value paths: ", text (pathSetToString selectedPathSet)]
           , Html.pre [] [text "Selected values:\n  ", text (selectedPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
-          , Html.div (perhapsClickAttrs ++ [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))]) []
+          ] ++
+          selectionAssignmentStats selectionAssignments pixelPoly valueOfInterestTagged ++
+          [ Html.div (perhapsClickAttrs ++ [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))]) []
           ] ++ buttonsAndMenus ++ perhapsTextEditBox -- Have to draw these on top of the click catcher above.
 
     Err err ->

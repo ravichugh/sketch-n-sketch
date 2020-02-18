@@ -1,4 +1,4 @@
-module TSEFLLPSelection exposing (SelectionAssignments, selectedPolyPathsToProjectionPathSet, associateProjectionPathsWithShapes, findOccludedPathSetAndShapes, maybeShapeByPolyPath, shapeToMaybePolyPath, mostRelevantShapeAtPoint, occludedShapesAtPoint, shapeToPathSet, shapeToOccludedPathSet, makeProjectionPathToShapeSet)
+module TSEFLLPSelection exposing (SelectionAssignments, selectedPolyPathsToProjectionPathSet, associateProjectionPathsWithShapes, findOccludedPathSetAndShapes, findNonOccludedPathSetAndShapeSet, maybeShapeByPolyPath, shapeToMaybePolyPath, mostRelevantShapeAtPoint, occludedShapesAtPoint, shapeToPathSet, shapeToOccludedPathSet, makeProjectionPathToShapeSet)
 
 -- Module for associating overlay shapes with parts of the value of interest (projection paths).
 --
@@ -17,8 +17,8 @@ type alias SelectionAssignments = Dict PixelShape (Set ProjectionPath)
 
 
 -- Only need polyPaths between runs (to not lose selection for small changes like number scrubbing), otherwise polyPaths are immediately turned into shapes
-selectedPolyPathsToProjectionPathSet : List PolyPath -> TaggedValue -> StringTaggedWithProjectionPaths -> Set ProjectionPath
-selectedPolyPathsToProjectionPathSet selectedPolyPaths valueOfInterestTagged taggedString =
+selectedPolyPathsToProjectionPathSet : List PolyPath -> StringTaggedWithProjectionPaths -> Set ProjectionPath
+selectedPolyPathsToProjectionPathSet selectedPolyPaths taggedString =
   let
     pixelPoly = TSEFLLPPolys.taggedStringToPixelPoly 1 1 taggedString
 
@@ -28,7 +28,7 @@ selectedPolyPathsToProjectionPathSet selectedPolyPaths valueOfInterestTagged tag
       |> Utils.filterJusts
       |> Utils.dedup
 
-    selectionAssignments = associateProjectionPathsWithShapes valueOfInterestTagged pixelPoly
+    selectionAssignments = associateProjectionPathsWithShapes pixelPoly
   in
   selectedShapes
   |> List.map (flip shapeToPathSet selectionAssignments)
@@ -40,10 +40,10 @@ selectedPolyPathsToProjectionPathSet selectedPolyPaths valueOfInterestTagged tag
 -- Only shapes with non-empty pathsets are included. (And findNonOccludedPathSet below assumes this.)
 --
 -- Some subvalue paths may be occluded if their poly is entirely covered or has zero area.
-associateProjectionPathsWithShapes : TaggedValue -> PixelPoly -> SelectionAssignments
-associateProjectionPathsWithShapes valueOfInterestTagged ((Poly { pathSet, children }) as pixelPoly) =
+associateProjectionPathsWithShapes : PixelPoly -> SelectionAssignments
+associateProjectionPathsWithShapes ((Poly { pathSet, children }) as pixelPoly) =
   let
-    recurse = associateProjectionPathsWithShapes valueOfInterestTagged
+    recurse = associateProjectionPathsWithShapes
     shape = polyShape pixelPoly
 
     associationDictHere =
@@ -66,16 +66,25 @@ findOccludedPathSetAndShapes selectionAssignments pixelPoly =
     allPathsSet  = Utils.unionAll <| Dict.values selectionAssignments
     allShapesSet = Set.fromList   <| Dict.keys   selectionAssignments
 
+    (nonOccludedPathSet, nonOccludedShapeSet) = findNonOccludedPathSetAndShapeSet selectionAssignments pixelPoly
+  in
+  ( Set.diff allPathsSet  nonOccludedPathSet
+  , Set.diff allShapesSet nonOccludedShapeSet |> Set.toList
+  )
+
+
+findNonOccludedPathSetAndShapeSet : SelectionAssignments -> PixelPoly -> (Set ProjectionPath, Set PixelShape)
+findNonOccludedPathSetAndShapeSet selectionAssignments pixelPoly =
+  let
     (nonOccludedShapeSet, _) = findNonOccludedShapeSet selectionAssignments pixelPoly
     nonOccludedPathSet =
       nonOccludedShapeSet
       |> Set.toList
       |> List.map (flip Utils.dictGetSet selectionAssignments)
       |> Utils.unionAll
-
   in
-  ( Set.diff allPathsSet  nonOccludedPathSet
-  , Set.diff allShapesSet nonOccludedShapeSet |> Set.toList
+  ( nonOccludedPathSet
+  , nonOccludedShapeSet
   )
 
 

@@ -479,7 +479,7 @@ valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInt
 
 -- 1. Find shapes presumably corresponding to prior element, insert location, and following element:
 --      a. max path < targetPath and presumably in same container
---      b. path == targtPath
+--      b. path == targetPath
 --      c. min path > targetPath and presumably in same container
 -- 2. Produce a candidate point for each shape (bot right for before, top left for at and after).
 -- 3. Use lowest, rightmost point.
