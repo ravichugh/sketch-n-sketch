@@ -11,11 +11,11 @@ import Set exposing (Set)
 
 trialCount : Int
 trialCount =
-  10
+  4
 
 maxNat : Int
 maxNat =
-  1
+  3
 
 maxListLength : Int
 maxListLength =
@@ -104,11 +104,22 @@ io f =
   Random.map (\x -> (x, f x))
 
 trial :
-  Int -> Int -> (a -> b) -> Generator a -> Generator a
+  Int -> Int -> (a -> b) -> Generator a -> Maybe (Generator a)
     -> Generator (List (Set (a, b)))
-trial n k ref input baseCase =
-  Random.list n <|
-    Random.sampleUnique
-      [ (1, io ref baseCase)
-      , (k, io ref input)
+trial n k ref input maybeBaseCase =
+  let
+    amounts =
+      ( case maybeBaseCase of
+          Nothing ->
+            []
+
+          Just baseCase ->
+            [ (1, io ref baseCase)
+            ]
+      ) ++
+      [ (k, io ref input)
       ]
+  in
+    amounts
+      |> Random.sampleUnique
+      |> Random.list n

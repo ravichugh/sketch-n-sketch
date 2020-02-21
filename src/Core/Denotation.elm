@@ -7,6 +7,13 @@ import Utils
 type alias Denotation a =
   (a -> String)
 
+bool : Denotation Bool
+bool b =
+  if b then
+    "T ()"
+  else
+    "F ()"
+
 int : Denotation Int
 int =
   Utils.iterate
