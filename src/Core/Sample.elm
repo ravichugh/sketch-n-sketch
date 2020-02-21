@@ -2,7 +2,7 @@ module Core.Sample exposing
   ( ..
   )
 
-import Random exposing (Generator)
+import MyRandom as Random exposing (Generator)
 import Set exposing (Set)
 
 --------------------------------------------------------------------------------
@@ -15,53 +15,89 @@ trialCount =
 
 maxNat : Int
 maxNat =
+  1
+
+maxListLength : Int
+maxListLength =
   5
 
-maxNatListLength : Int
-maxNatListLength =
-  5
-
 --------------------------------------------------------------------------------
--- Helpers
+-- Enumeration Sampling
 --------------------------------------------------------------------------------
 
-constant : a -> Generator a
-constant x =
-  Random.map (\_ -> x) Random.bool
+-- Generic
 
-sequence : List (Generator a) -> Generator (List a)
-sequence gens =
-  case gens of
-    [] ->
-      constant []
+weight : Int -> Int -> Float
+weight elementSize size =
+  toFloat <|
+    elementSize ^ size
 
-    gen :: rest ->
-      Random.andThen
-        (\x -> Random.map ((::) x) (sequence rest))
-        gen
+all : a -> (Int -> List a) -> Int -> Int -> ((Float, a), List (Float, a))
+all base shapes elementSize maxSize =
+  ( (1, base)
+  , List.concatMap
+      ( \size ->
+          size
+            |> shapes
+            |> List.map (\shape -> (weight elementSize size, shape))
+      )
+      (List.range 1 maxSize)
+  )
 
-fold : (a -> b -> Generator b) -> b -> List a -> Generator b
-fold f baseAcc =
-  List.foldl
-    (\x -> Random.andThen (f x))
-    (constant baseAcc)
+-- Semi-Generic
+
+type ListShape
+  = Nil
+  | Cons ListShape
+
+listBase : ListShape
+listBase =
+  Nil
+
+listShapes : Int -> List ListShape
+listShapes n =
+  if n == 0 then
+    [listBase]
+  else
+    List.map Cons (listShapes (n - 1))
+
+listFill : a -> ListShape -> List a
+listFill x shape =
+  case shape of
+    Nil ->
+      []
+
+    Cons rest ->
+      x :: listFill x rest
+
+list : Int -> Generator a -> Generator (List a)
+list elementSize elementGen =
+  all listBase listShapes elementSize maxListLength
+    |> uncurry Random.weighted
+    |> Random.map (listFill elementGen)
+    |> Random.andThen Random.sequence
+
+-- Particular
+
+nat : Generator Int
+nat =
+  Random.int 0 maxNat
+
+bool : Generator Bool
+bool =
+  Random.bool
+
+natList : Generator (List Int)
+natList =
+  list (maxNat + 1) nat
+
+boolList : Generator (List Bool)
+boolList =
+  list 2 bool
 
 --------------------------------------------------------------------------------
--- Generic Sampling
+-- IO Sampling
 --------------------------------------------------------------------------------
-
-sampleUnique : List (Int, Generator a) -> Generator (Set a)
-sampleUnique =
-  let
-    helper (total, gen) acc =
-      if Set.size acc >= total then
-        constant acc
-      else
-        Random.andThen
-          (\x -> helper (total, gen) (Set.insert x acc))
-          gen
-  in
-    fold helper Set.empty
 
 io : (a -> b) -> Generator a -> Generator (a, b)
 io f =
@@ -69,21 +105,10 @@ io f =
 
 trial :
   Int -> Int -> (a -> b) -> Generator a -> Generator a
-    -> Generator (Set (Set (a, b)))
+    -> Generator (List (Set (a, b)))
 trial n k ref input baseCase =
-  sampleUnique
-    [ (n, sampleUnique [(1, io ref baseCase), (k, io ref input)])
-    ]
-
---------------------------------------------------------------------------------
--- Particular Sampling
---------------------------------------------------------------------------------
-
-nat : Generator Int
-nat =
-  Random.int 0 maxNat
-
-natList : Generator (List Int)
-natList =
-  Random.int 0 maxNatListLength
-    |> Random.andThen (\len -> Random.list len nat)
+  Random.list n <|
+    Random.sampleUnique
+      [ (1, io ref baseCase)
+      , (k, io ref input)
+      ]

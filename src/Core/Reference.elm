@@ -3,7 +3,7 @@ module Core.Reference exposing
   , benchmarkInputs
   )
 
-import Random exposing (Generator)
+import MyRandom as Random exposing (Generator)
 import Set exposing (Set)
 
 import PBESuite
@@ -51,7 +51,7 @@ list_stutter =
   , da = Denotation.simpleList Denotation.int
   , db = Denotation.simpleList Denotation.int
   , input = Sample.natList
-  , baseCase = Sample.constant []
+  , baseCase = Random.constant []
   , func =
       let
         f : List Int -> List Int
@@ -75,7 +75,7 @@ list_take =
   , da = Denotation.args2 Denotation.int (Denotation.simpleList Denotation.int)
   , db = Denotation.simpleList Denotation.int
   , input = Random.pair Sample.nat Sample.natList
-  , baseCase = Sample.constant (0, [])
+  , baseCase = Random.constant (0, [])
   , func =
       let
         f : (Int, List Int) -> List Int
@@ -97,7 +97,7 @@ type alias BenchmarkInput =
   }
 
 examples :
-  String -> Int -> Denotation a -> Denotation b -> Generator (Set (Set (a, b)))
+  String -> Int -> Denotation a -> Denotation b -> Generator (List (Set (a, b)))
     -> Generator (List (Int, String))
 examples functionName args da db =
   let
@@ -114,7 +114,8 @@ examples functionName args da db =
           ++ "\n]"
       )
   in
-    Random.map (Set.toList >> List.map (Set.toList >> extract))
+    -- Random.map (Set.toList >> List.map (Set.toList >> extract))
+    Random.map (List.map (Set.toList >> extract))
 
 createBenchmarkInput :
   Int -> Reference a b -> Generator (List (List BenchmarkInput))
@@ -141,11 +142,11 @@ createBenchmarkInput n
                    (Sample.trial n k func input baseCase)
                )
          )
-  |> Sample.sequence
+  |> Random.sequence
 
 benchmarkInputs : Int -> Generator (List (List (List BenchmarkInput)))
 benchmarkInputs n =
-  Sample.sequence
+  Random.sequence
     [ createBenchmarkInput n list_stutter
     , createBenchmarkInput n list_take
     ]

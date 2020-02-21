@@ -6,7 +6,7 @@ module Core.Controller exposing
   , msgRequestRandomSample
   )
 
-import Random
+import MyRandom as Random
 import Dict exposing (Dict)
 import Task exposing (Task)
 
