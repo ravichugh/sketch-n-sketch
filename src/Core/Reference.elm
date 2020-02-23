@@ -3,6 +3,7 @@ module Core.Reference exposing
   , benchmarkInputs
   , listPairwiseSwap
   , listEvenParity
+  , listSortedInsert
   )
 
 import MyRandom as Random exposing (Generator)
@@ -165,49 +166,6 @@ list_append =
         f
   }
 
-list_stutter =
-  { name = "list_stutter"
-  , functionName = "listStutter"
-  , args = 1
-  , kMax = 5
-  , suiteInfo = si PBESuite.list_stutter
-  , dIn = Denotation.simpleList Denotation.int
-  , dOut = Denotation.simpleList Denotation.int
-  , input = Sample.natList
-  , baseCase = Just (Random.constant [])
-  , func =
-      let
-        f : List Int -> List Int
-        f xs =
-          case xs of
-            [] ->
-              []
-
-            y :: ys ->
-              y :: y :: f ys
-      in
-        f
-  }
-
-list_take =
-  { name = "list_take"
-  , functionName = "listTake"
-  , args = 2
-  , kMax = 20
-  , suiteInfo = si PBESuite.list_take
-  , dIn = Denotation.args2 Denotation.int (Denotation.simpleList Denotation.int)
-  , dOut = Denotation.simpleList Denotation.int
-  , input = Random.pair Sample.nat Sample.natList
-  , baseCase = Just (Random.constant (0, []))
-  , func =
-      let
-        f : (Int, List Int) -> List Int
-        f (n, xs) =
-          List.take n xs
-      in
-        f
-  }
-
 list_drop =
   { name = "list_drop"
   , functionName = "listDrop"
@@ -350,7 +308,7 @@ list_length =
 list_nth =
   { name = "list_nth"
   , functionName = "listNth"
-  , args = 1
+  , args = 2
   , kMax = 20
   , suiteInfo = si PBESuite.list_nth
   , dIn = Denotation.args2 (Denotation.simpleList Denotation.int) Denotation.int
@@ -488,6 +446,163 @@ list_rev_tailcall =
         f
   }
 
+list_snoc =
+  { name = "list_snoc"
+  , functionName = "listSnoc"
+  , args = 2
+  , kMax = 12
+  , suiteInfo = si PBESuite.list_snoc
+  , dIn = Denotation.args2 (Denotation.simpleList Denotation.int) Denotation.int
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Random.pair Sample.natList Sample.nat
+  , baseCase = Just (Random.constant ([], 0))
+  , func =
+      let
+        f : (List Int, Int) -> List Int
+        f (xs, n) =
+          xs ++ [n]
+      in
+        f
+  }
+
+list_sort_sorted_insert =
+  { name = "list_sort_sorted_insert"
+  , functionName = "listSortSortedInsert"
+  , args = 1
+  , kMax = 12
+  , suiteInfo = si PBESuite.list_sort_sorted_insert
+  , dIn = Denotation.simpleList Denotation.int
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Sample.natList
+  , baseCase = Just (Random.constant [])
+  , func =
+      let
+        f : List Int -> List Int
+        f xs =
+          List.sort xs
+      in
+        f
+  }
+
+listSortedInsert : comparable -> List comparable -> List comparable
+listSortedInsert y xs =
+  case xs of
+    [] ->
+      [y]
+
+    head :: tail ->
+      if y < head then
+        y :: xs
+      else if y == head then
+        xs
+      else
+        head :: (listSortedInsert y tail)
+
+list_sorted_insert =
+  { name = "list_sorted_insert"
+  , functionName = "listSortedInsert"
+  , args = 2
+  , kMax = 12
+  , suiteInfo = si PBESuite.list_sorted_insert
+  , dIn = Denotation.args2 (Denotation.simpleList Denotation.int) Denotation.int
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Random.pair Sample.natList Sample.nat
+  , baseCase = Just (Random.constant ([], 0))
+  , func =
+      let
+        f : (List Int, Int) -> List Int
+        f (xs, n) =
+          listSortedInsert n xs
+      in
+        f
+  }
+
+list_stutter =
+  { name = "list_stutter"
+  , functionName = "listStutter"
+  , args = 1
+  , kMax = 5
+  , suiteInfo = si PBESuite.list_stutter
+  , dIn = Denotation.simpleList Denotation.int
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Sample.natList
+  , baseCase = Just (Random.constant [])
+  , func =
+      let
+        f : List Int -> List Int
+        f xs =
+          case xs of
+            [] ->
+              []
+
+            y :: ys ->
+              y :: y :: f ys
+      in
+        f
+  }
+
+list_sum =
+  { name = "list_sum"
+  , functionName = "listSum"
+  , args = 1
+  , kMax = 7
+  , suiteInfo = si PBESuite.list_sum
+  , dIn = Denotation.simpleList Denotation.int
+  , dOut = Denotation.int
+  , input = Sample.natList
+  , baseCase = Nothing
+  , func =
+      let
+        f : List Int -> Int
+        f xs =
+          List.sum xs
+      in
+        f
+  }
+
+list_take =
+  { name = "list_take"
+  , functionName = "listTake"
+  , args = 2
+  , kMax = 20
+  , suiteInfo = si PBESuite.list_take
+  , dIn = Denotation.args2 Denotation.int (Denotation.simpleList Denotation.int)
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Random.pair Sample.nat Sample.natList
+  , baseCase = Just (Random.constant (0, []))
+  , func =
+      let
+        f : (Int, List Int) -> List Int
+        f (n, xs) =
+          List.take n xs
+      in
+        f
+  }
+
+list_tl =
+  { name = "list_tl"
+  , functionName = "listTail"
+  , args = 1
+  , kMax = 5
+  , suiteInfo = si PBESuite.list_tl
+  , dIn = Denotation.simpleList Denotation.int
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Sample.natList
+  , baseCase = Nothing
+  , func =
+      let
+        f : List Int -> List Int
+        f xs =
+          case xs of
+            [] ->
+              []
+
+            _ :: tail ->
+              tail
+      in
+        f
+  }
+
 --------------------------------------------------------------------------------
 -- Benchmarking Interface
 --------------------------------------------------------------------------------
@@ -557,11 +672,9 @@ benchmarkInputs n =
     , createBenchmarkInput n bool_neg
     , createBenchmarkInput n bool_xor
 
-    , createBenchmarkInput n list_stutter
-    , createBenchmarkInput n list_take
     , createBenchmarkInput n list_append
 --    , createBenchmarkInput n list_concat
-    , createBenchmarkInput n list_drop
+--*    , createBenchmarkInput n list_drop
     , createBenchmarkInput n list_even_parity
 --    , createBenchmarkInput n list_filter
 --    , createBenchmarkInput n list_fold
@@ -570,21 +683,21 @@ benchmarkInputs n =
     , createBenchmarkInput n list_last
     , createBenchmarkInput n list_length
 --    , createBenchmarkInput n list_map
-    , createBenchmarkInput n list_nth
-    , createBenchmarkInput n list_pairwise_swap
+--*    , createBenchmarkInput n list_nth
+----    , createBenchmarkInput n list_pairwise_swap
 
-    , createBenchmarkInput n list_rev_append
-    , createBenchmarkInput n list_rev_fold
-    , createBenchmarkInput n list_rev_snoc
-    , createBenchmarkInput n list_rev_tailcall
+----    , createBenchmarkInput n list_rev_append
+----    , createBenchmarkInput n list_rev_fold
+----    , createBenchmarkInput n list_rev_snoc
+----    , createBenchmarkInput n list_rev_tailcall
+----    , createBenchmarkInput n list_snoc
+----    , createBenchmarkInput n list_sort_sorted_insert
+----    , createBenchmarkInput n list_sorted_insert
+----    , createBenchmarkInput n list_stutter
+----    , createBenchmarkInput n list_sum
+----    , createBenchmarkInput n list_take
+----    , createBenchmarkInput n list_tl
     ]
---    , createBenchmarkInput n list_snoc
---    , createBenchmarkInput n list_sort_sorted_insert
---    , createBenchmarkInput n list_sorted_insert
---    , createBenchmarkInput n list_stutter
---    , createBenchmarkInput n list_sum
---    , createBenchmarkInput n list_take
---    , createBenchmarkInput n list_tl
 --
 --    , createBenchmarkInput n nat_iseven
 --    , createBenchmarkInput n nat_max
