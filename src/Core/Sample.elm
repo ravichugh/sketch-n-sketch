@@ -11,7 +11,7 @@ import Set exposing (Set)
 
 trialCount : Int
 trialCount =
-  4
+  5
 
 maxNat : Int
 maxNat =
@@ -19,7 +19,7 @@ maxNat =
 
 maxListLength : Int
 maxListLength =
-  5
+  3
 
 --------------------------------------------------------------------------------
 -- Enumeration Sampling

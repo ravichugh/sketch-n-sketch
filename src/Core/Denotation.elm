@@ -20,6 +20,15 @@ int =
     (\acc -> "S (" ++ acc ++ ")")
     "Z ()"
 
+opt : Denotation a -> Denotation (Maybe a)
+opt da mx =
+  case mx of
+    Nothing ->
+      "None ()"
+
+    Just x ->
+      "Some (" ++ da x ++ ")"
+
 list : String -> String -> Denotation a -> Denotation (List a)
 list cons nil da =
   List.foldl
