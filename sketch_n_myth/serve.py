@@ -1,6 +1,7 @@
 from http.server import *
 import subprocess
 
+PORT = 9090
 TIMEOUT = 5
 
 TIMED_OUT_STRING = \
@@ -59,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond_ok(TIMED_OUT_STRING)
 
 def run(server_class=HTTPServer, handler_class=Handler):
-    server_address = ('', 9090)
+    server_address = ('', PORT)
     httpd = server_class(server_address, handler_class)
     httpd.serve_forever()
 
