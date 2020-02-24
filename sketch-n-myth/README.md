@@ -20,7 +20,7 @@ Sketch-n-Myth executable) will be hosted on port 9090.
 ***To build without running:***
 From the root directory of the project (where this `README` is), run `make
 build`.  This command creates the Sketch-n-Myth executable in
-`_build/default/src/main.exe`, which is accessible by the `snm` symlink in the
+`_build/default/src/main.exe`, which is accessible via the `snm` symlink in the
 root directory of the project.
 
 ## Module Conventions
