@@ -49,7 +49,6 @@ class Handler(BaseHTTPRequestHandler):
                 ["./snm", command, arg],
                 timeout=TIMEOUT
             )
-            print(output)
             self.respond_ok_bytes(output)
         except subprocess.CalledProcessError as cpe:
             if cpe.returncode == 2:

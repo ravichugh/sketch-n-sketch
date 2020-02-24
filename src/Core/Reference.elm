@@ -620,9 +620,9 @@ examples :
 examples functionName args dIn dOut =
   let
     extract ios =
-      let _ = Debug.log "Generated Examples:" ios in
+      let _ = Debug.log "Generated Examples" ios in
       ( List.length ios
-      , {- Debug.log "Generated Examples:" <| -} "specifyFunction"
+      , "specifyFunction"
           ++ (if args == 1 then "" else toString args)
           ++ " "
           ++ functionName
@@ -674,7 +674,7 @@ benchmarkInputs n =
 
     , createBenchmarkInput n list_append
 --    , createBenchmarkInput n list_concat
---*    , createBenchmarkInput n list_drop
+    , createBenchmarkInput n list_drop
     , createBenchmarkInput n list_even_parity
 --    , createBenchmarkInput n list_filter
 --    , createBenchmarkInput n list_fold
@@ -683,7 +683,7 @@ benchmarkInputs n =
     , createBenchmarkInput n list_last
     , createBenchmarkInput n list_length
 --    , createBenchmarkInput n list_map
---*    , createBenchmarkInput n list_nth
+    , createBenchmarkInput n list_nth
 ----    , createBenchmarkInput n list_pairwise_swap
 
 ----    , createBenchmarkInput n list_rev_append
