@@ -7,7 +7,7 @@ let debug func =
     ()
 
 let println s = debug @@ fun _ ->
-  print_endline s
+  prerr_endline s
 
 let print_sep () = debug @@ fun _ ->
   println "--------------------------------------------------------------------------------"
@@ -16,7 +16,7 @@ let pause () = debug @@ fun _ ->
   let _ = read_line () in ()
 
 let print_json j = debug @@ fun _ ->
-  print_endline (Yojson.Safe.to_string j)
+  println (Yojson.Safe.to_string j)
 
 let print_hf hf = debug @@ fun _ ->
   hf
@@ -29,7 +29,7 @@ let print_hf hf = debug @@ fun _ ->
                ^ (Yojson.Safe.to_string @@ exp_to_yojson e)
          )
     |> String.concat "\n"
-    |> print_endline
+    |> println
 
 let print_worlds worlds = debug @@ fun _ ->
   let s =
@@ -43,14 +43,14 @@ let print_worlds worlds = debug @@ fun _ ->
       )
       worlds
   in
-    print_endline @@ "{ " ^ s ^ "\n}"
+    println @@ "{ " ^ s ^ "\n}"
 
 let print_unsolved_constraints us = debug @@ fun _ ->
   us
     |> Hole_map.bindings
     |> List.map
          ( fun (h, ws) ->
-             print_endline @@
+             println @@
                "??"
                  ^ (string_of_int h)
                  ^ ": ";
@@ -59,13 +59,13 @@ let print_unsolved_constraints us = debug @@ fun _ ->
     |> (fun _ -> ())
 
 let print_exp exp = debug @@ fun _ ->
-  print_endline @@ Yojson.Safe.to_string (exp_to_yojson exp)
+  println @@ Yojson.Safe.to_string (exp_to_yojson exp)
 
 let print_res res = debug @@ fun _ ->
-  print_endline @@ Yojson.Safe.to_string (res_to_yojson res)
+  println @@ Yojson.Safe.to_string (res_to_yojson res)
 
 let print_typ typ = debug @@ fun _ ->
-  print_endline @@ Yojson.Safe.to_string (typ_to_yojson typ)
+  println @@ Yojson.Safe.to_string (typ_to_yojson typ)
 
 let print_type_ctx gamma = debug @@ fun _ ->
   let s =
@@ -81,17 +81,17 @@ let print_type_ctx gamma = debug @@ fun _ ->
       )
       gamma
   in
-    print_endline @@ "< " ^ s ^ "\n>"
+    println @@ "< " ^ s ^ "\n>"
 
 let print_int n = debug @@ fun _ ->
-  print_endline (string_of_int n)
+  println (string_of_int n)
 
 let print_float f = debug @@ fun _ ->
-  print_endline (string_of_float f)
+  println (string_of_float f)
 
 let print_nondet_len nd = debug @@ fun _ ->
   nd
     |> Nondet.to_list
     |> List.length
     |> string_of_int
-    |> print_endline
+    |> println

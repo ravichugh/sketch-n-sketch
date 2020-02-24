@@ -7,7 +7,7 @@
       stdlib2
 
       ; opam libraries
-      lwt cohttp cohttp-lwt-unix yojson ppx_deriving_yojson.runtime
+      unix cohttp yojson ppx_deriving_yojson.runtime
   )
   ( flags
       ; (-open Stdlib2)

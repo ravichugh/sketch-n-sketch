@@ -1,13 +1,13 @@
 let info s =
   if Params.log_info then
-    print_endline @@
+    prerr_endline @@
       "[INFO] " ^ s
   else
     ()
 
 let warn s =
   if Params.log_warn then
-    print_endline @@
+    prerr_endline @@
       "[WARN] " ^ s
   else
     ()

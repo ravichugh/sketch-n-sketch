@@ -45,26 +45,11 @@
 
 
 
-7. Open a browser with cross-origin resource sharing temporarily allowed. For
-   example, the following command will open Google Chrome on a Mac with
-   cross-origin resource sharing allowed:
-
-     open -a Google\ Chrome --args --disable-web-security --user-data-dir=\"\"
-
-   For more information, see:
-
-     https://stackoverflow.com/a/3177718
-
-   This step is necessary because we are running local servers on two different
-   ports (which counts as being a separate domain).
+7. Open a browser and navigate to `localhost:7532`, where 7532 should be
+   substituted for the port number used in Step 6.
 
 
 
-8. In the newly-opened browser window, navigate to `localhost:7532`, where 7532
-   should be substituted for the port number used in Step 6.
-
-
-
-9. Click on the "Sketch-n-Myth" menu at the top to run the benchmarking suite in
+8. Click on the "Sketch-n-Myth" menu at the top to run the benchmarking suite in
    its entirety, or view individual programs by clicking on the "File" menu then
    selecting "Open from PBE Suite".
