@@ -39,9 +39,11 @@ class Handler(BaseHTTPRequestHandler):
         content_len = int(self.headers.get('Content-Length'))
         return self.rfile.read(content_len).decode("utf8")
 
+    # OPTIONS is needed for CORS preflight
     def do_OPTIONS(self):
         self.respond_ok()
 
+    # POST is the main REST API
     def do_POST(self):
         command = self.path[1:]
         arg = self.get_body()
