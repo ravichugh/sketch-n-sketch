@@ -6,11 +6,17 @@
 type List a = Nil
             | Cons a (List a)
 
-type Pair a b = Pair a b
+-- Originally used pairs for dict entries, but our type inference is
+-- incomplete (not TSE's fault) and so TSE can't instantiate the
+-- a and b type variables and therefore can't generate insert actions.
+-- type Pair a b = Pair a b
+
+-- Concrete type.
+type KeyVal = KeyVal String JSON
 
 type JSON
   = JSONList (List JSON)
-  | JSONDict (List (Pair String JSON))
+  | JSONDict (List KeyVal) -- | JSONDict (List (Pair String JSON))
   | JSONString String
   | JSONNumber Num
 
@@ -45,21 +51,58 @@ jsonToString indent json =
     JSONDict keyVals -> basedOn keyVals <|
       let keyValToString keyVal =
         case keyVal of
-          Pair key val -> key + ": " + jsonToString nextIndent val
+          KeyVal key val -> key + ": " + jsonToString nextIndent val
       in
       "{\n" + nextIndent + joinWithCommaNewline (map keyValToString keyVals) + "\n" + indent + "}"
     JSONString string -> basedOn string <| '"' + string + '"'
     JSONNumber num    -> toString num
 
 
+-- 16 Possible Insert Locations
+--
+-- (JSONList [
+--   1. ✅
+--   JSONDict [
+--     2. ✅
+--     KeyVal "num" (JSONNumber 3),
+--     3. ✅
+--     KeyVal "str" (JSONString "hi")
+--     4. ✅
+--   ],
+--   5. ✅
+--   JSONDict [
+--     6. ✅
+--     KeyVal "num" (JSONNumber 10),
+--     7. ✅
+--     KeyVal "str" (JSONString "bye")
+--     8. ✅
+--   ],
+--   9. ✅
+--   JSONList [
+--     10. ✅
+--     JSONList [
+--       11. ✅
+--       JSONString "one",
+--       12. ✅
+--       JSONString "two",
+--       13. ✅
+--       JSONString "three"
+--       14. ⛔️ UNREASONABLE, shared with 15
+--     ]
+--     15. ⛔️ UNREASONABLE, shared with 14
+--   ]
+--   16. ⛔️ UNREASONABLE, appears at location 15
+-- ] : JSON)
+
+
 (JSONList [
   JSONDict [
-    Pair "num" (JSONNumber 3),
-    Pair "str" (JSONString "hi")
+    KeyVal "num" (JSONNumber 3),
+    KeyVal "str" (JSONString "hi")
   ],
   JSONDict [
-    Pair "num" (JSONNumber 10),
-    Pair "str" (JSONString "bye")
+    KeyVal "num" (JSONNumber 10),
+    KeyVal "str" (JSONString "bye")
   ],
   JSONList [
     JSONList [

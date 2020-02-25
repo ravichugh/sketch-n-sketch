@@ -166,7 +166,8 @@ taggedStringToCharGridPoly taggedString =
 
     string = taggedStringToNormalString taggedString
 
-    (_, charIToLocationDict) =
+    -- 0-based indexing
+    charIToLocationDict =
       Utils.strFoldLeftWithIndex
           ((0,0), Dict.empty)
           string
@@ -175,7 +176,13 @@ taggedStringToCharGridPoly taggedString =
             , Dict.insert charI point charIToLocationDict
             )
           )
+      |> (\(lastPoint, charIToLocationDict) ->
+        -- If there's an empty string at the end of the string, we end up asking for the location of the character that would come right after the end of the string.
+        -- Don't crash in such cases:
+        charIToLocationDict |> Dict.insert (String.length string) lastPoint
+      )
 
+    -- 0-based indexing
     charIToLocation : Int -> (Int, Int)
     charIToLocation charI = Dict.get charI charIToLocationDict |> Utils.fromJustLazy (\() -> "Expected to find char index " ++ toString charI ++ " among the " ++ toString (Dict.size charIToLocationDict) ++ " entries in the charIToLocationDict for \'" ++ string ++ "\'")
   in

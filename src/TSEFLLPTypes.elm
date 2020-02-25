@@ -112,15 +112,18 @@ type Exp -- Expressions e :=
   | ECase Exp (List (Ident, TuplePattern, Exp)) -- case e of Ci pi -> ei
   | EString String -- s
   | EAppend Exp Exp -- e1 ++ e2
+  | EStrLen Exp -- strLen e
   | ENum Float -- n
   | ENumOp Op Exp Exp -- e1 ⊕ e2 returning Num or Bool
   | ENumToString Exp -- numToStr e
   | EAddDependency Exp Exp -- For implementing (basedOn e1 e2) which returns e2 augmented with e1's dependencies
 
+-- Numeric ops
 type Op
   = Plus
   | Minus
   | LTE -- Less than or equal to
+  | Eq
 
 type alias MultipleDispatchFunctions = List (Ident, Lang.Type, Ident) -- Name, Type annotation, Desugared unique name
 

@@ -258,12 +258,12 @@ reifyDataConDefs maybeType (typeArgNames, typeDataConDefs) =
     typeVarNameToType : List (Ident, Lang.Type)
     typeVarNameToType =
       maybeType
-      -- |> Debug.log "maybeType"
+      |> Debug.log "maybeType"
       |> Maybe.andThen Types2.varOrAppToMaybeIdentAndArgTypes
       |> Maybe.map (\(_, argTypes) -> argTypes)
       |> Maybe.withDefault []
       |> Utils.zip typeArgNames
-      -- |> Debug.log "typeVarNameToType"
+      |> Debug.log "typeVarNameToType"
   in
   typeDataConDefs
   |> List.map (\(ctorName, ctorArgTypes) -> (ctorName, ctorArgTypes |> List.map (Lang.applyTypeSubst typeVarNameToType)))
@@ -337,6 +337,11 @@ makeProjectionPathToType dataTypeDefs maybeType valueOfInterestTagged =
 valToSpecificActions : List Types2.DataTypeDef -> TaggedValue -> Maybe Lang.Type -> TaggedValue -> Set SpecificAction
 valToSpecificActions dataTypeDefs rootValueOfInterestTagged maybeType valueOfInterestTagged =
   let
+    _ =
+      Utils.log <| case maybeType of
+        Just tipe -> unparseType tipe
+        Nothing   -> ""
+
     recurse = valToSpecificActions dataTypeDefs rootValueOfInterestTagged
 
     -- In practice, should always result in one action.

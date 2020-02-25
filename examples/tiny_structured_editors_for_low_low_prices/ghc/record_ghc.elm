@@ -15,7 +15,7 @@
 
 -- Core language does not have support records, only ADTs.
 type Record a b c
-  = Record a b c Int
+  = Record a b c Num
 
 
 -- We can see the derived show instances using the GHC option -ddump-deriv
@@ -155,6 +155,10 @@ showsPrecFlip str _ s = '"' + str + '"' + s
 showsPrecFlip : Num -> Num -> String -> String
 showsPrecFlip num _ s = numToStringBuiltin num + s
 
+--   instance Show Bool where
+--     showsPrec _ False
+--       = showString "False"
+--     showsPrec _ True = showString "True"
 showsPrecFlip : Bool -> Num -> String -> String
 showsPrecFlip bool precN = case bool of
   False ->

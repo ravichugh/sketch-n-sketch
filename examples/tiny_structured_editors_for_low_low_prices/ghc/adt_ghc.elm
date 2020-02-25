@@ -9,7 +9,7 @@
 
 type ADT a
   = Ctor1
-  | Ctor2 Int
+  | Ctor2 Num
   | Ctor3 a String
   | Ctor4 (ADT a)
 

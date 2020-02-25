@@ -777,6 +777,10 @@ count : (a -> Bool) -> List a -> Int
 count pred list =
   List.filter pred list |> List.length
 
+countSet : (a -> Bool) -> Set a -> Int
+countSet pred =
+  Set.toList >> count pred
+
 maximumBy : (a -> comparable) -> List a -> Maybe a
 maximumBy f list =
   case list of
@@ -1183,6 +1187,7 @@ foldRight: List a -> b -> (a -> b -> b) -> b
 foldRight list acc fold =
   List.foldl fold acc (List.reverse list)
 
+-- 0-based indexing
 foldLeftWithIndex: b -> List a -> (b -> Int -> a -> b) -> b
 foldLeftWithIndex acc list fold =
   List.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
@@ -1191,6 +1196,7 @@ strFoldLeft: b -> String -> (b -> Char -> b) -> b
 strFoldLeft acc list fold =
   String.foldl (Basics.flip fold) acc list
 
+-- 0-based indexing
 strFoldLeftWithIndex: b -> String -> (b -> Int -> Char -> b) -> b
 strFoldLeftWithIndex acc list fold =
   String.foldl (\a (b, i) -> (fold b i a, i + 1)) (acc, 0) list |> Tuple.first
@@ -2019,6 +2025,10 @@ filterMap2 f =
   filterMap
     ( \(x, y) -> Maybe.map (\z -> (x, z)) (f y)
     )
+
+filterMapSet : (a -> Maybe b) -> Set a -> Set b
+filterMapSet f =
+  Set.toList >> filterMap f >> Set.fromList
 
 --------------------------------------------------------------------------------
 

@@ -31,7 +31,7 @@ join sep strs =
 --     Nil           -> ""
 --     Cons str rest ->
 --       case rest of
---         Nil      -> str + ""
+--         Nil      -> str
 --         Cons _ _ -> str + sep + join sep rest
 
 toString : Num -> String

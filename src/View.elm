@@ -1604,6 +1604,8 @@ codePanel model =
                 ]
             , fileIndicator model
             ]
+        , undoButton
+        , redoButton
         , Html.div
             [ Attr.class "needs-run-light"
             ]

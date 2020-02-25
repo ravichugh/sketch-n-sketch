@@ -249,4 +249,4 @@ set =
   |> insert 2
   |> insert 7
 
-(set : MySet Int)
+(set : MySet Num)

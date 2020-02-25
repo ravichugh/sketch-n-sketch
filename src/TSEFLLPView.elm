@@ -351,29 +351,71 @@ selectionAssignmentStats selectionAssignments pixelPoly valueOfInterestTagged =
 
 insertActionStats projectionPathToSpecificActions insertActionLocationsAndMaybePolyPath =
   let
-    insertActions =
+    insertValueSet =
       projectionPathToSpecificActions
       |> Dict.values
       |> Utils.unionAll
-      |> Set.toList
-      |> List.filter (specificActionMaybeChangeType >> (==) (Just Insert))
+      |> Set.filter (specificActionMaybeChangeType >> (==) (Just Insert))
+      |> Utils.filterMapSet specificActionMaybeNewValue
 
-    insertValueSet =
-      insertActions
-      |> Utils.filterMap specificActionMaybeNewValue
-      |> Set.fromList
+    insertButtonValueSets =
+      insertActionLocationsAndMaybePolyPath
+      |> List.map (\(_, insertActionSet, _) ->
+        insertActionSet
+        |> Utils.filterMapSet specificActionMaybeNewValue
+      )
 
-      -- case Set.toList actions |> List.map specificActionMaybeNewValue |> Utils.dedup of
-      --   [Just newVal] -> Controller.msgTSEFLLPSelectNewValue newVal
-      --   _             -> Controller.msgTSEFLLPShowActions maybeShapePolyPath actions
+    missingInsertValueSet =
+      let insertValuesOnButtons = Utils.unionAll insertButtonValueSets in
+      Set.diff
+        insertValueSet
+        insertValuesOnButtons
 
+    insertValueOnlyOnUniqueButtonsSet =
+      insertValueSet
+      |> Set.filter (\insertValue ->
+        let buttonSetsContainingValue = insertButtonValueSets |> List.filter (Set.member insertValue) in
+        [1] == (buttonSetsContainingValue |> List.map Set.size |> Utils.dedup)
+      )
   in
-  [ Html.div [] [text "Counting \"reasonable\" inserts: START HERE AND DEFINE IT"]
-  , Html.div [] [text "Possible insert value count: ",                         text (toString <| Set.size allPathsSet)]
-  , Html.div [] [text "Occluded or missing paths: ",                  text (pathSetToString unselectablePathSet)]
-  , Html.div [] [text "Paths without unique shape: ",                 text (pathSetToString onlyOnClickableShapesWithMultiplePathsPathSet)]
-  , Html.div [] [text "Percentage uniquely selectable shape paths: ", text (toString <| 100.0 * toFloat (Set.size easilySelectablePathSet) / toFloat (Set.size allPathsSet)), text "%"]
+  [ Html.div [Attr.style [("width", "600px"), ("white-space", "normal")]] [text "Counting \"reasonable\" inserts: The number of generated insert actions and the number of possible new values may not be 1-to-1. In some curious cases, multiple different inserts could produce the same resultant value. A classic example is type Nat = Z() | S(Nat). S(S(S(Z()))) might have 4 insert actions, each one results in S(S(S(S(Z())))). So we actually count based on the number of unique resultant values. A unique resultant value is considered well-placed if (a) it is assigned to an insert button and it is the only such value for all such buttons and (b) each such button, when clicked, inserts something in a reasonable location given the postion of the button...this you must check manually."]
+  , Html.div [] [text "Possible insert value count: ",                  text (toString <| Set.size insertValueSet)]
+  , Html.div [] [text "Missing insert value count: ",                   text (toString <| Set.size missingInsertValueSet)]
+  , Html.div [] [text "Insert values only on unique buttons (count): ", text (toString <| Set.size insertValueOnlyOnUniqueButtonsSet)]
   ]
+
+
+-- Place the visible actions in 2D where we think they should go and then
+-- consolidate the actions at overlapping locations.
+--
+-- Prefer locations later in list (buttons associated with deeper shapes).
+consolidateActionsAtOverlappingLocations : List ((Int, Int), Set SpecificAction, Maybe PolyPath) -> List ((Int, Int), Set SpecificAction, Maybe PolyPath)
+consolidateActionsAtOverlappingLocations actionLocationsAndMaybePolyPath =
+  let tolerancePx = 10 in
+  actionLocationsAndMaybePolyPath
+  |> Utils.foldr
+      []
+      (\(point, locationActionSet, maybePolyPath) deeperActionLocationsAndMaybePolyPath ->
+        let maybeClosest =
+          deeperActionLocationsAndMaybePolyPath
+          |> List.filter     (\(existingPoint, _, _) -> Utils.distanceInt point existingPoint <= tolerancePx)
+          |> Utils.minimumBy (\(existingPoint, _, _) -> Utils.distanceInt point existingPoint)
+        in
+        case maybeClosest of
+          Just ((existingPoint, existingLocationActions, existingMaybePolyPath) as existing) ->
+            let
+              consolidated =
+                ( existingPoint
+                , Set.union locationActionSet existingLocationActions
+                , if maybePolyPath == existingMaybePolyPath then existingMaybePolyPath else Nothing
+                )
+            in
+            deeperActionLocationsAndMaybePolyPath
+            |> Utils.replaceAll existing consolidated
+
+          Nothing ->
+            (point, locationActionSet, maybePolyPath)::deeperActionLocationsAndMaybePolyPath
+      )
 
 
 structuredEditor : TSEFLLPTypes.ModelState -> Html Msg
@@ -422,6 +464,15 @@ structuredEditor modelState =
         insertActionLocations : Dict (Int, Int) (Set SpecificAction)
         insertActionLocations =
           TSEFLLPActions.arrangeInsertActions pathToType projectionPathToShapeSet projectionPathToSpecificActions
+
+        insertActionLocationsAndMaybePolyPath : List ((Int, Int), Set SpecificAction, Maybe PolyPath)
+        insertActionLocationsAndMaybePolyPath =
+          insertActionLocations
+          |> Dict.toList
+          |> List.map (\(point, insertActionSet) ->
+            (point, insertActionSet, Nothing)
+          )
+          |> consolidateActionsAtOverlappingLocations
 
         -- Label with type, or, if that fails, with value.
         shapeToMaybeLabel : TSEFLLPPolys.PixelShape -> Maybe String
@@ -633,48 +684,6 @@ structuredEditor modelState =
               else
                 []
 
-
-            -- Place the visible actions in 2D where we think they should go and then
-            -- consolidate the actions at overlapping locations.
-
-            -- Prefer locations later in list (buttons associated with deeper shapes).
-            consolidateActionsAtOverlappingLocations : List ((Int, Int), Set SpecificAction, Maybe PolyPath) -> List ((Int, Int), Set SpecificAction, Maybe PolyPath)
-            consolidateActionsAtOverlappingLocations actionLocationsAndMaybePolyPath =
-              let tolerancePx = 10 in
-              actionLocationsAndMaybePolyPath
-              |> Utils.foldr
-                  []
-                  (\(point, locationActions, maybePolyPath) deeperActionLocationsAndMaybePolyPath ->
-                    let maybeClosest =
-                      deeperActionLocationsAndMaybePolyPath
-                      |> List.filter     (\(existingPoint, _, _) -> Utils.distanceInt point existingPoint <= tolerancePx)
-                      |> Utils.minimumBy (\(existingPoint, _, _) -> Utils.distanceInt point existingPoint)
-                    in
-                    case maybeClosest of
-                      Just ((existingPoint, existingLocationActions, existingMaybePolyPath) as existing) ->
-                        let
-                          consolidated =
-                            ( existingPoint
-                            , Set.union locationActions existingLocationActions
-                            , if maybePolyPath == existingMaybePolyPath then existingMaybePolyPath else Nothing
-                            )
-                        in
-                        deeperActionLocationsAndMaybePolyPath
-                        |> Utils.replaceAll existing consolidated
-
-                      Nothing ->
-                        (point, locationActions, maybePolyPath)::deeperActionLocationsAndMaybePolyPath
-                  )
-
-            insertActionLocationsAndMaybePolyPath : List ((Int, Int), Set SpecificAction, Maybe PolyPath)
-            insertActionLocationsAndMaybePolyPath =
-              insertActionLocations
-              |> Dict.toList
-              |> List.map (\(point, insertActions) ->
-                (point, insertActions, Nothing)
-              )
-              |> consolidateActionsAtOverlappingLocations
-
             (removeActionLocationsAndMaybePolyPath, changeCtorActionLocationsAndMaybePolyPath) =
               let
                 shapeToMaybeRemoveInsertActionLocationsAndMaybePolyPath : TSEFLLPPolys.PixelShape -> (Maybe ((Int, Int), Set SpecificAction, Maybe PolyPath), Maybe ((Int, Int), Set SpecificAction, Maybe PolyPath))
@@ -786,7 +795,9 @@ structuredEditor modelState =
           , Html.pre [] [text "Selected values:\n  ", text (selectedPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
           ] ++
           selectionAssignmentStats selectionAssignments pixelPoly valueOfInterestTagged ++
-          [ Html.div (perhapsClickAttrs ++ [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "1000px"), ("height", "1000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))]) []
+          [ Html.pre [] [text "\n"] ] ++ -- spacing
+          insertActionStats projectionPathToSpecificActions insertActionLocationsAndMaybePolyPath ++
+          [ Html.div (perhapsClickAttrs ++ [Attr.style [("position", "absolute"), ("position", "absolute"), ("left", "0px"), ("top", "0px"), ("width", "2000px"), ("height", "2000px")], Html.Events.onClick onClickMsg, Html.Events.on "mousemove" (Json.Decode.map2 logMousePosition (Json.Decode.field "offsetX" Json.Decode.int) (Json.Decode.field "offsetY" Json.Decode.int))]) []
           ] ++ buttonsAndMenus ++ perhapsTextEditBox -- Have to draw these on top of the click catcher above.
 
     Err err ->

@@ -21,15 +21,21 @@ append list1 list2 =
     Nil              -> list2
     Cons head1 tail1 -> Cons head1 (append tail1 list2)
 
-type Pair a b = Pair a b
-
 type Maybe a
   = Nothing
   | Just a
 
+-- Originally used pairs for dict entries, but our type inference is
+-- incomplete (not TSE's fault) and so TSE can't instantiate the
+-- a and b type variables.
+-- type Pair a b = Pair a b
+
+-- Concrete type.
+type KeyVal = KeyVal String JSON
+
 type JSON
   = JSONList (List JSON)
-  | JSONDict (List (Pair String JSON))
+  | JSONDict (List KeyVal) -- | JSONDict (List (Pair String JSON))
   | JSONString String
   | JSONNumber Num
 
@@ -63,7 +69,7 @@ jsonToString indent json =
     JSONDict keyVals -> basedOn keyVals <|
       let keyValToString keyVal =
         case keyVal of
-          Pair key val -> key + ": " + jsonToString nextIndent val
+          KeyVal key val -> key + ": " + jsonToString nextIndent val
       in
       "{\n" + nextIndent + joinWithCommaNewline (map keyValToString keyVals) + "\n" + indent + "}"
     JSONString string -> basedOn string <| '"' + string + '"'
@@ -88,8 +94,8 @@ teaSpecToJson teaSpec =
   case teaSpec of
     TeaSpec variables assumptions ->
       JSONDict [
-        Pair "variables" (JSONList (map variableToJson variables)),
-        Pair "assumptions" (JSONDict (map assumptionToKeyVal assumptions))
+        KeyVal "variables" (JSONList (map variableToJson variables)),
+        KeyVal "assumptions" (JSONDict (map assumptionToKeyVal assumptions))
       ]
 
 variableToJson variable =
@@ -104,8 +110,8 @@ variableToJson variable =
       in
       let categoriesKeyVals =
         case dataType of
-          ORDINAL  -> singletonList (Pair "categories" (JSONList (map wrapJSONString categories)))
-          NOMINAL  -> singletonList (Pair "categories" (JSONList (map wrapJSONString categories)))
+          ORDINAL  -> singletonList (KeyVal "categories" (JSONList (map wrapJSONString categories)))
+          NOMINAL  -> singletonList (KeyVal "categories" (JSONList (map wrapJSONString categories)))
           INTERVAL -> Nil
           RATIO    -> Nil
       in
@@ -125,18 +131,18 @@ variableToJson variable =
               ORDINAL  -> Nil
               NOMINAL  -> Nil
               INTERVAL -> Nil
-              RATIO    -> singletonList (Pair "range" (JSONList (map wrapJSONNumber [low, high])))
+              RATIO    -> singletonList (KeyVal "range" (JSONList (map wrapJSONNumber [low, high])))
       in
-      JSONDict (append [Pair "name" (JSONString name), Pair "data type" (JSONString dataTypeString)] (append categoriesKeyVals rangeKeyVals))
+      JSONDict (append [KeyVal "name" (JSONString name), KeyVal "data type" (JSONString dataTypeString)] (append categoriesKeyVals rangeKeyVals))
 
 
 -- avoid "as" pattern parser bug :D "as"sumption
-assumptionToKeyVal : Assumption -> Pair String JSON
+assumptionToKeyVal : Assumption -> KeyVal
 assumptionToKeyVal aSumption =
   case aSumption of
-    Alpha threshold     -> Pair "alpha" (JSONNumber threshold)
-    SampleSize n        -> Pair "sample size" (JSONNumber n)
-    GroupsNormal groups -> Pair "groups normally distributed" (JSONList (map wrapJSONList (map (map wrapJSONString) groups)))
+    Alpha threshold     -> KeyVal "alpha" (JSONNumber threshold)
+    SampleSize n        -> KeyVal "sample size" (JSONNumber n)
+    GroupsNormal groups -> KeyVal "groups normally distributed" (JSONList (map wrapJSONList (map (map wrapJSONString) groups)))
 
 
 -- type DataRange = DataRange Num Num -- lower bound, upper bound

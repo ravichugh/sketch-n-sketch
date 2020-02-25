@@ -6,24 +6,16 @@
 type List a = Nil
             | Cons a (List a)
 
+type Tree a = Node a (List (Tree a))
+
+toString : Num -> String
+toString n = numToStringBuiltin n
 
 map : (a -> b) -> List a -> List b
 map f list =
   case list of
     Nil            -> Nil
     Cons head tail -> Cons (f head) (map f tail)
-
--- join : String -> List String -> String
--- join sep strs =
---   case strs of
---     Nil           -> ""
---     Cons str rest ->
---       let perhapsSep =
---         case rest of
---           Nil      -> ""
---           Cons _ _ -> sep
---       in
---       str + perhapsSep + join sep rest
 
 join : String -> List String -> String
 join sep strs =
@@ -34,11 +26,14 @@ join sep strs =
         Nil      -> str
         Cons _ _ -> str + sep + join sep rest
 
-toString : Num -> String
-toString n = numToStringBuiltin n
+toString : Tree a -> String
+toString tree =
+  case tree of
+    Node x children ->
+      case children of
+        Nil      -> "(" + toString x + ")"
+        Cons _ _ -> "(" + toString x + " " + join " " (map toString children) + ")"
 
-toString : List a -> String
-toString list =
-  "[" + join "," (map toString list) + "]"
+-- START HERE why aren't inserts generating?
 
-([1, 2, 3] : List Num)
+(Node 2 [Node 1 [], Node 4 [Node 3 [], Node 5 []]] : Tree Num)

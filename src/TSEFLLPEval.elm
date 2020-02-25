@@ -132,6 +132,25 @@ eval dataTypeDefs multipleDispatchFunctions env exp =
       Result.map2 VAppend (recurse env e1) (recurse env e2)
       |> Result.map noTag
 
+    EStrLen argExp ->
+      let strLenAndPathsResult w =
+        case w.v of
+          VString string -> Ok (String.length string, w.paths)
+          VAppend w1 w2 ->
+            strLenAndPathsResult w1 |> Result.andThen (\(leftLength, leftPaths)   ->
+            strLenAndPathsResult w2 |> Result.map     (\(rightLength, rightPaths) ->
+              ( leftLength + rightLength
+              , dependencyAnnotators.operation [leftPaths, rightPaths]
+              )
+            ))
+          _ -> Err <| "StrLen expected its argument to be all strings and appends!"
+      in
+      recurse env argExp
+      |> Result.andThen strLenAndPathsResult
+      |> Result.map (\(strLength, paths) ->
+        TaggedValue (VNum (toFloat strLength)) paths
+      )
+
     ENum num ->
       Ok <| TaggedValue (VNum num) dependencyAnnotators.constant
 
@@ -148,6 +167,7 @@ eval dataTypeDefs multipleDispatchFunctions env exp =
         Plus  -> VNum (num1 + num2)
         Minus -> VNum (num1 - num2)
         LTE   -> VCtor (if num1 <= num2 then "True" else "False") []
+        Eq    -> VCtor (if num1 == num2 then "True" else "False") []
       in
       recurse env e1 |> Result.andThen (\taggedVal1 ->
       recurse env e2 |> Result.andThen (\taggedVal2 ->
@@ -362,7 +382,7 @@ evalToStringTaggedWithProjectionPaths dataTypeDefs multipleDispatchFunctions pro
 
       gte =
         -- (>=) l r = builtInLTE r l
-        VClosure [] "<=" "l" (EFun "" "r"
+        VClosure [] ">=" "l" (EFun "" "r"
           (ENumOp LTE (EVar "r") (EVar "l"))
         )
 

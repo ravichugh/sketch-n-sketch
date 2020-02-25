@@ -107,6 +107,9 @@ desugarExp freshVariableCounterRef multipleDispatchFunctionsRef langExp =
         (Lang.Plus, _)         -> EString <| "TSEFLLP core language does not support any non-binary Plus operation"
         (Lang.Minus, [e1, e2]) -> ENumOp Minus (recurse e1) (recurse e2)
         (Lang.Minus, _)        -> EString <| "TSEFLLP core language does not support any non-binary Minus operation"
+        (Lang.Eq, [e1, e2])    -> ENumOp Eq (recurse e1) (recurse e2)
+        (Lang.Eq, _)           -> EString <| "TSEFLLP core language does not support any non-binary Eq operation"
+        (Lang.StrLength, [e1]) -> EStrLen (recurse e1)
         (Lang.ToStr, [e1])     -> ENumToString (recurse e1)
         _                      -> EString <| "TSEFLLP core language does not support the " ++ toString op.val ++ " operation"
 
@@ -479,8 +482,9 @@ freeNameSet exp =
     ECtor ctorName argExps         -> argExps |> List.map recurse |> Utils.unionAll
     EString string                 -> Set.empty
     EAppend e1 e2                  -> Set.union (recurse e1) (recurse e2)
+    EStrLen argExp                 -> recurse argExp
     ENum num                       -> Set.empty
-    ENumToString argExp            -> Set.empty
+    ENumToString argExp            -> recurse argExp
     ENumOp op e1 e2                -> Set.union (recurse e1) (recurse e2)
     EAddDependency e1 e2           -> Set.union (recurse e1) (recurse e2)
     ECase scrutinee branches       ->
@@ -511,6 +515,7 @@ flattenAppends exp =
     ECase scrutinee branches       -> [exp]
     EString string                 -> string |> String.split "" |> List.map EString
     EAppend e1 e2                  -> recurse e1 ++ recurse e2
+    EStrLen argExp                 -> [exp]
     ENum num                       -> [exp]
     ENumToString argExp            -> [exp]
     ENumOp op e1 e2                -> [exp]
@@ -543,6 +548,7 @@ moveCommonPrefixesAndSuffixesOutsideCaseBranches exp =
     ECtor ctorName argExps         -> ECtor ctorName (List.map recurse argExps)
     EString string                 -> exp
     EAppend e1 e2                  -> EAppend (recurse e1) (recurse e2)
+    EStrLen argExp                 -> EStrLen (recurse argExp)
     ENum num                       -> exp
     ENumToString argExp            -> ENumToString (recurse argExp)
     ENumOp op e1 e2                -> ENumOp op (recurse e1) (recurse e2)
