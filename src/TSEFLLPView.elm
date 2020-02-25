@@ -386,8 +386,10 @@ structuredEditor modelState =
   case stringTaggedWithProjectionPathsResult of
     Ok taggedString ->
       let
-        charWidthPx  = 11
-        charHeightPx = 18
+        charWidthPx         = 10.8
+        charHeightPx        = 18
+        charHalfWidthPxInt  = round (charWidthPx  / 2)
+        charHalfHeightPxInt = round (charHeightPx / 2)
 
         selectedColor = "#B7D7FD"
         hoverColor    = "#e1eefc"
@@ -619,9 +621,9 @@ structuredEditor modelState =
                 in
                 [ Html.div
                       [ Attr.style <| [ ("position", "absolute")
-                                      , ("left", px (right - charWidthPx//2)), ("top", px (top - charWidthPx//2))
-                                      , ("width", px (charWidthPx//2)), ("height", px (charHeightPx//2))
-                                      , ("font-size", px (charHeightPx//2))
+                                      , ("left", px (right - charHalfWidthPxInt)), ("top", px (top - charHalfHeightPxInt))
+                                      , ("width", px charHalfWidthPxInt), ("height", px charHalfHeightPxInt)
+                                      , ("font-size", px charHalfHeightPxInt)
                                       , ("cursor", "pointer")
                                       ] ++ extraButtonStyles
                       , Html.Events.onClick onClick

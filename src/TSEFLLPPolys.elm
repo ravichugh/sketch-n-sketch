@@ -148,7 +148,7 @@ area shape =
 --
 -- It's also simpler to understand that the tree structure and pathSets of the polys
 -- are 1-to-1 with the tagged string.
-taggedStringToPixelPoly : Int -> Int -> StringTaggedWithProjectionPaths -> PixelPoly
+taggedStringToPixelPoly : Float -> Float -> StringTaggedWithProjectionPaths -> PixelPoly
 taggedStringToPixelPoly charWidthPx charHeightPx taggedString =
   taggedString
   |> taggedStringToCharGridPoly
@@ -252,16 +252,19 @@ taggedStringToCharGridPoly_ charIToLocation taggedString charI =
            }
 
 
-charGridPolyToPixelPoly : Int -> Int -> CharGridPoly -> PixelPoly
+charGridPolyToPixelPoly : Float -> Float -> CharGridPoly -> PixelPoly
 charGridPolyToPixelPoly charWidthPx charHeightPx (Poly { bounds, rightBotCornerOfLeftTopCutout, leftTopCornerOfRightBotCutout, pathSet, children }) =
   let
+    xToPx charN = round <| toFloat charN * charWidthPx
+    yToPx charN = round <| toFloat charN * charHeightPx
+
     (charLeft, charTop, charRight, charBot) = bounds
     (charStartX, charFirstLineBot)          = rightBotCornerOfLeftTopCutout
     (charEndX,   charLastLineTop)           = leftTopCornerOfRightBotCutout
   in
-  Poly { bounds                        = (charLeft*charWidthPx, charTop*charHeightPx, charRight*charWidthPx, charBot*charHeightPx)
-       , rightBotCornerOfLeftTopCutout = (charStartX*charWidthPx, charFirstLineBot*charHeightPx)
-       , leftTopCornerOfRightBotCutout = (charEndX*charWidthPx,   charLastLineTop*charHeightPx)
+  Poly { bounds                        = (xToPx charLeft, yToPx charTop, xToPx charRight, yToPx charBot)
+       , rightBotCornerOfLeftTopCutout = (xToPx charStartX, yToPx charFirstLineBot)
+       , leftTopCornerOfRightBotCutout = (xToPx charEndX,   yToPx charLastLineTop)
        , pathSet                       = pathSet
        , children                      = (List.map (charGridPolyToPixelPoly charWidthPx charHeightPx) children)
        }
