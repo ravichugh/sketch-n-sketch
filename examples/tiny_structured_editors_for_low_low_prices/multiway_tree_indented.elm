@@ -6,7 +6,7 @@
 type List a = Nil
             | Cons a (List a)
 
-type Tree a = Node a (List (Tree a))
+type Tree = Node Num (List Tree)
 
 toString : Num -> String
 toString n = numToStringBuiltin n
@@ -26,10 +26,10 @@ join sep strs =
         Nil      -> str
         Cons _ _ -> str + sep + join sep rest
 
-toString : Tree a -> String
+toString : Tree -> String
 toString = treeToString ""
 
-treeToString : String -> Tree a -> String
+treeToString : String -> Tree -> String
 treeToString indent tree =
   case tree of
     Node x children ->
@@ -40,4 +40,4 @@ treeToString indent tree =
       in
       perhapsNewline + indent + toString x + join "" childStrs
 
-(Node 2 [Node 1 [], Node 4 [Node 3 [], Node 5 []]] : Tree Num)
+(Node 2 [Node 1 [], Node 4 [Node 3 [], Node 5 []]] : Tree)
