@@ -404,8 +404,13 @@ benchmark { name, definitions, fullExamples, restrictedExamples } =
         Just { code, count } ->
           flip Task.andThen
             ( runAndSynthesize (definitions ++ code)
-            ) <| \( _
-                  , restrictedHoleFillings
+                |> Task.map (\(a, b, c, d) -> (b, c, d))
+                |> Task.onError
+                     ( \e ->
+                         Debug.log e <|
+                           Task.succeed ([], 0.0, True)
+                     )
+            ) <| \( restrictedHoleFillings
                   , restrictedTimeTaken
                   , restrictedTimedOut
                   ) ->
