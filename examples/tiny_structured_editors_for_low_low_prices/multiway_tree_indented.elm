@@ -40,4 +40,32 @@ treeToString indent tree =
       in
       perhapsNewline + indent + toString x + join "" childStrs
 
+-- A.B.C. are missing inserts b/c we don't detect mutual recursion in types, only single recursion.
+-- A.B.C. would be wrappers like so: Node 0 [existing]
+-- (
+-- -- A. ⛔️ MISSING
+-- Node 2 [
+--   -- 1. ⛔️ UNREASONABLE, shared with 2
+--   -- B. ⛔️ MISSING
+--   Node 1 [
+--     -- 2. ⛔️ UNREASONABLE, shared with 1
+--   ],
+--   -- 3. ✅
+--   -- C. ⛔️ MISSING
+--   Node 4 [
+--     -- 4. ✅
+--     -- D. ⛔️ MISSING
+--     Node 3 [
+--       -- 5. ✅
+--     ],
+--     -- 6. ⛔️ UNREASONABLE, shared with 7
+--     -- E. ⛔️ MISSING
+--     Node 5 [
+--       -- 7. ⛔️ UNREASONABLE, shared with 6
+--     ]
+--     -- 8. ⛔️ UNREASONABLE, shared with 9
+--   ]
+--   -- 9. ⛔️ UNREASONABLE, shared with 8
+-- ] : Tree)
+
 (Node 2 [Node 1 [], Node 4 [Node 3 [], Node 5 []]] : Tree)
