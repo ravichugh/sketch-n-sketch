@@ -672,7 +672,7 @@ structuredEditor modelState =
                 in
                 [ Html.div
                       [ Attr.style <| [ ("position", "absolute")
-                                      , ("left", px (right - charHalfWidthPxInt)), ("top", px (top - charHalfHeightPxInt))
+                                      , ("left", px (right - charHalfWidthPxInt + 1)), ("top", px (top - charHalfHeightPxInt + 2))
                                       , ("width", px charHalfWidthPxInt), ("height", px charHalfHeightPxInt)
                                       , ("font-size", px charHalfHeightPxInt)
                                       , ("cursor", "pointer")
