@@ -2,7 +2,7 @@ from http.server import *
 import subprocess
 
 PORT = 9090
-TIMEOUT = 5
+TIMEOUT = 1
 
 TIMED_OUT_STRING = \
     '["Ok",{"time_taken":' \

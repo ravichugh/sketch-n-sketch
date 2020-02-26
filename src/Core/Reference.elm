@@ -9,6 +9,8 @@ module Core.Reference exposing
 import MyRandom as Random exposing (Generator)
 import Set exposing (Set)
 
+import Tree exposing (Tree)
+
 import PBESuite
 import Core.Denotation as Denotation exposing (Denotation)
 import Core.Sample as Sample
@@ -148,7 +150,7 @@ list_append =
   { name = "list_append"
   , functionName = "append"
   , args = 2
-  , kMax = 10
+  , kMax = 20
   , suiteInfo = si PBESuite.list_append
   , dIn =
       Denotation.args2
@@ -166,11 +168,30 @@ list_append =
         f
   }
 
+list_concat =
+  { name = "list_concat"
+  , functionName = "concat"
+  , args = 1
+  , kMax = 20
+  , suiteInfo = si PBESuite.list_concat
+  , dIn = Denotation.simpleNestedList Denotation.int
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Sample.nestedNatList
+  , baseCase = Just (Random.constant [])
+  , func =
+      let
+        f : List (List Int) -> List Int
+        f xss =
+          List.concat xss
+      in
+        f
+  }
+
 list_drop =
   { name = "list_drop"
   , functionName = "listDrop"
   , args = 2
-  , kMax = 20
+  , kMax = 40
   , suiteInfo = si PBESuite.list_drop
   , dIn = Denotation.args2 (Denotation.simpleList Denotation.int) Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -201,7 +222,7 @@ list_even_parity =
   { name = "list_even_parity"
   , functionName = "evenParity"
   , args = 1
-  , kMax = 10
+  , kMax = 15
   , suiteInfo = si PBESuite.list_even_parity
   , dIn = Denotation.simpleList Denotation.bool
   , dOut = Denotation.bool
@@ -220,12 +241,12 @@ list_hd =
   { name = "list_hd"
   , functionName = "listHead"
   , args = 1
-  , kMax = 5
+  , kMax = 10
   , suiteInfo = si PBESuite.list_hd
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.int
   , input = Sample.natList
-  , baseCase = Nothing
+  , baseCase = Just (Random.constant [])
   , func =
       let
         f : List Int -> Int
@@ -244,12 +265,12 @@ list_inc =
   { name = "list_inc"
   , functionName = "listInc"
   , args = 1
-  , kMax = 5
+  , kMax = 10
   , suiteInfo = si PBESuite.list_inc
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
   , input = Sample.natList
-  , baseCase = Nothing
+  , baseCase = Just (Random.constant [])
   , func =
       let
         f : List Int -> List Int
@@ -263,7 +284,7 @@ list_last =
   { name = "list_last"
   , functionName = "listLast"
   , args = 1
-  , kMax = 8
+  , kMax = 20
   , suiteInfo = si PBESuite.list_last
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.opt Denotation.int
@@ -309,7 +330,7 @@ list_nth =
   { name = "list_nth"
   , functionName = "listNth"
   , args = 2
-  , kMax = 20
+  , kMax = 40
   , suiteInfo = si PBESuite.list_nth
   , dIn = Denotation.args2 (Denotation.simpleList Denotation.int) Denotation.int
   , dOut = Denotation.int
@@ -350,7 +371,7 @@ list_pairwise_swap =
   { name = "list_pairwise_swap"
   , functionName = "listPairwiseSwap"
   , args = 1
-  , kMax = 12
+  , kMax = 20
   , suiteInfo = si PBESuite.list_pairwise_swap
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -374,7 +395,7 @@ list_rev_append =
   { name = "list_rev_append"
   , functionName = "listRevAppend"
   , args = 1
-  , kMax = 10
+  , kMax = 15
   , suiteInfo = si PBESuite.list_rev_append
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -393,7 +414,7 @@ list_rev_fold =
   { name = "list_rev_fold"
   , functionName = "listRevFold"
   , args = 1
-  , kMax = 10
+  , kMax = 15
   , suiteInfo = si PBESuite.list_rev_fold
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -412,7 +433,7 @@ list_rev_snoc =
   { name = "list_rev_snoc"
   , functionName = "listRevSnoc"
   , args = 1
-  , kMax = 10
+  , kMax = 15
   , suiteInfo = si PBESuite.list_rev_snoc
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -431,7 +452,7 @@ list_rev_tailcall =
   { name = "list_rev_tailcall"
   , functionName = "listRevTailcall"
   , args = 1
-  , kMax = 12
+  , kMax = 20
   , suiteInfo = si PBESuite.list_rev_tailcall
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -450,7 +471,7 @@ list_snoc =
   { name = "list_snoc"
   , functionName = "listSnoc"
   , args = 2
-  , kMax = 12
+  , kMax = 20
   , suiteInfo = si PBESuite.list_snoc
   , dIn = Denotation.args2 (Denotation.simpleList Denotation.int) Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -469,7 +490,7 @@ list_sort_sorted_insert =
   { name = "list_sort_sorted_insert"
   , functionName = "listSortSortedInsert"
   , args = 1
-  , kMax = 12
+  , kMax = 20
   , suiteInfo = si PBESuite.list_sort_sorted_insert
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -502,7 +523,7 @@ list_sorted_insert =
   { name = "list_sorted_insert"
   , functionName = "listSortedInsert"
   , args = 2
-  , kMax = 12
+  , kMax = 40
   , suiteInfo = si PBESuite.list_sorted_insert
   , dIn = Denotation.args2 (Denotation.simpleList Denotation.int) Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -521,7 +542,7 @@ list_stutter =
   { name = "list_stutter"
   , functionName = "listStutter"
   , args = 1
-  , kMax = 5
+  , kMax = 10
   , suiteInfo = si PBESuite.list_stutter
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
@@ -545,12 +566,12 @@ list_sum =
   { name = "list_sum"
   , functionName = "listSum"
   , args = 1
-  , kMax = 7
+  , kMax = 10
   , suiteInfo = si PBESuite.list_sum
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.int
   , input = Sample.natList
-  , baseCase = Nothing
+  , baseCase = Just (Random.constant [])
   , func =
       let
         f : List Int -> Int
@@ -564,7 +585,7 @@ list_take =
   { name = "list_take"
   , functionName = "listTake"
   , args = 2
-  , kMax = 20
+  , kMax = 40
   , suiteInfo = si PBESuite.list_take
   , dIn = Denotation.args2 Denotation.int (Denotation.simpleList Denotation.int)
   , dOut = Denotation.simpleList Denotation.int
@@ -583,12 +604,12 @@ list_tl =
   { name = "list_tl"
   , functionName = "listTail"
   , args = 1
-  , kMax = 5
+  , kMax = 10
   , suiteInfo = si PBESuite.list_tl
   , dIn = Denotation.simpleList Denotation.int
   , dOut = Denotation.simpleList Denotation.int
   , input = Sample.natList
-  , baseCase = Nothing
+  , baseCase = Just (Random.constant [])
   , func =
       let
         f : List Int -> List Int
@@ -599,6 +620,245 @@ list_tl =
 
             _ :: tail ->
               tail
+      in
+        f
+  }
+
+nat_iseven =
+  { name = "nat_iseven"
+  , functionName = "isEven"
+  , args = 1
+  , kMax = 4
+  , suiteInfo = si PBESuite.nat_iseven
+  , dIn = Denotation.int
+  , dOut = Denotation.bool
+  , input = Sample.nat
+  , baseCase = Just (Random.constant 0)
+  , func =
+      let
+        f : Int -> Bool
+        f x =
+          if x == 0 then
+            True
+          else if x == 1 then
+            False
+          else
+            f (x - 2)
+      in
+        f
+  }
+
+nat_max =
+  { name = "nat_max"
+  , functionName = "natMax"
+  , args = 2
+  , kMax = 9
+  , suiteInfo = si PBESuite.nat_max
+  , dIn = Denotation.args2 Denotation.int Denotation.int
+  , dOut = Denotation.int
+  , input = Random.pair Sample.nat Sample.nat
+  , baseCase = Just (Random.constant (0, 0))
+  , func =
+      let
+        f : (Int, Int) -> Int
+        f (x, y) =
+          if x >= y then
+            x
+          else
+            y
+      in
+        f
+  }
+
+nat_pred =
+  { name = "nat_pred"
+  , functionName = "natPred"
+  , args = 1
+  , kMax = 4
+  , suiteInfo = si PBESuite.nat_pred
+  , dIn = Denotation.int
+  , dOut = Denotation.int
+  , input = Sample.nat
+  , baseCase = Just (Random.constant 0)
+  , func =
+      let
+        f : Int -> Int
+        f x =
+          if x == 0 then
+            0
+          else
+            x - 1
+      in
+        f
+  }
+
+nat_add =
+  { name = "nat_add"
+  , functionName = "natAdd"
+  , args = 2
+  , kMax = 9
+  , suiteInfo = si PBESuite.nat_add
+  , dIn = Denotation.args2 Denotation.int Denotation.int
+  , dOut = Denotation.int
+  , input = Random.pair Sample.nat Sample.nat
+  , baseCase = Just (Random.constant (0, 0))
+  , func =
+      let
+        f : (Int, Int) -> Int
+        f (x, y) =
+          x + y
+      in
+        f
+  }
+
+-- tree_binsert =
+--   { name = "tree_binsert"
+--   , functionName = "treeBInsert"
+--   , args = 2
+--   , kMax = 40
+--   , suiteInfo = si PBESuite.tree_binsert
+--   , dIn = Denotation.args2 Denotation.int (Denotation.tree Denotation.int)
+--   , dOut = Denotation.tree Denotation.int
+--   , input = Random.pair Sample.nat Sample.natTree
+--   , baseCase = Just (Random.constant (0, Tree.Leaf))
+--   , func =
+--       let
+--         f : (Int, Tree Int) -> Tree Int
+--         f (y, tree) =
+--           Tree.binsert y tree
+--       in
+--         f
+--   }
+
+tree_collect_leaves =
+  { name = "tree_collect_leaves"
+  , functionName = "treeCollectLeaves"
+  , args = 1
+  , kMax = 20
+  , suiteInfo = si PBESuite.tree_collect_leaves
+  , dIn = Denotation.tree Denotation.bool
+  , dOut = Denotation.simpleList Denotation.bool
+  , input = Sample.boolTree
+  , baseCase = Just (Random.constant Tree.Leaf)
+  , func =
+      let
+        f : Tree Bool -> List Bool
+        f tree =
+          Tree.inOrder tree
+      in
+        f
+  }
+
+tree_count_leaves =
+  { name = "tree_count_leaves"
+  , functionName = "treeCountLeaves"
+  , args = 1
+  , kMax = 20
+  , suiteInfo = si PBESuite.tree_count_leaves
+  , dIn = Denotation.tree Denotation.bool
+  , dOut = Denotation.int
+  , input = Sample.boolTree
+  , baseCase = Just (Random.constant Tree.Leaf)
+  , func =
+      let
+        f : Tree Bool -> Int
+        f tree =
+          Tree.countLeaves tree
+      in
+        f
+  }
+
+tree_count_nodes =
+  { name = "tree_count_nodes"
+  , functionName = "treeCountNodes"
+  , args = 1
+  , kMax = 20
+  , suiteInfo = si PBESuite.tree_count_nodes
+  , dIn = Denotation.tree Denotation.int
+  , dOut = Denotation.int
+  , input = Sample.natTree
+  , baseCase = Just (Random.constant Tree.Leaf)
+  , func =
+      let
+        f : Tree Int -> Int
+        f tree =
+          Tree.countNodes tree
+      in
+        f
+  }
+
+tree_inorder =
+  { name = "tree_inorder"
+  , functionName = "treeInOrder"
+  , args = 1
+  , kMax = 20
+  , suiteInfo = si PBESuite.tree_inorder
+  , dIn = Denotation.tree Denotation.int
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Sample.natTree
+  , baseCase = Just (Random.constant Tree.Leaf)
+  , func =
+      let
+        f : Tree Int -> List Int
+        f tree =
+          Tree.inOrder tree
+      in
+        f
+  }
+
+-- tree_nodes_at_level =
+--   { name = "tree_nodes_at_level"
+--   , functionName = "treeNodesAtLevel"
+--   , args = 1
+--   , kMax = 20
+--   , suiteInfo = si PBESuite.tree_nodes_at_level
+--   , dIn = Denotation.args2 Denotation.int (Denotation.tree Denotation.bool)
+--   , dOut = Denotation.int
+--   , input = Random.pair Sample.nat Sample.boolTree
+--   , baseCase = Just (Random.constant (0, Tree.Leaf))
+--   , func =
+--       let
+--         f : (Int, Tree Bool) -> Int
+--         f (level, tree) =
+--           Tree.countNodesAtLevel level tree
+--       in
+--         f
+--   }
+
+-- tree_postorder =
+--   { name = "tree_postorder"
+--   , functionName = "treePostorder"
+--   , args = 1
+--   , kMax = 20
+--   , suiteInfo = si PBESuite.tree_postorder
+--   , dIn = Denotation.tree Denotation.int
+--   , dOut = Denotation.simpleList Denotation.int
+--   , input = Sample.natTree
+--   , baseCase = Just (Random.constant Tree.Leaf)
+--   , func =
+--       let
+--         f : Tree Int -> List Int
+--         f tree =
+--           Tree.postOrder tree
+--       in
+--         f
+--   }
+
+tree_preorder =
+  { name = "tree_preorder"
+  , functionName = "treePreorder"
+  , args = 1
+  , kMax = 20
+  , suiteInfo = si PBESuite.tree_preorder
+  , dIn = Denotation.tree Denotation.int
+  , dOut = Denotation.simpleList Denotation.int
+  , input = Sample.natTree
+  , baseCase = Just (Random.constant Tree.Leaf)
+  , func =
+      let
+        f : Tree Int -> List Int
+        f tree =
+          Tree.preOrder tree
       in
         f
   }
@@ -673,40 +933,39 @@ benchmarkInputs n =
     , createBenchmarkInput n bool_xor
 
     , createBenchmarkInput n list_append
---    , createBenchmarkInput n list_concat
+    , createBenchmarkInput n list_concat
     , createBenchmarkInput n list_drop
     , createBenchmarkInput n list_even_parity
---    , createBenchmarkInput n list_filter
---    , createBenchmarkInput n list_fold
+    -- , createBenchmarkInput n list_filter
+    -- , createBenchmarkInput n list_fold
     , createBenchmarkInput n list_hd
     , createBenchmarkInput n list_inc
     , createBenchmarkInput n list_last
     , createBenchmarkInput n list_length
---    , createBenchmarkInput n list_map
+    -- , createBenchmarkInput n list_map
     , createBenchmarkInput n list_nth
-----    , createBenchmarkInput n list_pairwise_swap
+    , createBenchmarkInput n list_pairwise_swap
+    , createBenchmarkInput n list_rev_append
+    , createBenchmarkInput n list_rev_fold
+    , createBenchmarkInput n list_rev_snoc
+    , createBenchmarkInput n list_rev_tailcall
+    , createBenchmarkInput n list_snoc
+    , createBenchmarkInput n list_sort_sorted_insert
+    , createBenchmarkInput n list_sorted_insert
+    , createBenchmarkInput n list_stutter
+    , createBenchmarkInput n list_sum
+    , createBenchmarkInput n list_take
+    , createBenchmarkInput n list_tl
 
-----    , createBenchmarkInput n list_rev_append
-----    , createBenchmarkInput n list_rev_fold
-----    , createBenchmarkInput n list_rev_snoc
-----    , createBenchmarkInput n list_rev_tailcall
-----    , createBenchmarkInput n list_snoc
-----    , createBenchmarkInput n list_sort_sorted_insert
-----    , createBenchmarkInput n list_sorted_insert
-----    , createBenchmarkInput n list_stutter
-----    , createBenchmarkInput n list_sum
-----    , createBenchmarkInput n list_take
-----    , createBenchmarkInput n list_tl
+    , createBenchmarkInput n nat_iseven
+    , createBenchmarkInput n nat_max
+    , createBenchmarkInput n nat_pred
+    , createBenchmarkInput n nat_add
+
+    , createBenchmarkInput n tree_collect_leaves
+    , createBenchmarkInput n tree_count_leaves
+    , createBenchmarkInput n tree_count_nodes
+    , createBenchmarkInput n tree_inorder
+    -- , createBenchmarkInput n tree_map
+    , createBenchmarkInput n tree_preorder
     ]
---
---    , createBenchmarkInput n nat_iseven
---    , createBenchmarkInput n nat_max
---    , createBenchmarkInput n nat_pred
---    , createBenchmarkInput n nat_add
---
---    , createBenchmarkInput n tree_collect_leaves
---    , createBenchmarkInput n tree_count_leaves
---    , createBenchmarkInput n tree_count_nodes
---    , createBenchmarkInput n tree_inorder
---    , createBenchmarkInput n tree_map
---    , createBenchmarkInput n tree_preorder

@@ -9,6 +9,7 @@ effect module MyRandom where { command = MyCmd } exposing
   , step, initialSeed
   , weighted
   , constant, fold, sequence, sampleUnique
+  , sequenceTree
   )
 
 {-| This library helps you generate pseudo-random values.
@@ -62,6 +63,8 @@ import Time
 import Tuple
 
 import Set exposing (Set)
+
+import Tree exposing (Tree)
 
 
 -- PRIMITIVE GENERATORS
@@ -656,3 +659,13 @@ sampleUnique =
     fold
       (\info acc -> Generator (helper info acc))
       Set.empty
+
+-- Warning: not tail recursive
+sequenceTree : Tree (Generator a) -> Generator (Tree a)
+sequenceTree tree =
+  case tree of
+    Tree.Leaf ->
+      constant Tree.Leaf
+
+    Tree.Node left xGen right ->
+      map3 Tree.Node (sequenceTree left) xGen (sequenceTree right)

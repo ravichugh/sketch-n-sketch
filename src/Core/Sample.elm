@@ -5,13 +5,17 @@ module Core.Sample exposing
 import MyRandom as Random exposing (Generator)
 import Set exposing (Set)
 
+import Utils
+
+import Tree exposing (Tree)
+
 --------------------------------------------------------------------------------
 -- Parameters
 --------------------------------------------------------------------------------
 
 trialCount : Int
 trialCount =
-  5
+  50
 
 maxNat : Int
 maxNat =
@@ -20,6 +24,14 @@ maxNat =
 maxListLength : Int
 maxListLength =
   3
+
+maxInnerListLength : Int
+maxInnerListLength =
+  2
+
+maxTreeSize : Int
+maxTreeSize =
+  4
 
 --------------------------------------------------------------------------------
 -- Enumeration Sampling
@@ -77,6 +89,59 @@ list elementSize elementGen =
     |> Random.map (listFill elementGen)
     |> Random.andThen Random.sequence
 
+nestedList : Int -> Generator a -> Generator (List (List a))
+nestedList elementSize elementGen =
+  let
+    innerListSize =
+      List.range 0 maxInnerListLength
+        |> List.map (\len -> elementSize ^ len)
+        |> List.sum
+  in
+    all listBase listShapes innerListSize maxListLength
+      |> uncurry Random.weighted
+      |> Random.map (listFill (list elementSize elementGen))
+      |> Random.andThen Random.sequence
+
+type TreeShape
+  = Leaf
+  | Node TreeShape TreeShape
+
+treeBase : TreeShape
+treeBase =
+  Leaf
+
+treeShapes : Int -> List TreeShape
+treeShapes n =
+  if n == 0 then
+    [treeBase]
+  else
+    let
+      sub =
+        treeShapes (n - 1)
+
+      subs =
+        Utils.cartProd sub sub
+    in
+      List.map
+        (\(left, right) -> Node left right)
+        subs
+
+treeFill : a -> TreeShape -> Tree a
+treeFill x t =
+  case t of
+    Leaf ->
+      Tree.Leaf
+
+    Node left right ->
+      Tree.Node (treeFill x left) x (treeFill x right)
+
+tree : Int -> Generator a -> Generator (Tree a)
+tree elementSize elementGen =
+  all treeBase treeShapes elementSize maxTreeSize
+    |> uncurry Random.weighted
+    |> Random.map (treeFill elementGen)
+    |> Random.andThen Random.sequenceTree
+
 -- Particular
 
 nat : Generator Int
@@ -91,9 +156,21 @@ natList : Generator (List Int)
 natList =
   list (maxNat + 1) nat
 
+nestedNatList : Generator (List (List Int))
+nestedNatList =
+  nestedList (maxNat + 1) nat
+
 boolList : Generator (List Bool)
 boolList =
   list 2 bool
+
+natTree : Generator (Tree Int)
+natTree =
+  tree (maxNat + 1) nat
+
+boolTree : Generator (Tree Bool)
+boolTree =
+  tree 2 bool
 
 --------------------------------------------------------------------------------
 -- IO Sampling
