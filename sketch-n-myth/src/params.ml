@@ -20,7 +20,7 @@ let max_guess_time : float =
   0.25
 
 let initial_fuel : int =
-  25
+  2500
 
 let log_info : bool =
   true

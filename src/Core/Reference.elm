@@ -1,6 +1,7 @@
 module Core.Reference exposing
   ( BenchmarkInput
-  , benchmarkInputs
+  , benchmarkInputParts
+  , benchmarkInputPartCount
   , listPairwiseSwap
   , listEvenParity
   , listSortedInsert
@@ -923,49 +924,65 @@ createBenchmarkInput n { name, functionName, args, kMax, suiteInfo, dIn, dOut,
          )
   |> Random.sequence
 
-benchmarkInputs : Int -> Generator (List (List (List BenchmarkInput)))
-benchmarkInputs n =
-  Random.sequence
-    [ createBenchmarkInput n bool_band
-    , createBenchmarkInput n bool_bor
-    , createBenchmarkInput n bool_impl
-    , createBenchmarkInput n bool_neg
-    , createBenchmarkInput n bool_xor
+benchmarkInputParts : List (Generator (List (List (List BenchmarkInput))))
+benchmarkInputParts =
+  let
+    n =
+      Sample.trialCount
+  in
+    List.map Random.sequence
+      [ [ createBenchmarkInput n bool_band
+        , createBenchmarkInput n bool_bor
+        , createBenchmarkInput n bool_impl
+        , createBenchmarkInput n bool_neg
+        , createBenchmarkInput n bool_xor
 
-    , createBenchmarkInput n list_append
-    , createBenchmarkInput n list_concat
-    , createBenchmarkInput n list_drop
-    , createBenchmarkInput n list_even_parity
-    -- , createBenchmarkInput n list_filter
-    -- , createBenchmarkInput n list_fold
-    , createBenchmarkInput n list_hd
-    , createBenchmarkInput n list_inc
-    , createBenchmarkInput n list_last
-    , createBenchmarkInput n list_length
-    -- , createBenchmarkInput n list_map
-    , createBenchmarkInput n list_nth
-    , createBenchmarkInput n list_pairwise_swap
-    , createBenchmarkInput n list_rev_append
-    , createBenchmarkInput n list_rev_fold
-    , createBenchmarkInput n list_rev_snoc
-    , createBenchmarkInput n list_rev_tailcall
-    , createBenchmarkInput n list_snoc
-    , createBenchmarkInput n list_sort_sorted_insert
-    , createBenchmarkInput n list_sorted_insert
-    , createBenchmarkInput n list_stutter
-    , createBenchmarkInput n list_sum
-    , createBenchmarkInput n list_take
-    , createBenchmarkInput n list_tl
+        , createBenchmarkInput n list_append
+        , createBenchmarkInput n list_concat
+        , createBenchmarkInput n list_drop
+        ]
+      , [ createBenchmarkInput n list_even_parity
+        -- , createBenchmarkInput n list_filter
+        -- , createBenchmarkInput n list_fold
+        , createBenchmarkInput n list_hd
+        , createBenchmarkInput n list_inc
+        , createBenchmarkInput n list_last
+        , createBenchmarkInput n list_length
+        ]
+      , [
+        -- , createBenchmarkInput n list_map
+          createBenchmarkInput n list_nth
+        ]
+      , [ createBenchmarkInput n list_rev_append
+        , createBenchmarkInput n list_rev_fold
+        , createBenchmarkInput n list_rev_snoc
+        , createBenchmarkInput n list_rev_tailcall
+        , createBenchmarkInput n list_snoc
+        , createBenchmarkInput n list_sort_sorted_insert
+        , createBenchmarkInput n list_stutter
+        ]
+      , [ createBenchmarkInput n list_sum
+        , createBenchmarkInput n list_take
+        , createBenchmarkInput n list_tl
+        , createBenchmarkInput n nat_iseven
+        , createBenchmarkInput n nat_max
+        , createBenchmarkInput n nat_pred
+        , createBenchmarkInput n nat_add
+        ]
+      , [ createBenchmarkInput n tree_collect_leaves
+        , createBenchmarkInput n tree_count_nodes
+        , createBenchmarkInput n tree_inorder
+        -- , createBenchmarkInput n tree_map
+        , createBenchmarkInput n tree_preorder
+        ]
+        -- Benchmarks requiring longer timeout
+      , [ createBenchmarkInput n list_sorted_insert
+        , createBenchmarkInput n list_pairwise_swap
+        , createBenchmarkInput n tree_count_leaves
+        ]
+      ]
 
-    , createBenchmarkInput n nat_iseven
-    , createBenchmarkInput n nat_max
-    , createBenchmarkInput n nat_pred
-    , createBenchmarkInput n nat_add
 
-    , createBenchmarkInput n tree_collect_leaves
-    , createBenchmarkInput n tree_count_leaves
-    , createBenchmarkInput n tree_count_nodes
-    , createBenchmarkInput n tree_inorder
-    -- , createBenchmarkInput n tree_map
-    , createBenchmarkInput n tree_preorder
-    ]
+benchmarkInputPartCount : Int
+benchmarkInputPartCount =
+  List.length benchmarkInputParts

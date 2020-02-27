@@ -744,11 +744,12 @@ showAllSamplingExperiments =
   in
     List.map showExperiment >> String.join "<hr>"
 
-msgRequestRandomSample : Int -> Msg
-msgRequestRandomSample n =
+msgRequestRandomSample :
+  Random.Generator (List (List (List Reference.BenchmarkInput))) -> Msg
+msgRequestRandomSample benchmarkInputs =
   NewModelAndCmd "Request Random Sample" <| \model ->
     ( model
-    , Random.generate msgReceiveRandomSample (Reference.benchmarkInputs n)
+    , Random.generate msgReceiveRandomSample benchmarkInputs
     )
 
 msgReceiveRandomSample :

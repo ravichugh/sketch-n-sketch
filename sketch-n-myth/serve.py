@@ -4,7 +4,10 @@ import subprocess
 PORT = 9090
 TIMEOUT = 1
 
-TIMED_OUT_STRING = \
+EVAL_TIMED_OUT = \
+    '["Error", "Evaluation timed out."]'
+
+SYNTHESIS_TIMED_OUT = \
     '["Ok",{"time_taken":' \
         + str(TIMEOUT) \
         + ',"hole_fillings":[],"timed_out":true}]'
@@ -59,7 +62,12 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.respond_server_error()
         except subprocess.TimeoutExpired:
-            self.respond_ok(TIMED_OUT_STRING)
+            if command == "eval":
+                self.respond_ok(EVAL_TIMED_OUT)
+            elif command == "synthesize":
+                self.respond_ok(SYNTHESIS_TIMED_OUT)
+            else:
+                self.respond_server_error()
 
 def run(server_class=HTTPServer, handler_class=Handler):
     server_address = ('', PORT)

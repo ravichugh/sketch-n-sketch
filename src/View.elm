@@ -64,6 +64,7 @@ import Core.Lang as C
 import Core.Uncompile
 import Core.Controller
 import Core.Sample
+import Core.Reference
 
 import DeuceWidgets exposing (..)
 import Config exposing (params)
@@ -848,13 +849,22 @@ menuBar model =
           , simpleTextButton
               "Run PBE Benchmark Suite (Base Case Sketch; n = 5)"
               (Core.Controller.msgRequestBenchmark 5 BaseCasePBESuite.suite)
-          , simpleTextButton
-              ( "Run Random Sampling Experiment (N = "
-                  ++ toString Core.Sample.trialCount
-                  ++ ")"
-              )
-              ( Core.Controller.msgRequestRandomSample Core.Sample.trialCount
-              )
+          ]
+        , [ List.indexedMap
+            ( \part benchmarkInputs ->
+                simpleTextButton
+                  ( "Run Random Sampling Experiment, Part "
+                      ++ toString (part + 1)
+                      ++ "/"
+                      ++ toString Core.Reference.benchmarkInputPartCount
+                      ++ " (N = "
+                      ++ toString Core.Sample.trialCount
+                      ++ ")"
+                  )
+                  ( Core.Controller.msgRequestRandomSample benchmarkInputs
+                  )
+            )
+            Core.Reference.benchmarkInputParts
           ]
         ]
         -- [ [ simpleHtmlTextButton
