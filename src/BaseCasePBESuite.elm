@@ -1,4 +1,4 @@
-module BaseCasePBESuite exposing (suite)
+module BaseCasePBESuite exposing (..)
 
 import Dict exposing (Dict)
 
