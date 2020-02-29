@@ -33,7 +33,7 @@ opt da mx =
 
 list : String -> String -> Denotation a -> Denotation (List a)
 list cons nil da =
-  List.foldl
+  List.foldr
     (\x acc -> cons ++ " (" ++ da x ++ ", " ++ acc ++ ")")
     (nil ++ " ()")
 
