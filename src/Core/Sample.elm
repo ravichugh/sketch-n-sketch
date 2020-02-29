@@ -23,7 +23,7 @@ maxNat =
 
 maxListLength : Int
 maxListLength =
-  3
+  4
 
 maxInnerListLength : Int
 maxInnerListLength =
@@ -41,8 +41,9 @@ maxTreeSize =
 
 weight : Int -> Int -> Float
 weight elementSize size =
-  toFloat <|
-    elementSize ^ size
+  1.0
+  -- toFloat <|
+  --   elementSize ^ size
 
 all : a -> (Int -> List a) -> Int -> Int -> ((Float, a), List (Float, a))
 all base shapes elementSize maxSize =
