@@ -915,8 +915,7 @@ benchmarkInputParts =
         , createBenchmarkInput n list_last
         , createBenchmarkInput n list_length
           --* , createBenchmarkInput n list_map
-        ]
-      , [ createBenchmarkInput n list_nth
+        , createBenchmarkInput n list_nth
         ]
       , [ createBenchmarkInput n list_rev_append
         , createBenchmarkInput n list_rev_fold
