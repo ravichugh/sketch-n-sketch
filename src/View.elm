@@ -850,22 +850,21 @@ menuBar model =
               "Run PBE Benchmark Suite (Base Case Sketch; n = 5)"
               (Core.Controller.msgRequestBenchmark 5 BaseCasePBESuite.suite)
           ]
-        , [ List.indexedMap
-            ( \part benchmarkInputs ->
-                simpleTextButton
-                  ( "Run Random Sampling Experiment, Part "
-                      ++ toString (part + 1)
-                      ++ "/"
-                      ++ toString Core.Reference.benchmarkInputPartCount
-                      ++ " (N = "
-                      ++ toString Core.Sample.trialCount
-                      ++ ")"
-                  )
-                  ( Core.Controller.msgRequestRandomSample benchmarkInputs
-                  )
-            )
-            Core.Reference.benchmarkInputParts
-          ]
+        , List.indexedMap
+          ( \part benchmarkInputs ->
+              simpleTextButton
+                ( "Run Random Sampling Experiment, Part "
+                    ++ toString (part + 1)
+                    ++ "/"
+                    ++ toString Core.Reference.benchmarkInputPartCount
+                    ++ " (N = "
+                    ++ toString Core.Sample.trialCount
+                    ++ ")"
+                )
+                ( Core.Controller.msgRequestRandomSample benchmarkInputs
+                )
+          )
+          Core.Reference.benchmarkInputParts
         ]
         -- [ [ simpleHtmlTextButton
         --       [ Html.a
