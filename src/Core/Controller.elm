@@ -395,7 +395,10 @@ benchmark { name, definitions, fullExamples, restrictedExamples } =
 
     validCount : List U.HoleFilling -> Task String Int
     validCount =
-      List.map (tryHoleFilling referenceExp)
+      List.map
+        ( tryHoleFilling referenceExp
+             >> Task.onError (\_ -> Task.succeed False)
+        )
         >> Task.sequence
         >> Task.map (Utils.count identity)
 
@@ -404,7 +407,7 @@ benchmark { name, definitions, fullExamples, restrictedExamples } =
         Just { code, count } ->
           flip Task.andThen
             ( runAndSynthesize (definitions ++ code)
-                |> Task.map (\(a, b, c, d) -> (b, c, d))
+                |> Task.map (\(_, hfs, tt, to) -> (hfs, tt, to))
                 |> Task.onError
                      ( \e ->
                          Debug.log e <|
@@ -680,7 +683,7 @@ showAllSamplingExperiments =
         Just foundResults ->
           case foundResults of
             [] ->
-              Err "k = 0"
+              Err "N = 0"
 
             head :: tail ->
               if
