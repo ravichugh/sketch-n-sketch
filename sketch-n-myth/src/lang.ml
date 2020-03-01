@@ -8,16 +8,6 @@ module Hole_map =
 type 'a hole_map =
   'a Hole_map.t
 
-type prim_typ =
-  | PTInt
-  | PTString
-  [@@deriving yojson]
-
-type prim_val =
-  | PVInt of int
-  | PVString of string
-  [@@deriving yojson]
-
 type exp =
   | EFix of (string option) * string * exp
   (* bool: special recursive call (used only for "recursive window" UI) *)
@@ -30,14 +20,12 @@ type exp =
   | ECase of exp * (string * (string * exp)) list
   | EHole of hole_name
   | EAssert of exp * exp
-  | EPrim of prim_val
   [@@deriving yojson]
 
 type typ =
   | TArr of typ * typ
   | TTuple of typ list
   | TData of string
-  | TPrim of prim_typ
   [@@deriving yojson]
 
 type res =
@@ -51,7 +39,6 @@ type res =
   | RProj of int * int * res
   | RCase of env * res * (string * (string * exp)) list
   | RCtorInverse of string * res
-  | RPrim of prim_val
   [@@deriving yojson]
 
 and env =
@@ -92,7 +79,6 @@ type example =
   | ExTuple of example list
   | ExCtor of string * example
   | ExInputOutput of value * example
-  | ExPrim of prim_val
   | ExTop
   [@@deriving yojson]
 

@@ -42,9 +42,6 @@ let propagate (hf : hole_filling) : hole_filling =
 
       | EAssert (e1, e2) ->
           EAssert (propagate_exp e1, propagate_exp e2)
-
-      | EPrim pv ->
-          EPrim pv
   in
     Hole_map.map propagate_exp hf
 

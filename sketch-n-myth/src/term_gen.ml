@@ -84,12 +84,6 @@ let hash ({ term_kind; term_size; rel_binding; goal } : gen_input) : string =
 
       | TData d ->
           d
-
-      | TPrim pt ->
-          begin match pt with
-            | PTInt -> "PT:Int"
-            | PTString -> "PT:String"
-          end
   in
   let hash_bind_spec (bind_spec : bind_spec) : string =
     match bind_spec with
@@ -477,16 +471,6 @@ and gen_i
                       }
                   in
                     ECtor (ctor_name, arg)
-
-              | TPrim tp ->
-                  Nondet.from_list @@
-                    begin match tp with
-                      | PTInt ->
-                          [EPrim (PVInt 0); EPrim (PVInt 1)]
-
-                      | PTString ->
-                          [EPrim (PVString "")]
-                    end
             end
 
 and rel_gen_i
@@ -573,9 +557,6 @@ and rel_gen_i
                 }
             in
               ECtor (ctor_name, arg)
-
-        | TPrim _ ->
-            Nondet.none
     in
       Nondet.union [e_option; i_option]
 

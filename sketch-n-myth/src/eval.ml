@@ -174,9 +174,6 @@ module FuelLimited = struct
                   Error "Result consistency failure"
             end
 
-      | EPrim pv ->
-          Ok (RPrim pv, [])
-
   let rec resume fuel hf res =
     let open Result2.Syntax in
     match res with
@@ -344,9 +341,6 @@ module FuelLimited = struct
             ( RCtorInverse (name, arg')
             , ks
             )
-
-      | RPrim pv ->
-          Ok (RPrim pv, [])
 
   and resume_env fuel hf env : eval_env_result =
     env
