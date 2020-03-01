@@ -192,26 +192,7 @@ let rec gen_e
             ]
 
       | [] ->
-          let tint =
-            TPrim PTInt
-          in
-            begin match goal_type with
-              | TArr (TTuple [a; b], c)
-                  when Type.equal a tint
-                    && Type.equal b tint
-                    && Type.equal c tint ->
-                      [EPrimOp POPlus; EPrimOp POMinus; EPrimOp PODiv2]
-                        |> Nondet.from_list
-
-              | TArr (a, b)
-                  when Type.equal a tint
-                    && Type.equal b tint ->
-                      [EPrimOp POInc; EPrimOp PODec]
-                        |> Nondet.from_list
-
-              | _ ->
-                  Nondet.none
-          end
+          Nondet.none
 
 (* A helper for the application part of rel_gen_e *)
 and rel_gen_e_app
