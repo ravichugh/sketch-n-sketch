@@ -18,6 +18,14 @@ type prim_val =
   | PVString of string
   [@@deriving yojson]
 
+type prim_op =
+  | POPlus
+  | POMinus
+  | POInc
+  | PODec
+  | PODiv2
+  [@@deriving yojson]
+
 type exp =
   | EFix of (string option) * string * exp
   (* bool: special recursive call (used only for "recursive window" UI) *)
@@ -31,6 +39,7 @@ type exp =
   | EHole of hole_name
   | EAssert of exp * exp
   | EPrim of prim_val
+  | EPrimOp of prim_op
   [@@deriving yojson]
 
 type typ =
@@ -52,6 +61,7 @@ type res =
   | RCase of env * res * (string * (string * exp)) list
   | RCtorInverse of string * res
   | RPrim of prim_val
+  | RPrimOp of prim_op
   [@@deriving yojson]
 
 and env =

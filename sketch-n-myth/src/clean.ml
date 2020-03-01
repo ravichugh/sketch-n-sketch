@@ -45,6 +45,9 @@ let propagate (hf : hole_filling) : hole_filling =
 
       | EPrim pv ->
           EPrim pv
+
+      | EPrimOp op ->
+          EPrimOp op
   in
     Hole_map.map propagate_exp hf
 
