@@ -36,8 +36,7 @@ module FuelLimited = struct
         | RFix (_, _, _, _)
         | RTuple _
         | RCtor (_, _)
-        | RPrim _
-        | RPrimOp _ ->
+        | RPrim _ ->
             None
 
         (* Indeterminate results *)
@@ -94,17 +93,11 @@ module FuelLimited = struct
           else
             Nondet.none
 
-      | (RTuple _, _) ->
-          Nondet.none
-
       | (RCtor (name1, arg1), ExCtor (name2, arg2)) ->
           if name1 = name2 then
             uneval fuel delta sigma hf arg1 arg2
           else
             Nondet.none
-
-      | (RCtor (_, _), _) ->
-          Nondet.none
 
       | (RHole (env, hole_name), _) ->
           Nondet.pure @@
@@ -122,9 +115,6 @@ module FuelLimited = struct
           in
             check fuel delta sigma hf body @@
               [((x, Res.from_value input) :: fix_extension, output)]
-
-      | (RFix (_, _, _, _), _) ->
-          Nondet.none
 
       | (RApp (r1, r2), _) ->
           begin match Res.to_value r2 with
@@ -201,17 +191,8 @@ module FuelLimited = struct
       | (RCtorInverse (name, arg), _) ->
           uneval fuel delta sigma hf arg (ExCtor (name, ex))
 
-      | (RPrim pv1, ExPrim pv2) ->
-          if Prim.val_equal pv1 pv2 then
-            Nondet.pure Constraints.empty
-          else
-            Nondet.none
-
-      | (RPrim _, _) ->
+      | _ ->
           Nondet.none
-
-      | (RPrimOp _op, _) ->
-          Nondet.none (* TODO! *)
 
   and simplify_assertions fuel delta sigma rcs =
     let simplify_one (res, value) =

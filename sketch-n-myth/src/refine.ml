@@ -162,7 +162,7 @@ let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
               |> List2.collapse_equal
           in
             begin match ex with
-              | ExPrim pv when Prim.val_typ pv == pt ->
+              | ExPrim pv when Prim.typeof pv == pt ->
                   Some (EPrim pv, [])
 
               | _ ->

@@ -14,8 +14,8 @@ import Set exposing (Set)
 import Tree exposing (Tree)
 
 -- Switch between these two imports to test NoSketch and Sketch experiments
--- import PBESuite
-import BaseCasePBESuite as PBESuite
+import PBESuite
+-- import BaseCasePBESuite as PBESuite
 
 import Core.Denotation as Denotation exposing (Denotation)
 import Core.Sample as Sample

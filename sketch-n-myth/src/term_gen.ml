@@ -482,7 +482,7 @@ and gen_i
                   Nondet.from_list @@
                     begin match tp with
                       | PTInt ->
-                          [EPrim (PVInt 0)]
+                          [EPrim (PVInt 0); EPrim (PVInt 1)]
 
                       | PTString ->
                           [EPrim (PVString "")]

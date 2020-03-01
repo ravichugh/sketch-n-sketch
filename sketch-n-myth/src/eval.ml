@@ -177,9 +177,6 @@ module FuelLimited = struct
       | EPrim pv ->
           Ok (RPrim pv, [])
 
-      | EPrimOp op ->
-          Ok (RPrimOp op, [])
-
   let rec resume fuel hf res =
     let open Result2.Syntax in
     match res with
@@ -350,9 +347,6 @@ module FuelLimited = struct
 
       | RPrim pv ->
           Ok (RPrim pv, [])
-
-      | RPrimOp op ->
-          Ok (RPrimOp op, [])
 
   and resume_env fuel hf env : eval_env_result =
     env
