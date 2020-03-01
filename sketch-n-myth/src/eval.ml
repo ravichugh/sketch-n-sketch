@@ -8,26 +8,6 @@ type eval_env_result =
 
 (* Note: fuel gets applied at every application. *)
 module FuelLimited = struct
-  let eval_prim op r =
-    match (op, r) with
-      | (POPlus, RTuple [RPrim (PVInt n1); RPrim (PVInt n2)]) ->
-          Ok (RPrim (PVInt (n1 + n2)), [])
-
-      | (POMinus, RTuple [RPrim (PVInt n1); RPrim (PVInt n2)]) ->
-          Ok (RPrim (PVInt (n1 - n2)), [])
-
-      | (POInc, RPrim (PVInt n)) ->
-          Ok (RPrim (PVInt (n + 1)), [])
-
-      | (PODec, RPrim (PVInt n)) ->
-          Ok (RPrim (PVInt (n - 1)), [])
-
-      | (PODiv2, RTuple [RPrim (PVInt n1); RPrim (PVInt n2)]) ->
-          Ok (RPrim (PVInt (n1 / n2)), [])
-
-      | _ ->
-          Error "Primitive operation type mismatch"
-
   let rec eval fuel env exp =
     let open Result2.Syntax in
     let* _ =
@@ -110,8 +90,8 @@ module FuelLimited = struct
                       (Pair2.map_snd @@ fun ks3 -> ks1 @ ks2 @ ks3)
                       (eval (fuel - 1) new_env body)
 
-              | RPrimOp op ->
-                  eval_prim op r2
+              | RPrimOp _op ->
+                  raise Exit (* TODO! *)
 
               | _ ->
                   Ok
@@ -200,8 +180,8 @@ module FuelLimited = struct
       | EPrim pv ->
           Ok (RPrim pv, [])
 
-      | EPrimOp po ->
-          Ok (RPrimOp po, [])
+      | EPrimOp op ->
+          Ok (RPrimOp op, [])
 
   let rec resume fuel hf res =
     let open Result2.Syntax in
@@ -293,8 +273,8 @@ module FuelLimited = struct
                     , ks1 @ ks2 @ ks @ ks'
                     )
 
-              | RPrimOp op ->
-                  eval_prim op r2'
+              | RPrim _op ->
+                  raise Exit (* TODO! *)
 
               | _ ->
                   Ok
