@@ -59,5 +59,11 @@ let rec syntactically_equal e1 e2 =
         syntactically_equal left1 left2
           && syntactically_equal right1 right2
 
+    | (EPrim pv1, EPrim pv2) ->
+        Prim.val_equal pv1 pv2
+
+    | (EPrimOp po1, EPrimOp po2) ->
+        Prim.op_equal po1 po2
+
     | _ ->
         false

@@ -17,6 +17,9 @@ and determinate r =
     | RCtor (_, arg) ->
         final arg
 
+    | RPrim _ ->
+        true
+
     | _ ->
         false
 
@@ -50,6 +53,9 @@ let rec to_value r =
           (fun v -> VCtor (name, v))
           (to_value arg)
 
+    | RPrim pv ->
+        Some (VPrim pv)
+
     | _ ->
       None
 
@@ -60,6 +66,9 @@ let rec from_value v =
 
     | VCtor (name, v_arg) ->
         RCtor (name, from_value v_arg)
+
+    | VPrim pv ->
+        RPrim pv
 
 let rec consistent r1 r2 =
   if r1 = r2 then
@@ -78,6 +87,12 @@ let rec consistent r1 r2 =
       | (RCtor (name1, arg1), RCtor (name2, arg2)) ->
           if String.equal name1 name2 then
             consistent arg1 arg2
+          else
+            None
+
+      | (RPrim pv1, RPrim pv2) ->
+          if Prim.val_equal pv1 pv2 then
+            Some []
           else
             None
 

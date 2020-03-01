@@ -51,3 +51,23 @@ let typ_equal pt1 pt2 =
     | (PTInt, _)
     | (PTString, _) ->
         false
+
+let op_equal po1 po2 =
+  match (po1, po2) with
+  | (POPlus, POPlus) ->
+      true
+
+  | (POMinus, POMinus) ->
+      true
+
+  | (POInc, POInc) ->
+      true
+
+  | (PODec, PODec) ->
+      true
+
+  | (PODiv2, PODiv2) ->
+      true
+
+  | _ ->
+      false
