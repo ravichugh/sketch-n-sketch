@@ -118,13 +118,40 @@ module FuelLimited = struct
               [((x, Res.from_value input) :: fix_extension, output)]
 
       | (RApp (r1, r2), _) ->
-          begin match Res.to_value r2 with
-            | Some v2 ->
-                uneval fuel delta sigma hf r1 @@
-                  ExInputOutput (v2, ex)
+          begin match r1 with
+            | RPrimOp op ->
+                begin match (op, r2, ex) with
+                  | (POPlus, _, _) ->
+                      raise Exit (* TODO *)
 
-            | None ->
-                Nondet.none
+                  | (POMinus, _, _) ->
+                      raise Exit (* TODO *)
+
+                  | (POInc, _, ExPrim (PVInt n)) ->
+                      uneval fuel delta sigma hf r2 @@
+                        ExPrim (PVInt (n - 1))
+
+                  | (PODec, _, ExPrim (PVInt n)) ->
+                      uneval fuel delta sigma hf r2 @@
+                        ExPrim (PVInt (n + 1))
+
+                  | (PODiv2, _, ExPrim (PVInt n)) ->
+                      uneval fuel delta sigma hf r2 @@
+                        ExPrim (PVInt (2 * n))
+
+                  | _ ->
+                      Nondet.none
+                end
+
+            | _ ->
+              begin match Res.to_value r2 with
+                | Some v2 ->
+                    uneval fuel delta sigma hf r1 @@
+                      ExInputOutput (v2, ex)
+
+                | None ->
+                    Nondet.none
+              end
           end
 
       | (RProj (n, i, arg), _) ->
@@ -197,9 +224,6 @@ module FuelLimited = struct
             Nondet.pure Constraints.empty
           else
             Nondet.none
-
-      | (RPrimOp _op, _) ->
-          Nondet.none (* TODO! *)
 
       | _ ->
           Nondet.none
