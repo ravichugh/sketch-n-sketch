@@ -35,7 +35,8 @@ module FuelLimited = struct
 
         | RFix (_, _, _, _)
         | RTuple _
-        | RCtor (_, _) ->
+        | RCtor (_, _)
+        | RPrim _ ->
             None
 
         (* Indeterminate results *)
