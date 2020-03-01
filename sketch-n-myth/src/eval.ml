@@ -90,9 +90,6 @@ module FuelLimited = struct
                       (Pair2.map_snd @@ fun ks3 -> ks1 @ ks2 @ ks3)
                       (eval (fuel - 1) new_env body)
 
-              | RPrimOp _op ->
-                  raise Exit (* TODO! *)
-
               | _ ->
                   Ok
                     ( RApp (r1, r2)
@@ -272,9 +269,6 @@ module FuelLimited = struct
                     ( r'
                     , ks1 @ ks2 @ ks @ ks'
                     )
-
-              | RPrim _op ->
-                  raise Exit (* TODO! *)
 
               | _ ->
                   Ok

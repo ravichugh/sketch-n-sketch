@@ -8,9 +8,6 @@ let rec from_value v =
     | VCtor (name, v_arg) ->
         ExCtor (name, from_value v_arg)
 
-    | VPrim pv ->
-        ExPrim pv
-
 let rec res_satisfies hf res ex =
   match (res, ex) with
     | (_, ExTop) ->
@@ -23,9 +20,6 @@ let rec res_satisfies hf res ex =
     | (RCtor (r_name, r_arg), ExCtor (ex_name, ex_arg)) ->
         String.equal r_name ex_name
           && res_satisfies hf r_arg ex_arg
-
-    | (RPrim pv1, ExPrim pv2) ->
-        Prim.val_equal pv1 pv2
 
     | (_, ExInputOutput (input, output)) ->
         begin match Eval.resume hf (RApp (res, Res.from_value input)) with

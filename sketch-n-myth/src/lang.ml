@@ -54,14 +54,13 @@ type res =
   | RFix of env * (string option) * string * exp
   | RTuple of res list
   | RCtor of string * res
-  | RPrim of prim_val
   (* Indeterminate results *)
   | RHole of env * hole_name
   | RApp of res * res
   | RProj of int * int * res
   | RCase of env * res * (string * (string * exp)) list
-  (* Other *)
   | RCtorInverse of string * res
+  | RPrim of prim_val
   | RPrimOp of prim_op
   [@@deriving yojson]
 
@@ -97,7 +96,6 @@ type hole_ctx =
 type value =
   | VTuple of value list
   | VCtor of string * value
-  | VPrim of prim_val
   [@@deriving yojson]
 
 type example =

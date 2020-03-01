@@ -5,20 +5,14 @@ let rec equal tau1 tau2 =
     | (TArr (tau11, tau12), TArr (tau21, tau22)) ->
         equal tau11 tau21 && equal tau12 tau22
 
-
     | (TTuple taus1, TTuple taus2) ->
         List.length taus1 = List.length taus2
           && List.for_all2 equal taus1 taus2
 
-
     | (TData d1, TData d2) ->
         String.equal d1 d2
 
-
-    | (TPrim pt1, TPrim pt2) ->
-        Prim.typ_equal pt1 pt2
-
-    |_ ->
+    | _ ->
         false
 
 let is_base tau =
