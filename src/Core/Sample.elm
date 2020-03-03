@@ -21,17 +21,33 @@ maxNat : Int
 maxNat =
   3
 
-maxListLength : Int
-maxListLength =
+maxNatListLength : Int
+maxNatListLength =
+  4
+
+maxNestedNatListLength : Int
+maxNestedNatListLength =
+  4
+
+maxNestedNatInnerListLength : Int
+maxNestedNatInnerListLength =
+  2
+
+maxBoolListLength : Int
+maxBoolListLength =
   4
 
 maxInnerListLength : Int
 maxInnerListLength =
   2
 
-maxTreeSize : Int
-maxTreeSize =
+maxNatTreeSize : Int
+maxNatTreeSize =
   4
+
+maxBoolTreeSize : Int
+maxBoolTreeSize =
+  6
 
 --------------------------------------------------------------------------------
 -- Enumeration Sampling
@@ -83,15 +99,15 @@ listFill x shape =
     Cons rest ->
       x :: listFill x rest
 
-list : Int -> Generator a -> Generator (List a)
-list elementSize elementGen =
-  all listBase listShapes elementSize maxListLength
+list : Int -> Int -> Generator a -> Generator (List a)
+list maxListSize elementSize elementGen =
+  all listBase listShapes elementSize maxListSize
     |> uncurry Random.weighted
     |> Random.map (listFill elementGen)
     |> Random.andThen Random.sequence
 
-nestedList : Int -> Generator a -> Generator (List (List a))
-nestedList elementSize elementGen =
+nestedList : Int -> Int -> Int -> Generator a -> Generator (List (List a))
+nestedList maxListLength maxInnerListLength elementSize elementGen =
   let
     innerListSize =
       List.range 0 maxInnerListLength
@@ -100,7 +116,7 @@ nestedList elementSize elementGen =
   in
     all listBase listShapes innerListSize maxListLength
       |> uncurry Random.weighted
-      |> Random.map (listFill (list elementSize elementGen))
+      |> Random.map (listFill (list maxInnerListLength elementSize elementGen))
       |> Random.andThen Random.sequence
 
 type TreeShape
@@ -116,16 +132,15 @@ treeShapes n =
   if n == 0 then
     [treeBase]
   else
-    let
-      sub =
-        treeShapes (n - 1)
-
-      subs =
-        Utils.cartProd sub sub
-    in
-      List.map
-        (\(left, right) -> Node left right)
-        subs
+    List.concatMap
+      ( \k ->
+          List.map (\(left, right) -> Node left right) <|
+            Utils.cartProd
+              (treeShapes k)
+              (treeShapes <| (n - 1) - k)
+      )
+      ( List.range 0 (n - 1)
+      )
 
 treeFill : a -> TreeShape -> Tree a
 treeFill x t =
@@ -136,8 +151,8 @@ treeFill x t =
     Node left right ->
       Tree.Node (treeFill x left) x (treeFill x right)
 
-tree : Int -> Generator a -> Generator (Tree a)
-tree elementSize elementGen =
+tree : Int -> Int -> Generator a -> Generator (Tree a)
+tree maxTreeSize elementSize elementGen =
   all treeBase treeShapes elementSize maxTreeSize
     |> uncurry Random.weighted
     |> Random.map (treeFill elementGen)
@@ -155,23 +170,23 @@ bool =
 
 natList : Generator (List Int)
 natList =
-  list (maxNat + 1) nat
+  list maxNatListLength (maxNat + 1) nat
 
 nestedNatList : Generator (List (List Int))
 nestedNatList =
-  nestedList (maxNat + 1) nat
+  nestedList maxNestedNatListLength maxNestedNatInnerListLength (maxNat + 1) nat
 
 boolList : Generator (List Bool)
 boolList =
-  list 2 bool
+  list maxBoolListLength 2 bool
 
 natTree : Generator (Tree Int)
 natTree =
-  tree (maxNat + 1) nat
+  tree maxNatTreeSize (maxNat + 1) nat
 
 boolTree : Generator (Tree Bool)
 boolTree =
-  tree 2 bool
+  tree maxBoolTreeSize 2 bool
 
 --------------------------------------------------------------------------------
 -- IO Sampling

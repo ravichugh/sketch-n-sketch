@@ -2,9 +2,6 @@ module Core.Reference exposing
   ( BenchmarkInput
   , benchmarkInputParts
   , benchmarkInputPartCount
-  , listPairwiseSwap
-  , listEvenParity
-  , listSortedInsert
   )
 
 import MyRandom as Random exposing (Generator)
@@ -14,8 +11,8 @@ import Set exposing (Set)
 import Tree exposing (Tree)
 
 -- Switch between these two imports to test NoSketch and Sketch experiments
-import PBESuite
--- import BaseCasePBESuite as PBESuite
+-- import PBESuite
+import BaseCasePBESuite as PBESuite
 
 import Core.Denotation as Denotation exposing (Denotation)
 import Core.Sample as Sample
@@ -424,17 +421,25 @@ list_rev_snoc =
 list_rev_tailcall =
   { name = "list_rev_tailcall"
   , functionName = "listRevTailcall"
-  , args = 1
+  , args = 2
   , kMax = 20
-  , dIn = Denotation.simpleList Denotation.int
+  , dIn =
+      Denotation.args2
+        (Denotation.simpleList Denotation.int)
+        (Denotation.simpleList Denotation.int)
   , dOut = Denotation.simpleList Denotation.int
-  , input = Sample.natList
-  , baseCase = Just (Random.constant [])
+  , input = Random.pair Sample.natList Sample.natList
+  , baseCase = Just (Random.constant ([], []))
   , func =
       let
-        f : List Int -> List Int
-        f xs =
-          List.reverse xs
+        f : (List Int, List Int) -> List Int
+        f (xs, acc) =
+          case xs of
+            [] ->
+              acc
+
+            head :: tail ->
+              f (tail, head :: acc)
       in
         f
   }
@@ -470,7 +475,9 @@ list_sort_sorted_insert =
       let
         f : List Int -> List Int
         f xs =
-          List.sort xs
+          xs
+            |> Utils.dedup
+            |> List.sort
       in
         f
   }
@@ -616,7 +623,7 @@ nat_max =
   { name = "nat_max"
   , functionName = "natMax"
   , args = 2
-  , kMax = 9
+  , kMax = 15
   , dIn = Denotation.args2 Denotation.int Denotation.int
   , dOut = Denotation.int
   , input = Random.pair Sample.nat Sample.nat
@@ -712,7 +719,7 @@ tree_count_leaves =
   { name = "tree_count_leaves"
   , functionName = "treeCountLeaves"
   , args = 1
-  , kMax = 20
+  , kMax = 15
   , dIn = Denotation.tree Denotation.bool
   , dOut = Denotation.int
   , input = Sample.boolTree
@@ -730,7 +737,7 @@ tree_count_nodes =
   { name = "tree_count_nodes"
   , functionName = "treeCountNodes"
   , args = 1
-  , kMax = 20
+  , kMax = 15
   , dIn = Denotation.tree Denotation.int
   , dOut = Denotation.int
   , input = Sample.natTree
@@ -748,7 +755,7 @@ tree_inorder =
   { name = "tree_inorder"
   , functionName = "treeInOrder"
   , args = 1
-  , kMax = 20
+  , kMax = 15
   , dIn = Denotation.tree Denotation.int
   , dOut = Denotation.simpleList Denotation.int
   , input = Sample.natTree
@@ -802,7 +809,7 @@ tree_preorder =
   { name = "tree_preorder"
   , functionName = "treePreorder"
   , args = 1
-  , kMax = 20
+  , kMax = 15
   , dIn = Denotation.tree Denotation.int
   , dOut = Denotation.simpleList Denotation.int
   , input = Sample.natTree
@@ -833,6 +840,7 @@ examples :
 examples functionName args dIn dOut =
   let
     extract ios =
+      let _ = Debug.log "Suite name" PBESuite.name in
       let _ = Debug.log "Generated Examples" ios in
       ( List.length ios
       , "specifyFunction"
@@ -929,15 +937,16 @@ benchmarkInputParts =
         , createBenchmarkInput n list_take
         , createBenchmarkInput n list_tl
         , createBenchmarkInput n nat_iseven
-        , createBenchmarkInput n nat_max
+        ]
+      , [ createBenchmarkInput n nat_max
         , createBenchmarkInput n nat_pred
         , createBenchmarkInput n nat_add
         ]
-      , [ createBenchmarkInput n tree_collect_leaves
-        , createBenchmarkInput n tree_count_nodes
-        , createBenchmarkInput n tree_inorder
+      , [ -- TEMP createBenchmarkInput n tree_collect_leaves
+          createBenchmarkInput n tree_count_nodes
+          -- TEMP , createBenchmarkInput n tree_inorder
           --* , createBenchmarkInput n tree_map
-        , createBenchmarkInput n tree_preorder
+          -- TEMP, createBenchmarkInput n tree_preorder
         ]
         -- Benchmarks requiring longer timeout
       , [ createBenchmarkInput n list_sorted_insert
