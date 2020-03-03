@@ -2,6 +2,8 @@ module PBESuite exposing (..)
 
 import Dict exposing (Dict)
 
+name = "PBESuite"
+
 init =
   """type Nat
   = Z ()
