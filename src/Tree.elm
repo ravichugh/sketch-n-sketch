@@ -28,7 +28,7 @@ preOrder tree =
       []
 
     Node left x right ->
-      [x] ++ inOrder left ++ inOrder right
+      [x] ++ preOrder left ++ preOrder right
 
 inOrder : Tree a -> List a
 inOrder tree =
@@ -46,7 +46,7 @@ postOrder tree =
       []
 
     Node left x right ->
-      inOrder left ++ inOrder right ++ [x]
+      postOrder left ++ postOrder right ++ [x]
 
 countLeaves : Tree a -> Int
 countLeaves tree =
