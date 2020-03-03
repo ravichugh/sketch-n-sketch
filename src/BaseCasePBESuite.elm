@@ -2,6 +2,8 @@ module BaseCasePBESuite exposing (..)
 
 import Dict exposing (Dict)
 
+name = "BaseCasePBESuite"
+
 list_append = (,,,,)
   """type Nat
   = Z ()
@@ -209,7 +211,13 @@ type BooleanList
   | Cons (Boolean, BooleanList)
 
 evenParity : BooleanList -> Boolean
-evenParity xs = ??
+evenParity xs =
+  case xs of
+    Nil _ ->
+      T ()
+
+    Cons p ->
+      ?? : Boolean
 
 """
   """specifyFunction evenParity
@@ -558,7 +566,13 @@ type NatList
   | Cons (Nat, NatList)
 
 listPairwiseSwap : NatList -> NatList
-listPairwiseSwap xs = ??
+listPairwiseSwap xs =
+  case xs of
+    Nil _ ->
+      Nil ()
+
+    Cons p ->
+      ?? : NatList
 
 """
   """specifyFunction listPairwiseSwap
@@ -1585,14 +1599,14 @@ suite =
     -- , ("list_compress", list_compress)
     , ("list_concat", list_concat)
     , ("list_drop", list_drop)
-    -- , ("list_even_parity", list_even_parity)
+    --* , ("list_even_parity", list_even_parity)
     -- , ("list_filter", list_filter)
     , ("list_fold", list_fold)
     , ("list_last", list_last)
     , ("list_length", list_length)
     , ("list_map", list_map)
     , ("list_nth", list_nth)
-    -- , ("list_pairwise_swap", list_pairwise_swap)
+    --* , ("list_pairwise_swap", list_pairwise_swap)
     , ("list_rev_append", list_rev_append)
     , ("list_rev_tailcall", list_rev_tailcall)
     , ("list_rev_snoc", list_rev_snoc)
