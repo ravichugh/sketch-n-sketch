@@ -342,12 +342,12 @@ average benchmarks =
                         Just r ->
                           if
                             r.exampleCount == headR.exampleCount
-                              && r.validTopRecursive
-                                   == headR.validTopRecursive
-                              && r.validTopNonRecursive
-                                   == headR.validTopNonRecursive
-                              && r.validOthers
-                                   == headR.validOthers
+                              -- && r.validTopRecursive
+                              --      == headR.validTopRecursive
+                              -- && r.validTopNonRecursive
+                              --      == headR.validTopNonRecursive
+                              -- && r.validOthers
+                              --      == headR.validOthers
                               && r.window
                                    == headR.window
                           then
@@ -462,14 +462,14 @@ benchmark { name, definitions, fullExamples, restrictedExamples } =
 showBenchmarks : Int -> List Benchmark -> String
 showBenchmarks replications benchmarks =
   let
-    (leftExperimentName, rightExperimentName) =
+    (leftExperimentName, rightExperimentName, addOne) =
       if List.length benchmarks == Dict.size TopOnePBESuite.suite then
-        ("One", "Two")
+        ("One", "Two", False)
       else if List.length benchmarks == Dict.size BaseCasePBESuite.suite then
         -- This used to be ("ThreeFull", "ThreeFewer")
-        ("", "Three")
+        ("", "Three", True)
       else
-        ("Unknown", "Unknown")
+        ("Unknown", "Unknown", False)
 
     showFull data =
       "\\benchmarkExperiment"
@@ -493,15 +493,21 @@ showBenchmarks replications benchmarks =
 
             smallestSolutionSuccess =
               U.topSolution data.window
+
+            (adjustedExampleCount, adjustedExampleCountString) =
+              if addOne then
+                (data.exampleCount + 1, "1+" ++ toString data.exampleCount)
+              else
+                (data.exampleCount, toString data.exampleCount)
           in
             "\\benchmarkExperiment"
               ++ rightExperimentName
               ++ "{"
-              ++ toString data.exampleCount
+              ++ adjustedExampleCountString
               ++ " ("
               ++ toString
                    ( round <| 100 *
-                       toFloat data.exampleCount / toFloat fullExampleCount
+                       toFloat adjustedExampleCount / toFloat fullExampleCount
                    )
               ++ "\\%)}{"
               ++ toString totalValid
@@ -544,27 +550,47 @@ showBenchmarks replications benchmarks =
         ++ showRestricted b.restricted b.full.exampleCount
         ++ "<br />"
 
-    averageSizePercent : Float
-    averageSizePercent =
+    sizePercents : List Float
+    sizePercents =
       let
         sizePercent b =
           case b.restricted of
+            -- Conservative estimate
             Nothing ->
               1
 
             Just data ->
-              toFloat data.exampleCount / toFloat b.full.exampleCount
+              let
+                adjustedExampleCount =
+                  if addOne then
+                    data.exampleCount + 1
+                  else
+                    data.exampleCount
+              in
+                toFloat adjustedExampleCount / toFloat b.full.exampleCount
       in
-        benchmarks
-          |> List.map sizePercent
-          |> Utils.average
-          |> Maybe.withDefault 1
+        List.map sizePercent benchmarks
+
+    averageSizePercent : Float
+    averageSizePercent =
+      sizePercents
+        |> Utils.average
+        |> Maybe.withDefault 1
+
+    medianSizePercent : Float
+    medianSizePercent =
+      sizePercents
+        |> Utils.median
+        |> Maybe.withDefault 1
   in
     "% Replications: n = "
       ++ toString replications
       ++ "<br /><br />"
       ++ "% Average size percent: "
-      ++ toString (round <| 100 * averageSizePercent)
+      ++ Utils.formatFloat 2 (100 * averageSizePercent)
+      ++ "%<br />"
+      ++ "% Median size percent: "
+      ++ Utils.formatFloat 2 (100 * medianSizePercent)
       ++ "%<br /><br />"
       ++ ( benchmarks
              |> List.map showBenchmark

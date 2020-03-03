@@ -2049,3 +2049,31 @@ average xs =
   else
     Just <|
       List.sum xs / toFloat (List.length xs)
+
+median : List Float -> Maybe Float
+median =
+  let
+    middle xs =
+      let
+        len =
+          List.length xs
+
+        halfLen =
+          len // 2
+      in
+        if isOdd len then
+          maybeGeti0 halfLen xs
+        else
+          case
+            xs
+              |> List.drop (halfLen - 1)
+              |> List.take 2
+          of
+            [mid1, mid2] ->
+              Just <|
+                (mid1 + mid2) / 2
+
+            _ ->
+              Nothing
+  in
+    List.sort >> middle
