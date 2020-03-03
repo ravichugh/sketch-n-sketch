@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- How to Set Up Sketch-n-Myth
+-- How to Set Up Smyth
 --------------------------------------------------------------------------------
 
 
@@ -28,8 +28,8 @@
 
 
 
-4. In the `sketch-n-myth` directory, run the Sketch-n-Myth server with the
-   command `make serve`. The server will be hosted on port 9090.
+4. In the `sketch-n-myth` directory, run the Smyth server with the command
+   `make serve`. The server will be hosted on port 9090.
 
 
 
@@ -50,6 +50,6 @@
 
 
 
-8. Click on the "Sketch-n-Myth" menu at the top to run the benchmarking suite in
-   its entirety, or view individual programs by clicking on the "File" menu then
+8. Click on the "Smyth" menu at the top to run the benchmarking suite in its
+   entirety, or view individual programs by clicking on the "File" menu then
    selecting "Open from PBE Suite".

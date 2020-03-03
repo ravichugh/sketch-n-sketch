@@ -54,7 +54,7 @@ class Handler(BaseHTTPRequestHandler):
         user_input = self.get_body()
         try:
             output = subprocess.check_output(
-                ["./snm", command],
+                ["./smyth", command],
                 input=user_input,
                 timeout=TIMEOUT
             )
