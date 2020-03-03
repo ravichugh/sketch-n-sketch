@@ -47,12 +47,28 @@ let synthesis_pipeline delta sigma assertions =
     |> Solve.solve_any delta sigma
 
 let usage n =
-  prerr_endline ("usage: " ^ Sys.argv.(0) ^ " eval|synthesize input");
+  prerr_endline ("usage: " ^ Sys.argv.(0) ^ " eval|synthesize");
   exit n
+
+let read_all file =
+  let acc =
+    ref []
+  in
+    begin try
+      while true do
+        acc := input_line file :: !acc
+      done;
+      !acc
+    with
+      End_of_file ->
+        !acc
+    end
+      |> List.rev
+      |> String.concat "\n"
 
 let () =
   let () =
-    if Array.length Sys.argv <> 3 then
+    if Array.length Sys.argv <> 2 then
       usage 1
     else
       ()
@@ -60,11 +76,11 @@ let () =
   let command =
     Sys.argv.(1)
   in
-  let arg =
-    Sys.argv.(2)
+  let user_input =
+    read_all stdin
   in
   let handle decode encode callback =
-    arg
+    user_input
       |> Yojson.Safe.from_string
       |> decode
       |> Result2.map callback

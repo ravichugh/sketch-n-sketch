@@ -1,8 +1,10 @@
 from http.server import *
 import subprocess
+import time
 
 PORT = 9090
-TIMEOUT = 1
+TIMEOUT = None
+COOLDOWN = None
 
 EVAL_TIMED_OUT = \
     '["Error", "Evaluation timed out."]'
@@ -40,7 +42,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_body(self):
         content_len = int(self.headers.get('Content-Length'))
-        return self.rfile.read(content_len).decode("utf8")
+        return self.rfile.read(content_len)
 
     # OPTIONS is needed for CORS preflight
     def do_OPTIONS(self):
@@ -49,12 +51,15 @@ class Handler(BaseHTTPRequestHandler):
     # POST is the main REST API
     def do_POST(self):
         command = self.path[1:]
-        arg = self.get_body()
+        user_input = self.get_body()
         try:
             output = subprocess.check_output(
-                ["./snm", command, arg],
+                ["./snm", command],
+                input=user_input,
                 timeout=TIMEOUT
             )
+            if COOLDOWN:
+                time.sleep(COOLDOWN)
             self.respond_ok_bytes(output)
         except subprocess.CalledProcessError as cpe:
             if cpe.returncode == 2:
