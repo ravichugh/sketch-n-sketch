@@ -841,14 +841,14 @@ menuBar model =
               "Run PBE Benchmark Suite (n = 1)"
               (Core.Controller.msgRequestBenchmark 1 TopOnePBESuite.suite)
           , simpleTextButton
-              "Run PBE Benchmark Suite (n = 5)"
-              (Core.Controller.msgRequestBenchmark 5 TopOnePBESuite.suite)
+              "Run PBE Benchmark Suite (n = 10)"
+              (Core.Controller.msgRequestBenchmark 10 TopOnePBESuite.suite)
           , simpleTextButton
               "Run PBE Benchmark Suite (Base Case Sketch; n = 1)"
               (Core.Controller.msgRequestBenchmark 1 BaseCasePBESuite.suite)
           , simpleTextButton
-              "Run PBE Benchmark Suite (Base Case Sketch; n = 5)"
-              (Core.Controller.msgRequestBenchmark 5 BaseCasePBESuite.suite)
+              "Run PBE Benchmark Suite (Base Case Sketch; n = 10)"
+              (Core.Controller.msgRequestBenchmark 10 BaseCasePBESuite.suite)
           ]
         , List.indexedMap
           ( \part benchmarkInputs ->
