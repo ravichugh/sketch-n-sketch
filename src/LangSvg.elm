@@ -691,67 +691,72 @@ htmlSourceToVal namespace source =
 -- Direct translation from Val to HTML or SVG source
 valToHTMLSource: HTMLParser.NameSpace -> Val -> Result String String
 valToHTMLSource namespace v =
-  case v.v_ of
-    VList [doctypeTag, name, publicId, sysId] ->
-      case (doctypeTag.v_, name.v_) of
-        (VBase (VString "!DOCTYPE"), VBase (VString nameStr)) ->
-           let publicIdStr = case publicId.v_ of
-                 VBase (VString p) -> " PUBLIC \"" ++ p ++ "\""
-                 _ -> ""
-               sysIdStr = case sysId.v_ of
-                 VBase (VString p) -> " \""++p++"\""
-                 _ -> ""
-           in
-           Ok <| "<!DOCTYPE " ++ nameStr ++ publicIdStr ++ sysIdStr ++ ">"
-        _ -> Err ("Expected doctype [!DOCTYPE,name,publicId,sysId], got " ++ valToString v)
-    VList [textTag, textContent] -> case (textTag.v_, textContent.v_) of
-      (VBase (VString "TEXT"), VBase (VString s)) ->
-        let content = ImpureGoodies.htmlescape s in
-        Ok <| Regex.replace Regex.All (Regex.regex "&gt;") (\_ -> ">") content -- useful for styles
-      (VBase (VString "COMMENT"), VBase (VString content)) ->
-        Ok <| "<!--" ++ content ++ "-->"
-      _ -> Err <| "Don't know how to convert this 2-element list to an HTML node : " ++ valToString v
-    VList [tag, attrs, content] -> case (tag.v_, attrs.v_, content.v_) of
-      (VBase (VString kind), VList l1, VList l2) ->
-        let ending = (case namespace of
-           HTMLParser.HTML -> if HTMLParser.isVoidElement kind then "" else
-             Utils.delimit "</" ">" kind
-           _ -> Utils.delimit "</" ">" kind)
-        in
-        let newNamespace = if HTMLParser.isForeignElement kind then HTMLParser.Foreign else namespace in
-        let resAttributes = l1 |>
-          List.map (\vAttr -> case vAttr.v_ of
-             VList [vKey, vValue] ->
-               case (vKey.v_, vValue.v_) of
-                 (VBase (VString key), VBase (VString value)) ->
-                   Ok <| printAttrRaw False (key,value)
-                 (VBase (VString "style"), VList styles) ->
-                   styles |> List.map (\vStyle -> case vStyle.v_ of
-                     VList [styleKey, styleAttr] ->
-                       case (styleKey.v_, styleAttr.v_) of
-                         (VBase (VString sKey), VBase (VString sAttr)) ->
-                           Ok <| sKey ++ ":" ++ sAttr
-                         _ -> Err <| "Style attrs should be [string, string], got " ++ valToString vStyle
-                     _ -> Err <| "Style attrs should be [string, string], got " ++ valToString vStyle
-                   ) |> Utils.projOk |> Result.map (String.join ";")
-                   |> Result.map (\v -> printAttrRaw False ("style", v))
-                 _ -> Err <| "Expected string=string or string=list for attribute, got " ++ valToString vAttr
-             _ -> Err <| "Expected 2-element list for attribute, got " ++ valToString vAttr
-          ) |>
-          Utils.projOk |> Result.map (String.join "")
-        in
-        case resAttributes of
-          Err msg -> Err msg
-          Ok attributes ->
-            case List.map (valToHTMLSource newNamespace) l2 |> Utils.projOk of
-              Err msg -> Err msg
-              Ok children ->
-                let childrenRawStr = children |> String.join ""  in
-                let childrenStr = unescapeStyleScript kind childrenRawStr
+  let aux: Bool -> HTMLParser.NameSpace -> Val -> Result String String
+      aux isTextRaw namespace v =
+          case v.v_ of
+            VList [doctypeTag, name, publicId, sysId] ->
+              case (doctypeTag.v_, name.v_) of
+                (VBase (VString "!DOCTYPE"), VBase (VString nameStr)) ->
+                   let publicIdStr = case publicId.v_ of
+                         VBase (VString p) -> " PUBLIC \"" ++ p ++ "\""
+                         _ -> ""
+                       sysIdStr = case sysId.v_ of
+                         VBase (VString p) -> " \""++p++"\""
+                         _ -> ""
+                   in
+                   Ok <| "<!DOCTYPE " ++ nameStr ++ publicIdStr ++ sysIdStr ++ ">"
+                _ -> Err ("Expected doctype [!DOCTYPE,name,publicId,sysId], got " ++ valToString v)
+            VList [textTag, textContent] -> case (textTag.v_, textContent.v_) of
+              (VBase (VString "TEXT"), VBase (VString s)) ->
+                let content =  if isTextRaw then s else Regex.replace Regex.All (Regex.regex "&gt;") (\_ -> ">") <| ImpureGoodies.htmlescape s in
+                Ok <| content
+              (VBase (VString "COMMENT"), VBase (VString content)) ->
+                Ok <| "<!--" ++ content ++ "-->"
+              _ -> Err <| "Don't know how to convert this 2-element list to an HTML node : " ++ valToString v
+            VList [tag, attrs, content] -> case (tag.v_, attrs.v_, content.v_) of
+              (VBase (VString kind), VList l1, VList l2) ->
+                let ending = (case namespace of
+                     HTMLParser.HTML -> if HTMLParser.isVoidElement kind then "" else
+                       Utils.delimit "</" ">" kind
+                     _ -> Utils.delimit "</" ">" kind)
+                    isScriptOrStyle = kind == "script" || kind == "style"
                 in
-                Ok <| Utils.delimit "<" ">" (kind ++ attributes) ++ childrenStr ++ ending
-      _ -> Err <| "Don't know how to convert this 3-element list to an HTML node : " ++ valToString v
-    _ -> Err <| "Don't know how to convert this to an HTML node : " ++ valToString v
+                let newNamespace = if HTMLParser.isForeignElement kind then HTMLParser.Foreign else namespace in
+                let resAttributes = l1 |>
+                  List.map (\vAttr -> case vAttr.v_ of
+                     VList [vKey, vValue] ->
+                       case (vKey.v_, vValue.v_) of
+                         (VBase (VString key), VBase (VString value)) ->
+                           Ok <| printAttrRaw False (key,value)
+                         (VBase (VString "style"), VList styles) ->
+                           styles |> List.map (\vStyle -> case vStyle.v_ of
+                             VList [styleKey, styleAttr] ->
+                               case (styleKey.v_, styleAttr.v_) of
+                                 (VBase (VString sKey), VBase (VString sAttr)) ->
+                                   Ok <| sKey ++ ":" ++ sAttr
+                                 _ -> Err <| "Style attrs should be [string, string], got " ++ valToString vStyle
+                             _ -> Err <| "Style attrs should be [string, string], got " ++ valToString vStyle
+                           ) |> Utils.projOk |> Result.map (String.join ";")
+                           |> Result.map (\v -> printAttrRaw False ("style", v))
+                         _ -> Err <| "Expected string=string or string=list for attribute, got " ++ valToString vAttr
+                     _ -> Err <| "Expected 2-element list for attribute, got " ++ valToString vAttr
+                  ) |>
+                  Utils.projOk |> Result.map (String.join "")
+                in
+                case resAttributes of
+                  Err msg -> Err msg
+                  Ok attributes ->
+                    case List.map (aux isScriptOrStyle newNamespace) l2 |> Utils.projOk of
+                      Err msg -> Err msg
+                      Ok children ->
+                        let childrenRawStr = children |> String.join ""  in
+                        let childrenStr = unescapeStyleScript kind childrenRawStr
+                        in
+                        Ok <| Utils.delimit "<" ">" (kind ++ attributes) ++ childrenStr ++ ending
+              _ -> Err <| "Don't know how to convert this 3-element list to an HTML node : " ++ valToString v
+            _ -> Err <| "Don't know how to convert this to an HTML node : " ++ valToString v
+  in
+    aux False namespace v
 
 unescapeStyleScript kind childrenRawStr =
   case kind of
