@@ -1226,6 +1226,8 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
       Debug.log "Weird, we found a list of one node instead of a node." recovered
     else -- Unable to recover. We'll output the result raw.
       "@[" ++ unparse e ++ "]"
+  EBase _ (EString _ c) ->
+    unparseHtmlNode interpolationStyle (eList [eStr "TEXT", e] Nothing)
   _ -> "@[" ++ unparse e ++ "]"
 
 -- Detects if there are nodes, text, attributes and call the correct unparser. Use it for displaying local difference only.
