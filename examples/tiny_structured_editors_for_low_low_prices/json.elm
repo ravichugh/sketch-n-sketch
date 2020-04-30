@@ -41,6 +41,10 @@ join sep strs =
         Nil      -> str
         Cons _ _ -> str + sep + join sep rest
 
+stringToString : String -> String
+stringToString string =
+  basedOn string <| '"' + string + '"'
+
 jsonToString : String -> JSON -> String
 jsonToString indent json =
   let nextIndent     = "  " + indent in
@@ -51,10 +55,10 @@ jsonToString indent json =
     JSONDict keyVals -> basedOn keyVals <|
       let keyValToString keyVal =
         case keyVal of
-          KeyVal key val -> key + ": " + jsonToString nextIndent val
+          KeyVal key val -> stringToString key + ": " + jsonToString nextIndent val
       in
       "{\n" + nextIndent + joinWithCommaNewline (map keyValToString keyVals) + "\n" + indent + "}"
-    JSONString string -> basedOn string <| '"' + string + '"'
+    JSONString string -> stringToString string
     JSONNumber num    -> toString num
 
 
