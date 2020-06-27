@@ -31,6 +31,10 @@ functionPickerAndEditor modelState =
     [ stringTaggedWithProjectionPathsDebug modelState.stringTaggedWithProjectionPathsResult
     , Html.pre [] [text "\n"] -- spacing
     -- , Html.div [] [text "Selected poly paths: ", text (polyPathsToString modelState.selectedPolyPaths)]
+    , Html.br [] []
+    , Html.div
+        [ Attr.style [("font-size", "18px"), ("padding", "1em")] ]
+        [ text (unparseToUntaggedString modelState.valueOfInterestTagged) ]
     , Html.div
         [ Attr.style [("padding", "1em")] ]
         [ structuredEditor modelState ]
@@ -789,6 +793,8 @@ structuredEditor modelState =
           (selectedShapes |> List.concatMap (pixelShapeToDivs shapeToMaybeLabel [])) ++ -- draw labels on top
           [ Html.pre [Attr.style [("line-height", px charHeightPx), ("font-size", px charHeightPx)]]                                                            [text (taggedStringToNormalString taggedString)] -- For spacing reasons.
           , Html.pre [] [text "\n"] -- spacing
+          , Html.br [] [] -- spacing
+          , Html.br [] [] -- spacing
           , Html.div [] [text "Hovered value paths: ", text (pathSetToString hoveredPathSet)]
           , Html.pre [] [text "Hovered values:\n  ", text (hoveredPathSet |> Set.toList |> sortByDeepestLeftmostLast |> List.map (pathToValue valueOfInterestTagged >> unparseToUntaggedString) |> String.join "\n  ")]
           , Html.div [] [text "Selected value paths: ", text (pathSetToString selectedPathSet)]
