@@ -5,9 +5,9 @@
 
 # Sketch-n-Sketch
 
-Direct manipulation interfaces are useful in many domains, but the lack of
-programmability in a high-level language makes it difficult to develop complex
-and reusable content. We envision *direct manipulation programming systems* that allow
+Direct manipulation interfaces are useful in many domains but the lack of
+programmability in a high-level language makes it quite difficult to develop complex
+as wel as reusable content. We envision *direct manipulation programming systems* that allows
 users to freely mix between programmatic and direct manipulation.
 
 <!-- TODO widths on GitHub -->
@@ -21,7 +21,7 @@ users to freely mix between programmatic and direct manipulation.
 ## [Project Page][ProjectPage]
 
 Check out the [main project page][ProjectPage] for more details
-and to try out the latest release.
+and also to try out the latest release.
 
 
 ## Quick Syntax Reference
