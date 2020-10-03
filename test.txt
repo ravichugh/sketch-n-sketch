@@ -6,6 +6,6 @@ function A while keeping the
 change to its body.
 */
 function A() {
-  let bodyOfA = E();
-  return F(bodyOfA);
+  let m = E();
+  return F(m);
 }
