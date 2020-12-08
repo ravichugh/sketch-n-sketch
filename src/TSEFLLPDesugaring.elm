@@ -295,7 +295,7 @@ desugarLetExp desugarExp (Lang.LetExp _ _ pat _ _ boundExp) desugaredLetBody =
     _           -> EString <| "TSEFLLP core language does not support multi var let patterns" ++ toString (Lang.patEffectivePat pat)
 
 
--- Following Exercise 9 of https://caml.inria.fr/pub/docs/u3-ocaml/ocaml-ml.html#toc5
+-- Following Exercise 9 of https://caml.inria.fr/pub/docs/u3-ocaml/ocaml-ml.html#Exo-9
 --
 -- Given:
 --

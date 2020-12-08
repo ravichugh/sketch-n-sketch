@@ -83,6 +83,9 @@ eval dataTypeDefs multipleDispatchFunctions env exp =
                   then resultTaggedVal |> setTag (Set.union argTaggedVal.paths resultTaggedVal.paths)
                   else resultTaggedVal
                 )
+                |> Result.map (\resultTaggedVal ->
+                  resultTaggedVal |> setTag (dependencyAnnotators.application funcTaggedVal.paths resultTaggedVal.paths)
+                )
               Nothing ->
                 Err <| "Could not find matching " ++ funcName ++ " implementation for argument " ++ unparseToUntaggedString argTaggedVal ++ "!"
 
@@ -140,7 +143,7 @@ eval dataTypeDefs multipleDispatchFunctions env exp =
             strLenAndPathsResult w1 |> Result.andThen (\(leftLength, leftPaths)   ->
             strLenAndPathsResult w2 |> Result.map     (\(rightLength, rightPaths) ->
               ( leftLength + rightLength
-              , dependencyAnnotators.operation [leftPaths, rightPaths]
+              , Utils.unionAll [w.paths, leftPaths, rightPaths]
               )
             ))
           _ -> Err <| "StrLen expected its argument to be all strings and appends!"
