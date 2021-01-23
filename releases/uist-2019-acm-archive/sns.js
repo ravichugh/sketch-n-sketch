@@ -54107,7 +54107,11 @@ var _user$project$ShapeWidgets$ZPoint = function (a) {
 };
 var _user$project$ShapeWidgets$ZInterior = {ctor: 'ZInterior'};
 
-var _user$project$Solver$mapSolutionsExps = F2(
+var _user$project$Native_REDUCE = {
+  query: function (queryStr) { return window.queryReduce(queryStr) }
+};
+
+var _user$project$SolverTypes$mapSolutionsExps = F2(
 	function (f, solutions) {
 		return A2(
 			_elm_lang$core$List$map,
@@ -54122,14 +54126,856 @@ var _user$project$Solver$mapSolutionsExps = F2(
 				}),
 			solutions);
 	});
+var _user$project$SolverTypes$SolutionsCache = F2(
+	function (a, b) {
+		return {eqnSystemSolutions: a, simplifications: b};
+	});
+
+var _user$project$REDUCE$skipSpaces = A2(
+	_elm_tools$parser$Parser$ignore,
+	_elm_tools$parser$Parser$zeroOrMore,
+	function ($char) {
+		return _elm_lang$core$Native_Utils.eq(
+			$char,
+			_elm_lang$core$Native_Utils.chr(' ')) || _elm_lang$core$Native_Utils.eq(
+			$char,
+			_elm_lang$core$Native_Utils.chr('\t'));
+	});
+var _user$project$REDUCE$parseNumber = _elm_tools$parser$Parser$oneOf(
+	{
+		ctor: '::',
+		_0: A3(
+			_elm_tools$parser$Parser$delayedCommitMap,
+			F2(
+				function (_p0, posFloat) {
+					return 0 - posFloat;
+				}),
+			A2(
+				_elm_tools$parser$Parser_ops['|.'],
+				_elm_tools$parser$Parser$symbol('-'),
+				_user$project$REDUCE$skipSpaces),
+			_elm_tools$parser$Parser$float),
+		_1: {
+			ctor: '::',
+			_0: _elm_tools$parser$Parser$float,
+			_1: {ctor: '[]'}
+		}
+	});
+var _user$project$REDUCE$parseMathNum = A2(
+	_elm_tools$parser$Parser$inContext,
+	'parseMathNum',
+	A2(_elm_tools$parser$Parser$map, _user$project$Lang$MathNum, _user$project$REDUCE$parseNumber));
+var _user$project$REDUCE$eatChar = function ($char) {
+	return A2(
+		_elm_tools$parser$Parser$ignore,
+		_elm_tools$parser$Parser$Exactly(1),
+		F2(
+			function (x, y) {
+				return _elm_lang$core$Native_Utils.eq(x, y);
+			})($char));
+};
+var _user$project$REDUCE_ops = _user$project$REDUCE_ops || {};
+_user$project$REDUCE_ops['.|'] = _elm_tools$parser$Parser$delayedCommit;
+var _user$project$REDUCE$wsSymbol = function (str) {
+	return A2(
+		_user$project$REDUCE_ops['.|'],
+		_user$project$REDUCE$skipSpaces,
+		_elm_tools$parser$Parser$symbol(str));
+};
+var _user$project$REDUCE$between = F3(
+	function (openStr, closeStr, innerParser) {
+		return A2(
+			_elm_tools$parser$Parser$inContext,
+			A2(
+				_elm_lang$core$Basics_ops['++'],
+				'between ',
+				A2(
+					_elm_lang$core$Basics_ops['++'],
+					openStr,
+					A2(_elm_lang$core$Basics_ops['++'], ' ', closeStr))),
+			A2(
+				_user$project$REDUCE_ops['.|'],
+				_user$project$REDUCE$wsSymbol(openStr),
+				A2(
+					_elm_tools$parser$Parser_ops['|.'],
+					innerParser,
+					_user$project$REDUCE$wsSymbol(closeStr))));
+	});
+var _user$project$REDUCE$parseParens = function (innerParser) {
+	return A3(_user$project$REDUCE$between, '(', ')', innerParser);
+};
+var _user$project$REDUCE$parseCommaSeparatedList = function (itemParser) {
+	return _elm_tools$parser$Parser$oneOf(
+		{
+			ctor: '::',
+			_0: A2(
+				_elm_tools$parser$Parser_ops['|='],
+				A2(
+					_elm_tools$parser$Parser_ops['|='],
+					_elm_tools$parser$Parser$succeed(
+						F2(
+							function (x, y) {
+								return {ctor: '::', _0: x, _1: y};
+							})),
+					itemParser),
+				A2(
+					_elm_tools$parser$Parser$repeat,
+					_elm_tools$parser$Parser$zeroOrMore,
+					A2(
+						_user$project$REDUCE_ops['.|'],
+						_user$project$REDUCE$wsSymbol(','),
+						itemParser))),
+			_1: {
+				ctor: '::',
+				_0: _elm_tools$parser$Parser$succeed(
+					{ctor: '[]'}),
+				_1: {ctor: '[]'}
+			}
+		});
+};
+var _user$project$REDUCE$parseVarToVarId = A2(
+	_elm_tools$parser$Parser$inContext,
+	'parseVarToVarId',
+	A2(
+		_user$project$REDUCE_ops['.|'],
+		_user$project$REDUCE$eatChar(
+			_elm_lang$core$Native_Utils.chr('x')),
+		_elm_tools$parser$Parser$int));
+var _user$project$REDUCE$parseMathVar = A2(
+	_elm_tools$parser$Parser$inContext,
+	'parseMathVar',
+	A2(_elm_tools$parser$Parser$map, _user$project$Lang$MathVar, _user$project$REDUCE$parseVarToVarId));
+var _user$project$REDUCE$parseEqnPi = A2(
+	_elm_tools$parser$Parser$inContext,
+	'parseEqnPi',
+	A2(
+		_user$project$REDUCE_ops['.|'],
+		_user$project$REDUCE$wsSymbol('pi'),
+		_elm_tools$parser$Parser$succeed(
+			A2(
+				_user$project$Lang$MathOp,
+				_user$project$Lang$Pi,
+				{ctor: '[]'}))));
+var _user$project$REDUCE$binaryOperatorList = {
+	ctor: '::',
+	_0: {ctor: '_Tuple4', _0: '+', _1: _user$project$BinaryOperatorParser$Left, _2: 2, _3: _user$project$Lang$Plus},
+	_1: {
+		ctor: '::',
+		_0: {ctor: '_Tuple4', _0: '-', _1: _user$project$BinaryOperatorParser$Left, _2: 2, _3: _user$project$Lang$Minus},
+		_1: {
+			ctor: '::',
+			_0: {ctor: '_Tuple4', _0: '**', _1: _user$project$BinaryOperatorParser$Left, _2: 4, _3: _user$project$Lang$Pow},
+			_1: {
+				ctor: '::',
+				_0: {ctor: '_Tuple4', _0: '*', _1: _user$project$BinaryOperatorParser$Left, _2: 3, _3: _user$project$Lang$Mult},
+				_1: {
+					ctor: '::',
+					_0: {ctor: '_Tuple4', _0: '/', _1: _user$project$BinaryOperatorParser$Left, _2: 3, _3: _user$project$Lang$Div},
+					_1: {
+						ctor: '::',
+						_0: {ctor: '_Tuple4', _0: 'mod', _1: _user$project$BinaryOperatorParser$Left, _2: 1, _3: _user$project$Lang$Mod},
+						_1: {ctor: '[]'}
+					}
+				}
+			}
+		}
+	}
+};
+var _user$project$REDUCE$precedenceTable = A3(
+	_elm_lang$core$List$foldl,
+	F2(
+		function (_p1, pt) {
+			var _p2 = _p1;
+			return A2(
+				_user$project$BinaryOperatorParser$addOperator,
+				{ctor: '_Tuple3', _0: _p2._0, _1: _p2._1, _2: _p2._2},
+				pt);
+		}),
+	_user$project$BinaryOperatorParser$emptyPrecedenceTable,
+	_user$project$REDUCE$binaryOperatorList);
+var _user$project$REDUCE$parseBinaryOperatorStr = A2(
+	_elm_tools$parser$Parser$inContext,
+	'parseBinaryOperatorStr',
+	_elm_tools$parser$Parser$oneOf(
+		A2(
+			_elm_lang$core$List$map,
+			function (_p3) {
+				var _p4 = _p3;
+				var _p5 = _p4._0;
+				return A2(
+					_elm_tools$parser$Parser$map,
+					_elm_lang$core$Basics$always(_p5),
+					_user$project$REDUCE$wsSymbol(_p5));
+			},
+			_user$project$REDUCE$binaryOperatorList)));
+var _user$project$REDUCE$parseMathExp = _elm_tools$parser$Parser$lazy(
+	function (_p6) {
+		return A2(
+			_elm_tools$parser$Parser$inContext,
+			'parseMathExp',
+			_user$project$BinaryOperatorParser$binaryOperator(
+				{
+					precedenceTable: _user$project$REDUCE$precedenceTable,
+					minimumPrecedence: 1,
+					expression: _user$project$REDUCE$parseEqnAtom,
+					operator: _user$project$REDUCE$parseBinaryOperatorStr,
+					representation: _elm_lang$core$Basics$identity,
+					combine: F3(
+						function (left, opStr, right) {
+							var _p9 = A2(
+								_user$project$Utils$findFirst,
+								function (_p7) {
+									var _p8 = _p7;
+									return _elm_lang$core$Native_Utils.eq(_p8._0, opStr);
+								},
+								_user$project$REDUCE$binaryOperatorList);
+							if (_p9.ctor === 'Just') {
+								return A2(
+									_user$project$Lang$MathOp,
+									_p9._0._3,
+									{
+										ctor: '::',
+										_0: left,
+										_1: {
+											ctor: '::',
+											_0: right,
+											_1: {ctor: '[]'}
+										}
+									});
+							} else {
+								return _elm_lang$core$Native_Utils.crashCase(
+									'REDUCE',
+									{
+										start: {line: 289, column: 15},
+										end: {line: 291, column: 126}
+									},
+									_p9)(
+									A2(_elm_lang$core$Basics_ops['++'], 'REDUCE parsing: Should not happen: could not find binary op ', opStr));
+							}
+						})
+				}));
+	});
+var _user$project$REDUCE$parseEqnAtom = _elm_tools$parser$Parser$lazy(
+	function (_p11) {
+		return A2(
+			_elm_tools$parser$Parser$inContext,
+			'parseEqnAtom',
+			A2(
+				_user$project$REDUCE_ops['.|'],
+				_user$project$REDUCE$skipSpaces,
+				_elm_tools$parser$Parser$oneOf(
+					{
+						ctor: '::',
+						_0: _user$project$REDUCE$parseMathNum,
+						_1: {
+							ctor: '::',
+							_0: _user$project$REDUCE$parseMathVar,
+							_1: {
+								ctor: '::',
+								_0: _user$project$REDUCE$parseEqnParens,
+								_1: {
+									ctor: '::',
+									_0: _user$project$REDUCE$parseEqnFunction,
+									_1: {
+										ctor: '::',
+										_0: _user$project$REDUCE$parseEqnPi,
+										_1: {
+											ctor: '::',
+											_0: _user$project$REDUCE$parseNegation,
+											_1: {ctor: '[]'}
+										}
+									}
+								}
+							}
+						}
+					})));
+	});
+var _user$project$REDUCE$parseEqnFunction = _elm_tools$parser$Parser$lazy(
+	function (_p12) {
+		return A2(
+			_elm_tools$parser$Parser$inContext,
+			'parseEqnFunction',
+			_elm_tools$parser$Parser$oneOf(
+				{
+					ctor: '::',
+					_0: A2(_user$project$REDUCE$parseBinaryFunction, 'atan2', _user$project$Lang$ArcTan2),
+					_1: {
+						ctor: '::',
+						_0: A2(_user$project$REDUCE$parseUnaryFunction, 'cos', _user$project$Lang$Cos),
+						_1: {
+							ctor: '::',
+							_0: A2(_user$project$REDUCE$parseUnaryFunction, 'sin', _user$project$Lang$Sin),
+							_1: {
+								ctor: '::',
+								_0: A2(_user$project$REDUCE$parseUnaryFunction, 'acos', _user$project$Lang$ArcCos),
+								_1: {
+									ctor: '::',
+									_0: A2(_user$project$REDUCE$parseUnaryFunction, 'asin', _user$project$Lang$ArcSin),
+									_1: {
+										ctor: '::',
+										_0: A2(_user$project$REDUCE$parseUnaryFunction, 'abs', _user$project$Lang$Abs),
+										_1: {
+											ctor: '::',
+											_0: A2(_user$project$REDUCE$parseUnaryFunction, 'floor', _user$project$Lang$Floor),
+											_1: {
+												ctor: '::',
+												_0: A2(_user$project$REDUCE$parseUnaryFunction, 'ceiling', _user$project$Lang$Ceil),
+												_1: {
+													ctor: '::',
+													_0: A2(_user$project$REDUCE$parseUnaryFunction, 'round', _user$project$Lang$Round),
+													_1: {
+														ctor: '::',
+														_0: A2(_user$project$REDUCE$parseUnaryFunction, 'sqrt', _user$project$Lang$Sqrt),
+														_1: {
+															ctor: '::',
+															_0: A2(_user$project$REDUCE$parseUnaryFunction, 'ln', _user$project$Lang$Ln),
+															_1: {ctor: '[]'}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}));
+	});
+var _user$project$REDUCE$parseBinaryFunction = F2(
+	function (funcName, op_) {
+		return A2(
+			_elm_tools$parser$Parser_ops['|.'],
+			A2(
+				_elm_tools$parser$Parser_ops['|='],
+				A2(
+					_elm_tools$parser$Parser_ops['|.'],
+					A2(
+						_elm_tools$parser$Parser_ops['|='],
+						A2(
+							_elm_tools$parser$Parser_ops['|.'],
+							_elm_tools$parser$Parser$succeed(
+								F2(
+									function (argTerm1, argTerm2) {
+										return A2(
+											_user$project$Lang$MathOp,
+											op_,
+											{
+												ctor: '::',
+												_0: argTerm1,
+												_1: {
+													ctor: '::',
+													_0: argTerm2,
+													_1: {ctor: '[]'}
+												}
+											});
+									})),
+							_user$project$REDUCE$wsSymbol(
+								A2(_elm_lang$core$Basics_ops['++'], funcName, '('))),
+						_user$project$REDUCE$parseMathExp),
+					_user$project$REDUCE$wsSymbol(',')),
+				_user$project$REDUCE$parseMathExp),
+			_user$project$REDUCE$wsSymbol(')'));
+	});
+var _user$project$REDUCE$parseUnaryFunction = F2(
+	function (funcName, op_) {
+		return A2(
+			_elm_tools$parser$Parser_ops['|.'],
+			A2(
+				_elm_tools$parser$Parser_ops['|='],
+				A2(
+					_elm_tools$parser$Parser_ops['|.'],
+					_elm_tools$parser$Parser$succeed(
+						function (argTerm) {
+							return A2(
+								_user$project$Lang$MathOp,
+								op_,
+								{
+									ctor: '::',
+									_0: argTerm,
+									_1: {ctor: '[]'}
+								});
+						}),
+					_user$project$REDUCE$wsSymbol(
+						A2(_elm_lang$core$Basics_ops['++'], funcName, '('))),
+				_user$project$REDUCE$parseMathExp),
+			_user$project$REDUCE$wsSymbol(')'));
+	});
+var _user$project$REDUCE$parseEqnParens = _user$project$REDUCE$parseParens(_user$project$REDUCE$parseMathExp);
+var _user$project$REDUCE$parseNegation = _elm_tools$parser$Parser$lazy(
+	function (_p13) {
+		return A3(
+			_elm_tools$parser$Parser$delayedCommitMap,
+			F2(
+				function (_p14, mathExp) {
+					return _user$project$MathExp$neg(mathExp);
+				}),
+			_elm_tools$parser$Parser$symbol('-'),
+			_user$project$REDUCE$parseEqnAtom);
+	});
+var _user$project$REDUCE$parseResultEqn = A2(
+	_elm_tools$parser$Parser_ops['|='],
+	A2(
+		_elm_tools$parser$Parser_ops['|.'],
+		A2(
+			_elm_tools$parser$Parser_ops['|='],
+			A2(
+				_elm_tools$parser$Parser_ops['|.'],
+				_elm_tools$parser$Parser$succeed(
+					F2(
+						function (varId, mathExp) {
+							return {ctor: '_Tuple2', _0: mathExp, _1: varId};
+						})),
+				_user$project$REDUCE$skipSpaces),
+			_user$project$REDUCE$parseVarToVarId),
+		_user$project$REDUCE$wsSymbol('=')),
+	_user$project$REDUCE$parseMathExp);
+var _user$project$REDUCE$parseSolution = A2(
+	_elm_tools$parser$Parser$inContext,
+	'parseSolution',
+	_user$project$REDUCE$parseCommaSeparatedList(_user$project$REDUCE$parseResultEqn));
+var _user$project$REDUCE$parseReduceSolutionResponse = function (responseStr) {
+	var solutionStrs = A2(
+		_elm_lang$core$String$startsWith,
+		'{{',
+		_elm_lang$core$String$trimLeft(responseStr)) ? A2(_elm_lang$core$String$split, '},', responseStr) : A2(_elm_lang$core$String$split, ',', responseStr);
+	return A2(
+		_elm_lang$core$List$map,
+		_elm_tools$parser$Parser$run(
+			A2(
+				_elm_tools$parser$Parser_ops['|.'],
+				A2(_elm_tools$parser$Parser_ops['|.'], _user$project$REDUCE$parseSolution, _user$project$REDUCE$skipSpaces),
+				_elm_tools$parser$Parser$end)),
+		A2(
+			_elm_lang$core$List$map,
+			A2(_user$project$Utils$stringReplace, '}', ''),
+			A2(
+				_elm_lang$core$List$map,
+				A2(_user$project$Utils$stringReplace, '{', ''),
+				solutionStrs)));
+};
+var _user$project$REDUCE$varIdToREDUCE = function (varId) {
+	return A2(
+		_elm_lang$core$Basics_ops['++'],
+		'x',
+		_elm_lang$core$Basics$toString(varId));
+};
+var _user$project$REDUCE$mathExpToREDUCE = function (mathExp) {
+	var _p15 = mathExp;
+	switch (_p15.ctor) {
+		case 'MathNum':
+			return _elm_lang$core$Basics$toString(_p15._0);
+		case 'MathVar':
+			return _user$project$REDUCE$varIdToREDUCE(_p15._0);
+		default:
+			var childPerhapsParensToREDUCE = function (childTerm) {
+				var _p16 = childTerm;
+				_v5_2:
+				do {
+					if (_p16.ctor === 'MathOp') {
+						if (_p16._0.ctor === 'ArcTan2') {
+							return _user$project$REDUCE$mathExpToREDUCE(childTerm);
+						} else {
+							if (((_p16._1.ctor === '::') && (_p16._1._1.ctor === '::')) && (_p16._1._1._1.ctor === '[]')) {
+								return A2(
+									_elm_lang$core$Basics_ops['++'],
+									'(',
+									A2(
+										_elm_lang$core$Basics_ops['++'],
+										_user$project$REDUCE$mathExpToREDUCE(childTerm),
+										')'));
+							} else {
+								break _v5_2;
+							}
+						}
+					} else {
+						break _v5_2;
+					}
+				} while(false);
+				return _user$project$REDUCE$mathExpToREDUCE(childTerm);
+			};
+			var _p17 = {ctor: '_Tuple2', _0: _p15._0, _1: _p15._1};
+			_v6_18:
+			do {
+				if (_p17.ctor === '_Tuple2') {
+					if (_p17._1.ctor === '::') {
+						if (_p17._1._1.ctor === '::') {
+							if (_p17._1._1._1.ctor === '[]') {
+								switch (_p17._0.ctor) {
+									case 'Plus':
+										return A2(
+											_elm_lang$core$Basics_ops['++'],
+											childPerhapsParensToREDUCE(_p17._1._0),
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												'+',
+												childPerhapsParensToREDUCE(_p17._1._1._0)));
+									case 'Minus':
+										return A2(
+											_elm_lang$core$Basics_ops['++'],
+											childPerhapsParensToREDUCE(_p17._1._0),
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												'-',
+												childPerhapsParensToREDUCE(_p17._1._1._0)));
+									case 'Mult':
+										return A2(
+											_elm_lang$core$Basics_ops['++'],
+											childPerhapsParensToREDUCE(_p17._1._0),
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												'*',
+												childPerhapsParensToREDUCE(_p17._1._1._0)));
+									case 'Div':
+										return A2(
+											_elm_lang$core$Basics_ops['++'],
+											childPerhapsParensToREDUCE(_p17._1._0),
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												'/',
+												childPerhapsParensToREDUCE(_p17._1._1._0)));
+									case 'Pow':
+										return A2(
+											_elm_lang$core$Basics_ops['++'],
+											'(',
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+												A2(
+													_elm_lang$core$Basics_ops['++'],
+													')**',
+													childPerhapsParensToREDUCE(_p17._1._1._0))));
+									case 'Mod':
+										return A2(
+											_elm_lang$core$Basics_ops['++'],
+											childPerhapsParensToREDUCE(_p17._1._0),
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												' mod ',
+												childPerhapsParensToREDUCE(_p17._1._1._0)));
+									case 'ArcTan2':
+										return A2(
+											_elm_lang$core$Basics_ops['++'],
+											'atan2(',
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+												A2(
+													_elm_lang$core$Basics_ops['++'],
+													',',
+													A2(
+														_elm_lang$core$Basics_ops['++'],
+														_user$project$REDUCE$mathExpToREDUCE(_p17._1._1._0),
+														')'))));
+									default:
+										break _v6_18;
+								}
+							} else {
+								break _v6_18;
+							}
+						} else {
+							switch (_p17._0.ctor) {
+								case 'Cos':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'cos(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'Sin':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'sin(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'ArcCos':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'acos(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'ArcSin':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'asin(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'Abs':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'abs(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'Floor':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'floor(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'Ceil':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'ceiling(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'Round':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'round(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'Sqrt':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'sqrt(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								case 'Ln':
+									return A2(
+										_elm_lang$core$Basics_ops['++'],
+										'ln(',
+										A2(
+											_elm_lang$core$Basics_ops['++'],
+											_user$project$REDUCE$mathExpToREDUCE(_p17._1._0),
+											')'));
+								default:
+									break _v6_18;
+							}
+						}
+					} else {
+						if (_p17._0.ctor === 'Pi') {
+							return 'pi';
+						} else {
+							break _v6_18;
+						}
+					}
+				} else {
+					break _v6_18;
+				}
+			} while(false);
+			var _p18 = A2(_elm_lang$core$Debug$log, 'Didn\'t know how to convert this to REDUCE syntax', mathExp);
+			return 'unknown';
+	}
+};
+var _user$project$REDUCE$eqnToREDUCE = function (_p19) {
+	var _p20 = _p19;
+	return A2(
+		_elm_lang$core$Basics_ops['++'],
+		_user$project$REDUCE$mathExpToREDUCE(_p20._0),
+		A2(
+			_elm_lang$core$Basics_ops['++'],
+			'=',
+			_user$project$REDUCE$mathExpToREDUCE(_p20._1)));
+};
+var _user$project$REDUCE$problemToREDUCE = function (_p21) {
+	var _p22 = _p21;
+	return A2(
+		_elm_lang$core$Basics_ops['++'],
+		'off nat; on combineexpt; on factor; trigsimp(solve({',
+		A2(
+			_elm_lang$core$Basics_ops['++'],
+			A2(
+				_elm_lang$core$String$join,
+				',',
+				A2(_elm_lang$core$List$map, _user$project$REDUCE$eqnToREDUCE, _p22._0)),
+			A2(
+				_elm_lang$core$Basics_ops['++'],
+				'},{',
+				A2(
+					_elm_lang$core$Basics_ops['++'],
+					A2(
+						_elm_lang$core$String$join,
+						',',
+						A2(_elm_lang$core$List$map, _user$project$REDUCE$varIdToREDUCE, _p22._1)),
+					'}),compact);'))));
+};
+var _user$project$REDUCE$simplificationToREDUCE = function (mathExp) {
+	return A2(
+		_elm_lang$core$Basics_ops['++'],
+		'off nat; on combineexpt; on factor; trigsimp(',
+		A2(
+			_elm_lang$core$Basics_ops['++'],
+			_user$project$REDUCE$mathExpToREDUCE(mathExp),
+			',compact);'));
+};
+var _user$project$REDUCE$solutionsCacheToString = function (solutionsCache) {
+	var equationSolutionsStr = A2(
+		_elm_lang$core$String$join,
+		'\n',
+		A2(
+			_elm_lang$core$List$map,
+			function (_p23) {
+				var _p24 = _p23;
+				var solutionStrs = A2(
+					_elm_lang$core$List$map,
+					function (solution) {
+						return A2(
+							_elm_lang$core$Basics_ops['++'],
+							'{',
+							A2(
+								_elm_lang$core$Basics_ops['++'],
+								A2(
+									_elm_lang$core$String$join,
+									',',
+									A2(
+										_elm_lang$core$List$map,
+										function (_p25) {
+											var _p26 = _p25;
+											return A2(
+												_elm_lang$core$Basics_ops['++'],
+												_user$project$REDUCE$varIdToREDUCE(_p26._1),
+												A2(
+													_elm_lang$core$Basics_ops['++'],
+													'=',
+													_user$project$REDUCE$mathExpToREDUCE(_p26._0)));
+										},
+										solution)),
+								'}'));
+					},
+					_p24._1);
+				return A2(
+					_elm_lang$core$Basics_ops['++'],
+					_user$project$REDUCE$problemToREDUCE(_p24._0),
+					A2(
+						_elm_lang$core$Basics_ops['++'],
+						';\t=> {',
+						A2(
+							_elm_lang$core$Basics_ops['++'],
+							A2(_elm_lang$core$String$join, ',', solutionStrs),
+							'}')));
+			},
+			_elm_lang$core$Dict$toList(solutionsCache.eqnSystemSolutions)));
+	var simplificationsStr = A2(
+		_elm_lang$core$String$join,
+		'\n',
+		A2(
+			_elm_lang$core$List$map,
+			function (_p27) {
+				var _p28 = _p27;
+				return A2(
+					_elm_lang$core$Basics_ops['++'],
+					_user$project$REDUCE$mathExpToREDUCE(_p28._0),
+					A2(
+						_elm_lang$core$Basics_ops['++'],
+						';\t=> ',
+						_user$project$REDUCE$mathExpToREDUCE(_p28._1)));
+			},
+			_elm_lang$core$Dict$toList(solutionsCache.simplifications)));
+	return A2(
+		_elm_lang$core$Basics_ops['++'],
+		equationSolutionsStr,
+		A2(_elm_lang$core$Basics_ops['++'], '\n', simplificationsStr));
+};
+var _user$project$REDUCE$distributeNegation = function (mathExp) {
+	distributeNegation:
+	while (true) {
+		var _p29 = mathExp;
+		switch (_p29.ctor) {
+			case 'MathNum':
+				return mathExp;
+			case 'MathVar':
+				return mathExp;
+			default:
+				if (((((((((((_p29._0.ctor === 'Minus') && (_p29._1.ctor === '::')) && (_p29._1._0.ctor === 'MathNum')) && (_p29._1._0._0 === 0)) && (_p29._1._1.ctor === '::')) && (_p29._1._1._0.ctor === 'MathOp')) && (_p29._1._1._0._0.ctor === 'Minus')) && (_p29._1._1._0._1.ctor === '::')) && (_p29._1._1._0._1._1.ctor === '::')) && (_p29._1._1._0._1._1._1.ctor === '[]')) && (_p29._1._1._1.ctor === '[]')) {
+					var _v13 = A2(
+						_user$project$Lang$MathOp,
+						_user$project$Lang$Minus,
+						{
+							ctor: '::',
+							_0: _p29._1._1._0._1._1._0,
+							_1: {
+								ctor: '::',
+								_0: _p29._1._1._0._1._0,
+								_1: {ctor: '[]'}
+							}
+						});
+					mathExp = _v13;
+					continue distributeNegation;
+				} else {
+					return A2(
+						_user$project$Lang$MathOp,
+						_p29._0,
+						A2(_elm_lang$core$List$map, _user$project$REDUCE$distributeNegation, _p29._1));
+				}
+		}
+	}
+};
+var _user$project$REDUCE$query = function (str) {
+	var _p30 = _user$project$Utils$log(
+		A2(_elm_lang$core$Basics_ops['++'], 'Reduce query: ', str));
+	var responseStr = _user$project$Native_REDUCE.query(str);
+	var _p31 = _user$project$Utils$log(
+		A2(_elm_lang$core$Basics_ops['++'], 'Reduce response: ', responseStr));
+	return responseStr;
+};
+var _user$project$REDUCE$solve = function (problem) {
+	var responseStr = _user$project$REDUCE$query(
+		_user$project$REDUCE$problemToREDUCE(problem));
+	var perhapsParsedSolutions = _user$project$REDUCE$parseReduceSolutionResponse(responseStr);
+	var parsedSolutions = _user$project$Utils$filterOks(perhapsParsedSolutions);
+	var failedParses = _user$project$Utils$filterErrs(perhapsParsedSolutions);
+	var _p32 = {ctor: '_Tuple2', _0: parsedSolutions, _1: failedParses};
+	if (_p32._0.ctor === '::') {
+		return A2(_user$project$SolverTypes$mapSolutionsExps, _user$project$REDUCE$distributeNegation, parsedSolutions);
+	} else {
+		if (_p32._1.ctor === '::') {
+			var _p33 = _user$project$Utils$log(
+				A2(
+					_elm_lang$core$Basics_ops['++'],
+					'Reduce solution response parse error: ',
+					_elm_lang$core$Basics$toString(_p32._1._0)));
+			return {ctor: '[]'};
+		} else {
+			return {ctor: '[]'};
+		}
+	}
+};
+var _user$project$REDUCE$simplify = function (unsimplifiedMathExp) {
+	var _p34 = A2(
+		_elm_tools$parser$Parser$run,
+		A2(
+			_elm_tools$parser$Parser_ops['|.'],
+			A2(_elm_tools$parser$Parser_ops['|.'], _user$project$REDUCE$parseMathExp, _user$project$REDUCE$skipSpaces),
+			_elm_tools$parser$Parser$end),
+		_user$project$REDUCE$query(
+			_user$project$REDUCE$simplificationToREDUCE(unsimplifiedMathExp)));
+	if (_p34.ctor === 'Ok') {
+		return _user$project$REDUCE$distributeNegation(_p34._0);
+	} else {
+		var _p35 = _user$project$Utils$log(
+			A2(
+				_elm_lang$core$Basics_ops['++'],
+				'Reduce simplification response parse error: ',
+				_elm_lang$core$Basics$toString(_p34._0)));
+		return unsimplifiedMathExp;
+	}
+};
+
 var _user$project$Solver$removeCommonSuperExps = function (eqn) {
 	removeCommonSuperExps:
 	while (true) {
-		var _p2 = eqn;
-		if (((((((_p2.ctor === '_Tuple2') && (_p2._0.ctor === 'MathOp')) && (_p2._0._1.ctor === '::')) && (_p2._0._1._1.ctor === '[]')) && (_p2._1.ctor === 'MathOp')) && (_p2._1._1.ctor === '::')) && (_p2._1._1._1.ctor === '[]')) {
-			if (_elm_lang$core$Native_Utils.eq(_p2._0._0, _p2._1._0)) {
-				var _v2 = {ctor: '_Tuple2', _0: _p2._0._1._0, _1: _p2._1._1._0};
-				eqn = _v2;
+		var _p0 = eqn;
+		if (((((((_p0.ctor === '_Tuple2') && (_p0._0.ctor === 'MathOp')) && (_p0._0._1.ctor === '::')) && (_p0._0._1._1.ctor === '[]')) && (_p0._1.ctor === 'MathOp')) && (_p0._1._1.ctor === '::')) && (_p0._1._1._1.ctor === '[]')) {
+			if (_elm_lang$core$Native_Utils.eq(_p0._0._0, _p0._1._0)) {
+				var _v1 = {ctor: '_Tuple2', _0: _p0._0._1._0, _1: _p0._1._1._0};
+				eqn = _v1;
 				continue removeCommonSuperExps;
 			} else {
 				return eqn;
@@ -54141,24 +54987,24 @@ var _user$project$Solver$removeCommonSuperExps = function (eqn) {
 };
 var _user$project$Solver$remapVarIds = F2(
 	function (oldToNew, mathExp) {
-		var _p3 = mathExp;
-		switch (_p3.ctor) {
+		var _p1 = mathExp;
+		switch (_p1.ctor) {
 			case 'MathNum':
 				return _elm_lang$core$Maybe$Just(mathExp);
 			case 'MathVar':
 				return A2(
 					_elm_lang$core$Maybe$map,
 					_user$project$Lang$MathVar,
-					A2(_elm_lang$core$Dict$get, _p3._0, oldToNew));
+					A2(_elm_lang$core$Dict$get, _p1._0, oldToNew));
 			default:
 				return A2(
 					_elm_lang$core$Maybe$map,
-					_user$project$Lang$MathOp(_p3._0),
+					_user$project$Lang$MathOp(_p1._0),
 					_user$project$Utils$projJusts(
 						A2(
 							_elm_lang$core$List$map,
 							_user$project$Solver$remapVarIds(oldToNew),
-							_p3._1)));
+							_p1._1)));
 		}
 	});
 var _user$project$Solver$remapSolutionVarIds = F2(
@@ -54166,118 +55012,152 @@ var _user$project$Solver$remapSolutionVarIds = F2(
 		return _user$project$Utils$projJusts(
 			A2(
 				_elm_lang$core$List$map,
-				function (_p4) {
-					var _p5 = _p4;
+				function (_p2) {
+					var _p3 = _p2;
 					return A3(
 						_elm_lang$core$Maybe$map2,
 						F2(
 							function (v0, v1) {
 								return {ctor: '_Tuple2', _0: v0, _1: v1};
 							}),
-						A2(_user$project$Solver$remapVarIds, oldToNew, _p5._0),
-						A2(_elm_lang$core$Dict$get, _p5._1, oldToNew));
+						A2(_user$project$Solver$remapVarIds, oldToNew, _p3._0),
+						A2(_elm_lang$core$Dict$get, _p3._1, oldToNew));
 				},
 				solution));
 	});
 var _user$project$Solver$normalizedVarIdMapping = function (mathExps) {
-	var _p6 = A3(
+	var _p4 = A3(
 		_elm_lang$core$List$foldl,
 		F2(
-			function (oldVarId, _p7) {
-				var _p8 = _p7;
-				var _p12 = _p8._1;
-				var _p11 = _p8._2;
-				var _p10 = _p8._0;
-				var _p9 = A2(_elm_lang$core$Dict$get, oldVarId, _p12);
-				if (_p9.ctor === 'Just') {
-					return {ctor: '_Tuple3', _0: _p10, _1: _p12, _2: _p11};
+			function (oldVarId, _p5) {
+				var _p6 = _p5;
+				var _p10 = _p6._1;
+				var _p9 = _p6._2;
+				var _p8 = _p6._0;
+				var _p7 = A2(_elm_lang$core$Dict$get, oldVarId, _p10);
+				if (_p7.ctor === 'Just') {
+					return {ctor: '_Tuple3', _0: _p8, _1: _p10, _2: _p9};
 				} else {
 					return {
 						ctor: '_Tuple3',
-						_0: _p10 + 1,
-						_1: A3(_elm_lang$core$Dict$insert, oldVarId, _p10, _p12),
-						_2: A3(_elm_lang$core$Dict$insert, _p10, oldVarId, _p11)
+						_0: _p8 + 1,
+						_1: A3(_elm_lang$core$Dict$insert, oldVarId, _p8, _p10),
+						_2: A3(_elm_lang$core$Dict$insert, _p8, oldVarId, _p9)
 					};
 				}
 			}),
 		{ctor: '_Tuple3', _0: 1, _1: _elm_lang$core$Dict$empty, _2: _elm_lang$core$Dict$empty},
 		A2(_elm_lang$core$List$concatMap, _user$project$MathExp$mathExpToVarIds, mathExps));
-	var oldToNew = _p6._1;
-	var newToOld = _p6._2;
+	var oldToNew = _p4._1;
+	var newToOld = _p4._2;
 	return {ctor: '_Tuple2', _0: oldToNew, _1: newToOld};
 };
-var _user$project$Solver$SolutionsCache = F2(
-	function (a, b) {
-		return {eqnSystemSolutions: a, simplifications: b};
+var _user$project$Solver$simplify = F2(
+	function (solutionsCache, mathExp) {
+		var _p11 = _user$project$Solver$normalizedVarIdMapping(
+			{
+				ctor: '::',
+				_0: mathExp,
+				_1: {ctor: '[]'}
+			});
+		var oldToNormalizedVarIds = _p11._0;
+		var normalizedToOldVarIds = _p11._1;
+		var normalizedMathExp = A2(
+			_user$project$Utils$fromJust_,
+			'Shouldn\'t happen: Bug in Solver.simplify/normalizedVarIdMapping',
+			A2(_user$project$Solver$remapVarIds, oldToNormalizedVarIds, mathExp));
+		var simplifiedMathExp = function () {
+			var _p12 = A2(_elm_lang$core$Dict$get, normalizedMathExp, solutionsCache.simplifications);
+			if (_p12.ctor === 'Just') {
+				return _p12._0;
+			} else {
+				var simplifiedMathExp = _user$project$REDUCE$simplify(normalizedMathExp);
+				var _p13 = A3(
+					_user$project$ImpureGoodies$mutateRecordField,
+					solutionsCache,
+					'simplifications',
+					A3(_elm_lang$core$Dict$insert, normalizedMathExp, simplifiedMathExp, solutionsCache.simplifications));
+				return simplifiedMathExp;
+			}
+		}();
+		return A2(
+			_user$project$Utils$fromJust__,
+			function (_p14) {
+				var _p15 = _p14;
+				return A2(
+					_elm_lang$core$Basics_ops['++'],
+					'Shouldn\'t happen: Bug in Solver.simplify/normalizedVarIdMapping or some race condition, missing varId ',
+					_elm_lang$core$Basics$toString(
+						{ctor: '_Tuple4', _0: mathExp, _1: normalizedMathExp, _2: simplifiedMathExp, _3: normalizedToOldVarIds}));
+			},
+			A2(_user$project$Solver$remapVarIds, normalizedToOldVarIds, simplifiedMathExp));
 	});
-var _user$project$Solver$NeedSimplification = function (a) {
-	return {ctor: 'NeedSimplification', _0: a};
-};
-var _user$project$Solver$NeedProblemSolution = function (a) {
-	return {ctor: 'NeedProblemSolution', _0: a};
-};
-var _user$project$Solver$NeedSomethingFromSolverException = function (a) {
-	return {ctor: 'NeedSomethingFromSolverException', _0: a};
-};
 var _user$project$Solver$solve = F3(
 	function (solutionsCache, eqns, targetVarIds) {
 		var allMathExps = A2(_elm_lang$core$List$concatMap, _user$project$Utils$pairToList, eqns);
-		var _p13 = _user$project$Solver$normalizedVarIdMapping(allMathExps);
-		var oldToNormalizedVarIds = _p13._0;
-		var normalizedToOldVarIds = _p13._1;
+		var _p16 = _user$project$Solver$normalizedVarIdMapping(allMathExps);
+		var oldToNormalizedVarIds = _p16._0;
+		var normalizedToOldVarIds = _p16._1;
 		var normalizedEquations = A2(
 			_user$project$Utils$fromJust_,
 			'Also shouldn\'t happen: Bug in Solver.solve',
 			_user$project$Utils$projJusts(
 				A2(
 					_elm_lang$core$List$map,
-					function (_p14) {
-						var _p15 = _p14;
-						var _p16 = {
+					function (_p17) {
+						var _p18 = _p17;
+						var _p19 = {
 							ctor: '_Tuple2',
-							_0: A2(_user$project$Solver$remapVarIds, oldToNormalizedVarIds, _p15._0),
-							_1: A2(_user$project$Solver$remapVarIds, oldToNormalizedVarIds, _p15._1)
+							_0: A2(_user$project$Solver$remapVarIds, oldToNormalizedVarIds, _p18._0),
+							_1: A2(_user$project$Solver$remapVarIds, oldToNormalizedVarIds, _p18._1)
 						};
-						if (((_p16.ctor === '_Tuple2') && (_p16._0.ctor === 'Just')) && (_p16._1.ctor === 'Just')) {
+						if (((_p19.ctor === '_Tuple2') && (_p19._0.ctor === 'Just')) && (_p19._1.ctor === 'Just')) {
 							return _elm_lang$core$Maybe$Just(
-								{ctor: '_Tuple2', _0: _p16._0._0, _1: _p16._1._0});
+								{ctor: '_Tuple2', _0: _p19._0._0, _1: _p19._1._0});
 						} else {
 							return _elm_lang$core$Native_Utils.crashCase(
 								'Solver',
 								{
-									start: {line: 72, column: 11},
-									end: {line: 74, column: 131}
+									start: {line: 58, column: 11},
+									end: {line: 60, column: 131}
 								},
-								_p16)('Shouldn\'t happen: Bug in Solver.solve/normalizedVarIdMapping');
+								_p19)('Shouldn\'t happen: Bug in Solver.solve/normalizedVarIdMapping');
 						}
 					},
 					eqns)));
-		var _p18 = _user$project$Utils$projJusts(
+		var _p21 = _user$project$Utils$projJusts(
 			A2(
 				_elm_lang$core$List$map,
 				function (targetVarId) {
 					return A2(_elm_lang$core$Dict$get, targetVarId, oldToNormalizedVarIds);
 				},
 				targetVarIds));
-		if (_p18.ctor === 'Just') {
+		if (_p21.ctor === 'Just') {
 			var problem = {
 				ctor: '_Tuple2',
 				_0: A2(_elm_lang$core$List$map, _user$project$Solver$removeCommonSuperExps, normalizedEquations),
-				_1: _p18._0
+				_1: _p21._0
 			};
-			var _p19 = A2(_elm_lang$core$Dict$get, problem, solutionsCache.eqnSystemSolutions);
-			if (_p19.ctor === 'Just') {
-				return A2(
-					_elm_lang$core$List$filterMap,
-					_user$project$Solver$remapSolutionVarIds(normalizedToOldVarIds),
-					_p19._0);
-			} else {
-				return _user$project$ImpureGoodies$throw(
-					_user$project$Solver$NeedSomethingFromSolverException(
-						_user$project$Solver$NeedProblemSolution(problem)));
-			}
+			var solutions = function () {
+				var _p22 = A2(_elm_lang$core$Dict$get, problem, solutionsCache.eqnSystemSolutions);
+				if (_p22.ctor === 'Just') {
+					return _p22._0;
+				} else {
+					var solutions = _user$project$REDUCE$solve(problem);
+					var _p23 = A3(
+						_user$project$ImpureGoodies$mutateRecordField,
+						solutionsCache,
+						'eqnSystemSolutions',
+						A3(_elm_lang$core$Dict$insert, problem, solutions, solutionsCache.eqnSystemSolutions));
+					return solutions;
+				}
+			}();
+			return A2(
+				_elm_lang$core$List$filterMap,
+				_user$project$Solver$remapSolutionVarIds(normalizedToOldVarIds),
+				solutions);
 		} else {
-			var _p20 = A2(
+			var _p24 = A2(
 				_elm_lang$core$Debug$log,
 				'WARNING: Asked to solve for variable(s) not in equation! No solutions.',
 				{ctor: '_Tuple2', _0: eqns, _1: targetVarIds});
@@ -54289,20 +55169,20 @@ var _user$project$Solver$solveOne = F3(
 		return A2(
 			_elm_lang$core$List$filterMap,
 			function (solution) {
-				var _p21 = solution;
-				if (_p21.ctor === '[]') {
+				var _p25 = solution;
+				if (_p25.ctor === '[]') {
 					return _elm_lang$core$Maybe$Nothing;
 				} else {
-					if ((_p21._0.ctor === '_Tuple2') && (_p21._1.ctor === '[]')) {
-						return _elm_lang$core$Maybe$Just(_p21._0._0);
+					if ((_p25._0.ctor === '_Tuple2') && (_p25._1.ctor === '[]')) {
+						return _elm_lang$core$Maybe$Just(_p25._0._0);
 					} else {
 						return _elm_lang$core$Native_Utils.crashCase(
 							'Solver',
 							{
-								start: {line: 52, column: 9},
-								end: {line: 55, column: 146}
+								start: {line: 38, column: 9},
+								end: {line: 41, column: 146}
 							},
-							_p21)(
+							_p25)(
 							A2(
 								_elm_lang$core$Basics_ops['++'],
 								'Solver.solveOne why does a solution for one variable list multiple variables?? ',
@@ -54339,7 +55219,7 @@ var _user$project$Solver$solveTrace = F4(
 			0,
 			_elm_lang$core$List$maximum(
 				_user$project$MathExp$mathExpToVarIds(mathExp)));
-		var _p23 = A3(
+		var _p27 = A3(
 			_user$project$Solver$solveOne,
 			solutionsCache,
 			{
@@ -54348,48 +55228,14 @@ var _user$project$Solver$solveTrace = F4(
 				_1: _user$project$Lang$MathVar(targetValInsertedVarId)
 			},
 			targetVarId);
-		if (_p23.ctor === '::') {
+		if (_p27.ctor === '::') {
 			return _user$project$MathExp$evalToMaybeNum(
 				A2(
 					_user$project$MathExp$applySubst,
 					A3(_elm_lang$core$Dict$insert, targetValInsertedVarId, targetVal, subst),
-					_p23._0));
+					_p27._0));
 		} else {
 			return _elm_lang$core$Maybe$Nothing;
-		}
-	});
-var _user$project$Solver$simplify = F2(
-	function (solutionsCache, mathExp) {
-		var _p24 = _user$project$Solver$normalizedVarIdMapping(
-			{
-				ctor: '::',
-				_0: mathExp,
-				_1: {ctor: '[]'}
-			});
-		var oldToNormalizedVarIds = _p24._0;
-		var normalizedToOldVarIds = _p24._1;
-		var normalizedMathExp = A2(
-			_user$project$Utils$fromJust_,
-			'Shouldn\'t happen: Bug in Solver.simplify/normalizedVarIdMapping',
-			A2(_user$project$Solver$remapVarIds, oldToNormalizedVarIds, mathExp));
-		var _p25 = A2(_elm_lang$core$Dict$get, normalizedMathExp, solutionsCache.simplifications);
-		if (_p25.ctor === 'Just') {
-			var _p28 = _p25._0;
-			return A2(
-				_user$project$Utils$fromJust__,
-				function (_p26) {
-					var _p27 = _p26;
-					return A2(
-						_elm_lang$core$Basics_ops['++'],
-						'Shouldn\'t happen: Bug in Solver.simplify/normalizedVarIdMapping or some race condition, missing varId ',
-						_elm_lang$core$Basics$toString(
-							{ctor: '_Tuple4', _0: mathExp, _1: normalizedMathExp, _2: _p28, _3: normalizedToOldVarIds}));
-				},
-				A2(_user$project$Solver$remapVarIds, normalizedToOldVarIds, _p28));
-		} else {
-			return _user$project$ImpureGoodies$throw(
-				_user$project$Solver$NeedSomethingFromSolverException(
-					_user$project$Solver$NeedSimplification(normalizedMathExp)));
 		}
 	});
 
@@ -54538,8 +55384,8 @@ var _user$project$Sync$highlightChanges = F3(
 						} : _elm_lang$core$Native_Utils.crash(
 							'Sync',
 							{
-								start: {line: 1311, column: 11},
-								end: {line: 1311, column: 22}
+								start: {line: 1312, column: 11},
+								end: {line: 1312, column: 22}
 							})('highlightChanges')))));
 				});
 			return A3(
@@ -63469,9 +64315,7 @@ var _user$project$InterfaceModel$Model = function (a) {
 																																																																																										return function (_65) {
 																																																																																											return function (_66) {
 																																																																																												return function (_67) {
-																																																																																													return function (_68) {
-																																																																																														return {code: a, lastRunCode: b, runFailuresInARowCount: c, codeClean: d, preview: e, history: f, inputExp: g, inputVal: h, maybeEnv: i, contextInputVals: j, slideNumber: k, slideCount: l, movieNumber: m, movieCount: n, movieTime: o, movieDuration: p, movieContinue: q, runAnimation: r, slate: s, widgets: t, widgetBounds: u, idToTypeAndContextThunk: v, editingContext: w, liveSyncInfo: x, liveSyncDelay: y, outputMode: z, mouseMode: _1, dimensions: _2, mouseState: _3, syncOptions: _4, caption: _5, showGhosts: _6, showPreludeOffsets: _7, localSaves: _8, startup: _9, codeBoxInfo: _10, outputCanvasInfo: _11, basicCodeBox: _12, errorBox: _13, genSymCount: _14, tool: _15, hoveredShapes: _16, hoveredCrosshairs: _17, hoveredBoundsWidgets: _18, selectedShapes: _19, selectedFeatures: _20, selectedBlobs: _21, keysDown: _22, autoSynthesis: _23, queriesSentToSolver: _24, solutionsCache: _25, synthesisResultsDict: _26, hoveredSynthesisResultPathByIndices: _27, renamingInOutput: _28, randomColor: _29, drawableFunctions: _30, layoutOffsets: _31, needsSave: _32, lastSaveState: _33, autosave: _34, filename: _35, fileIndex: _36, dialogBoxes: _37, filenameInput: _38, fileToDelete: _39, pendingFileOperation: _40, fileOperationConfirmed: _41, icons: _42, showAllDeuceWidgets: _43, hoveringCodeBox: _44, deuceState: _45, deuceToolsAndResults: _46, deuceToolResultPreviews: _47, selectedDeuceTool: _48, showOnlyBasicTools: _49, viewState: _50, popupPanelPositions: _51, deuceRightClickMenuMode: _52, enableDeuceBoxSelection: _53, enableDeuceTextSelection: _54, codeToolsMenuMode: _55, textSelectMode: _56, enableTextEdits: _57, allowMultipleTargetPositions: _58, mainResizerX: _59, savedSelections: _60, deucePopupPanelAbove: _61, colorScheme: _62, pendingGiveUpMsg: _63, giveUpConfirmed: _64, lastSelectedTemplate: _65, valueEditorString: _66, syntax: _67, extraMenuAmount: _68};
-																																																																																													};
+																																																																																													return {code: a, lastRunCode: b, runFailuresInARowCount: c, codeClean: d, preview: e, history: f, inputExp: g, inputVal: h, maybeEnv: i, contextInputVals: j, slideNumber: k, slideCount: l, movieNumber: m, movieCount: n, movieTime: o, movieDuration: p, movieContinue: q, runAnimation: r, slate: s, widgets: t, widgetBounds: u, idToTypeAndContextThunk: v, editingContext: w, liveSyncInfo: x, liveSyncDelay: y, outputMode: z, mouseMode: _1, dimensions: _2, mouseState: _3, syncOptions: _4, caption: _5, showGhosts: _6, showPreludeOffsets: _7, localSaves: _8, startup: _9, codeBoxInfo: _10, outputCanvasInfo: _11, basicCodeBox: _12, errorBox: _13, genSymCount: _14, tool: _15, hoveredShapes: _16, hoveredCrosshairs: _17, hoveredBoundsWidgets: _18, selectedShapes: _19, selectedFeatures: _20, selectedBlobs: _21, keysDown: _22, autoSynthesis: _23, solutionsCache: _24, synthesisResultsDict: _25, hoveredSynthesisResultPathByIndices: _26, renamingInOutput: _27, randomColor: _28, drawableFunctions: _29, layoutOffsets: _30, needsSave: _31, lastSaveState: _32, autosave: _33, filename: _34, fileIndex: _35, dialogBoxes: _36, filenameInput: _37, fileToDelete: _38, pendingFileOperation: _39, fileOperationConfirmed: _40, icons: _41, showAllDeuceWidgets: _42, hoveringCodeBox: _43, deuceState: _44, deuceToolsAndResults: _45, deuceToolResultPreviews: _46, selectedDeuceTool: _47, showOnlyBasicTools: _48, viewState: _49, popupPanelPositions: _50, deuceRightClickMenuMode: _51, enableDeuceBoxSelection: _52, enableDeuceTextSelection: _53, codeToolsMenuMode: _54, textSelectMode: _55, enableTextEdits: _56, allowMultipleTargetPositions: _57, mainResizerX: _58, savedSelections: _59, deucePopupPanelAbove: _60, colorScheme: _61, pendingGiveUpMsg: _62, giveUpConfirmed: _63, lastSelectedTemplate: _64, valueEditorString: _65, syntax: _66, extraMenuAmount: _67};
 																																																																																												};
 																																																																																											};
 																																																																																										};
@@ -63910,7 +64754,6 @@ var _user$project$InterfaceModel$initModel = function () {
 		selectedBlobs: _elm_lang$core$Dict$empty,
 		keysDown: {ctor: '[]'},
 		autoSynthesis: false,
-		queriesSentToSolver: {ctor: '[]'},
 		solutionsCache: {eqnSystemSolutions: _elm_lang$core$Dict$empty, simplifications: _elm_lang$core$Dict$empty},
 		synthesisResultsDict: _elm_lang$core$Dict$empty,
 		hoveredSynthesisResultPathByIndices: {ctor: '[]'},
@@ -64051,9 +64894,6 @@ var _user$project$InterfaceModel$Msg = F2(
 		return {ctor: 'Msg', _0: a, _1: b};
 	});
 var _user$project$InterfaceModel$WindowOnLoad = {ctor: 'WindowOnLoad'};
-var _user$project$InterfaceModel$ResponseFromSolver = function (a) {
-	return {ctor: 'ResponseFromSolver', _0: a};
-};
 var _user$project$InterfaceModel$ImportCode = {ctor: 'ImportCode'};
 var _user$project$InterfaceModel$AlertSave = {ctor: 'AlertSave'};
 var _user$project$InterfaceModel$Open = {ctor: 'Open'};
@@ -64102,8 +64942,8 @@ var _user$project$InterfaceModel$dbToInt = function (db) {
 		return _elm_lang$core$Native_Utils.crashCase(
 			'InterfaceModel',
 			{
-				start: {line: 488, column: 3},
-				end: {line: 490, column: 79}
+				start: {line: 486, column: 3},
+				end: {line: 488, column: 79}
 			},
 			_p69)(
 			A2(
@@ -64163,8 +65003,8 @@ var _user$project$InterfaceModel$intToDb = function (n) {
 		return _elm_lang$core$Native_Utils.crashCase(
 			'InterfaceModel',
 			{
-				start: {line: 494, column: 3},
-				end: {line: 496, column: 72}
+				start: {line: 492, column: 3},
+				end: {line: 494, column: 72}
 			},
 			_p71)(
 			A2(
@@ -79418,9 +80258,9 @@ var _user$project$Draw$colorLineSelected = '#B4FADB';
 var _user$project$Draw$colorPointNotSelected = '#F5B038';
 var _user$project$Draw$colorPointSelected = '#38F552';
 var _user$project$Draw$pointZoneStyles = {
-	radius: 6,
+	radius: 9,
 	stroke: 'black',
-	strokeWidth: 2,
+	strokeWidth: 3,
 	fill: {shown: 'white', selectedShape: 'yellow', selectedBlob: 'aqua', hidden: 'rgba(0,0,0,0.0)'}
 };
 var _user$project$Draw$svgPath = A2(
@@ -100216,7 +101056,7 @@ var _user$project$Canvas$toggleSelected = function (selectableFeatures) {
 		'Toggle Selected...',
 		_user$project$Canvas$doToggleSelected(selectableFeatures));
 };
-var _user$project$Canvas$hairStrokeWidth = '9';
+var _user$project$Canvas$hairStrokeWidth = '11';
 var _user$project$Canvas$zoneDelete_ = F5(
 	function (id, shape, x, y, transform) {
 		var _p0 = {ctor: '_Tuple4', _0: 20, _1: 20, _2: 'silver', _3: '2'};
@@ -103328,6 +104168,15 @@ var _user$project$Canvas$svgOffsetWidget1DArrowParts = function (program) {
 												}
 											}
 										};
+										var clickRegionLineStyle = {
+											ctor: '::',
+											_0: A2(_user$project$LangSvg$attr, 'stroke', 'transparent'),
+											_1: {
+												ctor: '::',
+												_0: A2(_user$project$LangSvg$attr, 'stroke-width', '9px'),
+												_1: {ctor: '[]'}
+											}
+										};
 										var line = A3(
 											_elm_lang$core$Basics$flip,
 											_elm_lang$svg$Svg$line,
@@ -103352,8 +104201,32 @@ var _user$project$Canvas$svgOffsetWidget1DArrowParts = function (program) {
 													}
 												},
 												A2(_elm_lang$core$Basics_ops['++'], lineStyle, extraStyles)));
+										var clickRegionLine = A3(
+											_elm_lang$core$Basics$flip,
+											_elm_lang$svg$Svg$line,
+											{ctor: '[]'},
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												{
+													ctor: '::',
+													_0: A2(_user$project$Canvas$attrNum, 'x1', _p146),
+													_1: {
+														ctor: '::',
+														_0: A2(_user$project$Canvas$attrNum, 'y1', _p147),
+														_1: {
+															ctor: '::',
+															_0: A2(_user$project$Canvas$attrNum, 'x2', endX),
+															_1: {
+																ctor: '::',
+																_0: A2(_user$project$Canvas$attrNum, 'y2', endY),
+																_1: {ctor: '[]'}
+															}
+														}
+													}
+												},
+												A2(_elm_lang$core$Basics_ops['++'], clickRegionLineStyle, extraStyles)));
 										var endArrow = function () {
-											var arrowOffset = 12;
+											var arrowOffset = 16;
 											var _p141 = function () {
 												var _p142 = {
 													ctor: '_Tuple2',
@@ -103601,14 +104474,18 @@ var _user$project$Canvas$svgOffsetWidget1DArrowParts = function (program) {
 										}();
 										return {
 											ctor: '::',
-											_0: line,
+											_0: clickRegionLine,
 											_1: {
 												ctor: '::',
-												_0: caption,
+												_0: line,
 												_1: {
 													ctor: '::',
-													_0: endArrow,
-													_1: {ctor: '[]'}
+													_0: caption,
+													_1: {
+														ctor: '::',
+														_0: endArrow,
+														_1: {ctor: '[]'}
+													}
 												}
 											}
 										};
@@ -103725,7 +104602,7 @@ var _user$project$Canvas$zoneSelectCrossDot = F6(
 		var y = _elm_lang$core$Basics$round(
 			_user$project$Lang$valToNum(yVal));
 		var thisCrosshair = {ctor: '_Tuple2', _0: _p167, _1: _p168};
-		var len = 20;
+		var len = 24;
 		var color = function (selectableFeatures) {
 			return A2(
 				_elm_lang$core$List$all,
@@ -105494,24 +106371,39 @@ var _user$project$Canvas$buildSvgWidgets = F5(
 					return A4(drawListWidget, _p214, _p215, _p212._0, model);
 			}
 		};
+		var zOrder = function (widget) {
+			var _p217 = widget;
+			switch (_p217.ctor) {
+				case 'WNumSlider':
+					return 5;
+				case 'WIntSlider':
+					return 5;
+				case 'WPoint':
+					return 4;
+				case 'WOffset1D':
+					return 3;
+				case 'WCall':
+					return 2;
+				default:
+					return 1;
+			}
+		};
 		return A2(
 			_elm_lang$core$List$concatMap,
 			draw,
 			A2(
 				_elm_lang$core$List$sortBy,
-				function (_p217) {
-					var _p218 = _p217;
-					var _p220 = _p218._0;
-					var _p219 = _p218._1._1;
-					if (_p219.ctor === 'Just') {
-						return {
-							ctor: '_Tuple2',
-							_0: 0 - _user$project$ShapeWidgets$boundsArea(_p219._0),
-							_1: _p220
-						};
-					} else {
-						return {ctor: '_Tuple2', _0: 0, _1: _p220};
-					}
+				function (_p218) {
+					var _p219 = _p218;
+					return {
+						ctor: '_Tuple3',
+						_0: zOrder(_p219._1._0),
+						_1: 0 - A2(
+							_elm_lang$core$Maybe$withDefault,
+							0,
+							A2(_elm_lang$core$Maybe$map, _user$project$ShapeWidgets$boundsArea, _p219._1._1)),
+						_2: _p219._0
+					};
 				},
 				_user$project$Utils$zipi1(
 					A2(_user$project$Utils$zip, widgets, widgetBounds))));
@@ -105521,11 +106413,11 @@ var _user$project$Canvas$maybeZoneSelectCrossDot = F6(
 		return (_elm_lang$core$Native_Utils.cmp(sideLength, _user$project$Canvas$minLengthForMiddleZones) < 0) ? {ctor: '[]'} : A6(_user$project$Canvas$zoneSelectCrossDot, model, false, thisCrosshair, xVal, yVal, pairVal);
 	});
 var _user$project$Canvas$zoneSelectDistance = F5(
-	function (model, nodeId, shapeFeature, _p222, _p221) {
-		var _p223 = _p222;
-		var _p227 = _p223._1;
-		var _p226 = _p223._0;
-		var _p224 = _p221;
+	function (model, nodeId, shapeFeature, _p221, _p220) {
+		var _p222 = _p221;
+		var _p226 = _p222._1;
+		var _p225 = _p222._0;
+		var _p223 = _p220;
 		var selectableFeature = A2(_user$project$ShapeWidgets$ShapeFeature, nodeId, shapeFeature);
 		var shouldShow = A2(_elm_lang$core$Set$member, nodeId, model.hoveredShapes) || A2(_elm_lang$core$List$member, selectableFeature, model.selectedFeatures);
 		var perhapsLabelWidget = A9(
@@ -105535,22 +106427,22 @@ var _user$project$Canvas$zoneSelectDistance = F5(
 			model.widgets,
 			model.renamingInOutput,
 			_user$project$Canvas$SelectedFeature(selectableFeature),
-			_p226 - (_user$project$Utils$parseFloat(_user$project$Canvas$hairStrokeWidth) / 2),
-			_p227 + 1,
+			_p225 - (_user$project$Utils$parseFloat(_user$project$Canvas$hairStrokeWidth) / 2),
+			_p226 + 1,
 			_user$project$Canvas$HoverPadding(3),
 			shouldShow);
-		var _p225 = {
+		var _p224 = {
 			ctor: '_Tuple2',
 			_0: model.mouseMode,
 			_1: shouldShow || (!_elm_lang$core$List$isEmpty(perhapsLabelWidget))
 		};
 		_v95_2:
 		do {
-			if (_p225.ctor === '_Tuple2') {
-				if (_p225._0.ctor === 'MouseDragZone') {
+			if (_p224.ctor === '_Tuple2') {
+				if (_p224._0.ctor === 'MouseDragZone') {
 					return {ctor: '[]'};
 				} else {
-					if (_p225._1 === false) {
+					if (_p224._1 === false) {
 						return {ctor: '[]'};
 					} else {
 						break _v95_2;
@@ -105573,25 +106465,25 @@ var _user$project$Canvas$zoneSelectDistance = F5(
 						_0: A2(
 							_user$project$LangSvg$attr,
 							'x1',
-							_elm_lang$core$Basics$toString(_p226)),
+							_elm_lang$core$Basics$toString(_p225)),
 						_1: {
 							ctor: '::',
 							_0: A2(
 								_user$project$LangSvg$attr,
 								'y1',
-								_elm_lang$core$Basics$toString(_p227)),
+								_elm_lang$core$Basics$toString(_p226)),
 							_1: {
 								ctor: '::',
 								_0: A2(
 									_user$project$LangSvg$attr,
 									'x2',
-									_elm_lang$core$Basics$toString(_p224._0)),
+									_elm_lang$core$Basics$toString(_p223._0)),
 								_1: {
 									ctor: '::',
 									_0: A2(
 										_user$project$LangSvg$attr,
 										'y2',
-										_elm_lang$core$Basics$toString(_p224._1)),
+										_elm_lang$core$Basics$toString(_p223._1)),
 									_1: {
 										ctor: '::',
 										_0: _user$project$Canvas$onMouseDownAndStop(
@@ -105626,11 +106518,11 @@ var _user$project$Canvas$boxySelectZones = F4(
 	function (model, id, kind, boxyNums) {
 		var drawPoint = F4(
 			function (maybeThreshold, feature, x, y) {
-				var _p228 = maybeThreshold;
-				if (_p228.ctor === 'Just') {
+				var _p227 = maybeThreshold;
+				if (_p227.ctor === 'Just') {
 					return A6(
 						_user$project$Canvas$maybeZoneSelectCrossDot,
-						_p228._0,
+						_p227._0,
 						model,
 						{ctor: '_Tuple3', _0: id, _1: kind, _2: feature},
 						x,
@@ -105648,9 +106540,9 @@ var _user$project$Canvas$boxySelectZones = F4(
 				}
 			});
 		var drawDistance = F4(
-			function (threshold, feature, _p230, _p229) {
-				var _p231 = _p230;
-				var _p232 = _p229;
+			function (threshold, feature, _p229, _p228) {
+				var _p230 = _p229;
+				var _p231 = _p228;
 				return A6(
 					_user$project$Canvas$perhapsZoneSelectDistance,
 					threshold,
@@ -105659,37 +106551,37 @@ var _user$project$Canvas$boxySelectZones = F4(
 					feature,
 					{
 						ctor: '_Tuple2',
-						_0: _user$project$Lang$valToNum(_p231._0),
-						_1: _user$project$Lang$valToNum(_p231._1)
+						_0: _user$project$Lang$valToNum(_p230._0),
+						_1: _user$project$Lang$valToNum(_p230._1)
 					},
 					{
 						ctor: '_Tuple2',
-						_0: _user$project$Lang$valToNum(_p232._0),
-						_1: _user$project$Lang$valToNum(_p232._1)
+						_0: _user$project$Lang$valToNum(_p231._0),
+						_1: _user$project$Lang$valToNum(_p231._1)
 					});
 			});
-		var _p233 = boxyNums;
-		var left = _p233.left;
-		var top = _p233.top;
-		var right = _p233.right;
-		var bot = _p233.bot;
-		var cx = _p233.cx;
-		var cy = _p233.cy;
-		var width = _p233.width;
-		var height = _p233.height;
-		var _p234 = {
+		var _p232 = boxyNums;
+		var left = _p232.left;
+		var top = _p232.top;
+		var right = _p232.right;
+		var bot = _p232.bot;
+		var cx = _p232.cx;
+		var cy = _p232.cy;
+		var width = _p232.width;
+		var height = _p232.height;
+		var _p233 = {
 			ctor: '_Tuple2',
 			_0: _user$project$Lang$valToNum(width),
 			_1: _user$project$Lang$valToNum(height)
 		};
-		var widthNum = _p234._0;
-		var heightNum = _p234._1;
+		var widthNum = _p233._0;
+		var heightNum = _p233._1;
 		var distanceSelect = function (f) {
-			var _p235 = f;
+			var _p234 = f;
 			_v99_5:
 			do {
-				if (_p235.ctor === 'DistanceFeature') {
-					switch (_p235._0.ctor) {
+				if (_p234.ctor === 'DistanceFeature') {
+					switch (_p234._0.ctor) {
 						case 'Width':
 							return A4(
 								drawDistance,
@@ -105735,11 +106627,11 @@ var _user$project$Canvas$boxySelectZones = F4(
 			return {ctor: '[]'};
 		};
 		var pointSelect = function (f) {
-			var _p236 = f;
+			var _p235 = f;
 			_v100_9:
 			do {
-				if (_p236.ctor === 'PointFeature') {
-					switch (_p236._0.ctor) {
+				if (_p235.ctor === 'PointFeature') {
+					switch (_p235._0.ctor) {
 						case 'TopLeft':
 							return A4(drawPoint, _elm_lang$core$Maybe$Nothing, _user$project$ShapeWidgets$TopLeft, left, top);
 						case 'TopRight':
@@ -105795,7 +106687,7 @@ var _user$project$Canvas$boxySelectZones = F4(
 		};
 		var features = A3(_user$project$Utils$find, 'boxySelectZones error', _user$project$ShapeWidgets$simpleKindGenericFeatures, kind);
 		var featuresHeightBeforeWidth = function () {
-			var _p237 = A2(
+			var _p236 = A2(
 				_user$project$Utils$findi,
 				F2(
 					function (x, y) {
@@ -105803,13 +106695,13 @@ var _user$project$Canvas$boxySelectZones = F4(
 					})(
 					_user$project$ShapeWidgets$DistanceFeature(_user$project$ShapeWidgets$Width)),
 				features);
-			if (_p237.ctor === 'Just') {
-				var _p238 = _p237._0;
+			if (_p236.ctor === 'Just') {
+				var _p237 = _p236._0;
 				return A3(
 					_user$project$Utils$inserti,
-					_p238 + 1,
+					_p237 + 1,
 					_user$project$ShapeWidgets$DistanceFeature(_user$project$ShapeWidgets$Width),
-					A2(_user$project$Utils$removei, _p238, features));
+					A2(_user$project$Utils$removei, _p237, features));
 			} else {
 				return features;
 			}
@@ -105824,8 +106716,8 @@ var _user$project$Canvas$SelectedShape = function (a) {
 };
 var _user$project$Canvas$perhapsLabelWidgetForShape = F4(
 	function (model, nodeId, x, y) {
-		var _p239 = model.mouseMode;
-		if (_p239.ctor === 'MouseDragZone') {
+		var _p238 = model.mouseMode;
+		if (_p238.ctor === 'MouseDragZone') {
 			return {ctor: '[]'};
 		} else {
 			var shouldShow = A2(_elm_lang$core$Set$member, nodeId, model.hoveredShapes) || A2(_elm_lang$core$List$member, nodeId, model.selectedShapes);
@@ -105845,14 +106737,14 @@ var _user$project$Canvas$perhapsLabelWidgetForShape = F4(
 var _user$project$Canvas$makeZonesLine = F3(
 	function (model, id, l) {
 		var transform = _user$project$Canvas$maybeTransformAttr(l);
-		var _p240 = _user$project$ShapeWidgets$evaluateLineFeatures(l);
-		var x1 = _p240._0;
-		var y1 = _p240._1;
-		var x2 = _p240._2;
-		var y2 = _p240._3;
-		var cx = _p240._4;
-		var cy = _p240._5;
-		var _p241 = {
+		var _p239 = _user$project$ShapeWidgets$evaluateLineFeatures(l);
+		var x1 = _p239._0;
+		var y1 = _p239._1;
+		var x2 = _p239._2;
+		var y2 = _p239._3;
+		var cx = _p239._4;
+		var cy = _p239._5;
+		var _p240 = {
 			ctor: '_Tuple2',
 			_0: {
 				ctor: '_Tuple2',
@@ -105865,20 +106757,20 @@ var _user$project$Canvas$makeZonesLine = F3(
 				_1: _user$project$Lang$valToNum(y2)
 			}
 		};
-		var pt1 = _p241._0;
-		var pt2 = _p241._1;
-		var _p242 = A2(
+		var pt1 = _p240._0;
+		var pt2 = _p240._1;
+		var _p241 = A2(
 			_user$project$Lang$minMax,
 			_user$project$Lang$valToNum(x1),
 			_user$project$Lang$valToNum(x2));
-		var xMin = _p242._0;
-		var xMax = _p242._1;
-		var _p243 = A2(
+		var xMin = _p241._0;
+		var xMax = _p241._1;
+		var _p242 = A2(
 			_user$project$Lang$minMax,
 			_user$project$Lang$valToNum(y1),
 			_user$project$Lang$valToNum(y2));
-		var yMin = _p243._0;
-		var yMax = _p243._1;
+		var yMin = _p242._0;
+		var yMax = _p242._1;
 		var bounds = {ctor: '_Tuple4', _0: xMin, _1: yMin, _2: xMax, _3: yMax};
 		var zLine = function () {
 			var enter = {
@@ -106006,15 +106898,15 @@ var _user$project$Canvas$makeZonesLine = F3(
 var _user$project$Canvas$makeZonesRectOrBox = F4(
 	function (model, id, shape, l) {
 		var boxyNumVals = A2(_user$project$ShapeWidgets$evaluateBoxyNums, shape, l);
-		var _p244 = _user$project$Canvas$boxyNumValsToNums(boxyNumVals);
-		var left = _p244.left;
-		var top = _p244.top;
-		var right = _p244.right;
-		var bot = _p244.bot;
-		var cx = _p244.cx;
-		var cy = _p244.cy;
-		var width = _p244.width;
-		var height = _p244.height;
+		var _p243 = _user$project$Canvas$boxyNumValsToNums(boxyNumVals);
+		var left = _p243.left;
+		var top = _p243.top;
+		var right = _p243.right;
+		var bot = _p243.bot;
+		var cx = _p243.cx;
+		var cy = _p243.cy;
+		var width = _p243.width;
+		var height = _p243.height;
 		var bounds = {ctor: '_Tuple4', _0: left, _1: top, _2: right, _3: bot};
 		var transform = _user$project$Canvas$maybeTransformAttr(l);
 		var zoneInterior = A7(
@@ -106089,14 +106981,14 @@ var _user$project$Canvas$makeZonesRectOrBox = F4(
 var _user$project$Canvas$makeZonesCircle = F3(
 	function (model, id, l) {
 		var boxyNumVals = A2(_user$project$ShapeWidgets$evaluateBoxyNums, 'circle', l);
-		var _p245 = _user$project$Canvas$boxyNumValsToNums(boxyNumVals);
-		var left = _p245.left;
-		var top = _p245.top;
-		var right = _p245.right;
-		var bot = _p245.bot;
-		var cx = _p245.cx;
-		var cy = _p245.cy;
-		var r = _p245.r;
+		var _p244 = _user$project$Canvas$boxyNumValsToNums(boxyNumVals);
+		var left = _p244.left;
+		var top = _p244.top;
+		var right = _p244.right;
+		var bot = _p244.bot;
+		var cx = _p244.cx;
+		var cy = _p244.cy;
+		var r = _p244.r;
 		var bounds = {ctor: '_Tuple4', _0: left, _1: top, _2: right, _3: bot};
 		var transform = _user$project$Canvas$maybeTransformAttr(l);
 		var zoneInterior = A7(
@@ -106164,17 +107056,17 @@ var _user$project$Canvas$makeZonesCircle = F3(
 var _user$project$Canvas$makeZonesEllipseOrOval = F4(
 	function (model, id, shape, l) {
 		var boxyNumVals = A2(_user$project$ShapeWidgets$evaluateBoxyNums, shape, l);
-		var _p246 = _user$project$Canvas$boxyNumValsToNums(boxyNumVals);
-		var left = _p246.left;
-		var top = _p246.top;
-		var right = _p246.right;
-		var bot = _p246.bot;
-		var width = _p246.width;
-		var height = _p246.height;
-		var cx = _p246.cx;
-		var cy = _p246.cy;
-		var rx = _p246.rx;
-		var ry = _p246.ry;
+		var _p245 = _user$project$Canvas$boxyNumValsToNums(boxyNumVals);
+		var left = _p245.left;
+		var top = _p245.top;
+		var right = _p245.right;
+		var bot = _p245.bot;
+		var width = _p245.width;
+		var height = _p245.height;
+		var cx = _p245.cx;
+		var cy = _p245.cy;
+		var rx = _p245.rx;
+		var ry = _p245.ry;
 		var bounds = {ctor: '_Tuple4', _0: left, _1: top, _2: right, _3: bot};
 		var transform = _user$project$Canvas$maybeTransformAttr(l);
 		var zoneInterior = A7(
@@ -106245,7 +107137,7 @@ var _user$project$Canvas$makeZonesEllipseOrOval = F4(
 	});
 var _user$project$Canvas$makeZonesPoly = F4(
 	function (model, shape, id, l) {
-		var _p247 = A2(
+		var _p246 = A2(
 			_user$project$Utils$assert,
 			'makeZonesPoly',
 			_elm_lang$core$Native_Utils.eq(shape, 'polygon') || _elm_lang$core$Native_Utils.eq(shape, 'polyline'));
@@ -106277,17 +107169,17 @@ var _user$project$Canvas$makeZonesPoly = F4(
 				transform));
 		var zRot = A5(_user$project$Canvas$zoneRotatePolyOrPath, model, id, 'polygon', pts, l);
 		var zFillAndStroke = function () {
-			var _p248 = pts;
-			if ((((_p248.ctor === '::') && (_p248._0.ctor === '_Tuple2')) && (_p248._0._0.ctor === '_Tuple2')) && (_p248._0._1.ctor === '_Tuple2')) {
-				return A6(_user$project$Canvas$zonesFillAndStroke, model, id, shape, _p248._0._0._0, _p248._0._1._0, l);
+			var _p247 = pts;
+			if ((((_p247.ctor === '::') && (_p247._0.ctor === '_Tuple2')) && (_p247._0._0.ctor === '_Tuple2')) && (_p247._0._1.ctor === '_Tuple2')) {
+				return A6(_user$project$Canvas$zonesFillAndStroke, model, id, shape, _p247._0._0._0, _p247._0._1._0, l);
 			} else {
 				return _elm_lang$core$Native_Utils.crashCase(
 					'Canvas',
 					{
-						start: {line: 2208, column: 5},
-						end: {line: 2212, column: 36}
+						start: {line: 2230, column: 5},
+						end: {line: 2234, column: 36}
 					},
-					_p248)('makeZonesPoly');
+					_p247)('makeZonesPoly');
 			}
 		}();
 		var perhapsPointAndEdgeZones = function () {
@@ -106297,17 +107189,17 @@ var _user$project$Canvas$makeZonesPoly = F4(
 				return {ctor: '[]'};
 			} else {
 				var ptVals = function () {
-					var _p250 = A2(_user$project$Utils$maybeFind, 'points', l);
-					if (_p250.ctor === 'Just') {
-						return A2(_user$project$Lang$vListToVals, 'makeZonesPoly ptVals', _p250._0.val);
+					var _p249 = A2(_user$project$Utils$maybeFind, 'points', l);
+					if (_p249.ctor === 'Just') {
+						return A2(_user$project$Lang$vListToVals, 'makeZonesPoly ptVals', _p249._0.val);
 					} else {
 						return _elm_lang$core$Native_Utils.crashCase(
 							'Canvas',
 							{
-								start: {line: 2221, column: 9},
-								end: {line: 2223, column: 58}
+								start: {line: 2243, column: 9},
+								end: {line: 2245, column: 58}
 							},
-							_p250)('makeZonesPoly ptVals');
+							_p249)('makeZonesPoly ptVals');
 					}
 				}();
 				var zPts = A5(_user$project$Canvas$zonePoints, model, id, shape, transform, pts);
@@ -106316,16 +107208,16 @@ var _user$project$Canvas$makeZonesPoly = F4(
 						_user$project$Utils$overlappingAdjacentPairs_,
 						_elm_lang$core$Native_Utils.eq(shape, 'polygon'),
 						pts);
-					var f = function (_p252) {
-						var _p253 = _p252;
+					var f = function (_p251) {
+						var _p252 = _p251;
 						return A7(
 							_user$project$Canvas$zoneLine2,
 							model,
 							id,
 							shape,
-							_user$project$ShapeWidgets$ZPolyEdge(_p253._0),
-							{ctor: '_Tuple2', _0: _p253._1._0._0._0, _1: _p253._1._0._1._0},
-							{ctor: '_Tuple2', _0: _p253._1._1._0._0, _1: _p253._1._1._1._0},
+							_user$project$ShapeWidgets$ZPolyEdge(_p252._0),
+							{ctor: '_Tuple2', _0: _p252._1._0._0._0, _1: _p252._1._0._1._0},
+							{ctor: '_Tuple2', _0: _p252._1._1._0._0, _1: _p252._1._1._1._0},
 							transform);
 					};
 					return A2(_user$project$Utils$mapi1, f, pairs);
@@ -106360,15 +107252,15 @@ var _user$project$Canvas$makeZonesPoly = F4(
 							midYVal,
 							_user$project$Canvas$dummyVal);
 					};
-					var ptCrossDot = function (_p254) {
-						var _p255 = _p254;
-						var _p257 = _p255._1;
-						var _p256 = A2(
+					var ptCrossDot = function (_p253) {
+						var _p254 = _p253;
+						var _p256 = _p254._1;
+						var _p255 = A2(
 							_user$project$Utils$fromJust_,
 							'makeZonesPoly ptCrossDot',
-							_user$project$Lang$valToMaybeXYVals(_p257));
-						var xVal = _p256._0;
-						var yVal = _p256._1;
+							_user$project$Lang$valToMaybeXYVals(_p256));
+						var xVal = _p255._0;
+						var yVal = _p255._1;
 						return A6(
 							_user$project$Canvas$zoneSelectCrossDot,
 							model,
@@ -106377,11 +107269,11 @@ var _user$project$Canvas$makeZonesPoly = F4(
 								ctor: '_Tuple3',
 								_0: id,
 								_1: shape,
-								_2: _user$project$ShapeWidgets$Point(_p255._0)
+								_2: _user$project$ShapeWidgets$Point(_p254._0)
 							},
 							xVal,
 							yVal,
-							_p257);
+							_p256);
 					};
 					var midptCrossDots = function () {
 						var ptsI = _user$project$Utils$zipi1(ptVals);
@@ -106404,22 +107296,22 @@ var _user$project$Canvas$makeZonesPoly = F4(
 			}
 		}();
 		var primaryWidgets = function () {
-			var _p258 = _user$project$Draw$boundingBoxOfPoints_(
+			var _p257 = _user$project$Draw$boundingBoxOfPoints_(
 				A2(
 					_elm_lang$core$List$map,
-					function (_p259) {
-						var _p260 = _p259;
+					function (_p258) {
+						var _p259 = _p258;
 						return {
 							ctor: '_Tuple2',
-							_0: _elm_lang$core$Tuple$first(_p260._0),
-							_1: _elm_lang$core$Tuple$first(_p260._1)
+							_0: _elm_lang$core$Tuple$first(_p259._0),
+							_1: _elm_lang$core$Tuple$first(_p259._1)
 						};
 					},
 					pts));
-			var x1 = _p258._0;
-			var x2 = _p258._1;
-			var y1 = _p258._2;
-			var y2 = _p258._3;
+			var x1 = _p257._0;
+			var x2 = _p257._1;
+			var y1 = _p257._2;
+			var y2 = _p257._3;
 			return A4(
 				_user$project$Canvas$groupWithInvisibleBoxForRemovingHoveredShape,
 				model,
@@ -106445,7 +107337,7 @@ var _user$project$Canvas$makeZonesPoly = F4(
 	});
 var _user$project$Canvas$makeZonesPath = F4(
 	function (model, shape, id, nodeAttrs) {
-		var _p261 = A2(
+		var _p260 = A2(
 			_user$project$Utils$assert,
 			'makeZonesPoly',
 			_elm_lang$core$Native_Utils.eq(shape, 'path'));
@@ -106454,16 +107346,16 @@ var _user$project$Canvas$makeZonesPath = F4(
 			_user$project$LangSvg$toPath(
 				A2(_user$project$Utils$find_, nodeAttrs, 'd')));
 		var add = F2(
-			function (_p262, acc) {
-				var _p263 = _p262;
-				var _p265 = _p263._0;
-				var _p264 = _p265;
-				if (_p264.ctor === 'Nothing') {
+			function (_p261, acc) {
+				var _p262 = _p261;
+				var _p264 = _p262._0;
+				var _p263 = _p264;
+				if (_p263.ctor === 'Nothing') {
 					return acc;
 				} else {
 					return {
 						ctor: '::',
-						_0: {ctor: '_Tuple2', _0: _p265, _1: _p263._1},
+						_0: {ctor: '_Tuple2', _0: _p264, _1: _p262._1},
 						_1: acc
 					};
 				}
@@ -106472,29 +107364,29 @@ var _user$project$Canvas$makeZonesPath = F4(
 			_elm_lang$core$List$foldr,
 			F2(
 				function (c, acc) {
-					var _p266 = c;
-					switch (_p266.ctor) {
+					var _p265 = c;
+					switch (_p265.ctor) {
 						case 'CmdZ':
 							return acc;
 						case 'CmdMLT':
-							return A2(add, _p266._1, acc);
+							return A2(add, _p265._1, acc);
 						case 'CmdHV':
 							return acc;
 						case 'CmdC':
 							return A2(
 								add,
-								_p266._1,
+								_p265._1,
 								A2(
 									add,
-									_p266._2,
-									A2(add, _p266._3, acc)));
+									_p265._2,
+									A2(add, _p265._3, acc)));
 						case 'CmdSQ':
 							return A2(
 								add,
-								_p266._1,
-								A2(add, _p266._2, acc));
+								_p265._1,
+								A2(add, _p265._2, acc));
 						default:
-							return A2(add, _p266._6, acc);
+							return A2(add, _p265._6, acc);
 					}
 				}),
 			{ctor: '[]'},
@@ -106503,17 +107395,17 @@ var _user$project$Canvas$makeZonesPath = F4(
 		var dots = A5(_user$project$Canvas$zonePoints, model, id, shape, transform, pts);
 		var zRot = A5(_user$project$Canvas$zoneRotatePolyOrPath, model, id, 'path', pts, nodeAttrs);
 		var zFillAndStroke = function () {
-			var _p267 = pts;
-			if ((((_p267.ctor === '::') && (_p267._0.ctor === '_Tuple2')) && (_p267._0._0.ctor === '_Tuple2')) && (_p267._0._1.ctor === '_Tuple2')) {
-				return A6(_user$project$Canvas$zonesFillAndStroke, model, id, shape, _p267._0._0._0, _p267._0._1._0, nodeAttrs);
+			var _p266 = pts;
+			if ((((_p266.ctor === '::') && (_p266._0.ctor === '_Tuple2')) && (_p266._0._0.ctor === '_Tuple2')) && (_p266._0._1.ctor === '_Tuple2')) {
+				return A6(_user$project$Canvas$zonesFillAndStroke, model, id, shape, _p266._0._0._0, _p266._0._1._0, nodeAttrs);
 			} else {
 				return _elm_lang$core$Native_Utils.crashCase(
 					'Canvas',
 					{
-						start: {line: 2280, column: 5},
-						end: {line: 2284, column: 36}
+						start: {line: 2302, column: 5},
+						end: {line: 2306, column: 36}
 					},
-					_p267)('makeZonesPath');
+					_p266)('makeZonesPath');
 			}
 		}();
 		var zInterior = A7(
@@ -106541,22 +107433,22 @@ var _user$project$Canvas$makeZonesPath = F4(
 				},
 				transform));
 		var primaryWidgets = function () {
-			var _p269 = _user$project$Draw$boundingBoxOfPoints_(
+			var _p268 = _user$project$Draw$boundingBoxOfPoints_(
 				A2(
 					_elm_lang$core$List$map,
-					function (_p270) {
-						var _p271 = _p270;
+					function (_p269) {
+						var _p270 = _p269;
 						return {
 							ctor: '_Tuple2',
-							_0: _elm_lang$core$Tuple$first(_p271._0),
-							_1: _elm_lang$core$Tuple$first(_p271._1)
+							_0: _elm_lang$core$Tuple$first(_p270._0),
+							_1: _elm_lang$core$Tuple$first(_p270._1)
 						};
 					},
 					pts));
-			var x1 = _p269._0;
-			var x2 = _p269._1;
-			var y1 = _p269._2;
-			var y2 = _p269._3;
+			var x1 = _p268._0;
+			var x2 = _p268._1;
+			var y1 = _p268._2;
+			var y2 = _p268._3;
 			return A4(
 				_user$project$Canvas$groupWithInvisibleBoxForRemovingHoveredShape,
 				model,
@@ -106582,8 +107474,8 @@ var _user$project$Canvas$makeZonesPath = F4(
 	});
 var _user$project$Canvas$makeZones = F4(
 	function (model, shape, id, l) {
-		var _p272 = shape;
-		switch (_p272) {
+		var _p271 = shape;
+		switch (_p271) {
 			case 'line':
 				return A3(_user$project$Canvas$makeZonesLine, model, id, l);
 			case 'rect':
@@ -106607,11 +107499,11 @@ var _user$project$Canvas$makeZones = F4(
 		}
 	});
 var _user$project$Canvas$buildHtml_ = F4(
-	function (_p273, insideSvgNode, d, i) {
-		var _p274 = _p273;
-		var _p285 = _p274._0;
-		var _p284 = _p274._1;
-		var _p275 = function (_) {
+	function (_p272, insideSvgNode, d, i) {
+		var _p273 = _p272;
+		var _p284 = _p273._0;
+		var _p283 = _p273._1;
+		var _p274 = function (_) {
 			return _.interpreted;
 		}(
 			A3(
@@ -106622,81 +107514,81 @@ var _user$project$Canvas$buildHtml_ = F4(
 					_elm_lang$core$Basics$toString(i)),
 				i,
 				d));
-		if (_p275.ctor === 'TextNode') {
-			return _elm_lang$virtual_dom$VirtualDom$text(_p275._0);
+		if (_p274.ctor === 'TextNode') {
+			return _elm_lang$virtual_dom$VirtualDom$text(_p274._0);
 		} else {
-			var _p283 = _p275._0;
-			var _p282 = _p275._1;
-			var _p276 = {
+			var _p282 = _p274._0;
+			var _p281 = _p274._1;
+			var _p275 = {
 				ctor: '_Tuple2',
-				_0: _p285.showGhosts,
-				_1: A2(_user$project$Utils$maybeRemoveFirst, 'HIDDEN', _p282)
+				_0: _p284.showGhosts,
+				_1: A2(_user$project$Utils$maybeRemoveFirst, 'HIDDEN', _p281)
 			};
-			if (((_p276.ctor === '_Tuple2') && (_p276._0 === false)) && (_p276._1.ctor === 'Just')) {
+			if (((_p275.ctor === '_Tuple2') && (_p275._0 === false)) && (_p275._1.ctor === 'Just')) {
 				return A2(
 					_elm_lang$svg$Svg$svg,
 					{ctor: '[]'},
 					{ctor: '[]'});
 			} else {
-				var _p277 = function () {
-					var _p278 = {
+				var _p276 = function () {
+					var _p277 = {
 						ctor: '_Tuple2',
-						_0: _p284,
-						_1: A2(_user$project$Utils$maybeRemoveFirst, 'ZONES', _p282)
+						_0: _p283,
+						_1: A2(_user$project$Utils$maybeRemoveFirst, 'ZONES', _p281)
 					};
-					if (_p278._0 === false) {
-						if (_p278._1.ctor === 'Nothing') {
+					if (_p277._0 === false) {
+						if (_p277._1.ctor === 'Nothing') {
 							return {
 								ctor: '_Tuple2',
 								_0: {ctor: '[]'},
-								_1: _p282
+								_1: _p281
 							};
 						} else {
 							return {
 								ctor: '_Tuple2',
 								_0: {ctor: '[]'},
-								_1: _p278._1._0._1
+								_1: _p277._1._0._1
 							};
 						}
 					} else {
-						if (_p278._1.ctor === 'Nothing') {
+						if (_p277._1.ctor === 'Nothing') {
 							return {
 								ctor: '_Tuple2',
-								_0: A4(_user$project$Canvas$makeZones, _p285, _p283, i, _p282),
-								_1: _p282
+								_0: A4(_user$project$Canvas$makeZones, _p284, _p282, i, _p281),
+								_1: _p281
 							};
 						} else {
-							var _p279 = _p278._1._0._0.interpreted;
+							var _p278 = _p277._1._0._0.interpreted;
 							return {
 								ctor: '_Tuple2',
-								_0: A4(_user$project$Canvas$makeZones, _p285, _p283, i, _p282),
-								_1: _p278._1._0._1
+								_0: A4(_user$project$Canvas$makeZones, _p284, _p282, i, _p281),
+								_1: _p277._1._0._1
 							};
 						}
 					}
 				}();
-				var zones = _p277._0;
-				var attrs_ = _p277._1;
-				var _p280 = function () {
-					var canvasDim = _user$project$SleekLayout$outputCanvas(_p285);
+				var zones = _p276._0;
+				var attrs_ = _p276._1;
+				var _p279 = function () {
+					var canvasDim = _user$project$SleekLayout$outputCanvas(_p284);
 					return A2(
 						_elm_lang$core$Tuple$mapSecond,
 						_user$project$LangSvg$compileAttrs,
-						A4(_user$project$LangSvg$desugarShapeAttrs, canvasDim.x, canvasDim.y, _p283, attrs_));
+						A4(_user$project$LangSvg$desugarShapeAttrs, canvasDim.x, canvasDim.y, _p282, attrs_));
 				}();
-				var rawKind = _p280._0;
-				var compiledAttrs = _p280._1;
-				var _p281 = _elm_lang$core$Native_Utils.eq(rawKind, 'svg') ? {ctor: '_Tuple2', _0: _elm_lang$svg$Svg$node, _1: true} : (insideSvgNode ? {ctor: '_Tuple2', _0: _elm_lang$svg$Svg$node, _1: true} : {ctor: '_Tuple2', _0: _elm_lang$html$Html$node, _1: false});
-				var node = _p281._0;
-				var isSvgNode = _p281._1;
+				var rawKind = _p279._0;
+				var compiledAttrs = _p279._1;
+				var _p280 = _elm_lang$core$Native_Utils.eq(rawKind, 'svg') ? {ctor: '_Tuple2', _0: _elm_lang$svg$Svg$node, _1: true} : (insideSvgNode ? {ctor: '_Tuple2', _0: _elm_lang$svg$Svg$node, _1: true} : {ctor: '_Tuple2', _0: _elm_lang$html$Html$node, _1: false});
+				var node = _p280._0;
+				var isSvgNode = _p280._1;
 				var children = A2(
 					_elm_lang$core$List$map,
 					A3(
 						_user$project$Canvas$buildHtml_,
-						{ctor: '_Tuple2', _0: _p285, _1: _p284},
+						{ctor: '_Tuple2', _0: _p284, _1: _p283},
 						isSvgNode,
 						d),
-					_p275._2);
+					_p274._2);
 				var mainshape = A3(node, rawKind, compiledAttrs, children);
 				return _elm_lang$core$Native_Utils.eq(
 					zones,
@@ -106708,62 +107600,62 @@ var _user$project$Canvas$buildHtml_ = F4(
 		}
 	});
 var _user$project$Canvas$buildHtml = F3(
-	function (_p287, insideSvgNode, _p286) {
-		var _p288 = _p287;
-		var _p289 = _p286;
+	function (_p286, insideSvgNode, _p285) {
+		var _p287 = _p286;
+		var _p288 = _p285;
 		return A4(
 			_user$project$Canvas$buildHtml_,
-			{ctor: '_Tuple2', _0: _p288._0, _1: _p288._1},
+			{ctor: '_Tuple2', _0: _p287._0, _1: _p287._1},
 			insideSvgNode,
-			_p289._1,
-			_p289._0);
+			_p288._1,
+			_p288._0);
 	});
 var _user$project$Canvas$build = F2(
 	function (dim, model) {
 		var addZones = function () {
-			var _p290 = {ctor: '_Tuple2', _0: model.outputMode, _1: model.preview};
-			if (((_p290.ctor === '_Tuple2') && (_p290._0.ctor === 'Live')) && (_p290._1.ctor === 'Nothing')) {
+			var _p289 = {ctor: '_Tuple2', _0: model.outputMode, _1: model.preview};
+			if (((_p289.ctor === '_Tuple2') && (_p289._0.ctor === 'Live')) && (_p289._1.ctor === 'Nothing')) {
 				return true;
 			} else {
 				return false;
 			}
 		}();
-		var _p291 = function () {
-			var _p292 = model.preview;
-			if ((((_p292.ctor === 'Just') && (_p292._0.ctor === '_Tuple2')) && (_p292._0._1.ctor === 'Ok')) && (_p292._0._1._0.ctor === '_Tuple4')) {
-				var _p296 = _p292._0._1._0._1;
-				var _p295 = _p292._0._1._0._2;
-				var _p294 = _p292._0._1._0._3;
-				var _p293 = _p292._0._0;
+		var _p290 = function () {
+			var _p291 = model.preview;
+			if ((((_p291.ctor === 'Just') && (_p291._0.ctor === '_Tuple2')) && (_p291._0._1.ctor === 'Ok')) && (_p291._0._1._0.ctor === '_Tuple4')) {
+				var _p295 = _p291._0._1._0._1;
+				var _p294 = _p291._0._1._0._2;
+				var _p293 = _p291._0._1._0._3;
+				var _p292 = _p291._0._0;
 				return {
 					ctor: '_Tuple4',
-					_0: _p296,
-					_1: _p295,
-					_2: _p294,
+					_0: _p295,
+					_1: _p294,
+					_2: _p293,
 					_3: _elm_lang$core$Native_Utils.update(
 						model,
 						{
 							renamingInOutput: _elm_lang$core$Maybe$Nothing,
-							widgets: _p296,
-							widgetBounds: _p295,
-							slate: _p294,
-							inputVal: _p292._0._1._0._0,
-							code: _p293,
+							widgets: _p295,
+							widgetBounds: _p294,
+							slate: _p293,
+							inputVal: _p291._0._1._0._0,
+							code: _p292,
 							inputExp: A2(
 								_elm_lang$core$Maybe$withDefault,
 								model.inputExp,
 								_elm_lang$core$Result$toMaybe(
-									A2(_user$project$Syntax$parser, model.syntax, _p293)))
+									A2(_user$project$Syntax$parser, model.syntax, _p292)))
 						})
 				};
 			} else {
 				return {ctor: '_Tuple4', _0: model.widgets, _1: model.widgetBounds, _2: model.slate, _3: model};
 			}
 		}();
-		var widgets = _p291._0;
-		var widgetBounds = _p291._1;
-		var slate = _p291._2;
-		var pseudoModel = _p291._3;
+		var widgets = _p290._0;
+		var widgetBounds = _p290._1;
+		var slate = _p290._2;
+		var pseudoModel = _p290._3;
 		var outputIsSvg = _user$project$LangSvg$rootIsShapeOrText(slate);
 		var outputElement = A3(
 			_user$project$Canvas$buildHtml,
@@ -106772,9 +107664,9 @@ var _user$project$Canvas$build = F2(
 			slate);
 		var newShape = _user$project$Canvas$drawNewShape(model);
 		var widgetsAndDistances = function () {
-			var _p297 = {ctor: '_Tuple3', _0: model.outputMode, _1: model.showGhosts, _2: model.preview};
-			if (((_p297.ctor === '_Tuple3') && (_p297._0.ctor === 'Live')) && (_p297._1 === true)) {
-				if (_p297._2.ctor === 'Nothing') {
+			var _p296 = {ctor: '_Tuple3', _0: model.outputMode, _1: model.showGhosts, _2: model.preview};
+			if (((_p296.ctor === '_Tuple3') && (_p296._0.ctor === 'Live')) && (_p296._1 === true)) {
+				if (_p296._2.ctor === 'Nothing') {
 					return A2(
 						_elm_lang$core$Basics_ops['++'],
 						A3(_user$project$Canvas$buildDistances, pseudoModel, slate, widgets),
@@ -112424,905 +113316,6 @@ var _user$project$SleekView$view = function (model) {
 };
 var _user$project$SleekView$Regular = {ctor: 'Regular'};
 
-var _user$project$SolverServer$skipSpaces = A2(
-	_elm_tools$parser$Parser$ignore,
-	_elm_tools$parser$Parser$zeroOrMore,
-	function ($char) {
-		return _elm_lang$core$Native_Utils.eq(
-			$char,
-			_elm_lang$core$Native_Utils.chr(' ')) || _elm_lang$core$Native_Utils.eq(
-			$char,
-			_elm_lang$core$Native_Utils.chr('\t'));
-	});
-var _user$project$SolverServer$parseNumber = _elm_tools$parser$Parser$oneOf(
-	{
-		ctor: '::',
-		_0: A3(
-			_elm_tools$parser$Parser$delayedCommitMap,
-			F2(
-				function (_p0, posFloat) {
-					return 0 - posFloat;
-				}),
-			A2(
-				_elm_tools$parser$Parser_ops['|.'],
-				_elm_tools$parser$Parser$symbol('-'),
-				_user$project$SolverServer$skipSpaces),
-			_elm_tools$parser$Parser$float),
-		_1: {
-			ctor: '::',
-			_0: _elm_tools$parser$Parser$float,
-			_1: {ctor: '[]'}
-		}
-	});
-var _user$project$SolverServer$parseMathNum = A2(
-	_elm_tools$parser$Parser$inContext,
-	'parseMathNum',
-	A2(_elm_tools$parser$Parser$map, _user$project$Lang$MathNum, _user$project$SolverServer$parseNumber));
-var _user$project$SolverServer$eatChar = function ($char) {
-	return A2(
-		_elm_tools$parser$Parser$ignore,
-		_elm_tools$parser$Parser$Exactly(1),
-		F2(
-			function (x, y) {
-				return _elm_lang$core$Native_Utils.eq(x, y);
-			})($char));
-};
-var _user$project$SolverServer_ops = _user$project$SolverServer_ops || {};
-_user$project$SolverServer_ops['.|'] = _elm_tools$parser$Parser$delayedCommit;
-var _user$project$SolverServer$wsSymbol = function (str) {
-	return A2(
-		_user$project$SolverServer_ops['.|'],
-		_user$project$SolverServer$skipSpaces,
-		_elm_tools$parser$Parser$symbol(str));
-};
-var _user$project$SolverServer$between = F3(
-	function (openStr, closeStr, innerParser) {
-		return A2(
-			_elm_tools$parser$Parser$inContext,
-			A2(
-				_elm_lang$core$Basics_ops['++'],
-				'between ',
-				A2(
-					_elm_lang$core$Basics_ops['++'],
-					openStr,
-					A2(_elm_lang$core$Basics_ops['++'], ' ', closeStr))),
-			A2(
-				_user$project$SolverServer_ops['.|'],
-				_user$project$SolverServer$wsSymbol(openStr),
-				A2(
-					_elm_tools$parser$Parser_ops['|.'],
-					innerParser,
-					_user$project$SolverServer$wsSymbol(closeStr))));
-	});
-var _user$project$SolverServer$parseParens = function (innerParser) {
-	return A3(_user$project$SolverServer$between, '(', ')', innerParser);
-};
-var _user$project$SolverServer$parseCommaSeparatedList = function (itemParser) {
-	return _elm_tools$parser$Parser$oneOf(
-		{
-			ctor: '::',
-			_0: A2(
-				_elm_tools$parser$Parser_ops['|='],
-				A2(
-					_elm_tools$parser$Parser_ops['|='],
-					_elm_tools$parser$Parser$succeed(
-						F2(
-							function (x, y) {
-								return {ctor: '::', _0: x, _1: y};
-							})),
-					itemParser),
-				A2(
-					_elm_tools$parser$Parser$repeat,
-					_elm_tools$parser$Parser$zeroOrMore,
-					A2(
-						_user$project$SolverServer_ops['.|'],
-						_user$project$SolverServer$wsSymbol(','),
-						itemParser))),
-			_1: {
-				ctor: '::',
-				_0: _elm_tools$parser$Parser$succeed(
-					{ctor: '[]'}),
-				_1: {ctor: '[]'}
-			}
-		});
-};
-var _user$project$SolverServer$parseVarToVarId = A2(
-	_elm_tools$parser$Parser$inContext,
-	'parseVarToVarId',
-	A2(
-		_user$project$SolverServer_ops['.|'],
-		_user$project$SolverServer$eatChar(
-			_elm_lang$core$Native_Utils.chr('x')),
-		_elm_tools$parser$Parser$int));
-var _user$project$SolverServer$parseMathVar = A2(
-	_elm_tools$parser$Parser$inContext,
-	'parseMathVar',
-	A2(_elm_tools$parser$Parser$map, _user$project$Lang$MathVar, _user$project$SolverServer$parseVarToVarId));
-var _user$project$SolverServer$parseEqnPi = A2(
-	_elm_tools$parser$Parser$inContext,
-	'parseEqnPi',
-	A2(
-		_user$project$SolverServer_ops['.|'],
-		_user$project$SolverServer$wsSymbol('pi'),
-		_elm_tools$parser$Parser$succeed(
-			A2(
-				_user$project$Lang$MathOp,
-				_user$project$Lang$Pi,
-				{ctor: '[]'}))));
-var _user$project$SolverServer$binaryOperatorList = {
-	ctor: '::',
-	_0: {ctor: '_Tuple4', _0: '+', _1: _user$project$BinaryOperatorParser$Left, _2: 2, _3: _user$project$Lang$Plus},
-	_1: {
-		ctor: '::',
-		_0: {ctor: '_Tuple4', _0: '-', _1: _user$project$BinaryOperatorParser$Left, _2: 2, _3: _user$project$Lang$Minus},
-		_1: {
-			ctor: '::',
-			_0: {ctor: '_Tuple4', _0: '**', _1: _user$project$BinaryOperatorParser$Left, _2: 4, _3: _user$project$Lang$Pow},
-			_1: {
-				ctor: '::',
-				_0: {ctor: '_Tuple4', _0: '*', _1: _user$project$BinaryOperatorParser$Left, _2: 3, _3: _user$project$Lang$Mult},
-				_1: {
-					ctor: '::',
-					_0: {ctor: '_Tuple4', _0: '/', _1: _user$project$BinaryOperatorParser$Left, _2: 3, _3: _user$project$Lang$Div},
-					_1: {
-						ctor: '::',
-						_0: {ctor: '_Tuple4', _0: 'mod', _1: _user$project$BinaryOperatorParser$Left, _2: 1, _3: _user$project$Lang$Mod},
-						_1: {ctor: '[]'}
-					}
-				}
-			}
-		}
-	}
-};
-var _user$project$SolverServer$precedenceTable = A3(
-	_elm_lang$core$List$foldl,
-	F2(
-		function (_p1, pt) {
-			var _p2 = _p1;
-			return A2(
-				_user$project$BinaryOperatorParser$addOperator,
-				{ctor: '_Tuple3', _0: _p2._0, _1: _p2._1, _2: _p2._2},
-				pt);
-		}),
-	_user$project$BinaryOperatorParser$emptyPrecedenceTable,
-	_user$project$SolverServer$binaryOperatorList);
-var _user$project$SolverServer$parseBinaryOperatorStr = A2(
-	_elm_tools$parser$Parser$inContext,
-	'parseBinaryOperatorStr',
-	_elm_tools$parser$Parser$oneOf(
-		A2(
-			_elm_lang$core$List$map,
-			function (_p3) {
-				var _p4 = _p3;
-				var _p5 = _p4._0;
-				return A2(
-					_elm_tools$parser$Parser$map,
-					_elm_lang$core$Basics$always(_p5),
-					_user$project$SolverServer$wsSymbol(_p5));
-			},
-			_user$project$SolverServer$binaryOperatorList)));
-var _user$project$SolverServer$parseMathExp = _elm_tools$parser$Parser$lazy(
-	function (_p6) {
-		return A2(
-			_elm_tools$parser$Parser$inContext,
-			'parseMathExp',
-			_user$project$BinaryOperatorParser$binaryOperator(
-				{
-					precedenceTable: _user$project$SolverServer$precedenceTable,
-					minimumPrecedence: 1,
-					expression: _user$project$SolverServer$parseEqnAtom,
-					operator: _user$project$SolverServer$parseBinaryOperatorStr,
-					representation: _elm_lang$core$Basics$identity,
-					combine: F3(
-						function (left, opStr, right) {
-							var _p9 = A2(
-								_user$project$Utils$findFirst,
-								function (_p7) {
-									var _p8 = _p7;
-									return _elm_lang$core$Native_Utils.eq(_p8._0, opStr);
-								},
-								_user$project$SolverServer$binaryOperatorList);
-							if (_p9.ctor === 'Just') {
-								return A2(
-									_user$project$Lang$MathOp,
-									_p9._0._3,
-									{
-										ctor: '::',
-										_0: left,
-										_1: {
-											ctor: '::',
-											_0: right,
-											_1: {ctor: '[]'}
-										}
-									});
-							} else {
-								return _elm_lang$core$Native_Utils.crashCase(
-									'SolverServer',
-									{
-										start: {line: 324, column: 15},
-										end: {line: 326, column: 126}
-									},
-									_p9)(
-									A2(_elm_lang$core$Basics_ops['++'], 'REDUCE parsing: Should not happen: could not find binary op ', opStr));
-							}
-						})
-				}));
-	});
-var _user$project$SolverServer$parseEqnAtom = _elm_tools$parser$Parser$lazy(
-	function (_p11) {
-		return A2(
-			_elm_tools$parser$Parser$inContext,
-			'parseEqnAtom',
-			A2(
-				_user$project$SolverServer_ops['.|'],
-				_user$project$SolverServer$skipSpaces,
-				_elm_tools$parser$Parser$oneOf(
-					{
-						ctor: '::',
-						_0: _user$project$SolverServer$parseMathNum,
-						_1: {
-							ctor: '::',
-							_0: _user$project$SolverServer$parseMathVar,
-							_1: {
-								ctor: '::',
-								_0: _user$project$SolverServer$parseEqnParens,
-								_1: {
-									ctor: '::',
-									_0: _user$project$SolverServer$parseEqnFunction,
-									_1: {
-										ctor: '::',
-										_0: _user$project$SolverServer$parseEqnPi,
-										_1: {
-											ctor: '::',
-											_0: _user$project$SolverServer$parseNegation,
-											_1: {ctor: '[]'}
-										}
-									}
-								}
-							}
-						}
-					})));
-	});
-var _user$project$SolverServer$parseEqnFunction = _elm_tools$parser$Parser$lazy(
-	function (_p12) {
-		return A2(
-			_elm_tools$parser$Parser$inContext,
-			'parseEqnFunction',
-			_elm_tools$parser$Parser$oneOf(
-				{
-					ctor: '::',
-					_0: A2(_user$project$SolverServer$parseBinaryFunction, 'atan2', _user$project$Lang$ArcTan2),
-					_1: {
-						ctor: '::',
-						_0: A2(_user$project$SolverServer$parseUnaryFunction, 'cos', _user$project$Lang$Cos),
-						_1: {
-							ctor: '::',
-							_0: A2(_user$project$SolverServer$parseUnaryFunction, 'sin', _user$project$Lang$Sin),
-							_1: {
-								ctor: '::',
-								_0: A2(_user$project$SolverServer$parseUnaryFunction, 'acos', _user$project$Lang$ArcCos),
-								_1: {
-									ctor: '::',
-									_0: A2(_user$project$SolverServer$parseUnaryFunction, 'asin', _user$project$Lang$ArcSin),
-									_1: {
-										ctor: '::',
-										_0: A2(_user$project$SolverServer$parseUnaryFunction, 'abs', _user$project$Lang$Abs),
-										_1: {
-											ctor: '::',
-											_0: A2(_user$project$SolverServer$parseUnaryFunction, 'floor', _user$project$Lang$Floor),
-											_1: {
-												ctor: '::',
-												_0: A2(_user$project$SolverServer$parseUnaryFunction, 'ceiling', _user$project$Lang$Ceil),
-												_1: {
-													ctor: '::',
-													_0: A2(_user$project$SolverServer$parseUnaryFunction, 'round', _user$project$Lang$Round),
-													_1: {
-														ctor: '::',
-														_0: A2(_user$project$SolverServer$parseUnaryFunction, 'sqrt', _user$project$Lang$Sqrt),
-														_1: {
-															ctor: '::',
-															_0: A2(_user$project$SolverServer$parseUnaryFunction, 'ln', _user$project$Lang$Ln),
-															_1: {ctor: '[]'}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}));
-	});
-var _user$project$SolverServer$parseBinaryFunction = F2(
-	function (funcName, op_) {
-		return A2(
-			_elm_tools$parser$Parser_ops['|.'],
-			A2(
-				_elm_tools$parser$Parser_ops['|='],
-				A2(
-					_elm_tools$parser$Parser_ops['|.'],
-					A2(
-						_elm_tools$parser$Parser_ops['|='],
-						A2(
-							_elm_tools$parser$Parser_ops['|.'],
-							_elm_tools$parser$Parser$succeed(
-								F2(
-									function (argTerm1, argTerm2) {
-										return A2(
-											_user$project$Lang$MathOp,
-											op_,
-											{
-												ctor: '::',
-												_0: argTerm1,
-												_1: {
-													ctor: '::',
-													_0: argTerm2,
-													_1: {ctor: '[]'}
-												}
-											});
-									})),
-							_user$project$SolverServer$wsSymbol(
-								A2(_elm_lang$core$Basics_ops['++'], funcName, '('))),
-						_user$project$SolverServer$parseMathExp),
-					_user$project$SolverServer$wsSymbol(',')),
-				_user$project$SolverServer$parseMathExp),
-			_user$project$SolverServer$wsSymbol(')'));
-	});
-var _user$project$SolverServer$parseUnaryFunction = F2(
-	function (funcName, op_) {
-		return A2(
-			_elm_tools$parser$Parser_ops['|.'],
-			A2(
-				_elm_tools$parser$Parser_ops['|='],
-				A2(
-					_elm_tools$parser$Parser_ops['|.'],
-					_elm_tools$parser$Parser$succeed(
-						function (argTerm) {
-							return A2(
-								_user$project$Lang$MathOp,
-								op_,
-								{
-									ctor: '::',
-									_0: argTerm,
-									_1: {ctor: '[]'}
-								});
-						}),
-					_user$project$SolverServer$wsSymbol(
-						A2(_elm_lang$core$Basics_ops['++'], funcName, '('))),
-				_user$project$SolverServer$parseMathExp),
-			_user$project$SolverServer$wsSymbol(')'));
-	});
-var _user$project$SolverServer$parseEqnParens = _user$project$SolverServer$parseParens(_user$project$SolverServer$parseMathExp);
-var _user$project$SolverServer$parseNegation = _elm_tools$parser$Parser$lazy(
-	function (_p13) {
-		return A3(
-			_elm_tools$parser$Parser$delayedCommitMap,
-			F2(
-				function (_p14, mathExp) {
-					return _user$project$MathExp$neg(mathExp);
-				}),
-			_elm_tools$parser$Parser$symbol('-'),
-			_user$project$SolverServer$parseEqnAtom);
-	});
-var _user$project$SolverServer$parseResultEqn = A2(
-	_elm_tools$parser$Parser_ops['|='],
-	A2(
-		_elm_tools$parser$Parser_ops['|.'],
-		A2(
-			_elm_tools$parser$Parser_ops['|='],
-			A2(
-				_elm_tools$parser$Parser_ops['|.'],
-				_elm_tools$parser$Parser$succeed(
-					F2(
-						function (varId, mathExp) {
-							return {ctor: '_Tuple2', _0: mathExp, _1: varId};
-						})),
-				_user$project$SolverServer$skipSpaces),
-			_user$project$SolverServer$parseVarToVarId),
-		_user$project$SolverServer$wsSymbol('=')),
-	_user$project$SolverServer$parseMathExp);
-var _user$project$SolverServer$parseSolution = A2(
-	_elm_tools$parser$Parser$inContext,
-	'parseSolution',
-	_user$project$SolverServer$parseCommaSeparatedList(_user$project$SolverServer$parseResultEqn));
-var _user$project$SolverServer$parseReduceSolutionResponse = function (responseStr) {
-	var solutionStrs = A2(_elm_lang$core$String$startsWith, '{{', responseStr) ? A2(_elm_lang$core$String$split, '},', responseStr) : A2(_elm_lang$core$String$split, ',', responseStr);
-	return A2(
-		_elm_lang$core$List$map,
-		_elm_tools$parser$Parser$run(
-			A2(
-				_elm_tools$parser$Parser_ops['|.'],
-				A2(_elm_tools$parser$Parser_ops['|.'], _user$project$SolverServer$parseSolution, _user$project$SolverServer$skipSpaces),
-				_elm_tools$parser$Parser$end)),
-		A2(
-			_elm_lang$core$List$map,
-			A2(_user$project$Utils$stringReplace, '}', ''),
-			A2(
-				_elm_lang$core$List$map,
-				A2(_user$project$Utils$stringReplace, '{', ''),
-				solutionStrs)));
-};
-var _user$project$SolverServer$varIdToREDUCE = function (varId) {
-	return A2(
-		_elm_lang$core$Basics_ops['++'],
-		'x',
-		_elm_lang$core$Basics$toString(varId));
-};
-var _user$project$SolverServer$mathExpToREDUCE = function (mathExp) {
-	var _p15 = mathExp;
-	switch (_p15.ctor) {
-		case 'MathNum':
-			return _elm_lang$core$Basics$toString(_p15._0);
-		case 'MathVar':
-			return _user$project$SolverServer$varIdToREDUCE(_p15._0);
-		default:
-			var childPerhapsParensToREDUCE = function (childTerm) {
-				var _p16 = childTerm;
-				_v5_2:
-				do {
-					if (_p16.ctor === 'MathOp') {
-						if (_p16._0.ctor === 'ArcTan2') {
-							return _user$project$SolverServer$mathExpToREDUCE(childTerm);
-						} else {
-							if (((_p16._1.ctor === '::') && (_p16._1._1.ctor === '::')) && (_p16._1._1._1.ctor === '[]')) {
-								return A2(
-									_elm_lang$core$Basics_ops['++'],
-									'(',
-									A2(
-										_elm_lang$core$Basics_ops['++'],
-										_user$project$SolverServer$mathExpToREDUCE(childTerm),
-										')'));
-							} else {
-								break _v5_2;
-							}
-						}
-					} else {
-						break _v5_2;
-					}
-				} while(false);
-				return _user$project$SolverServer$mathExpToREDUCE(childTerm);
-			};
-			var _p17 = {ctor: '_Tuple2', _0: _p15._0, _1: _p15._1};
-			_v6_18:
-			do {
-				if (_p17.ctor === '_Tuple2') {
-					if (_p17._1.ctor === '::') {
-						if (_p17._1._1.ctor === '::') {
-							if (_p17._1._1._1.ctor === '[]') {
-								switch (_p17._0.ctor) {
-									case 'Plus':
-										return A2(
-											_elm_lang$core$Basics_ops['++'],
-											childPerhapsParensToREDUCE(_p17._1._0),
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												'+',
-												childPerhapsParensToREDUCE(_p17._1._1._0)));
-									case 'Minus':
-										return A2(
-											_elm_lang$core$Basics_ops['++'],
-											childPerhapsParensToREDUCE(_p17._1._0),
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												'-',
-												childPerhapsParensToREDUCE(_p17._1._1._0)));
-									case 'Mult':
-										return A2(
-											_elm_lang$core$Basics_ops['++'],
-											childPerhapsParensToREDUCE(_p17._1._0),
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												'*',
-												childPerhapsParensToREDUCE(_p17._1._1._0)));
-									case 'Div':
-										return A2(
-											_elm_lang$core$Basics_ops['++'],
-											childPerhapsParensToREDUCE(_p17._1._0),
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												'/',
-												childPerhapsParensToREDUCE(_p17._1._1._0)));
-									case 'Pow':
-										return A2(
-											_elm_lang$core$Basics_ops['++'],
-											'(',
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-												A2(
-													_elm_lang$core$Basics_ops['++'],
-													')**',
-													childPerhapsParensToREDUCE(_p17._1._1._0))));
-									case 'Mod':
-										return A2(
-											_elm_lang$core$Basics_ops['++'],
-											childPerhapsParensToREDUCE(_p17._1._0),
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												' mod ',
-												childPerhapsParensToREDUCE(_p17._1._1._0)));
-									case 'ArcTan2':
-										return A2(
-											_elm_lang$core$Basics_ops['++'],
-											'atan2(',
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-												A2(
-													_elm_lang$core$Basics_ops['++'],
-													',',
-													A2(
-														_elm_lang$core$Basics_ops['++'],
-														_user$project$SolverServer$mathExpToREDUCE(_p17._1._1._0),
-														')'))));
-									default:
-										break _v6_18;
-								}
-							} else {
-								break _v6_18;
-							}
-						} else {
-							switch (_p17._0.ctor) {
-								case 'Cos':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'cos(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'Sin':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'sin(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'ArcCos':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'acos(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'ArcSin':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'asin(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'Abs':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'abs(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'Floor':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'floor(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'Ceil':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'ceiling(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'Round':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'round(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'Sqrt':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'sqrt(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								case 'Ln':
-									return A2(
-										_elm_lang$core$Basics_ops['++'],
-										'ln(',
-										A2(
-											_elm_lang$core$Basics_ops['++'],
-											_user$project$SolverServer$mathExpToREDUCE(_p17._1._0),
-											')'));
-								default:
-									break _v6_18;
-							}
-						}
-					} else {
-						if (_p17._0.ctor === 'Pi') {
-							return 'pi';
-						} else {
-							break _v6_18;
-						}
-					}
-				} else {
-					break _v6_18;
-				}
-			} while(false);
-			var _p18 = A2(_elm_lang$core$Debug$log, 'Didn\'t know how to convert this to REDUCE syntax', mathExp);
-			return 'unknown';
-	}
-};
-var _user$project$SolverServer$eqnToREDUCE = function (_p19) {
-	var _p20 = _p19;
-	return A2(
-		_elm_lang$core$Basics_ops['++'],
-		_user$project$SolverServer$mathExpToREDUCE(_p20._0),
-		A2(
-			_elm_lang$core$Basics_ops['++'],
-			'=',
-			_user$project$SolverServer$mathExpToREDUCE(_p20._1)));
-};
-var _user$project$SolverServer$problemToREDUCE = function (_p21) {
-	var _p22 = _p21;
-	return A2(
-		_elm_lang$core$Basics_ops['++'],
-		'on factor; trigsimp(solve({',
-		A2(
-			_elm_lang$core$Basics_ops['++'],
-			A2(
-				_elm_lang$core$String$join,
-				',',
-				A2(_elm_lang$core$List$map, _user$project$SolverServer$eqnToREDUCE, _p22._0)),
-			A2(
-				_elm_lang$core$Basics_ops['++'],
-				'},{',
-				A2(
-					_elm_lang$core$Basics_ops['++'],
-					A2(
-						_elm_lang$core$String$join,
-						',',
-						A2(_elm_lang$core$List$map, _user$project$SolverServer$varIdToREDUCE, _p22._1)),
-					'}),compact)'))));
-};
-var _user$project$SolverServer$simplificationToREDUCE = function (mathExp) {
-	return A2(
-		_elm_lang$core$Basics_ops['++'],
-		'on factor; trigsimp(',
-		A2(
-			_elm_lang$core$Basics_ops['++'],
-			_user$project$SolverServer$mathExpToREDUCE(mathExp),
-			',compact)'));
-};
-var _user$project$SolverServer$solutionsCacheToString = function (solutionsCache) {
-	var equationSolutionsStr = A2(
-		_elm_lang$core$String$join,
-		'\n',
-		A2(
-			_elm_lang$core$List$map,
-			function (_p23) {
-				var _p24 = _p23;
-				var solutionStrs = A2(
-					_elm_lang$core$List$map,
-					function (solution) {
-						return A2(
-							_elm_lang$core$Basics_ops['++'],
-							'{',
-							A2(
-								_elm_lang$core$Basics_ops['++'],
-								A2(
-									_elm_lang$core$String$join,
-									',',
-									A2(
-										_elm_lang$core$List$map,
-										function (_p25) {
-											var _p26 = _p25;
-											return A2(
-												_elm_lang$core$Basics_ops['++'],
-												_user$project$SolverServer$varIdToREDUCE(_p26._1),
-												A2(
-													_elm_lang$core$Basics_ops['++'],
-													'=',
-													_user$project$SolverServer$mathExpToREDUCE(_p26._0)));
-										},
-										solution)),
-								'}'));
-					},
-					_p24._1);
-				return A2(
-					_elm_lang$core$Basics_ops['++'],
-					_user$project$SolverServer$problemToREDUCE(_p24._0),
-					A2(
-						_elm_lang$core$Basics_ops['++'],
-						';\t=> {',
-						A2(
-							_elm_lang$core$Basics_ops['++'],
-							A2(_elm_lang$core$String$join, ',', solutionStrs),
-							'}')));
-			},
-			_elm_lang$core$Dict$toList(solutionsCache.eqnSystemSolutions)));
-	var simplificationsStr = A2(
-		_elm_lang$core$String$join,
-		'\n',
-		A2(
-			_elm_lang$core$List$map,
-			function (_p27) {
-				var _p28 = _p27;
-				return A2(
-					_elm_lang$core$Basics_ops['++'],
-					_user$project$SolverServer$mathExpToREDUCE(_p28._0),
-					A2(
-						_elm_lang$core$Basics_ops['++'],
-						';\t=> ',
-						_user$project$SolverServer$mathExpToREDUCE(_p28._1)));
-			},
-			_elm_lang$core$Dict$toList(solutionsCache.simplifications)));
-	return A2(
-		_elm_lang$core$Basics_ops['++'],
-		equationSolutionsStr,
-		A2(_elm_lang$core$Basics_ops['++'], '\n', simplificationsStr));
-};
-var _user$project$SolverServer$distributeNegation = function (mathExp) {
-	distributeNegation:
-	while (true) {
-		var _p29 = mathExp;
-		switch (_p29.ctor) {
-			case 'MathNum':
-				return mathExp;
-			case 'MathVar':
-				return mathExp;
-			default:
-				if (((((((((((_p29._0.ctor === 'Minus') && (_p29._1.ctor === '::')) && (_p29._1._0.ctor === 'MathNum')) && (_p29._1._0._0 === 0)) && (_p29._1._1.ctor === '::')) && (_p29._1._1._0.ctor === 'MathOp')) && (_p29._1._1._0._0.ctor === 'Minus')) && (_p29._1._1._0._1.ctor === '::')) && (_p29._1._1._0._1._1.ctor === '::')) && (_p29._1._1._0._1._1._1.ctor === '[]')) && (_p29._1._1._1.ctor === '[]')) {
-					var _v13 = A2(
-						_user$project$Lang$MathOp,
-						_user$project$Lang$Minus,
-						{
-							ctor: '::',
-							_0: _p29._1._1._0._1._1._0,
-							_1: {
-								ctor: '::',
-								_0: _p29._1._1._0._1._0,
-								_1: {ctor: '[]'}
-							}
-						});
-					mathExp = _v13;
-					continue distributeNegation;
-				} else {
-					return A2(
-						_user$project$Lang$MathOp,
-						_p29._0,
-						A2(_elm_lang$core$List$map, _user$project$SolverServer$distributeNegation, _p29._1));
-				}
-		}
-	}
-};
-var _user$project$SolverServer$handleReduceResponse = F2(
-	function (reduceResponse, oldModel) {
-		var _p30 = oldModel.queriesSentToSolver;
-		if (_p30.ctor === '::') {
-			var newSolutionsCache = function () {
-				var _p31 = _p30._0._0;
-				if (_p31.ctor === 'NeedProblemSolution') {
-					var solutions = function () {
-						var perhapsParsedSolutions = _user$project$SolverServer$parseReduceSolutionResponse(reduceResponse);
-						var parsedSolutions = _user$project$Utils$filterOks(perhapsParsedSolutions);
-						var failedParses = _user$project$Utils$filterErrs(perhapsParsedSolutions);
-						var _p32 = {ctor: '_Tuple2', _0: parsedSolutions, _1: failedParses};
-						if (_p32._0.ctor === '::') {
-							return A2(_user$project$Solver$mapSolutionsExps, _user$project$SolverServer$distributeNegation, parsedSolutions);
-						} else {
-							if (_p32._1.ctor === '::') {
-								var _p33 = _user$project$Utils$log(
-									A2(
-										_elm_lang$core$Basics_ops['++'],
-										'Reduce solution response parse error: ',
-										_elm_lang$core$Basics$toString(_p32._1._0)));
-								return {ctor: '[]'};
-							} else {
-								return {ctor: '[]'};
-							}
-						}
-					}();
-					return {
-						eqnSystemSolutions: A3(_elm_lang$core$Dict$insert, _p31._0, solutions, oldModel.solutionsCache.eqnSystemSolutions),
-						simplifications: oldModel.solutionsCache.simplifications
-					};
-				} else {
-					var _p36 = _p31._0;
-					var simplifiedMathExp = function () {
-						var _p34 = A2(
-							_elm_tools$parser$Parser$run,
-							A2(
-								_elm_tools$parser$Parser_ops['|.'],
-								A2(_elm_tools$parser$Parser_ops['|.'], _user$project$SolverServer$parseMathExp, _user$project$SolverServer$skipSpaces),
-								_elm_tools$parser$Parser$end),
-							reduceResponse);
-						if (_p34.ctor === 'Ok') {
-							return _user$project$SolverServer$distributeNegation(_p34._0);
-						} else {
-							var _p35 = _user$project$Utils$log(
-								A2(
-									_elm_lang$core$Basics_ops['++'],
-									'Reduce simplification response parse error: ',
-									_elm_lang$core$Basics$toString(_p34._0)));
-							return _p36;
-						}
-					}();
-					return {
-						eqnSystemSolutions: oldModel.solutionsCache.eqnSystemSolutions,
-						simplifications: A3(_elm_lang$core$Dict$insert, _p36, simplifiedMathExp, oldModel.solutionsCache.simplifications)
-					};
-				}
-			}();
-			var newModel = _elm_lang$core$Native_Utils.update(
-				oldModel,
-				{queriesSentToSolver: _p30._1, solutionsCache: newSolutionsCache});
-			var _p37 = _user$project$Utils$log(
-				A2(
-					_elm_lang$core$Basics_ops['++'],
-					'Solutions Cache:\n',
-					_user$project$SolverServer$solutionsCacheToString(newModel.solutionsCache)));
-			return {
-				ctor: '_Tuple2',
-				_0: newModel,
-				_1: A2(
-					_elm_lang$core$Task$perform,
-					function (_p38) {
-						return _p30._0._1;
-					},
-					_elm_lang$core$Task$succeed(
-						{ctor: '_Tuple0'}))
-			};
-		} else {
-			var _p39 = _user$project$Utils$log('SolverServer.handleReduceResponse: Shouldn\'t happen: got a REDUCE response but there are no outstanding queries to REDUCE!!!');
-			return {ctor: '_Tuple2', _0: oldModel, _1: _elm_lang$core$Platform_Cmd$none};
-		}
-	});
-var _user$project$SolverServer$queryReduce = _elm_lang$core$Native_Platform.outgoingPort(
-	'queryReduce',
-	function (v) {
-		return v;
-	});
-var _user$project$SolverServer$ask = F3(
-	function (neededFromSolver, failedMsg, oldModel) {
-		var reduceQueryString = function () {
-			var _p40 = neededFromSolver;
-			if (_p40.ctor === 'NeedProblemSolution') {
-				return _user$project$SolverServer$problemToREDUCE(_p40._0);
-			} else {
-				return _user$project$SolverServer$simplificationToREDUCE(_p40._0);
-			}
-		}();
-		return {
-			ctor: '_Tuple2',
-			_0: _elm_lang$core$Native_Utils.update(
-				oldModel,
-				{
-					queriesSentToSolver: A2(
-						_elm_lang$core$Basics_ops['++'],
-						oldModel.queriesSentToSolver,
-						{
-							ctor: '::',
-							_0: {ctor: '_Tuple2', _0: neededFromSolver, _1: failedMsg},
-							_1: {ctor: '[]'}
-						})
-				}),
-			_1: _user$project$SolverServer$queryReduce(reduceQueryString)
-		};
-	});
-var _user$project$SolverServer$reduceResponse = _elm_lang$core$Native_Platform.incomingPort('reduceResponse', _elm_lang$core$Json_Decode$string);
-
 var _user$project$WindowOnLoad$windowOnLoad = _elm_lang$core$Native_Platform.incomingPort(
 	'windowOnLoad',
 	_elm_lang$core$Json_Decode$null(
@@ -113383,11 +113376,7 @@ var _user$project$Main$subscriptions = function (model) {
 																_1: {
 																	ctor: '::',
 																	_0: _user$project$DeucePopupPanelInfo$receiveDeucePopupPanelInfo(_user$project$InterfaceController$msgReceiveDeucePopupPanelInfo),
-																	_1: {
-																		ctor: '::',
-																		_0: _user$project$SolverServer$reduceResponse(_user$project$InterfaceModel$ResponseFromSolver),
-																		_1: {ctor: '[]'}
-																	}
+																	_1: {ctor: '[]'}
 																}
 															}
 														}
@@ -113447,23 +113436,10 @@ var _user$project$Main$onLoadCmd = _elm_lang$core$Platform_Cmd$batch(
 var _user$project$Main$update = F2(
 	function (msg, model) {
 		var _p2 = msg;
-		switch (_p2.ctor) {
-			case 'ResponseFromSolver':
-				return A2(_user$project$SolverServer$handleReduceResponse, _p2._0, model);
-			case 'WindowOnLoad':
-				return {ctor: '_Tuple2', _0: model, _1: _user$project$Main$onLoadCmd};
-			default:
-				return A3(
-					_user$project$ImpureGoodies$tryCatch,
-					'NeedSomethingFromSolverException',
-					function (_p3) {
-						var _p4 = _p3;
-						return A2(_user$project$InterfaceController$update, msg, model);
-					},
-					function (_p5) {
-						var _p6 = _p5;
-						return A3(_user$project$SolverServer$ask, _p6._0, msg, model);
-					});
+		if (_p2.ctor === 'WindowOnLoad') {
+			return {ctor: '_Tuple2', _0: model, _1: _user$project$Main$onLoadCmd};
+		} else {
+			return A2(_user$project$InterfaceController$update, msg, model);
 		}
 	});
 var _user$project$Main$view = _user$project$SleekView$view;
