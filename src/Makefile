@@ -30,6 +30,9 @@ html: elm-stuff/packages
 	cp ../img/light_logo.svg ../build/out/img/
 	cp ../img/*.png ../build/out/img/
 
+run_server:
+	ruby -run -e httpd ../build/out -p 8000
+
 elm-stuff/packages:
 	# Use our custom version of core that allows anything in sets.
 	#

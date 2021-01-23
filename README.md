@@ -283,8 +283,9 @@ of the project clone.
 1. Install [Elm v0.18](http://elm-lang.org/)
 2. `cd SKETCH-N-SKETCH/src`
 3. `make clean`
-4. `ruby -run -e httpd ../build/out -p 8000`
-5. Open [http://0.0.0.0:8000/](http://0.0.0.0:8000/)
+4. `make run_server` (Need to run an HTTP server for the Emscripten-compiled solver to work. Opening index.html directly will cause many JS errors.)
+5. Open [http://0.0.0.0:8000/](http://0.0.0.0:8000/).
+6. I think because of the server settings, you will need to hard-reload (cmd-shift-r) to see changes in the browser.
 
 Note: The parser has a performance issue that we have not yet addressed.
 If the application runs out of stack space,
