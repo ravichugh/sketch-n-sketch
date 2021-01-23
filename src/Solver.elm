@@ -3,30 +3,16 @@ module Solver exposing (..)
 import ImpureGoodies
 import Lang exposing (Num, Op_, Trace, Subst, MathExp(..))
 import MathExp exposing (..)
+import REDUCE
+import SolverTypes exposing (..)
 import Utils
 
 import Dict exposing (Dict)
 
 
+type alias SolutionsCache = SolverTypes.SolutionsCache
+
 --------------------------------------------------------------------------------
-
-type alias Eqn = (MathExp, MathExp) -- LHS, RHS
-
-type alias Problem = (List Eqn, List Int) -- System of equations, and varIds to solve for (usually a singleton).
-
-type alias Solution = List (MathExp, Int)
-
-type NeededFromSolver
-  = NeedProblemSolution Problem
-  | NeedSimplification MathExp
-
-type alias SolutionsCache =
-  { eqnSystemSolutions : Dict Problem (List Solution)
-  , simplifications    : Dict MathExp MathExp
-  }
-
-type NeedSomethingFromSolverException = NeedSomethingFromSolverException NeededFromSolver
-
 
 -- Some locId should be missing from the Subst: the missing locId will be solved for.
 --
@@ -79,13 +65,17 @@ solve solutionsCache eqns targetVarIds =
   case targetVarIds |> List.map (\targetVarId -> Dict.get targetVarId oldToNormalizedVarIds) |> Utils.projJusts of
     Just normalizedTargetVarIds ->
       let problem = (List.map removeCommonSuperExps normalizedEquations, normalizedTargetVarIds) in
-      case Dict.get problem solutionsCache.eqnSystemSolutions of
-        Just solutions ->
-          -- Now convert back to given varIds
-          solutions |> List.filterMap (remapSolutionVarIds normalizedToOldVarIds)
-
-        Nothing ->
-          ImpureGoodies.throw (NeedSomethingFromSolverException (NeedProblemSolution problem))
+      let solutions =
+        case Dict.get problem solutionsCache.eqnSystemSolutions of
+          Just solutions ->
+            solutions
+          Nothing ->
+            let solutions = REDUCE.solve problem in
+            let _ = ImpureGoodies.mutateRecordField solutionsCache "eqnSystemSolutions" (Dict.insert problem solutions solutionsCache.eqnSystemSolutions) in
+            solutions
+      in
+      -- Now convert back to given varIds
+      solutions |> List.filterMap (remapSolutionVarIds normalizedToOldVarIds)
 
     Nothing ->
       let _ = Debug.log "WARNING: Asked to solve for variable(s) not in equation! No solutions." (eqns, targetVarIds) in
@@ -101,14 +91,18 @@ simplify solutionsCache mathExp =
     normalizedMathExp =
       remapVarIds oldToNormalizedVarIds mathExp
       |> Utils.fromJust_ "Shouldn't happen: Bug in Solver.simplify/normalizedVarIdMapping"
-  in
-  case Dict.get normalizedMathExp solutionsCache.simplifications of
-    Just simplifiedMathExp ->
-      remapVarIds normalizedToOldVarIds simplifiedMathExp
-      |> Utils.fromJust__ (\() -> "Shouldn't happen: Bug in Solver.simplify/normalizedVarIdMapping or some race condition, missing varId " ++ toString (mathExp, normalizedMathExp, simplifiedMathExp, normalizedToOldVarIds))
 
-    Nothing ->
-      ImpureGoodies.throw (NeedSomethingFromSolverException (NeedSimplification normalizedMathExp))
+    simplifiedMathExp =
+      case Dict.get normalizedMathExp solutionsCache.simplifications of
+        Just simplifiedMathExp ->
+          simplifiedMathExp
+        Nothing ->
+          let simplifiedMathExp = REDUCE.simplify normalizedMathExp in
+          let _ = ImpureGoodies.mutateRecordField solutionsCache "simplifications" (Dict.insert normalizedMathExp simplifiedMathExp solutionsCache.simplifications) in
+          simplifiedMathExp
+  in
+  remapVarIds normalizedToOldVarIds simplifiedMathExp
+  |> Utils.fromJust__ (\() -> "Shouldn't happen: Bug in Solver.simplify/normalizedVarIdMapping or some race condition, missing varId " ++ toString (mathExp, normalizedMathExp, simplifiedMathExp, normalizedToOldVarIds))
 
 
 -- Let the first variable encountered be 1, second 2, etc...
@@ -161,10 +155,4 @@ remapSolutionVarIds oldToNew solution =
             (Dict.get targetVarId oldToNew)
       )
   |> Utils.projJusts
-
-
-mapSolutionsExps : (MathExp -> MathExp) -> List Solution -> List Solution
-mapSolutionsExps f solutions =
-  solutions
-  |> List.map (List.map (\(mathExp, varId) -> (f mathExp, varId)))
 

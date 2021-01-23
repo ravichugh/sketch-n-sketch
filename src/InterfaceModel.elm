@@ -20,7 +20,7 @@ import LangSvg exposing (attr)
 import Syntax exposing (Syntax)
 import LangUnparser
 import File exposing (Filename, File, FileIndex)
-import Solver
+import SolverTypes
 import ValUnparser
 import History exposing (History)
 import AlgorithmJish
@@ -141,8 +141,7 @@ type alias Model =
   , selectedBlobs : Dict Int NodeId
   , keysDown : List Char.KeyCode
   , autoSynthesis : Bool
-  , queriesSentToSolver : List (Solver.NeededFromSolver, Msg) -- Equation(s) sent to the solver server and and the message that should be re-run upon a reply. Shouldn't ever be more than a singleton in practice.
-  , solutionsCache : Solver.SolutionsCache
+  , solutionsCache : SolverTypes.SolutionsCache
   , synthesisResultsDict : Dict String (List SynthesisResult)
   , hoveredSynthesisResultPathByIndices : List Int
   , renamingInOutput : Maybe (PId, List NodeId, List SelectableFeature, String)
@@ -404,8 +403,7 @@ setResultExp exp (SynthesisResult result) =
 
 
 type Msg
-  = ResponseFromSolver String
-  | WindowOnLoad
+  = WindowOnLoad
   | Msg String (Model -> Model)
 
 
@@ -1147,7 +1145,6 @@ initModel =
     , selectedBlobs = Dict.empty
     , keysDown      = []
     , autoSynthesis = False
-    , queriesSentToSolver = []
     , solutionsCache = { eqnSystemSolutions = Dict.empty, simplifications = Dict.empty }
     , synthesisResultsDict = Dict.empty
     , hoveredSynthesisResultPathByIndices = []

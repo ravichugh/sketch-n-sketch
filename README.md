@@ -283,7 +283,8 @@ of the project clone.
 1. Install [Elm v0.18](http://elm-lang.org/)
 2. `cd SKETCH-N-SKETCH/src`
 3. `make clean`
-4. Launch `SKETCH-N-SKETCH/build/out/index.html`
+4. `ruby -run -e httpd ../build/out -p 8000`
+5. Open [http://0.0.0.0:8000/](http://0.0.0.0:8000/)
 
 Note: The parser has a performance issue that we have not yet addressed.
 If the application runs out of stack space,
@@ -301,15 +302,15 @@ Make sure to run these commands with administrator rights.
 - Run
   `runhaskell BuildFromSource.hs 0.18`     (note the 0.18)
 - Go to the (newly created) folder `installers\Elm-Platform\elm-compiler`
-- Use Brian’s branch for elm-compile: https://github.com/brianhempel/elm-compiler/tree/faster_exhaustiveness_checker_0.18  
-  For that you can execute the following command:  
-  `git remote add brian https://github.com/brianhempel/elm-compiler.git`  
-  `git fetch brian`  
-  `git checkout faster_exhaustiveness_checker_0.18`  
+- Use Brian’s branch for elm-compile: https://github.com/brianhempel/elm-compiler/tree/faster_exhaustiveness_checker_0.18
+  For that you can execute the following command:
+  `git remote add brian https://github.com/brianhempel/elm-compiler.git`
+  `git fetch brian`
+  `git checkout faster_exhaustiveness_checker_0.18`
 
 - Comment out line 188 in the file `installers\BuildFromSource.hs` which should look like
   `--      mapM_ (uncurry (makeRepo root)) repos`
-- Re-run the install script again in `installers\`  
+- Re-run the install script again in `installers\`
   `runhaskell BuildFromSource.hs 0.18`
 - It will throw some fatal errors but that’s fine.
 - Last step: copy elm-make.exe from `installers\Elm-Platform\0.18\elm-make\dist\dist-sandbox-6fb8af3\build\elm-make` to replace the `elm-make.exe` of a fresh 0.18 Elm installation.
@@ -344,22 +345,21 @@ To add a new example to the New menu:
 
 4. Launch Sketch-n-Sketch.
 
-## Solver Server
+## Solver
 
-For solving complicated formulae or multi-equation systems, Sketch-n-Sketch relies on an external computer algebra system ([REDUCE](http://www.reduce-algebra.com/)). A solver server exposes REDUCE over the Websockets protocol.
+For solving complicated formulae or multi-equation systems, Sketch-n-Sketch relies on an external computer algebra system ([REDUCE](http://www.reduce-algebra.com/)). REDUCE here is delivered as Javascript/WASM package. Try `queryReduce("off nat; solve(x+x+1,x)");` in the web inspector JS console. It's quirky because every single query launches REDUCE, synchronously, from scratch with stdin set to the query ("oneshot"). It's fast enough. Arthur Norman, the current REDUCE guy, may have a better JS I/O story by the time you read this, but the source snapshot of REDUCE used here is at `reduce-algebra-js-oneshot.tar` for archival purposes.
 
-To use Sketch-n-Sketch locally, you do not need to run the solver server—it will try to connect to our public solver server.
+You shouldn't need to rebuild the solver files, but if you do:
 
-However, if you want to run the solver server locally:
-
-1. Download [websocketd](http://websocketd.com/), e.g. with `$ brew install websocketd`
-2. Make sure you have any version of [Ruby](https://www.ruby-lang.org/) installed, check with e.g. `$ ruby --version`
-3. `$ cd solver_server`
-4. `$ make test_reduce` This will download, build, and test REDUCE.
-5. `$ make run_server`
-
-If a local server is running, Sketch-n-Sketch will try to connect to it first.
-
+1. Uncompress `reduce-algebra-js-oneshot.tar` and enter the folder.
+2. `$ cd csl/new-embedded/emscripten-no-throw`
+3. Make sure you have empscripten installed, e.g.: `$ brew install emscripten`
+4. Make the REDUCE lisp image: `$ ./makeall.sh`
+5. Remake the JS/WASM files: `$ rm reduce.oneshot.js; make reduce.oneshot.js`
+6. You can run a server to test: `$ python3 -m http.server`
+7. Visit [http://0.0.0.0:8000/toplevel-oneshot.html](toplevel-oneshot.html)
+8. Open the JS console and run `queryReduce("off nat; solve(x+x+1,x)");`.
+9. Copy `reduce.oneshot.data` and `reduce.oneshot.js` and `reduce.oneshot.wasm` to `sketch-n-sketch/build/out`: `$ cp reduce.oneshot.data reduce.oneshot.js reduce.oneshot.wasm ../../../../build/out/`
 
 ## Running Tests
 

@@ -5,6 +5,7 @@ import Lang exposing (..)
 import LangTools
 import MathExp
 import Solver
+import SolverTypes
 import Syntax
 import Types
 import Update
@@ -57,7 +58,7 @@ sketches =
   ]
 
 
-pbeHoleFillings : Solver.SolutionsCache -> List Eval.PBEHoleSeen -> List Exp
+pbeHoleFillings : SolverTypes.SolutionsCache -> List Eval.PBEHoleSeen -> List Exp
 pbeHoleFillings solutionsCache pbeHolesSeen =
   let (_, envs, results) = Utils.unzip3 pbeHolesSeen in
   case Utils.projOk results of

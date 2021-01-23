@@ -10,7 +10,6 @@ import FileHandler
 import DeucePopupPanelInfo
 import ColorScheme
 import Solver
-import SolverServer
 import ImpureGoodies
 import WindowOnLoad
 
@@ -46,14 +45,10 @@ view = View.view
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    ResponseFromSolver str ->
-      SolverServer.handleReduceResponse str model
     WindowOnLoad ->
       (model, onLoadCmd)
     Msg _ _ ->
-      ImpureGoodies.tryCatch "NeedSomethingFromSolverException"
-        (\()                                                         -> Controller.update msg model)
-        (\(Solver.NeedSomethingFromSolverException neededFromSolver) -> SolverServer.ask neededFromSolver msg model)
+      Controller.update msg model
 
 -- Initial command runs too fast. Explicitly wait for window.onload event.
 onLoadCmd : Cmd Msg
@@ -93,5 +88,4 @@ subscriptions model =
     , DeucePopupPanelInfo.receiveDeucePopupPanelInfo
         Controller.msgReceiveDeucePopupPanelInfo
     -- , DependenceGraph.receiveImage Controller.msgReceiveDotImage
-    , SolverServer.reduceResponse ResponseFromSolver
     ]

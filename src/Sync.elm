@@ -21,6 +21,7 @@ import ShapeWidgets exposing
 import ColorNum
 import MathExp
 import Solver
+import SolverTypes
 import FastParser exposing (isPreludeLoc, substPlusOf)
 import Ace
 import Config exposing (params)
@@ -303,7 +304,7 @@ type alias AttrName = String
   --   e.g. fillOpacity
 
 type alias UpdateFunction
-    = Solver.SolutionsCache
+    = SolverTypes.SolutionsCache
    -> (Int, Int)   -- initial click (mx0, my0)
    -> (Int, Int)   -- change in mouse position (dx, dy)
    -> Maybe Num
@@ -486,7 +487,7 @@ addTrigger subst unfrozenLocIdSet id realZone traces makeTrigger (dict, maybeCou
   (dict_, maybeCounts_)
 
 
-solveOne : Solver.SolutionsCache -> Subst -> LocId -> Num -> Trace -> Maybe Num
+solveOne : SolverTypes.SolutionsCache -> Subst -> LocId -> Num -> Trace -> Maybe Num
 solveOne solutionsCache subst locId n_ t =
   let subst_ = Dict.remove locId subst in
   let maybeSolution = Solver.solveTrace solutionsCache subst_ t n_ in
@@ -1144,7 +1145,7 @@ opacityNumPlus n dx =
 ------------------------------------------------------------------------------
 -- Preparing Live Triggers
 
-type alias LiveTrigger = Solver.SolutionsCache -> (Int, Int) -> (Int, Int) -> (Exp, List Ace.Highlight)
+type alias LiveTrigger = SolverTypes.SolutionsCache -> (Int, Int) -> (Int, Int) -> (Exp, List Ace.Highlight)
 
 -- ShapeKind in zone key is used for display in caption, but not for keying the triggers dictionary.
 type alias ZoneKey = (NodeId, ShapeKind, RealZone) -- node id for a widget is -2 - (widget number starting from 1)

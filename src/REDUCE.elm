@@ -1,19 +1,17 @@
-port module SolverServer exposing (..)
+module REDUCE exposing (..)
 
-import InterfaceModel exposing (Msg, Model)
-import InterfaceController
+import Native.REDUCE
+
 import Lang exposing (Num, Op_(..), MathExp(..))
 import Parser exposing (Parser, Count(..), (|.), (|=), succeed, symbol, int, float, ignore, repeat, zeroOrMore, oneOf, lazy, delayedCommit, delayedCommitMap, inContext, end)
 import BinaryOperatorParser exposing (PrecedenceTable(..), Associativity(..), Precedence, binaryOperator)
-import Solver exposing (Eqn, Problem, Solution, SolutionsCache, NeededFromSolver(..))
+import SolverTypes exposing (..)
 import MathExp
 import Utils
 
 import Dict
-import String
-import Task
 
--- All REDUCE-specific code should appear here or in the associated native JS file.
+-- All REDUCE-specific Elm code should appear here
 
 -- Send:
 -- solve({(x2-x1)^2 + (y2-y1)^2 = (x3-x2)^2 + (y3-y2)^2,(x3-x2)^2 + (y3-y2)^2 = (x1-x3)^2 + (y1-y3)^2,(x1-x3)^2 + (y1-y3)^2 = (x2-x1)^2 + (y2-y1)^2}, {x3,y3});
@@ -28,72 +26,34 @@ import Task
 -- solve({x=y,y=z},{x});    => {}
 -- solve({x=y,y=z},{x,y});  => {{x=z,y=z}}
 -- solve({x=y,y=z},{x,z});  => {{x=y,z=y}}
---
--- (The ending semicolon is optional over the websocket.)
 
 
 
--- Outgoing port
-port queryReduce : String -> Cmd msg
+query : String -> String
+query str =
+  let _ = Utils.log <| "Reduce query: " ++ str in
+  let responseStr = Native.REDUCE.query str in
+  let _ = Utils.log <| "Reduce response: " ++ responseStr in
+  responseStr
 
 
--- Incoming port
-port reduceResponse : (String -> msg) -> Sub msg
+solve : Problem -> List Solution
+solve problem =
+  let responseStr = problem |> problemToREDUCE |> query in
+  let perhapsParsedSolutions = parseReduceSolutionResponse responseStr in
+  let parsedSolutions        = Utils.filterOks  perhapsParsedSolutions in
+  let failedParses           = Utils.filterErrs perhapsParsedSolutions in
+  case (parsedSolutions, failedParses) of
+    (_::_, _)         -> parsedSolutions |> mapSolutionsExps distributeNegation
+    ([], badParse::_) -> let _ = Utils.log ("Reduce solution response parse error: " ++ toString badParse) in []
+    ([], [])          -> []
 
 
-ask : NeededFromSolver -> Msg -> Model -> (Model, Cmd Msg)
-ask neededFromSolver failedMsg oldModel =
-  let reduceQueryString =
-    case neededFromSolver of
-      NeedProblemSolution problem -> problemToREDUCE problem
-      NeedSimplification mathExp  -> simplificationToREDUCE mathExp
-  in
-  ( { oldModel | queriesSentToSolver = oldModel.queriesSentToSolver ++ [(neededFromSolver, failedMsg)] }
-  , queryReduce reduceQueryString
-  )
-
-
-handleReduceResponse : String -> Model -> (Model, Cmd Msg)
-handleReduceResponse reduceResponse oldModel =
-  case oldModel.queriesSentToSolver of
-    (oldestItemNeeded, interruptedMsg)::outstandingItemsNeeded ->
-      let newSolutionsCache =
-        case oldestItemNeeded of
-          NeedProblemSolution problem ->
-            let solutions =
-              let perhapsParsedSolutions = parseReduceSolutionResponse reduceResponse in
-              let parsedSolutions        = Utils.filterOks  perhapsParsedSolutions in
-              let failedParses           = Utils.filterErrs perhapsParsedSolutions in
-              case (parsedSolutions, failedParses) of
-                (_::_, _)         -> parsedSolutions |> Solver.mapSolutionsExps distributeNegation
-                ([], badParse::_) -> let _ = Utils.log ("Reduce solution response parse error: " ++ toString badParse) in []
-                ([], [])          -> []
-            in
-            { eqnSystemSolutions  = Dict.insert problem solutions oldModel.solutionsCache.eqnSystemSolutions
-            , simplifications     = oldModel.solutionsCache.simplifications
-            }
-
-          NeedSimplification unsimplifiedMathExp ->
-            let simplifiedMathExp =
-              case reduceResponse |> Parser.run (parseMathExp |. skipSpaces |. end) of
-                Ok simplifiedMathExp -> distributeNegation simplifiedMathExp
-                Err badParse         -> let _ = Utils.log ("Reduce simplification response parse error: " ++ toString badParse) in unsimplifiedMathExp
-            in
-            { eqnSystemSolutions  = oldModel.solutionsCache.eqnSystemSolutions
-            , simplifications     = Dict.insert unsimplifiedMathExp simplifiedMathExp oldModel.solutionsCache.simplifications
-            }
-      in
-      let newModel =
-        { oldModel | queriesSentToSolver = outstandingItemsNeeded
-                   , solutionsCache      = newSolutionsCache
-        }
-      in
-      let _ = Utils.log ("Solutions Cache:\n" ++ solutionsCacheToString newModel.solutionsCache) in
-      (newModel, Task.perform (\_ -> interruptedMsg) (Task.succeed ()))
-
-    [] ->
-      let _ = Utils.log "SolverServer.handleReduceResponse: Shouldn't happen: got a REDUCE response but there are no outstanding queries to REDUCE!!!" in
-      (oldModel, Cmd.none)
+simplify : MathExp -> MathExp
+simplify unsimplifiedMathExp =
+  case unsimplifiedMathExp |> simplificationToREDUCE |> query |> Parser.run (parseMathExp |. skipSpaces |. end) of
+    Ok simplifiedMathExp -> distributeNegation simplifiedMathExp
+    Err badParse         -> let _ = Utils.log ("Reduce simplification response parse error: " ++ toString badParse) in unsimplifiedMathExp
 
 
 -- For whatever reason, REDUCE would sometimes rather return -(x - y - z) instead of (y + z - x)
@@ -153,17 +113,22 @@ eqnToREDUCE (lhs, rhs) = mathExpToREDUCE lhs ++ "=" ++ mathExpToREDUCE rhs
 
 problemToREDUCE : Problem -> String
 problemToREDUCE ((equations, targetVarIds) as problem) =
-  -- e.g. "on factor; solve({x=y,y=z},{x,z})"
+  -- e.g. "off nat; on combineexpt; on factor; solve({x=y,y=z},{x,z});"
+  -- "off nat" tells REDUCE not to ACSCII pretty-print the results (which would be neigh unparsable!)
+  -- "on combineexpt" tells REDUCE to perform more simplification of exponential terms multiplied by each other (uncommon).
   -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
   -- "trigsimp" applys trig identities to simplify (e.g. cos(x)^2 + sin(x)^2 = 1)
-  "on factor; trigsimp(solve({" ++ String.join "," (List.map eqnToREDUCE equations) ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "}),compact)"
+  "off nat; on combineexpt; on factor; trigsimp(solve({" ++ String.join "," (List.map eqnToREDUCE equations) ++ "},{" ++ String.join "," (List.map varIdToREDUCE targetVarIds) ++ "}),compact);"
 
 
 simplificationToREDUCE : MathExp -> String
 simplificationToREDUCE mathExp =
-  -- e.g. "on factor; x / x"
+  -- e.g. "off nat; on combineexpt; on factor; x / x;"
+  -- "off nat" tells REDUCE not to ACSCII pretty-print the results (which would be neigh unparsable!)
+  -- "on combineexpt" tells REDUCE to perform more simplification of exponential terms multiplied by each other (uncommon).
   -- "on factor" tells REDUCE to try to factor the results. May or may not always want this.
-  "on factor; trigsimp(" ++ mathExpToREDUCE mathExp ++ ",compact)"
+  -- "trigsimp" applys trig identities to simplify (e.g. cos(x)^2 + sin(x)^2 = 1)
+  "off nat; on combineexpt; on factor; trigsimp(" ++ mathExpToREDUCE mathExp ++ ",compact);"
 
 
 mathExpToREDUCE : MathExp -> String
@@ -246,7 +211,7 @@ precedenceTable =
 parseReduceSolutionResponse : String -> List (Result Parser.Error Solution)
 parseReduceSolutionResponse responseStr  =
   let solutionStrs =
-    if String.startsWith "{{" responseStr
+    if String.startsWith "{{" (String.trimLeft responseStr)
     then String.split "}," responseStr
     else String.split "," responseStr
   in
