@@ -1,3 +1,7 @@
+function A() {
+  let m = E();
+  return F(m);
+}
 /* This is a long comment,
 intended to test back-propagation
 mechanism set up by this paper.
@@ -5,7 +9,3 @@ Let us see if we can revert a move of the
 function A while keeping the 
 change to its body.
 */
-function A() {
-  let m = E();
-  return F(m);
-}
