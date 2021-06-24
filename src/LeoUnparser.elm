@@ -952,7 +952,7 @@ unparseHtmlAttributes interpolationStyle attrExp =
                   if attrValueStr == "" && spIfNoValue.val == "    " then
                     beforeSpace ++ attrNameStr
                   else
-                    let unparsedAttr = htmlEscape q attrValueStr in
+                    let unparsedAttr = q ++ htmlEscape q attrValueStr ++ q in
                     beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++
                        wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
                          OpRight dummyExp attrValueToConsider unparsedAttr
