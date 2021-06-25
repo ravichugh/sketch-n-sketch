@@ -183,7 +183,7 @@ builtinEnv =
               |> Result.andThen (\prog ->
                   Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ builtinEnv) prog
                 )
-              |> Result.map (Tuple.first >> Tuple.first)
+              |> Result.map (\((v, ws), env) -> v)
               |> Vb.result Vb.identity (Vb.fromVal program)
               |> (\x -> Ok (x, []))
           _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString penv ++ " and " ++ LangUtils.valToString program
@@ -232,6 +232,77 @@ builtinEnv =
                       (Ok (Err msg), Ok (Err msg2), _) -> if msg == msg2 then ok1 ([oldpEnv, oldProgram], []) else Err <| "Cannot change the error message of __evaluate__ to " ++ msg2
                       (Ok (Err msg), Ok (Ok x), _) -> Err <| "Cannot change the outpur of __evaluate__ from error '"++msg++"' to " ++ valToString x ++ "'"
                       (_, Ok (Err msg2), _) -> Err <| "Don't know how to update the result of a correct __evaluate__ by an error '" ++ msg2 ++ "'"
+                    )
+            _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString oldpEnv ++ " and " ++ LangUtils.valToString oldProgram
+    )
+  , ("__evaluateWithCache__", builtinVal "EvalUpdate.__evaluateWithCache__" <| VFun "__evaluateWithCache__" ["environment", "program"] (twoArgs "__evaluate__" <| \penv program ->
+      case (Vu.list (Vu.tuple2 Vu.string Vu.identity) penv, program.v_) of
+          (Ok env, VBase (VString s)) ->
+              Syntax.parser Syntax.Leo s
+              |> Result.mapError (ParserUtils.showError)
+              |> Result.andThen (\prog ->
+                  Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ builtinEnv) prog
+                )
+              |> Result.map (\((v, ws), env) -> (v, env))
+              |> Vb.result (Vb.tuple2 Vb.identity (Vb.list (Vb.tuple2 Vb.string Vb.identity))) (Vb.fromVal program)
+              |> (\x -> Ok (x, []))
+          _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString penv ++ " and " ++ LangUtils.valToString program
+    ) <| Just <| twoArgsUpdate "__evaluateWithCache__" <| \oldpEnv oldProgram oldValr newValr d ->
+          case (Vu.list (Vu.tuple2 Vu.string Vu.identity) oldpEnv, oldProgram.v_) of
+            (Ok env, VBase (VString s)) ->
+              let parsed = Syntax.parser Syntax.Leo s in
+              case parsed of
+                 Err err -> let (error, reverser) = ParserUtils.showErrorReversible err in
+                  case Vu.result Vu.identity newValr of
+                     Ok (Err msg2) ->
+                        case reverser msg2 of
+                           Just newProgram ->
+                             let newProgramV = Vb.string (Vb.fromVal oldProgram) newProgram in
+                             let newProgramDiffs = defaultVDiffs oldProgram newProgramV in
+                             flip  Results.map  newProgramDiffs <| \pd ->
+                               ([oldpEnv, newProgramV], Maybe.map (\d -> [(1, d)]) pd |> Maybe.withDefault [])
+                           Nothing -> Err <| "No way to change the outpur of __evaluate__ from error to " ++ msg2 ++ "'"
+                     Err msg -> Err msg
+                     Ok (Ok x) -> Err <| "Cannot change the outpur of __evaluate__ from error to " ++ valToString x ++ "'"
+                 Ok x -> ok1 x |> Results.andThen (\prog ->
+                    case (Vu.result (Vu.tuple2 Vu.identity (Vu.list (Vu.tuple2 Vu.string Vu.identity))) oldValr,
+                          Vu.result (Vu.tuple2 Vu.identity (Vu.list (Vu.tuple2 Vu.string Vu.identity))) newValr,
+                          vDatatypeDiffsGet "_1" d) of
+                      (Ok (Ok (oldVal, oldEnvCache)), Ok (Ok (newVal, _)), Just dds) ->
+                          case dds of
+                            VRecordDiffs dictDiffs ->
+                              case (Dict.get "_1" dictDiffs, Dict.get "_2" dictDiffs) of
+                                (_, Just _) -> Err <| "Cannot modify the cache of __evaluateWithCache"
+                                (Nothing, _) ->
+                                  Err <| "Expected VRecordDiffs with 1 element, got " ++ toString dds
+                                (Just dd, _) ->
+                                  let initEnv = env ++ builtinEnv in
+                                  let previousLets = UpdateStack.keepLets initEnv oldEnvCache in
+                                  UpdateStack.updateContext "Eval.__evaluateWithCache__" initEnv prog previousLets oldVal newVal dd
+                                 |> update
+                                 |> Results.filter (\(newEnv, newProg) ->
+                                     let envLength = List.length env in
+                                     newEnv.changes |> Utils.findFirst (\(i, _) -> i >= envLength) |> Utils.maybeIsEmpty
+                                   )
+                                 |> Results.andThen (\(newEnv, newProg) ->
+                                   let x = Syntax.unparser Syntax.Leo newProg.val in
+                                   let newProgram = replaceV_ oldProgram <| VBase <| VString x in
+                                   let newEnvValue = newEnv.val |> Vb.list (Vb.tuple2 Vb.string Vb.identity) (Vb.fromVal oldpEnv) in
+                                   let newEnvDiffs = newEnv.changes
+                                     |> List.map (\(i, d) -> (i, ListElemUpdate <| VRecordDiffs <| Dict.fromList  [("_2", d)]))
+                                     |>(\d -> [(0,  VListDiffs d)]) in
+                                   UpdateUtils.defaultVDiffs oldProgram newProgram |> Results.map (\mbd -> case mbd of
+                                     Nothing -> ([newEnvValue, newProgram], newEnvDiffs )
+                                     Just d -> ([newEnvValue, newProgram], newEnvDiffs ++ [(1, d)])
+                                   )
+                                 )
+                            _ -> Err <| "Expected VRecordDiffs with diff on variable only, got " ++ toString dds
+                      (_, _, Nothing) -> Err <| "Expected VRecordDiffs with 1 element, got " ++ toString d
+                      (Err msg, _, _) -> Err msg
+                      (_, Err msg, _) -> Err msg
+                      (Ok (Err msg), Ok (Err msg2), _) -> if msg == msg2 then ok1 ([oldpEnv, oldProgram], []) else Err <| "Cannot change the error message of __evaluate__ to " ++ msg2
+                      (Ok (Err msg), Ok (Ok (x, _)), _) -> Err <| "Cannot change the outpur of __evaluateWithCache__ from error '"++msg++"' to " ++ valToString x ++ "'"
+                      (_, Ok (Err msg2), _) -> Err <| "Don't know how to update the result of a correct __evaluateWithCache__ by an error '" ++ msg2 ++ "'"
                     )
             _ -> Err <| "evaluate expects a List (String, values) and a program as a string, got " ++ LangUtils.valToString oldpEnv ++ " and " ++ LangUtils.valToString oldProgram
     )
@@ -531,7 +602,8 @@ builtinEnv =
       Ok (Vb.list (Vb.viewtuple2 Vb.string Vb.identity) (Vb.fromVal entityRendered) [("TEXT", entityRendered)], [])
     ) <| Just <| twoArgsUpdate "__htmlEntity__" <| \entityRendered entity oldVal newVal diffs ->
       case (entityRendered.v_, entity.v_, Vu.list (Vu.viewtuple2 Vu.string Vu.string) newVal) of
-        (VBase (VString entityRenderedS), VBase (VString entityS), Ok [("TEXT",newValS)]) ->
+        (VBase (VString entityRenderedS), VBase (VString entityS), Ok newValsList) ->
+          let newValS = List.map (\(x, n) -> n) newValsList |> String.join "" in
           let escapedNewValS= ImpureGoodies.htmlescape newValS in
           let newEntity = replaceV_ newVal <| VBase (VString escapedNewValS) in
           let newEntityRenderedS = newValS in
@@ -539,7 +611,8 @@ builtinEnv =
           ok1 ([newEntityRendered, newEntity],
             [(0, VStringDiffs [StringUpdate 0 (String.length entityRenderedS) (String.length newEntityRenderedS)]),
              (1, VStringDiffs [StringUpdate 0 (String.length entityS) (String.length escapedNewValS)])])
-        _ -> Err <| "Expected strings as arguments and [[\"TEXT\", _]] as return of __htmlEntity__, got __htmlEntity__ " ++ valToString entityRendered ++ ", " ++ valToString entity ++ " updated by " ++ valToString newVal
+        _ ->
+          Err <| "Expected strings as arguments and [[\"TEXT\", _]] as return of __htmlEntity__, got __htmlEntity__ " ++ valToString entityRendered ++ " " ++ valToString entity ++ " updated by " ++ valToString newVal
     )
   , ("__htmlStrEntity__", builtinVal "EvalUpdate.__htmlStrEntity__" <|
     VFun "__htmlStrEntity__" ["entityRendered", "entity"] (twoArgs "__htmlStrEntity__" <| \entityRendered entity ->
@@ -787,7 +860,7 @@ run syntax e =
 runWithEnv : Syntax -> Exp -> Result String ((Val, Widgets), Env)
 runWithEnv syntax e =
 -- doEval syntax initEnv e |> Result.map Tuple.first
-  ImpureGoodies.logTimedRun "Eval.run" <| \() ->
+  --ImpureGoodies.logTimedRun "Eval.run" <| \() ->
     Eval.doEval Eval.withParentsProvenanceWidgets syntax preludeEnv e
 
 doUpdate : Exp -> Env -> Val -> Result String Val -> Results String (UpdatedEnv, UpdatedExp)
@@ -906,27 +979,15 @@ parse s =
 unparse: Exp -> String
 unparse e = Syntax.unparser Syntax.Leo e
 
-evalExp: Exp -> Result String Val
-evalExp exp = run Syntax.Leo exp |> Result.map Tuple.first
+evalExp: Exp -> Result String (Val, Env)
+evalExp exp = evaluateRaw [] exp
 
-updateExp: Exp -> Val -> Val -> Results String Exp
-updateExp oldExp oldVal newVal =
-  let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
-  in
-  case thediffs of
-    Err msg -> Err msg
-    Ok (LazyList.Nil ) -> Err "[Internal error] expected a diff or an error, got Nil"
-    Ok (LazyList.Cons Nothing _ ) -> ok1 oldExp
-    Ok ll ->
-        Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
-         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
-         (update <| updateContext "initial update" preludeEnv oldExp [] oldVal newVal diffs)) |>
-         Results.filter (\(newEnv, newExp) -> newEnv.changes == []) |>
-         Results.map (\(newEnv, newExp) -> newExp.val)
+evalExpWithoutCache: Exp -> Result String Val
+evalExpWithoutCache exp = evalExp exp |> Result.map Tuple.first
 
 -- Same as updateExp, but with an additional environment that can change.
-updateEnvExp: Env -> Exp -> Val -> Val -> Results String (Env, Exp)
-updateEnvExp env oldExp oldVal newVal =
+updateEnvExp: Env -> Exp -> (Val, Env) -> Val -> Results String (Env, Exp)
+updateEnvExp env oldExp (oldVal, oldEnvCache) newVal =
   let thediffs = UpdateUtils.defaultVDiffs oldVal newVal
   in
   case thediffs of
@@ -935,13 +996,27 @@ updateEnvExp env oldExp oldVal newVal =
     Ok (LazyList.Cons Nothing _ ) -> ok1 (env, oldExp)
     Ok ll ->
         Ok (ll |> LazyList.filterMap identity) |> Results.andThen (\diffs ->
-         --let _ = Debug.log ("update with diffs: " ++ UpdateUtils.vDiffsToString oldVal out diffs) () in
-         (update <| updateContext "initial update" (env ++ preludeEnv) oldExp [] oldVal newVal diffs)) |>
+         let initEnv = env ++ preludeEnv in
+         let previousLets = UpdateStack.keepLets initEnv oldEnvCache in
+         (update <| updateContext "initial update" initEnv oldExp previousLets oldVal newVal diffs)) |>
          Results.filter (\(newEnv, newExp) ->
            case Utils.maybeLast newEnv.changes of
              Nothing -> True
              Just (i, d) -> i < List.length env) |>
          Results.map (\(newEnv, newExp) -> (List.take (List.length env) newEnv.val, newExp.val))
+
+updateExp: Exp -> (Val, Env) -> Val -> Results String Exp
+updateExp oldExp oldValEnvCache newVal =
+  updateEnvExp [] oldExp oldValEnvCache newVal
+  |> Results.map Tuple.second
+
+updateExpWithoutCache: Exp -> Val -> Results String Exp
+updateExpWithoutCache oldExp newVal =
+  evaluateRaw [] oldExp
+  |> Results.fromResult
+  |> Results.andThen (\oldValEnvCache ->
+    updateExp oldExp oldValEnvCache newVal
+   )
 
 valToNative: Val -> Result String a
 valToNative v = case v.v_ of
@@ -961,7 +1036,7 @@ valToNative v = case v.v_ of
   VClosure recIdents pats body closureEnv ->
     Ok <| ImpureGoodies.hideType (\x ->
       let arg = nativeToVal (Vb.fromVal v) x in
-      case evaluateRaw [("fun", v), ("arg", arg)] (eApp (eVar "fun") [eVar "arg"]) |> Result.andThen valToNative of
+      case evaluateRawWithoutCache [("fun", v), ("arg", arg)] (eApp (eVar "fun") [eVar "arg"]) |> Result.andThen valToNative of
         Err msg -> Debug.crash <| "Native version of closure crashed with : " ++ msg
         Ok result -> result)
   _ -> Err <| "Don't know how to convert dictionaries to native values"
@@ -991,22 +1066,28 @@ envToObject: Env -> Result String objectAsEnvOfConsts
 envToObject env =
   valToNative (Vb.record Vb.identity (builtinVal "EvalUpdate.nativeToVal") (Dict.fromList env))
 
-evaluateRaw: Env -> Exp -> Result String Val
+evaluateRawWithoutCache: Env -> Exp -> Result String Val
+evaluateRawWithoutCache env exp =
+  evaluateRaw env exp
+  |> Result.map Tuple.first
+
+-- Return the resulting environment as well
+evaluateRaw: Env -> Exp -> Result String (Val, Env)
 evaluateRaw env exp =
    Eval.doEval Eval.withoutParentsProvenanceWidgets Syntax.Leo (env ++ preludeEnv) exp
-  |> Result.map (Tuple.first >> Tuple.first)
+  |> Result.map (\((val, ws), env) -> (val, env))
 
-evaluateEnv: objectAsEnvOfConsts -> Exp -> Result String Val
+evaluateEnv: objectAsEnvOfConsts -> Exp -> Result String (Val, Env)
 evaluateEnv objectAsEnvOfConsts exp =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (flip evaluateRaw exp)
 
-evaluateString: String -> Result String Val
+evaluateString: String -> Result String (Val, Env)
 evaluateString stringSource =
   parse stringSource
   |> Result.andThen (evaluateRaw [])
 
-evaluateEnvString: objectAsEnvOfConsts -> String -> Result String Val
+evaluateEnvString: objectAsEnvOfConsts -> String -> Result String (Val, Env)
 evaluateEnvString objectAsEnvOfConsts stringSource =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (\env ->
@@ -1016,8 +1097,8 @@ evaluateEnvString objectAsEnvOfConsts stringSource =
 updateRaw: Env -> Exp -> Val -> Results String (Env, Exp)
 updateRaw env exp newVal =
   evaluateRaw env exp
-  |> Result.andThen (\oldVal ->
-    updateEnvExp env exp oldVal newVal)
+  |> Result.andThen (\oldValEnvCache ->
+    updateEnvExp env exp oldValEnvCache newVal)
 
 resultWithNativeEnv = LazyList.map (\(newEnv, newExp) ->
         (envToObject newEnv |> Utils.fromOk "EvalUpdate.env to native javascript", newExp))
@@ -1033,11 +1114,11 @@ updateEnv objectAsEnvOfConsts exp newVal =
     |> Result.map resultWithNativeEnv
     )
 
-updateEnvWithOld: objectAsEnvOfConsts -> Exp -> Val -> Val -> Results String (objectAsEnvOfConsts, Exp)
-updateEnvWithOld objectAsEnvOfConsts exp oldVal newVal =
+updateEnvWithOld: objectAsEnvOfConsts -> Exp -> (Val, Env) -> Val -> Results String (objectAsEnvOfConsts, Exp)
+updateEnvWithOld objectAsEnvOfConsts exp oldValEnvCache newVal =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (\env ->
-    updateEnvExp env exp oldVal newVal
+    updateEnvExp env exp oldValEnvCache newVal
     |> Result.map resultWithNativeEnv
     )
 
@@ -1049,11 +1130,11 @@ updateString strSource newVal =
     |> Result.map (LazyList.map (\(newenv, newExp) ->
               unparse newExp)))
 
-updateStringWithOld: String -> Val -> Val -> Results String String
-updateStringWithOld strSource  oldVal newVal =
+updateStringWithOld: String -> (Val, Env)-> Val -> Results String String
+updateStringWithOld strSource  oldValEnvCache newVal =
     parse strSource
     |> Result.andThen (\exp ->
-    updateEnvExp [] exp oldVal newVal
+    updateEnvExp [] exp oldValEnvCache newVal
     |> Result.map (LazyList.map (\(newenv, newExp) -> unparse newExp)))
 
 updateEnvString: objectAsEnvOfConsts -> String -> Val -> Results String (objectAsEnvOfConsts2, String)
@@ -1066,57 +1147,63 @@ updateEnvString objectAsEnvOfConsts strSource newVal =
     |> Result.map resultStringWithNativeEnv
     ))
 
-updateEnvStringWithOld: objectAsEnvOfConsts -> String -> Val -> Val -> Results String (objectAsEnvOfConsts2, String)
-updateEnvStringWithOld objectAsEnvOfConsts strSource oldVal newVal =
+updateEnvStringWithOld: objectAsEnvOfConsts -> String -> (Val, Env) -> Val -> Results String (objectAsEnvOfConsts2, String)
+updateEnvStringWithOld objectAsEnvOfConsts strSource oldValEnvCache newVal =
   objectToEnv objectAsEnvOfConsts
   |> Result.andThen (\env ->
     parse strSource
     |> Result.andThen (\exp ->
-    updateEnvExp env exp oldVal newVal
+    updateEnvExp env exp oldValEnvCache newVal
     |> Result.map resultStringWithNativeEnv
     ))
 type alias StringObjEnvType envA envB envC = {
-    evaluate: envA -> String -> Result String Val,
-    update: envB -> String -> Val -> Results String (envC, String),
-    updateWithOld: envB -> String -> Val -> Val -> Results String (envC, String)
+    evaluate: envA -> String -> Result String (Val, Env),
+    update: envB -> String -> (Val, Env) -> Val -> Results String (envC, String),
+    evaluateWithoutCache: envA -> String -> Result String Val,
+    updateWithoutCache: envB -> String -> Val -> Results String (envC, String)
   }
 
 stringObjEnv: StringObjEnvType envA envB envC
 stringObjEnv = {
     -- JSObj -> StringSource-> Result StringError Val
     evaluate = evaluateEnvString, -- Takes an object (environment) and a string, returns a Val
+    update = updateEnvStringWithOld,
+    evaluateWithoutCache = \env source -> evaluateEnvString env source |> Result.map Tuple.first,
     -- JSObj -> StringSource-> Val -> Result StringError (LazyList (JSObj, String))
-    update = updateEnvString, -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
-    updateWithOld = updateEnvStringWithOld
+    updateWithoutCache = updateEnvString -- Takes an object (environment), a string, a new val, returns a list of pairs of objects (environment) and strings (programs)
   }
 
 type alias StringType envA envB envC  = {
-    evaluate: String -> Result String Val,
-    update: String -> Val -> Results String String,
-    updateWithOld: String -> Val -> Val -> Results String String,
+    evaluate: String -> Result String (Val, Env),
+    update: String -> (Val, Env) -> Val -> Results String String,
+    evaluateWithoutCache: String -> Result String Val,
+    updateWithoutCache: String -> Val -> Results String String,
     objEnv: StringObjEnvType envA envB envC
   }
 string: StringType envA envB envC
 string = {
     -- StringSource -> Result StringError Val
     evaluate = evaluateString, -- Takes a string, returns a Val
+    evaluateWithoutCache = evaluateString >> Result.map Tuple.first,
     -- StringSource -> Val -> Result StringError (LazyList StringSource)
-    update = updateString, -- Takes a string (program), a new val, returns a list of new strings (programs=
-    updateWithOld = updateStringWithOld,
+    update = updateStringWithOld, -- Takes a string (program), a new val, returns a list of new strings (programs=
+    updateWithoutCache= updateString,
     objEnv = stringObjEnv
   }
 
 type alias ObjEnvType envA envB envC = {
-    evaluate: envA -> Exp -> Result String Val,
-    update: envB -> Exp -> Val -> Results String (envB, Exp),
-    updateWithOld: envB -> Exp -> Val -> Val -> Results String (envB, Exp),
+    evaluate: envA -> Exp -> Result String (Val, Env),
+    update: envB -> Exp -> (Val, Env) -> Val -> Results String (envB, Exp),
+    evaluateWithoutCache: envA -> Exp -> Result String Val,
+    updateWithoutCache: envB -> Exp -> Val -> Results String (envB, Exp),
     string: StringObjEnvType envA envB envC
   }
 objEnv: ObjEnvType envA envB envC
 objEnv = {
     evaluate = evaluateEnv,
-    update = updateEnv,
-    updateWithOld = updateEnvWithOld,
+    update = updateEnvWithOld,
+    evaluateWithoutCache = \envA exp -> evaluateEnv envA exp |> Result.map Tuple.first,
+    updateWithoutCache = updateEnv,
     string = stringObjEnv
   }
 
@@ -1424,8 +1511,10 @@ lang = {
 
 api: {
   parse: String -> Result String Exp,
-  evaluate: Exp -> Result String Val,
-  update: Exp -> Val -> Val -> Results String Exp,
+  evaluate: Exp -> Result String (Val, Env),
+  update: Exp -> (Val, Env)-> Val -> Results String Exp,
+  evaluateWithoutCache: Exp -> Result String Val,
+  updateWithoutCache: Exp -> Val -> Results String Exp,
   lazyList: LazyListType a,
   unparse: Exp -> String,
   process: Result err a -> (a -> Result err b) -> Result err b,
@@ -1435,6 +1524,10 @@ api: {
   valToHTMLSource: Val -> Result String String,
   string: StringType envA envB envC,
   objEnv: ObjEnvType envA envB envC,
+  fromOk: Result String a -> a,
+  foldResult: (err -> b) -> (a -> b) -> Result err a -> b,
+  first: (a, b) -> a,
+  second: (a, b) -> b,
   lang: LangApi array_metadata_name_Pat array_Declaration array_Pat array_Branch array_Exp metadata metadata2 value
   }
 api = {
@@ -1445,6 +1538,8 @@ api = {
   -- updateExp: Exp -> Val -> Val -> Result String (LazyList Exp)
   update = updateExp,
   lazyList = lazyList,
+  evaluateWithoutCache = evalExpWithoutCache,
+  updateWithoutCache = updateExpWithoutCache,
   -- unparse: Exp -> String
   unparse = unparse,
   -- process: Result err a -> (a -> Result err b) -> Result err b,
@@ -1459,5 +1554,13 @@ api = {
   valToHTMLSource = LangSvg.valToHTMLSource HTMLParser.HTML,
   string = string,
   objEnv = objEnv,
-  lang = lang
+  lang = lang,
+  fromOk = \res -> case res of
+    Ok x -> x
+    Err msg -> Debug.crash msg,
+  foldResult = \errHandler okHandler res -> case res of
+    Ok x -> okHandler x
+    Err msg -> errHandler msg,
+  first = Tuple.first,
+  second = Tuple.second
   }

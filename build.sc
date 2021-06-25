@@ -21,6 +21,7 @@ object SNS extends Module {
   def preludeRoot = T.sources { pwd / 'examples / "preludeLeo.elm" }
   val outDir = pwd / "build" /"out"
   val outSNS = outDir / "sns.js"
+  val outSNScore = outDir / "sns-core.js"
 
   def publishNpm = T.input{ // Not working for now.
     html()
@@ -82,26 +83,30 @@ object SNS extends Module {
         println(buildSummary(fixpoint(insertLinks)(msg)))
       case Right(ok) =>
         val endTime =  Calendar.getInstance().getTime.getTime
-        println("it took " + (endTime - startTime )/ 1000 + "s")
-        val output = read(outSNS)
-        write.over(outSNS,
-          """if(typeof document === "undefined" || document === null)
-            |  document = {}; // So that the evaluation of sns.js does not throw exceptions.
-            |if(typeof location === "undefined" || location === null)
-            |  location = { hash : ""}; // so that the evaluation does not throw exceptions.
-            |
-            |""".stripMargin + output.replace("""var Elm = {};""",
-        """var Elm = {};
-          |Elm["EvalUpdate"] = Elm["EvalUpdate"] || {};
-          |Elm["EvalUpdate"].api = _user$project$EvalUpdate$api;
-          |if(typeof exports !== "undefined") { // npm package
-          |  var keysToExport = Object.keys(_user$project$EvalUpdate$api);
-          |  for(var i = 0; i < keysToExport.length; i++) {
-          |    exports[keysToExport[i]] = _user$project$EvalUpdate$api[keysToExport[i]];
-          |  }
-          |  return;
-          |}
-          |""".stripMargin))
+        println("it took " + (endTime - startTime )/ 1000 + "s - generating core")
+        stderr(%%(ELM_MAKE, "EvalUpdate.elm", "--output", outSNScore))
+        println("Core generated")
+        for(outFile <- List(outSNS, outSNScore)) {
+        val output = read(outFile);
+        write.over(outFile,
+            """if(typeof document === "undefined" || document === null)
+              |  document = {}; // So that the evaluation of sns.js does not throw exceptions.
+              |if(typeof location === "undefined" || location === null)
+              |  location = { hash : ""}; // so that the evaluation does not throw exceptions.
+              |
+              |""".stripMargin + output.replace("""var Elm = {};""",
+          """var Elm = {};
+            |Elm["EvalUpdate"] = Elm["EvalUpdate"] || {};
+            |Elm["EvalUpdate"].api = _user$project$EvalUpdate$api;
+            |if(typeof exports !== "undefined") { // npm package
+            |  var keysToExport = Object.keys(_user$project$EvalUpdate$api);
+            |  for(var i = 0; i < keysToExport.length; i++) {
+            |    exports[keysToExport[i]] = _user$project$EvalUpdate$api[keysToExport[i]];
+            |  }
+            |  return;
+            |}
+            |""".stripMargin))
+        }
     }
     true
   }

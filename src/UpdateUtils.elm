@@ -364,234 +364,135 @@ longestSufixSizeBetweenGuard maxIndex before after =
        String.slice (lengthAfter - 1 - i) (lengthAfter - i) after then aux (i + 1) else i
   in aux 0
 
--- Faster implementation of allDiffs for strings
 allStringDiffs: String -> String -> Results String (List (DiffChunk String))
-allStringDiffs before after =
-    --let _ = ImpureGoodies.log <| "allStringDiffs '" ++ before ++ "' '" ++ after ++ "'" in
-    -- If at least one half of the string before/after was the same, no need to look for the longest equal sequence, it should be a prefix of this one !
-    -- This is true only if the considered strings don't have the same
-    let lengthBefore = String.length before in
-    let lengthAfter = String.length after in
-    let testLeftRight continuation =
-      let longestPrefixSize = longestPrefixSizeBetween before after in
-      let longestSuffixSize = longestSufixSizeBetweenGuard (min (String.length before) (String.length after) - longestPrefixSize) before after in
-      -- Is the longest common substring either the prefix or the suffix?
-      -- For that, it's sufficient to prove that |prefix| + |suffix| >= 2/3 |before| and 2/3 |after|
-      -- Indeed, if this is the case, then
+allStringDiffs a b =
+  oks <| priorityListToList <| fixStringDiffs <| ImpureGoodies.diffString a b
 
-      let halfBeforePlus1 = (lengthBefore + 2) // 2 in
-      let halfAfterPlus1 = (lengthAfter + 2) // 2 in
-      let halfCommon = max halfBeforePlus1 halfAfterPlus1 in
-      let testLeft continuation =
-         let leftPart = String.slice 0 halfCommon before in
-         if leftPart == String.slice 0 halfCommon after then
-           let longestPrefixSize = longestPrefixSizeBetween before after in
-           let longestPrefix = String.left longestPrefixSize before in
-           let remainingBefore = String.dropLeft longestPrefixSize before in
-           let remainingAfter = String.dropLeft longestPrefixSize after in
-           allStringDiffs remainingBefore remainingAfter |> Results.andThen (\l ->
-             maybeExpandLongest [] longestPrefix l
-           )
-         else
-           continuation ()
-      in
-      let testRight continuation =
-         let rightPart = String.slice (lengthBefore - halfCommon) lengthBefore before in
-         if rightPart == String.slice (lengthAfter - halfCommon) lengthAfter after then
-           let longestSuffixSize = longestSufixSizeBetween before after in
-           let longestSuffix = String.right longestSuffixSize after in
-           let remainingBefore = String.dropRight halfCommon before in
-           let remainingAfter = String.dropRight halfCommon after in
-           allStringDiffs remainingBefore remainingAfter |> Results.andThen (\l ->
-             maybeExpandLongest l longestSuffix []
-           )
-         else -- Here neither the first half or the last half are in common. We test if the first fourth and the last fourth are simultaneously the same.
-           continuation ()
-      in
-      testLeft <| \_ ->
-      testRight continuation
-    in
-    let testFirstLastFourth continuation =
-      let fourthBeforePlus1 = (lengthBefore + 4) // 4 in
-      let fourthAfterPlus1 = (lengthAfter + 4) // 4 in
-      let fourthCommon = max fourthBeforePlus1 fourthAfterPlus1 in
-      let firstFourth = String.slice 0 fourthCommon before
-          lastFourth = String.slice (lengthBefore - fourthCommon) lengthBefore before in
-      if firstFourth == String.slice 0 fourthCommon after
-         && lastFourth == String.slice (lengthAfter - fourthCommon) lengthAfter after then
-         let remainingBefore = String.dropLeft fourthCommon <| String.dropRight fourthCommon <| before in
-         let remainingAfter = String.dropLeft fourthCommon <| String.dropRight fourthCommon <| after in
-         allStringDiffs remainingBefore remainingAfter |> Results.map (\l ->
-           let aux l = case l of
-             [DiffEqual x] -> [DiffEqual (x ++ lastFourth)]
-             head::tail -> head :: aux tail
-             [] -> [DiffEqual lastFourth]
-          in case aux l of
-            DiffEqual x :: tail -> DiffEqual (firstFourth ++ x) :: tail
-            ll ->  DiffEqual firstFourth :: l
-         )
+-- Greater priority for higher number
+type alias PriorityList a = List (a, Int)
+
+priorityListInsert element priority priorityList = case priorityList of
+  [] -> [(element, priority)]
+  ((x, priority2) as head) :: tail ->
+    if priority > priority2 then
+      (element, priority) :: priorityList
     else
-      continuation ()
-    in
-    let tests continuation =
-      if lengthBefore > 2 && lengthAfter > 2 then
-         testLeftRight-- <| \_ ->
-         --testFirstLastFourth
-         continuation
-      else continuation ()
-    in
-    tests <| \_ ->
-   --    allStringDiffs remainingBefore remainingAfter
-    -- Create a Dict from before values to the list of every index at which they appears
-    -- In this variables, the biggest indices appear first
-    --let _ = ImpureGoodies.log <| "allStringDiffs not optimized '" ++ before ++ "' '" ++ after ++ "'" in
-    let oldIndexMapRev =
-      strFoldLeftWithIndex (nativeDict.empty ()) before <|
-              \d indexBeforeValue  beforeChar ->
-         nativeDict.update (String.fromChar beforeChar) (
-           Just << (\v -> indexBeforeValue :: v) << Maybe.withDefault []
-         ) d
-    in
-    -- Here the smaller indices appear first.
-    let valueToIndexBefore = nativeDict.map (\k v -> List.reverse v) oldIndexMapRev in
+      head :: priorityListInsert element priority tail
 
-    -- Find the largest substring common to before and after.
-    -- We use a dynamic programming approach here.
-    -- We iterate over each value in the `after` list.
-    -- At each iteration, `overlap[inew]` is the
-    -- length of the largest substring of `before.slice(0, iold)` equal
-    -- to a substring of `after.splice(0, iold)` (or unset when
-    -- `before[iold]` != `after[inew]`).
-    -- At each stage of iteration, the new `overlap` (called
-    -- `_overlap` until the original `overlap` is no longer needed)
-    -- is built from the old one.
-    -- If the length of overlap exceeds the largest substring
-    -- seen so far (`subLength`), we update the largest substring
-    -- to the overlapping strings.
+priorityListMerge priorityList1 priorityList2 =
+  let aux acc l1 l2 =
+        case l1  of
+          [] -> List.reverse (Utils.reverseInsert l2 acc)
+          ((x, priority1) as head) :: tail ->
+            case l2 of
+              [] -> List.reverse (Utils.reverseInsert l1 acc)
+              ((x2, priority2) as head2) :: tail2 ->
+                if priority1 >= priority2 then
+                  aux (head :: acc) tail l2
+                else
+                  aux (head2 :: acc) l1 tail2
+  in aux [] priorityList1 priorityList2
+priorityListMap: (a -> b) -> PriorityList a -> PriorityList b
+priorityListMap f = List.map (\(x, priority) -> (f x, priority))
+priorityListMapDelta: Int -> (a -> b) -> PriorityList a -> PriorityList b
+priorityListMapDelta d f = List.map (\(x, priority) -> (f x, priority + d))
+priorityListToList: PriorityList a -> List a
+priorityListToList l = List.map Tuple.first l
 
-    -- `startOldNew` is a list of pairs consisting of the index of the beginning of the largest overlapping
-    -- substring in the before list, and the index of the beginning
-    -- of the same substring in the after list. `subLength` is the length that
-    -- overlaps in both.
-    -- These track the largest overlapping substring seen so far, so naturally
-    -- we start with a 0-length substring.
-    -- overlap is a Dict (old index: Int) (length of greater common substring after index included: Int, weight: Int)
-    let afterLength = String.length after in
-    let beforeLength = String.length before in
-    -- TODO: Put more  information in overlap so that we can obtain the result without this recursion.
-    let (_, startOldNew, subLength, weight) =
-         strFoldLeftWithIndex (nativeIntDict.empty (), [],          0,         -(String.length before + String.length after)) after <|
-                             \(overlap,                startOldNew, subLength, weight)                             afterIndex afterChar ->
-           let oldIndicesWhereAfterAppeared = valueToIndexBefore |> nativeDict.get (String.fromChar afterChar) |> Maybe.withDefault [] in
-           -- We look for the longest sequence in a row where after values appeared consecutively in before.
-           --let _ = ImpureGoodies.log <| "start of round\noverlap="++toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
-           foldLeft    (nativeIntDict.empty (), startOldNew, subLength, weight) oldIndicesWhereAfterAppeared <|
-                      \(overlap_,   startOldNew, subLength_, weight_) oldIdxAfterChar ->
-              -- now we are considering all values of val such that
-              -- `before[oldIdxAfterChar] == after[afterIndex]`
-              let newSubLength = (if oldIdxAfterChar == 0 then 0 else nativeIntDict.get (oldIdxAfterChar - 1) overlap |>
-                   Maybe.map Tuple.first |> Maybe.withDefault 0) + 1 in
-              --let _ = ImpureGoodies.log <| "overlap_=" ++ toString overlap_ ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength_=" ++ toString subLength_ ++ ", weight_=" ++ toString weight_ in
-              let newWeight = 0 - abs ((afterLength - afterIndex) - (beforeLength - oldIdxAfterChar)) -
-                abs (afterIndex - oldIdxAfterChar) in
-              let newOverlap_ = nativeIntDict.insert oldIdxAfterChar (newSubLength, newWeight) overlap_ in
-              if combineLengthWeight newSubLength newWeight > combineLengthWeight subLength_ weight_ then
-                   (newOverlap_, [(oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)] , newSubLength, newWeight)
-              else if combineLengthWeight newSubLength newWeight == combineLengthWeight subLength_ weight_ {-&& combineLengthWeight subLength_ weight_ > combineLengthWeight subLength weight-} then -- Ambiguity
-                   (newOverlap_, (oldIdxAfterChar - newSubLength + 1, afterIndex - newSubLength + 1)::startOldNew , newSubLength, newWeight)
-              else (newOverlap_, startOldNew,                         subLength_, weight_)
-    in
-    --let _ = ImpureGoodies.log <| "End of process\noverlap=" ++ toString overlap ++ ", startOldNew=" ++ toString startOldNew ++ ", subLength=" ++ toString subLength ++ ", weight=" ++ toString weight in
-    if subLength == 0 then
-        -- If no common substring is found, we return an insert and delete...
-        ok1 <| (if String.isEmpty before then [] else [DiffRemoved before]) ++
-               (if String.isEmpty after  then [] else [DiffAdded after])
-    else
-      let startOldNewPruned =
-          --Debug.log ("before overlapping removal\n" ++ toString (List.reverse  startOldNew) ++ "\nAfter:") <|
-          onlyOverlappingStartOldNew subLength (List.reverse  startOldNew) in
-      --(\x -> let _ = Debug.log ("Computed diffs:" ++ toString (Results.toList x)) () in x) <|
-      takeShortest <|
-      flip Results.andThen (oks startOldNewPruned) <| \(startOld, startNew) ->
-        -- otherwise, the common substring is unchanged and we recursively
-        -- diff the text before and after that substring
-        let middle = String.slice startNew (startNew + subLength) after in
-        --let _ = Debug.log "middle that is the same" middle in
-        let left = allStringDiffs (String.left startOld before) (String.left startNew after) in
-        let right = allStringDiffs  (String.dropLeft (startOld + subLength) before) (String.dropLeft (startNew + subLength) after) in
-        flip Results.andThen left <| \leftDiffs ->
-          flip Results.andThen right <| \rightDiffs ->
-            -- If leftDiffs ends with an insertion, there could be an ambiguity. Same if rightDiffs starts with an insertion.
-            -- Consider:
-            -- 'abc Truck' 'abc big Truck' gives DiffEqual "abc", DiffAdded " big", DiffEqual " Truck" because " Truck is the longest substring
-            -- However, the first space of the inserted string " big" could as well have been the first space of "Truck".
-            -- Therefore, the following diff should also be valid:
-            -- DiffEqual "abc ", DiffAdded "big ", DiffEqual "Truck"
-            -- Conversely, for 'Truck abc' 'Truck big abc', gives DiffEqual 'Truck ', DiffAdded 'big ', DiffEqual 'abc'
-            --   alternatively, we should have DiffEqual 'Truck', DiffAdded ' big', DiffEqual ' abc'
-            maybeExpandLongest leftDiffs middle rightDiffs
+{-
+sortPriority priorityList = case priorityList1 of
+  (((x, priority) as head) :: tail ->
+-}  
+heuristicHtmlRegex = Regex.regex "^<(\\w+)"
+heuristicOf centralElement =
+  let lastChar = String.right 1 centralElement in
+  let firstChar = String.left 1 centralElement in
+  if Regex.contains heuristicHtmlRegex centralElement then
+     15 -- Balanced HTML is always better, so inserted/deleted parts should better be start of tags
+  else if lastChar == ">" || lastChar == ")" || lastChar == "]" || lastChar == "}" then
+     10
+  else if firstChar == "<" || firstChar == "(" || firstChar == "[" || firstChar == "{" then
+     9
+  else if lastChar == " " then -- Prioritary. Should we rank?
+     8
+  else if firstChar == " " then -- Prioritary. Should we rank?
+     7
+  else -- Non prioritary ambiguity
+     0
 
-maybeExpandLongest: List (DiffChunk String) -> String -> List (DiffChunk String) ->  Results String (List (DiffChunk String))
-maybeExpandLongest leftDiffs middleEqual rightDiffs =
-  let processRight middleEqual rightDiffs =
-     let baseResult = ok1 <| leftDiffs ++ (if middleEqual == "" then [] else [DiffEqual middleEqual]) ++ rightDiffs in
-     case rightDiffs of
-        DiffAdded inserted :: DiffEqual x :: tail ->
-          let (initMiddleEqual, lastMiddleEqual) = (String.dropRight 1 middleEqual, String.right 1 middleEqual) in
-          let (initInserted, lastInitInserted) = (String.dropRight 1 inserted, String.right 1 inserted) in
-          if lastMiddleEqual == lastInitInserted && lastInitInserted /= "" then
-            let variant = processRight initMiddleEqual (DiffAdded (lastInitInserted ++ initInserted)::DiffEqual (lastInitInserted++x)::tail) in
-            baseResult |> Results.andAlso variant
-          else
-            baseResult
-        _ -> baseResult
-  in
-  let baseLeftResult = processRight middleEqual rightDiffs  in
-  case leftDiffs of
-  [DiffEqual x, DiffAdded inserted] -> case (String.uncons inserted, String.uncons middleEqual) of
-    (Just (insertedChar, insertedTail), Just (equalChar, equalTail)) ->
-      if insertedChar == equalChar then -- There is a variant
-        let variant = maybeExpandLongest [DiffEqual (x ++ String.fromChar insertedChar), DiffAdded (insertedTail ++ String.fromChar insertedChar)] equalTail rightDiffs in
-        baseLeftResult |> Results.andAlso variant
-      else
-        baseLeftResult
-    _ -> baseLeftResult
-  head::((b::c::_) as tail) -> maybeExpandLongest tail middleEqual rightDiffs |> Results.map (\l -> head::l)
-  _ -> baseLeftResult
+-- From one solution, find all others of the same weight
+-- x is before unchanged, y is middle (inserted or deleted), z is after unchanged
+-- We want to make sure that y is as accurate as possible, w.r.t. parentheses or html markers
+shiftRight: (String -> DiffChunk String) -> String -> String -> String -> List (DiffChunk String) -> PriorityList (List (DiffChunk String)) -> PriorityList (List (DiffChunk String))
+shiftRight diffType x y z tail acc =
+  let aux i acc =
+       if i > String.length y || i > String.length z then acc else
+       let ry = String.left i y in
+       let rz = String.left i z in
+       if ry == rz then
+          let newX = x ++ ry in
+          let newY = String.dropLeft i y ++ ry in
+          let newZ = String.dropLeft i z in
+          let addNewZ = if String.length newZ == 0 then identity else (::) (DiffEqual newZ) in
+          let delta = heuristicOf newY in
+          let newSolutions = fixStringDiffs (addNewZ tail) |>
+            priorityListMapDelta delta (\res -> DiffEqual newX :: diffType newY :: res) in
+          aux (i + 1)  <| priorityListMerge newSolutions acc
+       else
+          acc
+  in aux 1 acc
 
+shiftAddedRight x = shiftRight DiffAdded x
+shiftRemovedRight x = shiftRight DiffRemoved x
 
+shiftLeft: (String -> DiffChunk String) -> String -> String -> String -> List (DiffChunk String) -> PriorityList (List (DiffChunk String)) -> PriorityList (List (DiffChunk String))
+shiftLeft diffType x y z tail acc =
+  let aux i acc =
+       if i > String.length y || i > String.length x then acc else
+       let rx = String.right i x in
+       let ry = String.right i y in
+       if rx == ry then
+          let newX = String.left (String.length x - i) x in
+          let addNewX = if String.length newX == 0 then identity else (::) (DiffEqual newX) in
+          let newY = rx ++ String.left (String.length y - i) y in
+          let newZ = rx ++ z in
+          let delta = heuristicOf newY in
+          let newSolutions = fixStringDiffs (DiffEqual newZ :: tail) |>
+            priorityListMapDelta delta (\res -> addNewX <| diffType newY :: res) in
+          aux (i + 1)  <| priorityListMerge newSolutions acc
+       else
+          acc
+  in aux 1 acc
 
--- Remove differences that, if taken recursively, will produce the same diffs
-onlyOverlappingStartOldNew: Int -> List (Int, Int) -> List (Int, Int)
-onlyOverlappingStartOldNew  subLength startOldNew =
-  case startOldNew of
-    [] -> []
-    [head] -> [head]
-    (oldStart, newStart)::tail ->
-  -- Easy: We remove non-overlapping sequences.
-      let aux: List (Int, Int) -> List (Int, Int) -> List (Int, Int)
-          aux startOldNewTail revAcc  = case startOldNewTail of
-        [] -> (oldStart, newStart) :: List.reverse revAcc
-        (oldStart2, newStart2)::tail ->
-           if oldStart + subLength <= oldStart2 then (oldStart, newStart) :: List.reverse revAcc
-           else
-             (oldStart2, newStart2)::revAcc |>
-             aux tail
-      in aux tail []
+shiftAddedLeft x = shiftLeft DiffAdded x
+shiftRemovedLeft x = shiftLeft DiffRemoved x
 
-takeShortest: Results String (List a) -> Results String (List a)
-takeShortest x =
-  case x of
-    Err msg -> Debug.crash "A diff cannot return Err but it did so"
-    Ok ll ->
-      let l = LazyList.toList ll in
-      let sizes = List.map List.length l in
-      let minsize = List.minimum sizes |> Maybe.withDefault 0 in
-      let finallist = List.filterMap (\l -> if List.length l <= minsize then Just l else Nothing) l in
-      --let _ = Debug.log "Ambiguities before pruning" (toString l) in
-      --let _ = Debug.log "Ambiguities after pruning" (toString finallist) in
-      Ok (LazyList.fromList finallist)
-
+-- Realigns parentheses characters like ( [ { and < if possible.
+fixStringDiffs: List (DiffChunk String) -> PriorityList (List (DiffChunk String))
+fixStringDiffs diffChunks =
+  case diffChunks of
+  DiffAdded y :: DiffEqual z :: tail -> -- Maybe insert a DiffEqual x if it is relevant
+    shiftAddedRight "" y z tail <|
+    priorityListMapDelta (heuristicOf y) (\res -> DiffAdded y :: res) <| fixStringDiffs (DiffEqual z :: tail)
+  DiffEqual x :: DiffAdded y :: DiffEqual z :: tail ->
+    shiftAddedRight x y z tail <|
+    shiftAddedLeft x y z tail <|
+    priorityListMapDelta (heuristicOf y) (\res -> DiffEqual x :: DiffAdded y :: res) <| fixStringDiffs (DiffEqual z :: tail)
+  DiffEqual x :: DiffAdded y :: tail ->
+    shiftAddedLeft x y "" tail <|
+    priorityListMapDelta (heuristicOf y) (\res -> DiffEqual x :: DiffAdded y :: res) <| fixStringDiffs tail
+  DiffRemoved y :: DiffEqual z :: tail ->
+    shiftRemovedRight "" y z tail <|
+    priorityListMapDelta (heuristicOf y) (\res -> DiffRemoved y :: res) <| fixStringDiffs (DiffEqual z :: tail)
+  DiffEqual x :: DiffRemoved y :: DiffEqual z :: tail ->
+    shiftRemovedRight x y z tail <|
+    shiftRemovedLeft x y z tail <|
+    priorityListMapDelta (heuristicOf y) (\res -> DiffEqual x :: DiffRemoved y :: res) <| fixStringDiffs (DiffEqual z :: tail)
+  DiffEqual x :: DiffRemoved y :: tail ->
+    shiftRemovedLeft x y "" tail <|
+    priorityListMapDelta (heuristicOf y) (\res -> DiffEqual x :: DiffRemoved y :: res) <| fixStringDiffs tail
+  a :: b -> fixStringDiffs b |> priorityListMap ((::) a)
+  [] -> [([], 0)]
 
 type Diff3Chunk a = Diff3Merged (DiffChunk a) | Diff3Conflict (List (DiffChunk a)) (List (DiffChunk a))
 
@@ -1602,10 +1503,11 @@ defaultStringDiffs before after =
   )
 
 
--- Given a way to get the name of datatypes-encoded values, try to perform an alignment on the datatype names instead
+-- Given a way to get the name of datatypes-encoded values,
+-- try to perform an alignment on the datatype names instead
 -- If all the datatypes returned are the same, return Nothing.
 alignRecordDatatypes: (a -> Maybe String) -> List a -> List a -> List (DiffChunk (List a)) -> Maybe (Results String (List (DiffChunk (List a))))
-alignRecordDatatypes datatypeNameOf removed added difftail =
+alignRecordDatatypes datatypeNameOf removed added difftailglobal =
   let withDatatypes l = List.map (\elem -> (elem, datatypeNameOf elem)) l in
   let resDataTypeDifferences = alldiffs (\(_, datatypename) -> Maybe.withDefault "" datatypename) (withDatatypes removed) (withDatatypes added) in
   case resDataTypeDifferences of
@@ -1614,7 +1516,7 @@ alignRecordDatatypes datatypeNameOf removed added difftail =
       resDataTypeDifferences |> Results.map (\datatypedifferences ->
   let aux: List (DiffChunk (List (a, Maybe String))) -> List a -> List a -> List (DiffChunk (List a)) -> List (DiffChunk (List a))
       aux diffs removed added revAccDiffs = case diffs of
-     [] -> List.reverse revAccDiffs
+     [] -> Utils.reverseInsert revAccDiffs difftailglobal
      DiffEqual elems::difftail -> -- Same datatypes here, so the alignment is good.
        let count = List.length elems in
        let (removedTaken, removedRemaining) = Utils.split count removed in

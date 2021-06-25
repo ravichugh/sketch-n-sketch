@@ -77,14 +77,17 @@ match (p,v) = case (p.val.p__, v.v_) of
   (PBase _ _, _) -> Nothing
   (PParens _ innerPat _, _) -> match (innerPat, v)
   (PRecord _ ps _, VRecord values) ->
-    let vkeys = Dict.keys values in
-    case Record.getPatternMatch Utils.recordKey identity ps vkeys of
+    let mbPatValues = ps |>
+            List.map (\p ->
+              let k = Utils.recordKey p in
+              let pv = Utils.recordValue p in
+              let mbV = Dict.get k values in
+              mbV |> Maybe.map (\v -> (pv, v))) |>
+            Utils.projJusts
+    in
+    case mbPatValues of
       Nothing -> Nothing
-      Just patsValues ->
-        matchList (List.map (\(p, vkey) -> (Utils.recordValue p, case Dict.get vkey values of
-          Just v -> v
-          Nothing -> Debug.crash <| "Internal error: key " ++ toString vkey ++ " not found in record value."
-        )) patsValues)
+      Just patsValues -> matchList patsValues
   (PRecord _ _ _ , _) -> Nothing
   (PColonType _ p _ tipe, _) ->
      if Types.valIsType v tipe then match (p, v) else Nothing
@@ -824,7 +827,7 @@ btString syntax bt =
 
 
 backtraceMessage syntax bt message =
-   (btString syntax bt) ++ "\n" ++ message
+   message ++ "\nTrace leading to this error:\n" ++ (btString syntax bt)
 
 errorWithBacktrace syntax bt message =
   errorMsg <| backtraceMessage syntax bt message

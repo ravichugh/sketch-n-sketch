@@ -941,6 +941,7 @@ tryRun old =
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg oldModel =
   let msgCaption = case msg of
+    InitCmd                  -> "Init Cmd"
     Msg caption _            -> caption
     NewModelAndCmd caption _ -> caption
     ResponseFromSolver _     -> "RESPONSE FROM SOLVER"
@@ -963,11 +964,12 @@ update msg oldModel =
     _ ->
       let (newModel, newCmd) =
         let (caption, (newModel, cmd)) =
-          case msg of
-            Msg caption f -> (caption, (f oldModel, Cmd.none))
-            NewModelAndCmd caption f -> (caption, f oldModel)
-            ResponseFromSolver _ ->
-              Debug.crash "Controller.update: solver response messages should never hit here"
+           case msg of
+             InitCmd -> (msgCaption, (oldModel, Cmd.none))
+             Msg caption f -> (caption, (f oldModel, Cmd.none))
+             NewModelAndCmd caption f -> (caption, f oldModel)
+             ResponseFromSolver _ ->
+               Debug.crash "Controller.update: solver response messages should never hit here"
         in
         let _ = debugLog "Msg (or MsgNewModelAndCmd)" caption in
         (newModel, cmd)
@@ -1000,6 +1002,8 @@ update msg oldModel =
 upstate : Msg -> Model -> Model
 upstate msg old =
   case msg of
+    InitCmd ->
+      old
     Msg caption updateModel ->
       -- let _ = Debug.log "" (caption, old.userStudyTaskStartTime, old.userStudyTaskCurrentTime) in
       -- let _ = Debug.log "Msg" caption in

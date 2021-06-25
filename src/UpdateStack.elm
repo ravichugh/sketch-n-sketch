@@ -349,7 +349,16 @@ prevLetsFind val_ env p =
              vListUnapply v2 |> Maybe.map (\res -> (val_ <| VList (v::res), env2))
            )
          )
-       PRecord _ mbinit elems -> Nothing -- we might be missing fields here, except it's a datatype constructor ?
+       PRecord _ elems _ -> -- It works for tuples and datatypes
+         case pTupleUnapply p of
+           Nothing -> Nothing -- Datatypes maybe?
+           Just (_, list, _) ->
+             let pats = List.map Tuple.second list in
+             recurse env (replaceP__ p <| PList space0 pats space0 Nothing space0) |> Maybe.andThen (\(v2, env2) ->
+               vListUnapply v2 |> Maybe.map (\res ->
+                 (val_ <| vTuple res, env2)
+               )
+             )
   in
   recurse env p
 

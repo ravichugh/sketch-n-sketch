@@ -16,7 +16,6 @@ module LeoParser exposing
   , maxId
   , implicitVarName
   , reorderDeclarations
-  , encoding_autoclosing, encoding_voidclosing, encoding_forgotclosing
   , opFromIdentifier
   )
 
@@ -779,17 +778,17 @@ htmlComment source comment =
     (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" "COMMENT")) source.start source.start),
     (space0, Expr <| withInfo (exp_ <| EBase space0 (EString "\"" string)) startString endString)] space0 Nothing space0
 
-encoding_autoclosing = " "
-encoding_voidclosing = "  "
-encoding_forgotclosing = "   "
-
-htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->   Bool ->     Bool ->     Bool ->       WS ->                  WithInfo Exp_
-htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children autoclosing voidClosing forgotClosing spaceAfterTagClosing =
+htmlnode: WithInfo a -> HTMLParser.HTMLTag -> Exp ->     WS ->                    Exp ->   HTMLParser.HTMLClosingStyle ->      WS ->                  WithInfo Exp_
+htmlnode source         tagName               attributes spaceBeforeEndOpeningTag children closingStyle spaceAfterTagClosing =
   let origin = replaceInfo source << exp_ in
-  let spaceBeforeTail = withDummyInfo <|
-    if autoclosing then encoding_autoclosing else
-    if voidClosing then encoding_voidclosing else
-    if forgotClosing then encoding_forgotclosing else "" in -- Hack: If there is a space and no children, mark the element autoclose.
+  let  spaceBeforeTail = withDummyInfo <|
+    case closingStyle of
+      HTMLParser.AutoClosing -> encoding_autoclosing
+      HTMLParser.VoidClosing -> encoding_voidclosing
+      HTMLParser.ForgotClosing -> encoding_forgotclosing
+      HTMLParser.ImplicitElem -> encoding_implicitelem
+      HTMLParser.OnlyClosing _ -> encoding_onlyClosing
+      _ -> "" in -- Hack: If there is a space and no children, mark the element autoclose.
   let tag = case tagName of
     HTMLParser.HTMLTagString s -> withInfo (exp_ <| EBase space0 <| EString "\"" s.val) s.start s.end
     HTMLParser.HTMLTagExp e -> e
@@ -818,36 +817,47 @@ attrsToExp lastPos attrs =
       case head.val of
         HTMLParser.HTMLAttribute sp nameInfo value ->
           let nameExp = replaceInfo nameInfo <| exp_ <| EBase space0 (EString "\"" nameInfo.val) in
+          let styleSplit e = replaceInfo e <| exp_ <| EApp space0 (Expr <| withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [Expr e] SpaceApp space0 in
           let attrSpaceAtValue =
             case value.val of
                HTMLParser.HTMLAttributeNoValue ->
-                 -- Hack: space1 is here to tell that it's a NoValue.
-                 Ok (space0, space0, HTMLParser.AtAbsent, withDummyExp_Info <| EBase space1 <| EString "\"" "")
+                 -- Hack: four spaces to tell that it's a NoValue.
+                 Ok (space0, space0, HTMLParser.AtAbsent, withDummyExp_Info <| EBase (ws "    ") <| EString "\"" "")
                HTMLParser.HTMLAttributeExp spBeforeEq spAfterEq atPresence e ->
-                 -- Normally, all the space is inside s
+                 -- Normally, all the space is inside the element
                  let final_e = case nameInfo.val of
-                      "style" -> replaceInfo e <| exp_ <| EApp space0 (Expr <| withInfo (exp_ <| EVar space1 "__mbstylesplit__") e.start e.start) [Expr e] SpaceApp space0
+                      "style" -> styleSplit e
                       _ -> e
                  in
                  Ok (spBeforeEq, spAfterEq, atPresence, final_e)
                HTMLParser.HTMLAttributeString spBeforeEq spAfterEq delimiter elems ->
                  let (Expr attrValue) = htmlAttribElemsToExp delimiter elems in
-                 Ok (spBeforeEq, spAfterEq, HTMLParser.AtAbsent, attrValue)
-               _ -> Err <| "[Internal error] Tried to convert " ++ toString head ++ " to an Exp"
+                 let final_e = case nameInfo.val of
+                      "style" -> styleSplit attrValue
+                      _ -> attrValue
+                 in
+                 Ok (spBeforeEq, spAfterEq, HTMLParser.AtAbsent, final_e)
+               HTMLParser.HTMLAttributeUnquoted wsEq wsVal elems ->
+                 let (Expr attrValue) = htmlAttribElemsToExp "" elems in
+                 let final_e = case nameInfo.val of
+                       "style" -> styleSplit attrValue
+                       _ -> attrValue
+                  in
+                 Ok (wsEq, wsVal, HTMLParser.AtAbsent, final_e)
           in
           case attrSpaceAtValue of
             Err msg -> fail msg
             Ok (spBeforeEq, spAfterEq, atPresence, attrValue) ->
-              let thisAttribute = replaceInfo head <| exp_ <| EList sp [
-                 (if atPresence == HTMLParser.AtAbsent then space0 else space1, Expr nameExp),
-                 (spBeforeEq, Expr attrValue)
-                 ] spAfterEq Nothing space0
-              in
-              attrsToExp head.end tail |> andThen (\tailAttrExp ->
+               let thisAttribute = replaceInfo head <| exp_ <| EList sp [
+                  (if atPresence == HTMLParser.AtAbsent then space0 else space1, Expr nameExp),
+                  (spBeforeEq, Expr attrValue)
+                  ] spAfterEq Nothing space0
+               in
+               attrsToExp head.end tail |> andThen (\tailAttrExp ->
                 case appendToLeft (space0, Expr thisAttribute) (Expr tailAttrExp) of
                   Err msg -> fail msg
                   Ok (Expr newExp) -> succeed newExp
-              )
+               )
         HTMLParser.HTMLAttributeListExp sp e ->
            attrsToExp head.end tail |> map (\tailAttrExp ->
              let appendFun = replaceInfo head <| exp_ <| EVar space0 "++" in
@@ -860,8 +870,8 @@ attrsToExp lastPos attrs =
                Expr tailAttrExp] InfixApp space0) head.start tailAttrExp.end
            )
 
-childrenToExp: Pos -> Bool -> List HTMLParser.HTMLNode -> Parser (Pos, Bool, WithInfo Exp_)
-childrenToExp lastPos wasInterpolated children =
+childrenToExp: String -> Pos -> Bool -> List HTMLParser.HTMLNode -> Parser (Pos, Bool, WithInfo Exp_)
+childrenToExp parentTag lastPos wasInterpolated children =
   case children of
     [] -> succeed <| (,,) lastPos wasInterpolated <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) lastPos lastPos
     head::tail ->
@@ -870,8 +880,8 @@ childrenToExp lastPos wasInterpolated children =
         HTMLParser.HTMLEntity _ _ -> True
         _ -> wasInterpolated
       in
-      htmlToExp head |> andThen (\headExp ->
-        childrenToExp head.end newWasInterpolation tail |> andThen (\(end, isInterpolation, tailExp) ->
+      htmlToExp parentTag head |> andThen (\headExp ->
+        childrenToExp parentTag head.end newWasInterpolation tail |> andThen (\(end, isInterpolation, tailExp) ->
           case unwrapExp (Expr headExp) of
             EApp _ _ _ _ _ -> -- It was a HTMLListNodeExp or a HTMLEntity
                let appendFun = Expr <| withInfo (exp_ <| EVar space0 "++") headExp.end tailExp.start in
@@ -889,10 +899,11 @@ eMergeTexts start end (Expr children as childrenExpr) =
   Expr <| withInfo (exp_ <|
     EApp space1 (Expr <| withInfo (exp_ <| EVar space0 "__mergeHtmlText__") start start) [childrenExpr] SpaceApp space0) start end
 
-htmlToExp: HTMLParser.HTMLNode -> ParserI Exp_
-htmlToExp node =
+htmlToExp: String -> HTMLParser.HTMLNode -> ParserI Exp_
+htmlToExp parentTag node =
   case node.val of
     HTMLParser.HTMLInner content ->
+      if parentTag == "script" || parentTag == "style" then succeed <| htmlText node content else
       case Regex.find (Regex.All) forbiddenTagsInHtmlInner content of
         [] -> succeed <| htmlText node content
         l ->
@@ -903,24 +914,23 @@ htmlToExp node =
         --(HTMLParser.ForgotClosing, _)   -> fail <| "Line " ++ toString node.start.line ++ " there is a missing closing tag </" ++ HTMLParser.unparseTagName tagName ++ ">"
         --(_, HTMLParser.SlashEndOpening) -> fail <| "Line " ++ toString node.start.line ++ " don't use / because <" ++ HTMLParser.unparseTagName tagName ++ "> is not an auto-closing tag and requires in any case a </" ++ HTMLParser.unparseTagName tagName ++ ">"
         _ ->
-          let endPos = case tagName of
-            HTMLParser.HTMLTagString v -> v.end
-            HTMLParser.HTMLTagExp e -> e.end
+          let (endPos, tagStr) = case tagName of
+            HTMLParser.HTMLTagString v -> (v.end, v.val)
+            HTMLParser.HTMLTagExp e -> (e.end, "@")
           in
           attrsToExp endPos attrs |>
           andThen (\finalattrs ->
             let start = { line = sp0.end.line, col = sp0.end.col + (if endOpeningStyle == HTMLParser.RegularEndOpening then 1 else 2) } in
-            childrenToExp start False children |>
-              andThen (\(end, isInterpolation, finalchildren) ->
+            childrenToExp tagStr start False children |>
+               andThen (\(end, isInterpolation, finalchildren) ->
                  succeed <| htmlnode node tagName (Expr finalattrs) sp0 (
                      (if isInterpolation then eMergeTexts start end else identity) <| Expr finalchildren)
-                   (closingStyle == HTMLParser.AutoClosing)
-                   (closingStyle == HTMLParser.VoidClosing)
-                   (closingStyle == HTMLParser.ForgotClosing)<|
+                   closingStyle <|
                    case closingStyle of
                      HTMLParser.RegularClosing sp -> sp
+                     HTMLParser.OnlyClosing sp -> sp
                      _ -> space0
-              )
+               )
             )
     HTMLParser.HTMLComment commentStyle ->
       succeed <| htmlComment node commentStyle
@@ -939,6 +949,25 @@ htmlToExp node =
         Expr <| withInfo (exp_ <| EList space0 [] space0 Nothing space0) node.start node.start,
         Expr <| withInfo (exp_ <| EApp space1 (Expr <| withInfo (exp_ <| EVar space1  "__mbwraphtmlnode__") e.start e.start) [Expr e] SpaceApp space0) e.start e.end
         ] InfixApp space0 ) node.start e.end
+
+    HTMLParser.HTMLDoctype docType wsName name wsEnd mbPub mbSys ->
+      let lowerName = String.toLower name.val in
+      let wsNameExtended = if lowerName == name.val then wsName else ws <| "{-"++name.val++"-}" ++ wsName.val in
+      let elems = [
+        (space0, Expr <| withDummyRange <| exp_ <| EBase (withDummyRange ("{-"++ docType ++"-}")) (EString "\"" "!DOCTYPE")),
+        (space0, Expr <| withDummyRange <| exp_ <| EBase wsNameExtended (EString "\"" lowerName)),
+           case mbPub of
+             Nothing -> (space0, Expr <| withDummyRange <| exp_ <| EBase space0 (EString "\"" ""))
+             Just (public, sp1, (quote, str), sp2) ->
+               (sp1, Expr <| withDummyRange <| exp_ <| EBase (withDummyRange ("{-"++ public ++"-}" ++ sp2.val)) (EString quote str)),
+           case mbSys of
+             Nothing -> (space0, Expr <| withDummyRange <| exp_ <| EBase space0 (EString "\"" ""))
+             Just (Just (system, sp1), (quote, sysId), sp2) ->
+               (sp1, Expr <| withDummyRange <| exp_<| EBase (withDummyRange ("{-"++ system ++"-}" ++ sp2.val)) (EString quote sysId))
+             Just (Nothing, (quote, sysId), sp2) ->
+               (space0, Expr <| withDummyRange <| exp_<| EBase sp2 (EString quote sysId))
+      ] in
+      succeed <| withInfo (exp_ <| EList space0 elems space0 Nothing wsEnd) node.start node.end
 
 wrapWithSyntax: ParensStyle -> Parser (WS -> WithInfo Exp_) -> ParserI Exp_
 wrapWithSyntax parensStyle parser =
@@ -993,15 +1022,20 @@ htmlAttribElemsToExp quoteCharStr content =
            Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entityRendered)) l.start l.start,
            Expr <| withInfo (exp_ <| EBase space0 (EString "\"" entity)) l.start l.end] SpaceApp space0) l.start l.end)
   in
-  let precedingWs = if quoteCharStr == "\"" then space1 else space0 in
+  let precedingWs = if quoteCharStr == "\"" then ws "  " else if quoteCharStr == "" then space0 else space1 in --encoding of quote char
+  let wrapWithHtmlRawAttribute start content =
+     Expr <| withDummyInfo (exp_ <| EApp precedingWs (
+       Expr <| withInfo (exp_ <| EVar space1  "__htmlRawAttribute__") start start) [content] SpaceApp space0)
+  in
   case contentAsExprs of
-    [] -> withDummyExpInfo (EBase space0 (EString quoteCharStr ""))
+    [] -> wrapWithHtmlRawAttribute Pos.dummyPos <|
+            withDummyExpInfo (EBase space0 (EString quoteCharStr ""))
+      --withDummyExpInfo (EBase precedingWs (EString quoteCharStr ""))
     ((Expr h) as head) :: tail ->
-      Expr <| withDummyInfo (exp_ <| EApp precedingWs (Expr <| withInfo (exp_ <| EVar space1  "__htmlRawAttribute__") h.start h.start) [
+      wrapWithHtmlRawAttribute h.start <|
         List.foldl (\((Expr ee1) as e1) ((Expr ee2) as e2) ->
           Expr <| withInfo (exp_ <| EOp space0 space0 (withDummyInfo Plus) [e2, e1] space0) ee1.start ee2.end
         ) head tail
-      ] SpaceApp space0)
 
 htmlliteral: Parser (WS -> WithInfo Exp_)
 htmlliteral =
@@ -1027,7 +1061,7 @@ htmlliteral =
               ]
             )
         , tagName = inContext "HTML special tag name" <| wrapWithSyntax LeoSyntax <| simpleExpression 0 NoSpace
-        })) |> andThen htmlToExp)
+        })) |> andThen (htmlToExp "top level"))
 
 --------------------------------------------------------------------------------
 -- General Base Values

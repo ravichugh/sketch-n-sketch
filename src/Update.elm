@@ -775,6 +775,95 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                       _ ->
                         rewrite2  (\ex ey -> replaceE__ e <| EApp space1 (replaceE__ e1 <| EVar space0 "append") [ex, ey] SpaceApp space0)
              _ -> UpdateCriticalError ("++ should be called with two arguments, was called on "++toString (List.length e2s)++". ")
+         else if appType /= SpaceApp && appType /= InfixApp && List.length e2s == 1 &&
+                   (let e2 = Utils.geti 0 e2s in case unwrapExp e2 of
+                      EVar _ _ -> False
+                      EFun _ _ _ _ -> False
+                      EBase _ _ -> False
+                      EConst  _ _ _ _ -> False
+                      _ -> True)
+                    then -- We'll rewrite these to temporary assignments as deep as possible so that evaluation does not occur more than once.
+           let tmpVarName = "tmp" ++ (toString <| ImpureGoodies.getCurrentTime()) ++ "_" in
+           let mbInsertTmpVar: Num -> Exp -> (List (String, Exp), Exp)
+               mbInsertTmpVar i e =
+                case unwrapExp e of
+                  EApp subSp0 subE1 [subE2] subAppType subSp1 ->
+                    if subAppType /= SpaceApp && subAppType /= InfixApp && (case unwrapExp subE2 of
+                          EVar _ _ -> False
+                          EFun _ _ _ _ -> False
+                          EBase _ _ -> False
+                          EConst  _ _ _ _ -> False
+                          _ -> True) then
+                      let (assignments, newSubE2) = mbInsertTmpVar (i + 1) subE2 in
+                      let tmpVar = tmpVarName ++ toString i in
+                      ( (tmpVar, newSubE2)::assignments,
+                        replaceE__ e <| EApp subSp0 subE1 [eVar tmpVar] subAppType subSp1)
+                    else
+                      ([], e)
+                  _ -> ([], e)
+           in
+           let propagateChanges updatedEnv updatedExp =
+                let resFinalExpChanges =
+                  case (unwrapExp updatedExp.val, updatedExp.changes) of
+                     (ELet _ _ (Declarations _ _ _ letExps) _ body, Just (EChildDiffs diffList)) ->
+                       let argumentRemDiffs =
+                               List.foldl (\group acc -> case group of
+                                 (_, [LetExp _ _ _ _ _ newExp]) ->
+                                   case acc of
+                                     Err msg -> Err msg
+                                     Ok (i, diffList, Nothing) -> -- i has to be equal to zero
+                                       case diffList of
+                                         (0, firstDiff) :: tailDiffList ->
+                                           Ok (i + 1, tailDiffList, Just (newExp, Just firstDiff))
+                                         _ ->
+                                           Ok (i + 1, diffList, Just (newExp, Nothing))
+                                     Ok (i, diffList, Just (prevExp, prevDiff)) ->
+                                       case unwrapExp newExp of
+                                         EApp newsp0 newSubE1 [_] subAppType subSp1 ->
+                                           let (remDiffList, thisChange) = case diffList of
+                                                 (j, EChildDiffs [(0, d)]) :: tailDiff ->
+                                                   if j == i then
+                                                     (tailDiff, UpdateUtils.combineEChildDiffs [(0, Just d), (1, prevDiff)])
+                                                   else
+                                                     (diffList, UpdateUtils.combineEChildDiffs [(1, prevDiff)])
+                                                 _ -> (diffList, UpdateUtils.combineEChildDiffs [(1, prevDiff)])
+                                           in
+                                           Ok <| (,,) (i + 1) remDiffList <| Just (
+                                             replaceE__ newExp <| EApp newsp0 newSubE1 [prevExp] subAppType subSp1,
+                                             thisChange)
+                                         _ -> Err ("[Internal error] Assignment was not an EApp after updating the rewrite" ++ unparse newExp)
+                                 _ -> Err ("[Internal error] Found not just one LetExp" ++ toString group)
+                               ) (Ok (0, diffList, Nothing)) letExps
+                       in
+                       argumentRemDiffs |>
+                       Result.andThen (\(_, diffList, argument) ->
+                           case (unwrapExp body, argument) of
+                             (EApp newsp0 newSubE1 [_] subAppType subSp1, Just (arg, prevDiff)) ->
+                               let thisChange = case diffList of
+                                      (_, EChildDiffs [(0, d)]) :: tailDiff ->
+                                          UpdateUtils.combineEChildDiffs [(0, Just d), (1, prevDiff)]
+                                      _ -> UpdateUtils.combineEChildDiffs [(1, prevDiff)]
+                               in
+                               Ok <| (replaceE__  e <| EApp newsp0 newSubE1 [arg] subAppType subSp1, thisChange)
+                             (_, _) ->
+                               Err <| "[Internal error]: Updated body is not an EApp " ++ unparse body
+                        )
+                     (_, Nothing) ->
+                        Ok (e, Nothing)
+                     _ -> Err <| "[Internal error]: Updated expression is not an ELet " ++ unparse updatedExp.val
+                in
+                case resFinalExpChanges of
+                  Err message -> UpdateCriticalError message
+                  Ok (finalExp, finalChanges) ->
+                    updateResult updatedEnv <| UpdatedExp finalExp finalChanges
+           in
+           let (assignments, rewritingBody) = mbInsertTmpVar 1 e in
+           let rewriting = replaceE__ e <| ELet space0 Let (
+                 assignments |> List.reverse |>
+                 List.map (\(name, exp) -> (False, [LetExp Nothing space1 (pVar name) FunArgAsPats space1 exp])) |>
+                 Declarations (List.range 0 (List.length assignments - 1)) [] []) space0 rewritingBody in
+           --let _ = Debug.log ("Rewriting applied " ++ unparse rewriting) () in
+           updateContinue "Rewriting to temporary assignments" env rewriting [] oldVal newVal diffs <| propagateChanges
          else
          let updateAppResult newE1UpdatedEnv newUpdatedE1 newE2sUpdatedEnv newUpdatedE2s =
            let finalUpdatedEnv = UpdatedEnv.merge env newE1UpdatedEnv newE2sUpdatedEnv in
@@ -792,7 +881,7 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
 
                  if List.length es2ForLater > 0 then -- Rewriting of the expression so that it is two separate applications
                    let rewriting = ret <| EApp sp0 (ret <| EApp sp0 e1 es2ToEval SpaceApp sp1) es2ForLater SpaceApp sp1 in
-                   updateContinue "evaluating app with correct number of arguments" env rewriting [] oldVal newVal diffs <| (\newUpdatedEnv newRewriting ->
+                   updateContinue "evaluating app with correct number of arguments" env rewriting [] oldVal newVal diffs <| \newUpdatedEnv newRewriting ->
                      case unwrapExp newRewriting.val of
                        EApp _ innerApp newEsForLater _ _ ->
                          case (unwrapExp innerApp) of
@@ -802,7 +891,6 @@ getUpdateStackOp env (Expr exp_) prevLets oldVal newVal diffs =
                              updateResult newUpdatedEnv <| UpdatedExp newExp newChanges
                            e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ toString e
                        e -> UpdateCriticalError <| "[internal error] expected EApp, got " ++ toString e
-                   )
                  else
                  case List.map2 (\p e2 -> doEvalw env e2) e1ps es2ToEval |> Utils.projOk of
                    Err s       -> UpdateCriticalError s

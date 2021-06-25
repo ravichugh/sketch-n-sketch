@@ -73,6 +73,8 @@ htmlNodeToVal vb n =
         VoidClosing ->Vb.constructor vb "VoidClosing" []
         AutoClosing -> Vb.constructor vb "AutoClosing" []
         ForgotClosing ->Vb.constructor vb "ForgotClosing" []
+        ImplicitElem -> Vb.constructor vb "ImplicitElem" []
+        OnlyClosing wsc -> Vb.constructor vb "OnlyClosing" [Vb.string vb wsc.val]
     ]
   HTMLComment style -> Vb.constructor vb "HTMLComment" [case style of
       Less_Greater content -> Vb.constructor vb "Less_Greater" [Vb.string vb content]
@@ -83,6 +85,15 @@ htmlNodeToVal vb n =
   HTMLListNodeExp _ -> Vb.constructor vb "HTMLListNodeExpNotSupportedHere" []
   HTMLEntity entityRendered entity ->
     Vb.constructor vb "HTMLEntity" [Vb.string vb entityRendered, Vb.string vb entity]
+  HTMLDoctype doctype wsName name wsEnd mbPub mbSys ->
+    Vb.constructor vb "HTMLDoctype" [
+      Vb.string vb doctype,
+      Vb.string vb wsName.val,
+      Vb.string vb name.val,
+      Vb.string vb wsEnd.val,
+      Vb.maybe (Vb.tuple4 Vb.string (Vb.map .val Vb.string) (Vb.tuple2 Vb.string Vb.string) (Vb.map .val Vb.string)) vb mbPub,
+      Vb.maybe (Vb.tuple3 (Vb.maybe (Vb.tuple2 Vb.string (Vb.map .val Vb.string))) (Vb.tuple2 Vb.string Vb.string) (Vb.map .val Vb.string)) vb mbSys
+    ]
 
 valToHtmlNode: Val -> Result String HTMLNode
 valToHtmlNode v =
@@ -143,10 +154,12 @@ valToHtmlNode v =
          (Vu.list valToHtmlNode childrenV)
          (case Vu.constructor Ok closingV of
            Ok ("RegularClosing", [wsc])  -> Vu.string wsc |> Result.map (RegularClosing << ws)
+           Ok ("OnlyClosing", [wsc])  -> Vu.string wsc |> Result.map (OnlyClosing<< ws)
            Ok ("VoidClosing", [])        -> Ok VoidClosing
            Ok ("AutoClosing", [])        -> Ok AutoClosing
            Ok ("ForgotClosing", [])      -> Ok ForgotClosing
-           _ -> Err <| "Expected RegularClosing space, VoidClosing, AutoClosing, ForgotClosing, got " ++ valToString closingV
+           Ok ("ImplicitElem", [])       -> Ok ImplicitElem
+           _ -> Err <| "Expected RegularClosing space, VoidClosing, AutoClosing, ForgotClosing or ImplicitElem, got " ++ valToString closingV
          )
         )
   Ok ("HTMLComment", [styleV]) ->
@@ -159,7 +172,16 @@ valToHtmlNode v =
       ) |> Result.map (\style ->
           HTMLComment style
         )
-  _ -> Err <| "Expected HTMLInner, HTMLElement or HTMLComment, got " ++ valToString v
+  Ok ("HTMLDoctype", [doctypeV, wsNameV, nameV, wsEndV, mbPubV, mbSysV]) ->
+    case (Vu.string doctypeV, Result.map ws <| Vu.string wsNameV,
+          Result.map withDummyRange <| Vu.string nameV, Result.map ws <| Vu.string wsEndV,
+          Vu.maybe (Vu.tuple4 Vu.string (Vu.map ws Vu.string) (Vu.tuple2 Vu.string Vu.string) (Vu.map ws Vu.string)) mbPubV,
+          Vu.maybe (Vu.tuple3 (Vu.maybe (Vu.tuple2 Vu.string (Vu.map ws Vu.string))) (Vu.tuple2 Vu.string Vu.string) (Vu.map ws Vu.string)) mbSysV) of
+      (Ok doctype, Ok wsName, Ok name, Ok wsEnd, Ok mbPub, Ok mbSys) ->
+        Ok <| HTMLDoctype doctype wsName name wsEnd mbPub mbSys
+      _ -> Err <| "Expected string string string string (string, string, (string, string), string), ((string, string), string) for doctype, but got " ++
+             valToString v
+  _ -> Err <| "Expected HTMLDoctype, HTMLInner, HTMLElement or HTMLComment, got " ++ valToString v
 
 
 -- Conversion between HTML nodes and true leo values
@@ -226,4 +248,18 @@ htmlNodeToElmViewInLeo vb tree =
       Vb.viewtuple2 Vb.string Vb.string vb ("TEXT", "[internal error, cannot render HTMLListNodeExp]")
     HTMLEntity entityRendered entity ->
       htmlNodeToElmViewInLeo vb {tree | val = HTMLInner entityRendered }
+    HTMLDoctype doctype spName name spEnd mbPub mbSys ->
+      let elems = (
+            "!DOCTYPE",
+            name.val,
+             case mbPub of
+               Nothing -> Vb.list Vb.identity vb []
+               Just (public, sp1, (quote, str), sp2) ->
+                 Vb.string vb str,
+             case mbSys of
+               Nothing -> Vb.list Vb.identity vb []
+               Just (mbSystem, (quote, sysId), sp1) ->
+                 Vb.string vb sysId
+      ) in
+      Vb.viewtuple4 Vb.string Vb.string Vb.identity Vb.identity vb elems
 

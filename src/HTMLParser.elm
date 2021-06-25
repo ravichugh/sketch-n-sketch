@@ -66,7 +66,7 @@ type HTMLCommentStyle = Less_Greater String {- The string should start with a ? 
                       | LessBang_Greater String
                       | LessBangDashDash_DashDashGreater String
 
-type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotClosing
+type HTMLClosingStyle = RegularClosing WS | VoidClosing | AutoClosing | ForgotClosing | ImplicitElem | OnlyClosing WS
 type HTMLEndOpeningStyle = RegularEndOpening {- usually > -} | SlashEndOpening {- add a slash before the '>' of the opening, does not mark the element as ended in non-void HTML elements -}
 -- HTMLInner may have unmatched closing tags inside it. You have to remove them to create a real innerHTML
 -- HTMLInner may have unescaped chars (e.g. <, >, & etc.)
@@ -77,6 +77,12 @@ type HTMLNode_ = HTMLInner String
                | HTMLElement HTMLTag (List HTMLAttribute) WS HTMLEndOpeningStyle (List HTMLNode) HTMLClosingStyle
                | HTMLComment HTMLCommentStyle
                | HTMLListNodeExp (WithInfo Exp_)
+               | HTMLDoctype {-DOCTYPE itself-} String
+                   WS {-Name-} (WithInfo String) WS
+                   {-public-} (Maybe (String, WS, HTMLDoctypeValue, WS))
+                   {-system-} (Maybe (Maybe (String, WS), HTMLDoctypeValue, WS))
+
+type alias HTMLDoctypeValue = ({-quote char-}String, {-content-}String)
 
 type HTMLTag = HTMLTagString (WithInfo String) | HTMLTagExp (WithInfo Exp_)
 
@@ -138,6 +144,7 @@ svgTagNames = Set.fromList ["a","altGlyph","altGlyphDef","altGlyphItem","animate
   "tref","tspan","unknown","use","view","vkern"]
 
 possiblyAutoClosingElements = svgTagNames
+isPossiblyAutoClosing s = Set.member (String.toLower s) svgTagNames
 
 {-- HTML reference parsing: https://www.w3.org/TR/html5/syntax.html --}
 
@@ -242,6 +249,7 @@ parseHtmlAttributeValue: ParsingMode -> Parser HTMLAttributeValue
 parseHtmlAttributeValue parsingMode =
   case parsingMode of
     Raw ->
+      inContext "html raw attribute value" <|
       oneOf [
         delayedCommitMap (\sp1 (sp2, builder) -> builder sp1 sp2)
           spaces
@@ -260,6 +268,7 @@ parseHtmlAttributeValue parsingMode =
         trackInfo <| succeed HTMLAttributeNoValue
       ]
     Interpolation {attributevalue, attributerawvalue} ->
+      inContext "html interpolatable attribute value" <|
       trackInfo <| oneOf [
           delayedCommitMap (\spBeforeEq builder -> builder spBeforeEq)
           spaces
@@ -340,7 +349,7 @@ parseHTMLEntity insideAttribute untilEndTagNames =
         |. optional (symbol ">")))
       (\endTagName ->
         let tagNamesRegex= untilEndTagNames |> List.map (\et -> "</" ++ Regex.escape et ++ "\\s*>") |> String.join "|" in
-        if Regex.contains (Regex.regex tagNamesRegex) endTagName then
+        if Regex.contains (Regex.regex ("</p\\s*>|" ++ tagNamesRegex)) endTagName then
           fail "it's a true closing tag"
         else
           succeed endTagName
@@ -404,9 +413,9 @@ parseHTMLInner parsingMode untilEndTagNames =
   let regexToParseUntil =
         Regex.regex <|
         if List.head untilEndTagNames == Just "script" then
-        "</script>|&" ++ maybeBreakOnAt
+        "</script>" ++ maybeBreakOnAt
         else if List.head untilEndTagNames == Just "style" then
-        "</style>|&" ++ maybeBreakOnAt
+        "</style>" ++ maybeBreakOnAt
         else   "<" ++ tagNameStarts++"|&|<\\?|<!|</|$" ++ maybeBreakOnAt ++
             (untilEndTagNames |> List.map (\et -> "|</" ++ Regex.escape et ++ "\\s*>") |> String.join "")
    in
@@ -458,6 +467,143 @@ mergeInners children = case children of
       _ -> h1 :: h2 :: mergeInners tail
   _ -> children
 
+firstChildTag: List HTMLNode -> Maybe String
+firstChildTag childList = case childList of
+    [] -> Nothing
+    head :: tail ->
+      case head.val of
+        HTMLInner s1 -> firstChildTag tail
+        HTMLElement (HTMLTagString t) _ _ _ _ _ -> Just t.val
+        HTMLElement _ _ _ _ _ _ -> Nothing
+        HTMLComment _ -> firstChildTag tail
+        HTMLEntity _ _ -> firstChildTag tail
+        HTMLListNodeExp _ -> Nothing -- We don't know what's generated
+        HTMLDoctype _ _ _ _ _ _ -> Nothing
+
+wrapImplicitElems: String -> List HTMLNode -> List HTMLNode
+wrapImplicitElems tagName children =
+  case tagName of
+    "table" -> -- There could be an implicit <tbody> as first child
+      -- We collect <tr> into <tbody> and <col> into <colgroup>
+      let aux: List HTMLNode -> Maybe HTMLNode_ -> List HTMLNode -> List HTMLNode
+          aux children mbImplicitWrapper revAcc =
+            case children of
+               [] ->  List.reverse ((Maybe.withDefault [] <| Maybe.map (List.singleton << withDummyRange) mbImplicitWrapper) ++ revAcc)
+               head :: tail ->
+                 case head.val of
+                   HTMLElement (HTMLTagString t) _ _ _ _ _ ->
+                     let wrapIntoImplicit name =
+                          let defaulltWrapper x =
+                                 Just <| HTMLElement (HTMLTagString (withDummyInfo name)) [] space0 RegularEndOpening [x] ImplicitElem
+                          in
+                          case mbImplicitWrapper of
+                                  Just ((HTMLElement ((HTMLTagString v) as a0) a b c d e) as f) ->
+                                     if v.val == name then
+                                       (revAcc, \x -> Just <| HTMLElement a0 a b c (d ++ [head]) e)
+                                     else
+                                        (withDummyInfo f :: revAcc,
+                                         defaulltWrapper)
+                                  Just other ->
+                                     (withDummyInfo other :: revAcc,
+                                     defaulltWrapper)
+                                  Nothing ->
+                                     (revAcc, defaulltWrapper)
+                     in
+                     if t.val == "col" then -- No top-level col or tr, they should be wrapped in colgroup or tbody respectively
+                       let (newRevAcc, addToWrapper) = wrapIntoImplicit "colgroup" in
+                       aux tail (addToWrapper head) newRevAcc
+                     else if t.val == "tr" then
+                       let (newRevAcc, addToWrapper) = wrapIntoImplicit "tbody" in
+                       aux tail (addToWrapper head) newRevAcc
+                     else
+                       aux tail Nothing (head :: (Maybe.withDefault [] <| Maybe.map (List.singleton << withDummyRange) mbImplicitWrapper) ++ revAcc)
+                   HTMLElement _ _ _ _ _ _ ->
+                      aux tail Nothing (head :: (Maybe.withDefault [] <| Maybe.map (List.singleton << withDummyRange) mbImplicitWrapper) ++ revAcc)
+                   _ ->
+                      case mbImplicitWrapper of
+                        Nothing -> aux tail mbImplicitWrapper (head :: revAcc)
+                        Just ((HTMLElement a0 a b c d e) as f) ->
+                           aux tail (Just (HTMLElement a0 a b c (d++[head]) e)) revAcc
+                        Just x ->
+                           aux tail Nothing (head :: withDummyRange x :: revAcc)
+      in aux children Nothing []
+    _ -> children
+
+
+parseDoctype: Parser HTMLNode
+parseDoctype =
+  inContext "HTML Doctype" <| trackInfo <| (
+    delayedCommitMap (\doctype withDoctype -> withDoctype doctype) (
+      succeed (\d o c t y p e -> d ++ o ++ c ++ t ++ y ++ p ++ e)
+      |. symbol "<!"
+      |= source (oneOf [symbol "d", symbol "D"])
+      |= source (oneOf [symbol "o", symbol "O"])
+      |= source (oneOf [symbol "c", symbol "C"])
+      |= source (oneOf [symbol "t", symbol "T"])
+      |= source (oneOf [symbol "y", symbol "Y"])
+      |= source (oneOf [symbol "p", symbol "P"])
+      |= source (oneOf [symbol "e", symbol "E"])
+    ) (
+      succeed (\spName name sp0 mbPub mbSys doctypeName -> HTMLDoctype doctypeName spName name sp0 mbPub mbSys)
+      |= spaces
+      |= trackInfo (keep (AtLeast 0) (\c -> not (isSpace c) && c /= '>'))
+      |= spaces
+      |= optional (
+           succeed (\p u b l i c sp0 value sp1 -> (p ++ u ++ b ++ l ++ i ++ c, sp0, value, sp1))
+           |= source (oneOf [symbol "p", symbol "P"])
+           |= source (oneOf [symbol "u", symbol "U"])
+           |= source (oneOf [symbol "b", symbol "B"])
+           |= source (oneOf [symbol "l", symbol "L"])
+           |= source (oneOf [symbol "i", symbol "I"])
+           |= source (oneOf [symbol "c", symbol "C"])
+           |= spaces
+           |= parseDoctypeValue
+           |= spaces
+           )
+      |= optional (succeed (\mbSystemSpace value sp1 -> (mbSystemSpace, value, sp1))
+            |= optional (succeed (\s y s2 t e m sp0 -> (s ++ y ++ s2 ++ t ++ e ++ m, sp0))
+               |= source (oneOf [symbol "s", symbol "S"])
+               |= source (oneOf [symbol "y", symbol "Y"])
+               |= source (oneOf [symbol "s", symbol "S"])
+               |= source (oneOf [symbol "t", symbol "T"])
+               |= source (oneOf [symbol "e", symbol "E"])
+               |= source (oneOf [symbol "m", symbol "M"])
+               |= spaces)
+            |= parseDoctypeValue
+            |= spaces
+            )
+      |. symbol ">"
+      ))
+
+parseDoctypeValue: Parser HTMLDoctypeValue
+parseDoctypeValue =
+  inContext "HTML Doctype value" <| (oneOf [
+      source (symbol "\"")
+    , source (symbol "\'")
+  ] |> andThen (\quoteCharStr ->
+    let quoteChar = ImpureGoodies.stringCharAt 0 quoteCharStr |> Maybe.withDefault '\"' in
+    parseDoctypeValueContent (\c -> c == quoteChar || c == '>')
+    |> andThen (\l ->
+      succeed identity
+      |. oneOf [source (symbol quoteCharStr), succeed ""] -- Error recovery
+      |= succeed (quoteCharStr, l)
+    )))
+
+parseDoctypeValueContent: (Char -> Bool) -> Parser String
+parseDoctypeValueContent isEndChar =
+  keep (AtLeast 0) (\c -> not (isEndChar c))
+
+parseSingleClosedParagraphTagAsNode: Parser HTMLNode
+parseSingleClosedParagraphTagAsNode =
+  inContext " < / p >" <| trackInfo <|
+    delayedCommitMap (\_ endSpaces ->
+      HTMLElement (HTMLTagString (withDummyRange "p"))
+         [] space0 RegularEndOpening [] (OnlyClosing endSpaces))
+      (symbol "</p")
+      (succeed identity
+       |= spaces
+       |. symbol ">")
+
 -- Always succeed if the string starts with <(letter)
 parseHTMLElement: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
 parseHTMLElement parsingMode surroundingTagNames namespace =
@@ -469,7 +615,7 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
          _ -> parsingMode
        in
        succeed (\attrs sp1 (endOpeningStyle, children, closingStyle)  ->
-             HTMLElement tagNode attrs sp1 endOpeningStyle (mergeInners children) closingStyle)
+             HTMLElement tagNode attrs sp1 endOpeningStyle (wrapImplicitElems tagName (mergeInners children)) closingStyle)
        |= repeat zeroOrMore (parseHTMLAttribute parsingMode)
        |= attributeSpaces
        |= oneOf ((
@@ -494,7 +640,10 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
               )
             |= optional (symbol "/")
             |. symbol ">"
-            |= repeat zeroOrMore (parseNode newParsingMode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
+            |= repeat zeroOrMore (
+                 succeed identity
+                 |. negativeLookAhead (childrenIncompatibleWith tagName)
+                 |= parseNode newParsingMode (tagName::surroundingTagNames) (if isForeignElement tagName then Foreign else namespace))
             |= optional (try <|
                  succeed (\sp -> RegularClosing sp)
                  |. symbol "</"
@@ -506,18 +655,52 @@ parseHTMLElement parsingMode surroundingTagNames namespace =
      )
     )
 
+-- https://html.spec.whatwg.org/multipage/grouping-content.html#the-p-element
+
+tagsClosingImplicitlyParagraph =
+  ["address", "article", "aside", "blockquote", "details", "div", "dl", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "menu", "nav", "ol", "p", "pre", "section", "table", "ul"]
+
+implicitlyClosingTags x =
+  succeed ()
+  |. symbol "<"
+  |. oneOf (List.map symbol x)
+  |. oneOf [ignore (AtLeast 1) isSpace, symbol ">"]
+
+-- https://html.spec.whatwg.org/multipage/grouping-content.html
+childrenIncompatibleWith: String -> Parser ()
+childrenIncompatibleWith tagName =
+  case tagName of
+    "p" -> implicitlyClosingTags tagsClosingImplicitlyParagraph
+    "li" -> implicitlyClosingTags ["li"]
+    "dt" -> implicitlyClosingTags ["dt", "dd"]
+    "dd" -> implicitlyClosingTags ["dt", "dd"]
+    "rt" -> implicitlyClosingTags ["rt", "rp"]
+    "rp" -> implicitlyClosingTags ["rt", "rp"]
+    "caption" -> implicitlyClosingTags ["colgroup", "col", "thead", "tbody", "tr", "tfoot"]
+    "colgroup" -> implicitlyClosingTags ["thead", "tbody", "tr", "tfoot"]
+    "thead" -> implicitlyClosingTags ["tbody", "tfoot"]
+    "tbody" -> implicitlyClosingTags ["tfoot"]
+    "tr" -> implicitlyClosingTags ["tr"]
+    "td" -> implicitlyClosingTags ["td", "th"]
+    "th" -> implicitlyClosingTags ["td", "th"]
+    "optgroup" -> implicitlyClosingTags ["optgroup"]
+    "option" -> implicitlyClosingTags ["optgroup", "option"]
+    _ -> fail "No child incompatible with this"
 
 parseNode: ParsingMode -> List String -> NameSpace -> Parser HTMLNode
 parseNode parsingMode surroundingTagNames namespace =
   oneOf <|
     let defaultParsers =
       (if List.head surroundingTagNames == Just "script" || List.head surroundingTagNames == Just "style"  then
-         [] else [ parseHTMLElement parsingMode surroundingTagNames namespace,
-           parseHTMLComment
-         ]) ++ [
-      parseHTMLEntity False surroundingTagNames |> map (\entity -> case entity.val of
-         Err x -> replaceInfo entity <| HTMLInner x
-         Ok (rendered, raw) -> replaceInfo entity <| HTMLEntity rendered raw),
+         [] else (if List.isEmpty surroundingTagNames || surroundingTagNames == ["raw"] then [parseDoctype] else []) ++
+           [ parseHTMLElement parsingMode surroundingTagNames namespace,
+           parseHTMLComment,
+           -- Entities and end tags not matched
+           parseHTMLEntity False surroundingTagNames |> map (\entity -> case entity.val of
+             Err x -> replaceInfo entity <| HTMLInner x
+             Ok (rendered, raw) -> replaceInfo entity <| HTMLEntity rendered raw)
+         ]) ++ (if List.all (\x -> x /= "p") surroundingTagNames
+                then [parseSingleClosedParagraphTagAsNode] else []) ++ [
       parseHTMLInner parsingMode surroundingTagNames
     ] in
     case parsingMode of
@@ -591,6 +774,8 @@ unparseClosing htmlTag closing =
         VoidClosing -> ""
         AutoClosing -> ""
         ForgotClosing -> ""
+        ImplicitElem -> ""
+        OnlyClosing sp -> "</" ++ tagName.val ++ sp.val ++ ">"
     _ -> "Don't know how to unparse tag " ++ toString htmlTag
 
 unparseCommentStyle: HTMLCommentStyle -> String
@@ -627,6 +812,18 @@ unparseNode node = case node.val of
       String.join "" (List.map unparseNode children) ++ unparseClosing tagName closing
   HTMLComment style -> unparseCommentStyle style
   HTMLListNodeExp _ -> "[Internal error] Don't know how to unparse an HTMLListNodeExp here"
+  HTMLDoctype doctype sp0 name sp1 mbPub mbSys ->
+    "<!" ++ doctype ++ sp0.val ++ name.val ++ sp1.val ++ (case mbPub of
+      Nothing -> ""
+      Just (public, sp1, (quote, content), sp2) ->
+        public ++ sp1.val ++ quote ++ content ++ quote ++ sp2.val
+    ) ++ (case mbSys of
+      Nothing -> ""
+      Just (mbSystem, (quote, content), sp2) ->
+        (case mbSystem of
+          Just (system, sp) -> system ++ sp.val
+          Nothing -> "") ++ quote ++ content ++ quote ++ sp2.val
+     ) ++ ">"
 
 unparseHtmlNodes: List HTMLNode -> String
 unparseHtmlNodes nodes =

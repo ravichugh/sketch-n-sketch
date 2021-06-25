@@ -8,6 +8,7 @@ import Set exposing (Set)
 import Info
 import ParserUtils
 import ImpureGoodies
+import HTMLParser
 
 -- Removes from the environment all variables that are already bound by a pattern
 pruneEnvPattern: List Pat -> Env -> Env
@@ -101,7 +102,10 @@ valToExp= valToExpFull Nothing
 
 valToExpFull: Maybe Exp -> WS -> IndentStyle -> Val -> Exp
 valToExpFull copyFrom sp_ indent v =
-  let sp = Maybe.map (ws << precedingWhitespace) copyFrom |> Maybe.withDefault sp_ in
+  let sp = Maybe.andThen (\e ->
+    case unwrapExp e of
+       EApp _ _ _ _ _ -> Just <| ws <| "" -- If it's an application, we don't keep the whitespace. Could be an encoding of something.
+       _ -> Just <| ws <| precedingWhitespace e) copyFrom |> Maybe.withDefault sp_ in
   withDummyExpInfo <| case v.v_ of
     VConst mb num     -> EConst sp (Tuple.first num) dummyLoc noWidgetDecl
     VBase (VBool b)   -> EBase  sp <| EBool b
@@ -113,22 +117,70 @@ valToExpFull copyFrom sp_ indent v =
         default
     VBase (VNull)     -> EBase  sp <| ENull
     VList vals ->
+      case vHtmlNodeUnapply v of
+        Just (tagName, attrs, children) -> -- In this case, if copyFrom
+          let defaultAttrs () =
+                case List.map vTupleViewUnapply attrs |> Utils.projJusts of
+                   Nothing -> eList0 (List.map (valToExpFull Nothing space0 indent) attrs) Nothing
+                   Just keyValues ->
+                     let elems = List.map (\(key, value) ->
+                          (space1, eListWs [(space0, valToExp space0 indent key), (space0, valToExp space0 indent value)] Nothing)) keyValues in
+                     withDummyExpInfo <| EList space0 elems space0 Nothing space0
+          in
+          let defaultChildren () =
+               eList0 (List.map (valToExpFull Nothing space0 indent) children) Nothing
+          in
+          let newClosingType = ws <|
+               if HTMLParser.isVoidElement tagName then
+               encoding_voidclosing else ""
+          in
+          case copyFrom |> Maybe.map unwrapExp of
+            Just (EList unusedWS1 [(unusedWS2, tagExp), (unusedWS3, attrExp), (spaceBeforeEndOpeningTag, childExp)] closingType Nothing spaceAfterTagClosing) ->
+              let mbNewAttrExp = case unwrapExp attrExp of
+                EList _ attributes _ Nothing _ ->
+                    if List.length attributes >= 2 then
+                      Just <| valToExpFull (Just attrExp) space0 indent (replaceV_ v <| VList attrs)
+                    else
+                     Nothing
+                _ -> Nothing
+              in
+              let newAttrExp = mbNewAttrExp |> Utils.maybeWithDefaultLazy defaultAttrs in
+              let newChildExp =
+                   case unwrapExp childExp of
+                        EList _ oldChildren _ Nothing _ ->
+                          if List.length oldChildren >= List.length children then
+                             eListWs (List.map2 (\(s, old) n -> (s, valToExpFull (Just old) space0 indent n)) oldChildren children) Nothing
+                          else
+                            defaultChildren ()
+                        _ ->
+                          defaultChildren ()
+              in
+              EList unusedWS1 [(unusedWS2, eStr0 tagName),
+                 (unusedWS3, newAttrExp), (spaceBeforeEndOpeningTag, newChildExp)]
+                 newClosingType Nothing spaceAfterTagClosing
+            _ ->
+              EList space0 [(space0, eStr tagName), (space0, defaultAttrs ()), (space0, defaultChildren ())] newClosingType Nothing space0
+        Nothing ->
       let defaultSpCommaHd = ws "" in
       let defaultSpCommaTail = space0 in
-      let (precedingWS, ((spaceCommaHead, v2expHead), (spaceCommaTail, v2expTail)), spBeforeEnd) = copyFrom |> Maybe.andThen (\e -> case (unwrapExp e) of
-        EList csp0 celems _ _ cspend ->
+      let (precedingWS, ((spaceCommaHead, v2expHead), (spaceCommaTail, v2expTail)), spBeforeEnd) =
+           copyFrom |> Maybe.andThen (\e ->
+            case unwrapExp e of
+                EList csp0 celems _ _ cspend ->
 
-            let valToExps =  case celems of
-               (sphd1, hd1)::(sphd2, hd2)::tail -> ((sphd1, valToExpFull <| Just hd1), (sphd2, valToExpFull <| Just hd2))
-               [(sphd1, hd1)] -> ((sphd1, valToExpFull <| Just hd1), (defaultSpCommaTail, valToExpFull <| Just hd1))
-               [] -> ((defaultSpCommaHd, valToExp), (defaultSpCommaTail, valToExp))
-            in
-            Just (csp0, valToExps, cspend)
-        _ -> Nothing
-      ) |> Maybe.withDefault (sp, ((defaultSpCommaHd, valToExp), (defaultSpCommaTail, valToExp)), if List.isEmpty vals then space0 else ws <| foldIndent "" indent) in
+                    let valToExps =  case celems of
+                       (sphd1, hd1)::(sphd2, hd2)::tail -> ((sphd1, valToExpFull <| Just hd1), (sphd2, valToExpFull <| Just hd2))
+                       [(sphd1, hd1)] -> ((sphd1, valToExpFull <| Just hd1), (defaultSpCommaTail, valToExpFull <| Just hd1))
+                       [] -> ((defaultSpCommaHd, valToExp), (defaultSpCommaTail, valToExp))
+                    in
+                    Just (csp0, valToExps, cspend)
+                _ -> Nothing
+            ) |>
+            Maybe.withDefault (sp, ((defaultSpCommaHd, valToExp), (defaultSpCommaTail, valToExp)), if List.isEmpty vals then space0 else ws <| foldIndent "" indent)
+      in
       case vals of
-        [] -> EList precedingWS [] space0 Nothing spBeforeEnd
-        head::tail ->
+         [] -> EList precedingWS [] space0 Nothing spBeforeEnd
+         head::tail ->
             let headExp = (spaceCommaHead, v2expHead (ws <| foldIndentStyle "" (\_ -> " ") indent) (increaseIndent indent) head) in
             let tailExps = List.map (\y -> (spaceCommaTail, v2expTail (ws <| foldIndent " " <| increaseIndent indent) (increaseIndent indent) y)) tail in
             EList precedingWS (headExp :: tailExps) space0 Nothing spBeforeEnd

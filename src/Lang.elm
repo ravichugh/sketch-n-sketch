@@ -166,6 +166,7 @@ getViewDatatypeName v = case vListUnapply v of
     if isAttrCorrect && isChildrenCorrect then
       vStringUnapply head
     else Nothing
+  Just [name, value] -> vStrUnapply name
   _ -> Nothing
 
 --------------------------------------------------------------------------------
@@ -2643,10 +2644,8 @@ vListUnapply v = case v.v_ of
   VList elems -> Just elems
   _ -> Nothing
 
-vHtmlNodeUnapply v = case vListUnapply v of
-  Just [tagVal, attrsVal, childrenVal] -> case vStringUnapply tagVal of
-    Just tag -> Just (tag, attrsVal, childrenVal)
-    _ -> Nothing
+vTupleViewUnapply v =case v.v_ of
+  VList [a, b] -> Just (a, b)
   _ -> Nothing
 
 vStringUnapply = vStrUnapply
@@ -2682,11 +2681,28 @@ vRecordTupleUnapply v = case v.v_ of
     )
   _ -> Nothing
 
+-- Recovers the tag name, the list of attributes and the list of children
+vHtmlNodeUnapply v = case vListUnapply v of
+  Just [tagVal, attrsVal, childrenVal] -> case vStringUnapply tagVal of
+    Just tag -> case vListUnapply attrsVal of
+      Just attrs -> case vListUnapply childrenVal of
+        Just children -> Just (tag, attrs, children)
+        _ -> Nothing
+      _ -> Nothing
+    _ -> Nothing
+  _ -> Nothing
+
 vHtmlTextUnapply v = case v.v_ of
   VList [t, x] -> case (t.v_, x.v_) of
     (VBase (VString "TEXT"), VBase (VString a)) -> Just a
     _ -> Nothing
   _ -> Nothing
+
+encoding_autoclosing   = " "     -- <link ... />  (not necessary in HTML but tolerated)
+encoding_voidclosing   = "  "    -- <br> or <img>
+encoding_forgotclosing = "   "   -- <span>Hello <i>world</span>
+encoding_implicitelem  = "    "  -- implicit <tbody> inside <table>
+encoding_onlyClosing   = "     "  -- For alone </p> tags
 
 vHtmlTextDiffs d =
   VListDiffs [(1, ListElemUpdate d)]

@@ -20,6 +20,7 @@ import Keyboard
 import Time
 import PageVisibility
 import Update
+import Process
 
 import Task exposing (Task, andThen)
 
@@ -45,6 +46,7 @@ view = View.view
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
+    InitCmd -> (model, initCmdDelayed)
     ResponseFromSolver str ->
       SolverServer.handleReduceResponse str model
     Msg _ _ ->
@@ -56,8 +58,16 @@ update msg model =
         (\()                            -> Controller.update msg model)
         (\(Solver.NeedSolution problem) -> SolverServer.askForSolution problem msg model)
 
+delay : Float -> msg -> Cmd msg
+delay ms msg =
+  Process.sleep ms
+    |> Task.perform (\_ -> msg)
+
 initCmd : Cmd Msg
 initCmd =
+  delay 250 InitCmd
+
+initCmdDelayed =
   Cmd.batch <|
     [ Task.perform Controller.msgWindowDimensions Window.size
     , AceCodeBox.initializeAndDisplay Model.initModel

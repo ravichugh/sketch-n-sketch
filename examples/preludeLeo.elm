@@ -30,7 +30,7 @@ htmlViaEval string =
 
 -- building block for updating
 freeze x = x
-expressionFreeze x = Debug.log "expressionFreeze is deprecated. Please use Update.freezeExcept instead" x
+expressionFreeze x = Debug.log "expressionFreeze is deprecated. Please use (Update.freezeExcept (diff -> string) unfrozenParam (unfrozenParam -> expr)) instead" x
 -----------------------------------------
 -- Building blocks functions
 
@@ -412,15 +412,17 @@ LensLess =
             Nothing -> Debug.crash <| "bad arguments to String.take " + toString length + " " + toString x
 
       drop length x =
+        if length <= 0 then x else
         case extractFirstIn ("^[\\s\\S]{0," + toString length + "}([\\s\\S]*)") x of
                 Just [substr] -> substr
                 Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
 
       dropLeft = drop
       dropRight length x =
-                  case extractFirstIn """^([\s\S]*?)[\s\S]{0,@length}$""" x of
-                          Just [substr] -> substr
-                          Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
+        if length <= 0 then x else
+        case extractFirstIn """^([\s\S]*?)[\s\S]{0,@length}$""" x of
+              Just [substr] -> substr
+              Nothing -> Debug.crash <| "bad arguments to String.drop " + toString length + " " + toString x
 
       length x = __strLength__ x
 
@@ -2274,7 +2276,8 @@ String = {
 
   -- In the forward direction, it joins the string.
   -- In the backwards direction, if the delimiter is not empty, it splits the output string with it.
-  joinAndSplitBack regexSplit delimiter x = if delimiter == "" then join_ x else {
+  joinAndSplitBack regexSplit delimiter x =
+    if delimiter == "" && regexSplit == "" then join_ x else {
         apply x = join__ delimiter x
         update {output, oldOutput, diffs} =
           Ok (Inputs [Regex.split regexSplit output])
@@ -2308,10 +2311,10 @@ String = {
             Ok <| Inputs [outputNew]
       }
 
-      freezeLeft x = Update.lens {
+      freezeLeft = Update.lens {
         apply x = x
         update {input, outputNew} =
-          if drop (length outputNew - input) outputNew == input then
+          if drop (length outputNew - length input) outputNew == input then
             Err <| "Cannot add anything to the left of '" + input + "'"
           else
             Ok <| Inputs [outputNew]
@@ -2323,6 +2326,7 @@ String = {
       onInsert callbackOnInserted string =
         onDeleteInsertLeftRight (\left deleted inserted right -> callbackOnInserted inserted) string
 
+      -- Enables to change the inserted text during back-propagation.
       onDeleteInsertLeftRight callbackOnLeftDeletedInsertedRight string = Update.lens {
         apply string = string
         update {outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
@@ -2346,6 +2350,37 @@ String = {
               aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs
            in aux 0 outputNew [] sDiffs
        } string
+
+
+      -- Same version but also enables to change some state as well.
+      onDeleteInsertLeftRightState callbackOnLeftDeletedInsertedRightState state string = Update.lens {
+          apply (string, state) = string
+          update {input=(string, originalState), outputOld, outputNew, diffs=(VStringDiffs sDiffs)} =
+            let aux offset outputNewUpdated revDiffsUpdated oldDiffs state = case oldDiffs of
+              [] -> Ok (InputsWithDiffs [
+                ( (outputNewUpdated, state)
+                , Update.mbPairDiffs (
+                    Just <| VStringDiffs <| List.reverse revDiffsUpdated,
+                    Update.diffs originalState state
+                  )
+                )])
+              ((StringUpdate start end replaced) as headDiff) :: tailOldDiffs ->
+                let inserted = substring (start + offset) (start + offset + replaced) outputNewUpdated in
+                let left = take (start+offset) outputNewUpdated in
+                let right = drop (start+offset+replaced) outputNewUpdated in
+                let deleted = substring start end outputOld in
+                let (newInserted, state) = callbackOnLeftDeletedInsertedRightState left deleted inserted right state in
+                let lengthNewInserted = length newInserted in
+                let newOffset = offset + lengthNewInserted - (end - start) in
+                let (newOutputNewUpdated, newDiff) = if inserted /= newInserted then
+                   ( take (start + offset) outputNewUpdated +
+                     newInserted + drop (start + offset + replaced) outputNewUpdated
+                   , StringUpdate start end lengthNewInserted)
+                   else (outputNewUpdated, headDiff)
+                in
+                aux newOffset newOutputNewUpdated (newDiff::revDiffsUpdated) tailOldDiffs state
+             in aux 0 outputNew [] sDiffs originalState
+         } (string, state)
 
       fixTagUpdates string = Update.lens {
          apply string = string
@@ -2402,8 +2437,8 @@ String = {
     isCRLF = Regex.matchIn "\r\n"
     toUnix string =
       if isCRLF string then
-        Regex.replace "\r" (\_ -> freeze "") string
-        |> update.onInsert (Regex.replace "\n" (\_ -> "\r\n"))
+        Regex.split "\r\n" string
+        |> joinAndSplitBack "\n" "\n"
       else
         string
   }
@@ -2584,6 +2619,12 @@ String = {
             else
               "*" + content + "*"
           ) inserted
+        inserted =
+          Regex.replace """\s*<(h([1-6]))>((?:(?!</\1\s*>).)*)</\1\s*>\s*""" (\m ->
+              let n = String.toInt <| nth m.group 2
+                  hash = String.repeat n "#"
+              in "\n\n" + hash + " " + String.trim (nth m.group 3) + "\n\n"
+            ) inserted
         inserted = case Regex.extract """^([\s\S]*)</p>\s*<p>([\s\S]*)$""" inserted of
           Just [before, after] -> before + "\n\n" + after
           _ -> inserted
@@ -3016,6 +3057,7 @@ Html = {
   h4 = textElementHelper "h4"
   h5 = textElementHelper "h5"
   h6 = textElementHelper "h6"
+  pre = textElementHelper "pre"
 
   (elementHelper) tag styles attrs children =
     [ tag,  ["style", styles] :: attrs , children ]
@@ -3107,7 +3149,7 @@ Html = {
         }) }
       var textAreasObserver = new MutationObserver(handleMutation);
       var textAreas = document.querySelectorAll(@query);
-      for (i = 0; i &lt; textAreas.length; i++)
+      for (i = 0; i < textAreas.length; i++)
         textAreasObserver.observe(textAreas[i], {attributes: true});
     </script>
 
@@ -3638,7 +3680,7 @@ nodejs = {
   type FileOperation = Write {-old-} String {-new-} String Diffs |
                        Rename {-newName-} String |
                        Create {-content-} String |
-                       Delete |
+                       Delete {-old-} String |
                        CreateFolder (List String {- file names in this folder -})
   type alias ListFileOperations = List ({-filename-}String, FileOperation)
 
@@ -3669,7 +3711,7 @@ nodejs = {
       let _ = case action of
         Write oldContent newContent diffs -> write name (Just oldcontent) newContent
         Create content -> write name Nothing content
-        Delete -> fsjs "0" """
+        Delete oldContent -> fsjs "0" """
             fs.unlinkSync(@(jsCode.stringOf name));
             return 1;"""
         Rename newName -> fsjs "0" """
@@ -3707,8 +3749,8 @@ nodejs = {
           case (prev, action) of
              (Just (Folder _), Write oldContent newContent diffs) -> Err <| "Can't write a folder as if it was a file"
              (_,               Write oldContent newContent diffs) -> Ok <| listDict.insert name (File newContent) inlineFS
-             (Nothing, Delete) -> Err <| "Can't delete " + name + " from file system because it did not exist"
-             (_, Delete) -> listDict.delete name inlineFS |>
+             (Nothing, Delete _) -> Err <| "Can't delete " + name + " from file system because it did not exist"
+             (_, Delete _) -> listDict.delete name inlineFS |>
                 List.map (\(oname, ocontent) ->
                   case ocontent of
                   Folder subfiles ->
@@ -3748,6 +3790,7 @@ nodejs = {
   type alias FileSystemUtils =  {
     read: String -> Maybe String,
     listdir: String -> List String,
+    listdircontentfilter: String -> (String -> Boolean)  -> List (String, String),
     listdircontent: String -> List (String, String),
     isdir: String -> Bool,
     isfile: String -> Bool
@@ -3786,22 +3829,25 @@ nodejs = {
           [] -> Ok <| Inputs [List.reverse revAcc]
           (name, action) :: tail ->
             case action of
-              Delete -> process (remove name tail) ((name, action) :: remove name revAcc)
+              Delete _ -> process (remove name tail) ((name, action) :: remove name revAcc)
               Create content -> process (remove name tail) ((name, action) :: remove name revAcc)
               Write oldContent newContent diffs ->
                 let (sameName, otherNames) = List.partition (\(otherName, _) -> name == otherName) tail in
                 let extractedWrites = List.concatMap (\(_, action) -> case action of
                      Write oldContent newContent diffs -> [(newContent, Just diffs)]
                      _ -> []) sameName in
-                let (finalContent, finalDiffs) =
+                let (finalContent, mbFinalDiffs) =
                       Update.merge oldContent ((newContent, Just diffs) :: extractedWrites)
                 in
-                let finalAction =
+                let finalNameAction =
                   case listDict.get name fileOperations of
-                    Just (Create content) -> Create finalContent
-                    _ -> Write oldContent finalContent finalDiffs
+                    Just (Create content) -> [(name, Create finalContent)]
+                    _ ->
+                      case mbFinalDiffs of
+                        Just finalDiffs -> [(name, Write oldContent finalContent finalDiffs)]
+                        _ -> []
                 in
-                process otherNames ((name, finalAction) :: revAcc)
+                process otherNames (finalNameAction ++ revAcc)
               Rename newName ->
                 if List.all (\(_, action) -> case action of Rename _ -> True) tail then
                   process tail ((name, action)::revAcc)
@@ -3818,13 +3864,13 @@ nodejs = {
         case listDict.get filename fileOperations of
           Just (Write oldContent newContent diffs) -> Just newContent
           Just (Create content) -> Just content
-          Just (Delete) -> Nothing
+          Just (Delete _) -> Nothing
           Just (Rename _) -> Nothing
           Just (CreateFolder _) -> Nothing
           _ -> basicFS.read filename
       update  = case of
         {input=fileOperations, outputOld = Just x , outputNew = Nothing} ->
-          Ok <| InputsWithDiffs [((filename, Delete) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
+          Ok <| InputsWithDiffs [((filename, Delete x) :: fileOperations, Just <| VListDiffs [(0, ListElemInsert 1)])]
         {input=fileOperations, outputOld = Just oldContent, outputNew = Just newContent, diffs} ->
           let contentDiffs = case diffs of
             VRecordDiffs { args = VRecordDiffs { _1 = d } } -> d
@@ -3844,7 +3890,7 @@ nodejs = {
         _ -> basicFS.listdir foldername |>
           (if fileOperations == [] then identity else
           List.filterMap (\name -> case listDict.get (foldername + "/" + name) fileOperations of
-            Just Delete -> Nothing
+            Just (Delete _) -> Nothing
             Just (Rename newName) ->
               let fn = foldername + "/" in
               let fnLenth = String.length fn in
@@ -3868,7 +3914,8 @@ nodejs = {
 
               ListElemDelete count ->
                 let (deleted, remaining) = List.split count outputOld in
-                fo ++ (List.map (\nameDeleted -> (foldername + "/" + nameDeleted, Delete)) deleted) |>
+                fo ++ (List.map (\nameDeleted -> let fullName = foldername + "/" + nameDeleted in
+                  (fullName, Delete (basicFS.read fullName |> Maybe.withDefault ""))) deleted) |>
                 aux (i + count) remaining outputNew diffTail
 
               ListElemUpdate nameChange ->
@@ -3882,10 +3929,10 @@ nodejs = {
           _ -> Err <| """Don't know how to handle these list differences for listdircontent : @diffs"""
     } fileOperations
 
-    listdircontent: String -> List (String, String)
-    listdircontent foldername = Update.lens {
+    listdircontentfilter: String -> (String -> Boolean) -> List (String, String)
+    listdircontentfilter foldername filter = Update.lens {
       apply fileOperations = listdir foldername |>
-          List.filter (\name -> isfile """@foldername/@name""") |>
+          List.filter (\name -> isfile """@foldername/@name""" && filter name) |>
           List.map (\name ->
           let fullname = """@foldername/@name""" in
           (name, read fullname |> Maybe.withDefault (freeze """Unknown file @fullname""")))
@@ -3905,7 +3952,7 @@ nodejs = {
 
               ListElemDelete count ->
                 let (deleted, remaining) = List.split count outputOld in
-                fo ++ (List.map (\(nameDeleted, contentInserted) -> (foldername + "/" + nameDeleted, Delete)) deleted) |>
+                fo ++ (List.map (\(nameDeleted, contentDeleted) -> (foldername + "/" + nameDeleted, Delete contentDeleted)) deleted) |>
                 aux (i + count) remaining outputNew diffTail
 
               ListElemUpdate (VRecordDiffs subd) ->
@@ -3926,6 +3973,8 @@ nodejs = {
            _ -> Err <| """Don't know how to handle these list differences for listdircontent : @diffs"""
     } fileOperations
 
+    listdircontent foldername = listdircontentfilter folderName (always True)
+
     isdir: String -> Bool
     isdir name =  case listDict.get name fileOperations of
        Just (CreateFolder content) -> True
@@ -3938,7 +3987,7 @@ nodejs = {
         case listDict.get name fileOperations of
           Just Create -> True
           Just (Write _ _ _) -> True
-          Just Delete -> True
+          Just (Delete _) -> True
           _ -> basicFS.isfile name
 
     isFile = isfile
@@ -4024,12 +4073,12 @@ div_ = Html.div
 TableWithButtons =
   let wrapData rows =
     let blankRow =
-      let numColumns =
-        case rows of
-          []     -> 0
-          row::_ -> List.length row
-      in
-      List.repeat numColumns "?"
+       let numColumns =
+         case rows of
+            []     -> 0
+            row::_ -> List.length row
+       in
+       List.repeat numColumns "?"
     in
     Update.applyLens
       { apply rows = List.map (\row -> (False, row)) rows

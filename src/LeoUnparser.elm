@@ -853,7 +853,7 @@ multilineContentUnparse e = case (unwrapExp e) of
   anyExp -> "@(" ++ unparse e ++ ")"
 
 noInterpolationConflict varString rightString =
-  String.endsWith ")" varString ||
+  String.endsWith ")" varString || String.endsWith "]" varString ||
   Regex.contains (Regex.regex "[\\w_\\$]$") varString && Regex.contains (Regex.regex "^[^\\w_\\$\\.]|^$") rightString
 
 ------------------------
@@ -861,23 +861,77 @@ noInterpolationConflict varString rightString =
 ------------------------
 dummyExp = withDummyExpInfo <| EApp space0 (eVar "x") [] SpaceApp space0
 
+{-
+elmToHTMLEscapeRegex = Regex.regex "\\\\\"|\\\\\'|\\\\t|(\\\\r)?\\\\n|\\\\\\\\"
+
+elmToHTMLEscape text =
+  Regex.replace Regex.All elmToHTMLEscapeRegex (\m ->
+    case m.match of
+      "\\\"" -> "&quot;"
+      "\\\'" -> "&#x27;"
+      "\\t" -> "&#x9;"
+      "\\r\\n" -> "&#10;"
+      "\\n" -> "&#10;"
+      "\\r" -> "&#10;"
+      "\\\\" -> "\\"
+      x -> x
+  ) text
+-}
+htmlEscapeRegex = Regex.regex "(\r)?\n\"'"
+htmlEscape quoteChar text =
+  Regex.replace Regex.All htmlEscapeRegex (\m ->
+    case m.match of
+      "\r" -> "&#13;"
+      "\r\n" -> "&#13;&#10;"
+      "\n" -> "&#10;"
+      "\"" -> if quoteChar == m.match then "&quot;" else m.match
+      "'" -> if quoteChar == m.match then "&#x27;" else m.match
+      x -> x
+  ) text
+
 unparseHtmlAttributes: HtmlInterpolationStyle -> Exp -> String
 unparseHtmlAttributes interpolationStyle attrExp =
   case eListUnapply attrExp of
     Just attrs ->
       attrs |> List.map (\attr -> case unwrapExp attr of
         EList attrNameSpace [(atEncoded, attrName), (spBeforeEq, attrValue)] spAfterEq Nothing _ ->
-          let atAfterEqual = if atEncoded.val == " " && interpolationStyle /= Raw then "@" else ""  in
+          let atAfterEqual = if atEncoded.val == " " &&
+                interpolationStyle /= Raw && interpolationStyle /= RawNonEscaped then
+                "@" else ""  in
           let beforeSpace = if attrNameSpace.val == "" then " " else attrNameSpace.val in
-          case unwrapExp attrName of
-            EBase _ (EString _ attrNameStr) ->
-              let attrValueToConsider = case attrNameStr of -- Removes __mbstylesplit__
+          let mbAttrName =
+                case unwrapExp attrName of
+                  EBase _ (EString _ attrNameStr) -> Just attrNameStr
+                  EApp precedingWs maybeHtmlAttributeWrap [elem] _ _ -> -- Special case when an attribute's value become a key
+                    case unwrapExp maybeHtmlAttributeWrap of
+                      EVar _ "__htmlRawAttribute__" ->
+                        case unwrapExp elem of
+                          EBase _ (EString _ attrNameStr) -> Just attrNameStr
+                          _ -> Nothing
+                      _ -> Nothing
+                  _ -> Nothing
+          in
+          case mbAttrName of
+            Just attrNameStr ->
+              let attrValueToConsider1 = case attrNameStr of -- Removes __mbstylesplit__
                 "style" -> eAppUnapply1 attrValue |> Maybe.map Tuple.second |> Maybe.withDefault attrValue
                 _ -> attrValue
               in
+              let attrValueToConsider = case unwrapExp attrValueToConsider1 of
+                EParens _ mbSingleString LongStringSyntax _ ->
+                   case unwrapExp mbSingleString of
+                     EBase wsBefore x -> replaceE__ mbSingleString <| EBase space0 x
+                     _ -> attrValueToConsider1
+                _ -> attrValueToConsider1
+              in
               let default () =
-                let defaultValue () = unparse attrValueToConsider in
-                let value = if interpolationStyle == Raw && attrNameStr == "style" then -- Get rid of lists if the name is style
+                let defaultValue () =
+                     case unwrapExp attrValueToConsider of
+                       EBase _ (EString q s) -> htmlEscape q s
+                       _ -> unparse attrValueToConsider
+                in
+                let value = if (interpolationStyle == Raw ||
+                      interpolationStyle == RawNonEscaped) && attrNameStr == "style" then -- Get rid of lists if the name is style
                      case unwrapExp  attrValueToConsider of
                        EList _ elems _ _ _ ->
                          let resUnparsed =
@@ -901,13 +955,14 @@ unparseHtmlAttributes interpolationStyle attrExp =
                      OpRight dummyExp attrValueToConsider value
               in
               case unwrapExp attrValueToConsider of
-                EBase spIfNoValue (EString _ attrValueStr) ->
-                  if attrValueStr == "" && spIfNoValue.val == " " then
+                EBase spIfNoValue (EString q attrValueStr) ->
+                  if attrValueStr == "" && spIfNoValue.val == "    " then
                     beforeSpace ++ attrNameStr
                   else
+                    let unparsedAttr = q ++ htmlEscape q attrValueStr ++ q in
                     beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ atAfterEqual ++
                        wrapWithParensIfLessPrecedence -- Trick to put parentheses if we have an expression that is EOp or EApp for example
-                         OpRight dummyExp attrValueToConsider (unparse attrValueToConsider)
+                         OpRight dummyExp attrValueToConsider unparsedAttr
                 EApp precedingWs maybeHtmlAttributeWrap [elem] _ _ ->
                   case unwrapExp maybeHtmlAttributeWrap of
                     EVar _ "__htmlRawAttribute__" ->
@@ -926,17 +981,22 @@ unparseHtmlAttributes interpolationStyle attrExp =
                             _ -> Err "Unexpected AST. Reverting to standard rendering"
                         _ -> Err "Unexpected AST. Reverting to standard rendering"
                       in
-                      let quoteChar = if precedingWs.val == " " then "\"" else "'" in
+                      let quoteChar = if precedingWs.val == " " then "'" else if precedingWs.val == "  " then "\"" else "" in
                       case unparseHtmlStringContent elem  of
                         Err _ -> default ()
                         Ok unparsedContent ->
-                          let rawcontent = unparsedContent |> Regex.replace (Regex.All) (Regex.regex quoteChar) (\m ->
-                            if m.match == "\"" then "&quot;" else "&#39;")
-                          in
-                          beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ quoteChar ++ rawcontent ++ quoteChar
+                          let unparsedContentFixed = htmlEscape quoteChar unparsedContent in
+                          if quoteChar /= "" || Regex.contains (Regex.regex ">|\\s") unparsedContentFixed then
+                              let rawcontent = unparsedContentFixed |>
+                                    Regex.replace (Regex.All) (Regex.regex quoteChar) (\m ->
+                                      if m.match == "\"" then "&quot;" else "&#39;")
+                              in
+                              beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ quoteChar ++ rawcontent ++ quoteChar
+                          else
+                              beforeSpace ++ attrNameStr ++ spBeforeEq.val ++ "=" ++ spAfterEq.val ++ unparsedContentFixed
                     _ -> default ()
                 _ -> default ()
-            _ -> " @[" ++ unparse attr ++"]"
+            Nothing -> " @[" ++ unparse attr ++"]"
         _ -> " @[" ++ unparse attr ++"]"
       ) |> String.join ""
     Nothing -> case (unwrapExp attrExp) of
@@ -950,7 +1010,41 @@ unparseHtmlChildList: HtmlInterpolationStyle -> Exp -> String
 unparseHtmlChildList interpolationStyle childExp =
   case eListUnapply childExp of
     Just children ->
-      children |> List.map (unparseHtmlNode interpolationStyle) |> String.join ""
+      -- verify that these children are not a text, comment or element.
+      if List.length children == 3 then
+        case children of
+          mbTag :: mbAttr :: mbChild ->
+            case unwrapExp mbTag of
+              EBase _ (EString _ tag) -> -- This is unusual. There must be something to recover from
+                let default () = children |> List.map (unparseHtmlNode interpolationStyle) |> String.join "" in
+                let recoverWrap () =
+                      let result = unparseHtmlChildList interpolationStyle (eList [childExp] Nothing) in
+                      Debug.log "Weird. We need to wrap this element because it was replacing a list of elements" result
+                in
+                if tag == "TEXT" then
+                  case unwrapExp mbAttr of
+                    EBase _ (EString _ _) -> recoverWrap ()
+                    _ -> default ()
+                else if tag == "COMMENT" then
+                  case unwrapExp mbAttr of
+                    EBase _ (EString _ _) -> recoverWrap ()
+                    _ -> default ()
+                else
+                case unwrapExp mbAttr of
+                  EList _ _ _ _ _ ->
+                    case mbChild of
+                      [mbChildren] ->
+                        case unwrapExp mbChildren of
+                          EList _ _ _ _ _  ->
+                            recoverWrap ()
+                          _ -> default ()
+                      _ -> default ()
+                  _ -> default ()
+              _ -> children |> List.map (unparseHtmlNode interpolationStyle) |> String.join ""
+          _ ->
+            children |> List.map (unparseHtmlNode interpolationStyle) |> String.join ""
+      else
+        children |> List.map (unparseHtmlNode interpolationStyle) |> String.join ""
     Nothing ->
       case unwrapExp childExp of
         EApp _ v [ex] SpaceApp _ ->
@@ -987,26 +1081,25 @@ unparseHtmlChildList interpolationStyle childExp =
 htmlContentRegexEscape = Regex.regex <| "@"
 
 regexExcape = Regex.regex "&(?=\\w+)|<(?!\\s)|>(?!\\s)"
-regexEscapeScript = Regex.regex "&(?=\\w+)|</script"
-regexEscapeStyle = Regex.regex "&(?=\\w+)|</style"
+regexEscapeScript = Regex.regex "</script[^'\"](['\"])"
+regexEscapeStyle = Regex.regex "</style"
 
 unparseHtmlTextContent: HtmlInterpolationStyle -> String -> String
 unparseHtmlTextContent style content =
   content |>
-  (if style == Raw then identity else Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@")) |>
-  (if style == Raw then identity
+  (if style == Raw || style == RawNonEscaped then identity else Regex.replace  Regex.All htmlContentRegexEscape (\m -> "@@")) |>
+  (if style == Raw then Regex.replace Regex.All regexExcape (\m -> case m.match of
+        "&" -> "&amp;"
+        "<" -> "&lt;"
+        ">" -> "&gt;"
+        _ -> m.match
+      )
    else if style == ScriptInterpolated then
-     Regex.replace Regex.All regexEscapeScript (\m -> case m.match of
-         "&" -> "&amp;"
-         "</script" -> "&lt;/script"
-         _ -> m.match
-       )
-   else if style == StyleInterpolated then
-     Regex.replace Regex.All regexEscapeScript (\m -> case m.match of
-         "&" -> "&amp;"
-         "</style" -> "&lt;/style"
-         _ -> m.match
-       )
+     Regex.replace Regex.All regexEscapeScript (\m -> case m.submatches of
+         [Just quote] -> "</scri" ++ quote ++ "+" ++ quote ++ "pt"
+         _ -> m.match)
+   else if style == StyleInterpolated || style == RawNonEscaped then
+     identity
    else
       Regex.replace Regex.All regexExcape (\m -> case m.match of
         "&" -> "&amp;"
@@ -1015,7 +1108,9 @@ unparseHtmlTextContent style content =
         _ -> m.match
       ))
 
-type HtmlInterpolationStyle = Interpolated | Raw | ScriptInterpolated | StyleInterpolated
+type HtmlInterpolationStyle = Interpolated | Raw | RawNonEscaped | ScriptInterpolated | StyleInterpolated
+
+regexComment = Regex.regex "^\\{-(.*)-\\}(\\s*)$"
 
 unparseHtmlNode: HtmlInterpolationStyle -> Exp -> String
 unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
@@ -1053,24 +1148,34 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
                x -> "@[" ++ unparse e ++ "]"
           EVar _ varname -> "@" ++ varname
           x -> "@[" ++ unparse e ++ "]"
-  EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] spaceBeforeTail Nothing spaceAfterTagClosing ->
+  EList _ [(tagSpace, tagExp), (attrSpace, attrExp), (spaceBeforeEndOpeningTag, childExp)] closingType Nothing spaceAfterTagClosing ->
     let (tagStart, tagEnd) = case (unwrapExp tagExp) of
           EBase _ (EString _ content) -> (content, content)
           _ -> ("@" ++ unparse tagExp, "@")
     in
-    let newIsRaw = if interpolationStyle == Raw then Raw else
+    let newIsRaw = if interpolationStyle == Raw then
+         case tagStart of
+           "script" -> RawNonEscaped
+           "style" -> RawNonEscaped
+           _ -> Raw
+         else
          case tagStart of
           "raw" -> Raw
           "script" -> ScriptInterpolated
           "style" -> StyleInterpolated
           _ -> interpolationStyle
     in
+    if closingType.val == encoding_implicitelem && eListUnapply attrExp == Just [] then
+      unparseHtmlChildList newIsRaw childExp
+    else if closingType.val == encoding_onlyClosing && eListUnapply attrExp == Just [] && eListUnapply childExp == Just [] then
+      "</"++tagEnd++spaceAfterTagClosing.val ++ ">"
+    else
     "<" ++ tagStart ++ unparseHtmlAttributes interpolationStyle attrExp ++spaceBeforeEndOpeningTag.val ++ (
-      if spaceBeforeTail.val == LeoParser.encoding_autoclosing then
+      if closingType.val == encoding_autoclosing then
         "/>"
-      else if spaceBeforeTail.val == LeoParser.encoding_voidclosing then
+      else if closingType.val == encoding_voidclosing then
         ">"
-      else if spaceBeforeTail.val == LeoParser.encoding_forgotclosing then
+      else if closingType.val == encoding_forgotclosing then
         ">" ++ unparseHtmlChildList newIsRaw childExp
       else  -- Normal closing if the tag is ok
         if HTMLParser.isVoidElement tagStart then
@@ -1078,6 +1183,69 @@ unparseHtmlNode interpolationStyle e = case (unwrapExp e) of
         else
           ">" ++ unparseHtmlChildList newIsRaw childExp ++ "</" ++ tagEnd ++ spaceAfterTagClosing.val ++ ">"
     )
+  EList _ [(_, doctypeExp), (_, nameExp), (wsPublic, publicExp), (wsAfterSystem, sysExp)]
+    _ Nothing wsEnd ->
+      case (unwrapExp doctypeExp, unwrapExp nameExp) of
+        (EBase realDoctype (EString _ _), EBase wsName (EString _ name)) ->
+          let doctypeName =
+                let wsAndName = if wsName.val == "" then " " ++ name else
+                       case Regex.find (Regex.AtMost 1) regexComment wsName.val of
+                         [m] -> case m.submatches of
+                           [Just realNameStr, Just spBeforeName] ->
+                             spBeforeName ++ (if String.toLower realNameStr == name then realNameStr else name)
+                           _ ->
+                             wsName.val ++ name
+                         _ ->
+                           wsName.val ++ name
+                in
+                case Regex.find (Regex.AtMost 1) regexComment realDoctype.val of
+                  [m] -> case m.submatches of
+                    [Just doctype, _] -> "<!" ++ doctype ++ wsAndName ++ wsEnd.val
+                    _ -> "<!DOCTYPE" ++ wsAndName++ wsEnd.val
+                  _ -> "<!DOCTYPE" ++ wsAndName++ wsEnd.val
+          in
+          let public =
+                case unwrapExp publicExp of
+                  EBase sp2 (EString quotePublic publicName) ->
+                    let publicNameStr = wsPublic.val ++ quotePublic ++ publicName ++ quotePublic in
+                    case Regex.find (Regex.AtMost 1) regexComment sp2.val of
+                      [m] -> case m.submatches of
+                        [Just realPublic, Just spAfterPublicName] ->
+                          realPublic ++ publicNameStr ++ spAfterPublicName
+                        _ -> if publicName == "" then "" else "PUBLIC" ++ (if wsPublic.val == "" then " " else "") ++ publicNameStr
+                      _ -> if publicName == "" then "" else "PUBLIC" ++ (if wsPublic.val == "" then " " else "") ++ publicNameStr
+                  _ -> ""
+          in
+          let sys =
+                case unwrapExp sysExp of
+                  EBase spAfterSysName (EString quoteSys sysName) ->
+                    let systemNameStr = wsAfterSystem.val ++ quoteSys ++ sysName ++ quoteSys in
+                    case Regex.find (Regex.AtMost 1) regexComment spAfterSysName.val of
+                      [m] -> case m.submatches of
+                        [Just realSystem, Just spAfterSystemName] ->
+                          realSystem ++ systemNameStr ++ spAfterSystemName
+                        _ -> if sysName == "" && spAfterSysName.val == "" && wsAfterSystem.val == "" then "" else systemNameStr ++ spAfterSysName.val
+                      _ -> if sysName == "" && spAfterSysName.val == "" && wsAfterSystem.val == "" then "" else systemNameStr ++ spAfterSysName.val
+                  _ -> ""
+          in
+          let mbSpacePublicSys = if public /= "" && sys /= "" && not (Regex.contains (Regex.regex "\\s$") public) then
+               " " else "" in
+          let ending = public ++ mbSpacePublicSys ++ sys ++ ">" in
+          let mbSpaceNamePublic = if ending /= ">" && not (Regex.contains (Regex.regex "\\s$") doctypeName) then
+                                                 " " else "" in
+          doctypeName ++ mbSpaceNamePublic ++ ending
+        _ ->
+          -- Consider if this was misformatted, in which case we might be able to recover the error.
+          "@[" ++ unparse e ++ "]"
+  EList _ [(_, onlyOneExp)] _ Nothing wsEnd ->
+    -- We might want to recover and unwrap this element
+    let recovered = unparseHtmlNode interpolationStyle onlyOneExp in
+    if not (String.startsWith "@[" recovered) then
+      Debug.log "Weird, we found a list of one node instead of a node." recovered
+    else -- Unable to recover. We'll output the result raw.
+      "@[" ++ unparse e ++ "]"
+  EBase _ (EString _ c) ->
+    unparseHtmlNode interpolationStyle (eList [eStr "TEXT", e] Nothing)
   _ -> "@[" ++ unparse e ++ "]"
 
 -- Detects if there are nodes, text, attributes and call the correct unparser. Use it for displaying local difference only.
