@@ -540,6 +540,29 @@ If that is the case, look at the `makefile`, the last two commands of `elm-stuff
 have been executed properly. This can happen if another software tries to mix with packages installation,
 such as Dropbox.
 
+### Steps to install Elm in Arch Linux
+
+There is a package [`elm-platform-bin`](https://aur.archlinux.org/packages/elm-platform-bin) on AUR, but at the moment it will
+install version 0.19.1 instead.
+
+In order to install Elm 0.18.0 do the following:
+
+```bash
+git clone https://aur.archlinux.org/elm-platform-bin.git
+cd elm-platform-bin
+git checkout 1fa002d66ca484b07b4b37656684d9e2630c4a26
+makepkg -si
+```
+
+This alone will not work, because the [source](https://dl.bintray.com/elmlang/elm-platform/0.18.0/linux-x64.tar.gz) gives an error now.
+Nevertheless, [Web Archive link](https://web.archive.org/web/20210502114042/https://dl.bintray.com/elmlang/elm-platform/0.18.0/linux-x64.tar.gz) redirects to [another site on Cloudfront](https://web.archive.org/web/20210502114043if_/https://d29vzk4ow07wi7.cloudfront.net/6885046e3c17517c080e02d121e8c0b8298362b256d827adcb46e9cb7138d71e?response-content-disposition=attachment%3Bfilename%3D%22linux-x64.tar.gz%22&Policy=eyJTdGF0ZW1lbnQiOiBbeyJSZXNvdXJjZSI6Imh0dHAqOi8vZDI5dnprNG93MDd3aTcuY2xvdWRmcm9udC5uZXQvNjg4NTA0NmUzYzE3NTE3YzA4MGUwMmQxMjFlOGMwYjgyOTgzNjJiMjU2ZDgyN2FkY2I0NmU5Y2I3MTM4ZDcxZT9yZXNwb25zZS1jb250ZW50LWRpc3Bvc2l0aW9uPWF0dGFjaG1lbnQlM0JmaWxlbmFtZSUzRCUyMmxpbnV4LXg2NC50YXIuZ3olMjIiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE2MTk5NTYzNjJ9LCJJcEFkZHJlc3MiOnsiQVdTOlNvdXJjZUlwIjoiMC4wLjAuMC8wIn19fV19&Signature=FGbS4yf~or5bxGzAVyFFSkTKkL64b9GuJaHnuD-4ZAbqMAkUqarlcEHw4cgVDquRMH86TnmtaLak62OleZAAA2K-mhcjS1FK3TTOTdWgbStNsjA6AeEZMfLRHx1DrKquYtahKSJvgiVy66eFXWpWFYorRUgRzxkML-jsvCZ-MwMZ-fi8zcbTZyDuiUKCxVTh~z5coozPIwlhioCn9gOClNgg1x3ptOAqLeZ41PzAQjGXTkRMeJbc98xr1rw34IK7TvrAlvNsCFHLnbJu11RGrbcNjMwjZB87HJ1vUYFT51BVssFu2EPBdweG2k0I4cb-jxm8RztwFy-gAAF85C1Png__&Key-Pair-Id=APKAIFKFWOMXM2UMTSFA), so we can edit the line in `PKGBUILD` to:
+
+```bash
+source=(elm-platform-${pkgver}.tar.gz::'https://web.archive.org/web/20210502114043if_/https://d29vzk4ow07wi7.cloudfront.net/6885046e3c17517c080e02d121e8c0b8298362b256d827adcb46e9cb7138d71e?response-content-disposition=attachment%3Bfilename%3D%22linux-x64.tar.gz%22&Policy=eyJTdGF0ZW1lbnQiOiBbeyJSZXNvdXJjZSI6Imh0dHAqOi8vZDI5dnprNG93MDd3aTcuY2xvdWRmcm9udC5uZXQvNjg4NTA0NmUzYzE3NTE3YzA4MGUwMmQxMjFlOGMwYjgyOTgzNjJiMjU2ZDgyN2FkY2I0NmU5Y2I3MTM4ZDcxZT9yZXNwb25zZS1jb250ZW50LWRpc3Bvc2l0aW9uPWF0dGFjaG1lbnQlM0JmaWxlbmFtZSUzRCUyMmxpbnV4LXg2NC50YXIuZ3olMjIiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE2MTk5NTYzNjJ9LCJJcEFkZHJlc3MiOnsiQVdTOlNvdXJjZUlwIjoiMC4wLjAuMC8wIn19fV19&Signature=FGbS4yf~or5bxGzAVyFFSkTKkL64b9GuJaHnuD-4ZAbqMAkUqarlcEHw4cgVDquRMH86TnmtaLak62OleZAAA2K-mhcjS1FK3TTOTdWgbStNsjA6AeEZMfLRHx1DrKquYtahKSJvgiVy66eFXWpWFYorRUgRzxkML-jsvCZ-MwMZ-fi8zcbTZyDuiUKCxVTh~z5coozPIwlhioCn9gOClNgg1x3ptOAqLeZ41PzAQjGXTkRMeJbc98xr1rw34IK7TvrAlvNsCFHLnbJu11RGrbcNjMwjZB87HJ1vUYFT51BVssFu2EPBdweG2k0I4cb-jxm8RztwFy-gAAF85C1Png__&Key-Pair-Id=APKAIFKFWOMXM2UMTSFA')
+```
+
+Then rerun `makepkg -si`.
+
 ### Steps to recompile Elm in Windows
 
 Make sure to run these commands with administrator rights.
